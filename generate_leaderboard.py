@@ -2900,6 +2900,62 @@ function renderUniverse() {{
   const ranks = computeUniRanks(data, uniStat, statInfo ? statInfo.low : false);
 
   const R = 15;
+  const GAP_PAD = 4; // extra px padding around bubble for the line gap
+
+  // Conference avg NetRtg lines — rendered BEFORE bubbles so dots sit on top
+  if (uniHighlightConfs.size > 0) {{
+    uniHighlightConfs.forEach(conf => {{
+      const confTeams = points.filter(p => p.conference === conf);
+      if (confTeams.length === 0) return;
+      const avgNet = confTeams.reduce((s, p) => s + p.net_rtg, 0) / confTeams.length;
+      const ly = scaleY(avgNet);
+      const x1 = margin.left, x2 = W - margin.right;
+
+      // Compute gap intervals from ALL highlighted bubbles near this line
+      const gaps = [];
+      points.forEach(p => {{
+        if (!(uniHighlightConfs.has(p.conference))) return;
+        const px = scaleX(p.ux);
+        const py = scaleY(p.uy);
+        const dy = Math.abs(py - ly);
+        const r = R + GAP_PAD;
+        if (dy < r) {{
+          const hw = Math.sqrt(r * r - dy * dy);
+          gaps.push([px - hw, px + hw]);
+        }}
+      }});
+
+      // Merge overlapping gaps
+      gaps.sort((a, b) => a[0] - b[0]);
+      const merged = [];
+      for (const g of gaps) {{
+        if (merged.length && g[0] <= merged[merged.length-1][1]) {{
+          merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], g[1]);
+        }} else {{
+          merged.push([...g]);
+        }}
+      }}
+
+      // Draw line segments between gaps
+      const drawSeg = (sx, ex) => {{
+        if (ex <= sx) return;
+        const seg = document.createElementNS(ns, 'line');
+        seg.setAttribute('x1', sx); seg.setAttribute('x2', ex);
+        seg.setAttribute('y1', ly); seg.setAttribute('y2', ly);
+        seg.setAttribute('stroke', '#27ae60');
+        seg.setAttribute('stroke-width', '1.5');
+        svg.appendChild(seg);
+      }};
+
+      let cur = x1;
+      for (const [gx1, gx2] of merged) {{
+        drawSeg(cur, Math.max(cur, gx1));
+        cur = Math.max(cur, gx2);
+      }}
+      drawSeg(cur, x2);
+    }});
+  }}
+
   // Sort so highlighted bubbles render on top
   const sorted = [...points].sort((a, b) => {{
     const aH = uniHighlightConfs.size === 0 || uniHighlightConfs.has(a.conference);
@@ -2991,24 +3047,6 @@ function renderUniverse() {{
       svg.appendChild(label);
     }}
   }});
-
-  // Conference avg NetRtg lines — one per highlighted conference
-  if (uniHighlightConfs.size > 0) {{
-    uniHighlightConfs.forEach(conf => {{
-      const confTeams = points.filter(p => p.conference === conf);
-      if (confTeams.length === 0) return;
-      const avgNet = confTeams.reduce((s, p) => s + p.net_rtg, 0) / confTeams.length;
-      const ly = scaleY(avgNet);
-      const avgLine = document.createElementNS(ns, 'line');
-      avgLine.setAttribute('x1', margin.left);
-      avgLine.setAttribute('x2', W - margin.right);
-      avgLine.setAttribute('y1', ly);
-      avgLine.setAttribute('y2', ly);
-      avgLine.setAttribute('stroke', '#27ae60');
-      avgLine.setAttribute('stroke-width', '1.5');
-      svg.appendChild(avgLine);
-    }});
-  }}
 }}
 
 buildUniSidebar();
