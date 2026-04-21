@@ -3240,8 +3240,10 @@ function showGamePlan(teamName) {{
     const rk = netRtgRanks[opp] || '';
     const isConf = gr.is_conference;
     const oppLink = `<a href="#" onclick="showTeamDetail('${{opp}}');return false" style="color:#000;text-decoration:none;font-weight:600">${{opp}}</a>${{isConf?' <span style="color:#888">*</span>':''}}`;
-    const resColor = gr.result==='W' ? '#2e7d32' : (gr.result==='L' ? '#c62828' : '#555');
+    const rowBg = gr.result==='W' ? 'background:#e8f5e9' : (gr.result==='L' ? '#fce8e8' : '');
     const resTxt = (gr.result==='W'||gr.result==='L') ? `${{gr.result}}, ${{gr.team_score}}-${{gr.opponent_score}}` : `${{gr.team_score}}-${{gr.opponent_score}}`;
+    const winLabel = gr.result==='W' ? '<span style="font-weight:700;color:#2e7d32">W</span>' : (gr.result==='L' ? '<span style="font-weight:700;color:#c62828">L</span>' : '');
+    const resDisplay = (gr.result==='W'||gr.result==='L') ? `${{winLabel}}, ${{gr.team_score}}-${{gr.opponent_score}}` : resTxt;
     const hasFf = gr.o_efg !== undefined;
     let cells = '';
     if (hasFf) {{
@@ -3249,7 +3251,7 @@ function showGamePlan(teamName) {{
       COL_KEYS.forEach(k => {{ if (gr[k] !== undefined) colData[k].push(gr[k]); }});
       ortgVals.push(gr.ortg); drtgVals.push(gr.drtg);
     }} else {{ cells = '<td></td>'.repeat(15); }}
-    rowsHtml += `<tr><td style="text-align:left;white-space:nowrap;font-size:0.77rem">${{gr.date||''}}</td><td style="text-align:center">${{rk}}</td><td style="text-align:left">${{oppLink}}</td><td style="text-align:center;color:${{resColor}};font-weight:600">${{resTxt}}</td>${{cells}}</tr>`;
+    rowsHtml += `<tr style="${{rowBg}}"><td style="text-align:left;white-space:nowrap;font-size:0.77rem">${{gr.date||''}}</td><td style="text-align:center">${{rk}}</td><td style="text-align:left">${{oppLink}}</td><td style="text-align:center">${{resDisplay}}</td>${{cells}}</tr>`;
   }});
   function corrCell(r, key, isOrtg) {{
     if (!FOUR_FACTORS.includes(key)) return '<td></td>';
