@@ -772,6 +772,21 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             print(f"  Warning: could not load wab_results.json: {e}")
     wab_json = json.dumps(wab_data)
 
+    # Load 2024-25 WAB results
+    wab_path_2024 = Path("wab_results_2024_25.json")
+    wab_data_2024 = []
+    if wab_path_2024.exists():
+        try:
+            with open(wab_path_2024) as f:
+                raw2 = json.load(f)
+            conf_to_region = {c: info["region"] for c, info in CONFERENCES.items()}
+            for entry in raw2:
+                entry["region"] = conf_to_region.get(entry.get("conference", ""), "")
+            wab_data_2024 = raw2
+        except Exception as e:
+            print(f"  Warning: could not load wab_results_2024_25.json: {e}")
+    wab_2024_json = json.dumps(wab_data_2024)
+
     # Helper: compute historical daily NET RTG rankings from a teams list
     from collections import defaultdict
     from datetime import datetime as dt_parse
@@ -2007,6 +2022,7 @@ const PLAYER_COUNT = {len(players)};
 const TIMESTAMP = '{timestamp}';
 const STORYLINES = {storylines_json};
 const WAB_DATA = {wab_json};
+const WAB_DATA_2024 = {wab_2024_json};
 
 // Conference-only data
 const CONF_DATA = {conf_players_json};
@@ -3548,7 +3564,8 @@ function slWabFilter(region) {{
 function slRenderWab(region) {{
   const body = document.getElementById('sl-body-wab');
   if (!body) return;
-  const rows = (WAB_DATA || []).filter(r => region === 'All' || r.region === region);
+  const src = activeSeason === '2425' ? (WAB_DATA_2024 || []) : (WAB_DATA || []);
+  const rows = src.filter(r => region === 'All' || r.region === region);
   rows.sort((a, b) => b.wab - a.wab);
   if (!rows.length) {{
     body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#555;padding:24px">No data available</td></tr>';
