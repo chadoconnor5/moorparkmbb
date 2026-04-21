@@ -832,7 +832,12 @@ def generate_gameplan_page(team_name, team_data, all_teams, rankings, timestamp)
         )
 
     # ── Correlations ──────────────────────────────────────────────────────────
+    # Only show correlations for the four factors (both sides); leave other columns blank
+    FOUR_FACTORS = {'o_efg', 'o_tov', 'o_or', 'o_ftr', 'd_efg', 'd_tov', 'd_or', 'd_ftr'}
+
     def corr_cell(r, stat_key, is_ortg):
+        if stat_key not in FOUR_FACTORS:
+            return '<td></td>'
         if r is None:
             return '<td style="text-align:center;color:#aaa">—</td>'
         v = round(r * 100)
