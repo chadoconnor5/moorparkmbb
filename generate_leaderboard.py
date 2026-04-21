@@ -3565,8 +3565,8 @@ function slInitOnce() {{
     slRenderTab('busts');
     slInitFanmatch();
   }}
-  slRenderWab('All');
-  slRenderRate('2526');
+  slRenderWab(slWabRegion || 'All');
+  slRenderRate(activeSeason);
 }}
 
 function slSwitchTab(tab, label) {{
@@ -3578,7 +3578,8 @@ function slSwitchTab(tab, label) {{
   const countEl = document.getElementById('sl-game-count');
   if (title) {{
     if (tab === 'wab') {{
-      title.textContent = '2025-26 Wins Above Bubble';
+      const wabYr = activeSeason === '2425' ? '2024-25' : '2025-26';
+      title.textContent = wabYr + ' Wins Above Bubble';
       if (countEl) countEl.style.display = 'none';
     }} else if (tab === 'rate') {{
       const yr = activeSeason === '2425' ? '2024-25' : '2025-26';
