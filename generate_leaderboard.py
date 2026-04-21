@@ -68,6 +68,37 @@ def _sl_safe_possessions(ts: dict, os_: dict):
     tp, op = _poss(ts), _poss(os_)
     if t_broken or tp <= 0: return op if op > 0 else None
     if o_broken or op <= 0: return tp if tp > 0 else None
+
+
+def _compute_game_ff(ts: dict, os_: dict, poss: float, game_min: int = 40) -> dict:
+    """Compute per-game four-factor stats from box scores."""
+    fga = ts.get('FGA', 0)
+    if fga == 0 or poss <= 0:
+        return {}
+    fgm = ts.get('FGM', 0); tpm = ts.get('3PM', 0); tpa = ts.get('3PA', 0)
+    fta = ts.get('FTA', 0); oreb = ts.get('OREB', 0); dreb = ts.get('DREB', 0)
+    to_ = ts.get('TO', 0)
+    o_fga = os_.get('FGA', 0); o_fgm = os_.get('FGM', 0); o_tpm = os_.get('3PM', 0)
+    o_tpa = os_.get('3PA', 0); o_fta = os_.get('FTA', 0)
+    o_oreb = os_.get('OREB', 0); o_to = os_.get('TO', 0)
+    min_ = max(game_min, 40)
+    pace = round(poss * (40.0 / min_), 1)
+    return {
+        'pace': pace,
+        'o_efg': round((fgm + 0.5 * tpm) / max(fga, 1) * 100, 1),
+        'o_tov': round(to_ / max(fga + 0.44 * fta + to_, 1) * 100, 1),
+        'o_or':  round(oreb / max(oreb + o_oreb, 1) * 100, 1),  # opponent's OREB as def rebound
+        'o_ftr': round(fta / max(fga, 1) * 100, 1),
+        'o_2p':  round((fgm - tpm) / max(fga - tpa, 1) * 100, 1) if (fga - tpa) > 0 else 0.0,
+        'o_3p':  round(tpm / max(tpa, 1) * 100, 1) if tpa > 0 else 0.0,
+        'd_efg': round((o_fgm + 0.5 * o_tpm) / max(o_fga, 1) * 100, 1),
+        'd_tov': round(o_to / max(o_fga + 0.44 * o_fta + o_to, 1) * 100, 1),
+        'd_or':  round(o_oreb / max(o_oreb + dreb, 1) * 100, 1),
+        'd_ftr': round(o_fta / max(o_fga, 1) * 100, 1),
+        'd_2p':  round((o_fgm - o_tpm) / max(o_fga - o_tpa, 1) * 100, 1) if (o_fga - o_tpa) > 0 else 0.0,
+        'd_3p':  round(o_tpm / max(o_tpa, 1) * 100, 1) if o_tpa > 0 else 0.0,
+    }
+
     return (tp + op) / 2
 
 
@@ -411,6 +442,32 @@ def load_teams(stats_dir=None):
                     conf = v
 
             ta = adv.get("team", {})
+
+            # Load per-game box scores to compute four-factor stats for game plan
+            gl_path = team_dir / "game_log.json"
+            gl_by_date = {}
+            if gl_path.exists():
+                gl_data = json.load(open(gl_path))
+                for g in gl_data.get("games", []):
+                    d = g.get("date", "")
+                    if d:
+                        gl_by_date[d] = g
+
+            raw_game_ratings = ta.get("game_ratings", [])
+            enriched_game_ratings = []
+            for gr in raw_game_ratings:
+                entry = dict(gr)
+                raw = gl_by_date.get(gr.get("date", ""))
+                if raw:
+                    ts = raw.get("team_stats") or {}
+                    os_ = raw.get("opponent_stats") or {}
+                    poss = gr.get("possessions", 0)
+                    min_ = raw.get("MIN", 40) or 40
+                    ff = _compute_game_ff(ts, os_, poss, min_)
+                    if ff:
+                        entry.update(ff)
+                enriched_game_ratings.append(entry)
+
             teams.append({
                 "team": team,
                 "region": region,
@@ -479,8 +536,8 @@ def load_teams(stats_dir=None):
                     "FTM": opp_totals.get("FTM", 0), "FTA": opp_totals.get("FTA", 0),
                     "STL": opp_totals.get("STL", 0), "BLK": opp_totals.get("BLK", 0),
                 },
-                # Game ratings for schedule
-                "game_ratings": ta.get("game_ratings", []),
+                # Game ratings for schedule and game plan
+                "game_ratings": enriched_game_ratings,
             })
 
     teams.sort(key=lambda x: -x["net_rtg"])
@@ -1938,6 +1995,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <div id="team-detail-content"></div>
 </div>
 
+<div id="gameplan-view" style="display:none;">
+  <span class="td-back" onclick="closeGamePlan()">← Back to Team</span>
+  <div id="gameplan-content" style="margin-top:12px"></div>
+</div>
+
 <div id="storylines-view" style="display:none;">
   <div style="padding:16px 0 24px">
     <div class="sl-nav" id="sl-nav"></div>
@@ -3124,6 +3186,96 @@ function showTeamDetail_inner(t, teamName) {{
   window.scrollTo(0, 0);
 }}
 
+function toSlug(name) {{
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}}
+
+function pearsonCorrJS(xs, ys) {{
+  const n = xs.length;
+  if (n < 4) return null;
+  const mx = xs.reduce((a,b)=>a+b,0)/n, my = ys.reduce((a,b)=>a+b,0)/n;
+  let num=0, dx2=0, dy2=0;
+  for (let i=0;i<n;i++){{const a=xs[i]-mx,b=ys[i]-my;num+=a*b;dx2+=a*a;dy2+=b*b;}}
+  return (dx2>0&&dy2>0) ? num/Math.sqrt(dx2*dy2) : null;
+}}
+
+function corrTipText(r100, label, isOrtg) {{
+  const a = Math.abs(r100);
+  if (a < 10) return label + ': essentially no relationship with ' + (isOrtg?'offensive':'defensive') + ' efficiency this season';
+  const strength = a>=80?'very strong':a>=60?'strong':a>=45?'moderate':a>=25?'mild':'weak';
+  const dir = isOrtg ? (r100>=0?'positive':'negative') : (r100<=0?'positive':'negative');
+  if (isOrtg) {{
+    const outcome = r100>=0 ? 'offensive efficiency tends to be high too' : 'offensive efficiency tends to suffer';
+    return label + ': ' + strength + ' ' + dir + ' link — when this is high, ' + outcome;
+  }} else {{
+    const outcome = r100<=0 ? 'defensive efficiency tends to improve (DRTG drops)' : 'defensive efficiency tends to worsen (DRTG rises)';
+    return label + ': ' + strength + ' ' + dir + ' link — when this is high, ' + outcome;
+  }}
+}}
+
+let gamePlanReturnTeam = null;
+
+function showGamePlan(teamName) {{
+  gamePlanReturnTeam = teamName;
+  const t = TEAM_DATA.find(d => d.team === teamName) || TEAM_DATA_2024.find(d => d.team === teamName);
+  if (!t) return;
+  const content = document.getElementById('gameplan-content');
+  document.getElementById('team-detail-view').style.display = 'none';
+  document.getElementById('gameplan-view').style.display = 'block';
+  window.scrollTo(0, 0);
+  const netRtgRanks = {{}};
+  const validT = TEAM_DATA.filter(d => d.ortg > 0).sort((a,b) => b.net_rtg - a.net_rtg);
+  validT.forEach((d,i) => {{ netRtgRanks[d.team] = i+1; }});
+  const FOUR_FACTORS = ['o_efg','o_tov','o_or','o_ftr','d_efg','d_tov','d_or','d_ftr'];
+  const STAT_LABELS = {{pace:'Pace',ortg:'Off Eff',o_efg:'Off eFG%',o_tov:'Off TO%',o_or:'Off OR%',o_ftr:'Off FTR',o_2p:'Off 2P%',o_3p:'Off 3P%',drtg:'Def Eff',d_efg:'Def eFG%',d_tov:'Def TO%',d_or:'Def OR%',d_ftr:'Def FTR',d_2p:'Def 2P%',d_3p:'Def 3P%'}};
+  const COL_KEYS = ['pace','ortg','o_efg','o_tov','o_or','o_ftr','o_2p','o_3p','drtg','d_efg','d_tov','d_or','d_ftr','d_2p','d_3p'];
+  const colData = {{}}; COL_KEYS.forEach(k => colData[k]=[]);
+  const ortgVals=[], drtgVals=[];
+  const ff = (v) => (typeof v === 'number') ? v.toFixed(1) : '—';
+  let rowsHtml = '';
+  const games = t.game_ratings || [];
+  games.forEach(gr => {{
+    const opp = gr.canonical_opponent || gr.opponent || '';
+    const slug = toSlug(opp);
+    const rk = netRtgRanks[opp] || '';
+    const isConf = gr.is_conference;
+    const oppLink = `<a href="#" onclick="showTeamDetail('${{opp}}');return false" style="color:#000;text-decoration:none;font-weight:600">${{opp}}</a>${{isConf?' <span style="color:#888">*</span>':''}}`;
+    const resColor = gr.result==='W' ? '#2e7d32' : (gr.result==='L' ? '#c62828' : '#555');
+    const resTxt = (gr.result==='W'||gr.result==='L') ? `${{gr.result}}, ${{gr.team_score}}-${{gr.opponent_score}}` : `${{gr.team_score}}-${{gr.opponent_score}}`;
+    const hasFf = gr.o_efg !== undefined;
+    let cells = '';
+    if (hasFf) {{
+      cells = `<td style="text-align:center">${{ff(gr.pace)}}</td><td style="text-align:center;font-weight:700">${{ff(gr.ortg)}}</td><td style="text-align:center">${{ff(gr.o_efg)}}</td><td style="text-align:center">${{ff(gr.o_tov)}}</td><td style="text-align:center">${{ff(gr.o_or)}}</td><td style="text-align:center">${{ff(gr.o_ftr)}}</td><td style="text-align:center">${{ff(gr.o_2p)}}</td><td style="text-align:center">${{ff(gr.o_3p)}}</td><td style="text-align:center;font-weight:700">${{ff(gr.drtg)}}</td><td style="text-align:center">${{ff(gr.d_efg)}}</td><td style="text-align:center">${{ff(gr.d_tov)}}</td><td style="text-align:center">${{ff(gr.d_or)}}</td><td style="text-align:center">${{ff(gr.d_ftr)}}</td><td style="text-align:center">${{ff(gr.d_2p)}}</td><td style="text-align:center">${{ff(gr.d_3p)}}</td>`;
+      COL_KEYS.forEach(k => {{ if (gr[k] !== undefined) colData[k].push(gr[k]); }});
+      ortgVals.push(gr.ortg); drtgVals.push(gr.drtg);
+    }} else {{ cells = '<td></td>'.repeat(15); }}
+    rowsHtml += `<tr><td style="text-align:left;white-space:nowrap;font-size:0.77rem">${{gr.date||''}}</td><td style="text-align:center">${{rk}}</td><td style="text-align:left">${{oppLink}}</td><td style="text-align:center;color:${{resColor}};font-weight:600">${{resTxt}}</td>${{cells}}</tr>`;
+  }});
+  function corrCell(r, key, isOrtg) {{
+    if (!FOUR_FACTORS.includes(key)) return '<td></td>';
+    if (r === null) return '<td style="text-align:center;color:#aaa">—</td>';
+    const v = Math.round(r * 100);
+    const sign = v >= 0 ? '+' : '';
+    const tip = corrTipText(v, STAT_LABELS[key], isOrtg).replace(/"/g,'&quot;');
+    return `<td style="text-align:center;font-weight:700;cursor:help" class="gp-corr-cell" data-tip="${{tip}}">${{sign}}${{v}}</td>`;
+  }}
+  let ortgRow = '<td colspan="4" style="text-align:right;font-style:italic;color:#555;padding-right:10px;white-space:nowrap;font-weight:600">Correlations (R×100) to offensive efficiency:</td>';
+  let drtgRow = '<td colspan="4" style="text-align:right;font-style:italic;color:#555;padding-right:10px;white-space:nowrap;font-weight:600">Correlations (R×100) to defensive efficiency:</td>';
+  COL_KEYS.forEach(k => {{
+    const vals = colData[k];
+    const r_o = k==='ortg' ? (ortgVals.length>=4?1.0:null) : pearsonCorrJS(vals, ortgVals);
+    const r_d = k==='drtg' ? (drtgVals.length>=4?1.0:null) : pearsonCorrJS(vals, drtgVals);
+    ortgRow += corrCell(r_o, k, true);
+    drtgRow += corrCell(r_d, k, false);
+  }});
+  content.innerHTML = `<style>#gameplan-content table{{width:100%;border-collapse:collapse;font-size:0.78rem;white-space:nowrap}}#gameplan-content th{{background:#1a1a2e;color:#fff;padding:5px 7px;text-align:center;font-size:0.73rem;border-bottom:2px solid #333}}#gameplan-content th.gp-off{{background:#1a3a5c}}#gameplan-content th.gp-def{{background:#3a1a1a}}#gameplan-content td{{padding:4px 7px;border-bottom:1px solid #eee}}#gameplan-content tr:hover td{{background:#f5f5f5}}#gameplan-content tfoot tr td{{background:#f0f0f0;border-top:2px solid #bbb;font-size:0.75rem}}.gp-corr-cell{{position:relative}}.gp-corr-cell:hover::after{{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:7px 10px;border-radius:4px;font-size:0.72rem;white-space:normal;width:230px;z-index:999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:1.45}}</style><div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center"><div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName]||'—'}} NET RTG</div><h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Game Plan</h2><div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div><div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div></div><div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto"><div style="font-size:1rem;font-weight:700;text-align:center;margin-bottom:10px;color:#000;border-bottom:2px solid #333;padding-bottom:6px">Game Plan</div><table><thead><tr><th rowspan="2" style="text-align:left">Date</th><th rowspan="2">Rk</th><th rowspan="2" style="text-align:left">Opponent</th><th rowspan="2">Result</th><th rowspan="2">Pace</th><th colspan="7" class="gp-off">Offense</th><th colspan="7" class="gp-def">Defense</th></tr><tr><th class="gp-off">Eff</th><th class="gp-off">eFG%</th><th class="gp-off">TO%</th><th class="gp-off">OR%</th><th class="gp-off">FTR</th><th class="gp-off">2P%</th><th class="gp-off">3P%</th><th class="gp-def">Eff</th><th class="gp-def">eFG%</th><th class="gp-def">TO%</th><th class="gp-def">OR%</th><th class="gp-def">FTR</th><th class="gp-def">2P%</th><th class="gp-def">3P%</th></tr></thead><tbody>${{rowsHtml}}</tbody><tfoot><tr>${{ortgRow}}</tr><tr>${{drtgRow}}</tr></tfoot></table><div style="font-size:0.72rem;color:#888;margin-top:8px">Rk = opponent's current NET RTG rank &nbsp;|&nbsp; * = conference game &nbsp;|&nbsp; Pace = est. possessions per 40 min &nbsp;|&nbsp; Hover correlation values for interpretation</div></div>`;
+}}
+
+function closeGamePlan() {{
+  document.getElementById('gameplan-view').style.display = 'none';
+  if (gamePlanReturnTeam) {{ showTeamDetail(gamePlanReturnTeam); }}
+}}
+
 function tdColorCell(value, rank, total, fmt, lowIsBetter) {{
   const tv = (rank - 1) / Math.max(total - 1, 1);
   let r, g, b;
@@ -3394,7 +3546,7 @@ function buildTeamDetail(t) {{
     </div>
     <div class="td-content">
       <div class="td-scouting">
-        <div class="td-section-title">Scouting Report</div>
+        <div class="td-section-title" style="display:flex;justify-content:space-between;align-items:center">Scouting Report<span onclick="showGamePlan('${{t.team}}')" style="color:#4fc3f7;font-size:0.8rem;font-weight:400;cursor:pointer">Game Plan →</span></div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
@@ -3472,6 +3624,7 @@ function showView(view) {{
   uniDiv.style.display = 'none';
   tdDiv.style.display = 'none';
   slDiv.style.display = 'none';
+  document.getElementById('gameplan-view').style.display = 'none';
   document.getElementById('sub-toggle').style.display = 'none';
   document.getElementById('team-defense-view').style.display = 'none';
   document.getElementById('season-toggle').style.display = 'none';
