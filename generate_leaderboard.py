@@ -2725,6 +2725,8 @@ function buildUniSidebar() {{
   // "Conference:" header
   const confHeader = document.createElement('div');
   confHeader.className = 'uni-section-label';
+  confHeader.style.marginTop = '0';
+  confHeader.style.marginBottom = '3px';
   confHeader.textContent = 'Conference:';
   confCol.appendChild(confHeader);
 
