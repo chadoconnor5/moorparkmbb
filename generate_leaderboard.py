@@ -2900,7 +2900,7 @@ function renderUniverse() {{
   const ranks = computeUniRanks(data, uniStat, statInfo ? statInfo.low : false);
 
   const R = 15;
-  const GAP_PAD = 4; // extra px padding around bubble for the line gap
+  const GAP_PAD = 0; // line gaps cut exactly to bubble edge
 
   // Conference avg NetRtg lines — rendered BEFORE bubbles so dots sit on top
   if (uniHighlightConfs.size > 0) {{
