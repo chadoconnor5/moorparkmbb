@@ -2748,7 +2748,19 @@ function buildUniSidebar() {{
   sortedConfs.forEach(c => {{
     const div = document.createElement('div');
     div.className = 'uni-conf-item' + (uniHighlightConfs.has(c) ? ' active' : '');
-    div.textContent = CONF_ABBREV[c] || c;
+    div.style.display = 'flex';
+    div.style.justifyContent = 'space-between';
+    div.style.gap = '6px';
+    const abbr = document.createElement('span');
+    abbr.textContent = CONF_ABBREV[c] || c;
+    const netLbl = document.createElement('span');
+    const nv = confNetMap[c];
+    netLbl.textContent = nv != null ? (nv >= 0 ? '+' : '') + nv.toFixed(1) : '';
+    netLbl.style.color = '#999';
+    netLbl.style.fontSize = '10px';
+    netLbl.style.alignSelf = 'center';
+    div.appendChild(abbr);
+    div.appendChild(netLbl);
     div.onclick = () => {{
       uniHighlightRegion = null;
       if (uniHighlightConfs.has(c)) {{
