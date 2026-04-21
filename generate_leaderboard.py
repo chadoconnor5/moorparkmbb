@@ -2193,6 +2193,7 @@ function switchSeason(season) {{
   renderTeams(getFilteredTeams());
   renderDefense(getFilteredTeams());
   render(getFilteredPlayers());
+  buildUniSidebar();
   renderUniverse();
   // If team detail is open, re-render it with new season data
   const tdDiv = document.getElementById('team-detail-view');
