@@ -137,7 +137,11 @@ def log5(prob_a: float, prob_b: float) -> float:
 
 
 def determine_bubble_rating(ratings: Dict[str, Dict]) -> Dict[str, float]:
-    """Determine the ORTG/DRTG of the bubble team (60th percentile by NET)."""
+    """Determine the ORTG/DRTG of the bubble team (48th percentile by NET).
+    
+    48 of ~100 CCCAA teams make the playoffs (24 North + 24 South),
+    so the bubble is the last team in — roughly rank 48 out of 100.
+    """
     qualified = [(t['net'], t['ortg'], t['drtg']) for t in ratings.values() if t['games'] >= 10]
     
     if not qualified:
@@ -145,11 +149,11 @@ def determine_bubble_rating(ratings: Dict[str, Dict]) -> Dict[str, float]:
     
     qualified.sort(key=lambda x: x[0], reverse=True)
     
-    # Use 60th percentile as "bubble" (teams that might make conference tournaments)
-    bubble_index = int(len(qualified) * 0.60)
+    # 48th percentile = last team into the playoffs (48/100 qualify)
+    bubble_index = int(len(qualified) * 0.48)
     bubble_net, bubble_ortg, bubble_drtg = qualified[bubble_index]
     
-    print(f"Bubble NET rating (60th percentile): {bubble_net:.2f}")
+    print(f"Bubble NET rating (48th percentile): {bubble_net:.2f}")
     print(f"Bubble ORTG: {bubble_ortg:.1f}, DRTG: {bubble_drtg:.1f}")
     print(f"Based on {len(qualified)} teams with 10+ games")
     
