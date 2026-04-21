@@ -838,6 +838,30 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     all_game_events.sort(key=lambda x: parse_date(x["date"]))
     # Process events to build cumulative stats and daily ranks
     team_cumulative = {}  # team -> {"sum_ortg": float, "sum_drtg": float, "games": int}
+    # Pre-seed with decayed 2024-25 priors so early-season ranks aren't purely 0-based.
+    # Uses FADE_GAMES virtual prior entries per team, matching the _RunningRating fade window.
+    _DR_DECAY = 0.60
+    _DR_FADE  = 5
+    if teams_2024:
+        _v26 = [t for t in teams if t.get("ortg", 0) > 0]
+        _v25 = [t for t in teams_2024 if t.get("ortg", 0) > 0]
+        if _v26 and _v25:
+            _lg_o26 = sum(t["ortg"] for t in _v26) / len(_v26)
+            _lg_d26 = sum(t["drtg"] for t in _v26) / len(_v26)
+            _lg_o25 = sum(t["ortg"] for t in _v25) / len(_v25)
+            _lg_d25 = sum(t["drtg"] for t in _v25) / len(_v25)
+            _prior_map = {t["team"]: t for t in _v25}
+            for t in teams:
+                tname = t["team"]
+                if tname in _prior_map:
+                    p = _prior_map[tname]
+                    seed_o = _lg_o26 + (p["ortg"] - _lg_o25) * _DR_DECAY
+                    seed_d = _lg_d26 + (p["drtg"] - _lg_d25) * _DR_DECAY
+                    team_cumulative[tname] = {
+                        "sum_ortg": seed_o * _DR_FADE,
+                        "sum_drtg": seed_d * _DR_FADE,
+                        "games":    _DR_FADE,
+                    }
     daily_ranks = {}  # date_str -> {team_name: rank}
     current_date = None
     day_batch = []
