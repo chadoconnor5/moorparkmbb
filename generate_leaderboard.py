@@ -2728,10 +2728,37 @@ function buildUniSidebar() {{
   confHeader.textContent = 'Conference:';
   confCol.appendChild(confHeader);
 
+  // Compute avg net_rtg per conference from active data, sort desc
+  const confNetMap = {{}};
   ALL_CONFS.forEach(c => {{
+    const members = activeTeamData.filter(t => t.conference === c && t.net_rtg != null);
+    confNetMap[c] = members.length ? members.reduce((s, t) => s + t.net_rtg, 0) / members.length : null;
+  }});
+  const sortedConfs = [...ALL_CONFS].sort((a, b) => {{
+    const av = confNetMap[a], bv = confNetMap[b];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return bv - av;
+  }});
+
+  sortedConfs.forEach(c => {{
     const div = document.createElement('div');
     div.className = 'uni-conf-item' + (uniHighlightConfs.has(c) ? ' active' : '');
-    div.textContent = CONF_ABBREV[c] || c;
+    div.style.display = 'flex';
+    div.style.justifyContent = 'space-between';
+    div.style.gap = '6px';
+    const abbr = document.createElement('span');
+    abbr.textContent = CONF_ABBREV[c] || c;
+    const netLbl = document.createElement('span');
+    const nv = confNetMap[c];
+    netLbl.textContent = nv != null ? (nv >= 0 ? '+' : '') + nv.toFixed(1) : '';
+    netLbl.style.color = nv == null ? '' : (nv >= 0 ? '#27ae60' : '#c0392b');
+    netLbl.style.fontSize = '10px';
+    netLbl.style.fontWeight = '600';
+    netLbl.style.alignSelf = 'center';
+    div.appendChild(abbr);
+    div.appendChild(netLbl);
     div.onclick = () => {{
       uniHighlightRegion = null;
       if (uniHighlightConfs.has(c)) {{
