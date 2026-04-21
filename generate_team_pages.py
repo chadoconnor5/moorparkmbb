@@ -789,18 +789,11 @@ def generate_gameplan_page(team_name, team_data, all_teams, rankings, timestamp)
             opp_link += ' <span style="color:#888">*</span>'
 
         if result == 'W':
-            result_html = f'<span style="color:#2e7d32;font-weight:700">W, {t_score}-{o_score}</span>'
+            result_cell = f'<td style="text-align:center;color:#2e7d32;font-weight:600">W, {t_score}-{o_score}</td>'
         elif result == 'L':
-            result_html = f'<span style="color:#c62828;font-weight:700">L, {t_score}-{o_score}</span>'
+            result_cell = f'<td style="text-align:center;color:#c62828;font-weight:600">L, {t_score}-{o_score}</td>'
         else:
-            result_html = f'{t_score}-{o_score}'
-
-        if result == 'W':
-            row_bg = 'background:#f0fff0'
-        elif result == 'L':
-            row_bg = 'background:#fff0f0'
-        else:
-            row_bg = ''
+            result_cell = f'<td style="text-align:center">{t_score}-{o_score}</td>'
 
         if ff:
             def _f(v): return f'{v:.1f}'
@@ -829,11 +822,11 @@ def generate_gameplan_page(team_name, team_data, all_teams, rankings, timestamp)
             cells = '<td></td>' * 15
 
         game_rows_html.append(
-            f'<tr style="{row_bg}">'
+            f'<tr>'
             f'<td style="text-align:left;white-space:nowrap;font-size:0.77rem">{date_str}</td>'
             f'<td style="text-align:center">{opp_rank}</td>'
             f'<td style="text-align:left">{opp_link}</td>'
-            f'<td style="text-align:center">{result_html}</td>'
+            f'{result_cell}'
             f'{cells}'
             f'</tr>'
         )
