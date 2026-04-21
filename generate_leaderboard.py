@@ -3529,6 +3529,8 @@ function slReinit() {{
   slRenderTab('tension');
   slRenderTab('busts');
   slInitFanmatch();
+  slRenderWab(slWabRegion || 'All');
+  slRenderRate(activeSeason);
   const tabInfo = SL_TABS.find(t => t.id === slActiveTab);
   slSwitchTab(slActiveTab, tabInfo ? tabInfo.label : slActiveTab);
 }}
