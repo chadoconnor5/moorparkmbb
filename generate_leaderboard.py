@@ -2962,6 +2962,34 @@ function renderUniverse() {{
       svg.appendChild(label);
     }}
   }});
+
+  // Conference avg NetRtg line — shown whenever any conference/region is highlighted
+  if (uniHighlightConfs.size > 0) {{
+    const confTeams = points.filter(p => uniHighlightConfs.has(p.conference));
+    if (confTeams.length > 0) {{
+      const avgNet = confTeams.reduce((s, p) => s + p.net_rtg, 0) / confTeams.length;
+      const ly = scaleY(avgNet);
+
+      const avgLine = document.createElementNS(ns, 'line');
+      avgLine.setAttribute('x1', margin.left);
+      avgLine.setAttribute('x2', W - margin.right);
+      avgLine.setAttribute('y1', ly);
+      avgLine.setAttribute('y2', ly);
+      avgLine.setAttribute('stroke', '#27ae60');
+      avgLine.setAttribute('stroke-width', '1.5');
+      avgLine.setAttribute('stroke-dasharray', '6,3');
+      svg.appendChild(avgLine);
+
+      const avgLbl = document.createElementNS(ns, 'text');
+      avgLbl.setAttribute('x', W - margin.right + 4);
+      avgLbl.setAttribute('y', ly + 4);
+      avgLbl.setAttribute('font-size', '10');
+      avgLbl.setAttribute('fill', '#27ae60');
+      avgLbl.setAttribute('font-weight', '700');
+      avgLbl.textContent = (avgNet >= 0 ? '+' : '') + avgNet.toFixed(1);
+      svg.appendChild(avgLbl);
+    }}
+  }}
 }}
 
 buildUniSidebar();
