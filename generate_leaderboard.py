@@ -844,6 +844,25 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             print(f"  Warning: could not load wab_results_2024_25.json: {e}")
     wab_2024_json = json.dumps(wab_data_2024)
 
+    # Load split WAB simulation data (North/South, bubble @24)
+    wab_sim_2526 = {'north': [], 'south': []}
+    sim_path_2526 = Path('wab_sim_split24.json')
+    if sim_path_2526.exists():
+        try:
+            wab_sim_2526 = json.load(open(sim_path_2526))
+        except Exception as e:
+            print(f'  Warning: could not load wab_sim_split24.json: {e}')
+    wab_sim_2526_json = json.dumps(wab_sim_2526)
+
+    wab_sim_2425 = {'north': [], 'south': []}
+    sim_path_2425 = Path('wab_sim_split24_2024_25.json')
+    if sim_path_2425.exists():
+        try:
+            wab_sim_2425 = json.load(open(sim_path_2425))
+        except Exception as e:
+            print(f'  Warning: could not load wab_sim_split24_2024_25.json: {e}')
+    wab_sim_2425_json = json.dumps(wab_sim_2425)
+
     # Helper: compute historical daily NET RTG rankings from a teams list
     from collections import defaultdict
     from datetime import datetime as dt_parse
@@ -1783,6 +1802,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-wab-btn.active {{ background: #1a1a2e; color: #fff; border-color: #4a6fa5; }}
   .sl-wab-pos {{ color: #1565c0 !important; font-weight: 700; }}
   .sl-wab-neg {{ color: #c62828 !important; font-weight: 700; }}
+  .sl-wab-bubble-line td {{ background: transparent; border-top: 2px dashed #aaa; border-bottom: none; padding: 2px 8px; text-align: center; font-size: 0.72rem; color: #888; font-style: italic; }}
+  .sl-wab-bubble-line:hover td {{ background: transparent !important; }}
   .sl-wab-bar-wrap {{
     display: inline-block;
     width: 60px;
@@ -2085,6 +2106,8 @@ const TIMESTAMP = '{timestamp}';
 const STORYLINES = {storylines_json};
 const WAB_DATA = {wab_json};
 const WAB_DATA_2024 = {wab_2024_json};
+const WAB_SIM_2526 = {wab_sim_2526_json};
+const WAB_SIM_2425 = {wab_sim_2425_json};
 
 // Conference-only data
 const CONF_DATA = {conf_players_json};
@@ -3807,15 +3830,24 @@ function slWabFilter(region) {{
 function slRenderWab(region) {{
   const body = document.getElementById('sl-body-wab');
   if (!body) return;
-  const src = activeSeason === '2425' ? (WAB_DATA_2024 || []) : (WAB_DATA || []);
-  const rows = src.filter(r => region === 'All' || r.region === region);
-  rows.sort((a, b) => b.wab - a.wab);
+  let rows;
+  const useSplit = region === 'North' || region === 'South';
+  if (useSplit) {{
+    const simSrc = activeSeason === '2425' ? (WAB_SIM_2425 || {{}}) : (WAB_SIM_2526 || {{}});
+    rows = (simSrc[region.toLowerCase()] || []).slice();
+  }} else {{
+    const src = activeSeason === '2425' ? (WAB_DATA_2024 || []) : (WAB_DATA || []);
+    rows = src.filter(r => true);
+    rows.sort((a, b) => b.wab - a.wab);
+  }}
   if (!rows.length) {{
     body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#555;padding:24px">No data available</td></tr>';
     return;
   }}
   const maxAbsWab = Math.max(...rows.map(r => Math.abs(r.wab)));
-  body.innerHTML = rows.map((r, i) => {{
+  const BUBBLE_RANK = 24;
+  let html = '';
+  rows.forEach((r, i) => {{
     const wabVal = r.wab.toFixed(2);
     const wabCls = r.wab >= 0 ? 'sl-wab-pos' : 'sl-wab-neg';
     const barPct = Math.round(Math.abs(r.wab) / maxAbsWab * 100);
@@ -3824,15 +3856,12 @@ function slRenderWab(region) {{
     const netStr = (r.net >= 0 ? '+' : '') + r.net.toFixed(1);
     const teamLink = `<a href="#" onclick="showTeamDetail('${{r.team}}');return false" style="color:inherit;text-decoration:none">${{r.team}}</a>`;
     const goldCls = r.team === 'Moorpark' ? ' class="mp-gold-row"' : '';
-    return `<tr${{goldCls}}>
-      <td class="sl-rank">${{i + 1}}</td>
-      <td style="font-weight:600">${{teamLink}}</td>
-      <td style="color:#555;font-size:12px">${{r.conference}}</td>
-      <td class="sl-val-cell">${{netStr}}</td>
-      <td class="sl-val-cell">${{r.games}}</td>
-      <td class="sl-val-cell"><span class="${{wabCls}}">${{wabVal}}</span> <span class="sl-wab-bar-wrap">${{bar}}</span></td>
-    </tr>`;
-  }}).join('');
+    html += `<tr${{goldCls}}><td class="sl-rank">${{i + 1}}</td><td style="font-weight:600">${{teamLink}}</td><td style="color:#555;font-size:12px">${{r.conference}}</td><td class="sl-val-cell">${{netStr}}</td><td class="sl-val-cell">${{r.games}}</td><td class="sl-val-cell"><span class="${{wabCls}}">${{wabVal}}</span> <span class="sl-wab-bar-wrap">${{bar}}</span></td></tr>`;
+    if (useSplit && i + 1 === BUBBLE_RANK) {{
+      html += '<tr class="sl-wab-bubble-line"><td colspan="6">— Bubble Line (#24) —</td></tr>';
+    }}
+  }});
+  body.innerHTML = html;
 }}
 
 let slRateSeason = '2526';
