@@ -1803,8 +1803,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-wab-pos {{ color: #1565c0 !important; font-weight: 700; }}
   .sl-wab-neg {{ color: #c62828 !important; font-weight: 700; }}
   .sl-wab-bubble-line td {{ background: transparent; border-top: 2px dashed #aaa; border-bottom: none; padding: 2px 8px; text-align: center; font-size: 0.72rem; color: #888; font-style: italic; }}
-  .sl-wab-bubble-line:hover td {{ background: transparent !important; cursor: default; }}
-  .sl-table tbody .sl-wab-bubble-line:hover td {{ background: transparent !important; }}
+  .sl-wab-bubble-line:hover td {{ background: #fff !important; cursor: default; }}
+  .sl-table tbody .sl-wab-bubble-line:hover td {{ background: #fff !important; }}
   .sl-wab-bar-wrap {{
     display: inline-block;
     width: 60px;
