@@ -3548,7 +3548,7 @@ function buildTeamDetail(t) {{
     </div>
     <div class="td-content">
       <div class="td-scouting">
-        <div class="td-section-title" style="position:relative;text-align:center">Scouting Report<span onclick="showGamePlan('${{t.team}}')" style="position:absolute;right:0;top:50%;transform:translateY(-50%);color:#4fc3f7;font-size:0.8rem;font-weight:400;cursor:pointer">Game Plan →</span></div>
+        <div class="td-section-title" style="position:relative;display:flex;align-items:center;justify-content:center">Scouting Report<span onclick="showGamePlan('${{t.team}}')" style="position:absolute;right:0;color:#4fc3f7;font-size:0.8rem;font-weight:400;cursor:pointer">Game Plan →</span></div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
