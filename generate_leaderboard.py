@@ -68,6 +68,7 @@ def _sl_safe_possessions(ts: dict, os_: dict):
     tp, op = _poss(ts), _poss(os_)
     if t_broken or tp <= 0: return op if op > 0 else None
     if o_broken or op <= 0: return tp if tp > 0 else None
+    return (tp + op) / 2
 
 
 def _compute_game_ff(ts: dict, os_: dict, poss: float, game_min: int = 40) -> dict:
