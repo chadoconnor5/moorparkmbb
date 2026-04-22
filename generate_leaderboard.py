@@ -2063,8 +2063,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     <div id="sl-tab-wab" class="sl-tab-content" style="display:none">
       <div class="sl-wab-filter" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0 14px">
         <span style="font-size:13px;color:#555;font-weight:600">Region:</span>
-        <button class="sl-wab-btn active" onclick="slWabFilter('All')">All</button>
-        <button class="sl-wab-btn" onclick="slWabFilter('North')">North</button>
+        <button class="sl-wab-btn active" onclick="slWabFilter('North')">North</button>
         <button class="sl-wab-btn" onclick="slWabFilter('South')">South</button>
       </div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
@@ -3758,7 +3757,7 @@ function slReinit() {{
   slRenderTab('tension');
   slRenderTab('busts');
   slInitFanmatch();
-  slRenderWab(slWabRegion || 'All');
+  slRenderWab(slWabRegion || 'North');
   slRenderRate(activeSeason);
   const tabInfo = SL_TABS.find(t => t.id === slActiveTab);
   slSwitchTab(slActiveTab, tabInfo ? tabInfo.label : slActiveTab);
@@ -3786,7 +3785,7 @@ function slInitOnce() {{
     slRenderTab('busts');
     slInitFanmatch();
   }}
-  slRenderWab(slWabRegion || 'All');
+  slRenderWab(slWabRegion || 'North');
   slRenderRate(activeSeason);
 }}
 
@@ -3818,11 +3817,11 @@ function slSwitchTab(tab, label) {{
   }}
 }}
 
-let slWabRegion = 'All';
+let slWabRegion = 'North';
 function slWabFilter(region) {{
   slWabRegion = region;
   document.querySelectorAll('.sl-wab-btn').forEach(b => {{
-    b.classList.toggle('active', b.textContent === region);
+    b.classList.toggle('active', b.textContent.trim() === region);
   }});
   slRenderWab(region);
 }}
