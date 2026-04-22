@@ -56,8 +56,8 @@ def calculate_possessions(team_stats: Dict, opp_stats: Dict) -> float:
     opp_fta = opp_stats.get('FTA', 0)
     opp_oreb = opp_stats.get('OREB', 0)
     
-    team_poss = team_fga + 0.44 * team_fta + team_to - team_oreb
-    opp_poss = opp_fga + 0.44 * opp_fta + opp_to - opp_oreb
+    team_poss = team_fga + 0.475 * team_fta + team_to - team_oreb
+    opp_poss = opp_fga + 0.475 * opp_fta + opp_to - opp_oreb
     
     return (team_poss + opp_poss) / 2.0
 
