@@ -2067,7 +2067,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <button class="sl-wab-btn" onclick="slWabFilter('South')">South</button>
       </div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-        <th class="sl-th-r">#</th><th>Team</th><th>Conference</th><th class="sl-th-r">NET</th><th class="sl-th-r">Games</th><th>WAB</th>
+        <th class="sl-th-r">#</th><th>Team</th><th>Conference</th><th class="sl-th-r">Adj Rtg</th><th class="sl-th-r">Games</th><th>WAB</th>
       </tr></thead><tbody id="sl-body-wab"></tbody></table></div></div>
     </div>
     <div id="sl-tab-rate" class="sl-tab-content" style="display:none">
@@ -3845,6 +3845,9 @@ function slRenderWab(region) {{
   }}
   const maxAbsWab = Math.max(...rows.map(r => Math.abs(r.wab)));
   const BUBBLE_RANK = 24;
+  const relSrc = activeSeason === '2425' ? (REL_RATINGS_2024 || []) : (REL_RATINGS || []);
+  const relMap = {{}};
+  relSrc.forEach(rr => {{ relMap[rr.team] = rr.rel_rating; }});
   let html = '';
   rows.forEach((r, i) => {{
     const wabVal = r.wab.toFixed(2);
@@ -3852,7 +3855,8 @@ function slRenderWab(region) {{
     const barPct = Math.round(Math.abs(r.wab) / maxAbsWab * 100);
     const barColor = r.wab >= 0 ? '#2563eb' : '#dc2626';
     const bar = `<span class="sl-wab-bar" style="width:${{barPct}}%;background:${{barColor}}"></span>`;
-    const netStr = (r.net >= 0 ? '+' : '') + r.net.toFixed(1);
+    const relRtg = relMap[r.team] != null ? relMap[r.team] : r.net;
+    const netStr = (relRtg >= 0 ? '+' : '') + relRtg.toFixed(1);
     const teamLink = `<a href="#" onclick="showTeamDetail('${{r.team}}');return false" style="color:inherit;text-decoration:none">${{r.team}}</a>`;
     const goldCls = r.team === 'Moorpark' ? ' class="mp-gold-row"' : '';
     html += `<tr${{goldCls}}><td class="sl-rank">${{i + 1}}</td><td style="font-weight:600">${{teamLink}}</td><td style="color:#555;font-size:12px">${{r.conference}}</td><td class="sl-val-cell">${{netStr}}</td><td class="sl-val-cell">${{r.games}}</td><td class="sl-val-cell" style="text-align:left"><span class="${{wabCls}}">${{wabVal}}</span> <span class="sl-wab-bar-wrap">${{bar}}</span></td></tr>`;
