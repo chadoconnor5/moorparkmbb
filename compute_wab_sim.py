@@ -56,3 +56,4 @@ def run_for_season(season_dir, out_path):
 if __name__ == '__main__':
     run_for_season('2025-26', 'wab_sim_split24.json')
     run_for_season('2024-25', 'wab_sim_split24_2024_25.json')
+    run_for_season('2023-24', 'wab_sim_split24_2023_24.json')

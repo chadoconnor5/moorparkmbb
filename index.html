@@ -692,6 +692,14 @@
         <div class="ms-panel" id="ms-team-panel"></div>
       </div>
     </div>
+    <div class="filter-group" id="stats-dataset-group" style="display:none">
+      <label>Data Type:</label>
+      <select id="stats-dataset" onchange="onDatasetChange(this.value)">
+        <option value="advanced">Advanced</option>
+        <option value="basic">Basic</option>
+        <option value="basic-def">Basic Defense</option>
+      </select>
+    </div>
   </div>
   <div class="toggle-center">
     <div class="toggle-wrap" style="margin-bottom:0">
@@ -823,6 +831,74 @@
 </tr>
 </thead>
 <tbody id="team-defense-tbody"></tbody>
+</table>
+</div>
+</div>
+
+<div id="team-basic-view" style="display:none;">
+<div class="table-wrap">
+<table id="team-basic-leaderboard">
+<thead>
+<tr>
+  <th data-col="rank" data-type="num" data-table="basic">#</th>
+  <th data-col="team" data-type="str" data-table="basic">Team</th>
+  <th data-col="gp" data-type="num" data-table="basic">GP</th>
+  <th data-col="record" data-type="rec" data-table="basic">Record</th>
+  <th data-col="conf" data-type="str" data-table="basic">Conf</th>
+  <th data-col="ppg" data-type="num" data-table="basic" class="active desc">PTS</th>
+  <th data-col="fgm_pg" data-type="num" data-table="basic">FG</th>
+  <th data-col="fgp" data-type="num" data-table="basic">FG%</th>
+  <th data-col="fg2m_pg" data-type="num" data-table="basic">2FG</th>
+  <th data-col="twop" data-type="num" data-table="basic">2FG%</th>
+  <th data-col="fg3m_pg" data-type="num" data-table="basic">3FG</th>
+  <th data-col="tpp" data-type="num" data-table="basic">3FG%</th>
+  <th data-col="ftm_pg" data-type="num" data-table="basic">FT</th>
+  <th data-col="ftp" data-type="num" data-table="basic">FT%</th>
+  <th data-col="orebpg" data-type="num" data-table="basic">OREB</th>
+  <th data-col="drebpg" data-type="num" data-table="basic">DREB</th>
+  <th data-col="rpg" data-type="num" data-table="basic">REB</th>
+  <th data-col="apg" data-type="num" data-table="basic">AST</th>
+  <th data-col="topg" data-type="num" data-table="basic">TO</th>
+  <th data-col="spg" data-type="num" data-table="basic">STL</th>
+  <th data-col="bpg" data-type="num" data-table="basic">BLK</th>
+  <th data-col="pf" data-type="num" data-table="basic">PF</th>
+</tr>
+</thead>
+<tbody id="team-basic-tbody"></tbody>
+</table>
+</div>
+</div>
+
+<div id="team-basic-def-view" style="display:none;">
+<div class="table-wrap">
+<table id="team-basic-def-leaderboard">
+<thead>
+<tr>
+  <th data-col="rank" data-type="num" data-table="basic-def">#</th>
+  <th data-col="team" data-type="str" data-table="basic-def">Team</th>
+  <th data-col="gp" data-type="num" data-table="basic-def">GP</th>
+  <th data-col="record" data-type="rec" data-table="basic-def">Record</th>
+  <th data-col="conf" data-type="str" data-table="basic-def">Conf</th>
+  <th data-col="opp_ppg" data-type="num" data-table="basic-def" class="active asc">PTS</th>
+  <th data-col="opp_fgm_pg" data-type="num" data-table="basic-def">FG</th>
+  <th data-col="opp_fgp" data-type="num" data-table="basic-def">FG%</th>
+  <th data-col="opp_fg2m_pg" data-type="num" data-table="basic-def">2FG</th>
+  <th data-col="opp_twop" data-type="num" data-table="basic-def">2FG%</th>
+  <th data-col="opp_fg3m_pg" data-type="num" data-table="basic-def">3FG</th>
+  <th data-col="opp_tpp" data-type="num" data-table="basic-def">3FG%</th>
+  <th data-col="opp_ftm_pg" data-type="num" data-table="basic-def">FT</th>
+  <th data-col="opp_ftp" data-type="num" data-table="basic-def">FT%</th>
+  <th data-col="opp_orebpg" data-type="num" data-table="basic-def">OREB</th>
+  <th data-col="opp_drebpg" data-type="num" data-table="basic-def">DREB</th>
+  <th data-col="opp_rpg" data-type="num" data-table="basic-def">REB</th>
+  <th data-col="opp_apg" data-type="num" data-table="basic-def">AST</th>
+  <th data-col="opp_topg" data-type="num" data-table="basic-def">TO</th>
+  <th data-col="opp_spg" data-type="num" data-table="basic-def">STL</th>
+  <th data-col="opp_bpg" data-type="num" data-table="basic-def">BLK</th>
+  <th data-col="opp_pf" data-type="num" data-table="basic-def">PF</th>
+</tr>
+</thead>
+<tbody id="team-basic-def-tbody"></tbody>
 </table>
 </div>
 </div>
@@ -1010,6 +1086,8 @@ function applyFilters() {
   render(getFilteredPlayers());
   renderTeams(getFilteredTeams());
   renderDefense(getFilteredTeams());
+  renderBasicTeams(getFilteredTeams());
+  renderBasicDefTeams(getFilteredTeams());
   updateInfo();
 }
 
@@ -1386,6 +1464,257 @@ document.querySelectorAll('th[data-table="def"]').forEach(th => {
 });
 
 renderDefense(getFilteredTeams());
+
+// --- Basic Stats Tables ---
+let teamDataset = 'advanced'; // 'advanced' | 'basic' | 'basic-def'
+
+function getBasicVal(t, col) {
+  const tots = t.totals || {};
+  const otots = t.opp_totals || {};
+  const gp = t.gp || 1;
+  switch (col) {
+    case 'fgm_pg': return (tots.FGM || 0) / gp;
+    case 'fg2m_pg': return ((tots.FGM || 0) - (tots['3PM'] || 0)) / gp;
+    case 'fg3m_pg': return (tots['3PM'] || 0) / gp;
+    case 'ftm_pg': return (tots.FTM || 0) / gp;
+    case 'opp_fgm_pg': return (otots.FGM || 0) / gp;
+    case 'opp_fg2m_pg': return ((otots.FGM || 0) - (otots['3PM'] || 0)) / gp;
+    case 'opp_fg3m_pg': return (otots['3PM'] || 0) / gp;
+    case 'opp_ftm_pg': return (otots.FTM || 0) / gp;
+    default: return t[col];
+  }
+}
+
+function renderBasicTeams(data) {
+  const tb = document.getElementById('team-basic-tbody');
+  tb.innerHTML = '';
+  const invert = basicSortType !== 'str' && basicSortDir !== basicSortBest;
+  data.forEach((t, i) => {
+    const rank = invert ? data.length - i : i + 1;
+    const tr = document.createElement('tr');
+    const fs = TEAM_DATA.find(d => d.team === t.team) || t;
+    const tots = t.totals || fs.totals || {};
+    const gp = fs.gp || 1;
+    const fgm = tots.FGM || 0, fga = tots.FGA || 0;
+    const pm3 = tots['3PM'] || 0, pa3 = tots['3PA'] || 0;
+    const fg2m = fgm - pm3, fg2a = fga - pa3;
+    const ftm = tots.FTM || 0, fta = tots.FTA || 0;
+    const pg = v => (v / gp).toFixed(1);
+    tr.innerHTML = `
+      <td>${rank}</td>
+      <td style="text-align:left;font-weight:700"><a href="#" onclick="showTeamDetail('${t.team}');return false" style="color:inherit;text-decoration:none">${t.team}</a></td>
+      <td>${fs.gp}</td>
+      <td>${fs.record}</td>
+      <td>${fs.conf}</td>
+      <td>${t.ppg.toFixed(1)}</td>
+      <td>${pg(fgm)}-${pg(fga)}</td>
+      <td>${t.fgp.toFixed(1)}</td>
+      <td>${pg(fg2m)}-${pg(fg2a)}</td>
+      <td>${t.twop.toFixed(1)}</td>
+      <td>${pg(pm3)}-${pg(pa3)}</td>
+      <td>${t.tpp.toFixed(1)}</td>
+      <td>${pg(ftm)}-${pg(fta)}</td>
+      <td>${t.ftp.toFixed(1)}</td>
+      <td>${t.orebpg.toFixed(1)}</td>
+      <td>${t.drebpg.toFixed(1)}</td>
+      <td>${t.rpg.toFixed(1)}</td>
+      <td>${t.apg.toFixed(1)}</td>
+      <td>${t.topg.toFixed(1)}</td>
+      <td>${t.spg.toFixed(1)}</td>
+      <td>${t.bpg.toFixed(1)}</td>
+      <td>—</td>
+    `;
+    if (t.team === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
+    tb.appendChild(tr);
+  });
+  highlightCol(tb, basicSortCol);
+}
+
+let basicSortCol = 'ppg';
+let basicSortDir = 'desc';
+let basicSortType = 'num';
+let basicSortBest = 'desc';
+
+function doBasicTeamSort(col, type) {
+  if (col === basicSortCol) {
+    basicSortDir = basicSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    basicSortCol = col;
+    basicSortType = type;
+    const bd = bestDir(col);
+    basicSortDir = type === 'str' ? 'asc' : bd;
+    basicSortBest = type === 'str' ? 'asc' : bd;
+  }
+  const FS_COLS = new Set(['gp', 'record', 'conf', 'team']);
+  activeTeamData.sort((a, b) => {
+    let sa = a, sb = b;
+    if (confMode && FS_COLS.has(col)) {
+      sa = TEAM_DATA.find(d => d.team === a.team) || a;
+      sb = TEAM_DATA.find(d => d.team === b.team) || b;
+    }
+    if (type === 'rec') {
+      const va = parseWins(sa[col]), vb = parseWins(sb[col]);
+      return basicSortDir === 'asc' ? va - vb : vb - va;
+    }
+    if (type === 'str') {
+      const va = (sa[col] || '').toLowerCase(), vb = (sb[col] || '').toLowerCase();
+      return basicSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    const va = getBasicVal(a, col), vb = getBasicVal(b, col);
+    return basicSortDir === 'asc' ? va - vb : vb - va;
+  });
+  document.querySelectorAll('th[data-table="basic"]').forEach(th => {
+    th.classList.remove('active', 'asc', 'desc');
+    if (th.dataset.col === col) th.classList.add('active', basicSortDir);
+  });
+  renderBasicTeams(getFilteredTeams());
+}
+
+document.querySelectorAll('th[data-table="basic"]').forEach(th => {
+  if (th.dataset.col === 'rank') return;
+  th.addEventListener('click', () => doBasicTeamSort(th.dataset.col, th.dataset.type));
+});
+
+function renderBasicDefTeams(data) {
+  const tb = document.getElementById('team-basic-def-tbody');
+  tb.innerHTML = '';
+  const invert = basicDefSortType !== 'str' && basicDefSortDir !== basicDefSortBest;
+  data.forEach((t, i) => {
+    const rank = invert ? data.length - i : i + 1;
+    const tr = document.createElement('tr');
+    const fs = TEAM_DATA.find(d => d.team === t.team) || t;
+    const otots = t.opp_totals || fs.opp_totals || {};
+    const gp = fs.gp || 1;
+    const fgm = otots.FGM || 0, fga = otots.FGA || 0;
+    const pm3 = otots['3PM'] || 0, pa3 = otots['3PA'] || 0;
+    const fg2m = fgm - pm3, fg2a = fga - pa3;
+    const ftm = otots.FTM || 0, fta = otots.FTA || 0;
+    const pg = v => (v / gp).toFixed(1);
+    tr.innerHTML = `
+      <td>${rank}</td>
+      <td style="text-align:left;font-weight:700"><a href="#" onclick="showTeamDetail('${t.team}');return false" style="color:inherit;text-decoration:none">${t.team}</a></td>
+      <td>${fs.gp}</td>
+      <td>${fs.record}</td>
+      <td>${fs.conf}</td>
+      <td>${t.opp_ppg.toFixed(1)}</td>
+      <td>${pg(fgm)}-${pg(fga)}</td>
+      <td>${t.opp_fgp.toFixed(1)}</td>
+      <td>${pg(fg2m)}-${pg(fg2a)}</td>
+      <td>${t.opp_twop.toFixed(1)}</td>
+      <td>${pg(pm3)}-${pg(pa3)}</td>
+      <td>${t.opp_tpp.toFixed(1)}</td>
+      <td>${pg(ftm)}-${pg(fta)}</td>
+      <td>${t.opp_ftp.toFixed(1)}</td>
+      <td>${t.opp_orebpg.toFixed(1)}</td>
+      <td>${t.opp_drebpg.toFixed(1)}</td>
+      <td>${t.opp_rpg.toFixed(1)}</td>
+      <td>${t.opp_apg.toFixed(1)}</td>
+      <td>${t.opp_topg.toFixed(1)}</td>
+      <td>${t.opp_spg.toFixed(1)}</td>
+      <td>${t.opp_bpg.toFixed(1)}</td>
+      <td>—</td>
+    `;
+    if (t.team === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
+    tb.appendChild(tr);
+  });
+  highlightCol(tb, basicDefSortCol);
+}
+
+let basicDefSortCol = 'opp_ppg';
+let basicDefSortDir = 'asc';
+let basicDefSortType = 'num';
+let basicDefSortBest = 'asc';
+
+function doBasicDefTeamSort(col, type) {
+  if (col === basicDefSortCol) {
+    basicDefSortDir = basicDefSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    basicDefSortCol = col;
+    basicDefSortType = type;
+    let bd;
+    if (type === 'str') bd = 'asc';
+    else if (col === 'opp_topg') bd = 'desc';
+    else if (col === 'record' || col === 'gp') bd = 'desc';
+    else if (col.startsWith('opp_')) bd = 'asc';
+    else bd = bestDir(col);
+    basicDefSortDir = bd;
+    basicDefSortBest = bd;
+  }
+  const FS_COLS = new Set(['gp', 'record', 'conf', 'team']);
+  activeTeamData.sort((a, b) => {
+    let sa = a, sb = b;
+    if (confMode && FS_COLS.has(col)) {
+      sa = TEAM_DATA.find(d => d.team === a.team) || a;
+      sb = TEAM_DATA.find(d => d.team === b.team) || b;
+    }
+    if (type === 'rec') {
+      const va = parseWins(sa[col]), vb = parseWins(sb[col]);
+      return basicDefSortDir === 'asc' ? va - vb : vb - va;
+    }
+    if (type === 'str') {
+      const va = (sa[col] || '').toLowerCase(), vb = (sb[col] || '').toLowerCase();
+      return basicDefSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    const va = getBasicVal(a, col), vb = getBasicVal(b, col);
+    return basicDefSortDir === 'asc' ? va - vb : vb - va;
+  });
+  document.querySelectorAll('th[data-table="basic-def"]').forEach(th => {
+    th.classList.remove('active', 'asc', 'desc');
+    if (th.dataset.col === col) th.classList.add('active', basicDefSortDir);
+  });
+  renderBasicDefTeams(getFilteredTeams());
+}
+
+document.querySelectorAll('th[data-table="basic-def"]').forEach(th => {
+  if (th.dataset.col === 'rank') return;
+  th.addEventListener('click', () => doBasicDefTeamSort(th.dataset.col, th.dataset.type));
+});
+
+function applyTeamDatasetView() {
+  const advOff = document.getElementById('team-view');
+  const advDef = document.getElementById('team-defense-view');
+  const basicOff = document.getElementById('team-basic-view');
+  const basicDef = document.getElementById('team-basic-def-view');
+  const subToggle = document.getElementById('sub-toggle');
+  const btnOff = document.getElementById('btn-offense');
+  advOff.style.display = 'none';
+  advDef.style.display = 'none';
+  basicOff.style.display = 'none';
+  basicDef.style.display = 'none';
+  if (teamDataset === 'advanced') {
+    subToggle.style.display = 'block';
+    if (btnOff.classList.contains('active')) {
+      advOff.style.display = 'block';
+    } else {
+      advDef.style.display = 'block';
+    }
+  } else if (teamDataset === 'basic') {
+    subToggle.style.display = 'none';
+    basicOff.style.display = 'block';
+  } else {
+    subToggle.style.display = 'none';
+    basicDef.style.display = 'block';
+  }
+}
+
+function onDatasetChange(val) {
+  teamDataset = val;
+  const subtitle = document.getElementById('page-subtitle');
+  const btnOff = document.getElementById('btn-offense');
+  if (val === 'advanced') {
+    subtitle.textContent = btnOff.classList.contains('active')
+      ? '2025-26 Season — Per-Game Averages & Advanced Analytics'
+      : '2025-26 Season — Opponent Per-Game Averages & Defensive Analytics';
+  } else if (val === 'basic') {
+    subtitle.textContent = '2025-26 Season — Per-Game Averages';
+  } else {
+    subtitle.textContent = '2025-26 Season — Opponent Per-Game Averages';
+  }
+  applyTeamDatasetView();
+}
+
+renderBasicTeams(getFilteredTeams());
+renderBasicDefTeams(getFilteredTeams());
 
 // --- Universe Chart ---
 const CONF_ABBREV = {
@@ -2181,6 +2510,9 @@ function showView(view) {
   slDiv.style.display = 'none';
   document.getElementById('sub-toggle').style.display = 'none';
   document.getElementById('team-defense-view').style.display = 'none';
+  document.getElementById('team-basic-view').style.display = 'none';
+  document.getElementById('team-basic-def-view').style.display = 'none';
+  document.getElementById('stats-dataset-group').style.display = 'none';
   btnInd.classList.remove('active');
   btnTeam.classList.remove('active');
   btnUni.classList.remove('active');
@@ -2190,16 +2522,16 @@ function showView(view) {
   document.querySelector('.team-search-wrap').style.display = '';
 
   if (view === 'team') {
-    teamDiv.style.display = 'block';
     btnTeam.classList.add('active');
-    document.getElementById('sub-toggle').style.display = 'block';
     document.getElementById('btn-offense').classList.add('active');
     document.getElementById('btn-defense').classList.remove('active');
     filterBar.style.display = 'flex';
+    document.getElementById('stats-dataset-group').style.display = '';
     document.getElementById('page-title').style.display = '';
     document.getElementById('page-subtitle').style.display = '';
     document.getElementById('page-info').style.display = '';
     subtitle.textContent = '2025-26 Season — Per-Game Averages & Advanced Analytics';
+    applyTeamDatasetView();
     updateInfo();
   } else if (view === 'universe') {
     uniDiv.style.display = 'block';
@@ -2232,25 +2564,20 @@ function showView(view) {
 }
 
 function showTeamSub(sub) {
-  const offDiv = document.getElementById('team-view');
-  const defDiv = document.getElementById('team-defense-view');
   const btnOff = document.getElementById('btn-offense');
   const btnDef = document.getElementById('btn-defense');
   const subtitle = document.getElementById('page-subtitle');
 
   if (sub === 'defense') {
-    offDiv.style.display = 'none';
-    defDiv.style.display = 'block';
     btnDef.classList.add('active');
     btnOff.classList.remove('active');
     subtitle.textContent = '2025-26 Season — Opponent Per-Game Averages & Defensive Analytics';
   } else {
-    offDiv.style.display = 'block';
-    defDiv.style.display = 'none';
     btnOff.classList.add('active');
     btnDef.classList.remove('active');
     subtitle.textContent = '2025-26 Season — Per-Game Averages & Advanced Analytics';
   }
+  applyTeamDatasetView();
 }
 
 // ─── Miscellaneous (Game Attribute Rankings) ──────────────────────

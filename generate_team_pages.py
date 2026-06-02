@@ -14,6 +14,30 @@ from datetime import datetime
 STATS_DIR = Path("2025-26 Team Statistics")
 OUTPUT_DIR = Path("team_pages")
 
+# KenPom-style tier cutoffs scaled to ~100-team league (top 15% / top 30%)
+# Location adjustments: road vs #90 ≈ neutral vs #50 ≈ home vs #20
+TIER_A_CUTOFF = 15
+TIER_B_CUTOFF = 30
+AWAY_FACTOR = 50 / 90   # ~0.556 — reduces adj rank (road games harder)
+HOME_FACTOR = 50 / 20   # 2.5   — inflates adj rank (home games easier)
+
+
+def compute_game_tier(opp_rank, location):
+    """Return 'A', 'B', or '' for a game based on opponent rank and venue."""
+    if not isinstance(opp_rank, int):
+        return ""
+    if location == "Away":
+        adj = opp_rank * AWAY_FACTOR
+    elif location == "Home":
+        adj = opp_rank * HOME_FACTOR
+    else:  # Neutral
+        adj = opp_rank
+    if adj <= TIER_A_CUTOFF:
+        return "A"
+    elif adj <= TIER_B_CUTOFF:
+        return "B"
+    return ""
+
 CONFERENCES = {
     "WSC North": {
         "region": "South",
@@ -322,8 +346,8 @@ def compute_game_ff(game):
     o_pts = os_.get('PTS', 0)
 
     min_ = max(game.get('MIN', 40), 40)
-    t_poss = fga - oreb + to_ + 0.44 * fta
-    o_poss = o_fga - o_oreb + o_to + 0.44 * o_fta
+    t_poss = fga - oreb + to_ + 0.475 * fta
+    o_poss = o_fga - o_oreb + o_to + 0.475 * o_fta
     poss = (t_poss + o_poss) / 2.0
     if poss <= 0:
         return None
@@ -333,14 +357,14 @@ def compute_game_ff(game):
     drtg = round(o_pts / poss * 100, 1)
 
     o_efg = round((fgm + 0.5 * tpm) / max(fga, 1) * 100, 1)
-    o_tov = round(to_ / max(fga + 0.44 * fta + to_, 1) * 100, 1)
+    o_tov = round(to_ / max(fga + 0.475 * fta + to_, 1) * 100, 1)
     o_or = round(oreb / max(oreb + o_dreb, 1) * 100, 1)
     o_ftr = round(fta / max(fga, 1) * 100, 1)
     o_2p = round((fgm - tpm) / max(fga - tpa, 1) * 100, 1) if (fga - tpa) > 0 else 0.0
     o_3p = round(tpm / max(tpa, 1) * 100, 1) if tpa > 0 else 0.0
 
     d_efg = round((o_fgm + 0.5 * o_tpm) / max(o_fga, 1) * 100, 1)
-    d_tov = round(o_to / max(o_fga + 0.44 * o_fta + o_to, 1) * 100, 1)
+    d_tov = round(o_to / max(o_fga + 0.475 * o_fta + o_to, 1) * 100, 1)
     d_or = round(o_oreb / max(o_oreb + dreb, 1) * 100, 1)
     d_ftr = round(o_fta / max(o_fga, 1) * 100, 1)
     d_2p = round((o_fgm - o_tpm) / max(o_fga - o_tpa, 1) * 100, 1) if (o_fga - o_tpa) > 0 else 0.0
@@ -403,6 +427,7 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
     losses = 0
     conf_wins = 0
     conf_losses = 0
+    tier_a_w = tier_a_l = tier_b_w = tier_b_l = 0
 
     for i, gr in enumerate(game_ratings):
         opp = gr.get("canonical_opponent", gr.get("opponent", ""))
@@ -426,6 +451,14 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
             if is_conf:
                 conf_losses += 1
 
+        tier = compute_game_tier(opp_rank if isinstance(opp_rank, int) else None, location)
+        if tier == "A":
+            if result == "W": tier_a_w += 1
+            elif result == "L": tier_a_l += 1
+        elif tier == "B":
+            if result == "W": tier_b_w += 1
+            elif result == "L": tier_b_l += 1
+
         running_rec = f"{wins}-{losses}"
         running_conf = f"{conf_wins}-{conf_losses}" if is_conf or conf_wins + conf_losses > 0 else ""
 
@@ -445,6 +478,13 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
         opp_net_html = f' <span style="font-size:0.75rem;color:#666">{opp_net_str}</span>' if opp_net_str else ""
         conf_marker = " *" if is_conf else ""
 
+        if tier == "A":
+            tier_html = '<span style="background:#c8960c;color:#fff;padding:1px 6px;border-radius:3px;font-size:0.75rem;font-weight:700">A</span>'
+        elif tier == "B":
+            tier_html = '<span style="background:#546e7a;color:#fff;padding:1px 6px;border-radius:3px;font-size:0.75rem;font-weight:700">B</span>'
+        else:
+            tier_html = ""
+
         schedule_rows.append(f"""<tr>
   <td style="text-align:left;white-space:nowrap">{date_str}</td>
   <td style="text-align:center">{opp_rank if opp_rank != '—' else ''}</td>
@@ -453,15 +493,16 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
   <td style="text-align:center">{loc_str}</td>
   <td style="text-align:center">{running_rec}</td>
   <td style="text-align:center">{running_conf}</td>
+  <td style="text-align:center">{tier_html}</td>
 </tr>""")
 
     schedule_html = "\n".join(schedule_rows)
 
     # Scouting report rows
-    def sr_row(label, off_val, def_val, avg_val, off_totals="", def_totals="", off_rank=None, def_rank=None, off_low=False, def_low=False):
+    def sr_row(label, off_val, def_val, avg_val, off_totals="", def_totals="", off_rank=None, def_rank=None, off_low=False, def_low=False, fmt=".1f"):
         """Build a scouting report row with colored offense/defense cells."""
         if off_rank is not None:
-            off_cell = color_cell(off_val, off_rank, total_teams, low_is_better=off_low)
+            off_cell = color_cell(off_val, off_rank, total_teams, fmt=fmt, low_is_better=off_low)
         else:
             off_cell = plain_cell(off_val)
 
@@ -705,6 +746,16 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
     </tbody>
   </table>
 
+  <div class="sub-title">Miscellaneous</div>
+  <table>
+    <tbody>
+      {sr_row("Luck", ta.get("luck", 0), "",
+              round(0.00, 2),
+              off_rank=get_rank("luck"),
+              off_low=False, fmt=".2f")}
+    </tbody>
+  </table>
+
   <div class="sub-title">Strength of Schedule</div>
   <table>
     <tbody>
@@ -728,6 +779,7 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
         <th>Loc</th>
         <th>Record</th>
         <th>Conf</th>
+        <th>Tier</th>
       </tr>
     </thead>
     <tbody>
@@ -735,7 +787,19 @@ def generate_team_page(team_name, team_data, all_teams, league_avg, rankings, ti
     </tbody>
   </table>
   <div style="font-size:0.75rem;color:#888;margin-top:8px">
-    Rk = Opponent's current NET RTG rank &nbsp;|&nbsp; * = Conference game
+    Rk = Opponent's current NET RTG rank &nbsp;|&nbsp; * = Conference game &nbsp;|&nbsp; Tier A = top-15 adjusted, Tier B = top-30 adjusted (location-adjusted per KenPom)
+  </div>
+  <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap">
+    <div style="background:#f5f5f5;border-radius:6px;padding:8px 14px;font-size:0.82rem">
+      <span style="background:#c8960c;color:#fff;padding:1px 6px;border-radius:3px;font-weight:700;font-size:0.75rem">A</span>
+      &nbsp;<strong>Tier A record:</strong> {tier_a_w}-{tier_a_l}
+      <span style="color:#888;font-size:0.75rem">&nbsp;(top-15 opp, location-adjusted)</span>
+    </div>
+    <div style="background:#f5f5f5;border-radius:6px;padding:8px 14px;font-size:0.82rem">
+      <span style="background:#546e7a;color:#fff;padding:1px 6px;border-radius:3px;font-weight:700;font-size:0.75rem">B</span>
+      &nbsp;<strong>Tier B record:</strong> {tier_b_w}-{tier_b_l}
+      <span style="color:#888;font-size:0.75rem">&nbsp;(top-30 opp, location-adjusted)</span>
+    </div>
   </div>
 </div>
 
@@ -987,13 +1051,29 @@ def main():
     print("Computing league averages and rankings...")
     league_avg = compute_league_averages(all_teams)
 
+    # Compute Luck for each team and inject into advanced dict (in-memory only)
+    for team_name, td in all_teams.items():
+        ppg = td["avgs"].get("PTS", 0)
+        opp_ppg = td["opp_avgs"].get("PTS", 0)
+        rec_str = td.get("record", "")
+        m = __import__('re').match(r'^(\d+)-(\d+)', rec_str)
+        if m and ppg > 0 and opp_ppg > 0:
+            w, l = int(m.group(1)), int(m.group(2))
+            gp = w + l
+            actual_wpct = w / gp if gp > 0 else 0
+            pyth = ppg ** 10.25 / (ppg ** 10.25 + opp_ppg ** 10.25)
+            luck = round(actual_wpct - pyth, 2)
+        else:
+            luck = 0.0
+        td["advanced"]["luck"] = luck
+
     # Compute rankings for all relevant stats
     ranking_configs = [
         ("net_rtg", False), ("ortg", False), ("drtg", True), ("tempo", False),
         ("efg_pct", False), ("tov_pct", True), ("oreb_pct", False), ("ft_rate", False),
         ("ts_pct", False), ("opp_efg_pct", True), ("dreb_pct", False),
         ("opp_tov_pct", False), ("opp_ft_rate", True), ("opp_ts_pct", True),
-        ("sos", False), ("ncsos", False),
+        ("sos", False), ("ncsos", False), ("luck", False),
     ]
     rankings = {}
     for key, low in ranking_configs:
