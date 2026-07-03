@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sample Player Breakdown</title>
+  <style>
+    @page { size: Letter; margin: 0.45in; }
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1f2e;
+      --card: #242938;
+      --card-hover: #2d3347;
+      --border: #2d3347;
+      --border-light: #3a4158;
+      --primary: #4f6ef7;
+      --primary-dark: #3b57e0;
+      --info: #06b6d4;
+      --teal: #14b8a6;
+      --success: #22c55e;
+      --text: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --text-strong: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+    }
+    .page {
+      width: 100%;
+      min-height: 9.7in;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin: 0 0 16px 0;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .header.orange { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
+    .header.blue { background: linear-gradient(135deg, #3b82f6, var(--primary)); }
+    .header.brown { background: linear-gradient(135deg, var(--teal), var(--info)); }
+    .subtle { color: var(--text-muted); font-size: 12px; }
+    .summary {
+      margin-top: 14px;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--card);
+    }
+    .name { font-size: 30px; font-weight: 800; margin: 0; color: var(--text); }
+    .line { margin-top: 6px; font-size: 14px; color: var(--text-strong); }
+    .metric-red { color: #b91c1c; font-weight: 700; }
+    .metric-black { color: #0f1117; font-weight: 700; }
+    .metric-green { color: var(--success); font-weight: 700; }
+    .kpi-grid {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .kpi {
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 86px;
+      background: var(--card);
+    }
+    .kpi .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; }
+    .kpi .value { margin-top: 8px; font-size: 26px; font-weight: 800; color: var(--text); }
+    .kpi .value.green { color: var(--success); }
+    .kpi .value.red { color: #b91c1c; }
+    .kpi .value.blue { color: #93c5fd; }
+
+    .panel {
+      margin-top: 14px;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      background: var(--card);
+      overflow: hidden;
+    }
+    .panel h3 {
+      margin: 0;
+      padding: 10px 12px;
+      background: var(--card-hover);
+      border-bottom: 1px solid var(--border-light);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #c7d2fe;
+    }
+    .panel-inner { padding: 12px; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 8px;
+      text-align: left;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    th {
+      background: var(--card-hover);
+      color: var(--text-secondary);
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .lineup-table th {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.15;
+    }
+    .lineup-table {
+      font-size: 10px;
+    }
+    .lineup-table th,
+    .lineup-table td {
+      padding: 5px 4px;
+    }
+    .lineup-name-cell {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.2;
+    }
+    .distance-table {
+      font-size: 10px;
+    }
+    .distance-table th,
+    .distance-table td {
+      padding: 5px 4px;
+    }
+
+    .court-wrap {
+      border: 1px solid #dbe2ea;
+      border-radius: 10px;
+      padding: 10px;
+      background: #0f172a;
+    }
+    .legend {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 16px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot.green { background: #22c55e; }
+    .dot.red { background: #ef4444; }
+
+    .foot {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <div class="header orange">
+      <div>Player Handout</div>
+      <div>May 26, 2026</div>
+    </div>
+    <div class="summary">
+      <h1 class="name">J. Lee</h1>
+      <div class="line">White Team • 28.5 MIN • 21 PTS • 4 REB • 3 AST • 1 TOV</div>
+      <div class="line">FG 8-15 • 3PT 4-8 • FT 1-2 • <span class="metric-green">eFG 66.7%</span> • <span class="metric-green">TS 68.4%</span> • <span class="metric-green">ORTG 124</span> • USG 24.9%</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="label">Points</div><div class="value blue">21</div></div>
+      <div class="kpi"><div class="label">Minutes</div><div class="value">28.5</div></div>
+      <div class="kpi"><div class="label">FG</div><div class="value green">8-15</div></div>
+      <div class="kpi"><div class="label">3PT</div><div class="value green">4-8</div></div>
+      <div class="kpi"><div class="label">FT</div><div class="value red">1-2</div></div>
+      <div class="kpi"><div class="label">Rebounds</div><div class="value">4</div></div>
+    </div>
+
+    <div class="panel">
+      <h3>Shot Mix</h3>
+      <div class="panel-inner two-col">
+        <table>
+          <thead><tr><th style="width:58%">Type</th><th style="width:21%">FGM-A</th><th style="width:21%">FG%</th></tr></thead>
+          <tbody>
+            <tr><td>Catch &amp; Shoot</td><td>4-5</td><td>80%</td></tr>
+            <tr><td>Pull-Up</td><td>2-4</td><td>50%</td></tr>
+            <tr><td>Layup</td><td>2-3</td><td>67%</td></tr>
+            <tr><td>Drive</td><td>1-2</td><td>50%</td></tr>
+            <tr><td>Floater</td><td>1-1</td><td>100%</td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th style="width:45%">Contest</th><th style="width:28%">FGM-A</th><th style="width:27%">FG%</th></tr></thead>
+          <tbody>
+            <tr><td>Uncontested</td><td>6-8</td><td>75%</td></tr>
+            <tr><td>Contested</td><td>2-7</td><td>29%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-inner" style="padding-top: 0;">
+        <table class="distance-table">
+          <thead>
+            <tr>
+              <th style="width:32%">Distance</th>
+              <th style="width:17%">FGM-A</th>
+              <th style="width:17%">FG%</th>
+              <th style="width:17%">PTS</th>
+              <th style="width:17%">PPP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Rim / 0-3 ft</td><td>4-6</td><td>67%</td><td>8</td><td>1.33</td></tr>
+            <tr><td>Paint / 4-9 ft</td><td>2-4</td><td>50%</td><td>4</td><td>1.00</td></tr>
+            <tr><td>Short Mid / 10-15 ft</td><td>1-3</td><td>33%</td><td>2</td><td>0.67</td></tr>
+            <tr><td>Long Mid / 16-22 ft (2PT)</td><td>2-5</td><td>40%</td><td>6</td><td>1.20</td></tr>
+            <tr><td>3PT / 22.15+ ft</td><td>3-6</td><td>50%</td><td>9</td><td>1.50</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="foot">Page 1: Summary and shot profile only.</div>
+  </section>
+
+  <section class="page">
+    <div class="header blue">
+      <div>Shot Map</div>
+      <div>Page 2</div>
+    </div>
+    <div class="panel">
+      <h3>Live Tracker Court Orientation</h3>
+      <div class="panel-inner">
+        <div class="court-wrap">
+          <svg viewBox="0 0 500 485" width="100%" height="520" aria-label="shot chart">
+            <rect x="10" y="20" width="480" height="440" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+            <rect x="194" y="282" width="112" height="178" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.5"/>
+            <path d="M 44 391 A 207 207 0 0 1 456 391" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+            <line x1="44" y1="460" x2="44" y2="391" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+            <line x1="456" y1="460" x2="456" y2="391" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+            <circle cx="250" cy="411" r="9" fill="none" stroke="#d97706" stroke-width="2.5"/>
+
+            <circle cx="60" cy="120" r="6" fill="#22c55e" stroke="#fff"/>
+            <circle cx="120" cy="180" r="6" fill="#22c55e" stroke="#fff"/>
+            <circle cx="170" cy="240" r="6" fill="#22c55e" stroke="#fff"/>
+            <circle cx="230" cy="320" r="6" fill="#22c55e" stroke="#fff"/>
+            <circle cx="250" cy="260" r="6" fill="#22c55e" stroke="#fff"/>
+            <circle cx="340" cy="190" r="6" fill="#22c55e" stroke="#fff"/>
+            <circle cx="420" cy="280" r="6" fill="#22c55e" stroke="#fff"/>
+
+            <circle cx="130" cy="95" r="6" fill="#ef4444" stroke="#fff"/>
+            <circle cx="310" cy="85" r="6" fill="#ef4444" stroke="#fff"/>
+            <circle cx="335" cy="185" r="6" fill="#ef4444" stroke="#fff"/>
+          </svg>
+        </div>
+        <div class="legend">
+          <div><span class="dot green"></span>Made shot</div>
+          <div><span class="dot red"></span>Missed shot</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">Page 2: Dedicated court page, no tables.</div>
+  </section>
+
+  <section class="page">
+    <div class="header brown">
+      <div>Lineup + Action Timeline</div>
+      <div>Page 3</div>
+    </div>
+
+    <div class="panel">
+      <h3>Lineup Stints</h3>
+      <div class="panel-inner">
+        <table class="lineup-table">
+          <thead>
+            <tr>
+              <th style="width:4%">Q</th>
+              <th style="width:6%">Start</th>
+              <th style="width:6%">End</th>
+              <th style="width:6%">Dur</th>
+              <th style="width:27%">Lineup</th>
+              <th style="width:5%">NET</th>
+              <th style="width:5.75%">Off eFG</th>
+              <th style="width:5.75%">Off TOV</th>
+              <th style="width:5.75%">Off ORB</th>
+              <th style="width:5.75%">Off FTR</th>
+              <th style="width:5.75%">Def eFG</th>
+              <th style="width:5.75%">Def TOV</th>
+              <th style="width:5.75%">Def ORB</th>
+              <th style="width:5.75%">Def FTR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td>12:00</td><td>08:42</td><td>3:18</td><td class="lineup-name-cell">A. Smith / J. Lee / M. Torres / D. Brown / R. Young</td><td>+23</td><td>58%</td><td>11%</td><td>32%</td><td>25%</td><td>45%</td><td>16%</td><td>19%</td><td>18%</td></tr>
+            <tr><td>Q1</td><td>08:42</td><td>04:10</td><td>4:32</td><td class="lineup-name-cell">A. Smith / J. Lee / M. Torres / D. Brown / K. Davis</td><td>+2</td><td>52%</td><td>13%</td><td>27%</td><td>22%</td><td>51%</td><td>12%</td><td>24%</td><td>21%</td></tr>
+            <tr><td>Q2</td><td>07:30</td><td>02:05</td><td>5:25</td><td class="lineup-name-cell">J. Lee / M. Torres / K. Davis / R. Young / T. Carter</td><td>+17</td><td>56%</td><td>10%</td><td>29%</td><td>28%</td><td>47%</td><td>15%</td><td>22%</td><td>17%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Action Log</h3>
+      <div class="panel-inner">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:9%">Q</th>
+              <th style="width:13%">Video</th>
+              <th style="width:20%">Type</th>
+              <th style="width:30%">Detail</th>
+              <th style="width:28%">Contest</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td>1:14</td><td>2P Make</td><td>Catch &amp; Shoot</td><td>Uncontested</td></tr>
+            <tr><td>Q1</td><td>1:42</td><td>Sub</td><td>K. Davis in for D. Brown</td><td>—</td></tr>
+            <tr><td>Q1</td><td>2:08</td><td>Assist</td><td>Kickout to J. Lee</td><td>—</td></tr>
+            <tr><td>Q1</td><td>3:22</td><td>2P Miss</td><td>Layup</td><td>Contested</td></tr>
+            <tr><td>Q1</td><td>5:05</td><td>3P Make</td><td>Pull-Up</td><td>Contested</td></tr>
+            <tr><td>Q1</td><td>7:41</td><td>Sub</td><td>R. Young in for T. Carter</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="foot">Page 3: Two bounded tables with fixed columns and ellipsis clipping.</div>
+  </section>
+</body>
+</html>

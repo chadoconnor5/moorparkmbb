@@ -1,0 +1,388 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Moorpark — Defensive Possession Logger</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#0e0e16;--card:#1a1a2e;--ink:#e8e8f0;--mut2:#9a9ab5;--gold:#ffd700;--blue:#4fc3f7;--good:#2ecc71;--bad:#ff6b6b;--line:#2a2a40}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif}
+  h1{font-size:1.12rem;margin:0;color:var(--gold)}
+  .wrap{max-width:1240px;margin:0 auto;padding:12px 16px 70px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+  label{font-size:.7rem;color:var(--mut2);display:block;margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+  input,select{background:#0f0f1a;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 9px;font-size:.9rem}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .btn{background:#23233a;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:7px 10px;cursor:pointer;font-size:.84rem;user-select:none}
+  .btn:hover{border-color:var(--blue)}
+  .btn.on{background:var(--gold);color:#1a1a2e;border-color:var(--gold);font-weight:700}
+  .btn.tab.on{background:var(--blue);color:#06243a;border-color:var(--blue)}
+  .btn.opp{font-size:.8rem;padding:6px 9px}
+  .btn.opp.on{background:#e07b39;color:#241003;border-color:#e07b39}
+  .btn.nodef.on{background:#7a7a90;color:#0f0f1a;border-color:#7a7a90}
+  .btn.add{border-style:dashed;color:var(--mut2)}
+  .k{display:inline-block;min-width:14px;text-align:center;font-size:.64rem;opacity:.6;border:1px solid currentColor;border-radius:3px;padding:0 3px;margin-right:5px}
+  .pl{background:#23233a;border:1px solid var(--line);border-radius:7px;padding:6px 9px;cursor:pointer;font-size:.8rem;white-space:nowrap}
+  .pl.oncourt{background:#1d3a5c;border-color:var(--blue);color:#cfeaff;font-weight:600}
+  table{border-collapse:collapse;width:100%;font-size:.78rem}
+  th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--gold);position:sticky;top:0;background:var(--card)}
+  .mut{color:var(--mut2)}
+  .chip{display:inline-block;background:#0f2236;border:1px solid #2a557a;border-radius:16px;padding:3px 10px;margin:2px;font-size:.78rem}
+  .endtag{display:inline-block;background:#222;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:.7rem;color:var(--gold)}
+  .tally b{color:var(--gold)}
+  .danger{background:#3a1a1a;border-color:#5a2a2a}
+  .commit{background:var(--good);color:#06200f;font-weight:700;font-size:.92rem;padding:10px 18px}
+  .cont{background:#2d3a5c;border-color:#3d5a8c;color:#cfe0ff;font-weight:600}
+  .small{font-size:.72rem;color:var(--mut2)}
+  .req{color:var(--bad)}
+  .grp{margin-bottom:10px}
+  .scrollbox{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  a{color:var(--blue)}
+</style>
+
+<div class="wrap">
+  <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:8px">
+    <h1>🛡️ Moorpark — Defensive Possession Logger</h1>
+    <div class="small">Multi-event · matchups · pre-loaded rosters · autosaves</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>Date</label><input id="g-date" type="date"></div>
+      <div><label>Opponent</label><input id="g-opp" list="opps" placeholder="Ventura" style="width:180px"><datalist id="opps"></datalist></div>
+      <div><label>Venue</label><select id="g-venue"><option>Home</option><option>Away</option><option>Neutral</option></select></div>
+      <div style="flex:1"></div>
+      <div style="align-self:flex-end" class="seg">
+        <button class="btn" id="load-game">Switch / Load game</button>
+        <button class="btn" id="edit-roster">Edit MP roster</button>
+        <button class="btn" id="edit-opp">Edit opp roster</button>
+      </div>
+    </div>
+    <div class="small" id="game-key" style="margin-top:7px"></div>
+  </div>
+
+  <div class="card">
+    <label>Moorpark lineup on court — click to toggle (need 5); update at subs</label>
+    <div class="seg" id="court"></div>
+    <div class="small" id="court-warn" style="margin-top:6px"></div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:2;min-width:540px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div><b style="color:var(--gold)">Possession <span id="poss-no">1</span></b>
+          <span class="small">— add events, then “Log &amp; next”. “+ same possession” for OReb / and-1 / foul+shot / deflections.</span></div>
+      </div>
+      <div id="staged" class="grp"></div>
+
+      <div class="grp seg" id="tabs">
+        <button class="btn tab on" data-tab="shot"><span class="k">S</span>Shot</button>
+        <button class="btn tab" data-tab="foul"><span class="k">F</span>Foul / FTs</button>
+        <button class="btn tab" data-tab="to"><span class="k">T</span>Turnover</button>
+        <button class="btn tab" data-tab="oreb"><span class="k">O</span>Opp O-Reb</button>
+        <button class="btn tab" data-tab="dreb"><span class="k">B</span>Def Rebound</button>
+        <button class="btn tab" data-tab="defl"><span class="k">D</span>Deflection</button>
+      </div>
+
+      <div data-pane="shot">
+        <div class="grp"><label>Shot type & result</label>
+          <div class="seg" id="s-type"></div>
+          <div class="seg" id="s-result" style="margin-top:6px"></div></div>
+        <div class="grp"><label>Zone (optional)</label><div class="seg" id="s-zone"></div></div>
+        <div class="grp"><label>Contest</label><div class="seg" id="s-contest"></div></div>
+        <div class="grp"><label>Shooter (opp)</label><div class="seg oppgrid" data-oppfield="shooter"></div></div>
+        <div class="grp"><label>Primary defender (MP)</label><div class="seg" id="s-def"></div></div>
+        <div class="grp"><button class="btn" data-sflag="assisted">Assisted</button></div>
+        <div id="assist-box" style="display:none">
+          <div class="grp"><label>Assister (opp)</label><div class="seg oppgrid" data-oppfield="assister"></div></div>
+          <div class="grp"><label>Defender who allowed the assist (MP)</label><div class="seg" id="s-adef"></div></div>
+        </div>
+      </div>
+
+      <div data-pane="foul" style="display:none">
+        <div class="grp"><label>Foul type</label><div class="seg" id="f-type"></div>
+          <button class="btn" data-fflag="bonus" style="margin-top:6px">Bonus / penalty</button></div>
+        <div class="grp row" style="align-items:flex-end">
+          <div><label>Fouler (MP)</label><div class="seg" id="f-fouler"></div></div>
+          <div><label>Free throws (made / att)</label>
+            <div class="seg" style="align-items:center"><input id="f-ftm" type="number" min="0" value="0" style="width:54px"> / <input id="f-fta" type="number" min="0" value="0" style="width:54px"></div></div>
+        </div>
+        <div class="grp" id="fdef-box"><label>Primary defender on shooter (MP)</label><div class="seg" id="f-def"></div></div>
+        <div class="grp" id="foulopp-box"><label>Shooter fouled (opp)</label><div class="seg oppgrid" data-oppfield="foulOpp"></div></div>
+      </div>
+
+      <div data-pane="to" style="display:none">
+        <div class="grp"><label>Turnover type</label><div class="seg" id="t-type"></div></div>
+        <div class="grp"><label>Forced / credited (MP, optional)</label><div class="seg" id="t-forced"></div></div>
+        <div class="grp"><label>Committed by (opp)</label><div class="seg oppgrid" data-oppfield="toOpp" data-team="1"></div></div>
+      </div>
+
+      <div data-pane="oreb" style="display:none">
+        <div class="grp"><label>Opp offensive rebound — continues the possession. Rebounder (opp):</label><div class="seg oppgrid" data-oppfield="orebOpp" data-team="1"></div></div>
+      </div>
+
+      <div data-pane="dreb" style="display:none">
+        <div class="grp"><label>Defensive rebound — ends the possession. Rebounder (MP):</label><div class="seg" id="d-reb"></div></div>
+      </div>
+
+      <div data-pane="defl" style="display:none">
+        <div class="grp"><label>Deflection — credited to a Moorpark defender (does not end the possession):</label><div class="seg" id="d-by"></div></div>
+      </div>
+
+      <div class="grp"><label>Notes (optional)</label><input id="notes" placeholder="e.g. blow-by, no help" style="width:100%"></div>
+      <div class="row" style="align-items:center;gap:10px">
+        <button class="btn commit" id="logposs">Log &amp; next possession ⏎</button>
+        <button class="btn cont" id="addsame">+ Same possession ⇧⏎</button>
+        <button class="btn" id="undo">Undo (⌫)</button>
+        <span class="small" id="state"></span>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:230px">
+      <label>Live opponent tally <span class="small">(reconcile vs box)</span></label>
+      <div class="tally" id="tally" style="line-height:1.8"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <label style="margin:0">Logged events (<span id="count">0</span>) · <span id="possct">0</span> possessions</label>
+      <div class="seg">
+        <button class="btn" id="exp-csv">Export CSV</button>
+        <button class="btn" id="exp-json">Export JSON</button>
+        <button class="btn" id="imp">Import JSON</button>
+        <button class="btn danger" id="clear">Clear game</button>
+        <input id="imp-file" type="file" accept=".json" style="display:none">
+      </div>
+    </div>
+    <div class="scrollbox" style="margin-top:10px">
+      <table><thead><tr>
+        <th>Ps</th><th>End</th><th>Lineup</th><th>Event</th><th>Detail</th><th>MP</th><th>Opp</th><th>Pts</th><th>Notes</th><th></th>
+      </tr></thead><tbody id="log"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ───────── pre-loaded rosters ─────────
+const ROSTER_DEFAULT=[['1','Josh Castaniero'],['2','Aiden Bitran'],['3','Eric Kubel'],['4','Markus Steele'],
+  ['5','Tidiane Sy'],['10','Zach Bauman'],['11','Elijah Elohim'],['12','Dominique Brutus'],['14','Jozef Zlocha'],
+  ['15','Parsa Kamali'],['20','Jake Field'],['21','Jacob Jordan'],['22','Roman Finney'],['24','Aeneas Grullon'],
+  ['30','Clyde Seo'],['31','Noah Cotton'],['32','Ethan McLennan'],['33','Tyler Hook']];
+const OPP_ROSTERS = {"Allan Hancock":[{"j":"1","name":"Arlind Konjuhi"},{"j":"2","name":"Dasio Gonzales"},{"j":"3","name":"Mansour Sanneh"},{"j":"4","name":"Sir Roberts"},{"j":"5","name":"TJ Hollinger"},{"j":"10","name":"Mehki Grant"},{"j":"12","name":"Adam Silmon"},{"j":"15","name":"Noah Morris"},{"j":"20","name":"DD Williams"},{"j":"23","name":"Trenten Lavender"},{"j":"25","name":"Eli Jones"}],"Bakersfield":[{"j":"2","name":"Gustavo Chavez"},{"j":"4","name":"Tyron Tyler"},{"j":"5","name":"Markell Brooks"},{"j":"11","name":"Zykiar Henderson"},{"j":"13","name":"James Miller"},{"j":"20","name":"Emarion Armstrong"},{"j":"21","name":"Godwill Fomusoh"},{"j":"22","name":"Damari Davis"},{"j":"25","name":"Zach Garnett"}],"Cuesta":[{"j":"1","name":"Aiden Pearsall-Morgan"},{"j":"2","name":"Evan Lin"},{"j":"3","name":"Aedan Phelan"},{"j":"5","name":"Griffyn Kapao"},{"j":"14","name":"Brandon Petersmark"},{"j":"20","name":"Corbin Rossi"},{"j":"21","name":"James Nugent"},{"j":"23","name":"Ryan McNamee"},{"j":"33","name":"Austin Anderson"},{"j":"44","name":"Jakai Tutler"}],"East Los Angeles":[{"j":"1","name":"Jayden Barnes"},{"j":"2","name":"Darrell Morris"},{"j":"4","name":"Jadis Langston"},{"j":"10","name":"Isaiah Hill"},{"j":"11","name":"Quinlan Daly"},{"j":"12","name":"Ilyes Lear"},{"j":"20","name":"Adrionne Marcus"},{"j":"22","name":"Landon Winston"},{"j":"24","name":"Imani Herring"},{"j":"32","name":"Gabaree Scott"},{"j":"33","name":"Terrence Hampton"}],"Fresno":[{"j":"1","name":"EJ Johnson"},{"j":"2","name":"Dominic Cummings"},{"j":"3","name":"Bakki Claussell"},{"j":"5","name":"Hudson Swaim"},{"j":"12","name":"Mark Williams"},{"j":"15","name":"Chetan Gill"},{"j":"20","name":"Va'Ron Mitchell"},{"j":"21","name":"Christian English"},{"j":"22","name":"Malachi Barnes"},{"j":"23","name":"Terrell Sutherland"}],"Grossmont":[{"j":"0","name":"Zeid Salem"},{"j":"1","name":"Lorenzo Martinez"},{"j":"2","name":"Gavin Berg"},{"j":"5","name":"Kyree Martin"},{"j":"9","name":"Abdulhakim Gaddah"},{"j":"10","name":"Andre Dankha"},{"j":"11","name":"Daylan Perez"},{"j":"12","name":"Micah Whitley"},{"j":"15","name":"Tyson Lefever"},{"j":"20","name":"Sam Mews"},{"j":"22","name":"Anthony Reavis"},{"j":"23","name":"Trevor Krugh"},{"j":"24","name":"Odin Goebel"},{"j":"25","name":"Hamad Elhamad"},{"j":"30","name":"Tre' Stonebraker"}],"Hartnell":[{"j":"2","name":"Blake Dibble"},{"j":"3","name":"Jorge Espino"},{"j":"4","name":"Jack Scholl"},{"j":"5","name":"Suheib Ibrahim"},{"j":"10","name":"Colbyn Draper"},{"j":"11","name":"Jose Medrano"},{"j":"12","name":"Sainath Subramanian"},{"j":"13","name":"Tyson Weatherbee"},{"j":"21","name":"Justin Gil"},{"j":"22","name":"Chandler Crutcher"},{"j":"23","name":"Isaac Pratt"},{"j":"30","name":"Logan Vacarro"},{"j":"32","name":"Nick Maher"}],"Irvine Valley":[{"j":"1","name":"Miguel Llanas"},{"j":"5","name":"Caden Garrity"},{"j":"10","name":"Ahmad Alhammouri"},{"j":"11","name":"Nate Tuttle"},{"j":"13","name":"Anderson Hatch"},{"j":"14","name":"Sam Meza-Tallada"},{"j":"15","name":"Santos Cordero"},{"j":"23","name":"Yanis Aldeguer"},{"j":"32","name":"Zeno Calastas"},{"j":"33","name":"Matt Mowers"}],"LA Pierce":[{"j":"0","name":"DJ Maron-Gaines"},{"j":"2","name":"Andrew Shackelford"},{"j":"4","name":"Tyler Sturgeon"},{"j":"5","name":"Matt Krepak"},{"j":"10","name":"King Miller"},{"j":"11","name":"Gabe Sidon"},{"j":"12","name":"Tom Hinson"},{"j":"14","name":"Nicolai Stanic"},{"j":"22","name":"Mandell Anthony"},{"j":"23","name":"Jalen Thomas"},{"j":"24","name":"Kameron Fricks"},{"j":"25","name":"Milan Kis"},{"j":"33","name":"Andrew Gore"}],"LA Valley":[{"j":"2","name":"Derek Peterson"},{"j":"3","name":"Elijah Orjuela"},{"j":"4","name":"Gionn Swann"},{"j":"5","name":"Chris Kirk"},{"j":"10","name":"Matthew Monroy"},{"j":"11","name":"Andy Porcayo"},{"j":"12","name":"Will Young"},{"j":"14","name":"Sean Morgan"},{"j":"25","name":"Ron \"Champ\" Merrill"},{"j":"30","name":"Donavan Turner"},{"j":"33","name":"Deng Lual"},{"j":"35","name":"Turner"}],"Los Angeles City":[{"j":"1","name":"Yamato Nguessan"},{"j":"2","name":"Troy Agtang"},{"j":"3","name":"Jabari Spears"},{"j":"5","name":"Leroy Perry"},{"j":"10","name":"Kye Usher-Brown"},{"j":"11","name":"PJ Jacobs"},{"j":"12","name":"Tai Williams"},{"j":"15","name":"Brayden Fu"},{"j":"22","name":"Denzell Ingram"},{"j":"23","name":"Marley Goldberg"},{"j":"24","name":"Devean Mpoupe-Singui"},{"j":"30","name":"Isaiah Carrasco"},{"j":"32","name":"Jaelin Brown"}],"MiraCosta":[{"j":"1","name":"Makai Caruth"},{"j":"2","name":"DeAngelo Macalino"},{"j":"3","name":"Aubrey Thompson"},{"j":"10","name":"Logan Ardent"},{"j":"11","name":"Dub Williams"},{"j":"13","name":"Alonzo Smith"},{"j":"14","name":"Sammy Carmona"},{"j":"22","name":"Trmale Tipler"},{"j":"23","name":"Travis Snider"},{"j":"24","name":"Logan Mason"},{"j":"40","name":"Jesse Snider"},{"j":"42","name":"Elijah Samdahl"}],"Oxnard":[{"j":"1","name":"Ruben Jimenez"},{"j":"2","name":"Andy Olmos"},{"j":"3","name":"Tristan Carter"},{"j":"4","name":"Carter Reid"},{"j":"5","name":"Travis Valenzuela"},{"j":"10","name":"Jeremy Goodcase"},{"j":"11","name":"Jose Valdovinos"},{"j":"14","name":"Gerardo Garcia"},{"j":"20","name":"Zaire Winesberry"},{"j":"22","name":"Carl Anoche"},{"j":"24","name":"Jaeden Merchant"}],"Palomar":[{"j":"0","name":"Benjie Nudo"},{"j":"1","name":"Isaiah Tolmaire"},{"j":"2","name":"Tore-Andre Gray"},{"j":"3","name":"LaCiya Garrett"},{"j":"4","name":"Angel Ochoa"},{"j":"5","name":"Isaiah Pomare"},{"j":"10","name":"Braylon Hollins"},{"j":"14","name":"Drew Pierce"},{"j":"15","name":"Sterling Knighten"},{"j":"20","name":"Simon Creel"},{"j":"23","name":"Devauntra Cooper"},{"j":"24","name":"Justin White"},{"j":"33","name":"Alvyn Renfro-Hardy"},{"j":"55","name":"Jaidyn Norman"}],"Saddleback":[{"j":"0","name":"David Moon"},{"j":"1","name":"Jaden Rahmaan"},{"j":"2","name":"Malachi Hiers"},{"j":"3","name":"Christopher Williams"},{"j":"4","name":"Abhi Acharya"},{"j":"5","name":"Jack Monarek"},{"j":"10","name":"Charlie Stallings"},{"j":"11","name":"Mark Reichner"},{"j":"12","name":"Cetin Seles"},{"j":"13","name":"Adam Sevier"},{"j":"15","name":"Dylan Gomez"},{"j":"24","name":"Michael Bichel"},{"j":"30","name":"Nathan Brosch"},{"j":"33","name":"Jonathan Naulls"}],"San Bernardino Valley":[{"j":"1","name":"Lincoln Liggins"},{"j":"2","name":"Bryan Cabrera"},{"j":"3","name":"Stanley Thomas III"},{"j":"4","name":"Channing Shelton"},{"j":"5","name":"Jaison Joyce"},{"j":"10","name":"Alex Ball"},{"j":"11","name":"Duante Murphy"},{"j":"13","name":"Jaden Riley"},{"j":"14","name":"D'Antae Woods"},{"j":"21","name":"Jude Brideba"},{"j":"23","name":"Kaden Jones"}],"San Diego Miramar":[{"j":"1","name":"Ah-Zion Applewhaite"},{"j":"3","name":"Christian Washington"},{"j":"4","name":"Dalton Norvell"},{"j":"5","name":"Tate Van der Walt"},{"j":"10","name":"Zyun McGee"},{"j":"11","name":"Luca Anzaldua-Bertholdo"},{"j":"12","name":"Jaden Merritt"},{"j":"14","name":"Caiden Broughton"},{"j":"23","name":"David Robredo"},{"j":"30","name":"Dimetrius Simpson"},{"j":"32","name":"Jackson Dempster"},{"j":"33","name":"Coda Consiglio"},{"j":"35","name":"Joel Schwantner"}],"Santa Barbara":[{"j":"0","name":"Brycen Matthews"},{"j":"1","name":"Jonah Beck"},{"j":"3","name":"Mason Thomas"},{"j":"5","name":"Saul Anaya"},{"j":"10","name":"Jesse Ybarra"},{"j":"11","name":"Jack Berry"},{"j":"13","name":"Chase Kardosh"},{"j":"15","name":"Ramon Cota"},{"j":"20","name":"Dante Calhoun"},{"j":"23","name":"Joseph Ursich"},{"j":"24","name":"James Reach"},{"j":"25","name":"Eddie Weber-Stover"},{"j":"32","name":"Jayden Fajardo"},{"j":"33","name":"Dominic Bonafede"},{"j":"45","name":"Brody Koch"}],"Southwestern":[{"j":"0","name":"Keoni Henson"},{"j":"1","name":"AJ Green"},{"j":"3","name":"Camron Bellamy"},{"j":"4","name":"Derek Edmond"},{"j":"5","name":"Adam Chemsi"},{"j":"10","name":"Alfredo De LA Mora"},{"j":"11","name":"Emmanuel Barnett"},{"j":"12","name":"Nicolas Farwell"},{"j":"15","name":"Tobias Okwii"},{"j":"22","name":"Aaron Owens"},{"j":"23","name":"Tai Jones"},{"j":"24","name":"Christian Gamboa"},{"j":"30","name":"Tres Luzey"},{"j":"31","name":"Life Wade"}],"Ventura":[{"j":"1","name":"Baron Bellamy"},{"j":"01","name":"Baron Bellamy"},{"j":"2","name":"Kam'Ron Cigar"},{"j":"02","name":"Kam'Ron Cigar"},{"j":"3","name":"Jerimiyah Smith"},{"j":"03","name":"Jerimiyah Smith"},{"j":"5","name":"Jeremiah Wilson"},{"j":"05","name":"Jeremiah Wilson"},{"j":"10","name":"Snookey Wigington"},{"j":"22","name":"Kevin Anigbogu"},{"j":"24","name":"Elijah Brown"},{"j":"25","name":"Dabe Princewill"},{"j":"32","name":"Tong Tong"}],"West LA":[{"j":"0","name":"Chase Coleman"},{"j":"1","name":"Enzo Kwamegne"},{"j":"2","name":"Titus Morris"},{"j":"3","name":"Qiani Bowens"},{"j":"4","name":"Brian Torres"},{"j":"5","name":"Jase Stewart"},{"j":"10","name":"EJ Andrews"},{"j":"11","name":"Michael Baba"},{"j":"12","name":"Jamier Moore"},{"j":"15","name":"Danaus Cockrell"},{"j":"21","name":"Jemeil Rich"},{"j":"23","name":"Mario Perry"},{"j":"24","name":"Malachi Knight"},{"j":"32","name":"Micah Williams"}],"West Valley":[{"j":"0","name":"Antonio Kellogg Jr."},{"j":"2","name":"Ryan Roth"},{"j":"3","name":"CJ Willenborg"},{"j":"4","name":"Bryce Buchanan"},{"j":"5","name":"William Amoah"},{"j":"6","name":"Jayden Minor"},{"j":"11","name":"Basti Williams"},{"j":"21","name":"David Manea"},{"j":"22","name":"Isaiah Ackerman"},{"j":"40","name":"Oussama Chacha"},{"j":"87","name":"Cyrus Hassan"}]};
+const OPPS=Object.keys(OPP_ROSTERS).sort();
+
+// ───────── taxonomy ─────────
+const STYPE=[['dunk','Dunk','x'],['close2','Close 2','c'],['far2','Farther 2','r'],['three','Three','y']];
+const is3=e=>e.shotType==='three';
+const SRESULT=[['made','Made','q'],['missed','Missed','w'],['blocked','Blocked','e']];
+const ZONES=[['rim','Rim','a'],['shortmid','Short mid','s'],['longmid','Long mid','d'],['corner3','Corner 3','f'],['ab3','Above-break 3','g']];
+const CONTEST=[['contested','Contested','z'],['open','Open','v']];
+const FTYPE=[['shooting','Shooting','q'],['nonshoot','Non-shooting','w'],['tech','Technical','e']];
+const TTYPE=[['steal','Steal','q'],['deadball','Dead-ball','w'],['charge','Charge drawn','e'],['offfoul','Off. foul (other)','r'],['shotclock','Shot clock','t'],['other','Other','y']];
+const ENDLAB={made_fg:'Made FG',made_ft:'Made FT',dreb:'Def Reb',turnover:'Turnover',steal:'Steal',foul:'Foul reset',incomplete:'⚠ incomplete'};
+const OPPFIELDS=['shooter','assister','foulOpp','toOpp','orebOpp'];
+
+// ───────── state ─────────
+let roster=load('dl2_roster')||ROSTER_DEFAULT.map(r=>({j:r[0],name:r[1]}));
+let oppAll=load('dl2_opprosters_all')||{};
+let oppRoster=[];
+let onCourt=load('dl2_oncourt')||[];
+let games=load('dl2_games')||{};
+let gameKey=load('dl2_curgame')||'';
+let tab='shot', ev=null, staged=[];
+
+function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function save(){localStorage.setItem('dl2_games',JSON.stringify(games));localStorage.setItem('dl2_curgame',gameKey);
+  localStorage.setItem('dl2_oncourt',JSON.stringify(onCourt));localStorage.setItem('dl2_roster',JSON.stringify(roster));
+  localStorage.setItem('dl2_opprosters_all',JSON.stringify(oppAll));}
+function curGame(){return games[gameKey]||[]}
+function nameOf(j){if(j==='none')return 'No Def';if(j==='team')return 'Team';const p=roster.find(p=>p.j===j);return p?p.name:('#'+j)}
+function el(id){return document.getElementById(id)}
+function curOppName(){return (gameKey.split('__')[1])||el('g-opp').value.trim()}
+function loadOppRoster(){const o=curOppName();oppRoster=(oppAll[o]||OPP_ROSTERS[o]||[]).slice();}
+function resetEvent(){ev={shotType:null,result:null,zone:null,contest:null,assisted:false,
+  shooter:'',defender:null,assister:'',assistDef:null,
+  foulType:null,bonus:false,fouler:null,foulDef:null,ftm:0,fta:0,foulOpp:'',
+  toType:null,forced:null,toOpp:'',orebOpp:'',rebounder:null,deflBy:null};
+  el('f-ftm').value=0;el('f-fta').value=0;el('notes').value='';renderBuilder();}
+function nextPossNo(){return curGame().length+1}
+
+// ───────── points + ending ─────────
+function evPts(e){let n=0;if(e.type==='shot'&&e.result==='made')n=is3(e)?3:2;n+=Number(e.ftm||0);return n;}
+function possEnd(events){if(!events.length)return '';const last=events[events.length-1];
+  if(last.type==='turnover')return last.toType==='steal'?'steal':'turnover';
+  if(last.type==='dreb')return 'dreb';
+  if(last.type==='shot')return last.result==='made'?'made_fg':'dreb';
+  if(last.type==='foul')return (Number(last.ftm)>0||Number(last.fta)>0)?'made_ft':'foul';
+  return 'incomplete';}   // oreb / deflection as last = unfinished
+
+// ───────── render ─────────
+function segHTML(items,sel){return items.map(([k,lab,key])=>
+  `<button class="btn ${sel===k?'on':''}" data-k="${k}">${key?`<span class="k">${key.toUpperCase()}</span>`:''}${lab}</button>`).join('')}
+function defSeg(sel,withNone,withTeam){if(!onCourt.length)return '<span class="small req">pick 5 on court first</span>';
+  let h=onCourt.map(j=>`<button class="btn ${sel===j?'on':''}" data-k="${j}">#${j}</button>`).join('');
+  if(withTeam)h+=`<button class="btn nodef ${sel==='team'?'on':''}" data-k="team">Team</button>`;
+  if(withNone)h+=`<button class="btn nodef ${sel==='none'?'on':''}" data-k="none">No Def</button>`;return h;}
+function oppSeg(field,withTeam){let h=oppRoster.map(p=>{const v='#'+p.j+' '+p.name;
+  return `<button class="btn opp ${ev[field]===v?'on':''}" data-opp="${v.replace(/"/g,'&quot;')}">#${p.j} ${p.name}</button>`;}).join('');
+  if(withTeam)h+=`<button class="btn nodef ${ev[field]==='Team'?'on':''}" data-opp="Team">Team</button>`;
+  return h+`<button class="btn add" data-oppadd="1">+ add</button>`;}
+
+function renderGameKey(){el('game-key').innerHTML=gameKey?`Logging: <b>${gameKey.replace(/__/g,' · ')}</b> · opp roster: ${oppRoster.length} players`:
+  '<span class="req">No game loaded — set Date + Opponent, click “Switch / Load game”.</span>';}
+function renderCourt(){el('court').innerHTML=roster.map(p=>`<div class="pl ${onCourt.includes(p.j)?'oncourt':''}" data-j="${p.j}">#${p.j} ${p.name}</div>`).join('');
+  el('court-warn').innerHTML=onCourt.length===5?`<span style="color:var(--good)">On court: ${onCourt.map(nameOf).join(' · ')}</span>`:`<span class="req">${onCourt.length}/5 selected</span>`;}
+function renderTabs(){document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  document.querySelectorAll('[data-pane]').forEach(p=>p.style.display=p.dataset.pane===tab?'':'none');}
+function renderBuilder(){
+  el('s-type').innerHTML=segHTML(STYPE,ev.shotType);el('s-result').innerHTML=segHTML(SRESULT,ev.result);
+  el('s-zone').innerHTML=segHTML(ZONES,ev.zone);el('s-contest').innerHTML=segHTML(CONTEST,ev.contest);
+  el('s-def').innerHTML=defSeg(ev.defender,true);el('s-adef').innerHTML=defSeg(ev.assistDef,true);
+  el('f-type').innerHTML=segHTML(FTYPE,ev.foulType);el('f-fouler').innerHTML=defSeg(ev.fouler,false);el('f-def').innerHTML=defSeg(ev.foulDef,true);
+  el('t-type').innerHTML=segHTML(TTYPE,ev.toType);el('t-forced').innerHTML=defSeg(ev.forced,false);
+  el('d-reb').innerHTML=defSeg(ev.rebounder,false,true);el('d-by').innerHTML=defSeg(ev.deflBy,false);
+  document.querySelectorAll('.oppgrid').forEach(g=>g.innerHTML=oppSeg(g.dataset.oppfield,g.dataset.team));
+  document.querySelector('[data-sflag]').classList.toggle('on',ev.assisted);
+  document.querySelector('[data-fflag]').classList.toggle('on',ev.bonus);
+  el('assist-box').style.display=ev.assisted?'':'none';
+  el('foulopp-box').style.display=ev.foulType==='shooting'?'':'none';
+  el('fdef-box').style.display=ev.foulType==='shooting'?'':'none';
+  el('state').textContent=staged.length?`${staged.length} event(s) staged in this possession`:'';
+}
+function mp(j){return j?(j==='none'?'No Def':j==='team'?'Team':'#'+j):''}
+function evLabel(e){
+  if(e.type==='shot'){let s=`${(STYPE.find(s=>s[0]===e.shotType)||[,e.shotType])[1]} ${e.result}`;
+    if(e.zone)s+=' · '+(ZONES.find(z=>z[0]===e.zone)||[])[1];if(e.contest)s+=' · '+e.contest;
+    if(e.assisted)s+=` · ast${e.assister?' '+e.assister:''}${e.assistDef?' (def '+mp(e.assistDef)+')':''}`;return s;}
+  if(e.type==='foul')return `${(FTYPE.find(f=>f[0]===e.foulType)||[,e.foulType])[1]} foul${e.fta?` · ${e.ftm}/${e.fta} FT`:''}${e.bonus?' · bonus':''}${e.foulDef?' · def '+mp(e.foulDef):''}`;
+  if(e.type==='turnover')return `TO: ${(TTYPE.find(t=>t[0]===e.toType)||[,e.toType])[1]}`;
+  if(e.type==='oreb')return `Opp OReb`;
+  if(e.type==='dreb')return `Def Rebound`;
+  if(e.type==='deflection')return `Deflection`;
+  return e.type;}
+function evMP(e){if(e.type==='shot')return mp(e.defender);if(e.type==='foul')return mp(e.fouler);
+  if(e.type==='turnover')return mp(e.forced);if(e.type==='dreb')return mp(e.rebounder);if(e.type==='deflection')return mp(e.deflBy);return '';}
+function evOpp(e){return e.shooter||e.foulOpp||e.toOpp||e.orebOpp||''}
+function renderStaged(){el('staged').innerHTML=staged.length?('<label>This possession</label>'+staged.map((e,i)=>
+  `<span class="chip">${evLabel(e)} <a href="#" data-unstage="${i}" style="color:var(--bad)">✕</a></span>`).join('')):'';}
+function renderTally(){
+  const evs=[];curGame().forEach(p=>p.events.forEach(e=>evs.push(e)));staged.forEach(e=>evs.push(e));
+  let fgm=0,fga=0,tpm=0,tpa=0,ftm=0,fta=0,to=0,oreb=0,dreb=0,defl=0,pts=0,blk=0;
+  evs.forEach(e=>{if(e.type==='shot'){fga++;if(e.result==='made'){fgm++;if(is3(e))tpm++;}if(is3(e))tpa++;if(e.result==='blocked')blk++;}
+    if(e.type==='foul'){ftm+=Number(e.ftm||0);fta+=Number(e.fta||0);}if(e.type==='turnover')to++;if(e.type==='oreb')oreb++;
+    if(e.type==='dreb')dreb++;if(e.type==='deflection')defl++;pts+=evPts(e);});
+  const ends={};curGame().forEach(p=>ends[p.end]=(ends[p.end]||0)+1);
+  const pct=(a,b)=>b?(100*a/b).toFixed(1)+'%':'—';
+  el('tally').innerHTML=`<div>Possessions: <b>${curGame().length+(staged.length?1:0)}</b></div>
+    <div>Opp points: <b>${pts}</b></div><div>Opp FG: <b>${fgm}/${fga}</b> (${pct(fgm,fga)})</div>
+    <div>Opp 3P: <b>${tpm}/${tpa}</b> (${pct(tpm,tpa)})</div><div>Opp FT: <b>${ftm}/${fta}</b></div>
+    <div>Blocks: <b>${blk}</b> · Deflections: <b>${defl}</b></div><div>Def Reb: <b>${dreb}</b> · Opp OReb: <b>${oreb}</b></div>
+    <div>TOs forced: <b>${to}</b></div>
+    <div class="small" style="margin-top:6px">Endings: ${Object.keys(ends).map(k=>`${ENDLAB[k]||k} ${ends[k]}`).join(' · ')||'—'}</div>`;
+}
+function renderLog(){
+  const G=curGame();let n=0;G.forEach(p=>n+=p.events.length);el('count').textContent=n;el('possct').textContent=G.length;el('poss-no').textContent=nextPossNo();
+  const rows=[];G.forEach(p=>p.events.forEach((e,i)=>{
+    rows.push(`<tr><td>${i===0?p.poss:''}</td><td>${i===0?`<span class="endtag">${ENDLAB[p.end]||p.end||''}</span>`:''}</td>
+      <td class="mut">${i===0?p.lineup.map(j=>'#'+j).join(' '):''}</td><td>${e.type}</td><td>${evLabel(e)}</td>
+      <td class="mut">${evMP(e)}</td><td class="mut">${evOpp(e)}</td><td><b>${evPts(e)||''}</b></td><td class="mut">${e.notes||''}</td>
+      <td>${i===0?`<button class="btn" style="padding:2px 7px" data-delposs="${p.poss}">✕</button>`:''}</td></tr>`);}));
+  el('log').innerHTML=rows.reverse().join('');
+}
+function renderAll(){renderGameKey();renderCourt();renderTabs();renderBuilder();renderStaged();renderTally();renderLog();}
+
+// ───────── build / stage / commit ─────────
+function buildEvent(){const notes=el('notes').value.trim();
+  if(tab==='shot'){if(!ev.shotType||!ev.result)return null;
+    return {type:'shot',shotType:ev.shotType,result:ev.result,zone:ev.zone,contest:ev.contest,assisted:ev.assisted,
+      shooter:ev.shooter,defender:ev.defender,assister:ev.assisted?ev.assister:'',assistDef:ev.assisted?ev.assistDef:null,notes};}
+  if(tab==='foul'){if(!ev.foulType)return null;
+    return {type:'foul',foulType:ev.foulType,bonus:ev.bonus,fouler:ev.fouler,foulDef:ev.foulType==='shooting'?ev.foulDef:null,
+      ftm:Number(el('f-ftm').value||0),fta:Number(el('f-fta').value||0),foulOpp:ev.foulType==='shooting'?ev.foulOpp:'',notes};}
+  if(tab==='to'){if(!ev.toType)return null;return {type:'turnover',toType:ev.toType,forced:ev.forced,toOpp:ev.toOpp,notes};}
+  if(tab==='oreb'){return {type:'oreb',orebOpp:ev.orebOpp,notes};}
+  if(tab==='dreb'){return {type:'dreb',rebounder:ev.rebounder,notes};}
+  if(tab==='defl'){return {type:'deflection',deflBy:ev.deflBy,notes};}
+  return null;}
+function stageEvent(){if(onCourt.length!==5){alert('Pick exactly 5 on court.');return false;}
+  const e=buildEvent();if(!e){alert('Fill the current '+tab+' (need its key fields).');return false;}
+  staged.push(e);resetEvent();renderStaged();renderTally();renderLog();return true;}
+function logPossession(){if(!gameKey){alert('Load a game first.');return;}
+  if(buildEvent()&&!stageEvent())return;if(!staged.length){alert('No events to log.');return;}
+  const end=possEnd(staged);
+  if(end==='incomplete'&&!confirm('This possession ends on an OReb/Deflection (no terminal event). Log anyway?'))return;
+  if(!games[gameKey])games[gameKey]=[];
+  games[gameKey].push({poss:nextPossNo(),lineup:[...onCourt].sort((a,b)=>a-b),end,events:staged});
+  staged=[];save();renderAll();}
+function undo(){if(staged.length){staged.pop();renderStaged();renderTally();renderLog();return;}
+  const G=curGame();if(G.length){G.pop();save();renderAll();}}
+
+// ───────── game / roster / io ─────────
+function loadGame(){const d=el('g-date').value,o=el('g-opp').value.trim(),v=el('g-venue').value;
+  if(!d||!o){alert('Set date and opponent.');return;}gameKey=`${d}__${o}__${v}`;if(!games[gameKey])games[gameKey]=[];
+  staged=[];loadOppRoster();save();renderAll();}
+function exportCSV(){const G=curGame();if(!G.length){alert('Nothing to export.');return;}const[date,opp,venue]=gameKey.split('__');
+  const head=['date','opponent','venue','poss','poss_end','lineup','event','shot_type','result','zone','contest','assisted',
+    'opp_shooter','mp_defender','opp_assister','mp_assist_def','foul_type','bonus','ftm','fta','to_type','mp_credit','opp_player','pts','notes'];
+  const rows=[];G.forEach(p=>p.events.forEach(e=>rows.push([date,opp,venue,p.poss,p.end,
+    p.lineup.map(j=>'#'+j+' '+nameOf(j)).join(' / '),e.type,e.shotType||'',e.result||'',e.zone||'',e.contest||'',e.assisted?1:'',
+    e.shooter||'',e.defender||e.foulDef||'',e.assister||'',e.assistDef||'',e.foulType||'',e.bonus?1:'',e.ftm||'',e.fta||'',e.toType||'',
+    evMP(e).replace('#',''),evOpp(e)||e.foulOpp||'',evPts(e),(e.notes||'').replace(/"/g,'""')])));
+  const csv=[head,...rows].map(r=>r.map(c=>/[",\n]/.test(''+c)?`"${c}"`:c).join(',')).join('\n');
+  dl(`def_${gameKey}.csv`,csv,'text/csv');}
+function exportJSON(){const G=curGame();if(!G.length){alert('Nothing to export.');return;}
+  dl(`def_${gameKey}.json`,JSON.stringify({game:gameKey,roster,oppRoster,possessions:G},null,1),'application/json');}
+function dl(n,d,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d],{type:t}));a.download=n;a.click();}
+
+// ───────── wire ─────────
+el('opps').innerHTML=OPPS.map(o=>`<option value="${o}">`).join('');
+el('g-date').value=new Date().toISOString().slice(0,10);
+if(gameKey){const[d,o,v]=gameKey.split('__');el('g-date').value=d;el('g-opp').value=o;el('g-venue').value=v;}
+loadOppRoster();resetEvent();renderAll();
+
+el('court').onclick=e=>{const d=e.target.closest('[data-j]');if(!d)return;const j=d.dataset.j,i=onCourt.indexOf(j);
+  if(i>=0)onCourt.splice(i,1);else{if(onCourt.length>=5){alert('Already 5 — remove one.');return;}onCourt.push(j);}save();renderCourt();renderBuilder();};
+el('tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;renderTabs();renderBuilder();}};
+function bindSeg(id,field){el(id).onclick=e=>{const x=e.target.closest('[data-k]');if(x){ev[field]=x.dataset.k;renderBuilder();}};}
+bindSeg('s-type','shotType');bindSeg('s-result','result');bindSeg('s-zone','zone');bindSeg('s-contest','contest');
+bindSeg('s-def','defender');bindSeg('s-adef','assistDef');bindSeg('f-type','foulType');bindSeg('f-fouler','fouler');
+bindSeg('t-type','toType');bindSeg('t-forced','forced');bindSeg('d-reb','rebounder');bindSeg('d-by','deflBy');bindSeg('f-def','foulDef');
+document.querySelector('[data-sflag]').onclick=()=>{ev.assisted=!ev.assisted;renderBuilder();};
+document.querySelector('[data-fflag]').onclick=()=>{ev.bonus=!ev.bonus;renderBuilder();};
+document.addEventListener('click',e=>{
+  const o=e.target.closest('[data-opp]');if(o){const g=o.closest('[data-oppfield]');if(g){ev[g.dataset.oppfield]=o.dataset.opp;renderBuilder();}return;}
+  const a=e.target.closest('[data-oppadd]');if(a){const g=a.closest('[data-oppfield]');const v=prompt('Add opponent player — "# Name" or number:');
+    if(v){const m=v.trim().match(/^#?(\d+)\s*(.*)$/);const p=m?{j:m[1],name:(m[2]||'#'+m[1]).trim()}:{j:'?',name:v.trim()};
+      oppRoster.push(p);oppAll[curOppName()]=oppRoster;if(g)ev[g.dataset.oppfield]='#'+p.j+' '+p.name;save();renderBuilder();}return;}
+  const u=e.target.closest('[data-unstage]');if(u){e.preventDefault();staged.splice(+u.dataset.unstage,1);renderStaged();renderTally();renderLog();return;}
+  const dp=e.target.closest('[data-delposs]');if(dp){games[gameKey]=curGame().filter(p=>p.poss!=dp.dataset.delposs).map((p,i)=>({...p,poss:i+1}));save();renderAll();return;}
+});
+el('logposs').onclick=logPossession;el('addsame').onclick=stageEvent;el('undo').onclick=undo;el('load-game').onclick=loadGame;
+el('exp-csv').onclick=exportCSV;el('exp-json').onclick=exportJSON;el('imp').onclick=()=>el('imp-file').click();
+el('imp-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const o=JSON.parse(r.result);if(o.game&&o.possessions){games[o.game]=o.possessions;gameKey=o.game;
+    if(o.roster)roster=o.roster;const[d,op,v]=o.game.split('__');el('g-date').value=d;el('g-opp').value=op;el('g-venue').value=v;
+    if(o.oppRoster){oppAll[op]=o.oppRoster;}loadOppRoster();save();renderAll();alert('Imported '+o.possessions.length+' possessions.');}}catch(err){alert('Bad JSON.');}};r.readAsText(f);};
+el('clear').onclick=()=>{if(gameKey&&confirm('Clear all possessions for this game?')){games[gameKey]=[];staged=[];save();renderAll();}};
+el('edit-roster').onclick=()=>{const t=prompt('Moorpark roster — one per line "jersey,Name":',roster.map(p=>`${p.j},${p.name}`).join('\n'));
+  if(t!=null){roster=t.split('\n').map(l=>l.split(',')).filter(a=>a[0]&&a[0].trim()).map(a=>({j:a[0].trim(),name:(a[1]||'#'+a[0].trim()).trim()}));save();renderAll();}};
+el('edit-opp').onclick=()=>{const o=curOppName();if(!o){alert('Load a game first.');return;}
+  const t=prompt(`${o} roster — one per line "jersey,Name":`,oppRoster.map(p=>`${p.j},${p.name}`).join('\n'));
+  if(t!=null){oppRoster=t.split('\n').map(l=>l.split(',')).filter(a=>a[0]&&a[0].trim()).map(a=>({j:a[0].trim(),name:(a[1]||'#'+a[0].trim()).trim()}));
+    oppAll[o]=oppRoster;save();renderAll();}};
+
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
+  if(e.key==='Enter'&&e.shiftKey){e.preventDefault();stageEvent();return;}
+  if(e.key==='Enter'){e.preventDefault();logPossession();return;}
+  const k=e.key.toLowerCase();
+  if(k==='backspace'){e.preventDefault();undo();return;}
+  const tabs={s:'shot',f:'foul',t:'to',o:'oreb',b:'dreb',d:'defl'};if(tabs[k]){tab=tabs[k];renderTabs();renderBuilder();return;}
+  const set=(field,items)=>{const h=items.find(i=>i[2]===k);if(h){ev[field]=h[0];renderBuilder();return true;}return false;};
+  if(tab==='shot'){if(set('shotType',STYPE))return;if(set('result',SRESULT))return;if(set('zone',ZONES))return;if(set('contest',CONTEST))return;}
+  if(tab==='foul'&&set('foulType',FTYPE))return;
+  if(tab==='to'&&set('toType',TTYPE))return;
+});
+</script>

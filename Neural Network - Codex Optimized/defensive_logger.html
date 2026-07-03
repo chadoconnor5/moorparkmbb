@@ -1,0 +1,488 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Moorpark — Defensive Possession Logger</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#0e0e16;--card:#1a1a2e;--ink:#e8e8f0;--mut2:#9a9ab5;--gold:#ffd700;--blue:#4fc3f7;--good:#2ecc71;--bad:#ff6b6b;--line:#2a2a40}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif}
+  h1{font-size:1.12rem;margin:0;color:var(--gold)}
+  .wrap{max-width:1240px;margin:0 auto;padding:12px 16px 70px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+  label{font-size:.7rem;color:var(--mut2);display:block;margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+  input,select{background:#0f0f1a;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 9px;font-size:.9rem}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .btn{background:#23233a;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:7px 10px;cursor:pointer;font-size:.84rem;user-select:none}
+  .btn:hover{border-color:var(--blue)}
+  .btn.on{background:var(--gold);color:#1a1a2e;border-color:var(--gold);font-weight:700}
+  .btn.tab.on{background:var(--blue);color:#06243a;border-color:var(--blue)}
+  .k{display:inline-block;min-width:14px;text-align:center;font-size:.64rem;opacity:.6;border:1px solid currentColor;border-radius:3px;padding:0 3px;margin-right:5px}
+  .pl{background:#23233a;border:1px solid var(--line);border-radius:7px;padding:6px 9px;cursor:pointer;font-size:.8rem;white-space:nowrap}
+  .pl.oncourt{background:#1d3a5c;border-color:var(--blue);color:#cfeaff;font-weight:600}
+  table{border-collapse:collapse;width:100%;font-size:.78rem}
+  th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--gold);position:sticky;top:0;background:var(--card)}
+  .mut{color:var(--mut2)}
+  .chip{display:inline-block;background:#0f2236;border:1px solid #2a557a;border-radius:16px;padding:3px 10px;margin:2px;font-size:.78rem}
+  .endtag{display:inline-block;background:#222;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:.7rem;color:var(--gold)}
+  .tally b{color:var(--gold)}
+  .danger{background:#3a1a1a;border-color:#5a2a2a}
+  .commit{background:var(--good);color:#06200f;font-weight:700;font-size:.92rem;padding:10px 18px}
+  .cont{background:#2d3a5c;border-color:#3d5a8c;color:#cfe0ff;font-weight:600}
+  .small{font-size:.72rem;color:var(--mut2)}
+  .req{color:var(--bad)}
+  .grp{margin-bottom:10px}
+  .scrollbox{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  a{color:var(--blue)}
+</style>
+
+<div class="wrap">
+  <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:8px">
+    <h1 id="title">🛡️ Moorpark — Defensive Possession Logger</h1>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="seg" id="mode-seg">
+        <button class="btn" data-mode="def">🛡️ Defense</button>
+        <button class="btn" data-mode="off">🏀 Offense</button>
+      </div>
+      <div class="small" id="subtitle">Lineup-wide · garbage time · autosaves</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>Date</label><input id="g-date" type="date"></div>
+      <div><label>Opponent</label><input id="g-opp" list="opps" placeholder="Ventura" style="width:180px"><datalist id="opps"></datalist></div>
+      <div><label>Venue</label><select id="g-venue"><option>Home</option><option>Away</option><option>Neutral</option></select></div>
+      <div style="flex:1"></div>
+      <div style="align-self:flex-end" class="seg">
+        <button class="btn" id="load-game">Switch / Load game</button>
+        <button class="btn" id="edit-roster">Edit MP roster</button>
+      </div>
+    </div>
+    <div class="small" id="game-key" style="margin-top:7px"></div>
+  </div>
+
+  <div class="card">
+    <label>Moorpark lineup on court — click to toggle (need 5); update at subs</label>
+    <div class="seg" id="court"></div>
+    <div class="small" id="court-warn" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <label>Score &amp; clock — update periodically; stamps each possession with garbage-time status</label>
+    <div class="row" style="align-items:flex-end">
+      <div><label>Half</label><select id="c-half"><option value="1">1st</option><option value="2">2nd</option></select></div>
+      <div><label>Clock (mm:ss)</label><input id="c-clock" placeholder="12:30" style="width:84px"></div>
+      <div><label>Moorpark</label><input id="c-mp" type="number" min="0" value="0" style="width:66px"></div>
+      <div><label>Opponent</label><input id="c-opp" type="number" min="0" value="0" style="width:66px"></div>
+      <div style="align-self:flex-end"><button class="btn" id="ghostsub">Ghost Sub</button></div>
+    </div>
+    <div id="gt-readout" style="margin-top:9px"></div>
+    <div id="ghost-list" style="margin-top:8px"></div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:2;min-width:540px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div><b style="color:var(--gold)">Possession <span id="poss-no">1</span></b>
+          <span class="small">— add events, then “Log &amp; next”. “+ same possession” for OReb / and-1 / foul+shot.</span></div>
+      </div>
+      <div id="staged" class="grp"></div>
+
+      <div class="grp seg" id="tabs">
+        <button class="btn tab on" data-tab="shot"><span class="k">S</span>Shot</button>
+        <button class="btn tab" data-tab="foul"><span class="k">F</span>Foul / FTs</button>
+        <button class="btn tab" data-tab="to"><span class="k">T</span>Turnover</button>
+        <button class="btn tab" data-tab="oreb"><span class="k">O</span>Opp O-Reb</button>
+        <button class="btn tab" data-tab="dreb"><span class="k">B</span>Def Rebound</button>
+        <button class="btn tab" data-tab="defl"><span class="k">D</span>Deflection</button>
+      </div>
+
+      <div data-pane="shot">
+        <div class="grp"><label>Shot type & result</label>
+          <div class="seg" id="s-type"></div>
+          <div class="seg" id="s-result" style="margin-top:6px"></div></div>
+        <div class="grp"><label>Context (optional · multi · counts on makes)</label><div class="seg" id="s-flags"></div></div>
+        <div class="grp"><button class="btn" data-sflag="assisted">Assisted <span class="k">A</span></button>
+          <span class="small">— optional; assisted vs unassisted FG allowed</span></div>
+      </div>
+
+      <div data-pane="foul" style="display:none">
+        <div class="grp"><label>Foul type</label><div class="seg" id="f-type"></div>
+          <button class="btn" data-fflag="bonus" style="margin-top:6px">Bonus / penalty</button></div>
+        <div class="grp"><label>Free throws (made / att)</label>
+          <div class="seg" style="align-items:center"><input id="f-ftm" type="number" min="0" value="0" style="width:54px"> / <input id="f-fta" type="number" min="0" value="0" style="width:54px"></div></div>
+        <div class="small">Non-shooting foul with no FTs continues the possession — use “+ same possession”.</div>
+      </div>
+
+      <div data-pane="to" style="display:none">
+        <div class="grp"><label>Turnover type</label><div class="seg" id="t-type"></div></div>
+      </div>
+
+      <div data-pane="oreb" style="display:none">
+        <div class="grp small" id="oreb-note">Opp offensive rebound — continues the possession. Add the next event with “+ same possession”.</div>
+      </div>
+
+      <div data-pane="dreb" style="display:none">
+        <div class="grp small" id="dreb-note">Defensive rebound — ends the possession (Moorpark secured the board).</div>
+      </div>
+
+      <div data-pane="defl" style="display:none">
+        <div class="grp small">Deflection — credited to the lineup; does not end the possession.</div>
+      </div>
+
+      <div class="grp"><label>Notes (optional)</label><input id="notes" placeholder="e.g. blow-by, no help" style="width:100%"></div>
+      <div class="row" style="align-items:center;gap:10px">
+        <button class="btn commit" id="logposs">Log &amp; next possession ⏎</button>
+        <button class="btn cont" id="addsame">+ Same possession ⇧⏎</button>
+        <button class="btn" id="undo">Undo (⌫)</button>
+        <button class="btn" id="endgame">End of Game</button>
+        <span id="gt-badge"></span>
+        <span class="small" id="state"></span>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:230px">
+      <label id="tally-label">Live opponent tally <span class="small">(reconcile vs box)</span></label>
+      <div class="tally" id="tally" style="line-height:1.8"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <label style="margin:0">Logged events (<span id="count">0</span>) · <span id="possct">0</span> possessions</label>
+      <div class="seg">
+        <button class="btn" id="exp-csv">Export CSV</button>
+        <button class="btn" id="exp-json">Export JSON</button>
+        <button class="btn" id="imp">Import JSON</button>
+        <button class="btn danger" id="clear">Clear game</button>
+        <input id="imp-file" type="file" accept=".json" style="display:none">
+      </div>
+    </div>
+    <div class="scrollbox" style="margin-top:10px">
+      <table><thead><tr>
+        <th>Ps</th><th>End</th><th>GT</th><th>Lineup</th><th>Event</th><th>Detail</th><th>Pts</th><th>Notes</th><th></th>
+      </tr></thead><tbody id="log"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ───────── rosters ─────────
+const ROSTER_DEFAULT=[['1','Josh Castaniero'],['2','Aiden Bitran'],['3','Eric Kubel'],['4','Markus Steele'],
+  ['5','Tidiane Sy'],['10','Zach Bauman'],['11','Elijah Elohim'],['12','Dominique Brutus'],['14','Jozef Zlocha'],
+  ['15','Parsa Kamali'],['20','Jake Field'],['21','Jacob Jordan'],['22','Roman Finney'],['24','Aeneas Grullon'],
+  ['30','Clyde Seo'],['31','Noah Cotton'],['32','Ethan McLennan'],['33','Tyler Hook']];
+const OPPS=["Allan Hancock","Bakersfield","Cuesta","East Los Angeles","Fresno","Grossmont","Hartnell","Irvine Valley",
+  "LA Pierce","LA Valley","Los Angeles City","MiraCosta","Oxnard","Palomar","Saddleback","San Bernardino Valley",
+  "San Diego Miramar","Santa Barbara","Southwestern","Ventura","West LA","West Valley"];
+
+// ───────── taxonomy ─────────
+const STYPE=[['2pa','2PA','2'],['3pa','3PA','3']];
+const SFLAGS=[['pip','PiP','z'],['scp','SCP','x'],['pot','PoT','c']]; // independent context toggles (multi-select)
+const is3=e=>e.shotType==='3pa'||e.shotType==='three'; // 'three' = legacy data
+const SRESULT=[['made','Made','q'],['missed','Missed','w'],['blocked','Blocked','e']];
+const FTYPE=[['shooting','Shooting','q'],['nonshoot','Non-shooting','w'],['tech','Technical','e']];
+const TTYPE=[['steal','Steal','q'],['deadball','Dead-ball','w'],['charge','Charge drawn','e'],['offfoul','Off. foul (other)','r'],['shotclock','Shot clock','t'],['other','Other','y']];
+const ENDLAB={made_fg:'Made FG',made_ft:'Made FT',dreb:'Def Reb',turnover:'Turnover',steal:'Steal',foul:'Foul reset',endhalf:'End of half',endgame:'End of game',incomplete:'⚠ incomplete'};
+
+// Defense logs the OPPONENT's possessions; Offense logs MOORPARK's (garbage-time only).
+// Same event model — only labels + who-is-who flip, and every offense possession is garbage.
+const MODE={
+  def:{title:'🛡️ Moorpark — Defensive Possession Logger',
+       sub:'Defense · opponent possessions · garbage time · autosaves',
+       tally:'Live opponent tally', scorer:'Opp', toLab:'TOs forced', blkLab:'Blocks',
+       orebTab:'Opp O-Reb', drebTab:'Def Rebound', orebShort:'Opp OReb', drebShort:'Def Reb',
+       orebNote:'Opp offensive rebound — continues the possession. Add the next event with “+ same possession”.',
+       drebNote:'Defensive rebound — ends the possession (Moorpark secured the board).'},
+  off:{title:'🏀 Moorpark — Offensive Possession Logger',
+       sub:'Offense · Moorpark possessions · ALL marked GARBAGE · autosaves',
+       tally:'Live Moorpark tally', scorer:'MP', toLab:'Turnovers', blkLab:'Blocked',
+       orebTab:'Off Rebound', drebTab:'Opp Def Reb', orebShort:'MP OReb', drebShort:'Opp DReb',
+       orebNote:'Moorpark offensive rebound — continues the possession. Add the next event with “+ same possession”.',
+       drebNote:'Opponent defensive rebound — ends the possession (opponent secured the board).'}};
+
+// ───────── state ─────────
+let roster=load('dl2_roster')||ROSTER_DEFAULT.map(r=>({j:r[0],name:r[1]}));
+let onCourt=load('dl2_oncourt')||[];
+let games=load('dl2_games')||{};
+let gameKey=load('dl2_curgame')||'';
+let clock=load('dl2_clock')||{half:'1',clock:'',mp:0,opp:0};
+let ghostSubs=load('dl2_ghostsubs')||{};   // per-game list of Hudl-missed subs (Ghost Sub)
+let mode=load('dl2_mode')||'def';   // 'def' = opponent possessions, 'off' = Moorpark (garbage-only)
+let tab='shot', ev=null, staged=[];
+const M=()=>MODE[mode];
+function baseKey(){return gameKey.replace(/__OFF$/,'');}              // strip the offense suffix
+function keyForMode(base,m){return base?(m==='off'?base+'__OFF':base):'';}
+
+function load(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function save(){localStorage.setItem('dl2_games',JSON.stringify(games));localStorage.setItem('dl2_curgame',gameKey);
+  localStorage.setItem('dl2_oncourt',JSON.stringify(onCourt));localStorage.setItem('dl2_roster',JSON.stringify(roster));
+  localStorage.setItem('dl2_clock',JSON.stringify(clock));localStorage.setItem('dl2_mode',JSON.stringify(mode));
+  localStorage.setItem('dl2_ghostsubs',JSON.stringify(ghostSubs));}
+function curGame(){return games[gameKey]||[]}
+function curGhost(){return ghostSubs[gameKey]||[]}
+function nameOf(j){const p=roster.find(p=>p.j===j);return p?p.name:('#'+j)}
+function el(id){return document.getElementById(id)}
+function resetEvent(){ev={shotType:null,result:null,assisted:false,pip:false,scp:false,pot:false,foulType:null,bonus:false,toType:null};
+  el('f-ftm').value=0;el('f-fta').value=0;el('notes').value='';renderBuilder();}
+function nextPossNo(){return curGame().length+1}
+
+// ───────── points + ending ─────────
+function evPts(e){let n=0;if(e.type==='shot'&&e.result==='made')n=is3(e)?3:2;n+=Number(e.ftm||0);return n;}
+function possEnd(events){if(!events.length)return '';const last=events[events.length-1];
+  if(last.type==='turnover')return last.toType==='steal'?'steal':'turnover';
+  if(last.type==='dreb')return 'dreb';
+  if(last.type==='shot')return last.result==='made'?'made_fg':'dreb';
+  if(last.type==='foul')return (Number(last.ftm)>0||Number(last.fta)>0)?'made_ft':'incomplete'; // no FTs (non-shooting / not in bonus) = ball reset, possession continues
+  if(last.type==='endgame')return last.half==='1'?'endhalf':'endgame';   // clock ran out, no shot — still a possession
+  return 'incomplete';}   // oreb / deflection / no-FT foul as last = unfinished
+
+// ───────── garbage time ─────────
+// Standard ladder: 30+ anytime · 25+ ≤8m · 20+ ≤5m · 15+ ≤3m · 10+ ≤1m (game minutes remaining).
+function parseClock(s){if(s==null)return null;const m=(''+s).trim().match(/^(\d+):(\d{1,2})$/);
+  if(m)return (+m[1])*60+(+m[2]);const n=parseFloat(s);return isNaN(n)?null:n*60;}
+function fmtSec(s){const m=Math.floor(s/60),x=Math.round(s%60);return m+':'+String(x).padStart(2,'0');}
+function gameMinRem(half,sec){return (''+half==='2')?sec/60:20+sec/60;}   // college: 2×20m
+function reqLead(minRem){if(minRem<=1)return 10;if(minRem<=3)return 15;if(minRem<=5)return 20;if(minRem<=8)return 25;return 30;}
+function clockSnap(c){const sec=parseClock(c.clock);if(sec===null)return null;
+  const minRem=gameMinRem(c.half,sec),lead=Math.abs((+c.mp||0)-(+c.opp||0)),R=reqLead(minRem);
+  return {half:''+c.half,sec,minRem,lead,R,pct:Math.min(100,Math.round(100*lead/R)),
+    garbage:lead>=R,mp:+c.mp||0,opp:+c.opp||0};}
+// First possession whose stamped snapshot is garbage = the cutoff; everything from there is garbage (sticky).
+function garbageInfo(){const G=curGame();for(const p of G){if(p.clk&&p.clk.garbage)return{cutPoss:p.poss,cut:p.clk};}return{cutPoss:null,cut:null};}
+function garbageMap(G){if(mode==='off'){const m={};G.forEach(p=>m[p.poss]=true);return m;}  // offense stream = all garbage
+  const info=garbageInfo();const m={};G.forEach(p=>{m[p.poss]=info.cutPoss!==null&&p.poss>=info.cutPoss;});return m;}
+// Is the NEXT logged possession garbage? Offense = always. Defense = sticky once the cutoff is reached.
+function nextPossGarbage(){if(mode==='off')return true;const info=garbageInfo();if(info.cut)return true;const s=clockSnap(clock);return !!(s&&s.garbage);}
+
+// ───────── render ─────────
+function segHTML(items,sel){return items.map(([k,lab,key])=>
+  `<button class="btn ${sel===k?'on':''}" data-k="${k}">${key?`<span class="k">${key.toUpperCase()}</span>`:''}${lab}</button>`).join('')}
+
+function renderGameKey(){el('game-key').innerHTML=gameKey?`Logging: <b>${gameKey.replace(/__/g,' · ')}</b>`:
+  '<span class="req">No game loaded — set Date + Opponent, click “Switch / Load game”.</span>';}
+function renderCourt(){el('court').innerHTML=roster.map(p=>`<div class="pl ${onCourt.includes(p.j)?'oncourt':''}" data-j="${p.j}">#${p.j} ${p.name}</div>`).join('');
+  el('court-warn').innerHTML=onCourt.length===5?`<span style="color:var(--good)">On court: ${onCourt.map(nameOf).join(' · ')}</span>`:`<span class="req">${onCourt.length}/5 selected</span>`;}
+function renderTabs(){document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  document.querySelectorAll('[data-pane]').forEach(p=>p.style.display=p.dataset.pane===tab?'':'none');}
+function renderBuilder(){
+  el('s-type').innerHTML=segHTML(STYPE,ev.shotType);el('s-result').innerHTML=segHTML(SRESULT,ev.result);
+  el('s-flags').innerHTML=SFLAGS.map(([k,lab,key])=>`<button class="btn ${ev[k]?'on':''}" data-flag="${k}"><span class="k">${key.toUpperCase()}</span>${lab}</button>`).join('');
+  el('f-type').innerHTML=segHTML(FTYPE,ev.foulType);el('t-type').innerHTML=segHTML(TTYPE,ev.toType);
+  document.querySelector('[data-sflag]').classList.toggle('on',ev.assisted);
+  document.querySelector('[data-fflag]').classList.toggle('on',ev.bonus);
+  el('state').textContent=staged.length?`${staged.length} event(s) staged in this possession`:'';
+}
+function evLabel(e){
+  if(e.type==='shot'){let s=`${(STYPE.find(s=>s[0]===e.shotType)||[,e.shotType])[1]} ${e.result}`;
+    if(e.pip)s+=' · PiP';if(e.scp)s+=' · SCP';if(e.pot)s+=' · PoT';if(e.assisted)s+=' · assisted';return s;}
+  if(e.type==='foul')return `${(FTYPE.find(f=>f[0]===e.foulType)||[,e.foulType])[1]} foul${e.fta?` · ${e.ftm}/${e.fta} FT`:''}${e.bonus?' · bonus':''}`;
+  if(e.type==='turnover')return `TO: ${(TTYPE.find(t=>t[0]===e.toType)||[,e.toType])[1]}`;
+  if(e.type==='oreb')return M().orebShort;
+  if(e.type==='dreb')return M().drebShort;
+  if(e.type==='deflection')return `Deflection`;
+  if(e.type==='endgame')return e.half==='1'?`End of 1st half (clock ran out)`:`End of game (clock ran out)`;
+  return e.type;}
+function renderStaged(){el('staged').innerHTML=staged.length?('<label>This possession</label>'+staged.map((e,i)=>
+  `<span class="chip">${evLabel(e)} <a href="#" data-unstage="${i}" style="color:var(--bad)">✕</a></span>`).join('')):'';}
+function renderTally(){
+  const evs=[];curGame().forEach(p=>p.events.forEach(e=>evs.push(e)));staged.forEach(e=>evs.push(e));
+  let fgm=0,fga=0,tpm=0,tpa=0,ftm=0,fta=0,to=0,oreb=0,dreb=0,defl=0,pts=0,blk=0,pipP=0,scpP=0,potP=0;
+  evs.forEach(e=>{if(e.type==='shot'){fga++;if(e.result==='made'){fgm++;if(is3(e))tpm++;
+      const p=evPts(e);if(e.pip)pipP+=p;if(e.scp)scpP+=p;if(e.pot)potP+=p;}if(is3(e))tpa++;if(e.result==='blocked')blk++;}
+    if(e.type==='foul'){ftm+=Number(e.ftm||0);fta+=Number(e.fta||0);}if(e.type==='turnover')to++;if(e.type==='oreb')oreb++;
+    if(e.type==='dreb')dreb++;if(e.type==='deflection')defl++;pts+=evPts(e);});
+  const ends={};curGame().forEach(p=>ends[p.end]=(ends[p.end]||0)+1);
+  const gmap=garbageMap(curGame());const gbN=Object.values(gmap).filter(Boolean).length;const compN=curGame().length-gbN;
+  const pct=(a,b)=>b?(100*a/b).toFixed(1)+'%':'—';
+  const m=M();
+  el('tally').innerHTML=`<div>Possessions: <b>${curGame().length+(staged.length?1:0)}</b></div>
+    <div>${m.scorer} points: <b>${pts}</b></div><div>${m.scorer} FG: <b>${fgm}/${fga}</b> (${pct(fgm,fga)})</div>
+    <div>${m.scorer} 3P: <b>${tpm}/${tpa}</b> (${pct(tpm,tpa)})</div><div>${m.scorer} FT: <b>${ftm}/${fta}</b></div>
+    <div>${m.blkLab}: <b>${blk}</b> · Deflections: <b>${defl}</b></div><div>${m.drebShort}: <b>${dreb}</b> · ${m.orebShort}: <b>${oreb}</b></div>
+    <div>${m.toLab}: <b>${to}</b></div>
+    <div>PiP: <b>${pipP}</b> · SCP: <b>${scpP}</b> · PoT: <b>${potP}</b></div>
+    <div style="margin-top:4px">Poss split: <b>${compN}</b> competitive · <b style="color:var(--bad)">${gbN}</b> garbage</div>
+    <div class="small" style="margin-top:6px">Endings: ${Object.keys(ends).map(k=>`${ENDLAB[k]||k} ${ends[k]}`).join(' · ')||'—'}</div>`;
+}
+function renderGT(){
+  if(mode==='off'){el('gt-readout').innerHTML='<b style="color:var(--bad)">🗑 OFFENSE MODE — every possession is logged as garbage time.</b>'+
+    '<div class="small" style="margin-top:4px">Score &amp; clock is optional context only; it won’t change the garbage flag here.</div>';
+    const b=el('gt-badge');if(b)b.innerHTML='<span class="endtag" style="color:var(--bad);border-color:var(--bad)">🗑 garbage</span>';return;}
+  const snap=clockSnap(clock),info=garbageInfo();const locked=!!info.cut;let h='';
+  if(!snap&&!locked){h='<span class="small req">Enter clock as mm:ss to see garbage-time status.</span>';}
+  else{const garb=locked||(snap&&snap.garbage);const col=garb?'var(--bad)':'var(--gold)';const pct=garb?100:(snap?snap.pct:0);
+    h=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:160px"><div style="height:10px;background:#0f0f1a;border:1px solid var(--line);border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${col};transition:width .2s"></div></div></div>
+      <b style="color:${col}">${garb?'🗑 GARBAGE TIME — still logging, flagged':(snap?snap.pct+'% to garbage time':'')}</b></div>`;
+    if(snap)h+=`<div class="small" style="margin-top:5px">Lead <b>${snap.lead}</b> · need <b>${snap.R}</b> @ <b>${snap.minRem.toFixed(1)}</b> min left (${snap.half==='2'?'2nd':'1st'} half)</div>`;}
+  if(info.cut){h+=`<div class="small" style="margin-top:6px;color:var(--bad)">⛔ Garbage cutoff = poss #${info.cutPoss}: ${info.cut.half==='2'?'2nd':'1st'} half ${fmtSec(info.cut.sec)}, ${info.cut.mp}–${info.cut.opp} (lead ${info.cut.lead}). All possessions from here are flagged (still logged). Re-export Hudl lineups only up to here.</div>`;}
+  el('gt-readout').innerHTML=h;
+  const badge=el('gt-badge');if(badge)badge.innerHTML=nextPossGarbage()?'<span class="endtag" style="color:var(--bad);border-color:var(--bad)">🗑 next poss = GARBAGE</span>':'';}
+function renderLog(){
+  const G=curGame();let n=0;G.forEach(p=>n+=p.events.length);el('count').textContent=n;el('possct').textContent=G.length;el('poss-no').textContent=nextPossNo();
+  const gm=garbageMap(G);
+  const rows=[];G.forEach(p=>p.events.forEach((e,i)=>{
+    const curL=(e.lineup||p.lineup),prevL=i>0?(p.events[i-1].lineup||p.lineup):null;
+    const showL=(i===0)||(prevL&&curL.join()!==prevL.join());
+    const lineupCell=showL?(i>0?'⇄ ':'')+curL.map(j=>'#'+j).join(' '):'';
+    rows.push(`<tr${gm[p.poss]?' style="opacity:.5"':''}><td>${i===0?p.poss+(p.subbed?' <span title="substitution mid-possession">⇄</span>':''):''}</td><td>${i===0?`<span class="endtag">${ENDLAB[p.end]||p.end||''}</span>`:''}</td>
+      <td>${i===0&&gm[p.poss]?'<span title="garbage time">🗑</span>':''}</td>
+      <td class="mut">${lineupCell}</td><td>${e.type}</td><td>${evLabel(e)}</td>
+      <td><b>${evPts(e)||''}</b></td><td class="mut">${e.notes||''}</td>
+      <td>${i===0?`<button class="btn" style="padding:2px 7px" data-delposs="${p.poss}">✕</button>`:''}</td></tr>`);}));
+  el('log').innerHTML=rows.reverse().join('');
+}
+function renderMode(){const m=M();
+  el('title').textContent=m.title;el('subtitle').textContent=m.sub;
+  el('tally-label').innerHTML=`${m.tally} <span class="small">(reconcile vs box)</span>`;
+  const ot=document.querySelector('[data-tab="oreb"]'),dt=document.querySelector('[data-tab="dreb"]'),df=document.querySelector('[data-tab="defl"]');
+  if(ot)ot.innerHTML=`<span class="k">O</span>${m.orebTab}`;
+  if(dt)dt.innerHTML=`<span class="k">B</span>${m.drebTab}`;
+  if(df)df.style.display=mode==='off'?'none':'';   // deflection is a defensive stat
+  if(el('oreb-note'))el('oreb-note').textContent=m.orebNote;
+  if(el('dreb-note'))el('dreb-note').textContent=m.drebNote;
+  document.querySelectorAll('#mode-seg [data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));}
+// Ghost Sub: a real substitution Hudl never recorded. Flag the exact time + scenario
+// so the Hudl per-game OFFENSE csv can be patched later (see "Ghost Sub playbook").
+function ghostSub(){if(!gameKey){alert('Load a game first.');return;}
+  const clk=prompt('Ghost Sub — game clock (mm:ss):',el('c-clock').value||'');
+  if(clk===null)return;
+  const note=prompt('Scenario — who OUT / who IN, and what Hudl will show:\n(e.g. "Field/Finney OUT, Bitran/Steele IN — Hudl missed it")','');
+  if(note===null)return;
+  (ghostSubs[gameKey]=ghostSubs[gameKey]||[]).push({half:clock.half,clock:(clk||'').trim(),
+    mp:clock.mp,opp:clock.opp,lineup:[...onCourt].sort((a,b)=>a-b),side:mode,note:(note||'').trim()});
+  save();renderGhost();}
+function renderGhost(){const g=curGhost();
+  el('ghost-list').innerHTML=g.length?('<label>Ghost subs — Hudl missed these (flagged for the offense fix)</label>'+
+    g.map((x,i)=>`<div class="small">${x.half==='2'?'2nd':'1st'} ${x.clock}${x.endClock?' → '+x.endClock:''} · ${x.mp}–${x.opp} · on court: ${x.lineup.map(j=>'#'+j).join('/')}${x.note?' — '+x.note:''} <a href="#" data-endghost="${i}" style="color:var(--good,#2f9e44)">${x.endClock?'edit end':'set end'}</a> <a href="#" data-delghost="${i}" style="color:var(--bad)">✕</a></div>`).join('')):'';}
+function renderAll(){renderMode();renderGameKey();renderCourt();renderTabs();renderBuilder();renderStaged();renderTally();renderGT();renderEndBtn();renderGhost();renderLog();}
+
+// ───────── build / stage / commit ─────────
+function buildEvent(){const notes=el('notes').value.trim();
+  if(tab==='shot'){if(!ev.shotType||!ev.result)return null;
+    return {type:'shot',shotType:ev.shotType,result:ev.result,assisted:ev.assisted,pip:ev.pip,scp:ev.scp,pot:ev.pot,notes};}
+  if(tab==='foul'){if(!ev.foulType)return null;
+    return {type:'foul',foulType:ev.foulType,bonus:ev.bonus,ftm:Number(el('f-ftm').value||0),fta:Number(el('f-fta').value||0),notes};}
+  if(tab==='to'){if(!ev.toType)return null;return {type:'turnover',toType:ev.toType,notes};}
+  if(tab==='oreb'){return {type:'oreb',notes};}
+  if(tab==='dreb'){return {type:'dreb',notes};}
+  if(tab==='defl'){return {type:'deflection',notes};}
+  return null;}
+// Has the user started filling the current tab's builder? (avoid silently dropping a half-built event)
+function evDirty(){
+  if(tab==='shot')return !!(ev.shotType||ev.result||ev.assisted||ev.pip||ev.scp||ev.pot);
+  if(tab==='foul')return !!(ev.foulType||Number(el('f-fta').value)||Number(el('f-ftm').value)||ev.bonus);
+  if(tab==='to')return !!ev.toType;
+  return false;}
+function missingFields(){
+  if(tab==='shot'){const m=[];if(!ev.shotType)m.push('shot type');if(!ev.result)m.push('result (Made/Missed/Blocked)');return m;}
+  if(tab==='foul')return ev.foulType?[]:['foul type'];
+  if(tab==='to')return ev.toType?[]:['turnover type'];
+  return [];}
+function stageEvent(){if(onCourt.length!==5){alert('Pick exactly 5 on court.');return false;}
+  const e=buildEvent();if(!e){alert(`Can't add this ${tab} — still need: ${missingFields().join(', ')||'its key fields'}.`);return false;}
+  e.lineup=[...onCourt].sort((a,b)=>a-b); // stamp the 5 on court WHEN this event happened (handles mid-possession subs)
+  staged.push(e);tab='shot';resetEvent();renderTabs();renderStaged();renderTally();renderLog();return true;}
+function logPossession(){if(!gameKey){alert('Load a game first.');return;}
+  if(buildEvent()){if(!stageEvent())return;}
+  else if(evDirty()){alert(`This ${tab} is incomplete — still need: ${missingFields().join(', ')||'its key fields'}. Pick it (or Undo to clear) before logging.`);return;}
+  if(!staged.length){alert('No events to log.');return;}
+  const end=possEnd(staged);
+  if(end==='incomplete'&&!confirm('Last event is an OReb / deflection / non-shooting foul — the possession normally continues (no terminal event). Use “+ same possession” to add more, or Log anyway?'))return;
+  if(!games[gameKey])games[gameKey]=[];
+  const possLineup=(staged[staged.length-1].lineup||[...onCourt].sort((a,b)=>a-b)); // terminal event owns the possession outcome
+  const subbed=staged.some(e=>(e.lineup||[]).join()!==possLineup.join());
+  games[gameKey].push({poss:nextPossNo(),side:mode,lineup:possLineup,subbed,end,clk:clockSnap(clock),events:staged});
+  staged=[];tab='shot';save();renderAll();}
+function undo(){if(staged.length){staged.pop();renderStaged();renderTally();renderLog();return;}
+  const G=curGame();if(G.length){G.pop();save();renderAll();}}
+// Clock ran out with no shot/stat — log the possession with a terminal "end of period"
+// event. The current half (from the Score & clock panel) decides half vs game.
+function endGame(){if(!gameKey){alert('Load a game first.');return;}
+  if(onCourt.length!==5){alert('Pick exactly 5 on court.');return;}
+  const isGame=clock.half==='2';
+  if(!confirm(`Log an End-of-${isGame?'Game':'Half'} possession (clock ran out — no shot needed)?`))return;
+  const notes=el('notes').value.trim();
+  tab='shot';resetEvent();   // clear the in-progress builder so logPossession doesn't auto-stage a stray event
+  staged.push({type:'endgame',half:clock.half,lineup:[...onCourt].sort((a,b)=>a-b),notes});
+  logPossession();}
+function renderEndBtn(){const b=el('endgame');if(b)b.textContent=clock.half==='2'?'End of Game':'End of Half';}
+
+// ───────── game / roster / io ─────────
+function loadGame(){const d=el('g-date').value,o=el('g-opp').value.trim(),v=el('g-venue').value;
+  if(!d||!o){alert('Set date and opponent.');return;}gameKey=keyForMode(`${d}__${o}__${v}`,mode);if(!games[gameKey])games[gameKey]=[];
+  staged=[];clock={half:'1',clock:'',mp:0,opp:0};
+  el('c-half').value='1';el('c-clock').value='';el('c-mp').value=0;el('c-opp').value=0;
+  save();renderAll();}
+function exportCSV(){const G=curGame();if(!G.length){alert('Nothing to export.');return;}const[date,opp,venue]=gameKey.split('__');
+  const gm=garbageMap(G);
+  const head=['date','opponent','venue','side','poss','poss_end','half','clock','mp_score','opp_score','lead','garbage','lineup','event','shot_type','result','assisted','pip','scp','pot','foul_type','bonus','ftm','fta','to_type','pts','notes'];
+  const rows=[];G.forEach(p=>p.events.forEach(e=>rows.push([date,opp,venue,p.side||'def',p.poss,p.end,
+    p.clk?p.clk.half:'',p.clk?fmtSec(p.clk.sec):'',p.clk?p.clk.mp:'',p.clk?p.clk.opp:'',p.clk?p.clk.lead:'',gm[p.poss]?1:'',
+    (e.lineup||p.lineup).map(j=>'#'+j+' '+nameOf(j)).join(' / '),e.type,e.shotType||'',e.result||'',e.assisted?1:'',e.pip?1:'',e.scp?1:'',e.pot?1:'',
+    e.foulType||'',e.bonus?1:'',e.ftm||'',e.fta||'',e.toType||'',evPts(e),(e.notes||'').replace(/"/g,'""')])));
+  // Ghost subs as marker rows at the end (poss='GS', event='ghost_sub') — pipeline ignores them.
+  curGhost().forEach(x=>rows.push([date,opp,venue,x.side||'def','GS','ghost_sub',x.half,x.clock,x.mp,x.opp,'',
+    (x.side==='off'?1:''),x.lineup.map(j=>'#'+j+' '+nameOf(j)).join(' / '),'ghost_sub','','','','','','','','','','',(x.endClock||''),0,(x.note||'').replace(/"/g,'""')]));
+  const csv=[head,...rows].map(r=>r.map(c=>/[",\n]/.test(''+c)?`"${c}"`:c).join(',')).join('\n');
+  dl(`${gameKey.endsWith('__OFF')?'off':'def'}_${gameKey}.csv`,csv,'text/csv');}
+function exportJSON(){const G=curGame();if(!G.length){alert('Nothing to export.');return;}
+  dl(`${gameKey.endsWith('__OFF')?'off':'def'}_${gameKey}.json`,JSON.stringify({game:gameKey,roster,possessions:G,ghostSubs:curGhost()},null,1),'application/json');}
+function dl(n,d,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d],{type:t}));a.download=n;a.click();}
+
+// ───────── wire ─────────
+el('opps').innerHTML=OPPS.map(o=>`<option value="${o}">`).join('');
+el('g-date').value=new Date().toISOString().slice(0,10);
+if(gameKey){const[d,o,v]=gameKey.split('__');el('g-date').value=d;el('g-opp').value=o;el('g-venue').value=v;}
+el('c-half').value=clock.half;el('c-clock').value=clock.clock;el('c-mp').value=clock.mp;el('c-opp').value=clock.opp;
+['c-half','c-clock','c-mp','c-opp'].forEach(id=>el(id).addEventListener('input',()=>{
+  clock={half:el('c-half').value,clock:el('c-clock').value,mp:el('c-mp').value,opp:el('c-opp').value};save();renderGT();renderEndBtn();renderLog();}));
+resetEvent();renderAll();
+
+el('court').onclick=e=>{const d=e.target.closest('[data-j]');if(!d)return;const j=d.dataset.j,i=onCourt.indexOf(j);
+  if(i>=0)onCourt.splice(i,1);else{if(onCourt.length>=5){alert('Already 5 — remove one.');return;}onCourt.push(j);}save();renderCourt();renderBuilder();};
+el('tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;renderTabs();renderBuilder();}};
+el('mode-seg').onclick=e=>{const b=e.target.closest('[data-mode]');if(!b||b.dataset.mode===mode)return;
+  if(staged.length&&!confirm('Switch mode? The current unsaved possession will be cleared.'))return;
+  mode=b.dataset.mode;staged=[];if(tab==='defl'&&mode==='off')tab='shot';
+  const base=baseKey();if(base){gameKey=keyForMode(base,mode);if(!games[gameKey])games[gameKey]=[];}
+  save();renderAll();};
+function bindSeg(id,field){el(id).onclick=e=>{const x=e.target.closest('[data-k]');if(x){ev[field]=x.dataset.k;renderBuilder();}};}
+bindSeg('s-type','shotType');bindSeg('s-result','result');bindSeg('f-type','foulType');bindSeg('t-type','toType');
+el('s-flags').onclick=e=>{const x=e.target.closest('[data-flag]');if(x){ev[x.dataset.flag]=!ev[x.dataset.flag];renderBuilder();}};
+document.querySelector('[data-sflag]').onclick=()=>{ev.assisted=!ev.assisted;renderBuilder();};
+document.querySelector('[data-fflag]').onclick=()=>{ev.bonus=!ev.bonus;renderBuilder();};
+document.addEventListener('click',e=>{
+  const u=e.target.closest('[data-unstage]');if(u){e.preventDefault();staged.splice(+u.dataset.unstage,1);renderStaged();renderTally();renderLog();return;}
+  const dp=e.target.closest('[data-delposs]');if(dp){games[gameKey]=curGame().filter(p=>p.poss!=dp.dataset.delposs).map((p,i)=>({...p,poss:i+1}));save();renderAll();return;}
+});
+el('logposs').onclick=logPossession;el('addsame').onclick=stageEvent;el('undo').onclick=undo;el('endgame').onclick=endGame;el('ghostsub').onclick=ghostSub;el('load-game').onclick=loadGame;
+el('ghost-list').onclick=e=>{const en=e.target.closest('[data-endghost]');if(en){e.preventDefault();const gs=curGhost()[+en.dataset.endghost];const ec=prompt('End of ghost-sub window — game clock when the next (real) sub happens (mm:ss):',el('c-clock').value||gs.endClock||'');if(ec===null)return;gs.endClock=(ec||'').trim();gs.endMp=clock.mp;gs.endOpp=clock.opp;save();renderGhost();return;}const d=e.target.closest('[data-delghost]');if(d){e.preventDefault();curGhost().splice(+d.dataset.delghost,1);save();renderGhost();}};
+el('exp-csv').onclick=exportCSV;el('exp-json').onclick=exportJSON;el('imp').onclick=()=>el('imp-file').click();
+el('imp-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const o=JSON.parse(r.result);if(o.game&&o.possessions){games[o.game]=o.possessions;gameKey=o.game;
+    if(o.roster)roster=o.roster;if(o.ghostSubs)ghostSubs[o.game]=o.ghostSubs;const[d,op,v]=o.game.split('__');el('g-date').value=d;el('g-opp').value=op;el('g-venue').value=v;
+    save();renderAll();alert('Imported '+o.possessions.length+' possessions.');}}catch(err){alert('Bad JSON.');}};r.readAsText(f);};
+el('clear').onclick=()=>{if(gameKey&&confirm('Clear all possessions for this game?')){games[gameKey]=[];staged=[];delete ghostSubs[gameKey];save();renderAll();}};
+el('edit-roster').onclick=()=>{const t=prompt('Moorpark roster — one per line "jersey,Name":',roster.map(p=>`${p.j},${p.name}`).join('\n'));
+  if(t!=null){roster=t.split('\n').map(l=>l.split(',')).filter(a=>a[0]&&a[0].trim()).map(a=>({j:a[0].trim(),name:(a[1]||'#'+a[0].trim()).trim()}));save();renderAll();}};
+
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
+  if(e.key==='Enter'&&e.shiftKey){e.preventDefault();stageEvent();return;}
+  if(e.key==='Enter'){e.preventDefault();logPossession();return;}
+  const k=e.key.toLowerCase();
+  if(k==='backspace'){e.preventDefault();undo();return;}
+  const tabs={s:'shot',f:'foul',t:'to',o:'oreb',b:'dreb',d:'defl'};if(tabs[k]){tab=tabs[k];renderTabs();renderBuilder();return;}
+  const set=(field,items)=>{const h=items.find(i=>i[2]===k);if(h){ev[field]=h[0];renderBuilder();return true;}return false;};
+  if(tab==='shot'){if(k==='a'){ev.assisted=!ev.assisted;renderBuilder();return;}
+    const fl=SFLAGS.find(f=>f[2]===k);if(fl){ev[fl[0]]=!ev[fl[0]];renderBuilder();return;}
+    if(set('shotType',STYPE))return;if(set('result',SRESULT))return;}
+  if(tab==='foul'&&set('foulType',FTYPE))return;
+  if(tab==='to'&&set('toType',TTYPE))return;
+});
+</script>
