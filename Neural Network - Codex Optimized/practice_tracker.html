@@ -8651,32 +8651,27 @@ function renderOnOffView() {
     const cls = [extra, good ? 'oo-hi' : bad ? 'oo-lo' : ''].filter(Boolean).join(' ');
     return `<td class="${cls}"><strong>${(v > 0 ? '+' : '') + v.toFixed(1)}</strong></td>`;
   }
-  const plainCell = (v, extra) => `<td class="${extra || ''}">${v == null ? '—' : Number(v).toFixed(1)}</td>`;
-  const pctCell   = (v, extra) => `<td class="${extra || ''}">${v == null ? '—' : Number(v).toFixed(1) + '%'}</td>`;
 
+  /* Mirrors the WSC leaderboard's on/off layout: On / Off / Diff for the NET rating
+     (its on_net40 / off_net40 / onoff), with everything else shown on-court only. */
   const trs = flat.map(r => {
     // No White/Black badge — players rotate between teams across sessions.
     return `<tr>
       <td class="oo-name-col">${escHtml(r.name)}</td>
       <td>${r.possOn == null ? '—' : Math.round(r.possOn)}</td>
-      <td>${r.possOff == null ? '—' : Math.round(r.possOff)}</td>
+      ${netCell(r.netOn,  'oo-rating-col')}
+      ${netCell(r.netOff, 'oo-rating-col')}
+      ${diffCell(r.netD, true, 'oo-rating-col')}
       ${cc(r.ortgOn, 110, 95, false, '', 'oo-rating-col')}
-      ${plainCell(r.ortgOff)}
-      ${diffCell(r.ortgD, true)}
       ${cc(r.drtgOn, 95, 110, true, '', 'oo-rating-col')}
-      ${plainCell(r.drtgOff)}
-      ${diffCell(r.drtgD, false)}
-      ${netCell(r.netOn, 'oo-rating-col')}
-      ${plainCell(r.netOff)}
-      ${diffCell(r.netD, true)}
-      ${cc(r.efgOn, 55, 42, false)}${pctCell(r.efgOff)}${diffCell(r.efgD, true)}
-      ${cc(r.orebOn, 30, 18, false)}${pctCell(r.orebOff)}${diffCell(r.orebD, true)}
-      ${cc(r.tovOn, 15, 22, true)}${pctCell(r.tovOff)}${diffCell(r.tovD, false)}
-      ${cc(r.ftrOn, 35, 20, false)}${pctCell(r.ftrOff)}${diffCell(r.ftrD, true)}
-      ${cc(r.dEfgOn, 42, 55, true, '%', 'oo-def-sep')}${pctCell(r.dEfgOff)}${diffCell(r.dEfgD, false)}
-      ${cc(r.dOrebOn, 25, 35, true)}${pctCell(r.dOrebOff)}${diffCell(r.dOrebD, false)}
-      ${cc(r.dTovOn, 22, 15, false)}${pctCell(r.dTovOff)}${diffCell(r.dTovD, true)}
-      ${cc(r.dFtrOn, 20, 35, true)}${pctCell(r.dFtrOff)}${diffCell(r.dFtrD, false)}
+      ${cc(r.efgOn, 55, 42, false)}
+      ${cc(r.orebOn, 30, 18, false)}
+      ${cc(r.tovOn, 15, 22, true)}
+      ${cc(r.ftrOn, 35, 20, false)}
+      ${cc(r.dEfgOn, 42, 55, true, '%', 'oo-def-sep')}
+      ${cc(r.dOrebOn, 25, 35, true)}
+      ${cc(r.dTovOn, 22, 15, false)}
+      ${cc(r.dFtrOn, 20, 35, true)}
     </tr>`;
   }).join('');
 
@@ -8692,35 +8687,28 @@ function renderOnOffView() {
       <table class="oo-sort-table">
         <thead><tr>
           ${th('name','Player','oo-name-col')}
-          ${th('possOn','POSS On')}
-          ${th('possOff','POSS Off')}
-          ${th('ortgOn','ORTG On','oo-rating-col')}
-          ${th('ortgOff','ORTG Off')}
-          ${th('ortgD','ORTG Diff')}
-          ${th('drtgOn','DRTG On','oo-rating-col')}
-          ${th('drtgOff','DRTG Off')}
-          ${th('drtgD','DRTG Diff')}
-          ${th('netOn','NET On','oo-rating-col')}
-          ${th('netOff','NET Off')}
-          ${th('netD','NET Diff')}
-          ${th('efgOn','EFG% On','oo-th-off')}${th('efgOff','EFG% Off','oo-th-off')}${th('efgD','EFG% Diff','oo-th-off')}
-          ${th('orebOn','OREB% On','oo-th-off')}${th('orebOff','OREB% Off','oo-th-off')}${th('orebD','OREB% Diff','oo-th-off')}
-          ${th('tovOn','TO% On','oo-th-off')}${th('tovOff','TO% Off','oo-th-off')}${th('tovD','TO% Diff','oo-th-off')}
-          ${th('ftrOn','FTR On','oo-th-off')}${th('ftrOff','FTR Off','oo-th-off')}${th('ftrD','FTR Diff','oo-th-off')}
-          ${th('dEfgOn','D-EFG% On','oo-th-def oo-def-sep')}${th('dEfgOff','D-EFG% Off','oo-th-def')}${th('dEfgD','D-EFG% Diff','oo-th-def')}
-          ${th('dOrebOn','D-OREB% On','oo-th-def')}${th('dOrebOff','D-OREB% Off','oo-th-def')}${th('dOrebD','D-OREB% Diff','oo-th-def')}
-          ${th('dTovOn','D-TO% On','oo-th-def')}${th('dTovOff','D-TO% Off','oo-th-def')}${th('dTovD','D-TO% Diff','oo-th-def')}
-          ${th('dFtrOn','D-FTR On','oo-th-def')}${th('dFtrOff','D-FTR Off','oo-th-def')}${th('dFtrD','D-FTR Diff','oo-th-def')}
+          ${th('possOn','Poss')}
+          ${th('netOn','ON','oo-rating-col')}
+          ${th('netOff','OFF','oo-rating-col')}
+          ${th('netD','ON/OFF','oo-rating-col')}
+          ${th('ortgOn','ORTG','oo-rating-col')}
+          ${th('drtgOn','DRTG','oo-rating-col')}
+          ${th('efgOn','EFG%','oo-th-off')}
+          ${th('orebOn','OREB%','oo-th-off')}
+          ${th('tovOn','TO%','oo-th-off')}
+          ${th('ftrOn','FTR','oo-th-off')}
+          ${th('dEfgOn','D-EFG%','oo-th-def oo-def-sep')}
+          ${th('dOrebOn','D-OREB%','oo-th-def')}
+          ${th('dTovOn','D-TO%','oo-th-def')}
+          ${th('dFtrOn','D-FTR','oo-th-def')}
         </tr></thead>
         <tbody>${trs}</tbody>
       </table>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--text-dim);">
-      Per-100 ratings with the player <strong>On</strong> the floor, <strong>Off</strong> the floor, and the
-      <strong>Diff</strong> (On − Off) — the player's impact. For DRTG a negative Diff is good (fewer points allowed with them on).
-      Four factors also show On / Off / Diff. Diff coloring follows what is actually good: green means the team was
-      better with the player on (higher EFG%/OREB%/FTR and D-TO%, lower TO%, DRTG, D-EFG%, D-OREB% and D-FTR).
-      Offense in blue, defense in orange. Click any header to sort.
+      <strong>ON</strong> / <strong>OFF</strong> = team Net rating per 100 with the player on and off the floor.
+      <strong>ON/OFF</strong> = the difference — the player's impact. Remaining columns are on-court values.
+      Offense in blue, defense in orange. Green = strong, red = weak vs. thresholds. Click any header to sort.
     </div>`;
 }
 
