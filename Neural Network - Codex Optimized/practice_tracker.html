@@ -720,6 +720,41 @@
 
     tbody td:first-child { text-align: left; font-weight: 600; }
 
+    /* ── Frozen name column (all screen sizes) ──
+       These stat tables are far wider than any viewport, so the identifying column
+       (player / lineup / date) stays pinned while the numbers scroll horizontally.
+       Sticky cells need their own background or scrolled content shows through. */
+    thead th:first-child,
+    tbody td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      box-shadow: 1px 0 0 var(--border);
+    }
+    thead th:first-child { z-index: 3; background: var(--card); }
+    tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+    tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+    tbody tr:hover td:first-child { background: #c0c8d8; }
+
+    /* Practice Log */
+    .log-table thead th:first-child,
+    .log-table tbody td:first-child {
+      position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border);
+    }
+    .log-table thead th:first-child { z-index: 3; background: #242938; }
+    .log-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+    .log-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+
+    /* On/Off — its name cell is a class, not first-child */
+    .oo-sort-table thead th.oo-name-col,
+    .oo-sort-table tbody td.oo-name-col {
+      position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border);
+    }
+    .oo-sort-table thead th.oo-name-col { z-index: 3; background: var(--card); }
+    .oo-sort-table tbody tr:nth-child(odd)  td.oo-name-col { background: #f7f8fa; }
+    .oo-sort-table tbody tr:nth-child(even) td.oo-name-col { background: #ffffff; }
+    .oo-sort-table tbody tr:hover td.oo-name-col { background: #eef2ff; }
+
     /* Row colors for win/loss */
     tbody tr.row-win  { background: rgba(34, 197, 94,  0.07); }
     tbody tr.row-loss { background: rgba(239, 68,  68,  0.06); }
@@ -2913,46 +2948,19 @@
       .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
       .ps-filter-bar, .seg-filter-bar, .sc-controls { flex-wrap: wrap; }
 
-      /* ── Dense stat tables: tighter, and pin the first column ──
-         Wide stat tables must scroll sideways on a phone, but the name column
-         stays frozen so a row never loses its identity while scrolling. */
+      /* Dense stat tables: tighter on a phone. (The frozen name column is global,
+         defined with the base table styles — not repeated here.) */
       table { font-size: 11px; }
       thead th { padding: 7px 6px; font-size: 9.5px; letter-spacing: 0.02em; }
       tbody td { padding: 6px 6px; }
 
-      thead th:first-child,
-      tbody td:first-child {
-        position: sticky;
-        left: 0;
-        z-index: 2;
-        box-shadow: 1px 0 0 var(--border);
-      }
-      thead th:first-child { z-index: 3; background: var(--card); }
-      tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
-      tbody tr:nth-child(even) td:first-child { background: #ffffff; }
-      tbody tr:hover td:first-child { background: #c0c8d8; }
-
-      /* Practice Log */
       .log-table { font-size: 10px; }
       .log-table thead th { padding: 6px 5px; font-size: 9px; }
       .log-table tbody td { padding: 5px 5px; }
-      .log-table thead th:first-child,
-      .log-table tbody td:first-child {
-        position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border);
-      }
-      .log-table thead th:first-child { z-index: 3; background: #242938; }
-      .log-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
-      .log-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
 
-      /* On/Off — its name cell is a class, not first-child */
+      /* Cap the frozen column so it doesn't eat the screen on a phone */
       .oo-sort-table thead th.oo-name-col,
-      .oo-sort-table tbody td.oo-name-col {
-        position: sticky; left: 0; z-index: 2; min-width: 104px;
-        box-shadow: 1px 0 0 var(--border);
-      }
-      .oo-sort-table thead th.oo-name-col { z-index: 3; background: var(--card); }
-      .oo-sort-table tbody tr:nth-child(odd)  td.oo-name-col { background: #f7f8fa; }
-      .oo-sort-table tbody tr:nth-child(even) td.oo-name-col { background: #ffffff; }
+      .oo-sort-table tbody td.oo-name-col { min-width: 104px; }
 
       /* Lineup names are long — wrap them instead of one huge column */
       .lineup-key { max-width: 132px; white-space: normal; font-size: 10px; line-height: 1.3; }
