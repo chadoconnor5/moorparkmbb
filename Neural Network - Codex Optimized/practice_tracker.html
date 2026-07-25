@@ -6874,7 +6874,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
           // Per-game ADV accumulators for averaging
-          _ortg: [], _usgPct: [], _minPctVal: [], _shotPct: [],
+          _ortg: [], _drtg: [], _usgPct: [], _minPctVal: [], _shotPct: [],
           _efgPct: [], _tsPct: [], _ftRate: [],
           _orPct: [], _drPct: [], _astPct: [], _toPct: [], _stlPct: [], _blkPct: [],
         };
@@ -6899,6 +6899,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       row.defl += p.defl || 0;  row.pf   += p.pf   || 0;
       // Accumulate per-game ADV for averaging
       if (p.ortg      != null) row._ortg.push(p.ortg);
+      if (p.drtg      != null) row._drtg.push(p.drtg);
       if (p.usgPct    != null) row._usgPct.push(p.usgPct);
       if (p.minPctVal != null) row._minPctVal.push(p.minPctVal);
       if (p.shotPct   != null) row._shotPct.push(p.shotPct);
@@ -6938,6 +6939,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       fgPct, fg2Pct, fg3Pct, ftPct,
       // ADV (averages of per-game values)
       ortg:     avg(r._ortg),
+      drtg:     avg(r._drtg),
       usgPct:   avg(r._usgPct),
       minPctVal:avg(r._minPctVal),
       shotPct:  avg(r._shotPct),
@@ -6996,6 +6998,7 @@ function renderPlayerTable() {
     { key: 'minPctVal', label: 'MIN%'  },
     { key: 'ortg',      label: 'ORtg'  },
     { key: 'usgPct',    label: 'USG%'  },
+    { key: 'drtg',      label: 'DRtg'  },
     { key: 'shotPct',   label: 'SHOT%' },
     { key: 'efgPct',    label: 'EFG%'  },
     { key: 'tsPct',     label: 'TS%'   },
@@ -7420,6 +7423,7 @@ function renderPlayerProfile(playerName) {
       tsPct:  p.tsPct  ?? null,
       usgPct: p.usgPct ?? null,
       ortg:   p.ortg   ?? null,
+      drtg:   p.drtg   ?? null,
       orPct:  p.orPct  ?? null,
       drPct:  p.drPct  ?? null,
       astPct: p.astPct ?? null,
@@ -7431,9 +7435,9 @@ function renderPlayerProfile(playerName) {
     };
   }).filter(Boolean);
 
-  const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
+  const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
   const glColLabel = { date:'DATE', title:'OPPONENT', result:'RESULT', min:'MINS',
-    minPctVal:'MIN%', ortg:'ORtg', usgPct:'USAGE', shotPct:'SHOT%',
+    minPctVal:'MIN%', ortg:'ORtg', usgPct:'USAGE', drtg:'DRtg', shotPct:'SHOT%',
     efgPct:'EFG', tsPct:'TS%', ftRate:'FTR',
     orPct:'OR%', drPct:'DR%', astPct:'AST%', toPct:'TO%', stlPct:'STL%', blkPct:'BLK%',
     fg2:'2PT', fg3:'3PT', ft:'FT', ast:'AST', tov:'TO', stl:'STL', blk:'BLK',
@@ -7450,6 +7454,7 @@ function renderPlayerProfile(playerName) {
       case 'min':    return `<td>${row.min > 0 ? row.min + '\'' : '—'}</td>`;
       case 'minPctVal': return `<td>${row.minPctVal != null ? row.minPctVal + '%' : '—'}</td>`;
       case 'ortg':   return `<td>${row.ortg   != null ? Math.round(row.ortg) : '—'}</td>`;
+      case 'drtg':   return `<td>${row.drtg   != null ? Math.round(row.drtg) : '—'}</td>`;
       case 'usgPct': return `<td>${row.usgPct != null ? row.usgPct + '%' : '—'}</td>`;
       case 'shotPct': return `<td>${row.shotPct != null ? row.shotPct + '%' : '—'}</td>`;
       case 'efgPct': return `<td>${row.efgPct != null ? row.efgPct + '%' : '—'}</td>`;
@@ -7487,6 +7492,10 @@ function renderPlayerProfile(playerName) {
       case 'minPctVal': { const v = glRows.map(r=>r.minPctVal).filter(x=>x!=null); return `<td>${v.length?fp(v.reduce((a,b)=>a+b,0)/v.length)+'%':'—'}</td>`; }
       case 'ortg': {
         const vals = glRows.map(r => r.ortg).filter(v => v != null);
+        return `<td>${vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : '—'}</td>`;
+      }
+      case 'drtg': {
+        const vals = glRows.map(r => r.drtg).filter(v => v != null);
         return `<td>${vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : '—'}</td>`;
       }
       case 'usgPct': {
@@ -7709,7 +7718,7 @@ function renderFilmReportEvents(sessionId) {
 }
 
 function glSort(key) {
-  const numeric = ['min','minPctVal','ortg','usgPct','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','pts','ast','tov','stl','blk','oreb','dreb','pf'];
+  const numeric = ['min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','pts','ast','tov','stl','blk','oreb','dreb','pf'];
   if (window._glSortCol === key) {
     window._glSortDir *= -1;
   } else {
@@ -7738,6 +7747,7 @@ function glSort(key) {
       case 'min':    return `<td>${row.min > 0 ? row.min + '\'' : '—'}</td>`;
       case 'minPctVal': return `<td>${row.minPctVal != null ? row.minPctVal+'%' : '—'}</td>`;
       case 'ortg':   return `<td>${row.ortg   != null ? Math.round(row.ortg) : '—'}</td>`;
+      case 'drtg':   return `<td>${row.drtg   != null ? Math.round(row.drtg) : '—'}</td>`;
       case 'usgPct': return `<td>${row.usgPct != null ? row.usgPct+'%' : '—'}</td>`;
       case 'shotPct': return `<td>${row.shotPct != null ? row.shotPct+'%' : '—'}</td>`;
       case 'efgPct': return `<td>${row.efgPct != null ? row.efgPct+'%' : '—'}</td>`;
@@ -7764,7 +7774,7 @@ function glSort(key) {
     }
   }
 
-  const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
+  const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
   const tbody = document.getElementById('gl-tbody');
   if (tbody) {
     tbody.innerHTML = rows.map(row =>
@@ -8586,8 +8596,15 @@ function renderOnOffView() {
       ortgOn: g('ortg'), ortgOff: go('ortg'), ortgD: d('ortg'),
       drtgOn: g('drtg'), drtgOff: go('drtg'), drtgD: d('drtg'),
       netOn:  g('net'),  netOff:  go('net'),  netD:  d('net'),
-      efg: g('efg'), orebPct: g('orebPct'), tovPct: g('tovPct'), ftr: g('ftr'),
-      dEfg: g('dEfg'), dOrebPct: g('dOrebPct'), dTovPct: g('dTovPct'), dFtr: g('dFtr'),
+      // Four factors, on / off / diff — offense then defense
+      efgOn: g('efg'), efgOff: go('efg'), efgD: d('efg'),
+      orebOn: g('orebPct'), orebOff: go('orebPct'), orebD: d('orebPct'),
+      tovOn: g('tovPct'), tovOff: go('tovPct'), tovD: d('tovPct'),
+      ftrOn: g('ftr'), ftrOff: go('ftr'), ftrD: d('ftr'),
+      dEfgOn: g('dEfg'), dEfgOff: go('dEfg'), dEfgD: d('dEfg'),
+      dOrebOn: g('dOrebPct'), dOrebOff: go('dOrebPct'), dOrebD: d('dOrebPct'),
+      dTovOn: g('dTovPct'), dTovOff: go('dTovPct'), dTovD: d('dTovPct'),
+      dFtrOn: g('dFtr'), dFtrOff: go('dFtr'), dFtrD: d('dFtr'),
     };
   });
 
@@ -8635,6 +8652,7 @@ function renderOnOffView() {
     return `<td class="${cls}"><strong>${(v > 0 ? '+' : '') + v.toFixed(1)}</strong></td>`;
   }
   const plainCell = (v, extra) => `<td class="${extra || ''}">${v == null ? '—' : Number(v).toFixed(1)}</td>`;
+  const pctCell   = (v, extra) => `<td class="${extra || ''}">${v == null ? '—' : Number(v).toFixed(1) + '%'}</td>`;
 
   const trs = flat.map(r => {
     // No White/Black badge — players rotate between teams across sessions.
@@ -8651,14 +8669,14 @@ function renderOnOffView() {
       ${netCell(r.netOn, 'oo-rating-col')}
       ${plainCell(r.netOff)}
       ${diffCell(r.netD, true)}
-      ${cc(r.efg, 55, 42, false)}
-      ${cc(r.orebPct, 30, 18, false)}
-      ${cc(r.tovPct, 15, 22, true)}
-      ${cc(r.ftr, 35, 20, false)}
-      ${cc(r.dEfg, 42, 55, true, '%', 'oo-def-sep')}
-      ${cc(r.dOrebPct, 25, 35, true)}
-      ${cc(r.dTovPct, 22, 15, false)}
-      ${cc(r.dFtr, 20, 35, true)}
+      ${cc(r.efgOn, 55, 42, false)}${pctCell(r.efgOff)}${diffCell(r.efgD, true)}
+      ${cc(r.orebOn, 30, 18, false)}${pctCell(r.orebOff)}${diffCell(r.orebD, true)}
+      ${cc(r.tovOn, 15, 22, true)}${pctCell(r.tovOff)}${diffCell(r.tovD, false)}
+      ${cc(r.ftrOn, 35, 20, false)}${pctCell(r.ftrOff)}${diffCell(r.ftrD, true)}
+      ${cc(r.dEfgOn, 42, 55, true, '%', 'oo-def-sep')}${pctCell(r.dEfgOff)}${diffCell(r.dEfgD, false)}
+      ${cc(r.dOrebOn, 25, 35, true)}${pctCell(r.dOrebOff)}${diffCell(r.dOrebD, false)}
+      ${cc(r.dTovOn, 22, 15, false)}${pctCell(r.dTovOff)}${diffCell(r.dTovD, true)}
+      ${cc(r.dFtrOn, 20, 35, true)}${pctCell(r.dFtrOff)}${diffCell(r.dFtrD, false)}
     </tr>`;
   }).join('');
 
@@ -8685,14 +8703,14 @@ function renderOnOffView() {
           ${th('netOn','NET On','oo-rating-col')}
           ${th('netOff','NET Off')}
           ${th('netD','NET Diff')}
-          ${th('efg','EFG%','oo-th-off')}
-          ${th('orebPct','OREB%','oo-th-off')}
-          ${th('tovPct','TO%','oo-th-off')}
-          ${th('ftr','FTR','oo-th-off')}
-          ${th('dEfg','D-EFG%','oo-th-def oo-def-sep')}
-          ${th('dOrebPct','D-OREB%','oo-th-def')}
-          ${th('dTovPct','D-TO%','oo-th-def')}
-          ${th('dFtr','D-FTR','oo-th-def')}
+          ${th('efgOn','EFG% On','oo-th-off')}${th('efgOff','EFG% Off','oo-th-off')}${th('efgD','EFG% Diff','oo-th-off')}
+          ${th('orebOn','OREB% On','oo-th-off')}${th('orebOff','OREB% Off','oo-th-off')}${th('orebD','OREB% Diff','oo-th-off')}
+          ${th('tovOn','TO% On','oo-th-off')}${th('tovOff','TO% Off','oo-th-off')}${th('tovD','TO% Diff','oo-th-off')}
+          ${th('ftrOn','FTR On','oo-th-off')}${th('ftrOff','FTR Off','oo-th-off')}${th('ftrD','FTR Diff','oo-th-off')}
+          ${th('dEfgOn','D-EFG% On','oo-th-def oo-def-sep')}${th('dEfgOff','D-EFG% Off','oo-th-def')}${th('dEfgD','D-EFG% Diff','oo-th-def')}
+          ${th('dOrebOn','D-OREB% On','oo-th-def')}${th('dOrebOff','D-OREB% Off','oo-th-def')}${th('dOrebD','D-OREB% Diff','oo-th-def')}
+          ${th('dTovOn','D-TO% On','oo-th-def')}${th('dTovOff','D-TO% Off','oo-th-def')}${th('dTovD','D-TO% Diff','oo-th-def')}
+          ${th('dFtrOn','D-FTR On','oo-th-def')}${th('dFtrOff','D-FTR Off','oo-th-def')}${th('dFtrD','D-FTR Diff','oo-th-def')}
         </tr></thead>
         <tbody>${trs}</tbody>
       </table>
@@ -8700,7 +8718,9 @@ function renderOnOffView() {
     <div style="margin-top:12px;font-size:11px;color:var(--text-dim);">
       Per-100 ratings with the player <strong>On</strong> the floor, <strong>Off</strong> the floor, and the
       <strong>Diff</strong> (On − Off) — the player's impact. For DRTG a negative Diff is good (fewer points allowed with them on).
-      Four factors are on-court values. Offense in blue, defense in orange. Green = strong, red = weak. Click any header to sort.
+      Four factors also show On / Off / Diff. Diff coloring follows what is actually good: green means the team was
+      better with the player on (higher EFG%/OREB%/FTR and D-TO%, lower TO%, DRTG, D-EFG%, D-OREB% and D-FTR).
+      Offense in blue, defense in orange. Click any header to sort.
     </div>`;
 }
 
@@ -10000,6 +10020,42 @@ function computePlayerStats(session) {
       }
     }
     s.ortg = ortg;
+
+    /* ── Individual DRtg — Dean Oliver / Basketball-Reference ──
+       DRtg = TmDRtg + 0.2 * (100 * DPtsPerScPoss * (1 - Stop%) - TmDRtg)
+       Stops credit a player for steals, blocks, defensive boards, and a share of the
+       opponent's forced misses/turnovers proportional to their minutes. */
+    let drtg = null;
+    if (s.min > 0 && gameMin > 0 && tS.drtg != null) {
+      const MP  = s.min;
+      const tMP = gameMin * 5;                       // total team floor-minutes
+      const tDRB = tS.dreb || 0, tBLK = tS.blk || 0, tSTL = tS.stl || 0, tPF = tS.pf || 0;
+      const oORB = oS.oreb || 0, oFGA = oS.fga || 0, oFGM = oS.fgm || 0;
+      const oTOV = oS.tov  || 0, oFTA = oS.fta || 0, oFTM = oS.ftm || 0, oPTS = oS.pts || 0;
+      const tPoss = tS.possessions || 0;
+
+      const DORpct = (oORB + tDRB) > 0 ? oORB / (oORB + tDRB) : 0;
+      const DFGpct = oFGA > 0 ? oFGM / oFGA : 0;
+      const fmDen  = DFGpct * (1 - DORpct) + (1 - DFGpct) * DORpct;
+      const FMwt   = fmDen > 0 ? (DFGpct * (1 - DORpct)) / fmDen : 0;
+      const oFTpct = oFTA > 0 ? oFTM / oFTA : 0;
+
+      const Stops1 = s.stl + s.blk * FMwt * (1 - 1.07 * DORpct) + s.dreb * (1 - FMwt);
+      // Missed-FT stops are credited by share of team fouls; with no FTs this term is 0.
+      const ftStops = tPF > 0 ? (s.pf / tPF) * 0.4 * oFTA * Math.pow(1 - oFTpct, 2) : 0;
+      const Stops2 = tMP > 0
+        ? (((oFGA - oFGM - tBLK) / tMP) * FMwt * (1 - 1.07 * DORpct) + ((oTOV - tSTL) / tMP)) * MP + ftStops
+        : 0;
+
+      const stopPct = (tPoss > 0) ? ((Stops1 + Stops2) * tMP) / (tPoss * MP) : null;
+      const scPoss  = oFGM + (1 - Math.pow(1 - oFTpct, 2)) * oFTA * 0.4;
+      const dPtsPerScPoss = scPoss > 0 ? oPTS / scPoss : null;
+
+      if (stopPct != null && dPtsPerScPoss != null && isFinite(stopPct)) {
+        drtg = p1(tS.drtg + 0.2 * (100 * dPtsPerScPoss * (1 - stopPct) - tS.drtg), 0);
+      }
+    }
+    s.drtg = drtg;
 
     // No free throws in the scrimmage → blank FT-incorporating advanced stats
     // (ORtg included: its possession estimate is unreliable without foul-shot possessions).
