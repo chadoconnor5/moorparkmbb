@@ -10057,9 +10057,11 @@ function computePlayerStats(session) {
     }
     s.drtg = drtg;
 
-    // No free throws in the scrimmage → blank FT-incorporating advanced stats
-    // (ORtg included: its possession estimate is unreliable without foul-shot possessions).
-    if (!hasFT) { s.tsPct = null; s.ftRate = null; s.usgPct = null; s.ortg = null; }
+    // No free throws in the scrimmage → blank every FT-incorporating advanced stat.
+    // Individual ORtg and DRtg are included: both are built on scoring-possession
+    // estimates that need foul-shot data, so they are withheld rather than approximated.
+    // (Team ORTG/DRTG/NET stay — they are possession-based and hold up without FTs.)
+    if (!hasFT) { s.tsPct = null; s.ftRate = null; s.usgPct = null; s.ortg = null; s.drtg = null; }
 
     result.push({ name, team, ...s });
   }
