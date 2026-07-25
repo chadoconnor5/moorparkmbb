@@ -8442,7 +8442,7 @@ function _notesRestoreFocus() {
 /* ─────────────────────────────────────────────────────────────
    ON/OFF TAB
 ───────────────────────────────────────────────────────────── */
-let onoffSort = { key: 'netD', dir: -1 };   // default: biggest on/off swing first
+let onoffSort = { key: 'net40D', dir: -1 };   // default: biggest on/off swing first
 function onoffSortBy(key) {
   if (onoffSort.key === key) onoffSort.dir = -onoffSort.dir;
   else { onoffSort.key = key; onoffSort.dir = (key === 'name') ? 1 : -1; }
@@ -8575,7 +8575,10 @@ function renderOnOffView() {
       const dTovPct  = +(100 * tOppTov / oppPoss).toFixed(1);
       const dOrebPct = (tOppOreb + tDreb) > 0 ? +(100*tOppOreb/(tOppOreb+tDreb)).toFixed(1) : null;
       const dFtr     = tOppFga > 0  ? +(tOppFta / tOppFga * 100).toFixed(1)                  : null;
-      return { min: +tMin.toFixed(1), poss: +poss.toFixed(1), ortg, drtg, net,
+      // Raw plus/minus and per-40 net, matching the leaderboard's pm / net40.
+      const pm    = +(tPts - tOppPts).toFixed(0);
+      const net40 = tMin > 0 ? +((pm / tMin) * 40).toFixed(1) : null;
+      return { min: +tMin.toFixed(1), poss: +poss.toFixed(1), pm, net40, ortg, drtg, net,
                efg, tovPct, orebPct, ftr, dEfg, dTovPct, dOrebPct, dFtr };
     }
 
@@ -8593,6 +8596,9 @@ function renderOnOffView() {
     return {
       name: r.name, team: r.team,
       possOn: g('poss'), possOff: go('poss'),
+      // Leaderboard parity: MIN, raw PM, and the on/off triplet on per-40 net.
+      minOn: g('min'), pmOn: g('pm'),
+      net40On: g('net40'), net40Off: go('net40'), net40D: d('net40'),
       ortgOn: g('ortg'), ortgOff: go('ortg'), ortgD: d('ortg'),
       drtgOn: g('drtg'), drtgOff: go('drtg'), drtgD: d('drtg'),
       netOn:  g('net'),  netOff:  go('net'),  netD:  d('net'),
@@ -8658,12 +8664,15 @@ function renderOnOffView() {
     // No White/Black badge — players rotate between teams across sessions.
     return `<tr>
       <td class="oo-name-col">${escHtml(r.name)}</td>
+      <td>${r.minOn == null ? '—' : Math.round(r.minOn)}</td>
       <td>${r.possOn == null ? '—' : Math.round(r.possOn)}</td>
-      ${netCell(r.netOn,  'oo-rating-col')}
-      ${netCell(r.netOff, 'oo-rating-col')}
-      ${diffCell(r.netD, true, 'oo-rating-col')}
+      ${netCell(r.pmOn)}
+      ${netCell(r.net40On,  'oo-rating-col')}
+      ${netCell(r.net40Off, 'oo-rating-col')}
+      ${diffCell(r.net40D, true, 'oo-rating-col')}
       ${cc(r.ortgOn, 110, 95, false, '', 'oo-rating-col')}
       ${cc(r.drtgOn, 95, 110, true, '', 'oo-rating-col')}
+      ${netCell(r.netOn, 'oo-rating-col')}
       ${cc(r.efgOn, 55, 42, false)}
       ${cc(r.orebOn, 30, 18, false)}
       ${cc(r.tovOn, 15, 22, true)}
@@ -8687,12 +8696,15 @@ function renderOnOffView() {
       <table class="oo-sort-table">
         <thead><tr>
           ${th('name','Player','oo-name-col')}
-          ${th('possOn','Poss')}
-          ${th('netOn','ON','oo-rating-col')}
-          ${th('netOff','OFF','oo-rating-col')}
-          ${th('netD','ON/OFF','oo-rating-col')}
+          ${th('minOn','MIN')}
+          ${th('possOn','POSS')}
+          ${th('pmOn','+/−')}
+          ${th('net40On','ON','oo-rating-col')}
+          ${th('net40Off','OFF','oo-rating-col')}
+          ${th('net40D','ON/OFF','oo-rating-col')}
           ${th('ortgOn','ORTG','oo-rating-col')}
           ${th('drtgOn','DRTG','oo-rating-col')}
+          ${th('netOn','NET100','oo-rating-col')}
           ${th('efgOn','EFG%','oo-th-off')}
           ${th('orebOn','OREB%','oo-th-off')}
           ${th('tovOn','TO%','oo-th-off')}
@@ -8706,8 +8718,8 @@ function renderOnOffView() {
       </table>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--text-dim);">
-      <strong>ON</strong> / <strong>OFF</strong> = team Net rating per 100 with the player on and off the floor.
-      <strong>ON/OFF</strong> = the difference — the player's impact. Remaining columns are on-court values.
+      <strong>ON</strong> / <strong>OFF</strong> = team Net per 40 minutes with the player on and off the floor (matches the leaderboard's net40).
+      <strong>ON/OFF</strong> = the difference — the player's impact. <strong>+/−</strong> is raw plus/minus; <strong>NET100</strong> is per-100. Remaining columns are on-court values.
       Offense in blue, defense in orange. Green = strong, red = weak vs. thresholds. Click any header to sort.
     </div>`;
 }
