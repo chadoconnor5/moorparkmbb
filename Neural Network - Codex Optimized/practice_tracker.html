@@ -2848,7 +2848,37 @@
       padding: 5px 10px 3px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
     }
+    .vts-star-btn {
+      background: none;
+      border: none;
+      color: #f5c542;
+      font-size: 15px;
+      line-height: 1;
+      padding: 0 2px;
+      cursor: pointer;
+      opacity: 0.85;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .vts-star-btn:hover { opacity: 1; transform: scale(1.18); }
+
+    /* Coaching-note rows */
+    .vts-stat.note, .film-event-stat.note, .feed-stat.note { color: #f5c542; }
+    .note-quick-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .note-quick {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .note-quick:hover { border-color: #f5c542; color: #f5c542; }
 
     .vts-log-body {
       flex: 1;
@@ -3216,7 +3246,10 @@
                 </div>
               </div>
               <div class="vts-log">
-                <div class="vts-log-title">Film Events</div>
+                <div class="vts-log-title">
+                  <span>Film Events</span>
+                  <button class="vts-star-btn" onclick="openNoteModal()" title="Add a coaching note at this moment (assigns to a player)">&#9733;</button>
+                </div>
                 <div id="vts-log-body" class="vts-log-body">
                   <div class="vts-empty">No events yet</div>
                 </div>
@@ -3599,6 +3632,34 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="hideModal('modal-roster')">Cancel</button>
       <button class="btn btn-primary" onclick="saveRosterEdits()">Save Roster</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Coaching Note (gold star in Film Events)
+============================================================ -->
+<div id="modal-note" class="modal-overlay hidden">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title"><span style="color:#f5c542;">&#9733;</span> Add Note</div>
+      <button class="btn btn-ghost btn-sm" onclick="hideModal('modal-note')">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Note</label>
+        <input type="text" id="note-text" maxlength="120" placeholder="e.g. Missed box out" autocomplete="off" />
+        <div class="note-quick-row" id="note-quick-row"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Player</label>
+        <select id="note-player"></select>
+      </div>
+      <div id="note-ts-hint" style="font-size:11px;color:var(--text-dim);margin-top:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="hideModal('modal-note')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmNote()">Add Note</button>
     </div>
   </div>
 </div>
@@ -4777,12 +4838,14 @@ function updateVtsLog() {
   body.innerHTML = recent.map(ev => {
     const MAKES  = new Set(['2fg_make','3fg_make','ft_make']);
     const MISSES = new Set(['2fg_miss','3fg_miss','ft_miss']);
-    const cls = MAKES.has(ev.stat) ? 'make' : MISSES.has(ev.stat) ? 'miss' : 'other';
+    const isNote = ev.stat === 'note';
+    const cls = isNote ? 'note' : MAKES.has(ev.stat) ? 'make' : MISSES.has(ev.stat) ? 'miss' : 'other';
     const teamColor = ev.team === 'a' ? '#60a5fa' : '#fb923c';
-    return `<div class="vts-row" onclick="seekFilm(${ev.videoTs})" title="Jump to ${fmtVideoTs(ev.videoTs)}">
+    const label = isNote ? `★ ${ev.note || 'Note'}` : statLabel(ev.stat);
+    return `<div class="vts-row" onclick="seekFilm(${ev.videoTs})" title="${escHtml(isNote ? (ev.note || '') : 'Jump to ' + fmtVideoTs(ev.videoTs))}">
       <span class="vts-ts">${fmtVideoTs(ev.videoTs)}</span>
       <span class="vts-player" style="color:${teamColor}">${escHtml(ev.player || '')}</span>
-      <span class="vts-stat ${cls}">${statLabel(ev.stat)}</span>
+      <span class="vts-stat ${cls}">${escHtml(label)}</span>
     </div>`;
   }).join('');
 }
@@ -4901,6 +4964,7 @@ function reportEventSummary(ev) {
   if (ev.type === 'sub') {
     return `Sub: ${escHtml(ev.playerIn || '?')} in for ${escHtml(ev.playerOut || '?')}`;
   }
+  if (ev.stat === 'note') return `★ ${escHtml(ev.note || 'Note')}`;
   const parts = [statLabel(ev.stat) || ev.stat];
   // Show all tagged shot types when present, else fall back to the single primary type.
   const types = (Array.isArray(ev.shotTypes) && ev.shotTypes.length) ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
@@ -5840,6 +5904,8 @@ function buildPbpHtml(session) {
     let desc = '';
     if (ev.stat === 'sub') {
       desc = `<strong>${escHtml(teamName)}</strong> — Sub: ${escHtml(ev.playerIn || '?')} in for ${escHtml(ev.playerOut || '?')}`;
+    } else if (ev.stat === 'note') {
+      desc = `<strong>${escHtml(ev.player || '?')}</strong> (${escHtml(teamName)}) — <span style="color:#f5c542;font-weight:700;">★ ${escHtml(ev.note || 'Note')}</span>`;
     } else {
       const label = STAT_LABELS[ev.stat] || ev.stat;
       desc = `<strong>${escHtml(ev.player || '?')}</strong> (${escHtml(teamName)}) — <span class="${badgeCls(ev.stat)}">${label}</span>`;
@@ -7434,8 +7500,9 @@ function renderFilmReportEvents(sessionId) {
   }
 
   const rows = events.map(e => {
-    const cls = makeStats.has(e.stat) ? 'make' : missStats.has(e.stat) ? 'miss' : 'other';
-    const label = statLabel(e.stat) || e.stat;
+    const isNote = e.stat === 'note';
+    const cls = isNote ? 'note' : makeStats.has(e.stat) ? 'make' : missStats.has(e.stat) ? 'miss' : 'other';
+    const label = isNote ? `★ ${e.note || 'Note'}` : (statLabel(e.stat) || e.stat);
     const t = (hasFilm && e.videoTs != null)
       ? fmtHMS(e.videoTs)                                                                  // position in the film
       : (e.ts != null && Number.isFinite(startMs) ? fmtHMS((e.ts - startMs) / 1000) : '—'); // fallback: real elapsed
@@ -8878,6 +8945,96 @@ function commitEvent(team, player, stat, videoTsOverride) {
   // updateUndoRedo called by pushUndoGroup
 }
 
+/* ============================================================
+   COACHING NOTES (gold star in Film Events)
+   Stored as ordinary events with stat:'note'. buildStatLine's switch has no
+   default case, so notes never affect any computed stat — they only appear in
+   the Film Events log and the player's Event Timeline.
+============================================================ */
+const NOTE_QUICK_PICKS = [
+  'Missed box out', 'No rotation', 'Bad shot selection',
+  'Great close-out', 'Late help', 'Good cut', 'Turnover - forced',
+];
+
+let _noteVideoTs = null;   // frozen when the star is clicked
+
+/* Which team a player is on right now (on-floor first, then starters). */
+function _teamOfPlayer(name) {
+  if ((clockState.currentLineupA || []).includes(name)) return 'a';
+  if ((clockState.currentLineupB || []).includes(name)) return 'b';
+  const s = State.liveSession;
+  if (s) {
+    if ((s.startersA || []).includes(name)) return 'a';
+    if ((s.startersB || []).includes(name)) return 'b';
+  }
+  return 'a';
+}
+
+function openNoteModal() {
+  const session = State.liveSession;
+  if (!session) { showToast('Start a session first', 'warning'); return; }
+
+  _noteVideoTs = getVideoTimestamp();   // freeze the film moment at click time
+
+  // Player list: on-floor players first, then the rest of the roster.
+  if (!clockState.currentLineupA.length && !clockState.currentLineupB.length) rebuildCurrentLineups();
+  const onFloor = [...(clockState.currentLineupA || []), ...(clockState.currentLineupB || [])];
+  const others  = (State.roster || []).map(p => p.name).filter(n => !onFloor.includes(n));
+  const sel = document.getElementById('note-player');
+  sel.innerHTML =
+    (onFloor.length ? `<optgroup label="On Floor">${onFloor.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
+    (others.length  ? `<optgroup label="Bench / Roster">${others.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
+    `<optgroup label="Other"><option value="TEAM">Team (no single player)</option></optgroup>`;
+
+  // Quick picks
+  document.getElementById('note-quick-row').innerHTML = NOTE_QUICK_PICKS
+    .map(t => `<button type="button" class="note-quick" onclick="noteQuickPick(this)">${escHtml(t)}</button>`).join('');
+
+  const hint = document.getElementById('note-ts-hint');
+  hint.textContent = _noteVideoTs != null
+    ? `Will be logged at film time ${fmtVideoTs(_noteVideoTs)}`
+    : 'No film loaded — this note will be logged without a film timestamp.';
+
+  const input = document.getElementById('note-text');
+  input.value = '';
+  showModal('modal-note');
+  setTimeout(() => input.focus(), 50);
+}
+
+function noteQuickPick(btn) {
+  const input = document.getElementById('note-text');
+  input.value = btn.textContent;
+  input.focus();
+}
+
+function confirmNote() {
+  const session = State.liveSession;
+  if (!session) return;
+  const text   = (document.getElementById('note-text').value || '').trim();
+  const player = document.getElementById('note-player').value;
+  if (!text)   { showToast('Enter a note first', 'warning'); return; }
+  if (!player) { showToast('Pick a player', 'warning'); return; }
+
+  const ev = {
+    id: session.eventLog.length,
+    type: 'note',
+    stat: 'note',
+    note: text,
+    team: _teamOfPlayer(player),
+    player,
+    quarter: currentQuarterNum(),
+    ts: Date.now(),
+    videoTs: _noteVideoTs,
+  };
+  session.eventLog.push(ev);
+  pushUndoGroup([ev]);          // undoable like any other event
+  saveLiveSession(session);
+  hideModal('modal-note');
+  showToast(`Note added: ${player} — ${text}`, 'success', 2500);
+  updateActionFeed();
+  updateVtsLog();
+}
+
 /* ── Flush all staged pending events ── */
 function flushPendingEvents() {
   const session = State.liveSession;
@@ -9002,12 +9159,13 @@ function updateActionFeed() {
           <div class="feed-meta">${teamLabel} &nbsp;Q${ev.quarter} &nbsp;<span class="feed-stat sub">Sub</span></div>
         </div>`);
     } else {
-      const cls = feedStatClass(ev.stat);
+      const isNote = ev.stat === 'note';
+      const cls = isNote ? 'note' : feedStatClass(ev.stat);
       el.insertAdjacentHTML('beforeend', `
         <div class="feed-row${newestCls}">
           <div class="feed-row-top">
             <span class="feed-player">${escHtml(ev.player || '')}</span>
-            <span class="feed-stat ${cls}">${statLabel(ev.stat)}</span>
+            <span class="feed-stat ${cls}">${escHtml(isNote ? '★ ' + (ev.note || 'Note') : statLabel(ev.stat))}</span>
           </div>
           <div class="feed-meta">${teamLabel} &nbsp;Q${ev.quarter}${vtHtml}</div>
         </div>`);
