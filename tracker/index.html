@@ -6905,7 +6905,6 @@ function renderPlayerTable() {
   ).join('');
 
   const bodyRows = rows.map(r => {
-    const teamColor = r.team === 'a' ? '#60a5fa' : '#fb923c';
     function cell(key) {
       const v = r[key];
       if (v == null) return '<td>\u2014</td>';
@@ -7318,7 +7317,7 @@ function renderPlayerProfile(playerName) {
           <div class="profile-name">${escHtml(playerName)}</div>
           ${scopeSelector}
         </div>
-        <div class="profile-meta">Team <span style="color:${teamColor};font-weight:700;">${team.toUpperCase()}</span> · ${
+        <div class="profile-meta">${
           scopedSession
             ? `${escHtml(scopeNoun)}${scopedSession.title ? ' · ' + escHtml(scopedSession.title) : ''}${scopedSession.date ? ' · ' + escHtml(scopedSession.date) : ''}`
             : `${totalGP} session${totalGP !== 1 ? 's' : ''} · ${Math.round(totalMin / gp)}' avg`
@@ -7931,9 +7930,7 @@ function renderLineupsView() {
     <div class="page-header">
       <div>
         <div class="page-title">Lineup Analytics</div>
-        <div class="page-subtitle" id="lu-subtitle">${visibleRows.length} of ${lineupRows.length} lineup${lineupRows.length !== 1 ? 's' : ''} &middot;
-          <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>
-        </div>
+        <div class="page-subtitle" id="lu-subtitle">${visibleRows.length} of ${lineupRows.length} lineup${lineupRows.length !== 1 ? 's' : ''}</div>
       </div>
       ${_lineupsFilterBar(filtered)}
     </div>
@@ -8005,9 +8002,8 @@ function _luUpdateArrows() {
 /* Single lineup row — shared by the initial render, the sort headers, and the slider. */
 function _luRowHtml(r, team, filtered, cell) {
   const netStr = (r.net > 0 ? '+' : '') + r.net;
-  const teamBadge = team === 'both'
-    ? `<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:${r.team==='a'?'#1e3a5f':'#3d1f0a'};color:${r.team==='a'?'#60a5fa':'#fb923c'}">${escHtml(r.team==='a'?(filtered[0]?.teamAName||'A'):(filtered[0]?.teamBName||'B'))}</span>`
-    : '';
+  // No White/Black badge: players rotate between teams across sessions, so tagging a
+  // lineup with one scrimmage team would be misleading over a season.
   // Full names on desktop; last names only on phones (CSS swaps them) so the frozen
   // lineup column stays narrow. Full lineup is always in the tooltip.
   const luFull  = r.displayKey || r.key;
@@ -8015,7 +8011,7 @@ function _luRowHtml(r, team, filtered, cell) {
     .map(n => { const p = n.trim().split(/\s+/); return p.length > 1 ? p[p.length - 1] : n; })
     .join(' / ');
   return `<tr>
-      <td class="lineup-key" title="${escHtml(luFull)}"><span class="lu-name-full">${escHtml(luFull)}</span><span class="lu-name-short">${escHtml(luShort)}</span>${teamBadge}</td>
+      <td class="lineup-key" title="${escHtml(luFull)}"><span class="lu-name-full">${escHtml(luFull)}</span><span class="lu-name-short">${escHtml(luShort)}</span></td>
       <td>${r.gp}</td>
       <td>${r.min}'</td>
       <td>${Math.round(r.poss)}</td>
@@ -8048,12 +8044,7 @@ function _luRenderTbody() {
 
   const subtitle = document.getElementById('lu-subtitle');
   if (subtitle) {
-    const teamColor = team === 'b' ? '#fb923c' : '#60a5fa';
-    const teamLabel = team === 'both' ? 'Both Teams'
-      : team === 'b' ? (filtered[0]?.teamBName || 'Black')
-      : (filtered[0]?.teamAName || 'White');
-    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''} &middot;
-      <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>`;
+    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''}`;
   }
   _luUpdateArrows();
 }
@@ -8256,11 +8247,9 @@ function renderOnOffView() {
   }
 
   const trs = flat.map(r => {
-    const teamBadge = teamIsAll
-      ? `<span style="font-size:10px;font-weight:700;margin-left:8px;opacity:0.6">${r.team === 'a' ? (filtered[0]?.teamAName||'White') : (filtered[0]?.teamBName||'Black')}</span>`
-      : '';
+    // No White/Black badge — players rotate between teams across sessions.
     return `<tr>
-      <td class="oo-name-col">${escHtml(r.name)}${teamBadge}</td>
+      <td class="oo-name-col">${escHtml(r.name)}</td>
       <td>${r.poss == null ? '—' : Math.round(r.poss)}</td>
       ${cc(r.ortg, 110, 95, false, '', 'oo-rating-col')}
       ${cc(r.drtg, 95, 110, true, '', 'oo-rating-col')}
@@ -8281,9 +8270,7 @@ function renderOnOffView() {
     <div class="page-header">
       <div>
         <div class="page-title">On / Off Splits</div>
-        <div class="page-subtitle">${flat.length} players &middot;
-          <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>
-        </div>
+        <div class="page-subtitle">${flat.length} players</div>
       </div>
       ${_onoffFilterBar(filtered)}
     </div>
