@@ -2902,10 +2902,67 @@
        RESPONSIVE
     ============================================================ */
     @media (max-width: 768px) {
-      .page { padding: 14px; }
+      .page { padding: 10px; }
       .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-      .nav { padding: 0 10px; gap: 1px; }
-      .nav-tab { padding: 5px 9px; font-size: 11.5px; }
+      .nav { padding: 0 8px; gap: 1px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .nav::-webkit-scrollbar { display: none; }
+      .nav-tab { padding: 5px 9px; font-size: 11.5px; flex-shrink: 0; }
+      .nav-brand { flex-shrink: 0; }
+
+      /* Headers/filters stack instead of overflowing */
+      .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .ps-filter-bar, .seg-filter-bar, .sc-controls { flex-wrap: wrap; }
+
+      /* ── Dense stat tables: tighter, and pin the first column ──
+         Wide stat tables must scroll sideways on a phone, but the name column
+         stays frozen so a row never loses its identity while scrolling. */
+      table { font-size: 11px; }
+      thead th { padding: 7px 6px; font-size: 9.5px; letter-spacing: 0.02em; }
+      tbody td { padding: 6px 6px; }
+
+      thead th:first-child,
+      tbody td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        box-shadow: 1px 0 0 var(--border);
+      }
+      thead th:first-child { z-index: 3; background: var(--card); }
+      tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+      tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+      tbody tr:hover td:first-child { background: #c0c8d8; }
+
+      /* Practice Log */
+      .log-table { font-size: 10px; }
+      .log-table thead th { padding: 6px 5px; font-size: 9px; }
+      .log-table tbody td { padding: 5px 5px; }
+      .log-table thead th:first-child,
+      .log-table tbody td:first-child {
+        position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border);
+      }
+      .log-table thead th:first-child { z-index: 3; background: #242938; }
+      .log-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+      .log-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+
+      /* On/Off — its name cell is a class, not first-child */
+      .oo-sort-table thead th.oo-name-col,
+      .oo-sort-table tbody td.oo-name-col {
+        position: sticky; left: 0; z-index: 2; min-width: 104px;
+        box-shadow: 1px 0 0 var(--border);
+      }
+      .oo-sort-table thead th.oo-name-col { z-index: 3; background: var(--card); }
+      .oo-sort-table tbody tr:nth-child(odd)  td.oo-name-col { background: #f7f8fa; }
+      .oo-sort-table tbody tr:nth-child(even) td.oo-name-col { background: #ffffff; }
+
+      /* Lineup names are long — wrap them instead of one huge column */
+      .lineup-key { max-width: 132px; white-space: normal; font-size: 10px; line-height: 1.3; }
+
+      /* Player profile */
+      .profile-name-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .profile-scope select { max-width: 100%; }
+      .profile-stat-bar { gap: 12px; }
+      .profile-stat-val { font-size: 17px; }
+      #profile-panel-overview > div:first-child { grid-template-columns: 1fr !important; }
     }
   </style>
 </head>
