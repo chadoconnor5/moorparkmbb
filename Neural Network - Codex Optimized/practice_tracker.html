@@ -724,8 +724,14 @@
        These stat tables are far wider than any viewport, so the identifying column
        (player / lineup / date) stays pinned while the numbers scroll horizontally.
        Sticky cells need their own background or scrolled content shows through. */
-    thead th:first-child,
-    tbody td:first-child {
+    /* Scoped to the wide light tables only. A bare `tbody td:first-child` selector
+       out-specifies the dark tables' own row colors (.zone-table etc.) and would paint
+       their first column white. .box-table, .log-table and .oo-sort-table each have
+       their own pinned-column rules below. */
+    #ps-main-table thead th:first-child,
+    #ps-main-table tbody td:first-child,
+    .lu-table thead th:first-child,
+    .lu-table tbody td:first-child {
       position: sticky;
       left: 0;
       z-index: 2;
@@ -733,10 +739,14 @@
       /* Match the row's transition, or the pinned cell snaps while the row fades. */
       transition: background 0.1s;
     }
-    thead th:first-child { z-index: 3; background: var(--card); }
-    tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
-    tbody tr:nth-child(even) td:first-child { background: #ffffff; }
-    tbody tr:hover td:first-child { background: #c0c8d8; }
+    #ps-main-table thead th:first-child,
+    .lu-table thead th:first-child { z-index: 3; background: var(--card); }
+    #ps-main-table tbody tr:nth-child(odd)  td:first-child,
+    .lu-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+    #ps-main-table tbody tr:nth-child(even) td:first-child,
+    .lu-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+    #ps-main-table tbody tr:hover td:first-child,
+    .lu-table tbody tr:hover td:first-child { background: #c0c8d8; }
 
     /* Practice Log */
     .log-table thead th:first-child,
