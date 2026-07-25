@@ -219,6 +219,42 @@
       gap: 12px;
     }
 
+    .setup-roster-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .setup-roster-hint {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .setup-exhibition {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+    .setup-exhibition input {
+      margin-top: 1px;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      accent-color: var(--warning);
+      cursor: pointer;
+    }
+    .setup-exhibition strong { color: var(--warning); }
+
     /* ============================================================
        TRACKER LOCK — shown inside tracker tab when not authenticated
     ============================================================ */
@@ -872,6 +908,7 @@
 
     /* Score bar at top */
     .tracker-scorebar {
+      position: relative;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 8px 16px;
@@ -880,6 +917,12 @@
       justify-content: center;
       flex-shrink: 0;
       gap: 0;
+    }
+    .scorebar-boxscore-btn {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
     }
 
     .scorebar-team {
@@ -2074,6 +2117,37 @@
       margin-bottom: 2px;
     }
     .profile-meta { font-size: 12px; color: var(--text-dim); }
+    .profile-name-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .profile-scope {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .profile-scope label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+    }
+    .profile-scope select {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      max-width: 260px;
+    }
+    .profile-scope select:hover { border-color: var(--primary); }
     .profile-stat-bar { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
     .profile-stat-item { text-align: center; }
     .profile-stat-val { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1; }
@@ -2161,6 +2235,22 @@
       color: var(--primary);
       min-width: 60px;
       flex-shrink: 0;
+    }
+    .film-event-q {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 1px 7px;
+      flex-shrink: 0;
+    }
+    .film-report-caption {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
     }
     .film-event-stat {
       font-weight: 700;
@@ -2444,7 +2534,11 @@
     }
 
     .tracker-main-film .feed-spacer {
-      display: none !important;
+      /* Left counterweight equal to the action feed on the right, so the White/Stats/Black
+         core (and the shot chart centered below it) stays centered. */
+      display: block !important;
+      width: 200px !important;
+      flex-shrink: 0 !important;
     }
 
     .tracker-main-film #action-feed {
@@ -2461,9 +2555,10 @@
     }
 
     .video-panel {
+      /* Fluid: scales with screen width (no fixed cap) so the film fills large monitors,
+         while min-width protects the layout on laptops. */
       width: 55%;
       min-width: 360px;
-      max-width: 900px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -2505,6 +2600,7 @@
     .video-no-film .film-icon { font-size: 36px; opacity: 0.3; }
 
     .video-controls {
+      position: relative;
       flex-shrink: 0;
       background: var(--surface);
       border-top: 1px solid var(--border);
@@ -2518,9 +2614,12 @@
       width: 100%;
       -webkit-appearance: none;
       appearance: none;
-      height: 4px;
-      border-radius: 2px;
-      background: var(--border);
+      height: 6px;
+      border-radius: 3px;
+      /* Played portion filled with the primary color up to --pct (set in JS). */
+      background: linear-gradient(to right,
+        var(--primary) 0%, var(--primary) var(--pct, 0%),
+        var(--border) var(--pct, 0%), var(--border) 100%);
       outline: none;
       cursor: pointer;
       margin-bottom: 2px;
@@ -2528,11 +2627,57 @@
 
     .vc-progress::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 12px;
-      height: 12px;
+      width: 15px;
+      height: 15px;
       border-radius: 50%;
       background: var(--primary);
       cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.35);
+    }
+
+    /* Firefox: native played-progress fill + matching thumb */
+    .vc-progress::-moz-range-progress {
+      height: 6px;
+      border-radius: 3px;
+      background: var(--primary);
+    }
+    .vc-progress::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      border: none;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.35);
+    }
+
+    /* Hover scrub preview */
+    .vc-preview {
+      position: absolute;
+      bottom: calc(100% - 8px);
+      transform: translateX(-50%);
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px;
+      pointer-events: none;
+      z-index: 30;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+    }
+    .vc-preview canvas {
+      display: block;
+      width: 160px;
+      height: 90px;
+      border-radius: 3px;
+      background: #000;
+    }
+    .vc-preview-time {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      color: #fff;
+      margin-top: 2px;
     }
 
     .vc-row {
@@ -2595,6 +2740,39 @@
       border-radius: var(--radius-sm);
       cursor: pointer;
       flex-shrink: 0;
+    }
+
+    .vc-vol-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+      opacity: 0.85;
+    }
+    .vc-volume {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 70px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .vc-volume::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      cursor: pointer;
+    }
+    .vc-volume::-moz-range-thumb {
+      width: 11px;
+      height: 11px;
+      border: none;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      cursor: pointer;
     }
 
     .vts-log {
@@ -2747,9 +2925,9 @@
     <button class="nav-tab"        data-tab="shotcharts"onclick="switchTab('shotcharts',this)">Shot Charts</button>
     <button class="nav-tab"        data-tab="onoff"     onclick="switchTab('onoff',this)">On/Off</button>
     <button class="nav-tab"        data-tab="lineups"   onclick="switchTab('lineups',this)">Lineups</button>
-    <button class="nav-tab"        data-tab="tracker"   onclick="switchTab('tracker',this)">Live Tracker</button>
-    <button class="nav-tab" style="margin-left:auto;" onclick="openRosterEditor()" title="Edit roster (saved in this browser)">&#9881; Roster</button>
-    <button class="nav-tab" onclick="exportAllSessions()" title="Download a full backup: sessions, roster, and settings">&#11015; Backup</button>
+    <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
+    <button class="nav-tab editor-only" id="nav-publish" style="margin-left:auto;" onclick="publishData()" title="Download pt_data.json to publish the latest data to the live site (password required)">&#8593; Publish</button>
+    <button class="nav-tab editor-only" id="nav-backup" onclick="backupWithPassword()" title="Download a full backup (password required): sessions, roster, and settings">&#11015; Backup</button>
   </nav>
 
   <!-- ── LIVE TRACKER ── -->
@@ -2821,6 +2999,18 @@
             </div>
           </div>
 
+          <!-- Exhibition / outside-scope toggle -->
+          <label class="setup-exhibition">
+            <input type="checkbox" id="setup-exclude-stats">
+            <span><strong>Exhibition — exclude from season &amp; career stats.</strong> Still tracked and reviewable. Use when a team is mostly non-roster players (former players, etc.) you don't want in long-term totals.</span>
+          </label>
+
+          <!-- Roster management (edit the player pool used for starter selection below) -->
+          <div class="setup-roster-bar">
+            <div class="setup-roster-hint">Missing a player? Edit the roster pool used for starter selection.</div>
+            <button class="btn btn-ghost btn-sm" onclick="openRosterEditor()" title="Edit roster (saved in this browser)">&#9881; Edit Roster</button>
+          </div>
+
           <!-- Starter selection -->
           <div class="setup-grid">
             <!-- White -->
@@ -2875,6 +3065,7 @@
               <div class="scorebar-name" id="live-name-b">Blue</div>
               <div class="scorebar-score team-b-score" id="live-score-b">0</div>
             </div>
+            <button class="btn btn-ghost btn-sm scorebar-boxscore-btn" onclick="openLiveBoxScore()" title="Check the box score as things stand">&#128202; Box Score</button>
           </div>
 
           <!-- MAIN AREA -->
@@ -2890,16 +3081,30 @@
                   <input type="file" id="tracker-film-input" accept="video/*" style="display:none;" onchange="onTrackerFilmLoad(this)">
                 </div>
                 <video id="film-video" style="display:none;cursor:pointer;" preload="metadata" onclick="vcTogglePlay()"></video>
+                <!-- Off-screen second decoder used only to grab hover-preview frames.
+                     Positioned off-screen (not display:none) so frames still decode for canvas capture. -->
+                <video id="vc-preview-video" muted playsinline preload="auto"
+                  style="position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;left:-9999px;top:0;"></video>
               </div>
               <div class="video-controls" id="video-controls" style="display:none;">
-                <input type="range" id="vc-progress" class="vc-progress" value="0" min="0" max="100" step="0.01" oninput="vcSeek(this.value)" onchange="vcSeek(this.value)">
+                <div class="vc-preview" id="vc-preview" style="display:none;">
+                  <canvas id="vc-preview-canvas" width="160" height="90"></canvas>
+                  <div class="vc-preview-time" id="vc-preview-time">0:00</div>
+                </div>
+                <input type="range" id="vc-progress" class="vc-progress" value="0" min="0" max="100" step="0.01"
+                  oninput="vcSeek(this.value)" onchange="vcSeek(this.value)"
+                  onmousemove="vcProgressHover(event)" onmouseleave="vcProgressLeave()">
                 <div class="vc-row">
-                  <button class="vc-btn" id="vc-rw-btn" title="Hold to rewind"
+                  <button class="vc-btn" id="vc-rw-btn" title="Hold to rewind (keys: A fast, S slow)"
                     onpointerdown="vcRwStart(event)" onpointerup="vcRwStop()" onpointerleave="vcRwStop()" oncontextmenu="return false;">&#9664;&#9664;</button>
                   <button class="vc-btn" onclick="vcRewind()" title="Back 5s">-5s</button>
-                  <button class="vc-btn vc-play" id="vc-play-btn" onclick="vcTogglePlay()">&#9654;</button>
+                  <button class="vc-btn vc-play" id="vc-play-btn" onclick="vcTogglePlay()" title="Play / Pause (Space)">&#9654;</button>
                   <button class="vc-btn" onclick="vcFastforward()" title="Forward 5s">+5s</button>
+                  <button class="vc-btn" id="vc-ff-btn" title="Hold to fast-forward (keys: F fast, D slow)"
+                    onpointerdown="vcFfStart(event)" onpointerup="vcFfStop()" onpointerleave="vcFfStop()" oncontextmenu="return false;">&#9654;&#9654;</button>
                   <span class="vc-time" id="vc-time">0:00 / 0:00</span>
+                  <span class="vc-vol-icon" title="Volume">&#128266;</span>
+                  <input type="range" class="vc-volume" id="vc-volume" min="0" max="100" value="100" oninput="vcSetVolume(this.value)" title="Volume">
                   <select class="vc-speed" id="vc-speed" onchange="vcSetSpeed(this.value)">
                     <option value="0.25">0.25x</option>
                     <option value="0.5">0.5x</option>
@@ -2964,10 +3169,14 @@
                   <button class="stat-btn sb-defl"     data-stat="defl"     onclick="selectStat('defl',this)">Deflection</button>
                   <button class="stat-btn sb-foul"     data-stat="foul"     onclick="selectStat('foul',this)">Foul</button>
                 </div>
+                <!-- Appears centered under the stat grid only while a made shot is awaiting an assister -->
+                <div class="skip-assist-wrap" style="text-align:center;">
+                  <button class="btn btn-ghost btn-sm" id="btn-skip-assist" style="display:none;color:var(--warning);border-color:rgba(245,158,11,0.4);margin-top:12px;" onclick="skipAssist()">No Assist</button>
+                </div>
               </div>
 
-              <!-- TEAM B + ACTION FEED stacked below it -->
-              <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;">
+              <!-- TEAM B + ACTION FEED side by side (feed to the right of Black) -->
+              <div style="display:flex;flex-direction:row;gap:10px;align-items:flex-start;">
 
                 <div class="tracker-team-col team-b-col" id="col-team-b">
                   <div class="team-col-header header-b" id="col-header-b">Blue</div>
@@ -3011,7 +3220,6 @@
             <div class="action-bar-left">
               <button class="btn btn-ghost btn-sm" id="btn-undo" onclick="trackerUndo()" disabled>↩ Undo</button>
               <button class="btn btn-ghost btn-sm" id="btn-redo" onclick="trackerRedo()" disabled>Redo ↪</button>
-              <button class="btn btn-ghost btn-sm" id="btn-skip-assist" style="display:none;color:var(--warning);" onclick="skipAssist()">No Assist</button>
             </div>
             <div class="pending-pill idle" id="pending-status">Select a stat to begin</div>
             <div class="action-bar-right">
@@ -3285,7 +3493,7 @@
       <button class="btn btn-ghost btn-sm" onclick="hideModal('modal-roster')">&#x2715;</button>
     </div>
     <div class="modal-body">
-      <p style="margin:0 0 10px;">Changes are saved in this browser and used for new sessions. Completed sessions keep the names they were recorded with.</p>
+      <p style="margin:0 0 10px;">Changes are saved in this browser. <strong>Edit a name to rename a player</strong> — all their past stats, events, and lineups move with them, so no history is lost. Removing a player (&#x2715;) only takes them off the starter-selection list; their recorded stats are kept.</p>
       <div id="roster-editor-rows" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;"></div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addRosterEditorRow('')">+ Add Player</button>
     </div>
@@ -3499,6 +3707,41 @@ document.getElementById('pw-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') checkPassword();
 });
 
+/* Backup downloads the entire dataset, so it's gated behind the tracker password —
+   prompted on EVERY click (not cached), so a casual visitor can't export the data. */
+async function backupWithPassword() {
+  const input = prompt('Enter the tracker password to download a full backup:');
+  if (input == null) return;   // cancelled
+  const hash = await sha256(input);
+  if (hash === localStorage.getItem('pt_pass_hash')) {
+    exportAllSessions();
+  } else {
+    showToast('Incorrect password — backup not downloaded.', 'danger', 3000);
+  }
+}
+
+/* Publish: downloads pt_data.json — the file the published site reads. Commit + push it
+   to update the live site. Password-gated (same as Backup). */
+async function publishData() {
+  const input = prompt('Enter the tracker password to publish the latest data to the site:');
+  if (input == null) return;
+  const hash = await sha256(input);
+  if (hash !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — nothing published.', 'danger', 3000);
+    return;
+  }
+  const payload = {
+    app: 'moorpark-practice-tracker',
+    version: 1,
+    publishedAt: new Date().toISOString(),
+    roster: State.roster,
+    settings: State.settings,
+    sessions: getSessions(),   // all completed sessions (exhibition flag travels with them)
+  };
+  downloadTextFile('pt_data.json', JSON.stringify(payload), 'application/json');
+  showToast('pt_data.json downloaded — commit & push it to update the live site.', 'success', 7000);
+}
+
 /* ============================================================
    TAB ROUTING
 ============================================================ */
@@ -3574,6 +3817,7 @@ function addRosterEditorRow(name) {
   const input = document.createElement('input');
   input.type = 'text';
   input.value = name || '';
+  input.dataset.original = name || '';   // remember starting name so a save can detect renames
   input.placeholder = 'Player name';
   input.style.cssText = 'flex:1;padding:6px 8px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;';
   const del = document.createElement('button');
@@ -3587,23 +3831,106 @@ function addRosterEditorRow(name) {
   if (!name) input.focus();
 }
 
+/* Rewrite one player name to another everywhere it appears in a single session:
+   stat events, sub in/out, assister, starters, on-floor lineups, and computed box rows. */
+function migrateSessionNames(session, renameMap) {
+  let touched = false;
+  const remap = v => {
+    if (v != null && renameMap.has(v)) { touched = true; return renameMap.get(v); }
+    return v;
+  };
+  const remapArr = arr => {
+    if (!Array.isArray(arr)) return;
+    for (let i = 0; i < arr.length; i++) arr[i] = remap(arr[i]);
+  };
+  (session.eventLog || []).forEach(e => {
+    e.player   = remap(e.player);
+    e.playerIn = remap(e.playerIn);
+    e.playerOut = remap(e.playerOut);
+    e.assister = remap(e.assister);
+  });
+  remapArr(session.startersA);
+  remapArr(session.startersB);
+  (session.lineupSegments || []).forEach(seg => { remapArr(seg.lineupA); remapArr(seg.lineupB); });
+  (session.playerStats || []).forEach(ps => { ps.name = remap(ps.name); });
+  return touched;
+}
+
+/* How many stored sessions (completed + live) contain any of the names being renamed.
+   Read-only — used to tell the user what a rename will touch before they confirm. */
+function countSessionsAffected(renameMap) {
+  const hits = s => {
+    const inArr = arr => Array.isArray(arr) && arr.some(n => renameMap.has(n));
+    return (s.eventLog || []).some(e => renameMap.has(e.player) || renameMap.has(e.playerIn) || renameMap.has(e.playerOut) || renameMap.has(e.assister))
+      || inArr(s.startersA) || inArr(s.startersB)
+      || (s.lineupSegments || []).some(seg => inArr(seg.lineupA) || inArr(seg.lineupB))
+      || (s.playerStats || []).some(ps => renameMap.has(ps.name));
+  };
+  let count = (State.sessions || []).filter(hits).length;
+  if (State.liveSession && hits(State.liveSession)) count++;
+  return count;
+}
+
+/* Apply renames across all stored data and persist. Returns false if a save failed. */
+function applyPlayerRenames(renameMap) {
+  backupBeforeRename();   // snapshot current data first — renames have no undo
+  (State.sessions || []).forEach(s => migrateSessionNames(s, renameMap));
+  const okSessions = persistSessions();
+  if (State.liveSession && migrateSessionNames(State.liveSession, renameMap)) {
+    saveLiveSession(State.liveSession);
+  }
+  // Keep any in-progress starter selection on the setup screen in sync with the rename.
+  ['startersA', 'startersB'].forEach(k => {
+    const set = setupState && setupState[k];
+    if (!set) return;
+    renameMap.forEach((newName, oldName) => {
+      if (set.has(oldName)) { set.delete(oldName); set.add(newName); }
+    });
+  });
+  return okSessions;
+}
+
 function saveRosterEdits() {
   const inputs = [...document.querySelectorAll('#roster-editor-rows input')];
   const seen = new Set();
   const roster = [];
+  const renameMap = new Map();   // oldName -> newName (only for in-place edits of existing players)
   for (const inp of inputs) {
     const name = inp.value.trim();
+    const original = (inp.dataset.original || '').trim();
     if (!name) continue;
     const key = name.toLowerCase();
     if (seen.has(key)) { showToast('Duplicate name: ' + name, 'warning'); return; }
     seen.add(key);
     roster.push({ name });
+    if (original && original !== name) renameMap.set(original, name);
   }
   if (roster.length < 2) { showToast('Roster needs at least 2 players', 'warning'); return; }
+
+  // Renaming an existing player: carry all their history to the new name so nothing is lost.
+  if (renameMap.size > 0) {
+    const summary = [...renameMap.entries()].map(([o, n]) => `• ${o} → ${n}`).join('\n');
+    const affected = countSessionsAffected(renameMap);
+    const plural = renameMap.size === 1 ? '' : 's';
+    const proceed = confirm(
+      `Rename ${renameMap.size} player${plural}?\n\n${summary}\n\n` +
+      `All past stats, events, and lineups will move to the new name${plural} ` +
+      `(${affected} practice${affected === 1 ? '' : 's'} affected). No data is lost.\n\n` +
+      `A safety backup file will download first.`
+    );
+    if (!proceed) return;
+    if (!applyPlayerRenames(renameMap)) return;   // save failed — persistKey already warned; don't lose the modal
+  }
+
   State.roster = roster;
   if (persistRoster()) {
     hideModal('modal-roster');
-    showToast('Roster saved — ' + roster.length + ' players', 'success');
+    showToast(
+      renameMap.size > 0
+        ? `Roster saved — ${roster.length} players, ${renameMap.size} renamed with history kept`
+        : `Roster saved — ${roster.length} players`,
+      'success'
+    );
     // Refresh the setup player grids if they are on screen
     try { renderPlayerGrid('a'); renderPlayerGrid('b'); } catch(e) {}
   }
@@ -3621,6 +3948,9 @@ function setupInit() {
   // Set today's date as default
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('setup-date').value = today;
+
+  const exBox = document.getElementById('setup-exclude-stats');
+  if (exBox) exBox.checked = false;   // default every new session to counted
 
   // Populate film dropdown
   populateFilmDropdown();
@@ -3715,6 +4045,8 @@ function setupReset() {
   setupState.startersA.clear();
   setupState.startersB.clear();
   document.getElementById('setup-title').value = '';
+  const exBox = document.getElementById('setup-exclude-stats');
+  if (exBox) exBox.checked = false;
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('setup-date').value = today;
   renderPlayerGrid('a');
@@ -3741,6 +4073,7 @@ function setupConfirm() {
     eventLog:  [],
     lineupSegments: [],
     completed: false,
+    excludeFromStats: document.getElementById('setup-exclude-stats')?.checked || false,
     createdAt: new Date().toISOString(),
   };
 
@@ -4001,6 +4334,7 @@ function initVideoPanel() {
       video.ontimeupdate = vcUpdateUI;
       video.ondurationchange = vcUpdateUI;
       video.onended = () => { document.getElementById('vc-play-btn').innerHTML = '&#9654;'; };
+      initPreviewVideo();   // preload the hover-preview decoder so the first hover is instant
 
       // After metadata loads, seek to last recorded timestamp
       video.onloadedmetadata = () => {
@@ -4082,26 +4416,101 @@ function vcTogglePlay() {
   }
 }
 
-let _vcRwInterval = null;
-let _vcRwWasPlaying = false;
+/* ── Unified scrubbing engine ──
+   Used by both the hold buttons (◀◀ ▶▶) and the keyboard (a/s/d/f). While scrubbing,
+   playback is paused and currentTime is stepped; on release we resume ONLY if
+   _vcResumeAfterScrub is set. Pressing Space during a scrub toggles that intent (with
+   play-button feedback) — so you can pause on the frame you land on, or keep playing.
+   Keys: a = fast rewind, s = slow rewind, d = slow forward, f = fast forward. ── */
+const VC_SCRUB_RATES = { a: -0.125, s: -0.025, d: 0.025, f: 0.125 };  // seconds of film per 50ms tick (fast keys ≈ 2.5× real-time)
+let _vcScrubTimer = null;
+let _vcScrubKey = null;
+let _vcResumeAfterScrub = false;
 
-function vcRwStart(e) {
-  e.preventDefault();
+function vcScrubbing() { return _vcScrubTimer !== null; }
+
+function vcScrubStart(rate) {
   const video = document.getElementById('film-video');
-  if (!video) return;
-  _vcRwWasPlaying = !video.paused;
-  if (_vcRwWasPlaying) video.pause();
-  if (_vcRwInterval) clearInterval(_vcRwInterval);
-  _vcRwInterval = setInterval(() => {
-    video.currentTime = Math.max(0, video.currentTime - 0.1);
-  }, 60);
+  if (!video || _vcScrubTimer) return;
+  _vcResumeAfterScrub = !video.paused;
+  if (!video.paused) video.pause();
+  _vcSyncPlayBtn();
+  _vcScrubTimer = setInterval(() => {
+    const dur = video.duration || 0;
+    video.currentTime = Math.max(0, Math.min(dur, video.currentTime + rate));
+  }, 50);
 }
 
-function vcRwStop() {
-  if (_vcRwInterval) { clearInterval(_vcRwInterval); _vcRwInterval = null; }
+function vcScrubStop() {
+  if (!_vcScrubTimer) return;
+  clearInterval(_vcScrubTimer);
+  _vcScrubTimer = null;
+  _vcScrubKey = null;
   const video = document.getElementById('film-video');
-  if (video && _vcRwWasPlaying) video.play();
+  if (video && _vcResumeAfterScrub) video.play();
+  _vcResumeAfterScrub = false;
+  _vcSyncPlayBtn();
 }
+
+/* Show the current (or, mid-scrub, the intended-after-release) play state on the button. */
+function _vcSyncPlayBtn() {
+  const btn = document.getElementById('vc-play-btn');
+  const video = document.getElementById('film-video');
+  if (!btn || !video) return;
+  const willPlay = _vcScrubTimer ? _vcResumeAfterScrub : !video.paused;
+  btn.innerHTML = willPlay ? 'II' : '&#9654;';
+}
+
+// Hold buttons route through the same engine (◀◀ = fast rewind, ▶▶ = fast forward).
+function vcRwStart(e) { if (e) e.preventDefault(); vcScrubStart(VC_SCRUB_RATES.a); }
+function vcRwStop()  { vcScrubStop(); }
+function vcFfStart(e) { if (e) e.preventDefault(); vcScrubStart(VC_SCRUB_RATES.f); }
+function vcFfStop()  { vcScrubStop(); }
+
+/* Hotkeys only fire when the film controls are actually on screen (Live Tracker tab
+   with a film loaded) — offsetParent is null if any ancestor is hidden. */
+function _vcHotkeysActive() {
+  if (!_filmObjectUrl) return false;
+  const controls = document.getElementById('video-controls');
+  return !!(controls && controls.offsetParent !== null);
+}
+
+function _vcIsTyping(t) {
+  if (!t) return false;
+  return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
+}
+
+// Capture phase so the shortcut always fires first, regardless of what has focus
+// (a stat button, empty space, etc.) — no reclicking the video to regain control.
+document.addEventListener('keydown', e => {
+  if (_vcIsTyping(e.target) || !_vcHotkeysActive()) return;
+  if (e.code === 'Space' || e.key === ' ') {   // space → play/pause (also blocks page scroll / phantom button re-fire)
+    e.preventDefault();
+    if (vcScrubbing()) {
+      // Mid fast-forward/rewind: decide whether it lands paused or resumes on release.
+      _vcResumeAfterScrub = !_vcResumeAfterScrub;
+      _vcSyncPlayBtn();
+    } else {
+      vcTogglePlay();
+    }
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if (k in VC_SCRUB_RATES) {
+    e.preventDefault();
+    if (e.repeat || _vcScrubTimer) return;   // ignore OS auto-repeat; one scrub at a time
+    _vcScrubKey = k;
+    vcScrubStart(VC_SCRUB_RATES[k]);
+  }
+}, true);
+
+document.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (k in VC_SCRUB_RATES && k === _vcScrubKey) vcScrubStop();
+}, true);
+
+// Safety: if the key never gets a keyup (window blur, tab switch), stop scrubbing.
+window.addEventListener('blur', () => { if (_vcScrubTimer) vcScrubStop(); });
 
 function vcRewind() {
   const video = document.getElementById('film-video');
@@ -4125,11 +4534,85 @@ function vcSeek(pct) {
   const video = document.getElementById('film-video');
   if (!video || !video.duration) return;
   video.currentTime = (parseFloat(pct) / 100) * video.duration;
+  const progress = document.getElementById('vc-progress');
+  if (progress) progress.style.setProperty('--pct', parseFloat(pct) + '%');   // immediate feedback while dragging
 }
 
 function vcSetSpeed(val) {
   const video = document.getElementById('film-video');
   if (video) video.playbackRate = parseFloat(val);
+}
+
+function vcSetVolume(val) {
+  const video = document.getElementById('film-video');
+  if (video) video.volume = Math.max(0, Math.min(1, parseFloat(val) / 100));
+}
+
+/* ── Hover scrub preview ──
+   A hidden second <video> is seeked to the hovered time and its frame drawn to a canvas.
+   Only the single hovered frame is decoded (no per-second pre-generation). Seeks use a
+   "chase the latest target" pattern so fast cursor moves don't queue up. */
+let _vcPreviewSeeking = false;
+let _vcPreviewTarget  = null;
+
+function initPreviewVideo() {
+  const pv = document.getElementById('vc-preview-video');
+  if (!pv || !_filmObjectUrl) return;
+  if (pv.getAttribute('data-film-url') !== _filmObjectUrl) {
+    pv.muted = true;
+    pv.src = _filmObjectUrl;
+    pv.setAttribute('data-film-url', _filmObjectUrl);
+    pv.onseeked = _vcPreviewDraw;   // assignment (not addEventListener) avoids dupes on film change
+  }
+}
+
+function _vcPreviewDraw() {
+  const pv = document.getElementById('vc-preview-video');
+  const canvas = document.getElementById('vc-preview-canvas');
+  if (pv && canvas) {
+    try { canvas.getContext('2d').drawImage(pv, 0, 0, canvas.width, canvas.height); } catch (e) {}
+  }
+  _vcPreviewSeeking = false;
+  // If the cursor moved on while we were seeking, chase the newest target.
+  if (_vcPreviewTarget != null && pv && Math.abs(_vcPreviewTarget - pv.currentTime) > 0.25) {
+    _vcPreviewSeek(_vcPreviewTarget);
+  }
+}
+
+function _vcPreviewSeek(t) {
+  const pv = document.getElementById('vc-preview-video');
+  if (!pv || !pv.duration) return;
+  _vcPreviewTarget = t;
+  if (_vcPreviewSeeking) return;   // a seek is in flight; 'seeked' will chase the latest
+  _vcPreviewSeeking = true;
+  pv.currentTime = Math.max(0, Math.min(pv.duration, t));
+}
+
+function vcProgressHover(e) {
+  const bar  = document.getElementById('vc-progress');
+  const main = document.getElementById('film-video');
+  const box  = document.getElementById('vc-preview');
+  const controls = document.getElementById('video-controls');
+  if (!bar || !main || !main.duration || !_filmObjectUrl || !box) return;
+  initPreviewVideo();
+  const rect = bar.getBoundingClientRect();
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const t    = pct * main.duration;
+  // Position the tooltip over the cursor, clamped inside the controls bar.
+  const cRect = controls.getBoundingClientRect();
+  const half  = 85;
+  const left  = Math.max(half, Math.min(cRect.width - half, e.clientX - cRect.left));
+  box.style.left = left + 'px';
+  box.style.display = 'block';
+  const timeEl = document.getElementById('vc-preview-time');
+  if (timeEl) timeEl.textContent = fmtTime2(t);
+  _vcPreviewSeek(t);
+}
+
+function vcProgressLeave() {
+  const box = document.getElementById('vc-preview');
+  if (box) box.style.display = 'none';
+  _vcPreviewTarget = null;
 }
 
 function vcUpdateUI() {
@@ -4139,14 +4622,23 @@ function vcUpdateUI() {
   const dur = video.duration || 0;
 
   const progress = document.getElementById('vc-progress');
-  if (progress && dur > 0) progress.value = (cur / dur) * 100;
+  if (progress && dur > 0) {
+    const pct = (cur / dur) * 100;
+    progress.value = pct;
+    progress.style.setProperty('--pct', pct + '%');   // grow the colored trail
+  }
 
   const timeEl = document.getElementById('vc-time');
   if (timeEl) timeEl.textContent = fmtTime2(cur) + ' / ' + fmtTime2(dur);
 
-  // Save position to localStorage so it survives page reloads
-  if (cur > 0) localStorage.setItem('pt_film_last_ts', cur.toFixed(2));
+  // Save position to localStorage so it survives reloads — throttled to ~every 2s so we
+  // don't do a synchronous localStorage write on every timeupdate (reduces playback jank).
+  if (cur > 0 && Date.now() - _vcLastSaveMs > 2000) {
+    _vcLastSaveMs = Date.now();
+    localStorage.setItem('pt_film_last_ts', cur.toFixed(2));
+  }
 }
+let _vcLastSaveMs = 0;
 
 function fmtTime2(secs) {
   if (!isFinite(secs)) return '0:00';
@@ -4268,6 +4760,23 @@ function exportAllSessions() {
   URL.revokeObjectURL(url);
 }
 
+/* Full snapshot downloaded automatically right before a rename rewrites data, so there is
+   always a restore point. Same payload shape as exportAllSessions() → importSessions() reads it. */
+function backupBeforeRename() {
+  const backup = {
+    app: 'moorpark-practice-tracker',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    reason: 'auto-backup before player rename',
+    roster: State.roster,
+    settings: State.settings,
+    sessions: getSessions(),
+  };
+  if (!backup.sessions.length && !backup.roster.length) return;   // nothing to protect yet
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  downloadTextFile(`moorpark_tracker_backup_pre_rename_${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json');
+}
+
 function downloadTextFile(filename, text, mime = 'text/plain') {
   const blob = new Blob([text], { type: mime });
   const url  = URL.createObjectURL(blob);
@@ -4294,7 +4803,9 @@ function reportEventSummary(ev) {
     return `Sub: ${escHtml(ev.playerIn || '?')} in for ${escHtml(ev.playerOut || '?')}`;
   }
   const parts = [statLabel(ev.stat) || ev.stat];
-  if (ev.shotType) parts.push(SHOT_TYPE_LABELS[ev.shotType] || ev.shotType);
+  // Show all tagged shot types when present, else fall back to the single primary type.
+  const types = (Array.isArray(ev.shotTypes) && ev.shotTypes.length) ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
+  types.forEach(t => parts.push(SHOT_TYPE_LABELS[t] || t));
   if (ev.shotContest) parts.push(ev.shotContest === 'contested' ? 'Contested' : 'Uncontested');
   if (ev.assister) parts.push(`Ast: ${ev.assister}`);
   return parts.map(escHtml).join(' &middot; ');
@@ -4684,7 +5195,7 @@ tabRenderers.log = function() {
     const winner = resA==='W' ? escHtml(s.teamAName) : resA==='L' ? escHtml(s.teamBName) : 'Tie';
     return `<tr>
       <td style="color:var(--text-dim);font-size:10.5px">${s.date}</td>
-      <td style="font-weight:600">${escHtml(s.title||s.teamBName)}</td>
+      <td style="font-weight:600">${escHtml(s.title||s.teamBName)}${s.excludeFromStats ? ' <span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:var(--warning);border:1px solid var(--warning);border-radius:3px;padding:1px 4px;margin-left:6px;vertical-align:middle;">Exhibition</span>' : ''}</td>
       <td class="${rCls}">${pA}–${pB} Final</td>
       <td>${winner}</td>
       <td><button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px;" onclick="openBoxScore('${escHtml(s.id)}')">Box</button></td>
@@ -4743,8 +5254,9 @@ tabRenderers.log = function() {
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="sc-pill${logTeam==='a'?' active':''}" onclick="setLogTeam('a')" style="font-size:11.5px;">${escHtml(sessions[0]?.teamAName||'White')}</button>
         <button class="sc-pill${logTeam==='b'?' active':''}" onclick="setLogTeam('b')" style="font-size:11.5px;">${escHtml(sessions[0]?.teamBName||'Black')}</button>
+        ${_publishedMode ? '' : `
         <button class="btn btn-ghost btn-sm" onclick="importSessions()">⬆ Import</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportAllSessions()">⬇ Export All</button>
+        <button class="btn btn-ghost btn-sm" onclick="backupWithPassword()">⬇ Export All</button>`}
       </div>
     </div>
     <div class="log-table-wrap">
@@ -4762,6 +5274,64 @@ function openBoxScore(sessionId) {
   const overlay = document.getElementById('modal-boxscore');
   overlay.classList.remove('hidden');
   renderBoxScoreView(sessionId);
+}
+
+/* Time (seconds left in the current quarter) entered when opening the live box score,
+   so the on-court players' open stint counts toward minutes. null = don't close it. */
+let _liveBoxClockSecs = null;
+
+/* Non-destructive snapshot of the in-progress session with stats computed as-of now.
+   Mirrors finalizeSession's close-active-segment/record-quarter logic on a CLONE so the
+   real live session is never mutated. remSecs = seconds left in quarter (null = leave open). */
+function _snapshotLiveSession(remSecs) {
+  const live = State.liveSession;
+  if (!live) return null;
+  const clone = JSON.parse(JSON.stringify(live));
+  if (remSecs != null) {
+    const rem = Math.max(0, Math.min(Number(remSecs) || 0, clockState.quarterDuration));
+    const active = (clone.lineupSegments || []).findLast(s => s.endTimeSecs === null);
+    if (active) {
+      const qNum = active.quarter || currentQuarterNum();
+      clone.quarters = clone.quarters || [];
+      if (!clone.quarters.some(q => q.number === qNum)) {
+        clone.quarters.push({
+          number: qNum,
+          duration: clockState.quarterDuration,
+          playedDuration: Math.max(0, clockState.quarterDuration - rem),
+          endedAt: Date.now(),
+          timeRemaining: rem,
+        });
+      }
+      active.endTimeSecs = rem;
+    }
+  }
+  clone.teamStats   = computeTeamStats(clone);      // must precede playerStats (it reads teamStats)
+  clone.playerStats = computePlayerStats(clone);
+  return clone;
+}
+
+/* Resolve a box-score session by id: the live session is computed on the fly (with the
+   entered clock), everything else comes from saved sessions. */
+function _bsResolveSession(sessionId, sessions) {
+  const live = State.liveSession;
+  if (live && sessionId === live.id) return _snapshotLiveSession(_liveBoxClockSecs);
+  sessions = sessions || getSessions();
+  return sessions.find(s => s.id === sessionId) || sessions[0] || null;
+}
+
+/* Box Score button (live tracker): ask for time left so minutes are current, then show. */
+function openLiveBoxScore() {
+  const live = State.liveSession;
+  if (!live) { showToast('No active session', 'warning'); return; }
+  const def = _liveBoxClockSecs != null ? fmtClockRemain(_liveBoxClockSecs) : '';
+  const input = prompt('Time left in the current quarter (M:SS)\nso on-court minutes are up to date:', def);
+  if (input === null) return;   // cancelled — don't open
+  const secs = parseTimeInput(input.trim());
+  if (secs == null) { showToast('Enter time as M:SS (e.g. 5:30)', 'warning'); return; }
+  _liveBoxClockSecs = secs;
+  bsActivePanel = 'combined';
+  document.getElementById('modal-boxscore').classList.remove('hidden');
+  renderBoxScoreView(live.id);
 }
 
 /* ── Box Scores tab renderer (tab removed — no-op) ── */
@@ -4782,12 +5352,19 @@ function renderBoxScoreView(sessionId) {
   if (!root) return;
 
   const sessions = getSessions();
-  const session  = sessions.find(s => s.id === sessionId) || sessions[0];
+  const session  = _bsResolveSession(sessionId, sessions);
   if (!session) return;
+  const live = State.liveSession;
+  const isLiveView = !!(live && session.id === live.id);
 
   // Update modal title
   const titleEl = document.getElementById('bs-modal-title');
-  if (titleEl) titleEl.textContent = session.title + ' — ' + session.date;
+  if (titleEl) {
+    const liveTag = isLiveView
+      ? ' — 🔴 LIVE' + (_liveBoxClockSecs != null ? ` (as of ${fmtClockRemain(_liveBoxClockSecs)} left)` : '')
+      : '';
+    titleEl.textContent = session.title + ' — ' + session.date + liveTag;
+  }
   const pA  = sessionScore(session, 'a');
   const pB  = sessionScore(session, 'b');
   const res = sessionResultText(session);
@@ -4816,9 +5393,12 @@ function renderBoxScoreView(sessionId) {
   const qRowA = Array.from({length: qCount}, (_,i) => `<td>${qScores.a[i+1] ?? 0}</td>`).join('');
   const qRowB = Array.from({length: qCount}, (_,i) => `<td>${qScores.b[i+1] ?? 0}</td>`).join('');
 
-  // Session selector chips
-  const chips = sessions.map(s => {
-    const active = s.id === session.id ? ' active' : '';
+  // Session selector chips — prepend a LIVE chip while a session is in progress.
+  const liveChip = live
+    ? `<button class="session-chip${isLiveView ? ' active' : ''}" style="border-color:rgba(239,68,68,0.5);" onclick="openLiveBoxScore()">&#128308; LIVE <span style="opacity:0.7;font-weight:400">${escHtml(live.title || '')}</span></button>`
+    : '';
+  const chips = liveChip + sessions.map(s => {
+    const active = (!isLiveView && s.id === session.id) ? ' active' : '';
     return `<button class="session-chip${active}" onclick="renderBoxScoreView('${escHtml(s.id)}')">${escHtml(s.title)} <span style="opacity:0.6;font-weight:400">${s.date}</span></button>`;
   }).join('');
 
@@ -5488,7 +6068,9 @@ function renderShotChartView() {
   let selectedSessions;
   let labelSession = sessions[0];
   if (scFilter.sessionId === 'all') {
-    selectedSessions = sessions;
+    // "All Practices" aggregate excludes exhibitions; a specific exhibition can still be
+    // selected individually below to review its shots.
+    selectedSessions = sessions.filter(s => !s.excludeFromStats);
   } else {
     const one = sessions.find(s => s.id === scFilter.sessionId) || sessions[0];
     selectedSessions = [one];
@@ -5513,7 +6095,9 @@ function renderShotChartView() {
     else if  (ev.zone === 'paint')    { ev.zone = 'paint_ul'; }
   });
   const zonedShots  = allShots.filter(ev => ev.zone);
-  const playerNames = [...new Set(evLog.filter(ev => ev.player).map(ev => ev.player))].sort();
+  // Exclude the 'TEAM' pseudo-player (team rebounds/turnovers/fouls) — it never has shots,
+  // so it would only ever produce an empty chart.
+  const playerNames = [...new Set(evLog.filter(ev => ev.player && ev.player !== 'TEAM').map(ev => ev.player))].sort();
 
   // Base filters (team/player/mode)
   let baseShots = zonedShots;
@@ -6003,10 +6587,11 @@ function buildFrequencySvg(shots) {
 
 let psFilter = { period: 'all', team: 'all', view: 'avg', sortCol: 'ptsPG', sortDir: -1 };
 let psProfileName = null;  // null = show table, string = show profile
+let psScopeSessionId = null;  // null = All Practices, session id = single practice scope
 
 /* ── Aggregate player stats across all (or filtered) sessions ── */
 function aggregatePlayerStats(filterPeriod, filterTeam) {
-  const sessions = getSessions().filter(s => s.completed);
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const byPlayer = {};
 
   for (const sess of sessions) {
@@ -6119,14 +6704,11 @@ function renderPlayerTable() {
   const root = document.getElementById('players-root');
   if (!root) return;
   const rows = aggregatePlayerStats(psFilter.period, psFilter.team);
-
-  if (!rows.length) {
-    root.innerHTML = `<div class="placeholder">
-      <div class="placeholder-icon">👤</div>
-      <div>No player stats yet — complete a practice to see results.</div>
-    </div>`;
-    return;
-  }
+  // Empty message stays INSIDE the layout so the filter bar never disappears (otherwise a
+  // filter with no data would leave the user stuck with no way to switch back).
+  const emptyMsg = (psFilter.period === 'all' && psFilter.team === 'all')
+    ? 'No player stats yet — complete a practice to see results.'
+    : 'No player stats for this filter — try a different period or team.';
 
   // Sort
   const col = psFilter.sortCol;
@@ -6272,7 +6854,7 @@ function renderPlayerTable() {
         </div>
       </div>
     </div>
-    <div class="table-wrap">
+    ${rows.length ? `<div class="table-wrap">
       <table id="ps-main-table">
         <thead><tr>
           <th style="cursor:pointer;text-align:left;" onclick="psSort('name')">PLAYER${sortArrow('name')}</th>
@@ -6280,7 +6862,7 @@ function renderPlayerTable() {
         </tr></thead>
         <tbody>${bodyRows}</tbody>
       </table>
-    </div>`;
+    </div>` : `<div class="placeholder" style="margin-top:20px;"><div>${emptyMsg}</div></div>`}`;
 }
 
 function psSort(col) {
@@ -6305,12 +6887,21 @@ function psSetFilter(key, val) {
 
 function psOpenProfile(name) {
   psProfileName = name;
+  psScopeSessionId = null;  // always open a player on the "All Practices" view
   renderPlayerProfile(name);
 }
 
 function psBackToTable() {
   psProfileName = null;
+  psScopeSessionId = null;
   renderPlayerTable();
+}
+
+/* Change the profile scope (All Practices vs a single practice) and re-render in place.
+   Reads the current player from psProfileName so player names with apostrophes are safe. */
+function psSetScope(sessionId) {
+  psScopeSessionId = sessionId || null;
+  if (psProfileName) renderPlayerProfile(psProfileName);
 }
 
 /* ── Player Profile page ── */
@@ -6318,18 +6909,52 @@ function renderPlayerProfile(playerName) {
   const root = document.getElementById('players-root');
   if (!root) return;
 
-  const sessions = getSessions().filter(s => s.completed);
-  const sessionsWithPlayer = sessions.filter(s =>
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
+  const allSessionsForPlayer = sessions.filter(s =>
     (s.playerStats || []).some(p => p.name === playerName)
   );
 
-  if (!sessionsWithPlayer.length) {
+  if (!allSessionsForPlayer.length) {
     root.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="psBackToTable()">← Back</button>
       <div class="placeholder" style="margin-top:16px;">
         <div>No data for ${escHtml(playerName)}</div>
       </div>`;
     return;
   }
+
+  // Number practices chronologically so the oldest is "Practice 1".
+  const chronological = allSessionsForPlayer.slice().sort((a, b) =>
+    (a.createdAt || '').localeCompare(b.createdAt || '')
+  );
+  const practiceNumById = new Map();
+  chronological.forEach((s, i) => practiceNumById.set(s.id, i + 1));
+
+  // Resolve the active scope. Drop a stale scope that doesn't belong to this player.
+  if (psScopeSessionId && !allSessionsForPlayer.some(s => s.id === psScopeSessionId)) {
+    psScopeSessionId = null;
+  }
+  const scopedSession = psScopeSessionId
+    ? allSessionsForPlayer.find(s => s.id === psScopeSessionId)
+    : null;
+  const scopeNoun = scopedSession ? `Practice ${practiceNumById.get(scopedSession.id)}` : 'Career';
+
+  // Every view below aggregates over this list; scope narrows it to a single practice.
+  const sessionsWithPlayer = scopedSession ? [scopedSession] : allSessionsForPlayer;
+
+  // Dropdown: All Practices + one option per practice (chronological, "Practice N — opponent · date").
+  const scopeOptions = ['<option value=""' + (psScopeSessionId ? '' : ' selected') + '>All Practices</option>']
+    .concat(chronological.map(s => {
+      const ctx = [s.title, s.date].filter(Boolean).join(' · ');
+      const label = ctx ? `Practice ${practiceNumById.get(s.id)} — ${ctx}` : `Practice ${practiceNumById.get(s.id)}`;
+      const sel = psScopeSessionId === s.id ? ' selected' : '';
+      return `<option value="${escHtml(s.id)}"${sel}>${escHtml(label)}</option>`;
+    }))
+    .join('');
+  const scopeSelector = `
+    <div class="profile-scope">
+      <label for="ps-scope-select">View</label>
+      <select id="ps-scope-select" onchange="psSetScope(this.value)">${scopeOptions}</select>
+    </div>`;
 
   // Aggregate career totals
   let totalGP = 0, totalMin = 0, totalPts = 0, totalReb = 0,
@@ -6417,9 +7042,10 @@ function renderPlayerProfile(playerName) {
     const p = (sess.playerStats || []).find(x => x.name === playerName);
     if (!p) return null;
     const pA = sessionScore(sess, 'a'), pB = sessionScore(sess, 'b');
-    const result = sessionResultText(sess);
     const myPts  = team === 'a' ? pA : pB;
     const oppPts = team === 'a' ? pB : pA;
+    // W/L from THIS player's team perspective (sessionResultText is Team-A-centric).
+    const result = myPts > oppPts ? 'W' : myPts < oppPts ? 'L' : 'T';
     return {
       sessId: sess.id,
       date:   sess.date || '',
@@ -6552,7 +7178,11 @@ function renderPlayerProfile(playerName) {
     `<tr>${glColOrder.map(key => glCell(row, key)).join('')}</tr>`
   ).join('');
 
-  const glAvgRow = `<tr class="totals-row">${glColOrder.map(key => glAvgCell(key)).join('')}</tr>`;
+  // The AVG row only adds signal when there are multiple games to average; for a
+  // single game (scoped to one practice, or a player with just one) it duplicates the row.
+  const glAvgRow = glRows.length > 1
+    ? `<tr class="totals-row">${glColOrder.map(key => glAvgCell(key)).join('')}</tr>`
+    : '';
 
   const gameLogHtml = `
     <div class="card-title" style="margin-bottom:10px;margin-top:24px;">Advanced Game Log</div>
@@ -6566,13 +7196,17 @@ function renderPlayerProfile(playerName) {
 
   const teamColor = team === 'a' ? '#60a5fa' : '#fb923c';
 
-  // Build film report session options
-  const sessionsWithFilm = sessionsWithPlayer.filter(s =>
-    (s.eventLog || []).some(e => e.player === playerName && e.videoTs != null)
+  // Event timeline: any practice where this player has tagged (non-sub) events.
+  // Clips are never stored — only the tags — so the timeline is driven by events, not video.
+  const sessionsWithEvents = sessionsWithPlayer.filter(s =>
+    (s.eventLog || []).some(e => e.player === playerName && e.type !== 'sub')
   );
-  const filmSessionOpts = sessionsWithFilm.map(s =>
-    `<option value="${escHtml(s.id)}">${escHtml(s.title || s.date || s.id)}</option>`
-  ).join('');
+  const timelineSessionOpts = sessionsWithEvents.map(s => {
+    const n = practiceNumById.get(s.id);
+    const ctx = [s.title, s.date].filter(Boolean).join(' · ');
+    const label = ctx ? `Practice ${n} — ${ctx}` : `Practice ${n}`;
+    return `<option value="${escHtml(s.id)}">${escHtml(label)}</option>`;
+  }).join('');
 
   root.innerHTML = `
     <div style="margin-bottom:18px;">
@@ -6580,23 +7214,29 @@ function renderPlayerProfile(playerName) {
     </div>
 
     <div class="profile-header">
-      <div class="profile-avatar">👤</div>
       <div style="flex:1;">
-        <div class="profile-name">${escHtml(playerName)}</div>
-        <div class="profile-meta">Team <span style="color:${teamColor};font-weight:700;">${team.toUpperCase()}</span> · ${totalGP} session${totalGP !== 1 ? 's' : ''} · ${Math.round(totalMin / gp)}' avg</div>
+        <div class="profile-name-row">
+          <div class="profile-name">${escHtml(playerName)}</div>
+          ${scopeSelector}
+        </div>
+        <div class="profile-meta">Team <span style="color:${teamColor};font-weight:700;">${team.toUpperCase()}</span> · ${
+          scopedSession
+            ? `${escHtml(scopeNoun)}${scopedSession.title ? ' · ' + escHtml(scopedSession.title) : ''}${scopedSession.date ? ' · ' + escHtml(scopedSession.date) : ''}`
+            : `${totalGP} session${totalGP !== 1 ? 's' : ''} · ${Math.round(totalMin / gp)}' avg`
+        }</div>
         ${topBar}
       </div>
     </div>
 
     <div class="profile-tab-bar">
       <button class="profile-tab active" id="ptab-overview" onclick="switchProfileTab('overview')">Overview</button>
-      <button class="profile-tab" id="ptab-film" onclick="switchProfileTab('film')">Film Report</button>
+      <button class="profile-tab" id="ptab-film" onclick="switchProfileTab('film')">Event Timeline</button>
     </div>
 
     <div id="profile-panel-overview">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;margin-bottom:22px;">
         <div>
-          <div class="card-title" style="margin-bottom:10px;">Shot Chart (Career)</div>
+          <div class="card-title" style="margin-bottom:10px;">Shot Chart (${escHtml(scopeNoun)})</div>
           ${courtHtml}
         </div>
         <div>
@@ -6609,14 +7249,15 @@ function renderPlayerProfile(playerName) {
     </div>
 
     <div id="profile-panel-film" style="display:none;">
-      ${sessionsWithFilm.length === 0
-        ? `<div class="film-report-empty">No film timestamps recorded for ${escHtml(playerName)} yet.<br><span style="font-size:11px;margin-top:6px;display:block;">Timestamps are captured automatically when you stat events during a film session.</span></div>`
+      ${sessionsWithEvents.length === 0
+        ? `<div class="film-report-empty">No events recorded for ${escHtml(playerName)} yet.<br><span style="font-size:11px;margin-top:6px;display:block;">Every stat you tag during a practice is timestamped and will appear here.</span></div>`
         : `<div class="film-report-session-select">
-             <label>Session</label>
-             <select id="film-report-select" onchange="renderFilmReportEvents('${escHtml(playerName)}', this.value)">
-               ${filmSessionOpts}
+             <label>Practice</label>
+             <select id="film-report-select" onchange="renderFilmReportEvents(this.value)">
+               ${timelineSessionOpts}
              </select>
            </div>
+           <div class="film-report-caption">Time = position in the game film (falls back to elapsed clock time if the session had no film).</div>
            <div id="film-report-events"></div>`
       }
     </div>`;
@@ -6627,9 +7268,9 @@ function renderPlayerProfile(playerName) {
   window._glSortDir = 1;
   updateGlArrows();
 
-  // Pre-render first film session events if any
-  if (sessionsWithFilm.length > 0) {
-    renderFilmReportEvents(playerName, sessionsWithFilm[0].id);
+  // Pre-render the first practice's event timeline if any
+  if (sessionsWithEvents.length > 0) {
+    renderFilmReportEvents(sessionsWithEvents[0].id);
   }
 }
 
@@ -6649,43 +7290,62 @@ function switchProfileTab(tab) {
   });
 }
 
-function renderFilmReportEvents(playerName, sessionId) {
+// Renders a player's tagged events for one practice, showing WHEN in the practice each
+// occurred: elapsed real time since the practice started (event.ts − session.createdAt)
+// plus the quarter. Clips are never stored — only these tags — so time comes from event.ts.
+// Reads the player from psProfileName so names with apostrophes are safe.
+function renderFilmReportEvents(sessionId) {
+  const playerName = psProfileName;
   const container = document.getElementById('film-report-events');
   if (!container) return;
 
-  const allSessions = getSessions();
-  const sess = allSessions.find(s => s.id === sessionId);
-  if (!sess) { container.innerHTML = '<div class="film-report-empty">Session not found.</div>'; return; }
+  const sess = getSessions().find(s => s.id === sessionId);
+  if (!sess) { container.innerHTML = '<div class="film-report-empty">Practice not found.</div>'; return; }
 
-  const events = (sess.eventLog || []).filter(e =>
-    e.player === playerName && e.videoTs != null && e.type !== 'sub'
-  );
+  const events = (sess.eventLog || [])
+    .filter(e => e.player === playerName && e.type !== 'sub')
+    .slice();
 
   if (events.length === 0) {
-    container.innerHTML = '<div class="film-report-empty">No film timestamps for this session.</div>';
+    container.innerHTML = '<div class="film-report-empty">No events recorded for this practice.</div>';
     return;
   }
 
   const makeStats = new Set(['2fg_make','3fg_make','ft_make']);
   const missStats = new Set(['2fg_miss','3fg_miss','ft_miss']);
 
-  function fmtVideoTs(sec) {
-    const s = Math.floor(sec);
+  // Prefer the FILM position (videoTs = seconds into the game video) — that's genuinely
+  // "when in the scrimmage" it happened. Only fall back to real elapsed clock time for
+  // sessions tracked live without film (where videoTs is null).
+  const hasFilm = events.some(e => e.videoTs != null);
+  const createdMs = Date.parse(sess.createdAt);
+  const earliestTs = events.reduce((min, e) => (e.ts != null && e.ts < min ? e.ts : min), Infinity);
+  const startMs = Number.isFinite(createdMs) ? createdMs : earliestTs;
+
+  events.sort((a, b) => hasFilm
+    ? ((a.videoTs ?? Infinity) - (b.videoTs ?? Infinity))   // film order
+    : ((a.ts || 0) - (b.ts || 0)));                          // tag order
+
+  function fmtHMS(totalSec) {
+    if (totalSec == null || !Number.isFinite(totalSec) || totalSec < 0) return '—';
+    const s = Math.floor(totalSec);
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const ss = s % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-    return `${m}:${String(ss).padStart(2,'0')}`;
+    return (h > 0 ? `${h}:${String(m).padStart(2,'0')}` : `${m}`) + ':' + String(ss).padStart(2,'0');
   }
 
   const rows = events.map(e => {
     const cls = makeStats.has(e.stat) ? 'make' : missStats.has(e.stat) ? 'miss' : 'other';
     const label = statLabel(e.stat) || e.stat;
-    const clock = e.time ? `<span style="font-size:10.5px;color:var(--text-dim);margin-left:auto;">clock ${e.time}</span>` : '';
+    const t = (hasFilm && e.videoTs != null)
+      ? fmtHMS(e.videoTs)                                                                  // position in the film
+      : (e.ts != null && Number.isFinite(startMs) ? fmtHMS((e.ts - startMs) / 1000) : '—'); // fallback: real elapsed
+    const qBadge = e.quarter != null ? `<span class="film-event-q">Q${e.quarter}</span>` : '';
     return `<div class="film-event-row">
-      <span class="film-event-ts">${fmtVideoTs(e.videoTs)}</span>
+      <span class="film-event-ts">${t}</span>
+      ${qBadge}
       <span class="film-event-stat ${cls}">${escHtml(label)}</span>
-      ${clock}
     </div>`;
   }).join('');
 
@@ -6798,22 +7458,20 @@ function buildShotTypeBreakdown(fgEvents) {
     const barW = pct;
     const pctOfAll = Math.round(100 * attempts / fgEvents.length);
     return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
-      <span style="width:18px;text-align:center;font-size:14px;">${ICONS[t]}</span>
       <span style="width:110px;font-size:12px;font-weight:700;color:var(--text);">${LABELS[t]}</span>
       <div style="flex:1;background:var(--card);border-radius:4px;height:10px;overflow:hidden;">
         <div style="width:${barW}%;height:100%;background:var(--primary);border-radius:4px;"></div>
       </div>
       <span style="width:46px;text-align:right;font-size:12px;font-weight:800;color:var(--text);">${pct}%</span>
       <span style="width:56px;text-align:right;font-size:11px;color:var(--text-dim);">${makes}/${attempts}</span>
-      <span style="width:40px;text-align:right;font-size:11px;color:var(--text-dim);">${pctOfAll}% of FGA</span>
+      <span style="width:40px;text-align:right;font-size:11px;font-weight:700;color:var(--text);">${pctOfAll}% of FGA</span>
     </div>`;
   }).join('');
 
-  const contestRow = (label, makes, attempts, icon) => {
+  const contestRow = (label, makes, attempts) => {
     if (!attempts) return '';
     const pct = Math.round(100 * makes / attempts);
     return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
-      <span style="width:18px;text-align:center;font-size:14px;">${icon}</span>
       <span style="width:110px;font-size:12px;font-weight:700;color:var(--text);">${label}</span>
       <div style="flex:1;background:var(--card);border-radius:4px;height:10px;overflow:hidden;">
         <div style="width:${pct}%;height:100%;background:${label==='Contested'?'#f87171':'#4ade80'};border-radius:4px;"></div>
@@ -6825,8 +7483,8 @@ function buildShotTypeBreakdown(fgEvents) {
 
   const contestSection = (contestedTotal + uncontestedTotal > 0)
     ? `<div class="card-title" style="margin:18px 0 8px;">Contest</div>
-       ${contestRow('Contested',   contestedMakes,   contestedTotal,   '🛡')}
-       ${contestRow('Uncontested', uncontestedMakes, uncontestedTotal, '✅')}`
+       ${contestRow('Contested',   contestedMakes,   contestedTotal)}
+       ${contestRow('Uncontested', uncontestedMakes, uncontestedTotal)}`
     : '';
 
   return `
@@ -7018,17 +7676,45 @@ tabRenderers.lineups = function() {
   renderLineupsView();
 };
 
+/* Lineups filter bar — shared so empty states keep it (never strand the user). */
+function _lineupsFilterBar(filtered) {
+  const size = Number(seg5Filter.lineupSize) || 5;
+  const perOpts = (v, lbl) => `<option value="${v}" ${seg5Filter.period === v ? 'selected' : ''}>${lbl}</option>`;
+  return `<div class="seg-filter-bar">
+        <select onchange="seg5SetFilter('period',this.value)">
+          ${perOpts('all','All Sessions')}
+          ${perOpts('pre','Pre-Jamboree')}
+          ${perOpts('post','Post-Jamboree')}
+        </select>
+        <select onchange="seg5SetFilter('team',this.value)">
+          <option value="both" ${seg5Filter.team==='both'||seg5Filter.team==='all'?'selected':''}>Both Teams</option>
+          <option value="a" ${seg5Filter.team==='a'?'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
+          <option value="b" ${seg5Filter.team==='b'?'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
+        </select>
+        <select onchange="seg5SetFilter('lineupSize',this.value)">
+          <option value="2" ${size===2?'selected':''}>2-Man</option>
+          <option value="3" ${size===3?'selected':''}>3-Man</option>
+          <option value="4" ${size===4?'selected':''}>4-Man</option>
+          <option value="5" ${size===5?'selected':''}>5-Man</option>
+        </select>
+      </div>`;
+}
+
 function renderLineupsView() {
   const root = document.getElementById('lineups-root');
   if (!root) return;
 
-  const sessions = getSessions().filter(s => s.completed);
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const filtered = seg5Filter.period === 'all' ? sessions
     : sessions.filter(s => s.period === seg5Filter.period);
 
   if (!filtered.length) {
-    root.innerHTML = `<div class="placeholder"><div class="placeholder-icon">👥</div>
-      <div>No completed sessions yet.</div></div>`;
+    root.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Lineup Analytics</div></div>
+        ${_lineupsFilterBar(filtered)}
+      </div>
+      <div class="placeholder" style="margin-top:20px;"><div>${seg5Filter.period === 'all' ? 'No completed sessions yet.' : 'No sessions for this period — try All Sessions.'}</div></div>`;
     return;
   }
 
@@ -7068,8 +7754,12 @@ function renderLineupsView() {
   }
 
   if (!Object.keys(lineupMap).length) {
-    root.innerHTML = `<div class="placeholder"><div class="placeholder-icon">👥</div>
-      <div>No lineup data recorded yet. Substitutions must be logged during practice.</div></div>`;
+    root.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Lineup Analytics</div></div>
+        ${_lineupsFilterBar(filtered)}
+      </div>
+      <div class="placeholder" style="margin-top:20px;"><div>No lineup data for this filter — try a different team or lineup size. (Substitutions must be logged during practice.)</div></div>`;
     return;
   }
 
@@ -7118,11 +7808,9 @@ function renderLineupsView() {
              ortg, drtg, net, efg, orebPct, tovPct, ftr, dEfg, dOrebPct, dTovPct, dFtr };
   });
 
-  lineupRows.sort((a, b) => b.net - a.net);
-
   const minPoss = Number(seg5Filter.minPoss) || 1;
   const maxPoss = Math.max(1, ...lineupRows.map(r => Math.round(r.poss)));
-  const visibleRows = lineupRows.filter(r => Math.round(r.poss) >= minPoss);
+  const visibleRows = _luSortRows(lineupRows).filter(r => Math.round(r.poss) >= minPoss);
 
   // Cache for lightweight slider updates
   window._lineupRows    = lineupRows;
@@ -7138,32 +7826,7 @@ function renderLineupsView() {
 
   function cell(v, suf='') { return v != null ? v + suf : '—'; }
 
-  const trs = visibleRows.map(r => {
-    const netStr = (r.net > 0 ? '+' : '') + r.net;
-    const teamBadge = team === 'both'
-      ? `<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:${r.team==='a'?'#1e3a5f':'#3d1f0a'};color:${r.team==='a'?'#60a5fa':'#fb923c'}">${escHtml(r.team==='a'?(filtered[0]?.teamAName||'A'):(filtered[0]?.teamBName||'B'))}</span>`
-      : '';
-    return `<tr>
-      <td class="lineup-key">${escHtml(r.displayKey || r.key)}${teamBadge}</td>
-      <td>${r.gp}</td>
-      <td>${r.min}'</td>
-      <td>${Math.round(r.poss)}</td>
-      <td>${r.ortg}</td>
-      <td>${r.drtg}</td>
-      <td><strong>${netStr}</strong></td>
-      <td>${cell(r.efg,'%')}</td>
-      <td>${cell(r.orebPct,'%')}</td>
-      <td>${cell(r.tovPct,'%')}</td>
-      <td>${cell(r.ftr,'%')}</td>
-      <td class="lu-def-sep">${cell(r.dEfg,'%')}</td>
-      <td>${cell(r.dOrebPct,'%')}</td>
-      <td>${cell(r.dTovPct,'%')}</td>
-      <td>${cell(r.dFtr,'%')}</td>
-    </tr>`;
-  }).join('');
-
-  const perOpts = (v, lbl) =>
-    `<option value="${v}" ${seg5Filter.period === v ? 'selected' : ''}>${lbl}</option>`;
+  const trs = visibleRows.map(r => _luRowHtml(r, team, filtered, cell)).join('');
 
   root.innerHTML = `
     <div class="page-header">
@@ -7173,24 +7836,7 @@ function renderLineupsView() {
           <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>
         </div>
       </div>
-      <div class="seg-filter-bar">
-        <select onchange="seg5SetFilter('period',this.value)">
-          ${perOpts('all','All Sessions')}
-          ${perOpts('pre','Pre-Jamboree')}
-          ${perOpts('post','Post-Jamboree')}
-        </select>
-        <select onchange="seg5SetFilter('team',this.value)">
-          <option value="both" ${seg5Filter.team==='both'||seg5Filter.team==='all'?'selected':''}>Both Teams</option>
-          <option value="a" ${seg5Filter.team==='a'?'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
-          <option value="b" ${seg5Filter.team==='b'?'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
-        </select>
-        <select onchange="seg5SetFilter('lineupSize',this.value)">
-          <option value="2" ${size===2?'selected':''}>2-Man</option>
-          <option value="3" ${size===3?'selected':''}>3-Man</option>
-          <option value="4" ${size===4?'selected':''}>4-Man</option>
-          <option value="5" ${size===5?'selected':''}>5-Man</option>
-        </select>
-      </div>
+      ${_lineupsFilterBar(filtered)}
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 0;border-top:1px solid var(--border);">
       <label style="font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">Min. Possessions:</label>
@@ -7202,52 +7848,68 @@ function renderLineupsView() {
     <div class="table-wrap">
       <table class="lu-table">
         <thead><tr>
-          <th style="text-align:left;min-width:200px;">LINEUP</th>
-          <th>GP</th><th>MIN</th><th>POSS</th>
-          <th>ORTG</th><th>DRTG</th><th>NET</th>
-          <th class="lu-th-off">EFG%</th>
-          <th class="lu-th-off">OREB%</th>
-          <th class="lu-th-off">TO%</th>
-          <th class="lu-th-off">FTR</th>
-          <th class="lu-th-def lu-def-sep">D-EFG%</th>
-          <th class="lu-th-def">D-OREB%</th>
-          <th class="lu-th-def">D-TO%</th>
-          <th class="lu-th-def">D-FTR</th>
+          <th style="text-align:left;min-width:200px;cursor:pointer;" onclick="lineupSort('lineup')">LINEUP<span id="lu-arrow-lineup"></span></th>
+          <th style="cursor:pointer;" onclick="lineupSort('gp')">GP<span id="lu-arrow-gp"></span></th>
+          <th style="cursor:pointer;" onclick="lineupSort('min')">MIN<span id="lu-arrow-min"></span></th>
+          <th style="cursor:pointer;" onclick="lineupSort('poss')">POSS<span id="lu-arrow-poss"></span></th>
+          <th style="cursor:pointer;" onclick="lineupSort('ortg')">ORTG<span id="lu-arrow-ortg"></span></th>
+          <th style="cursor:pointer;" onclick="lineupSort('drtg')">DRTG<span id="lu-arrow-drtg"></span></th>
+          <th style="cursor:pointer;" onclick="lineupSort('net')">NET<span id="lu-arrow-net"></span></th>
+          <th class="lu-th-off" style="cursor:pointer;" onclick="lineupSort('efg')">EFG%<span id="lu-arrow-efg"></span></th>
+          <th class="lu-th-off" style="cursor:pointer;" onclick="lineupSort('orebPct')">OREB%<span id="lu-arrow-orebPct"></span></th>
+          <th class="lu-th-off" style="cursor:pointer;" onclick="lineupSort('tovPct')">TO%<span id="lu-arrow-tovPct"></span></th>
+          <th class="lu-th-off" style="cursor:pointer;" onclick="lineupSort('ftr')">FTR<span id="lu-arrow-ftr"></span></th>
+          <th class="lu-th-def lu-def-sep" style="cursor:pointer;" onclick="lineupSort('dEfg')">D-EFG%<span id="lu-arrow-dEfg"></span></th>
+          <th class="lu-th-def" style="cursor:pointer;" onclick="lineupSort('dOrebPct')">D-OREB%<span id="lu-arrow-dOrebPct"></span></th>
+          <th class="lu-th-def" style="cursor:pointer;" onclick="lineupSort('dTovPct')">D-TO%<span id="lu-arrow-dTovPct"></span></th>
+          <th class="lu-th-def" style="cursor:pointer;" onclick="lineupSort('dFtr')">D-FTR<span id="lu-arrow-dFtr"></span></th>
         </tr></thead>
         <tbody id="lu-tbody">${trs}</tbody>
       </table>
     </div>
     <div style="margin-top:10px;font-size:11px;color:var(--text-dim);">
-      Ratings per 100 possessions. Sorted by Net Rating. Blue = offense, orange = defense.
+      Ratings per 100 possessions. Click a column to sort. Blue = offense, orange = defense.
     </div>`;
+
+  _luUpdateArrows();
 }
 
-function lineupSliderUpdate(val) {
-  seg5Filter.minPoss = val;
-  const valEl    = document.getElementById('lu-poss-val');
-  const tbody    = document.getElementById('lu-tbody');
-  const subtitle = document.getElementById('lu-subtitle');
-  if (valEl) valEl.textContent = val;
-  const rows    = window._lineupRows || [];
-  const cell    = window._lineupCell || ((v, s='') => v != null ? v + s : '—');
-  const filtered = window._lineupFiltered || [];
-  const team    = window._lineupTeam || seg5Filter.team;
-  const teamColor = team === 'b' ? '#fb923c' : '#60a5fa';
-  const teamLabel = team === 'both' ? 'Both Teams'
-    : team === 'b' ? (filtered[0]?.teamBName || 'Black')
-    : (filtered[0]?.teamAName || 'White');
-  const visible = rows.filter(r => Math.round(r.poss) >= val);
-  if (subtitle) {
-    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''} &middot;
-      <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>`;
-  }
-  if (!tbody) return;
-  tbody.innerHTML = visible.map(r => {
-    const netStr = (r.net > 0 ? '+' : '') + r.net;
-    const teamBadge = team === 'both'
-      ? `<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:${r.team==='a'?'#1e3a5f':'#3d1f0a'};color:${r.team==='a'?'#60a5fa':'#fb923c'}">${escHtml(r.team==='a'?(filtered[0]?.teamAName||'A'):(filtered[0]?.teamBName||'B'))}</span>`
-      : '';
-    return `<tr>
+/* ── Lineup table sorting ── */
+let luSort = { key: 'net', dir: -1 };
+
+function _luSortRows(rows) {
+  const { key, dir } = luSort;
+  return [...rows].sort((a, b) => {
+    if (key === 'lineup') return dir * String(a.displayKey || a.key).localeCompare(String(b.displayKey || b.key));
+    let av = a[key], bv = b[key];
+    if (key === 'poss') { av = Math.round(av); bv = Math.round(bv); }   // match the displayed value
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;    // missing stats sort last
+    if (bv == null) return -1;
+    return dir * (av - bv);
+  });
+}
+
+function lineupSort(key) {
+  if (luSort.key === key) luSort.dir = -luSort.dir;
+  else { luSort.key = key; luSort.dir = (key === 'lineup') ? 1 : -1; }
+  _luRenderTbody();
+}
+
+function _luUpdateArrows() {
+  ['lineup','gp','min','poss','ortg','drtg','net','efg','orebPct','tovPct','ftr','dEfg','dOrebPct','dTovPct','dFtr'].forEach(k => {
+    const el = document.getElementById('lu-arrow-' + k);
+    if (el) el.textContent = (luSort.key === k) ? (luSort.dir === 1 ? ' ▲' : ' ▼') : '';
+  });
+}
+
+/* Single lineup row — shared by the initial render, the sort headers, and the slider. */
+function _luRowHtml(r, team, filtered, cell) {
+  const netStr = (r.net > 0 ? '+' : '') + r.net;
+  const teamBadge = team === 'both'
+    ? `<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:${r.team==='a'?'#1e3a5f':'#3d1f0a'};color:${r.team==='a'?'#60a5fa':'#fb923c'}">${escHtml(r.team==='a'?(filtered[0]?.teamAName||'A'):(filtered[0]?.teamBName||'B'))}</span>`
+    : '';
+  return `<tr>
       <td class="lineup-key">${escHtml(r.displayKey || r.key)}${teamBadge}</td>
       <td>${r.gp}</td>
       <td>${r.min}'</td>
@@ -7264,7 +7926,38 @@ function lineupSliderUpdate(val) {
       <td>${cell(r.dTovPct,'%')}</td>
       <td>${cell(r.dFtr,'%')}</td>
     </tr>`;
-  }).join('');
+}
+
+/* Re-sort + re-filter (min possessions) + repaint the tbody. Shared by the sort headers
+   and the min-possessions slider so the two compose instead of overwriting each other. */
+function _luRenderTbody() {
+  const rows     = window._lineupRows || [];
+  const cell     = window._lineupCell || ((v, s='') => v != null ? v + s : '—');
+  const filtered = window._lineupFiltered || [];
+  const team     = window._lineupTeam || seg5Filter.team;
+  const minPoss  = Number(seg5Filter.minPoss) || 1;
+  const visible  = _luSortRows(rows).filter(r => Math.round(r.poss) >= minPoss);
+
+  const tbody = document.getElementById('lu-tbody');
+  if (tbody) tbody.innerHTML = visible.map(r => _luRowHtml(r, team, filtered, cell)).join('');
+
+  const subtitle = document.getElementById('lu-subtitle');
+  if (subtitle) {
+    const teamColor = team === 'b' ? '#fb923c' : '#60a5fa';
+    const teamLabel = team === 'both' ? 'Both Teams'
+      : team === 'b' ? (filtered[0]?.teamBName || 'Black')
+      : (filtered[0]?.teamAName || 'White');
+    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''} &middot;
+      <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>`;
+  }
+  _luUpdateArrows();
+}
+
+function lineupSliderUpdate(val) {
+  seg5Filter.minPoss = val;
+  const valEl = document.getElementById('lu-poss-val');
+  if (valEl) valEl.textContent = val;
+  _luRenderTbody();
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -7283,17 +7976,38 @@ tabRenderers.onoff = function() {
   renderOnOffView();
 };
 
+/* On/Off filter bar — shared so empty states keep it (never strand the user). */
+function _onoffFilterBar(filtered) {
+  const perOpts = (v, lbl) => `<option value="${v}" ${seg5Filter.period === v ? 'selected' : ''}>${lbl}</option>`;
+  return `<div class="seg-filter-bar">
+        <select onchange="seg5SetFilter('period',this.value)">
+          ${perOpts('all','All Sessions')}
+          ${perOpts('pre','Pre-Jamboree')}
+          ${perOpts('post','Post-Jamboree')}
+        </select>
+        <select onchange="seg5SetFilter('team',this.value)">
+          <option value="all" ${seg5Filter.team==='all'||seg5Filter.team==='both' ? 'selected':''}>All Players</option>
+          <option value="a"   ${seg5Filter.team==='a'   ? 'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
+          <option value="b"   ${seg5Filter.team==='b'   ? 'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
+        </select>
+      </div>`;
+}
+
 function renderOnOffView() {
   const root = document.getElementById('onoff-root');
   if (!root) return;
 
-  const sessions = getSessions().filter(s => s.completed);
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const filtered = seg5Filter.period === 'all' ? sessions
     : sessions.filter(s => s.period === seg5Filter.period);
 
   if (!filtered.length) {
-    root.innerHTML = `<div class="placeholder"><div class="placeholder-icon">⚡</div>
-      <div>No completed sessions yet.</div></div>`;
+    root.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">On / Off Splits</div></div>
+        ${_onoffFilterBar(filtered)}
+      </div>
+      <div class="placeholder" style="margin-top:20px;"><div>${seg5Filter.period === 'all' ? 'No completed sessions yet.' : 'No sessions for this period — try All Sessions.'}</div></div>`;
     return;
   }
 
@@ -7309,8 +8023,12 @@ function renderOnOffView() {
   }
 
   if (!playerSet.size) {
-    root.innerHTML = `<div class="placeholder"><div class="placeholder-icon">⚡</div>
-      <div>No player data for this selection.</div></div>`;
+    root.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">On / Off Splits</div></div>
+        ${_onoffFilterBar(filtered)}
+      </div>
+      <div class="placeholder" style="margin-top:20px;"><div>No player data for this selection — try a different team or period.</div></div>`;
     return;
   }
 
@@ -7454,9 +8172,6 @@ function renderOnOffView() {
     </tr>`;
   }).join('');
 
-  const perOpts = (v, lbl) =>
-    `<option value="${v}" ${seg5Filter.period === v ? 'selected' : ''}>${lbl}</option>`;
-
   root.innerHTML = `
     <div class="page-header">
       <div>
@@ -7465,18 +8180,7 @@ function renderOnOffView() {
           <span style="color:${teamColor};font-weight:700;">${escHtml(teamLabel)}</span>
         </div>
       </div>
-      <div class="seg-filter-bar">
-        <select onchange="seg5SetFilter('period',this.value)">
-          ${perOpts('all','All Sessions')}
-          ${perOpts('pre','Pre-Jamboree')}
-          ${perOpts('post','Post-Jamboree')}
-        </select>
-        <select onchange="seg5SetFilter('team',this.value)">
-          <option value="all" ${seg5Filter.team==='all' ? 'selected':''}>All Players</option>
-          <option value="a"   ${seg5Filter.team==='a'   ? 'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
-          <option value="b"   ${seg5Filter.team==='b'   ? 'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
-        </select>
-      </div>
+      ${_onoffFilterBar(filtered)}
     </div>
     <div class="oo-card table-wrap">
       <table class="oo-sort-table">
@@ -7600,8 +8304,10 @@ const trackerState = {
   rebType: null,              // 'oreb' | 'dreb'
   blockerInfo: null,          // { team, name } of blocker
   nextPhaseAfterZone: null,   // phase to enter after zone selection
-  shotType: null,             // 'pull_up' | 'catch_shoot' | 'drive' | 'layup' | 'dunk' | 'alley_oop' | 'floater' | 'post_moves' | 'off_balance' | 'buzzer_beater'
+  shotType: null,             // primary (first-selected) type — kept for charts/filters/breakdowns
+  shotTypes: [],              // all selected types (multi-select); shotType mirrors shotTypes[0]
   shotContest: null,          // 'contested' | 'uncontested'
+  videoTsAtStart: null,       // film time frozen when the stat button was first clicked
   _pendingStat: null,         // stat waiting for shot-type modal to close
 };
 
@@ -7849,10 +8555,12 @@ function applyPhaseUI() {
 function selectStat(stat, el) {
   const phase = trackerState.phase;
 
-  // Phase-specific intercepts (mid-flow stat taps)
+  // Phase-specific intercepts (mid-flow stat taps). Each of these is a NEW stat-button
+  // click, so re-freeze the film time to THIS moment for the event(s) it produces.
   if (phase === 'await_block_or_reb') {
-    if (stat === 'blk') { enterPhase('await_blocker'); return; }
+    if (stat === 'blk') { trackerState.videoTsAtStart = getVideoTimestamp(); enterPhase('await_blocker'); return; }
     if (stat === 'dreb' || stat === 'oreb') {
+      trackerState.videoTsAtStart = getVideoTimestamp();
       trackerState.rebType = stat;
       enterPhase('await_rebounder');
       return;
@@ -7862,6 +8570,7 @@ function selectStat(stat, el) {
 
   if (phase === 'await_reb_type_after_block') {
     if (stat === 'dreb' || stat === 'oreb') {
+      trackerState.videoTsAtStart = getVideoTimestamp();
       trackerState.rebType = stat;
       enterPhase('await_rebounder');
       return;
@@ -7870,6 +8579,7 @@ function selectStat(stat, el) {
 
   if (phase === 'await_ft_reb_type') {
     if (stat === 'dreb' || stat === 'oreb') {
+      trackerState.videoTsAtStart = getVideoTimestamp();
       trackerState.rebType = stat;
       enterPhase('await_ft_rebounder');
       return;
@@ -7881,12 +8591,16 @@ function selectStat(stat, el) {
     activeStat   = 'ast';
     activeStatEl = el;
     el.classList.add('stat-active');
+    trackerState.videoTsAtStart = getVideoTimestamp();
     enterPhase('await_assister');
     return;
   }
 
   // Default: reset existing flow and start a new one
   resetTrackerState();
+  // Freeze the film time at THIS click, so a multi-step flow (e.g. tap "2FG Miss" now,
+  // pick the shooter minutes later) logs every resulting event at the original moment.
+  trackerState.videoTsAtStart = getVideoTimestamp();
   trackerState.stat = stat;
   activeStat   = stat;
   activeStatEl = el;
@@ -7917,6 +8631,7 @@ function showShotTypeModal(stat) {
   document.querySelectorAll('#shot-type-grid .shot-type-btn').forEach(b => b.classList.remove('selected'));
   document.querySelectorAll('#shot-contest-row .shot-contest-btn').forEach(b => b.classList.remove('selected'));
   trackerState.shotType    = null;
+  trackerState.shotTypes   = [];
   trackerState.shotContest = null;
   const isMake = stat.endsWith('make');
   const is3    = stat.startsWith('3');
@@ -7929,13 +8644,18 @@ function showShotTypeModal(stat) {
 }
 
 function toggleShotType(btn, type) {
-  document.querySelectorAll('#shot-type-grid .shot-type-btn').forEach(b => b.classList.remove('selected'));
-  if (trackerState.shotType === type) {
-    trackerState.shotType = null; // deselect
+  // Multi-select: a shot can carry several descriptors (e.g. Drive + Layup).
+  if (!Array.isArray(trackerState.shotTypes)) trackerState.shotTypes = [];
+  const i = trackerState.shotTypes.indexOf(type);
+  if (i >= 0) {
+    trackerState.shotTypes.splice(i, 1);
+    btn.classList.remove('selected');
   } else {
+    trackerState.shotTypes.push(type);
     btn.classList.add('selected');
-    trackerState.shotType = type;
   }
+  // Primary type (first selected) drives existing charts/filters/breakdowns.
+  trackerState.shotType = trackerState.shotTypes[0] || null;
 }
 
 function toggleShotContest(btn, contest) {
@@ -7955,6 +8675,7 @@ function confirmShotType() {
 
 function skipShotType() {
   trackerState.shotType    = null;
+  trackerState.shotTypes   = [];
   trackerState.shotContest = null;
   hideModal('modal-shot-type');
   _launchFgFlow();
@@ -7979,7 +8700,7 @@ function selectPlayer(team, name) {
     case 'await_shooter_miss':
       trackerState.shooter            = name;
       trackerState.shooterTeam        = team;
-      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.stat });
+      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.stat, videoTs: trackerState.videoTsAtStart });
       trackerState.nextPhaseAfterZone = 'await_block_or_reb';
       enterPhase('await_zone');
       break;
@@ -7987,51 +8708,53 @@ function selectPlayer(team, name) {
     case 'await_scorer':
       trackerState.shooter            = name;
       trackerState.shooterTeam        = team;
-      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.stat });
+      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.stat, videoTs: trackerState.videoTsAtStart });
       trackerState.nextPhaseAfterZone = 'await_assist_or_done';
       enterPhase('await_zone');
       break;
 
     case 'await_ft_shooter':
       if (trackerState.stat === 'ft_make') {
+        const _ftTs = trackerState.videoTsAtStart;
         resetTrackerState();
-        commitEvent(team, name, 'ft_make');
+        commitEvent(team, name, 'ft_make', _ftTs);
       } else {
         trackerState.shooter     = name;
         trackerState.shooterTeam = team;
-        trackerState.pendingEvents.push({ team, player: name, stat: 'ft_miss' });
+        trackerState.pendingEvents.push({ team, player: name, stat: 'ft_miss', videoTs: trackerState.videoTsAtStart });
         enterPhase('await_ft_reb_type');
       }
       break;
 
     case 'await_blocker':
       trackerState.blockerInfo = { team, name };
-      trackerState.pendingEvents.push({ team, player: name, stat: 'blk' });
+      trackerState.pendingEvents.push({ team, player: name, stat: 'blk', videoTs: trackerState.videoTsAtStart });
       enterPhase('await_reb_type_after_block');
       break;
 
     case 'await_rebounder': {
-      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.rebType });
+      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.rebType, videoTs: trackerState.videoTsAtStart });
       try { flushPendingEvents(); } finally { resetTrackerState(); }
       break;
     }
 
     case 'await_ft_rebounder': {
-      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.rebType });
+      trackerState.pendingEvents.push({ team, player: name, stat: trackerState.rebType, videoTs: trackerState.videoTsAtStart });
       try { flushPendingEvents(); } finally { resetTrackerState(); }
       break;
     }
 
     case 'await_assister': {
-      trackerState.pendingEvents.push({ team, player: name, stat: 'ast' });
+      trackerState.pendingEvents.push({ team, player: name, stat: 'ast', videoTs: trackerState.videoTsAtStart });
       try { flushPendingEvents(); } finally { resetTrackerState(); }
       break;
     }
 
     case 'await_player': {
       const _stat = trackerState.stat;
+      const _ts   = trackerState.videoTsAtStart;
       resetTrackerState();
-      commitEvent(team, name, _stat);
+      commitEvent(team, name, _stat, _ts);
       break;
     }
   }
@@ -8043,11 +8766,15 @@ function skipAssist() {
 }
 
 /* ── Commit a single event immediately ── */
-function commitEvent(team, player, stat) {
+function commitEvent(team, player, stat, videoTsOverride) {
   const session = State.liveSession;
   if (!session) return;
   const q = currentQuarterNum();
-  const videoTs = getVideoTimestamp();
+  // Prefer an explicitly passed timestamp (captured before a pre-commit reset), then the
+  // flow's frozen start time, then the current film position.
+  const videoTs = videoTsOverride != null ? videoTsOverride
+    : trackerState.videoTsAtStart != null ? trackerState.videoTsAtStart
+    : getVideoTimestamp();
   const ev = { id: session.eventLog.length, team, player, stat, quarter: q, ts: Date.now(), videoTs };
   session.eventLog.push(ev);
   pushUndoGroup([ev]);   // register for undo (also clears redo)
@@ -8064,17 +8791,21 @@ function flushPendingEvents() {
   const session = State.liveSession;
   if (!session || !trackerState.pendingEvents.length) return;
   const q   = currentQuarterNum();
-  const videoTs = getVideoTimestamp();
+  const fallbackTs = trackerState.videoTsAtStart != null ? trackerState.videoTsAtStart : getVideoTimestamp();
   const added = [];
   for (let i = 0; i < trackerState.pendingEvents.length; i++) {
     const ev = trackerState.pendingEvents[i];
     const isShotEvent = i === 0 && (ev.stat.includes('fg') || ev.stat === 'ft_make' || ev.stat === 'ft_miss');
+    // Each event carries the film time of ITS stat-button click (frozen at tap time).
+    const videoTs = ev.videoTs != null ? ev.videoTs : fallbackTs;
     const committed = { id: session.eventLog.length, team: ev.team, player: ev.player,
                         stat: ev.stat, zone: ev.zone || null,
                         shotX:  ev.shotX  != null ? ev.shotX  : null,
                         shotY:  ev.shotY  != null ? ev.shotY  : null,
                         shotFt: ev.shotFt != null ? ev.shotFt : null,
                         shotType:    isShotEvent ? (trackerState.shotType    || null) : null,
+                        shotTypes:   isShotEvent && trackerState.shotTypes && trackerState.shotTypes.length
+                                       ? [...trackerState.shotTypes] : null,
                         shotContest: isShotEvent ? (trackerState.shotContest || null) : null,
                         quarter: q, ts: Date.now(), videoTs };
     session.eventLog.push(committed);
@@ -8101,7 +8832,9 @@ function resetTrackerState() {
   trackerState.blockerInfo        = null;
   trackerState.nextPhaseAfterZone = null;
   trackerState.shotType           = null;
+  trackerState.shotTypes          = [];
   trackerState.shotContest        = null;
+  trackerState.videoTsAtStart     = null;
   trackerState._pendingStat       = null;
   pendingShotX = null;
   pendingShotY = null;
@@ -8471,20 +9204,30 @@ function finalizeSession(timeSecs = 0) {
 
 /* ── Stat computation helpers ── */
 
+/* True if any free throw (make or miss) was attempted in the scrimmage. When false,
+   FT-based advanced stats (TS%, FTR, USG%) are left blank (null) rather than computed,
+   since with no FTs they're either degenerate (FTR=0) or misleading (TS% ≡ eFG%). */
+function sessionHasFreeThrows(session) {
+  return (session.eventLog || []).some(e => e.stat === 'ft_make' || e.stat === 'ft_miss');
+}
+
 function computeTeamStats(session) {
   const stats = {};
+  const hasFT = sessionHasFreeThrows(session);
   for (const team of ['a', 'b']) {
     const evs = session.eventLog.filter(e => e.type !== 'sub' && e.team === team);
     const s   = buildStatLine(evs);
     const opp = session.eventLog.filter(e => e.type !== 'sub' && e.team !== team);
     const o   = buildStatLine(opp);
     s.possessions = calcPossessions(s);
+    // Team ratings are possession-based and remain trackable without free throws.
     s.ortg  = s.possessions > 0 ? +(100 * s.pts / s.possessions).toFixed(1) : 0;
     s.drtg  = s.possessions > 0 ? +(100 * o.pts / s.possessions).toFixed(1) : 0;
     s.netrtg = +(s.ortg - s.drtg).toFixed(1);
     s.efgPct = s.fga > 0 ? +((s.fgm + 0.5 * s.fg3m) / s.fga * 100).toFixed(1) : 0;
-    s.tsPct  = (s.fga + 0.475 * s.fta) > 0
-      ? +(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100).toFixed(1) : 0;
+    s.tsPct  = !hasFT ? null
+      : (s.fga + 0.475 * s.fta) > 0
+        ? +(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100).toFixed(1) : 0;
     stats[team] = s;
   }
   return stats;
@@ -8507,6 +9250,7 @@ function computePlayerStats(session) {
 
   // Total game minutes (quarter durations are stored in seconds)
   const gameMin = getSessionPlayedSeconds(session) / 60;
+  const hasFT = sessionHasFreeThrows(session);   // no FTs → leave FT-based stats blank
 
   const result = [];
   for (const { name, team } of allPlayers) {
@@ -8610,6 +9354,10 @@ function computePlayerStats(session) {
       }
     }
     s.ortg = ortg;
+
+    // No free throws in the scrimmage → blank FT-incorporating advanced stats
+    // (ORtg included: its possession estimate is unreliable without foul-shot possessions).
+    if (!hasFT) { s.tsPct = null; s.ftRate = null; s.usgPct = null; s.ortg = null; }
 
     result.push({ name, team, ...s });
   }
@@ -8733,11 +9481,11 @@ function showCompletionScreen(session) {
             </span>
           </div>
           ${row('EFG%',    `${tA.efgPct??0}%`, `${tB.efgPct??0}%`)}
-          ${row('TS%',     `${tA.tsPct??0}%`,  `${tB.tsPct??0}%`)}
-          ${row('ORTG',    tA.ortg??0,  tB.ortg??0)}
-          ${row('DRTG',    tA.drtg??0,  tB.drtg??0)}
-          ${row('Net RTG', `${tA.netrtg??0 >= 0 ? '+' : ''}${tA.netrtg??0}`,
-                           `${tB.netrtg??0 >= 0 ? '+' : ''}${tB.netrtg??0}`)}
+          ${row('TS%',     tA.tsPct != null ? `${tA.tsPct}%` : '—',  tB.tsPct != null ? `${tB.tsPct}%` : '—')}
+          ${row('ORTG',    tA.ortg != null ? tA.ortg : '—',  tB.ortg != null ? tB.ortg : '—')}
+          ${row('DRTG',    tA.drtg != null ? tA.drtg : '—',  tB.drtg != null ? tB.drtg : '—')}
+          ${row('Net RTG', tA.netrtg != null ? `${tA.netrtg >= 0 ? '+' : ''}${tA.netrtg}` : '—',
+                           tB.netrtg != null ? `${tB.netrtg >= 0 ? '+' : ''}${tB.netrtg}` : '—')}
           ${row('Poss.',   tA.possessions??0, tB.possessions??0)}
           ${row('Deflections', tA.defl??0, tB.defl??0)}
         </div>
@@ -9097,9 +9845,45 @@ function escHtml(str) {
 /* ============================================================
    APP INIT
 ============================================================ */
-function initApp() {
+/* Viewer path for the published site: if this browser has no local data of its own,
+   pull the published snapshot (sibling pt_data.json). Chad's local edits always win,
+   so this only affects visitors. In-memory only — never written back to localStorage. */
+let _publishedMode = false;
+
+/* View-only presentation for the published site: hide the editor controls (Live Tracker,
+   Publish, Backup). This is UI-level — the code still ships in the file — so it stops
+   casual use, not a determined viewer with devtools. */
+function applyPublishedMode() {
+  document.querySelectorAll('.editor-only').forEach(el => { el.style.display = 'none'; });
+  // If the tracker tab was somehow active, fall back to Player Stats.
+  const trackerTab = document.getElementById('tab-tracker');
+  if (trackerTab && trackerTab.classList.contains('active')) {
+    const playersBtn = document.querySelector('[data-tab="players"]');
+    if (playersBtn) switchTab('players', playersBtn);
+  }
+}
+
+async function loadPublishedData() {
+  if ((State.sessions || []).length) return;   // local data present → this is the editor, keep it
+  try {
+    const res = await fetch('pt_data.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data.sessions)) State.sessions = data.sessions;
+    if (Array.isArray(data.roster) && data.roster.length) State.roster = data.roster;
+    if (data.settings && typeof data.settings === 'object') State.settings = Object.assign({}, State.settings, data.settings);
+    _publishedMode = true;
+    applyPublishedMode();
+    console.log(`Loaded published snapshot: ${(data.sessions||[]).length} sessions (published ${data.publishedAt || 'unknown'})`);
+  } catch (e) {
+    /* No pt_data.json reachable (e.g. opened as a local single file) — fine, use local/empty data. */
+  }
+}
+
+async function initApp() {
   loadEmbeddedData();
   loadPersistentData();
+  await loadPublishedData();
   console.log(
     `%cMoorpark MBB Practice Tracker`,
     'color:#4f6ef7;font-weight:bold;font-size:14px'
@@ -9132,7 +9916,7 @@ function initApp() {
 ============================================================ */
 (async () => {
   await initPasswordHash();
-  initApp();
+  await initApp();
 })();
 
 
