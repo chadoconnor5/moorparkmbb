@@ -3680,6 +3680,10 @@
         <input type="text" id="note-text" maxlength="120" placeholder="e.g. Missed box out" autocomplete="off" />
         <div class="note-quick-row" id="note-quick-row"></div>
       </div>
+      <div class="form-group" id="note-session-group" style="display:none;">
+        <label>Practice</label>
+        <select id="note-session"></select>
+      </div>
       <div class="form-group" style="margin-bottom:0;">
         <label>Player</label>
         <select id="note-player"></select>
@@ -7561,7 +7565,10 @@ function renderPlayerProfile(playerName) {
       <div style="flex:1;">
         <div class="profile-name-row">
           <div class="profile-name">${escHtml(playerName)}</div>
-          ${scopeSelector}
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            ${_publishedMode ? '' : `<button class="btn btn-ghost btn-sm" style="color:#f5c542;border-color:rgba(245,197,66,0.4);" onclick="openManualNoteModal(psProfileName)" title="Add a coaching note for this player">&#9733; Add Note</button>`}
+            ${scopeSelector}
+          </div>
         </div>
         <div class="profile-meta">${
           scopedSession
@@ -7684,9 +7691,12 @@ function renderFilmReportEvents(sessionId) {
     const isNote = e.stat === 'note';
     const cls = isNote ? 'note' : makeStats.has(e.stat) ? 'make' : missStats.has(e.stat) ? 'miss' : 'other';
     const label = isNote ? `★ ${e.note || 'Note'}` : (statLabel(e.stat) || e.stat);
-    const t = (hasFilm && e.videoTs != null)
-      ? fmtHMS(e.videoTs)                                                                  // position in the film
-      : (e.ts != null && Number.isFinite(startMs) ? fmtHMS((e.ts - startMs) / 1000) : '—'); // fallback: real elapsed
+    // Manually-added notes were written after the fact, so neither the film position nor
+    // elapsed-since-tipoff is meaningful for them.
+    const t = e.manual ? '—'
+      : (hasFilm && e.videoTs != null)
+        ? fmtHMS(e.videoTs)                                                                  // position in the film
+        : (e.ts != null && Number.isFinite(startMs) ? fmtHMS((e.ts - startMs) / 1000) : '—'); // fallback: real elapsed
     const qBadge = e.quarter != null ? `<span class="film-event-q">Q${e.quarter}</span>` : '';
     return `<div class="film-event-row">
       <span class="film-event-ts">${t}</span>
@@ -8327,6 +8337,7 @@ function _collectNotes() {
       note: e.note || '',
       quarter: e.quarter,
       videoTs: e.videoTs,
+      manual: !!e.manual,
       ts: e.ts || 0,
     });
   });
@@ -8357,6 +8368,7 @@ function renderNotesView() {
 
   const filterBar = `
       <div class="seg-filter-bar">
+        ${_publishedMode ? '' : `<button class="btn btn-primary btn-sm" onclick="openManualNoteModal()" title="Add a note without film">&#9733; Add Note</button>`}
         <input type="text" id="notes-search" placeholder="Search notes…" value="${escHtml(notesFilter.q)}"
           oninput="notesSetFilter('q', this.value)"
           style="padding:5px 10px;border-radius:6px;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:12px;min-width:150px;" />
@@ -8402,6 +8414,7 @@ function renderNotesView() {
         <span>${escHtml(n.sessionTitle)}${n.date ? ' · ' + escHtml(n.date) : ''}</span>
         ${n.quarter != null ? `<span>Q${n.quarter}</span>` : ''}
         ${n.videoTs != null ? `<span class="note-row-ts">${fmtVideoTs(n.videoTs)}</span>` : ''}
+        ${n.manual ? '<span style="opacity:0.7;">added later</span>' : ''}
         ${n.live ? '<span style="color:#ef4444;font-weight:700;">LIVE</span>' : ''}
       </div>
     </div>`).join('');
@@ -9263,35 +9276,71 @@ function _teamOfPlayer(name) {
   return 'a';
 }
 
+let _noteMode = 'live';   // 'live' = from the film panel | 'manual' = added afterwards
+
+function _noteFillQuickPicks() {
+  document.getElementById('note-quick-row').innerHTML = NOTE_QUICK_PICKS
+    .map(t => `<button type="button" class="note-quick" onclick="noteQuickPick(this)">${escHtml(t)}</button>`).join('');
+}
+
+function _noteOpen(mode) {
+  _noteMode = mode;
+  _noteFillQuickPicks();
+  const input = document.getElementById('note-text');
+  input.value = '';
+  showModal('modal-note');
+  setTimeout(() => input.focus(), 50);
+}
+
+/* From the Live Tracker's Film Events panel — timestamped to the current film moment. */
 function openNoteModal() {
   const session = State.liveSession;
   if (!session) { showToast('Start a session first', 'warning'); return; }
 
   _noteVideoTs = getVideoTimestamp();   // freeze the film moment at click time
+  document.getElementById('note-session-group').style.display = 'none';
 
   // Player list: on-floor players first, then the rest of the roster.
   if (!clockState.currentLineupA.length && !clockState.currentLineupB.length) rebuildCurrentLineups();
   const onFloor = [...(clockState.currentLineupA || []), ...(clockState.currentLineupB || [])];
   const others  = (State.roster || []).map(p => p.name).filter(n => !onFloor.includes(n));
-  const sel = document.getElementById('note-player');
-  sel.innerHTML =
+  document.getElementById('note-player').innerHTML =
     (onFloor.length ? `<optgroup label="On Floor">${onFloor.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
     (others.length  ? `<optgroup label="Bench / Roster">${others.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
     `<optgroup label="Other"><option value="TEAM">Team (no single player)</option></optgroup>`;
 
-  // Quick picks
-  document.getElementById('note-quick-row').innerHTML = NOTE_QUICK_PICKS
-    .map(t => `<button type="button" class="note-quick" onclick="noteQuickPick(this)">${escHtml(t)}</button>`).join('');
-
-  const hint = document.getElementById('note-ts-hint');
-  hint.textContent = _noteVideoTs != null
+  document.getElementById('note-ts-hint').textContent = _noteVideoTs != null
     ? `Will be logged at film time ${fmtVideoTs(_noteVideoTs)}`
     : 'No film loaded — this note will be logged without a film timestamp.';
 
-  const input = document.getElementById('note-text');
-  input.value = '';
-  showModal('modal-note');
-  setTimeout(() => input.focus(), 50);
+  _noteOpen('live');
+}
+
+/* Added after the fact (Notes tab). Pick which practice it belongs to; no film time. */
+function openManualNoteModal(presetPlayer) {
+  const completed = getSessions().filter(s => s.completed);
+  const all = State.liveSession ? [State.liveSession, ...completed] : completed;
+  if (!all.length) { showToast('No practices yet to attach a note to', 'warning'); return; }
+
+  _noteVideoTs = null;
+  const grp = document.getElementById('note-session-group');
+  grp.style.display = '';
+  document.getElementById('note-session').innerHTML = all.map(s =>
+    `<option value="${escHtml(s.id)}">${escHtml(s.title || '(untitled)')}${s.date ? ' · ' + escHtml(s.date) : ''}${s.completed ? '' : ' — in progress'}</option>`
+  ).join('');
+
+  // Any roster player, plus anyone who appears in a session but is off the roster.
+  const rosterNames = (State.roster || []).map(p => p.name);
+  const seen = new Set(rosterNames);
+  all.forEach(s => (s.playerStats || []).forEach(p => { if (!seen.has(p.name)) { seen.add(p.name); rosterNames.push(p.name); } }));
+  document.getElementById('note-player').innerHTML =
+    rosterNames.sort().map(n => `<option value="${escHtml(n)}" ${n === presetPlayer ? 'selected' : ''}>${escHtml(n)}</option>`).join('') +
+    `<option value="TEAM" ${presetPlayer === 'TEAM' ? 'selected' : ''}>Team (no single player)</option>`;
+
+  document.getElementById('note-ts-hint').textContent =
+    'Added manually — no film timestamp. It will appear in the player\'s Event Timeline and the Notes tab.';
+
+  _noteOpen('manual');
 }
 
 function noteQuickPick(btn) {
@@ -9301,12 +9350,26 @@ function noteQuickPick(btn) {
 }
 
 function confirmNote() {
-  const session = State.liveSession;
-  if (!session) return;
   const text   = (document.getElementById('note-text').value || '').trim();
   const player = document.getElementById('note-player').value;
   if (!text)   { showToast('Enter a note first', 'warning'); return; }
   if (!player) { showToast('Pick a player', 'warning'); return; }
+
+  // Which practice does this note belong to?
+  let session, isLive;
+  if (_noteMode === 'manual') {
+    const id = document.getElementById('note-session').value;
+    session = (State.liveSession && State.liveSession.id === id)
+      ? State.liveSession
+      : (State.sessions || []).find(s => s.id === id);
+    if (!session) { showToast('Practice not found', 'danger'); return; }
+    isLive = !session.completed;
+  } else {
+    session = State.liveSession;
+    if (!session) return;
+    isLive = true;
+  }
+  session.eventLog = session.eventLog || [];
 
   const ev = {
     id: session.eventLog.length,
@@ -9315,17 +9378,28 @@ function confirmNote() {
     note: text,
     team: _teamOfPlayer(player),
     player,
-    quarter: currentQuarterNum(),
+    // Manual notes have no live clock/film position; fall back to the last quarter played.
+    quarter: _noteMode === 'manual'
+      ? (getSessionQuartersPlayed(session) || null)
+      : currentQuarterNum(),
     ts: Date.now(),
     videoTs: _noteVideoTs,
+    ...(_noteMode === 'manual' ? { manual: true } : {}),
   };
   session.eventLog.push(ev);
-  pushUndoGroup([ev]);          // undoable like any other event
-  saveLiveSession(session);
+
+  if (isLive) {
+    if (_noteMode === 'live') pushUndoGroup([ev]);   // undo stack only tracks live tagging
+    saveLiveSession(session);
+  } else {
+    saveSession(session);                            // writes into State.sessions + persists
+  }
+
   hideModal('modal-note');
   showToast(`Note added: ${player} — ${text}`, 'success', 2500);
-  updateActionFeed();
-  updateVtsLog();
+  if (isLive) { updateActionFeed(); updateVtsLog(); }
+  if (document.getElementById('tab-notes')?.classList.contains('active')) renderNotesView();
+  if (psProfileName) renderPlayerProfile(psProfileName);
 }
 
 /* ── Flush all staged pending events ── */
