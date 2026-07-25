@@ -2413,6 +2413,7 @@
       color: var(--text);
       letter-spacing: 0;
     }
+    .lu-name-short { display: none; }   /* shown instead of full names on phones */
 
     /* Lineup table */
     .lu-table tbody td { color: #000000; }
@@ -2439,6 +2440,9 @@
     /* On/Off player cards */
     .oo-cards { display: flex; flex-direction: column; gap: 10px; }
     .oo-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    /* When the card IS the scroll container, its overflow:hidden would clip the wide
+       table and make horizontal scrolling impossible. */
+    .oo-card.table-wrap { overflow-x: auto; }
     .oo-card-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 
 
@@ -2965,8 +2969,16 @@
       .oo-sort-table thead th.oo-name-col,
       .oo-sort-table tbody td.oo-name-col { min-width: 104px; }
 
-      /* Lineup names are long — wrap them instead of one huge column */
-      .lineup-key { max-width: 132px; white-space: normal; font-size: 10px; line-height: 1.3; }
+      /* Lineups: last names only, and beat the header's inline min-width:200px so the
+         frozen column doesn't swallow the screen. */
+      .lu-name-full  { display: none; }
+      .lu-name-short { display: inline; }
+      .lu-table thead th:first-child { min-width: 96px !important; width: 96px; }
+      .lineup-key {
+        max-width: 96px; width: 96px;
+        white-space: normal; overflow-wrap: anywhere;
+        font-size: 9.5px; line-height: 1.25;
+      }
 
       /* Shot Charts: stack court above the breakdown tables, no side-scrolling page */
       .sc-layout { gap: 16px; }
@@ -7983,8 +7995,14 @@ function _luRowHtml(r, team, filtered, cell) {
   const teamBadge = team === 'both'
     ? `<span style="margin-left:6px;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:${r.team==='a'?'#1e3a5f':'#3d1f0a'};color:${r.team==='a'?'#60a5fa':'#fb923c'}">${escHtml(r.team==='a'?(filtered[0]?.teamAName||'A'):(filtered[0]?.teamBName||'B'))}</span>`
     : '';
+  // Full names on desktop; last names only on phones (CSS swaps them) so the frozen
+  // lineup column stays narrow. Full lineup is always in the tooltip.
+  const luFull  = r.displayKey || r.key;
+  const luShort = luFull.split(' / ')
+    .map(n => { const p = n.trim().split(/\s+/); return p.length > 1 ? p[p.length - 1] : n; })
+    .join(' / ');
   return `<tr>
-      <td class="lineup-key">${escHtml(r.displayKey || r.key)}${teamBadge}</td>
+      <td class="lineup-key" title="${escHtml(luFull)}"><span class="lu-name-full">${escHtml(luFull)}</span><span class="lu-name-short">${escHtml(luShort)}</span>${teamBadge}</td>
       <td>${r.gp}</td>
       <td>${r.min}'</td>
       <td>${Math.round(r.poss)}</td>
