@@ -8432,7 +8432,7 @@ function _notesRestoreFocus() {
 /* ─────────────────────────────────────────────────────────────
    ON/OFF TAB
 ───────────────────────────────────────────────────────────── */
-let onoffSort = { key: 'net', dir: -1 };
+let onoffSort = { key: 'netD', dir: -1 };   // default: biggest on/off swing first
 function onoffSortBy(key) {
   if (onoffSort.key === key) onoffSort.dir = -onoffSort.dir;
   else { onoffSort.key = key; onoffSort.dir = (key === 'name') ? 1 : -1; }
@@ -8576,11 +8576,16 @@ function renderOnOffView() {
   // format), plus an On/Off net swing. Sortable by any column.
   const flat = rows.map(r => {
     const on = r.on, off = r.off;
-    const g = (k) => on ? on[k] : null;
+    const g  = (k) => on  ? on[k]  : null;   // on-court value
+    const go = (k) => off ? off[k] : null;   // off-court value
+    const d  = (k) => (on && off && on[k] != null && off[k] != null)
+      ? +(on[k] - off[k]).toFixed(1) : null; // on − off
     return {
       name: r.name, team: r.team,
-      poss: g('poss'), ortg: g('ortg'), drtg: g('drtg'), net: g('net'),
-      swing: (on && off) ? +(on.net - off.net).toFixed(1) : null,
+      possOn: g('poss'), possOff: go('poss'),
+      ortgOn: g('ortg'), ortgOff: go('ortg'), ortgD: d('ortg'),
+      drtgOn: g('drtg'), drtgOff: go('drtg'), drtgD: d('drtg'),
+      netOn:  g('net'),  netOff:  go('net'),  netD:  d('net'),
       efg: g('efg'), orebPct: g('orebPct'), tovPct: g('tovPct'), ftr: g('ftr'),
       dEfg: g('dEfg'), dOrebPct: g('dOrebPct'), dTovPct: g('dTovPct'), dFtr: g('dFtr'),
     };
@@ -8619,15 +8624,33 @@ function renderOnOffView() {
     return `<td class="${cls}"><strong>${s}</strong></td>`;
   }
 
+  /* On − Off difference. higherBetter=false flips the coloring for DRTG, where a
+     negative difference (better defense with the player on) is the good outcome. */
+  function diffCell(v, higherBetter, extra) {
+    extra = extra || '';
+    if (v == null) return `<td class="${extra}">—</td>`;
+    const good = higherBetter ? v > 0 : v < 0;
+    const bad  = higherBetter ? v < 0 : v > 0;
+    const cls = [extra, good ? 'oo-hi' : bad ? 'oo-lo' : ''].filter(Boolean).join(' ');
+    return `<td class="${cls}"><strong>${(v > 0 ? '+' : '') + v.toFixed(1)}</strong></td>`;
+  }
+  const plainCell = (v, extra) => `<td class="${extra || ''}">${v == null ? '—' : Number(v).toFixed(1)}</td>`;
+
   const trs = flat.map(r => {
     // No White/Black badge — players rotate between teams across sessions.
     return `<tr>
       <td class="oo-name-col">${escHtml(r.name)}</td>
-      <td>${r.poss == null ? '—' : Math.round(r.poss)}</td>
-      ${cc(r.ortg, 110, 95, false, '', 'oo-rating-col')}
-      ${cc(r.drtg, 95, 110, true, '', 'oo-rating-col')}
-      ${netCell(r.net, 'oo-rating-col')}
-      ${netCell(r.swing, 'oo-rating-col')}
+      <td>${r.possOn == null ? '—' : Math.round(r.possOn)}</td>
+      <td>${r.possOff == null ? '—' : Math.round(r.possOff)}</td>
+      ${cc(r.ortgOn, 110, 95, false, '', 'oo-rating-col')}
+      ${plainCell(r.ortgOff)}
+      ${diffCell(r.ortgD, true)}
+      ${cc(r.drtgOn, 95, 110, true, '', 'oo-rating-col')}
+      ${plainCell(r.drtgOff)}
+      ${diffCell(r.drtgD, false)}
+      ${netCell(r.netOn, 'oo-rating-col')}
+      ${plainCell(r.netOff)}
+      ${diffCell(r.netD, true)}
       ${cc(r.efg, 55, 42, false)}
       ${cc(r.orebPct, 30, 18, false)}
       ${cc(r.tovPct, 15, 22, true)}
@@ -8651,11 +8674,17 @@ function renderOnOffView() {
       <table class="oo-sort-table">
         <thead><tr>
           ${th('name','Player','oo-name-col')}
-          ${th('poss','Poss')}
-          ${th('ortg','ORTG','oo-rating-col')}
-          ${th('drtg','DRTG','oo-rating-col')}
-          ${th('net','NET','oo-rating-col')}
-          ${th('swing','On/Off','oo-rating-col')}
+          ${th('possOn','POSS On')}
+          ${th('possOff','POSS Off')}
+          ${th('ortgOn','ORTG On','oo-rating-col')}
+          ${th('ortgOff','ORTG Off')}
+          ${th('ortgD','ORTG Diff')}
+          ${th('drtgOn','DRTG On','oo-rating-col')}
+          ${th('drtgOff','DRTG Off')}
+          ${th('drtgD','DRTG Diff')}
+          ${th('netOn','NET On','oo-rating-col')}
+          ${th('netOff','NET Off')}
+          ${th('netD','NET Diff')}
           ${th('efg','EFG%','oo-th-off')}
           ${th('orebPct','OREB%','oo-th-off')}
           ${th('tovPct','TO%','oo-th-off')}
@@ -8669,9 +8698,9 @@ function renderOnOffView() {
       </table>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--text-dim);">
-      On-court per-100 ratings &amp; four factors while each player is on the floor.
-      <strong>On/Off</strong> = the player's on-court Net minus their off-court Net (their swing).
-      Offense in blue, defense in orange. Green = strong, red = weak vs. thresholds. Click any header to sort.
+      Per-100 ratings with the player <strong>On</strong> the floor, <strong>Off</strong> the floor, and the
+      <strong>Diff</strong> (On − Off) — the player's impact. For DRTG a negative Diff is good (fewer points allowed with them on).
+      Four factors are on-court values. Offense in blue, defense in orange. Green = strong, red = weak. Click any header to sort.
     </div>`;
 }
 
