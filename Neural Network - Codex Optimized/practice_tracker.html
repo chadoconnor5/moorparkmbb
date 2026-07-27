@@ -8509,7 +8509,7 @@ function _onoffFilterBar(filtered) {
           ${perOpts('post','Post-Jamboree')}
         </select>
         <select onchange="seg5SetFilter('team',this.value)">
-          <option value="all" ${seg5Filter.team==='all'||seg5Filter.team==='both' ? 'selected':''}>All Players</option>
+          <option value="all" ${seg5Filter.team==='all'||seg5Filter.team==='both' ? 'selected':''}>Both Teams</option>
           <option value="a"   ${seg5Filter.team==='a'   ? 'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
           <option value="b"   ${seg5Filter.team==='b'   ? 'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
         </select>
@@ -8619,29 +8619,31 @@ function renderOnOffView() {
     };
   }
 
-  // Build each player's on-court and off-court stint lists.
+  /* Build each player's on/off stint lists. A player's squad is resolved PER SESSION —
+     they rotate between White and Black across practices — so:
+       - "Both Teams" counts every practice, using whichever squad they were on that day;
+       - picking White or Black keeps only the practices they played for that squad,
+         which is what isolates their stats to that team. */
   const impact = [];
   for (const playerName of playerSet) {
-    let playerTeam = !teamIsAll ? team : null;
-    if (!playerTeam) {
-      for (const sess of filtered) {
-        const f = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
-        if (f) { playerTeam = f.team; break; }
-      }
-    }
-    if (!playerTeam) continue;
     const onL = [], offL = [];
+    let sessCount = 0;
     for (const sess of filtered) {
+      const rec = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
+      if (!rec) continue;                       // didn't play in this practice
+      const pt = rec.team;                      // their squad in THIS practice
+      if (!teamIsAll && pt !== team) continue;  // isolate the selected squad
+      sessCount++;
       for (const seg of (sess.lineupSegments || [])) {
         if (seg.endTimeSecs === null) continue;
-        const lineup = playerTeam === 'a' ? seg.lineupA : seg.lineupB;
+        const lineup = pt === 'a' ? seg.lineupA : seg.lineupB;
         if (!lineup) continue;
-        (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: playerTeam });
+        (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: pt });
       }
     }
     const on = ooAgg(onL);
     if (!on) continue;
-    impact.push({ name: playerName, on: on, off: ooAgg(offL) });
+    impact.push({ name: playerName, on: on, off: ooAgg(offL), practices: sessCount });
   }
 
   if (!impact.length) {
@@ -8712,8 +8714,8 @@ function renderOnOffView() {
     return '<div class="oo-imp-card">' +
       '<div class="oo-imp-head">' +
         '<span class="oo-imp-name">' + escHtml(p.name) + '</span>' +
-        '<span class="oo-imp-sub">' + p.minPct.toFixed(0) + '% min &middot; ' + p.on.games +
-        ' practice' + (p.on.games === 1 ? '' : 's') + ' &middot; ' + p.on.offPoss + ' off poss</span>' +
+        '<span class="oo-imp-sub">' + p.minPct.toFixed(0) + '% min &middot; ' + p.practices +
+        ' practice' + (p.practices === 1 ? '' : 's') + ' &middot; ' + p.on.offPoss + ' off poss</span>' +
       '</div>' +
       '<div class="oo-imp-grid">' +
         ooPanel('Core Stats', OO_CORE, p) +
@@ -8727,7 +8729,11 @@ function renderOnOffView() {
     '<div class="page-header">' +
       '<div>' +
         '<div class="page-title">Player On-Court Impact</div>' +
-        '<div class="page-subtitle">' + shown.length + ' players &middot; ranked by minutes</div>' +
+        '<div class="page-subtitle">' + shown.length + ' players &middot; ranked by minutes &middot; ' +
+          (teamIsAll ? 'both teams'
+            : 'only practices played for ' + escHtml(team === 'a'
+                ? (filtered[0] && filtered[0].teamAName || 'White')
+                : (filtered[0] && filtered[0].teamBName || 'Black'))) + '</div>' +
       '</div>' +
       _onoffFilterBar(filtered) +
     '</div>' +
