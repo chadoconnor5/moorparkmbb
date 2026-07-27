@@ -4070,6 +4070,16 @@ function addRosterEditorRow(name) {
   if (!name) input.focus();
 }
 
+/* One substitution is ONE event, carrying every player swapped at that clock time.
+   Sessions recorded before this change stored a separate event per player, so fall
+   back to the legacy single-pair fields. */
+function subPairs(ev) {
+  if (!ev) return [];
+  if (Array.isArray(ev.subs) && ev.subs.length) return ev.subs;
+  if (ev.playerIn || ev.playerOut) return [{ team: ev.team, playerOut: ev.playerOut, playerIn: ev.playerIn }];
+  return [];
+}
+
 /* Rewrite one player name to another everywhere it appears in a single session:
    stat events, sub in/out, assister, starters, on-floor lineups, and computed box rows. */
 function migrateSessionNames(session, renameMap) {
@@ -4086,6 +4096,7 @@ function migrateSessionNames(session, renameMap) {
     e.player   = remap(e.player);
     e.playerIn = remap(e.playerIn);
     e.playerOut = remap(e.playerOut);
+    if (Array.isArray(e.subs)) e.subs.forEach(sp => { sp.playerIn = remap(sp.playerIn); sp.playerOut = remap(sp.playerOut); });
     e.assister = remap(e.assister);
   });
   remapArr(session.startersA);
@@ -4100,7 +4111,8 @@ function migrateSessionNames(session, renameMap) {
 function countSessionsAffected(renameMap) {
   const hits = s => {
     const inArr = arr => Array.isArray(arr) && arr.some(n => renameMap.has(n));
-    return (s.eventLog || []).some(e => renameMap.has(e.player) || renameMap.has(e.playerIn) || renameMap.has(e.playerOut) || renameMap.has(e.assister))
+    return (s.eventLog || []).some(e => renameMap.has(e.player) || renameMap.has(e.playerIn) || renameMap.has(e.playerOut) || renameMap.has(e.assister)
+        || (Array.isArray(e.subs) && e.subs.some(sp => renameMap.has(sp.playerIn) || renameMap.has(sp.playerOut))))
       || inArr(s.startersA) || inArr(s.startersB)
       || (s.lineupSegments || []).some(seg => inArr(seg.lineupA) || inArr(seg.lineupB))
       || (s.playerStats || []).some(ps => renameMap.has(ps.name));
@@ -5041,7 +5053,8 @@ function fmtClockRemain(secs) {
 function reportEventSummary(ev) {
   if (!ev) return '—';
   if (ev.type === 'sub') {
-    return `Sub: ${escHtml(ev.playerIn || '?')} in for ${escHtml(ev.playerOut || '?')}`;
+    return 'Sub: ' + subPairs(ev).map(sp =>
+      `${escHtml(sp.playerIn || '?')} in for ${escHtml(sp.playerOut || '?')}`).join('; ');
   }
   if (ev.stat === 'note') return `★ ${escHtml(ev.note || 'Note')}`;
   const parts = [statLabel(ev.stat) || ev.stat];
@@ -5185,10 +5198,12 @@ function buildPostGameReportPack(session) {
   const playerSection = p => {
     const playerGames = (session.playerStats || []).find(row => row.name === p.name && row.team === p.team) || p;
     const actionEvents = (session.eventLog || []).filter(e =>
-      e.type !== 'sub' ? e.player === p.name : e.playerIn === p.name || e.playerOut === p.name
+      e.type !== 'sub' ? e.player === p.name
+        : subPairs(e).some(sp => sp.playerIn === p.name || sp.playerOut === p.name)
     );
     const lineupRows = buildLineupReportRows(session, p.team, p.name);
-    const entryRows = (session.eventLog || []).filter(e => e.type === 'sub' && (e.playerIn === p.name || e.playerOut === p.name));
+    const entryRows = (session.eventLog || []).filter(e => e.type === 'sub'
+      && subPairs(e).some(sp => sp.playerIn === p.name || sp.playerOut === p.name));
     const shotEvents = (session.eventLog || []).filter(e => e.player === p.name && e.shotType);
     const shotBreakdown = shotEvents.length
       ? `<div class="report-note">Tagged shot types: ${shotEvents.length}</div>`
@@ -6050,7 +6065,8 @@ function buildPbpHtml(session) {
 
     let desc = '';
     if (ev.stat === 'sub') {
-      desc = `<strong>${escHtml(teamName)}</strong> — Sub: ${escHtml(ev.playerIn || '?')} in for ${escHtml(ev.playerOut || '?')}`;
+      desc = `<strong>${escHtml(teamName)}</strong> — Sub: ` + subPairs(ev).map(sp =>
+        `${escHtml(sp.playerIn || '?')} in for ${escHtml(sp.playerOut || '?')}`).join('; ');
     } else if (ev.stat === 'note') {
       desc = `<strong>${escHtml(ev.player || '?')}</strong> (${escHtml(teamName)}) — <span style="color:#f5c542;font-weight:700;">★ ${escHtml(ev.note || 'Note')}</span>`;
     } else {
@@ -9598,8 +9614,9 @@ function updateActionFeed() {
     if (ev.type === 'sub') {
       el.insertAdjacentHTML('beforeend', `
         <div class="feed-row feed-sub${newestCls}">
-          <div class="feed-sub-line"><span class="feed-sub-in">▲ ${escHtml(ev.playerIn || '?')}</span></div>
-          <div class="feed-sub-line"><span class="feed-sub-out">▼ ${escHtml(ev.playerOut || '?')}</span></div>
+          ${subPairs(ev).map(sp => `
+          <div class="feed-sub-line"><span class="feed-sub-in">▲ ${escHtml(sp.playerIn || '?')}</span></div>
+          <div class="feed-sub-line"><span class="feed-sub-out">▼ ${escHtml(sp.playerOut || '?')}</span></div>`).join('')}
           <div class="feed-meta">${teamLabel} &nbsp;Q${ev.quarter} &nbsp;<span class="feed-stat sub">Sub</span></div>
         </div>`);
     } else {
@@ -9936,8 +9953,11 @@ function computePlayerStats(session) {
   for (const ev of session.eventLog) {
     if (ev.type === 'sub') {
       const t = ev.team;
-      if (!allPlayers.some(p => p.name === ev.playerIn && p.team === t)) {
-        allPlayers.push({ name: ev.playerIn, team: t });
+      for (const sp of subPairs(ev)) {
+        const st = sp.team || t;
+        if (sp.playerIn && !allPlayers.some(p => p.name === sp.playerIn && p.team === st)) {
+          allPlayers.push({ name: sp.playerIn, team: st });
+        }
       }
     }
   }
@@ -10289,9 +10309,11 @@ function rebuildCurrentLineups() {
   // Replay sub events to arrive at current state
   for (const ev of session.eventLog) {
     if (ev.type !== 'sub') continue;
-    const lineup = ev.team === 'a' ? clockState.currentLineupA : clockState.currentLineupB;
-    const idx = lineup.indexOf(ev.playerOut);
-    if (idx !== -1) lineup[idx] = ev.playerIn;
+    for (const sp of subPairs(ev)) {
+      const lu = (sp.team || ev.team) === 'a' ? clockState.currentLineupA : clockState.currentLineupB;
+      const i2 = lu.indexOf(sp.playerOut);
+      if (i2 !== -1) lu[i2] = sp.playerIn;
+    }
   }
 }
 
@@ -10510,25 +10532,26 @@ function confirmAllSubs() {
 
   closeActiveSegment(timeSecs);
 
-  const addedEvents = [];
   for (const s of allSubs) {
     const lineup = s.team === 'a' ? clockState.currentLineupA : clockState.currentLineupB;
     const idx = lineup.indexOf(s.out);
     if (idx !== -1) lineup[idx] = s.in;
-
-    const subEv = {
-      id: session.eventLog.length,
-      type: 'sub',
-      team: s.team,
-      playerOut: s.out,
-      playerIn:  s.in,
-      timeSecs,
-      quarter: q,
-      ts: Date.now(),
-    };
-    session.eventLog.push(subEv);
-    addedEvents.push(subEv);
   }
+
+  // A substitution is a single event, however many players changed at that moment.
+  const subEv = {
+    id: session.eventLog.length,
+    type: 'sub',
+    subs: allSubs.map(x => ({ team: x.team, playerOut: x.out, playerIn: x.in })),
+    team:      allSubs[0].team,   // legacy mirror of the first swap
+    playerOut: allSubs[0].out,
+    playerIn:  allSubs[0].in,
+    timeSecs,
+    quarter: q,
+    ts: Date.now(),
+  };
+  session.eventLog.push(subEv);
+  const addedEvents = [subEv];
 
   openLineupSegment(timeSecs);
   pushUndoGroup(addedEvents, {
