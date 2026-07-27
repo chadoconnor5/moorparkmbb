@@ -6645,24 +6645,25 @@ function buildZoneHeatSvg(shots) {
   }
 
   const tally = {};
-  zones.forEach(z => { tally[z.id] = { m: 0, a: 0 }; });
-  let unzoned = 0;
+  zones.forEach(z => { tally[z.id] = { m: 0, a: 0, pts: 0 }; });
+  let unzoned = 0, allPts = 0;
   for (const ev of shots) {
     const z = znZoneForShot(ev);
     if (!z) { unzoned++; continue; }
     tally[z.id].a++;
-    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[z.id].m++;
+    // Points per shot values a three correctly against a two.
+    const worth = ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0;
+    if (worth) { tally[z.id].m++; tally[z.id].pts += worth; allPts += worth; }
   }
 
-  /* Diverging red -> white -> green, centred on this selection's overall FG% so a
-     zone reads as better (green) or worse (red) than how they shot everywhere else.
-     +/- 20 percentage points from the midpoint saturates the colour. */
-  const madeAll = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
-  const mid = shots.length ? (100 * madeAll / shots.length) : 45;
-  const SPREAD = 20;
-  const heat = pct => {
-    if (pct == null) return '#f4f6f9';
-    const t = Math.max(-1, Math.min(1, (pct - mid) / SPREAD));   // -1 cold .. +1 hot
+  /* Diverging red -> white -> green driven by POINTS PER SHOT, which is not shown on
+     the map. PPS credits a three properly: 40% from deep (1.20 PPS) outranks 50% from
+     two (1.00). Centred on this selection's overall PPS, saturating +/- 0.35. */
+  const mid = shots.length ? (allPts / shots.length) : 1.0;
+  const SPREAD = 0.35;
+  const heat = pps => {
+    if (pps == null) return '#f4f6f9';
+    const t = Math.max(-1, Math.min(1, (pps - mid) / SPREAD));   // -1 cold .. +1 hot
     const white = [255, 255, 255];
     const end = t >= 0 ? [22, 163, 74] : [220, 38, 38];          // green / red
     const k = Math.abs(t);
@@ -6672,9 +6673,10 @@ function buildZoneHeatSvg(shots) {
   const bodies = zones.map(z => {
     const t = tally[z.id];
     const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
-    return '<path d="' + znPathD(z.pts, z.closeC, true) + '" fill="' + heat(pct) +
+    const pps = t.a > 0 ? t.pts / t.a : null;
+    return '<path d="' + znPathD(z.pts, z.closeC, true) + '" fill="' + heat(pps) +
            '" stroke="#ffffff" stroke-width="2.5" stroke-opacity="0.85"><title>' +
-           escHtml(z.name) + (t.a ? ' — ' + t.m + '/' + t.a + ' (' + pct + '%)' : ' — no shots') +
+           escHtml(z.name) + (t.a ? ' — ' + t.m + '-' + t.a + ' (' + pct + '%) · ' + pps.toFixed(2) + ' PPS' : ' — no shots') +
            '</title></path>';
   }).join('');
 
@@ -6695,6 +6697,7 @@ function buildZoneHeatSvg(shots) {
   const made = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
   const foot = shots.length
     ? made + '/' + shots.length + ' FGM (' + Math.round(100 * made / shots.length) + '%)' +
+      ' · ' + (shots.length ? (allPts / shots.length).toFixed(2) : '0.00') + ' PPS' +
       (unzoned ? ' · ' + unzoned + ' outside any zone' : '')
     : 'No shots charted';
 
