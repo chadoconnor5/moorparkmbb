@@ -8442,7 +8442,7 @@ function _notesRestoreFocus() {
 /* ─────────────────────────────────────────────────────────────
    ON/OFF TAB
 ───────────────────────────────────────────────────────────── */
-let onoffSort = { key: 'net40D', dir: -1 };   // default: biggest on/off swing first
+let onoffSort = { key: 'apm', dir: -1 };   // leaderboard sorts by APM (= total RAPM)
 function onoffSortBy(key) {
   if (onoffSort.key === key) onoffSort.dir = -onoffSort.dir;
   else { onoffSort.key = key; onoffSort.dir = (key === 'name') ? 1 : -1; }
@@ -8585,34 +8585,98 @@ function renderOnOffView() {
     return { name: playerName, team: playerTeam, on: computeOnOff(onSegs), off: computeOnOff(offSegs) };
   }).filter(Boolean);
 
-  // One row per player from the ON-court line (the leaderboard/lineup table
-  // format), plus an On/Off net swing. Sortable by any column.
+  /* OFF is team-total-minus-player, exactly as compute_moorpark_lineups.py does it:
+       off_net40 = (team_pm - pm_on) / off_min * 40
+     so OFF is defined even for a player who never sits. */
+  const teamTot = {};                              // `${sessionId}|${team}` -> {pm, mins}
+  const segRecs = [];                              // one record per completed stint (RAPM)
+  for (const sess of filtered) {
+    for (const t of teamsToShow) {
+      for (const seg of (sess.lineupSegments || [])) {
+        if (seg.endTimeSecs === null) continue;
+        const lineup = t === 'a' ? seg.lineupA : seg.lineupB;
+        if (!lineup || !lineup.length) continue;
+        const st = segStats(sess, [seg], t);
+        const mins = parseFloat(st.min) || 0;
+        const k = sess.id + '|' + t;
+        if (!teamTot[k]) teamTot[k] = { pm: 0, mins: 0 };
+        teamTot[k].pm += (st.pts || 0) - (st.oppPts || 0);
+        teamTot[k].mins += mins;
+        segRecs.push({ key: k, players: lineup.slice(), mins,
+                       pf: st.pts || 0, pa: st.oppPts || 0, poss: st.poss || 0 });
+      }
+    }
+  }
+
   const flat = rows.map(r => {
-    const on = r.on, off = r.off;
-    const g  = (k) => on  ? on[k]  : null;   // on-court value
-    const go = (k) => off ? off[k] : null;   // off-court value
-    const d  = (k) => (on && off && on[k] != null && off[k] != null)
-      ? +(on[k] - off[k]).toFixed(1) : null; // on − off
+    const on = r.on;
+    const g  = (k) => on ? on[k] : null;
+    const onMin = g('min') || 0, onPm = g('pm') || 0;
+    // Team totals for only the session/team combinations this player actually appeared in.
+    let tmPm = 0, tmMin = 0;
+    const seen = new Set();
+    for (const rec of segRecs) {
+      if (!rec.players.includes(r.name) || seen.has(rec.key)) continue;
+      seen.add(rec.key);
+      tmPm += teamTot[rec.key].pm; tmMin += teamTot[rec.key].mins;
+    }
+    const offMin   = Math.max(tmMin - onMin, 1.0);
+    const onNet40  = onMin > 0 ? +((onPm / onMin) * 40).toFixed(1) : 0;
+    const offNet40 = +(((tmPm - onPm) / offMin) * 40).toFixed(1);
     return {
       name: r.name, team: r.team,
-      possOn: g('poss'), possOff: go('poss'),
-      // Leaderboard parity: MIN, raw PM, and the on/off triplet on per-40 net.
-      minOn: g('min'), pmOn: g('pm'),
-      net40On: g('net40'), net40Off: go('net40'), net40D: d('net40'),
-      ortgOn: g('ortg'), ortgOff: go('ortg'), ortgD: d('ortg'),
-      drtgOn: g('drtg'), drtgOff: go('drtg'), drtgD: d('drtg'),
-      netOn:  g('net'),  netOff:  go('net'),  netD:  d('net'),
-      // Four factors, on / off / diff — offense then defense
-      efgOn: g('efg'), efgOff: go('efg'), efgD: d('efg'),
-      orebOn: g('orebPct'), orebOff: go('orebPct'), orebD: d('orebPct'),
-      tovOn: g('tovPct'), tovOff: go('tovPct'), tovD: d('tovPct'),
-      ftrOn: g('ftr'), ftrOff: go('ftr'), ftrD: d('ftr'),
-      dEfgOn: g('dEfg'), dEfgOff: go('dEfg'), dEfgD: d('dEfg'),
-      dOrebOn: g('dOrebPct'), dOrebOff: go('dOrebPct'), dOrebD: d('dOrebPct'),
-      dTovOn: g('dTovPct'), dTovOff: go('dTovPct'), dTovD: d('dTovPct'),
-      dFtrOn: g('dFtr'), dFtrOff: go('dFtr'), dFtrD: d('dFtr'),
+      min: Math.round(onMin), pm: Math.round(onPm),
+      onNet40, offNet40, onoff: +(onNet40 - offNet40).toFixed(1),
+      ortg: g('ortg'), drtg: g('drtg'), net100: g('net'),
     };
   });
+
+  /* Ridge RAPM — λ=50, minute-weighted, centred on the roster average.
+     ORAPM regresses lineup offensive rating; DRAPM regresses negated points
+     allowed (so + = better defence); RAPM = ORAPM + DRAPM, and APM == RAPM. */
+  (function () {
+    const names = flat.map(r => r.name);
+    const idx = {}; names.forEach((n, i) => { idx[n] = i; });
+    const n = names.length;
+    const obs = segRecs.filter(s => s.poss >= 4);
+    if (!n || !obs.length) { flat.forEach(r => { r.orapm = r.drapm = r.rapm = r.apm = null; }); return; }
+
+    function ridge(yOf) {
+      const A = Array.from({ length: n }, () => new Float64Array(n));
+      const b = new Float64Array(n);
+      for (const s of obs) {
+        const w = s.mins, y = yOf(s);
+        const on = s.players.map(pn => idx[pn]).filter(i => i != null);
+        for (const i of on) { b[i] += w * y; for (const j of on) A[i][j] += w; }
+      }
+      for (let i = 0; i < n; i++) A[i][i] += 50.0;
+      const M = A.map((row, i) => Array.from(row).concat([b[i]]));
+      for (let c = 0; c < n; c++) {                       // Gauss-Jordan, partial pivot
+        let piv = c;
+        for (let r2 = c + 1; r2 < n; r2++) if (Math.abs(M[r2][c]) > Math.abs(M[piv][c])) piv = r2;
+        if (Math.abs(M[piv][c]) < 1e-9) continue;
+        const tmp = M[c]; M[c] = M[piv]; M[piv] = tmp;
+        for (let r2 = 0; r2 < n; r2++) {
+          if (r2 === c) continue;
+          const f = M[r2][c] / M[c][c];
+          if (!f) continue;
+          for (let k = c; k <= n; k++) M[r2][k] -= f * M[c][k];
+        }
+      }
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(Math.abs(M[i][i]) < 1e-9 ? 0 : M[i][n] / M[i][i]);
+      const mean = out.reduce((a, v) => a + v, 0) / n;
+      return out.map(v => v - mean);
+    }
+    const co = ridge(s => s.poss > 0 ?  (s.pf / s.poss) * 100 : 0);
+    const cd = ridge(s => s.poss > 0 ? -(s.pa / s.poss) * 100 : 0);
+    flat.forEach((r, i) => {
+      r.orapm = +co[i].toFixed(1);
+      r.drapm = +cd[i].toFixed(1);
+      r.rapm  = +(co[i] + cd[i]).toFixed(1);
+      r.apm   = r.rapm;
+    });
+  })();
 
   const sk = onoffSort.key, sd = onoffSort.dir;
   flat.sort((a, b) => {
@@ -8661,26 +8725,21 @@ function renderOnOffView() {
   /* Mirrors the WSC leaderboard's on/off layout: On / Off / Diff for the NET rating
      (its on_net40 / off_net40 / onoff), with everything else shown on-court only. */
   const trs = flat.map(r => {
-    // No White/Black badge — players rotate between teams across sessions.
+    // Column set copied from the leaderboard's on/off player table.
     return `<tr>
       <td class="oo-name-col">${escHtml(r.name)}</td>
-      <td>${r.minOn == null ? '—' : Math.round(r.minOn)}</td>
-      <td>${r.possOn == null ? '—' : Math.round(r.possOn)}</td>
-      ${netCell(r.pmOn)}
-      ${netCell(r.net40On,  'oo-rating-col')}
-      ${netCell(r.net40Off, 'oo-rating-col')}
-      ${diffCell(r.net40D, true, 'oo-rating-col')}
-      ${cc(r.ortgOn, 110, 95, false, '', 'oo-rating-col')}
-      ${cc(r.drtgOn, 95, 110, true, '', 'oo-rating-col')}
-      ${netCell(r.netOn, 'oo-rating-col')}
-      ${cc(r.efgOn, 55, 42, false)}
-      ${cc(r.orebOn, 30, 18, false)}
-      ${cc(r.tovOn, 15, 22, true)}
-      ${cc(r.ftrOn, 35, 20, false)}
-      ${cc(r.dEfgOn, 42, 55, true, '%', 'oo-def-sep')}
-      ${cc(r.dOrebOn, 25, 35, true)}
-      ${cc(r.dTovOn, 22, 15, false)}
-      ${cc(r.dFtrOn, 20, 35, true)}
+      <td>${r.min == null ? '\u2014' : r.min}</td>
+      ${netCell(r.pm)}
+      ${netCell(r.onNet40,  'oo-rating-col')}
+      ${netCell(r.offNet40, 'oo-rating-col')}
+      ${diffCell(r.onoff, true, 'oo-rating-col')}
+      ${cc(r.ortg, 110, 95, false, '', 'oo-rating-col')}
+      ${cc(r.drtg, 95, 110, true, '', 'oo-rating-col')}
+      ${netCell(r.net100, 'oo-rating-col')}
+      ${netCell(r.orapm)}
+      ${netCell(r.drapm)}
+      ${netCell(r.rapm)}
+      ${netCell(r.apm)}
     </tr>`;
   }).join('');
 
@@ -8696,31 +8755,26 @@ function renderOnOffView() {
       <table class="oo-sort-table">
         <thead><tr>
           ${th('name','Player','oo-name-col')}
-          ${th('minOn','MIN')}
-          ${th('possOn','POSS')}
-          ${th('pmOn','+/−')}
-          ${th('net40On','ON','oo-rating-col')}
-          ${th('net40Off','OFF','oo-rating-col')}
-          ${th('net40D','ON/OFF','oo-rating-col')}
-          ${th('ortgOn','ORTG','oo-rating-col')}
-          ${th('drtgOn','DRTG','oo-rating-col')}
-          ${th('netOn','NET100','oo-rating-col')}
-          ${th('efgOn','EFG%','oo-th-off')}
-          ${th('orebOn','OREB%','oo-th-off')}
-          ${th('tovOn','TO%','oo-th-off')}
-          ${th('ftrOn','FTR','oo-th-off')}
-          ${th('dEfgOn','D-EFG%','oo-th-def oo-def-sep')}
-          ${th('dOrebOn','D-OREB%','oo-th-def')}
-          ${th('dTovOn','D-TO%','oo-th-def')}
-          ${th('dFtrOn','D-FTR','oo-th-def')}
+          ${th('min','MIN')}
+          ${th('pm','+/\u2212')}
+          ${th('onNet40','ON','oo-rating-col')}
+          ${th('offNet40','OFF','oo-rating-col')}
+          ${th('onoff','ON/OFF','oo-rating-col')}
+          ${th('ortg','ORTG','oo-rating-col')}
+          ${th('drtg','DRTG','oo-rating-col')}
+          ${th('net100','NET100','oo-rating-col')}
+          ${th('orapm','ORAPM')}
+          ${th('drapm','DRAPM')}
+          ${th('rapm','RAPM')}
+          ${th('apm','APM')}
         </tr></thead>
         <tbody>${trs}</tbody>
       </table>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--text-dim);">
-      <strong>ON</strong> / <strong>OFF</strong> = team Net per 40 minutes with the player on and off the floor (matches the leaderboard's net40).
-      <strong>ON/OFF</strong> = the difference — the player's impact. <strong>+/−</strong> is raw plus/minus; <strong>NET100</strong> is per-100. Remaining columns are on-court values.
-      Offense in blue, defense in orange. Green = strong, red = weak vs. thresholds. Click any header to sort.
+      <strong>ON</strong>/<strong>OFF</strong> = team Net per 40 min with the player on/off the floor; <strong>ON/OFF</strong> is the difference.
+      OFF is the team total minus the player, so it is defined even for players who never sit. <strong>ORAPM/DRAPM/RAPM</strong> are
+      ridge-regressed (λ=50, minute-weighted, centred on roster average); <strong>APM</strong> = total RAPM. Click any header to sort.
     </div>`;
 }
 
