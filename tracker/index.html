@@ -2492,9 +2492,9 @@
     }
     .oo-imp-tbl tbody td.oo-imp-on  { font-weight: 700; }
     .oo-imp-tbl tbody td.oo-imp-off { color: #000; }
-    .oo-imp-diff { font-weight: 700; color: #777; }
-    .oo-imp-good { color: #1a7a3a; }
-    .oo-imp-bad  { color: #b3261e; }
+    .oo-imp-diff { font-weight: 800; color: #444; }
+    .oo-imp-good { color: #0f9d3a; }
+    .oo-imp-bad  { color: #e0342c; }
     @media (max-width: 1100px) { .oo-imp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px)  { .oo-imp-grid { grid-template-columns: 1fr; } .oo-imp-note { text-align: left; } }
 
@@ -8706,7 +8706,8 @@ function renderOnOffView() {
       if (on != null && off != null && !isNaN(on) && !isNaN(off)) {
         const dv = on - off;
         const good = higherBetter == null ? null : (higherBetter ? dv > 0 : dv < 0);
-        const cls = (Math.abs(dv) < 1e-9 || good == null) ? '' : (good ? ' oo-imp-good' : ' oo-imp-bad');
+        const up = good == null ? dv > 0 : good;   // neutral metrics colour by sign
+        const cls = Math.abs(dv) < 1e-9 ? '' : (up ? ' oo-imp-good' : ' oo-imp-bad');
         diffHtml = '<td class="oo-imp-diff' + cls + '">' + (dv > 0 ? '+' : '') + dv.toFixed(dec) + suf + '</td>';
       }
       return '<tr><th>' + escHtml(label) + '</th>' +
