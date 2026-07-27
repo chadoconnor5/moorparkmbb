@@ -8013,40 +8013,30 @@ function segStats(session, segments, team) {
     // Get all non-sub events in this quarter
     const quarterEvents = ev.filter(e => e.quarter === seg.quarter && e.type !== 'sub');
 
-    /* Split the quarter's untimed events across its stints in proportion to how long
-       each stint actually lasted. Splitting evenly by count credited zero-second stints
-       (a sub logged without advancing the clock) with a full share of the action. */
-    function shareByDuration() {
-      const durs = quarterSegs.map(function (q) {
-        const st = q.seg.startTimeSecs == null ? dur : q.seg.startTimeSecs;
-        return q.seg.endTimeSecs == null ? 0 : Math.abs(st - q.seg.endTimeSecs);
-      });
-      const totalDur = durs.reduce(function (a, b) { return a + b; }, 0);
-      if (totalDur <= 0) {                      // no usable durations — fall back to an even split
-        const chunk = Math.ceil(quarterEvents.length / Math.max(1, totalSegsInQuarter));
-        return quarterEvents.slice(segPosInQuarter * chunk, segPosInQuarter * chunk + chunk);
+    /* Attribute events to stints the way the tracker records them: the event log is
+       chronological and every substitution closes one stint and opens the next, using the
+       clock time entered at that sub. So walk the quarter's events in order and advance to
+       the next stint when a sub's time matches that stint's start. Exact - no estimation.
+       A sub only advances the pointer when its clock matches the NEXT stint's start, so a
+       multi-player swap (several sub events, one boundary) advances just once. */
+    function eventsForThisStint() {
+      const qEvents = ev.filter(e => e.quarter === seg.quarter);
+      const qSegs   = quarterSegs.map(x => x.seg);
+      const out = [];
+      let p = 0;
+      for (const e of qEvents) {
+        if (e.type === 'sub') {
+          const next = qSegs[p + 1];
+          if (next && next.startTimeSecs != null && e.timeSecs != null
+              && next.startTimeSecs === e.timeSecs) p++;
+          continue;
+        }
+        if (p === segPosInQuarter) out.push(e);
       }
-      let before = 0;
-      for (let i = 0; i < segPosInQuarter; i++) before += durs[i];
-      const lo = Math.round(before / totalDur * quarterEvents.length);
-      const hi = Math.round((before + durs[segPosInQuarter]) / totalDur * quarterEvents.length);
-      return quarterEvents.slice(lo, hi);
+      return out;
     }
 
-    let segEvents;
-    if (seg.startTimeSecs != null && seg.endTimeSecs != null) {
-      // Events have timeSecs — use time window
-      const lo = Math.min(seg.endTimeSecs, seg.startTimeSecs);
-      const hi = Math.max(seg.endTimeSecs, seg.startTimeSecs);
-      const timeFiltered = quarterEvents.filter(e => e.timeSecs != null && e.timeSecs >= lo && e.timeSecs <= hi);
-      // Only trust the time window when EVERY event in the quarter carries a clock time.
-      // Most events are logged without one, and the old test (`some(...)`) silently dropped
-      // all untimed events in any quarter that had a single timed one.
-      const allTimed = quarterEvents.length > 0 && quarterEvents.every(e => e.timeSecs != null);
-      segEvents = allTimed ? timeFiltered : shareByDuration();
-    } else {
-      segEvents = shareByDuration();
-    }
+    let segEvents = eventsForThisStint();
 
     for (const e of segEvents) {
       if (e.team === team) {
