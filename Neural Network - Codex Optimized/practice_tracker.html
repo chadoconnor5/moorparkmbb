@@ -6516,7 +6516,7 @@ function renderShotChartView() {
   const teamAStyle = scFilter.team !== 'a' ? 'color:#60a5fa;border-color:#60a5fa;' : '';
   const teamBStyle = scFilter.team !== 'b' ? 'color:#fb923c;border-color:#fb923c;' : '';
 
-  const courtSvg = buildCourtSvg(shots);
+  const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots) : buildCourtSvg(shots);
 
   const rightPanel = `
         <div class="sc-legend">
@@ -6548,6 +6548,11 @@ function renderShotChartView() {
         <button class="sc-pill${scFilter.mode === 'all'    ? ' active' : ''}" onclick="scSetFilter('mode','all')">All</button>
         <button class="sc-pill${scFilter.mode === 'makes'  ? ' active' : ''}" onclick="scSetFilter('mode','makes')">Makes</button>
         <button class="sc-pill${scFilter.mode === 'misses' ? ' active' : ''}" onclick="scSetFilter('mode','misses')">Misses</button>
+      </div>
+      <div class="sc-filter-group">
+        <span class="sc-filter-label">View</span>
+        <button class="sc-pill${scFilter.view !== 'zones' ? ' active' : ''}" onclick="scSetFilter('view','dots')">Dots</button>
+        <button class="sc-pill${scFilter.view === 'zones' ? ' active' : ''}" onclick="scSetFilter('view','zones')">Zones</button>
       </div>
       <div class="sc-filter-group">
         <span class="sc-filter-label">Team</span>
@@ -6627,6 +6632,78 @@ function scClearAllFilters() {
 }
 
 /* ── Build SVG half-court with shot dots ── */
+/* Zone heat map: fills each drawn zone by its FG%, light (cold) to dark (hot),
+   with the percentage and makes/attempts inside — mirrors the Hudl zone report. */
+function buildZoneHeatSvg(shots) {
+  const zones = State.zones || [];
+  if (!zones.length) {
+    return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+      COURT_SVG_LINES +
+      '<text x="250" y="240" text-anchor="middle" fill="#8b95b5" font-size="15" font-family="system-ui,sans-serif">No zones drawn yet</text>' +
+      '<text x="250" y="264" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">Use the Zones tab to draw them</text>' +
+      '</svg>';
+  }
+
+  const tally = {};
+  zones.forEach(z => { tally[z.id] = { m: 0, a: 0 }; });
+  let unzoned = 0;
+  for (const ev of shots) {
+    const z = znZoneForShot(ev);
+    if (!z) { unzoned++; continue; }
+    tally[z.id].a++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[z.id].m++;
+  }
+
+  /* Diverging red -> white -> green, centred on this selection's overall FG% so a
+     zone reads as better (green) or worse (red) than how they shot everywhere else.
+     +/- 20 percentage points from the midpoint saturates the colour. */
+  const madeAll = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
+  const mid = shots.length ? (100 * madeAll / shots.length) : 45;
+  const SPREAD = 20;
+  const heat = pct => {
+    if (pct == null) return '#f4f6f9';
+    const t = Math.max(-1, Math.min(1, (pct - mid) / SPREAD));   // -1 cold .. +1 hot
+    const white = [255, 255, 255];
+    const end = t >= 0 ? [22, 163, 74] : [220, 38, 38];          // green / red
+    const k = Math.abs(t);
+    return 'rgb(' + white.map((v, i) => Math.round(v + (end[i] - v) * k)).join(',') + ')';
+  };
+
+  const bodies = zones.map(z => {
+    const t = tally[z.id];
+    const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
+    return '<path d="' + znPathD(z.pts, z.closeC, true) + '" fill="' + heat(pct) +
+           '" stroke="#ffffff" stroke-width="2.5" stroke-opacity="0.85"><title>' +
+           escHtml(z.name) + (t.a ? ' — ' + t.m + '/' + t.a + ' (' + pct + '%)' : ' — no shots') +
+           '</title></path>';
+  }).join('');
+
+  const labels = zones.map(z => {
+    const t = tally[z.id];
+    const poly = znPolygon(z);
+    if (!poly.length) return '';
+    const cx = poly.reduce((a, q) => a + q.x, 0) / poly.length;
+    const cy = poly.reduce((a, q) => a + q.y, 0) / poly.length;
+    const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
+    // Bold black percentage, makes-attempts hyphenated underneath.
+    return '<text x="' + cx.toFixed(0) + '" y="' + (cy - 4).toFixed(0) + '" text-anchor="middle" font-size="22" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
+             (pct == null ? '&#8212;' : pct + '%') + '</text>' +
+           '<text x="' + cx.toFixed(0) + '" y="' + (cy + 15).toFixed(0) + '" text-anchor="middle" font-size="13" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
+             t.m + '-' + t.a + '</text>';
+  }).join('');
+
+  const made = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
+  const foot = shots.length
+    ? made + '/' + shots.length + ' FGM (' + Math.round(100 * made / shots.length) + '%)' +
+      (unzoned ? ' · ' + unzoned + ' outside any zone' : '')
+    : 'No shots charted';
+
+  return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+    COURT_SVG_LINES + bodies + COURT_MARKINGS_ONLY + labels +
+    '<text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">' + foot + '</text>' +
+    '</svg>';
+}
+
 function buildCourtSvg(shots) {
   const dots = shots.map(ev => {
     let cx, cy;

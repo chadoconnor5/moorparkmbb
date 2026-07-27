@@ -2452,6 +2452,23 @@
 
     /* On/Off player cards */
     .oo-cards { display: flex; flex-direction: column; gap: 10px; }
+    /* ── Zone editor ── */
+    .zn-wrap { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; margin-top: 14px; }
+    .zn-court { flex: 1 1 460px; max-width: 560px; }
+    .zn-court svg { width: 100%; height: auto; display: block; cursor: crosshair;
+      background: #0d1117; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    .zn-side { flex: 1 1 260px; min-width: 240px; }
+    .zn-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .zn-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; margin-bottom: 10px; }
+    .zn-list { display: flex; flex-direction: column; gap: 6px; }
+    .zn-item { display: flex; align-items: center; gap: 8px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius-md); padding: 7px 10px; }
+    .zn-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+    .zn-name { flex: 1; font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .zn-count { font-size: 11px; color: var(--text-dim); }
+    .zn-handle { cursor: grab; }
+    .zn-handle:active { cursor: grabbing; }
+
     /* ── Player On-Court Impact cards (mirrors the leaderboard layout) ── */
     .oo-imp-bar {
       display: flex; justify-content: space-between; align-items: center;
@@ -3121,6 +3138,7 @@
     <button class="nav-tab"        data-tab="onoff"     onclick="switchTab('onoff',this)">On/Off</button>
     <button class="nav-tab"        data-tab="lineups"   onclick="switchTab('lineups',this)">Lineups</button>
     <button class="nav-tab"        data-tab="notes"     onclick="switchTab('notes',this)">Notes</button>
+    <button class="nav-tab editor-only" data-tab="zones" onclick="switchTab('zones',this)">Zones</button>
     <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
     <button class="nav-tab editor-only" id="nav-publish" style="margin-left:auto;" onclick="publishData()" title="Download pt_data.json to publish the latest data to the live site (password required)">&#8593; Publish</button>
     <button class="nav-tab editor-only" id="nav-backup" onclick="backupWithPassword()" title="Download a full backup (password required): sessions, roster, and settings">&#11015; Backup</button>
@@ -3487,6 +3505,10 @@
     </div>
   </div>
 
+  <div id="tab-zones" class="tab-content">
+    <div id="zones-root" class="page"></div>
+  </div>
+
   <div id="tab-notes" class="tab-content">
     <div id="notes-root" class="page">
       <div class="placeholder">
@@ -3785,6 +3807,7 @@
 const State = {
   roster:      [],      // loaded from #roster-data
   settings:    {},      // loaded from #settings-data
+  zones:       [],      // shot-chart zones drawn in the Zones tab
   sessions:    [],      // all completed sessions (from localStorage)
   liveSession: null,    // currently active session (in-progress)
 };
@@ -3823,6 +3846,12 @@ function loadPersistentData() {
   }
   // Saved roster overrides the embedded seed, so roster edits survive
   // without hand-editing this HTML file.
+  try {
+    const raw = localStorage.getItem('pt_zones');
+    if (raw) { const z = JSON.parse(raw); if (Array.isArray(z)) State.zones = z; }
+  } catch(e) {
+    console.warn('Failed to load zones from localStorage:', e);
+  }
   try {
     const raw = localStorage.getItem('pt_roster');
     if (raw) {
@@ -3975,6 +4004,7 @@ async function publishData() {
     publishedAt: new Date().toISOString(),
     roster: State.roster,
     settings: State.settings,
+    zones: State.zones,
     sessions: getSessions(),   // all completed sessions (exhibition flag travels with them)
   };
   downloadTextFile('pt_data.json', JSON.stringify(payload), 'application/json');
@@ -5002,6 +5032,7 @@ function exportAllSessions() {
     exportedAt: new Date().toISOString(),
     roster: State.roster,
     settings: State.settings,
+    zones: State.zones,
     sessions: getSessions(),
   };
   if (!backup.sessions.length && !backup.roster.length) { showToast('Nothing to back up yet', 'warning'); return; }
@@ -5355,6 +5386,9 @@ function importSessions() {
       }
       if (isBackup && data.settings && typeof data.settings === 'object') {
         State.settings = Object.assign({}, State.settings, data.settings);
+      }
+      if (isBackup && Array.isArray(data.zones) && data.zones.length) {
+        State.zones = data.zones; znPersist();
       }
       if (added > 0) persistSessions();
       if (added > 0 || rosterRestored) {
@@ -6482,7 +6516,7 @@ function renderShotChartView() {
   const teamAStyle = scFilter.team !== 'a' ? 'color:#60a5fa;border-color:#60a5fa;' : '';
   const teamBStyle = scFilter.team !== 'b' ? 'color:#fb923c;border-color:#fb923c;' : '';
 
-  const courtSvg = buildCourtSvg(shots);
+  const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots) : buildCourtSvg(shots);
 
   const rightPanel = `
         <div class="sc-legend">
@@ -6514,6 +6548,11 @@ function renderShotChartView() {
         <button class="sc-pill${scFilter.mode === 'all'    ? ' active' : ''}" onclick="scSetFilter('mode','all')">All</button>
         <button class="sc-pill${scFilter.mode === 'makes'  ? ' active' : ''}" onclick="scSetFilter('mode','makes')">Makes</button>
         <button class="sc-pill${scFilter.mode === 'misses' ? ' active' : ''}" onclick="scSetFilter('mode','misses')">Misses</button>
+      </div>
+      <div class="sc-filter-group">
+        <span class="sc-filter-label">View</span>
+        <button class="sc-pill${scFilter.view !== 'zones' ? ' active' : ''}" onclick="scSetFilter('view','dots')">Dots</button>
+        <button class="sc-pill${scFilter.view === 'zones' ? ' active' : ''}" onclick="scSetFilter('view','zones')">Zones</button>
       </div>
       <div class="sc-filter-group">
         <span class="sc-filter-label">Team</span>
@@ -6593,6 +6632,78 @@ function scClearAllFilters() {
 }
 
 /* ── Build SVG half-court with shot dots ── */
+/* Zone heat map: fills each drawn zone by its FG%, light (cold) to dark (hot),
+   with the percentage and makes/attempts inside — mirrors the Hudl zone report. */
+function buildZoneHeatSvg(shots) {
+  const zones = State.zones || [];
+  if (!zones.length) {
+    return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+      COURT_SVG_LINES +
+      '<text x="250" y="240" text-anchor="middle" fill="#8b95b5" font-size="15" font-family="system-ui,sans-serif">No zones drawn yet</text>' +
+      '<text x="250" y="264" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">Use the Zones tab to draw them</text>' +
+      '</svg>';
+  }
+
+  const tally = {};
+  zones.forEach(z => { tally[z.id] = { m: 0, a: 0 }; });
+  let unzoned = 0;
+  for (const ev of shots) {
+    const z = znZoneForShot(ev);
+    if (!z) { unzoned++; continue; }
+    tally[z.id].a++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[z.id].m++;
+  }
+
+  /* Diverging red -> white -> green, centred on this selection's overall FG% so a
+     zone reads as better (green) or worse (red) than how they shot everywhere else.
+     +/- 20 percentage points from the midpoint saturates the colour. */
+  const madeAll = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
+  const mid = shots.length ? (100 * madeAll / shots.length) : 45;
+  const SPREAD = 20;
+  const heat = pct => {
+    if (pct == null) return '#f4f6f9';
+    const t = Math.max(-1, Math.min(1, (pct - mid) / SPREAD));   // -1 cold .. +1 hot
+    const white = [255, 255, 255];
+    const end = t >= 0 ? [22, 163, 74] : [220, 38, 38];          // green / red
+    const k = Math.abs(t);
+    return 'rgb(' + white.map((v, i) => Math.round(v + (end[i] - v) * k)).join(',') + ')';
+  };
+
+  const bodies = zones.map(z => {
+    const t = tally[z.id];
+    const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
+    return '<path d="' + znPathD(z.pts, z.closeC, true) + '" fill="' + heat(pct) +
+           '" stroke="#ffffff" stroke-width="2.5" stroke-opacity="0.85"><title>' +
+           escHtml(z.name) + (t.a ? ' — ' + t.m + '/' + t.a + ' (' + pct + '%)' : ' — no shots') +
+           '</title></path>';
+  }).join('');
+
+  const labels = zones.map(z => {
+    const t = tally[z.id];
+    const poly = znPolygon(z);
+    if (!poly.length) return '';
+    const cx = poly.reduce((a, q) => a + q.x, 0) / poly.length;
+    const cy = poly.reduce((a, q) => a + q.y, 0) / poly.length;
+    const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
+    // Bold black percentage, makes-attempts hyphenated underneath.
+    return '<text x="' + cx.toFixed(0) + '" y="' + (cy - 4).toFixed(0) + '" text-anchor="middle" font-size="22" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
+             (pct == null ? '&#8212;' : pct + '%') + '</text>' +
+           '<text x="' + cx.toFixed(0) + '" y="' + (cy + 15).toFixed(0) + '" text-anchor="middle" font-size="13" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
+             t.m + '-' + t.a + '</text>';
+  }).join('');
+
+  const made = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
+  const foot = shots.length
+    ? made + '/' + shots.length + ' FGM (' + Math.round(100 * made / shots.length) + '%)' +
+      (unzoned ? ' · ' + unzoned + ' outside any zone' : '')
+    : 'No shots charted';
+
+  return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+    COURT_SVG_LINES + bodies + COURT_MARKINGS_ONLY + labels +
+    '<text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">' + foot + '</text>' +
+    '</svg>';
+}
+
 function buildCourtSvg(shots) {
   const dots = shots.map(ev => {
     let cx, cy;
@@ -8391,6 +8502,256 @@ function lineupSliderUpdate(val) {
   const valEl = document.getElementById('lu-poss-val');
   if (valEl) valEl.textContent = val;
   _luRenderTbody();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ZONE EDITOR — draw shot-chart zones over the court
+   A zone is a closed path of anchor points. Each segment is a straight line
+   unless it carries a control point (c), which bends it into a quadratic curve.
+   Stored in localStorage under pt_zones and travels with backups/publish.
+───────────────────────────────────────────────────────────── */
+const ZONE_COLORS = ['#4f6ef7','#22c55e','#f5c542','#ef4444','#a855f7','#06b6d4',
+                     '#f97316','#ec4899','#84cc16','#14b8a6','#8b5cf6','#eab308'];
+
+let znDraft = null;          // { pts:[{x,y,c:{x,y}|null}], closeC:{x,y}|null }
+let znDrag = null;           // { kind:'anchor'|'mid'|'close', i }
+let znSelected = null;       // id of the zone being edited
+
+function znNextColor() {
+  const used = (State.zones || []).map(z => z.color);
+  return ZONE_COLORS.find(c => !used.includes(c)) || ZONE_COLORS[(State.zones || []).length % ZONE_COLORS.length];
+}
+
+/* SVG path for a zone/draft. `closed` adds the return segment to the first point. */
+function znPathD(pts, closeC, closed) {
+  if (!pts || !pts.length) return '';
+  let d = 'M ' + pts[0].x + ',' + pts[0].y;
+  for (let i = 1; i < pts.length; i++) {
+    const q = pts[i];
+    d += q.c ? ' Q ' + q.c.x + ',' + q.c.y + ' ' + q.x + ',' + q.y
+             : ' L ' + q.x + ',' + q.y;
+  }
+  if (closed && pts.length > 2) {
+    d += closeC ? ' Q ' + closeC.x + ',' + closeC.y + ' ' + pts[0].x + ',' + pts[0].y : ' Z';
+    if (closeC) d += ' Z';
+  }
+  return d;
+}
+
+/* Flatten to a polygon so shots can be tested against the zone. */
+function znPolygon(z) {
+  const out = [];
+  const pts = z.pts || [];
+  const quad = (p0, c, p1) => {
+    for (let t = 0.1; t <= 1.0001; t += 0.1) {
+      const m = 1 - t;
+      out.push({ x: m * m * p0.x + 2 * m * t * c.x + t * t * p1.x,
+                 y: m * m * p0.y + 2 * m * t * c.y + t * t * p1.y });
+    }
+  };
+  if (!pts.length) return out;
+  out.push({ x: pts[0].x, y: pts[0].y });
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].c) quad(pts[i - 1], pts[i].c, pts[i]);
+    else out.push({ x: pts[i].x, y: pts[i].y });
+  }
+  if (z.closeC) quad(pts[pts.length - 1], z.closeC, pts[0]);
+  return out;
+}
+
+function znContains(z, x, y) {
+  const poly = z._poly || (z._poly = znPolygon(z));
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+/* Which zone a shot falls in (first match wins). */
+function znZoneForShot(ev) {
+  if (ev.shotX == null || ev.shotY == null) return null;
+  const x = ev.shotX * 500, y = ev.shotY * 485;
+  for (const z of (State.zones || [])) if (znContains(z, x, y)) return z;
+  return null;
+}
+
+function znPersist() {
+  (State.zones || []).forEach(z => { delete z._poly; });
+  return persistKey('pt_zones', JSON.stringify(State.zones || []));
+}
+
+function znStart() { znDraft = { pts: [], closeC: null }; znSelected = null; renderZonesView(); }
+function znCancel() { znDraft = null; znDrag = null; renderZonesView(); }
+function znUndoPoint() { if (znDraft && znDraft.pts.length) { znDraft.pts.pop(); renderZonesView(); } }
+
+function znSave() {
+  if (!znDraft || znDraft.pts.length < 3) { showToast('A zone needs at least 3 points', 'warning'); return; }
+  const name = (prompt('Name this zone:', 'Zone ' + ((State.zones || []).length + 1)) || '').trim();
+  if (!name) return;
+  State.zones = State.zones || [];
+  if (znSelected) {
+    const z = State.zones.find(x => x.id === znSelected);
+    if (z) { z.name = name; z.pts = znDraft.pts; z.closeC = znDraft.closeC; delete z._poly; }
+  } else {
+    State.zones.push({ id: 'zone_' + Date.now(), name: name, color: znNextColor(),
+                       pts: znDraft.pts, closeC: znDraft.closeC });
+  }
+  znPersist();
+  znDraft = null; znSelected = null;
+  showToast('Zone saved: ' + name, 'success');
+  renderZonesView();
+}
+
+function znEdit(id) {
+  const z = (State.zones || []).find(x => x.id === id);
+  if (!z) return;
+  znSelected = id;
+  znDraft = { pts: JSON.parse(JSON.stringify(z.pts)), closeC: z.closeC ? Object.assign({}, z.closeC) : null };
+  renderZonesView();
+}
+
+function znDelete(id) {
+  const z = (State.zones || []).find(x => x.id === id);
+  if (!z || !confirm('Delete zone "' + z.name + '"?')) return;
+  State.zones = State.zones.filter(x => x.id !== id);
+  znPersist();
+  if (znSelected === id) { znSelected = null; znDraft = null; }
+  renderZonesView();
+}
+
+/* Click position -> court coordinates (viewBox is 0 0 500 485). */
+function _znPt(e) {
+  const svg = document.getElementById('zn-svg');
+  const r = svg.getBoundingClientRect();
+  return { x: Math.round((e.clientX - r.left) / r.width * 500),
+           y: Math.round((e.clientY - r.top) / r.height * 485) };
+}
+
+function znCourtClick(e) {
+  if (!znDraft || znDrag) return;
+  znDraft.pts.push(Object.assign(_znPt(e), { c: null }));
+  renderZonesView();
+}
+
+function znGrab(e, kind, i) {
+  e.preventDefault(); e.stopPropagation();
+  znDrag = { kind: kind, i: i };
+  const move = ev => {
+    if (!znDraft || !znDrag) return;
+    const pt = _znPt(ev);
+    if (znDrag.kind === 'anchor') { znDraft.pts[znDrag.i].x = pt.x; znDraft.pts[znDrag.i].y = pt.y; }
+    else if (znDrag.kind === 'mid') znDraft.pts[znDrag.i].c = pt;   // bend that segment
+    else znDraft.closeC = pt;                                       // bend the closing segment
+    _znRedraw();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    znDrag = null; renderZonesView();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+/* Live path update while dragging (avoids a full re-render per mouse move). */
+function _znRedraw() {
+  const path = document.getElementById('zn-draft-path');
+  if (path && znDraft) path.setAttribute('d', znPathD(znDraft.pts, znDraft.closeC, true));
+}
+
+tabRenderers.zones = function () { renderZonesView(); };
+
+function renderZonesView() {
+  const root = document.getElementById('zones-root');
+  if (!root) return;
+  State.zones = State.zones || [];
+
+  // Shot counts per zone, so you can see coverage as you draw.
+  const shots = getSessions().filter(x => x.completed && !x.excludeFromStats)
+    .flatMap(x => (x.eventLog || []).filter(e =>
+      ['2fg_make','2fg_miss','3fg_make','3fg_miss'].includes(e.stat) && e.shotX != null));
+  const counts = {};
+  for (const ev of shots) { const z = znZoneForShot(ev); if (z) counts[z.id] = (counts[z.id] || 0) + 1; }
+
+  const saved = State.zones.map(z => {
+    const editing = znSelected === z.id;
+    return '<path d="' + znPathD(z.pts, z.closeC, true) + '" fill="' + z.color +
+           '" fill-opacity="' + (editing ? 0.10 : 0.28) + '" stroke="' + z.color +
+           '" stroke-width="2" stroke-opacity="' + (editing ? 0.35 : 0.9) + '"/>';
+  }).join('');
+
+  let draftSvg = '';
+  if (znDraft) {
+    const pts = znDraft.pts;
+    draftSvg += '<path id="zn-draft-path" d="' + znPathD(pts, znDraft.closeC, true) +
+                '" fill="#fff" fill-opacity="0.10" stroke="#fff" stroke-width="2" stroke-dasharray="6 4"/>';
+    // Anchors
+    pts.forEach((q, i) => {
+      draftSvg += '<circle class="zn-handle" cx="' + q.x + '" cy="' + q.y + '" r="7" fill="#fff" stroke="#4f6ef7" stroke-width="2" ' +
+                  'onpointerdown="znGrab(event,\'anchor\',' + i + ')"><title>Anchor ' + (i + 1) + ' — drag to move</title></circle>';
+    });
+    // Midpoint handles bend each segment into a curve
+    for (let i = 1; i < pts.length; i++) {
+      const c = pts[i].c || { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
+      draftSvg += '<circle class="zn-handle" cx="' + c.x + '" cy="' + c.y + '" r="5" fill="#f5c542" fill-opacity="' +
+                  (pts[i].c ? 1 : 0.45) + '" stroke="#0d1117" stroke-width="1" ' +
+                  'onpointerdown="znGrab(event,\'mid\',' + i + ')"><title>Drag to curve this edge</title></circle>';
+    }
+    if (pts.length > 2) {
+      const c = znDraft.closeC || { x: (pts[pts.length - 1].x + pts[0].x) / 2, y: (pts[pts.length - 1].y + pts[0].y) / 2 };
+      draftSvg += '<circle class="zn-handle" cx="' + c.x + '" cy="' + c.y + '" r="5" fill="#f5c542" fill-opacity="' +
+                  (znDraft.closeC ? 1 : 0.45) + '" stroke="#0d1117" stroke-width="1" ' +
+                  'onpointerdown="znGrab(event,\'close\',0)"><title>Drag to curve the closing edge</title></circle>';
+    }
+  }
+
+  const labels = State.zones.map(z => {
+    const poly = znPolygon(z);
+    if (!poly.length) return '';
+    const cx = poly.reduce((a, q) => a + q.x, 0) / poly.length;
+    const cy = poly.reduce((a, q) => a + q.y, 0) / poly.length;
+    return '<text x="' + cx.toFixed(0) + '" y="' + cy.toFixed(0) + '" text-anchor="middle" font-size="13" font-weight="700" ' +
+           'fill="#fff" style="pointer-events:none;paint-order:stroke;stroke:#0d1117;stroke-width:3px;">' +
+           escHtml(z.name) + '</text>';
+  }).join('');
+
+  const bar = znDraft
+    ? '<button class="btn btn-primary btn-sm" onclick="znSave()">\u2713 Save Zone</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="znUndoPoint()">\u21b6 Undo Point</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="znCancel()">Cancel</button>' +
+      '<span class="zn-count">' + znDraft.pts.length + ' point' + (znDraft.pts.length === 1 ? '' : 's') + '</span>'
+    : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>';
+
+  const list = State.zones.length
+    ? State.zones.map(z =>
+        '<div class="zn-item">' +
+          '<span class="zn-swatch" style="background:' + z.color + '"></span>' +
+          '<span class="zn-name">' + escHtml(z.name) + '</span>' +
+          '<span class="zn-count">' + (counts[z.id] || 0) + ' shots</span>' +
+          '<button class="btn btn-ghost btn-sm" onclick="znEdit(\'' + z.id + '\')">Edit</button>' +
+          '<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="znDelete(\'' + z.id + '\')">\u2715</button>' +
+        '</div>').join('')
+    : '<div class="zn-hint">No zones yet.</div>';
+
+  root.innerHTML =
+    '<div class="page-header"><div>' +
+      '<div class="page-title">Shot Zones</div>' +
+      '<div class="page-subtitle">' + State.zones.length + ' zone' + (State.zones.length === 1 ? '' : 's') +
+      ' &middot; ' + shots.length + ' charted shots</div>' +
+    '</div></div>' +
+    '<div class="zn-bar">' + bar + '</div>' +
+    '<div class="zn-hint">' +
+      '<strong>Click</strong> the court to drop points. <strong>Drag a white dot</strong> to move it, ' +
+      '<strong>drag a gold dot</strong> to bend that edge into a curve. Three points minimum, then Save.' +
+    '</div>' +
+    '<div class="zn-wrap">' +
+      '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="znCourtClick(event)">' +
+        COURT_SVG_LINES + saved + labels + draftSvg +
+      '</svg></div>' +
+      '<div class="zn-side"><div class="zn-list">' + list + '</div></div>' +
+    '</div>';
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -10625,6 +10986,7 @@ async function loadPublishedData() {
     if (!res.ok) return;
     const data = await res.json();
     if (Array.isArray(data.sessions)) State.sessions = data.sessions;
+    if (Array.isArray(data.zones)) State.zones = data.zones;
     if (Array.isArray(data.roster) && data.roster.length) State.roster = data.roster;
     if (data.settings && typeof data.settings === 'object') State.settings = Object.assign({}, State.settings, data.settings);
     _publishedMode = true;
