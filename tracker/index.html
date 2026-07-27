@@ -8582,6 +8582,83 @@ function znPersist() {
   return persistKey('pt_zones', JSON.stringify(State.zones || []));
 }
 
+/* Snapping keeps edges truly axis-aligned and makes neighbouring zones share
+   exact corners, so there are no 1-degree tilts, slivers or overlaps. */
+const ZN_SNAP = 10;          // court units (~2% of the floor)
+
+/* Every vertex of every OTHER zone, so a click can land exactly on a shared corner. */
+function _znNeighbourPts(excludeId) {
+  const out = [];
+  for (const z of (State.zones || [])) {
+    if (z.id === excludeId) continue;
+    for (const q of (z.pts || [])) out.push({ x: q.x, y: q.y });
+  }
+  return out;
+}
+
+/* Snap a point: first to a neighbouring zone's corner, then square it up with the
+   previous point in this zone. */
+function _znSnap(pt, prev, excludeId) {
+  let best = null, bestD = ZN_SNAP;
+  for (const q of _znNeighbourPts(excludeId)) {
+    const d = Math.hypot(q.x - pt.x, q.y - pt.y);
+    if (d <= bestD) { bestD = d; best = q; }
+  }
+  if (best) return { x: best.x, y: best.y };
+  if (prev) {
+    const dx = Math.abs(pt.x - prev.x), dy = Math.abs(pt.y - prev.y);
+    if (dy <= ZN_SNAP && dx > dy) return { x: pt.x, y: prev.y };   // horizontal
+    if (dx <= ZN_SNAP && dy > dx) return { x: prev.x, y: pt.y };   // vertical
+  }
+  return pt;
+}
+
+/* Clean up every saved zone: square off near-axis edges, then weld corners that
+   sit within a few units of each other so borders meet exactly. */
+function znTidy() {
+  const zones = State.zones || [];
+  if (!zones.length) { showToast('No zones to tidy', 'warning'); return; }
+  let straightened = 0, welded = 0;
+
+  // 1. Straighten: any straight edge that is nearly axis-aligned becomes exactly so.
+  for (const z of zones) {
+    const pts = z.pts || [];
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i].c) continue;                       // leave curves alone
+      const a = pts[i - 1], b = pts[i];
+      const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+      if (dy > 0 && dy <= ZN_SNAP && dx > dy) { const y = Math.round((a.y + b.y) / 2); a.y = y; b.y = y; straightened++; }
+      else if (dx > 0 && dx <= ZN_SNAP && dy > dx) { const x = Math.round((a.x + b.x) / 2); a.x = x; b.x = x; straightened++; }
+    }
+  }
+
+  // 2. Weld: cluster nearby corners across all zones onto one shared point.
+  const all = [];
+  zones.forEach(z => (z.pts || []).forEach(q => all.push(q)));
+  const done = new Set();
+  for (let i = 0; i < all.length; i++) {
+    if (done.has(i)) continue;
+    const group = [i];
+    for (let j = i + 1; j < all.length; j++) {
+      if (done.has(j)) continue;
+      if (Math.hypot(all[j].x - all[i].x, all[j].y - all[i].y) <= ZN_SNAP) { group.push(j); done.add(j); }
+    }
+    if (group.length > 1) {
+      const x = Math.round(group.reduce((t, k) => t + all[k].x, 0) / group.length);
+      const y = Math.round(group.reduce((t, k) => t + all[k].y, 0) / group.length);
+      group.forEach(k => { all[k].x = x; all[k].y = y; });
+      welded += group.length - 1;
+    }
+    done.add(i);
+  }
+
+  zones.forEach(z => { delete z._poly; });
+  znPersist();
+  showToast('Tidied — ' + straightened + ' edge' + (straightened === 1 ? '' : 's') +
+            ' squared, ' + welded + ' corner' + (welded === 1 ? '' : 's') + ' welded', 'success', 4000);
+  renderZonesView();
+}
+
 function znStart() { znDraft = { pts: [], closeC: null }; znSelected = null; renderZonesView(); }
 function znCancel() { znDraft = null; znDrag = null; renderZonesView(); }
 function znUndoPoint() { if (znDraft && znDraft.pts.length) { znDraft.pts.pop(); renderZonesView(); } }
@@ -8632,7 +8709,9 @@ function _znPt(e) {
 
 function znCourtClick(e) {
   if (!znDraft || znDrag) return;
-  znDraft.pts.push(Object.assign(_znPt(e), { c: null }));
+  const prev = znDraft.pts.length ? znDraft.pts[znDraft.pts.length - 1] : null;
+  const pt = _znSnap(_znPt(e), prev, znSelected);
+  znDraft.pts.push({ x: pt.x, y: pt.y, c: null });
   renderZonesView();
 }
 
@@ -8642,7 +8721,12 @@ function znGrab(e, kind, i) {
   const move = ev => {
     if (!znDraft || !znDrag) return;
     const pt = _znPt(ev);
-    if (znDrag.kind === 'anchor') { znDraft.pts[znDrag.i].x = pt.x; znDraft.pts[znDrag.i].y = pt.y; }
+    if (znDrag.kind === 'anchor') {
+      const n = znDraft.pts.length;
+      const nb = znDraft.pts[(znDrag.i - 1 + n) % n];          // square up against a neighbour
+      const sn = _znSnap(pt, n > 1 ? nb : null, znSelected);
+      znDraft.pts[znDrag.i].x = sn.x; znDraft.pts[znDrag.i].y = sn.y;
+    }
     else if (znDrag.kind === 'mid') znDraft.pts[znDrag.i].c = pt;   // bend that segment
     else znDraft.closeC = pt;                                       // bend the closing segment
     _znRedraw();
@@ -8723,7 +8807,8 @@ function renderZonesView() {
       '<button class="btn btn-ghost btn-sm" onclick="znUndoPoint()">\u21b6 Undo Point</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znCancel()">Cancel</button>' +
       '<span class="zn-count">' + znDraft.pts.length + ' point' + (znDraft.pts.length === 1 ? '' : 's') + '</span>'
-    : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>';
+    : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>';
 
   const list = State.zones.length
     ? State.zones.map(z =>
@@ -8745,7 +8830,9 @@ function renderZonesView() {
     '<div class="zn-bar">' + bar + '</div>' +
     '<div class="zn-hint">' +
       '<strong>Click</strong> the court to drop points. <strong>Drag a white dot</strong> to move it, ' +
-      '<strong>drag a gold dot</strong> to bend that edge into a curve. Three points minimum, then Save.' +
+      '<strong>drag a gold dot</strong> to bend that edge into a curve. Three points minimum, then Save.<br>' +
+      'Points snap to nearby corners of other zones and square up to true horizontal/vertical, ' +
+      'so borders meet exactly. <strong>Tidy Zones</strong> applies the same clean-up to everything already drawn.' +
     '</div>' +
     '<div class="zn-wrap">' +
       '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="znCourtClick(event)">' +
