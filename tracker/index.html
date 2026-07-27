@@ -6689,9 +6689,10 @@ function buildZoneHeatSvg(shots) {
     const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
     /* Two-line block centred on the centroid: dominant-baseline puts each line's middle
        on its y, and the offsets sit symmetrically either side of centre. */
-    return '<text x="' + cx.toFixed(1) + '" y="' + (cy - 9).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="22" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
+    const k = znLabelScale(z), ps = ZN_PCT_SIZE * k, ss = ZN_SUB_SIZE * k;
+    return '<text x="' + cx.toFixed(1) + '" y="' + (cy - ss * 0.55).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + ps.toFixed(1) + '" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
              (pct == null ? '&#8212;' : pct + '%') + '</text>' +
-           '<text x="' + cx.toFixed(1) + '" y="' + (cy + 11).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
+           '<text x="' + cx.toFixed(1) + '" y="' + (cy + ps * 0.62).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + ss.toFixed(1) + '" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
              t.m + '-' + t.a + '</text>';
   }).join('');
 
@@ -8580,6 +8581,13 @@ function znCentroid(poly) {
   return { x: cx / (6 * a2), y: cy / (6 * a2) };
 }
 
+/* Base label type sizes; a zone can scale them so long counts still fit. */
+const ZN_PCT_SIZE = 22, ZN_SUB_SIZE = 13;
+function znLabelScale(z) {
+  const v = z && z.labelScale;
+  return (typeof v === 'number' && v > 0) ? v : 1;
+}
+
 /* A zone can carry its own label position; otherwise fall back to the centroid. */
 function znLabelPos(z, poly) {
   if (z && z.label && z.label.x != null) return { x: z.label.x, y: z.label.y };
@@ -8686,7 +8694,14 @@ function znTidy() {
   renderZonesView();
 }
 
-function znStart() { znDraft = { pts: [], closeC: null, label: null }; znSelected = null; renderZonesView(); }
+function znStart() { znDraft = { pts: [], closeC: null, label: null, labelScale: 1 }; znSelected = null; renderZonesView(); }
+
+function znScaleLabel(delta) {
+  if (!znDraft) return;
+  const cur = znDraft.labelScale || 1;
+  znDraft.labelScale = Math.max(0.5, Math.min(2.5, +(cur + delta).toFixed(2)));
+  renderZonesView();
+}
 function znCancel() { znDraft = null; znDrag = null; renderZonesView(); }
 function znUndoPoint() { if (znDraft && znDraft.pts.length) { znDraft.pts.pop(); renderZonesView(); } }
 
@@ -8698,10 +8713,12 @@ function znSave() {
   State.zones = State.zones || [];
   if (znSelected) {
     const z = State.zones.find(x => x.id === znSelected);
-    if (z) { z.name = name; z.pts = znDraft.pts; z.closeC = znDraft.closeC; z.label = znDraft.label; delete z._poly; }
+    if (z) { z.name = name; z.pts = znDraft.pts; z.closeC = znDraft.closeC;
+             z.label = znDraft.label; z.labelScale = znDraft.labelScale || 1; delete z._poly; }
   } else {
     State.zones.push({ id: 'zone_' + Date.now(), name: name, color: znNextColor(),
-                       pts: znDraft.pts, closeC: znDraft.closeC, label: znDraft.label });
+                       pts: znDraft.pts, closeC: znDraft.closeC, label: znDraft.label,
+                       labelScale: znDraft.labelScale || 1 });
   }
   znPersist();
   znDraft = null; znSelected = null;
@@ -8717,7 +8734,8 @@ function znEdit(id) {
   znSelected = id;
   znDraft = { pts: JSON.parse(JSON.stringify(z.pts)),
               closeC: z.closeC ? Object.assign({}, z.closeC) : null,
-              label: z.label ? Object.assign({}, z.label) : null };
+              label: z.label ? Object.assign({}, z.label) : null,
+              labelScale: znLabelScale(z) };
   renderZonesView();
 }
 
@@ -8779,8 +8797,7 @@ function _znRedraw() {
   if (path) path.setAttribute('d', znPathD(znDraft.pts, znDraft.closeC, true));
   const mark = document.getElementById('zn-label-mark');
   if (mark && znDraft.label) {
-    mark.setAttribute('cx', znDraft.label.x);
-    mark.setAttribute('cy', znDraft.label.y);
+    mark.setAttribute('transform', 'translate(' + znDraft.label.x + ',' + znDraft.label.y + ')');
   }
 }
 
@@ -8823,13 +8840,23 @@ function renderZonesView() {
                   'onpointerdown="znGrab(event,\'mid\',' + i + ')"><title>Drag to curve this edge</title></circle>';
     }
     if (pts.length > 2) {
-      // Label marker — drag to choose exactly where this zone's numbers sit.
+      /* Label preview at true printed size, using worst-case sample numbers so the
+         footprint of a busy zone is visible while positioning it. */
       const lp = znDraft.label || znCentroid(znPolygon({ pts: pts, closeC: znDraft.closeC }));
-      draftSvg += '<circle id="zn-label-mark" class="zn-handle" cx="' + lp.x + '" cy="' + lp.y + '" r="9" ' +
-                  'fill="#06b6d4" fill-opacity="' + (znDraft.label ? 0.95 : 0.4) + '" stroke="#fff" stroke-width="2" ' +
-                  'onpointerdown="znGrab(event,\'label\',0)"><title>Drag to place this zone\'s label</title></circle>' +
-                  '<text x="' + lp.x + '" y="' + lp.y + '" text-anchor="middle" dominant-baseline="central" ' +
-                  'font-size="9" font-weight="800" fill="#00303a" style="pointer-events:none">A</text>';
+      const k = znDraft.labelScale || 1;
+      const ps = (ZN_PCT_SIZE * k), ss = (ZN_SUB_SIZE * k);
+      const bw = Math.max(ps * 3.6, ss * 4.6), bh = (ps + ss) * 1.5;
+      draftSvg += '<g id="zn-label-mark" class="zn-handle" onpointerdown="znGrab(event,\'label\',0)" ' +
+                  'transform="translate(' + lp.x + ',' + lp.y + ')">' +
+        '<title>Drag to place this zone\'s label — sample shows the largest expected numbers</title>' +
+        '<rect x="' + (-bw / 2).toFixed(1) + '" y="' + (-bh / 2).toFixed(1) + '" width="' + bw.toFixed(1) +
+          '" height="' + bh.toFixed(1) + '" rx="4" fill="#06b6d4" fill-opacity="' + (znDraft.label ? 0.30 : 0.16) +
+          '" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+        '<text x="0" y="' + (-ss * 0.55).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" ' +
+          'font-size="' + ps.toFixed(1) + '" font-weight="800" fill="#000" style="pointer-events:none" font-family="system-ui,sans-serif">70%</text>' +
+        '<text x="0" y="' + (ps * 0.62).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" ' +
+          'font-size="' + ss.toFixed(1) + '" font-weight="600" fill="#333" style="pointer-events:none" font-family="system-ui,sans-serif">462-839</text>' +
+        '</g>';
       const c = znDraft.closeC || { x: (pts[pts.length - 1].x + pts[0].x) / 2, y: (pts[pts.length - 1].y + pts[0].y) / 2 };
       draftSvg += '<circle class="zn-handle" cx="' + c.x + '" cy="' + c.y + '" r="5" fill="#f5c542" fill-opacity="' +
                   (znDraft.closeC ? 1 : 0.45) + '" stroke="#0d1117" stroke-width="1" ' +
@@ -8852,6 +8879,10 @@ function renderZonesView() {
       '<button class="btn btn-ghost btn-sm" onclick="znUndoPoint()">\u21b6 Undo Point</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znCancel()">Cancel</button>' +
       (znDraft.label ? '<button class="btn btn-ghost btn-sm" onclick="znResetLabel()">Recentre Label</button>' : '') +
+      '<span class="zn-count" style="margin-left:6px;">Label size</span>' +
+      '<button class="btn btn-ghost btn-sm" onclick="znScaleLabel(-0.1)">\u2212</button>' +
+      '<span class="zn-count">' + Math.round((znDraft.labelScale || 1) * 100) + '%</span>' +
+      '<button class="btn btn-ghost btn-sm" onclick="znScaleLabel(0.1)">+</button>' +
       '<span class="zn-count">' + znDraft.pts.length + ' point' + (znDraft.pts.length === 1 ? '' : 's') + '</span>'
     : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>';
@@ -8879,7 +8910,8 @@ function renderZonesView() {
       '<strong>drag a gold dot</strong> to bend that edge into a curve. Three points minimum, then Save.<br>' +
       'Points snap to nearby corners of other zones and square up to true horizontal/vertical, ' +
       'so borders meet exactly. <strong>Tidy Zones</strong> applies the same clean-up to everything already drawn.<br>' +
-      'The <span style="color:#06b6d4;font-weight:700;">cyan dot</span> is where this zone\'s numbers will print \u2014 drag it anywhere you like.' +
+      'The <span style="color:#06b6d4;font-weight:700;">cyan box</span> previews this zone\'s numbers at printed size ' +
+      '(sample: 70% / 462-839) \u2014 drag it anywhere, and use Label size to fit it.' +
     '</div>' +
     '<div class="zn-wrap">' +
       '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="znCourtClick(event)">' +
