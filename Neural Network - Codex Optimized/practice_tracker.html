@@ -8491,9 +8491,7 @@ function _notesRestoreFocus() {
 /* ─────────────────────────────────────────────────────────────
    ON/OFF TAB
 ───────────────────────────────────────────────────────────── */
-/* How many player impact cards to show (leaderboard's "Top N" selector). */
-let ooPlayerCount = '6';
-function ooSetPlayerCount(v) { ooPlayerCount = v; renderOnOffView(); }
+
 
 tabRenderers.onoff = function() {
   const root = document.getElementById('onoff-root');
@@ -8661,9 +8659,7 @@ function renderOnOffView() {
   impact.forEach(function (p) { p.minPct = maxMin > 0 ? (p.on.min / maxMin) * 100 : 0; });
   impact.sort(function (a, b) { return b.minPct - a.minPct; });
 
-  const shown = ooPlayerCount === 'all'
-    ? impact
-    : impact.slice(0, Math.min(parseInt(ooPlayerCount, 10), impact.length));
+  const shown = impact;   // every player, ranked by minutes
 
   // [label, path, decimals, higherIsBetter (null = neutral), suffix]
   const OO_CORE = [['Net Rating','eff.net',1,true,''],['Offensive Rating','eff.ortg',1,true,''],
@@ -8727,24 +8723,18 @@ function renderOnOffView() {
       '</div></div>';
   }).join('');
 
-  const countOpts = ['6','7','8','9','10','11','12','all'].map(function (v) {
-    return '<option value="' + v + '"' + (ooPlayerCount === v ? ' selected' : '') + '>' +
-           (v === 'all' ? 'All Players' : 'Top ' + v) + '</option>';
-  }).join('');
-
   root.innerHTML =
     '<div class="page-header">' +
       '<div>' +
         '<div class="page-title">Player On-Court Impact</div>' +
-        '<div class="page-subtitle">' + shown.length + ' of ' + impact.length + ' players</div>' +
+        '<div class="page-subtitle">' + shown.length + ' players &middot; ranked by minutes</div>' +
       '</div>' +
       _onoffFilterBar(filtered) +
     '</div>' +
     '<div class="oo-imp-bar">' +
-      '<div><select class="oo-imp-count" onchange="ooSetPlayerCount(this.value)">' + countOpts + '</select>' +
-      '<span style="color:var(--text-dim);font-size:11px;margin-left:6px;">ranked by % of minutes</span></div>' +
       '<div class="oo-imp-note">Every row is a <strong>team</strong> stat with the player on vs. off the floor. ' +
-      'Diff = on minus off; green = team better with the player on.</div>' +
+      'Diff = on minus off; green = team better with the player on. ' +
+      'Off shows &mdash; for a player who never left the floor.</div>' +
     '</div>' + cards;
 }
 
