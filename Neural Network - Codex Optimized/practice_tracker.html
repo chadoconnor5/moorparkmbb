@@ -2452,6 +2452,52 @@
 
     /* On/Off player cards */
     .oo-cards { display: flex; flex-direction: column; gap: 10px; }
+    /* ── Player On-Court Impact cards (mirrors the leaderboard layout) ── */
+    .oo-imp-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; flex-wrap: wrap; margin: 4px 0 14px;
+    }
+    .oo-imp-count {
+      background: var(--card); border: 1px solid #f5c542; color: #f5c542;
+      font-weight: 700; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    .oo-imp-note { color: var(--text-dim); font-size: 11px; max-width: 580px; text-align: right; }
+    .oo-imp-card {
+      border: 1px solid var(--border); border-radius: var(--radius-lg);
+      background: var(--surface); margin-bottom: 14px; overflow: hidden;
+    }
+    .oo-imp-head {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      padding: 9px 12px; border-bottom: 2px solid #f5c542;
+    }
+    .oo-imp-name { font-size: 15px; font-weight: 800; color: var(--text); }
+    .oo-imp-sub  { font-size: 11px; color: var(--text-dim); }
+    .oo-imp-grid {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px; padding: 10px 12px 12px;
+    }
+    .oo-imp-tbl { width: 100%; border-collapse: collapse; background: #fff; border-radius: 4px; overflow: hidden; }
+    .oo-imp-tbl thead th {
+      background: #1a3a6e; color: #fff; padding: 5px 8px;
+      font-size: 10.5px; font-weight: 700; white-space: nowrap; text-align: right;
+    }
+    .oo-imp-tbl thead th:first-child { text-align: left; }
+    .oo-imp-tbl tbody th {
+      text-align: left; font-weight: 600; color: #333;
+      padding: 4px 8px; border-bottom: 1px solid #eee; font-size: 11.5px; white-space: nowrap;
+    }
+    .oo-imp-tbl tbody td {
+      padding: 4px 8px; border-bottom: 1px solid #eee;
+      font-size: 11.5px; text-align: right; color: #000; white-space: nowrap;
+    }
+    .oo-imp-tbl tbody td.oo-imp-on  { font-weight: 700; }
+    .oo-imp-tbl tbody td.oo-imp-off { color: #888; }
+    .oo-imp-diff { font-weight: 700; color: #777; }
+    .oo-imp-good { color: #1a7a3a; }
+    .oo-imp-bad  { color: #b3261e; }
+    @media (max-width: 1100px) { .oo-imp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px)  { .oo-imp-grid { grid-template-columns: 1fr; } .oo-imp-note { text-align: left; } }
+
     .oo-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     /* When the card IS the scroll container, its overflow:hidden would clip the wide
        table and make horizontal scrolling impossible. */
@@ -7928,7 +7974,7 @@ function segStats(session, segments, team) {
   const opp = team === 'a' ? 'b' : 'a';
   const ev  = session.eventLog || [];
   let pts=0, fgm=0, fga=0, fg3m=0, fg3a=0, ftm=0, fta=0,
-      oreb=0, dreb=0, tov=0, stl=0, blk=0,
+      oreb=0, dreb=0, tov=0, stl=0, blk=0, ast=0, pf=0, defl=0,
       oppPts=0, oppFgm=0, oppFga=0, oppFg3m=0, oppFg3a=0,
       oppFtm=0, oppFta=0, oppOreb=0, oppDreb=0, oppTov=0,
       totalSecs=0;
@@ -8001,6 +8047,9 @@ function segStats(session, segments, team) {
         else if (e.stat === 'tov')       { tov++; }
         else if (e.stat === 'stl')       { stl++; }
         else if (e.stat === 'blk')       { blk++; }
+        else if (e.stat === 'ast')       { ast++; }
+        else if (e.stat === 'foul')      { pf++; }
+        else if (e.stat === 'defl')      { defl++; }
       } else {
         if (e.stat === '2fg_make') { oppPts += 2; oppFgm++; oppFga++; }
         else if (e.stat === '2fg_miss')  { oppFga++; }
@@ -8027,7 +8076,7 @@ function segStats(session, segments, team) {
   const net  = +(ortg - drtg).toFixed(1);
   const min  = +(totalSecs / 60).toFixed(1);
 
-  return { pts, fgm, fga, fg3m, fg3a, ftm, fta, oreb, dreb, tov, stl, blk,
+  return { pts, fgm, fga, fg3m, fg3a, ftm, fta, oreb, dreb, tov, stl, blk, ast, pf, defl,
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
            oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss };
@@ -8442,12 +8491,9 @@ function _notesRestoreFocus() {
 /* ─────────────────────────────────────────────────────────────
    ON/OFF TAB
 ───────────────────────────────────────────────────────────── */
-let onoffSort = { key: 'apm', dir: -1 };   // leaderboard sorts by APM (= total RAPM)
-function onoffSortBy(key) {
-  if (onoffSort.key === key) onoffSort.dir = -onoffSort.dir;
-  else { onoffSort.key = key; onoffSort.dir = (key === 'name') ? 1 : -1; }
-  renderOnOffView();
-}
+/* How many player impact cards to show (leaderboard's "Top N" selector). */
+let ooPlayerCount = '6';
+function ooSetPlayerCount(v) { ooPlayerCount = v; renderOnOffView(); }
 
 tabRenderers.onoff = function() {
   const root = document.getElementById('onoff-root');
@@ -8513,271 +8559,193 @@ function renderOnOffView() {
     return;
   }
 
-  // For each player determine which team they play on and compute on/off
-  const rows = Array.from(playerSet).map(playerName => {
-    // figure out player's team from first session they appear in
+  /* -- Player On-Court Impact cards, copied from the leaderboard's layout --
+     Four panels (Core / Box / Offense / Defense); every row is a TEAM stat with the
+     player On the floor, Off the floor, and the Diff. Green = team better with them on. */
+
+  // Aggregate team stats over a list of {seg, sess, team} stints.
+  function ooAgg(list) {
+    if (!list.length) return null;
+    const bySess = {};
+    for (const item of list) {
+      const k = item.sess.id + '|' + item.team;
+      if (!bySess[k]) bySess[k] = { sess: item.sess, team: item.team, segs: [] };
+      bySess[k].segs.push(item.seg);
+    }
+    const keys = ['pts','fgm','fga','fg3m','fg3a','ftm','fta','oreb','dreb','tov','stl','blk',
+                  'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss'];
+    const T = {};
+    keys.forEach(function (k) { T[k] = 0; });
+    let min = 0;
+    for (const grp of Object.values(bySess)) {
+      const s = segStats(grp.sess, grp.segs, grp.team);
+      keys.forEach(function (k) { T[k] += (s[k] || 0); });
+      min += parseFloat(s.min) || 0;
+    }
+    if (min <= 0) return null;
+    const poss = Math.max(1, T.poss), oppPoss = Math.max(1, T.oppPoss);
+    const per40 = function (v) { return +(v / min * 40).toFixed(2); };
+    const pct = function (num, den) { return den > 0 ? +(num / den * 100).toFixed(2) : null; };
+    const ortg = +(100 * T.pts / poss).toFixed(2);
+    const drtg = +(100 * T.oppPts / oppPoss).toFixed(2);
+    const stlPct = pct(T.stl, oppPoss);
+    const blkPct = pct(T.blk, Math.max(0, T.oppFga - T.oppFg3a));
+    return {
+      min: min,
+      eff: { ortg: ortg, drtg: drtg, net: +(ortg - drtg).toFixed(2) },
+      rate: {
+        pace: per40(poss),
+        tpar: pct(T.fg3a, T.fga),
+        asp:  pct(T.ast, T.fgm),
+        ato:  T.tov > 0 ? +(T.ast / T.tov).toFixed(2) : null,
+        stl:  stlPct,
+        blk:  blkPct
+      },
+      off_ff: {
+        efg:  pct(T.fgm + 0.5 * T.fg3m, T.fga),
+        oreb: pct(T.oreb, T.oreb + T.oppDreb),
+        tov:  pct(T.tov, poss),
+        ftr:  pct(T.fta, T.fga)
+      },
+      box: { pts: per40(T.pts), ast: per40(T.ast), oreb: per40(T.oreb), dreb: per40(T.dreb),
+             stl: per40(T.stl), blk: per40(T.blk), to: per40(T.tov), foul: per40(T.pf) },
+      ts: (T.fga + 0.475 * T.fta) > 0 ? +(0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100).toFixed(2) : null,
+      defl40: per40(T.defl),
+      def_reb: pct(T.dreb, T.dreb + T.oppOreb),
+      hakeem: (stlPct != null && blkPct != null) ? +(stlPct + blkPct).toFixed(2) : null,
+      pf_eff: T.pf > 0 ? +((T.stl + T.blk) / T.pf).toFixed(2) : null,
+      stl_pf: T.pf > 0 ? +(T.stl / T.pf).toFixed(2) : null,
+      blk_pf: T.pf > 0 ? +(T.blk / T.pf).toFixed(2) : null,
+      offPoss: Math.round(T.poss),
+      games: Object.keys(bySess).length
+    };
+  }
+
+  // Build each player's on-court and off-court stint lists.
+  const impact = [];
+  for (const playerName of playerSet) {
     let playerTeam = !teamIsAll ? team : null;
     if (!playerTeam) {
       for (const sess of filtered) {
-        const found = (sess.playerStats || []).find(p => p.name === playerName);
-        if (found) { playerTeam = found.team; break; }
+        const f = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
+        if (f) { playerTeam = f.team; break; }
       }
     }
-    if (!playerTeam) return null;
-
-    let onSegs = [], offSegs = [];
+    if (!playerTeam) continue;
+    const onL = [], offL = [];
     for (const sess of filtered) {
-      const playerOnSegs = (sess.lineupSegments || []).filter(seg => {
-        const lineup = playerTeam === 'a' ? seg.lineupA : seg.lineupB;
-        return lineup && lineup.includes(playerName) && seg.endTimeSecs !== null;
-      });
-      const playerOffSegs = (sess.lineupSegments || []).filter(seg => {
-        const lineup = playerTeam === 'a' ? seg.lineupA : seg.lineupB;
-        return lineup && !lineup.includes(playerName) && seg.endTimeSecs !== null;
-      });
-      if (playerOnSegs.length)  onSegs  = onSegs.concat(playerOnSegs.map(seg => ({ seg, sess })));
-      if (playerOffSegs.length) offSegs = offSegs.concat(playerOffSegs.map(seg => ({ seg, sess })));
-    }
-
-    function computeOnOff(segList) {
-      if (!segList.length) return null;
-      const sm = {};
-      for (const { seg, sess } of segList) {
-        if (!sm[sess.id]) sm[sess.id] = { sess, segs: [] };
-        sm[sess.id].segs.push(seg);
-      }
-      let tMin=0, tPts=0, tPoss=0, tFgm=0, tFga=0, tFg3m=0, tFg3a=0, tFtm=0, tFta=0, tOreb=0, tDreb=0, tTov=0;
-      let tOppPts=0, tOppFgm=0, tOppFga=0, tOppFg3m=0, tOppFg3a=0, tOppFtm=0, tOppFta=0,
-          tOppOreb=0, tOppDreb=0, tOppTov=0, tOppPoss=0;
-      for (const { sess, segs } of Object.values(sm)) {
-        const st = segStats(sess, segs, playerTeam);
-        tMin    += parseFloat(st.min);
-        tPts    += st.pts;  tPoss  += st.poss;
-        tFgm    += st.fgm;  tFga   += st.fga;
-        tFg3m   += st.fg3m; tFg3a  += st.fg3a;
-        tFtm    += st.ftm;  tFta   += st.fta;
-        tOreb   += st.oreb; tDreb  += st.dreb; tTov += st.tov;
-        tOppPts  += st.oppPts;
-        tOppFgm  += st.oppFgm;  tOppFga  += st.oppFga;
-        tOppFg3m += st.oppFg3m; tOppFg3a += st.oppFg3a;
-        tOppFtm  += st.oppFtm;  tOppFta  += st.oppFta;
-        tOppOreb += st.oppOreb; tOppDreb += st.oppDreb; tOppTov += st.oppTov;
-        tOppPoss += st.oppPoss;
-      }
-      const poss    = Math.max(1, tPoss);
-      const oppPoss = Math.max(1, tOppPoss);
-      const ortg = +(100 * tPts    / poss).toFixed(1);
-      const drtg = +(100 * tOppPts / oppPoss).toFixed(1);
-      const net  = +(ortg - drtg).toFixed(1);
-      const efg      = tFga > 0     ? +((tFgm + 0.5*tFg3m) / tFga * 100).toFixed(1)         : null;
-      const tovPct   = +(100 * tTov / poss).toFixed(1);
-      const orebPct  = (tOreb + tOppDreb) > 0 ? +(100*tOreb/(tOreb+tOppDreb)).toFixed(1)    : null;
-      const ftr      = tFga > 0     ? +(tFta / tFga * 100).toFixed(1)                        : null;
-      const dEfg     = tOppFga > 0  ? +((tOppFgm + 0.5*tOppFg3m)/tOppFga*100).toFixed(1)   : null;
-      const dTovPct  = +(100 * tOppTov / oppPoss).toFixed(1);
-      const dOrebPct = (tOppOreb + tDreb) > 0 ? +(100*tOppOreb/(tOppOreb+tDreb)).toFixed(1) : null;
-      const dFtr     = tOppFga > 0  ? +(tOppFta / tOppFga * 100).toFixed(1)                  : null;
-      // Raw plus/minus and per-40 net, matching the leaderboard's pm / net40.
-      const pm    = +(tPts - tOppPts).toFixed(0);
-      const net40 = tMin > 0 ? +((pm / tMin) * 40).toFixed(1) : null;
-      return { min: +tMin.toFixed(1), poss: +poss.toFixed(1), pm, net40, ortg, drtg, net,
-               efg, tovPct, orebPct, ftr, dEfg, dTovPct, dOrebPct, dFtr };
-    }
-
-    return { name: playerName, team: playerTeam, on: computeOnOff(onSegs), off: computeOnOff(offSegs) };
-  }).filter(Boolean);
-
-  /* OFF is team-total-minus-player, exactly as compute_moorpark_lineups.py does it:
-       off_net40 = (team_pm - pm_on) / off_min * 40
-     so OFF is defined even for a player who never sits. */
-  const teamTot = {};                              // `${sessionId}|${team}` -> {pm, mins}
-  const segRecs = [];                              // one record per completed stint (RAPM)
-  for (const sess of filtered) {
-    for (const t of teamsToShow) {
       for (const seg of (sess.lineupSegments || [])) {
         if (seg.endTimeSecs === null) continue;
-        const lineup = t === 'a' ? seg.lineupA : seg.lineupB;
-        if (!lineup || !lineup.length) continue;
-        const st = segStats(sess, [seg], t);
-        const mins = parseFloat(st.min) || 0;
-        const k = sess.id + '|' + t;
-        if (!teamTot[k]) teamTot[k] = { pm: 0, mins: 0 };
-        teamTot[k].pm += (st.pts || 0) - (st.oppPts || 0);
-        teamTot[k].mins += mins;
-        segRecs.push({ key: k, players: lineup.slice(), mins,
-                       pf: st.pts || 0, pa: st.oppPts || 0, poss: st.poss || 0 });
+        const lineup = playerTeam === 'a' ? seg.lineupA : seg.lineupB;
+        if (!lineup) continue;
+        (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: playerTeam });
       }
     }
+    const on = ooAgg(onL);
+    if (!on) continue;
+    impact.push({ name: playerName, on: on, off: ooAgg(offL) });
   }
 
-  const flat = rows.map(r => {
-    const on = r.on;
-    const g  = (k) => on ? on[k] : null;
-    const onMin = g('min') || 0, onPm = g('pm') || 0;
-    // Team totals for only the session/team combinations this player actually appeared in.
-    let tmPm = 0, tmMin = 0;
-    const seen = new Set();
-    for (const rec of segRecs) {
-      if (!rec.players.includes(r.name) || seen.has(rec.key)) continue;
-      seen.add(rec.key);
-      tmPm += teamTot[rec.key].pm; tmMin += teamTot[rec.key].mins;
-    }
-    const offMin   = Math.max(tmMin - onMin, 1.0);
-    const onNet40  = onMin > 0 ? +((onPm / onMin) * 40).toFixed(1) : 0;
-    const offNet40 = +(((tmPm - onPm) / offMin) * 40).toFixed(1);
-    return {
-      name: r.name, team: r.team,
-      min: Math.round(onMin), pm: Math.round(onPm),
-      onNet40, offNet40, onoff: +(onNet40 - offNet40).toFixed(1),
-      ortg: g('ortg'), drtg: g('drtg'), net100: g('net'),
+  if (!impact.length) {
+    root.innerHTML =
+      '<div class="page-header">' +
+        '<div><div class="page-title">Player On-Court Impact</div></div>' +
+        _onoffFilterBar(filtered) +
+      '</div>' +
+      '<div class="placeholder" style="margin-top:20px;"><div>No lineup stints recorded yet &mdash; substitutions must be logged during practice.</div></div>';
+    return;
+  }
+
+  // Rank by share of floor time, like the leaderboard's "% of minutes".
+  const maxMin = Math.max.apply(null, impact.map(function (p) { return p.on.min; }));
+  impact.forEach(function (p) { p.minPct = maxMin > 0 ? (p.on.min / maxMin) * 100 : 0; });
+  impact.sort(function (a, b) { return b.minPct - a.minPct; });
+
+  const shown = ooPlayerCount === 'all'
+    ? impact
+    : impact.slice(0, Math.min(parseInt(ooPlayerCount, 10), impact.length));
+
+  // [label, path, decimals, higherIsBetter (null = neutral), suffix]
+  const OO_CORE = [['Net Rating','eff.net',1,true,''],['Offensive Rating','eff.ortg',1,true,''],
+    ['Defensive Rating','eff.drtg',1,false,''],['Pace','rate.pace',1,null,''],
+    ['Effective FG%','off_ff.efg',1,true,'%'],['Off Rebound %','off_ff.oreb',1,true,'%'],
+    ['Turnover %','off_ff.tov',1,false,'%'],['FT Attempt Rate','off_ff.ftr',1,true,'%']];
+  const OO_BOX = [['Points / 40','box.pts',1,true,''],['Assists / 40','box.ast',1,true,''],
+    ['ORebs / 40','box.oreb',1,true,''],['DRebs / 40','box.dreb',1,true,''],
+    ['Steals / 40','box.stl',1,true,''],['Blocks / 40','box.blk',1,true,''],
+    ['Turnovers / 40','box.to',1,false,''],['PFs / 40','box.foul',1,false,'']];
+  const OO_OFF = [['Offensive Rating','eff.ortg',1,true,''],['True Shooting %','ts',1,true,'%'],
+    ['3-Point Att Rate','rate.tpar',1,null,'%'],['FT Attempt Rate','off_ff.ftr',1,true,'%'],
+    ['Assist %','rate.asp',1,true,'%'],['Turnover %','off_ff.tov',1,false,'%'],
+    ['Ast/Tov Ratio','rate.ato',2,true,''],['Deflections / 40','defl40',1,true,'']];
+  const OO_DEF = [['Defensive Rating','eff.drtg',1,false,''],['Def Rebound %','def_reb',1,true,'%'],
+    ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
+    ['Hakeem %','hakeem',1,true,'%'],['PF Efficiency','pf_eff',2,true,''],
+    ['Steals / PF','stl_pf',2,true,''],['Blocks / PF','blk_pf',2,true,'']];
+
+  const ooGet = function (o, path) {
+    if (!o || !path) return null;
+    const a = path.split('.');
+    if (a.length === 1) return o[a[0]] == null ? null : o[a[0]];
+    return o[a[0]] ? (o[a[0]][a[1]] == null ? null : o[a[0]][a[1]]) : null;
+  };
+
+  function ooPanel(title, defs, p) {
+    const fmt = function (v, d, s) {
+      return (v == null || isNaN(v)) ? '&mdash;' : (Number(v).toFixed(d) + (s || ''));
     };
-  });
-
-  /* Ridge RAPM — λ=50, minute-weighted, centred on the roster average.
-     ORAPM regresses lineup offensive rating; DRAPM regresses negated points
-     allowed (so + = better defence); RAPM = ORAPM + DRAPM, and APM == RAPM. */
-  (function () {
-    const names = flat.map(r => r.name);
-    const idx = {}; names.forEach((n, i) => { idx[n] = i; });
-    const n = names.length;
-    const obs = segRecs.filter(s => s.poss >= 4);
-    if (!n || !obs.length) { flat.forEach(r => { r.orapm = r.drapm = r.rapm = r.apm = null; }); return; }
-
-    function ridge(yOf) {
-      const A = Array.from({ length: n }, () => new Float64Array(n));
-      const b = new Float64Array(n);
-      for (const s of obs) {
-        const w = s.mins, y = yOf(s);
-        const on = s.players.map(pn => idx[pn]).filter(i => i != null);
-        for (const i of on) { b[i] += w * y; for (const j of on) A[i][j] += w; }
+    const rows = defs.map(function (def) {
+      const label = def[0], path = def[1], dec = def[2], higherBetter = def[3], suf = def[4] || '';
+      const on = ooGet(p.on, path), off = ooGet(p.off, path);
+      let diffHtml = '<td class="oo-imp-diff">&mdash;</td>';
+      if (on != null && off != null && !isNaN(on) && !isNaN(off)) {
+        const dv = on - off;
+        const good = higherBetter == null ? null : (higherBetter ? dv > 0 : dv < 0);
+        const cls = (Math.abs(dv) < 1e-9 || good == null) ? '' : (good ? ' oo-imp-good' : ' oo-imp-bad');
+        diffHtml = '<td class="oo-imp-diff' + cls + '">' + (dv > 0 ? '+' : '') + dv.toFixed(dec) + suf + '</td>';
       }
-      for (let i = 0; i < n; i++) A[i][i] += 50.0;
-      const M = A.map((row, i) => Array.from(row).concat([b[i]]));
-      for (let c = 0; c < n; c++) {                       // Gauss-Jordan, partial pivot
-        let piv = c;
-        for (let r2 = c + 1; r2 < n; r2++) if (Math.abs(M[r2][c]) > Math.abs(M[piv][c])) piv = r2;
-        if (Math.abs(M[piv][c]) < 1e-9) continue;
-        const tmp = M[c]; M[c] = M[piv]; M[piv] = tmp;
-        for (let r2 = 0; r2 < n; r2++) {
-          if (r2 === c) continue;
-          const f = M[r2][c] / M[c][c];
-          if (!f) continue;
-          for (let k = c; k <= n; k++) M[r2][k] -= f * M[c][k];
-        }
-      }
-      const out = [];
-      for (let i = 0; i < n; i++) out.push(Math.abs(M[i][i]) < 1e-9 ? 0 : M[i][n] / M[i][i]);
-      const mean = out.reduce((a, v) => a + v, 0) / n;
-      return out.map(v => v - mean);
-    }
-    const co = ridge(s => s.poss > 0 ?  (s.pf / s.poss) * 100 : 0);
-    const cd = ridge(s => s.poss > 0 ? -(s.pa / s.poss) * 100 : 0);
-    flat.forEach((r, i) => {
-      r.orapm = +co[i].toFixed(1);
-      r.drapm = +cd[i].toFixed(1);
-      r.rapm  = +(co[i] + cd[i]).toFixed(1);
-      r.apm   = r.rapm;
-    });
-  })();
-
-  const sk = onoffSort.key, sd = onoffSort.dir;
-  flat.sort((a, b) => {
-    if (sk === 'name') return sd * String(a.name).localeCompare(String(b.name));
-    const av = a[sk], bv = b[sk];
-    if (av == null && bv == null) return 0;
-    if (av == null) return 1;          // missing values sort to the bottom
-    if (bv == null) return -1;
-    return sd * (av - bv);
-  });
-
-  const teamLabel = team === 'a' ? (filtered[0]?.teamAName||'White')
-                  : team === 'b' ? (filtered[0]?.teamBName||'Black')
-                  : 'All Players';
-  const teamColor = team === 'a' ? '#60a5fa' : team === 'b' ? '#fb923c' : '#a78bfa';
-
-  const arrow = k => onoffSort.key === k ? (onoffSort.dir < 0 ? ' ▼' : ' ▲') : '';
-  const th = (k, lab, cls='') => `<th class="${cls}" onclick="onoffSortBy('${k}')">${lab}${arrow(k)}</th>`;
-  function cc(v, hi, lo, loBetter, suf, extra) {
-    suf = (suf == null) ? '%' : suf; extra = extra || '';
-    if (v == null) return `<td class="${extra}">—</td>`;
-    const good = loBetter ? v <= hi : v >= hi;
-    const bad  = loBetter ? v >= lo : v <= lo;
-    const cls = [extra, good ? 'oo-hi' : bad ? 'oo-lo' : ''].filter(Boolean).join(' ');
-    return `<td class="${cls}">${Number(v).toFixed(1)}${suf}</td>`;
-  }
-  function netCell(v, extra) {
-    extra = extra || '';
-    if (v == null) return `<td class="${extra}">—</td>`;
-    const s = (v > 0 ? '+' : '') + v.toFixed(1);
-    const cls = [extra, v > 0 ? 'oo-hi' : v < 0 ? 'oo-lo' : ''].filter(Boolean).join(' ');
-    return `<td class="${cls}"><strong>${s}</strong></td>`;
+      return '<tr><th>' + escHtml(label) + '</th>' +
+             '<td class="oo-imp-on">' + fmt(on, dec, suf) + '</td>' +
+             '<td class="oo-imp-off">' + fmt(off, dec, suf) + '</td>' + diffHtml + '</tr>';
+    }).join('');
+    return '<table class="oo-imp-tbl"><thead><tr><th>' + escHtml(title) +
+           '</th><th>On</th><th>Off</th><th>Diff</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
-  /* On − Off difference. higherBetter=false flips the coloring for DRTG, where a
-     negative difference (better defense with the player on) is the good outcome. */
-  function diffCell(v, higherBetter, extra) {
-    extra = extra || '';
-    if (v == null) return `<td class="${extra}">—</td>`;
-    const good = higherBetter ? v > 0 : v < 0;
-    const bad  = higherBetter ? v < 0 : v > 0;
-    const cls = [extra, good ? 'oo-hi' : bad ? 'oo-lo' : ''].filter(Boolean).join(' ');
-    return `<td class="${cls}"><strong>${(v > 0 ? '+' : '') + v.toFixed(1)}</strong></td>`;
-  }
-
-  /* Mirrors the WSC leaderboard's on/off layout: On / Off / Diff for the NET rating
-     (its on_net40 / off_net40 / onoff), with everything else shown on-court only. */
-  const trs = flat.map(r => {
-    // Column set copied from the leaderboard's on/off player table.
-    return `<tr>
-      <td class="oo-name-col">${escHtml(r.name)}</td>
-      <td>${r.min == null ? '\u2014' : r.min}</td>
-      ${netCell(r.pm)}
-      ${netCell(r.onNet40,  'oo-rating-col')}
-      ${netCell(r.offNet40, 'oo-rating-col')}
-      ${diffCell(r.onoff, true, 'oo-rating-col')}
-      ${cc(r.ortg, 110, 95, false, '', 'oo-rating-col')}
-      ${cc(r.drtg, 95, 110, true, '', 'oo-rating-col')}
-      ${netCell(r.net100, 'oo-rating-col')}
-      ${netCell(r.orapm)}
-      ${netCell(r.drapm)}
-      ${netCell(r.rapm)}
-      ${netCell(r.apm)}
-    </tr>`;
+  const cards = shown.map(function (p) {
+    return '<div class="oo-imp-card">' +
+      '<div class="oo-imp-head">' +
+        '<span class="oo-imp-name">' + escHtml(p.name) + '</span>' +
+        '<span class="oo-imp-sub">' + p.minPct.toFixed(0) + '% min &middot; ' + p.on.games +
+        ' practice' + (p.on.games === 1 ? '' : 's') + ' &middot; ' + p.on.offPoss + ' off poss</span>' +
+      '</div>' +
+      '<div class="oo-imp-grid">' +
+        ooPanel('Core Stats', OO_CORE, p) +
+        ooPanel('Box Stats', OO_BOX, p) +
+        ooPanel('Offense', OO_OFF, p) +
+        ooPanel('Defense', OO_DEF, p) +
+      '</div></div>';
   }).join('');
 
-  root.innerHTML = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">On / Off Splits</div>
-        <div class="page-subtitle">${flat.length} players</div>
-      </div>
-      ${_onoffFilterBar(filtered)}
-    </div>
-    <div class="oo-card table-wrap">
-      <table class="oo-sort-table">
-        <thead><tr>
-          ${th('name','Player','oo-name-col')}
-          ${th('min','MIN')}
-          ${th('pm','+/\u2212')}
-          ${th('onNet40','ON','oo-rating-col')}
-          ${th('offNet40','OFF','oo-rating-col')}
-          ${th('onoff','ON/OFF','oo-rating-col')}
-          ${th('ortg','ORTG','oo-rating-col')}
-          ${th('drtg','DRTG','oo-rating-col')}
-          ${th('net100','NET100','oo-rating-col')}
-          ${th('orapm','ORAPM')}
-          ${th('drapm','DRAPM')}
-          ${th('rapm','RAPM')}
-          ${th('apm','APM')}
-        </tr></thead>
-        <tbody>${trs}</tbody>
-      </table>
-    </div>
-    <div style="margin-top:12px;font-size:11px;color:var(--text-dim);">
-      <strong>ON</strong>/<strong>OFF</strong> = team Net per 40 min with the player on/off the floor; <strong>ON/OFF</strong> is the difference.
-      OFF is the team total minus the player, so it is defined even for players who never sit. <strong>ORAPM/DRAPM/RAPM</strong> are
-      ridge-regressed (λ=50, minute-weighted, centred on roster average); <strong>APM</strong> = total RAPM. Click any header to sort.
-    </div>`;
+  const countOpts = ['6','7','8','9','10','11','12','all'].map(function (v) {
+    return '<option value="' + v + '"' + (ooPlayerCount === v ? ' selected' : '') + '>' +
+           (v === 'all' ? 'All Players' : 'Top ' + v) + '</option>';
+  }).join('');
+
+  root.innerHTML =
+    '<div class="page-header">' +
+      '<div>' +
+        '<div class="page-title">Player On-Court Impact</div>' +
+        '<div class="page-subtitle">' + shown.length + ' of ' + impact.length + ' players</div>' +
+      '</div>' +
+      _onoffFilterBar(filtered) +
+    '</div>' +
+    '<div class="oo-imp-bar">' +
+      '<div><select class="oo-imp-count" onchange="ooSetPlayerCount(this.value)">' + countOpts + '</select>' +
+      '<span style="color:var(--text-dim);font-size:11px;margin-left:6px;">ranked by % of minutes</span></div>' +
+      '<div class="oo-imp-note">Every row is a <strong>team</strong> stat with the player on vs. off the floor. ' +
+      'Diff = on minus off; green = team better with the player on.</div>' +
+    '</div>' + cards;
 }
 
 /* ── Shared filter setter ── */
