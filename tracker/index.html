@@ -8588,7 +8588,8 @@ function znUndoPoint() { if (znDraft && znDraft.pts.length) { znDraft.pts.pop();
 
 function znSave() {
   if (!znDraft || znDraft.pts.length < 3) { showToast('A zone needs at least 3 points', 'warning'); return; }
-  const name = (prompt('Name this zone:', 'Zone ' + ((State.zones || []).length + 1)) || '').trim();
+  const existing = znSelected ? ((State.zones || []).find(x => x.id === znSelected) || {}).name : '';
+  const name = (prompt('Name this zone:', existing || 'Zone ' + ((State.zones || []).length + 1)) || '').trim();
   if (!name) return;
   State.zones = State.zones || [];
   if (znSelected) {
