@@ -8013,6 +8013,26 @@ function segStats(session, segments, team) {
     // Get all non-sub events in this quarter
     const quarterEvents = ev.filter(e => e.quarter === seg.quarter && e.type !== 'sub');
 
+    /* Split the quarter's untimed events across its stints in proportion to how long
+       each stint actually lasted. Splitting evenly by count credited zero-second stints
+       (a sub logged without advancing the clock) with a full share of the action. */
+    function shareByDuration() {
+      const durs = quarterSegs.map(function (q) {
+        const st = q.seg.startTimeSecs == null ? dur : q.seg.startTimeSecs;
+        return q.seg.endTimeSecs == null ? 0 : Math.abs(st - q.seg.endTimeSecs);
+      });
+      const totalDur = durs.reduce(function (a, b) { return a + b; }, 0);
+      if (totalDur <= 0) {                      // no usable durations — fall back to an even split
+        const chunk = Math.ceil(quarterEvents.length / Math.max(1, totalSegsInQuarter));
+        return quarterEvents.slice(segPosInQuarter * chunk, segPosInQuarter * chunk + chunk);
+      }
+      let before = 0;
+      for (let i = 0; i < segPosInQuarter; i++) before += durs[i];
+      const lo = Math.round(before / totalDur * quarterEvents.length);
+      const hi = Math.round((before + durs[segPosInQuarter]) / totalDur * quarterEvents.length);
+      return quarterEvents.slice(lo, hi);
+    }
+
     let segEvents;
     if (seg.startTimeSecs != null && seg.endTimeSecs != null) {
       // Events have timeSecs — use time window
@@ -8023,19 +8043,9 @@ function segStats(session, segments, team) {
       // Most events are logged without one, and the old test (`some(...)`) silently dropped
       // all untimed events in any quarter that had a single timed one.
       const allTimed = quarterEvents.length > 0 && quarterEvents.every(e => e.timeSecs != null);
-      if (allTimed) {
-        segEvents = timeFiltered;
-      } else {
-        // Events have no timeSecs — distribute by segment position
-        const chunkSize = Math.ceil(quarterEvents.length / Math.max(1, totalSegsInQuarter));
-        const start = segPosInQuarter * chunkSize;
-        segEvents = quarterEvents.slice(start, start + chunkSize);
-      }
+      segEvents = allTimed ? timeFiltered : shareByDuration();
     } else {
-      // No time data — distribute events evenly across segments in this quarter
-      const chunkSize = Math.ceil(quarterEvents.length / Math.max(1, totalSegsInQuarter));
-      const start = segPosInQuarter * chunkSize;
-      segEvents = quarterEvents.slice(start, start + chunkSize);
+      segEvents = shareByDuration();
     }
 
     for (const e of segEvents) {
