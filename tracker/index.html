@@ -8019,7 +8019,11 @@ function segStats(session, segments, team) {
       const lo = Math.min(seg.endTimeSecs, seg.startTimeSecs);
       const hi = Math.max(seg.endTimeSecs, seg.startTimeSecs);
       const timeFiltered = quarterEvents.filter(e => e.timeSecs != null && e.timeSecs >= lo && e.timeSecs <= hi);
-      if (timeFiltered.length > 0 || quarterEvents.some(e => e.timeSecs != null)) {
+      // Only trust the time window when EVERY event in the quarter carries a clock time.
+      // Most events are logged without one, and the old test (`some(...)`) silently dropped
+      // all untimed events in any quarter that had a single timed one.
+      const allTimed = quarterEvents.length > 0 && quarterEvents.every(e => e.timeSecs != null);
+      if (allTimed) {
         segEvents = timeFiltered;
       } else {
         // Events have no timeSecs — distribute by segment position
@@ -8580,9 +8584,12 @@ function renderOnOffView() {
       keys.forEach(function (k) { T[k] += (s[k] || 0); });
       min += parseFloat(s.min) || 0;
     }
-    if (min <= 0) return null;
+    // 6 of this session's stints were logged with start == end (0 seconds), so a bench
+    // player's off-court time can total 0 minutes while still containing real possessions.
+    // Bail only when there is nothing at all; per-40 rates go null when minutes are missing.
+    if (min <= 0 && T.poss <= 0 && T.oppPoss <= 0) return null;
     const poss = Math.max(1, T.poss), oppPoss = Math.max(1, T.oppPoss);
-    const per40 = function (v) { return +(v / min * 40).toFixed(2); };
+    const per40 = function (v) { return min > 0 ? +(v / min * 40).toFixed(2) : null; };
     const pct = function (num, den) { return den > 0 ? +(num / den * 100).toFixed(2) : null; };
     const ortg = +(100 * T.pts / poss).toFixed(2);
     const drtg = +(100 * T.oppPts / oppPoss).toFixed(2);
