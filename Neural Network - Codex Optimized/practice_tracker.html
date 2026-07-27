@@ -6684,7 +6684,7 @@ function buildZoneHeatSvg(shots) {
     const t = tally[z.id];
     const poly = znPolygon(z);
     if (!poly.length) return '';
-    const ctr = znCentroid(poly);
+    const ctr = znLabelPos(z, poly);
     const cx = ctr.x, cy = ctr.y;
     const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
     /* Two-line block centred on the centroid: dominant-baseline puts each line's middle
@@ -8580,6 +8580,12 @@ function znCentroid(poly) {
   return { x: cx / (6 * a2), y: cy / (6 * a2) };
 }
 
+/* A zone can carry its own label position; otherwise fall back to the centroid. */
+function znLabelPos(z, poly) {
+  if (z && z.label && z.label.x != null) return { x: z.label.x, y: z.label.y };
+  return znCentroid(poly || znPolygon(z));
+}
+
 function znContains(z, x, y) {
   const poly = z._poly || (z._poly = znPolygon(z));
   let inside = false;
@@ -8680,7 +8686,7 @@ function znTidy() {
   renderZonesView();
 }
 
-function znStart() { znDraft = { pts: [], closeC: null }; znSelected = null; renderZonesView(); }
+function znStart() { znDraft = { pts: [], closeC: null, label: null }; znSelected = null; renderZonesView(); }
 function znCancel() { znDraft = null; znDrag = null; renderZonesView(); }
 function znUndoPoint() { if (znDraft && znDraft.pts.length) { znDraft.pts.pop(); renderZonesView(); } }
 
@@ -8692,10 +8698,10 @@ function znSave() {
   State.zones = State.zones || [];
   if (znSelected) {
     const z = State.zones.find(x => x.id === znSelected);
-    if (z) { z.name = name; z.pts = znDraft.pts; z.closeC = znDraft.closeC; delete z._poly; }
+    if (z) { z.name = name; z.pts = znDraft.pts; z.closeC = znDraft.closeC; z.label = znDraft.label; delete z._poly; }
   } else {
     State.zones.push({ id: 'zone_' + Date.now(), name: name, color: znNextColor(),
-                       pts: znDraft.pts, closeC: znDraft.closeC });
+                       pts: znDraft.pts, closeC: znDraft.closeC, label: znDraft.label });
   }
   znPersist();
   znDraft = null; znSelected = null;
@@ -8703,11 +8709,15 @@ function znSave() {
   renderZonesView();
 }
 
+function znResetLabel() { if (znDraft) { znDraft.label = null; renderZonesView(); } }
+
 function znEdit(id) {
   const z = (State.zones || []).find(x => x.id === id);
   if (!z) return;
   znSelected = id;
-  znDraft = { pts: JSON.parse(JSON.stringify(z.pts)), closeC: z.closeC ? Object.assign({}, z.closeC) : null };
+  znDraft = { pts: JSON.parse(JSON.stringify(z.pts)),
+              closeC: z.closeC ? Object.assign({}, z.closeC) : null,
+              label: z.label ? Object.assign({}, z.label) : null };
   renderZonesView();
 }
 
@@ -8748,6 +8758,7 @@ function znGrab(e, kind, i) {
       const sn = _znSnap(pt, n > 1 ? nb : null, znSelected);
       znDraft.pts[znDrag.i].x = sn.x; znDraft.pts[znDrag.i].y = sn.y;
     }
+    else if (znDrag.kind === 'label') znDraft.label = pt;          // move the label
     else if (znDrag.kind === 'mid') znDraft.pts[znDrag.i].c = pt;   // bend that segment
     else znDraft.closeC = pt;                                       // bend the closing segment
     _znRedraw();
@@ -8763,8 +8774,14 @@ function znGrab(e, kind, i) {
 
 /* Live path update while dragging (avoids a full re-render per mouse move). */
 function _znRedraw() {
+  if (!znDraft) return;
   const path = document.getElementById('zn-draft-path');
-  if (path && znDraft) path.setAttribute('d', znPathD(znDraft.pts, znDraft.closeC, true));
+  if (path) path.setAttribute('d', znPathD(znDraft.pts, znDraft.closeC, true));
+  const mark = document.getElementById('zn-label-mark');
+  if (mark && znDraft.label) {
+    mark.setAttribute('cx', znDraft.label.x);
+    mark.setAttribute('cy', znDraft.label.y);
+  }
 }
 
 tabRenderers.zones = function () { renderZonesView(); };
@@ -8806,6 +8823,13 @@ function renderZonesView() {
                   'onpointerdown="znGrab(event,\'mid\',' + i + ')"><title>Drag to curve this edge</title></circle>';
     }
     if (pts.length > 2) {
+      // Label marker — drag to choose exactly where this zone's numbers sit.
+      const lp = znDraft.label || znCentroid(znPolygon({ pts: pts, closeC: znDraft.closeC }));
+      draftSvg += '<circle id="zn-label-mark" class="zn-handle" cx="' + lp.x + '" cy="' + lp.y + '" r="9" ' +
+                  'fill="#06b6d4" fill-opacity="' + (znDraft.label ? 0.95 : 0.4) + '" stroke="#fff" stroke-width="2" ' +
+                  'onpointerdown="znGrab(event,\'label\',0)"><title>Drag to place this zone\'s label</title></circle>' +
+                  '<text x="' + lp.x + '" y="' + lp.y + '" text-anchor="middle" dominant-baseline="central" ' +
+                  'font-size="9" font-weight="800" fill="#00303a" style="pointer-events:none">A</text>';
       const c = znDraft.closeC || { x: (pts[pts.length - 1].x + pts[0].x) / 2, y: (pts[pts.length - 1].y + pts[0].y) / 2 };
       draftSvg += '<circle class="zn-handle" cx="' + c.x + '" cy="' + c.y + '" r="5" fill="#f5c542" fill-opacity="' +
                   (znDraft.closeC ? 1 : 0.45) + '" stroke="#0d1117" stroke-width="1" ' +
@@ -8816,7 +8840,7 @@ function renderZonesView() {
   const labels = State.zones.map(z => {
     const poly = znPolygon(z);
     if (!poly.length) return '';
-    const ctr = znCentroid(poly);
+    const ctr = znLabelPos(z, poly);
     const cx = ctr.x, cy = ctr.y;
     return '<text x="' + cx.toFixed(1) + '" y="' + cy.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="700" ' +
            'fill="#fff" style="pointer-events:none;paint-order:stroke;stroke:#0d1117;stroke-width:3px;">' +
@@ -8827,6 +8851,7 @@ function renderZonesView() {
     ? '<button class="btn btn-primary btn-sm" onclick="znSave()">\u2713 Save Zone</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znUndoPoint()">\u21b6 Undo Point</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znCancel()">Cancel</button>' +
+      (znDraft.label ? '<button class="btn btn-ghost btn-sm" onclick="znResetLabel()">Recentre Label</button>' : '') +
       '<span class="zn-count">' + znDraft.pts.length + ' point' + (znDraft.pts.length === 1 ? '' : 's') + '</span>'
     : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>';
@@ -8853,7 +8878,8 @@ function renderZonesView() {
       '<strong>Click</strong> the court to drop points. <strong>Drag a white dot</strong> to move it, ' +
       '<strong>drag a gold dot</strong> to bend that edge into a curve. Three points minimum, then Save.<br>' +
       'Points snap to nearby corners of other zones and square up to true horizontal/vertical, ' +
-      'so borders meet exactly. <strong>Tidy Zones</strong> applies the same clean-up to everything already drawn.' +
+      'so borders meet exactly. <strong>Tidy Zones</strong> applies the same clean-up to everything already drawn.<br>' +
+      'The <span style="color:#06b6d4;font-weight:700;">cyan dot</span> is where this zone\'s numbers will print \u2014 drag it anywhere you like.' +
     '</div>' +
     '<div class="zn-wrap">' +
       '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="znCourtClick(event)">' +
