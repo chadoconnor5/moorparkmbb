@@ -6684,13 +6684,14 @@ function buildZoneHeatSvg(shots) {
     const t = tally[z.id];
     const poly = znPolygon(z);
     if (!poly.length) return '';
-    const cx = poly.reduce((a, q) => a + q.x, 0) / poly.length;
-    const cy = poly.reduce((a, q) => a + q.y, 0) / poly.length;
+    const ctr = znCentroid(poly);
+    const cx = ctr.x, cy = ctr.y;
     const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
-    // Bold black percentage, makes-attempts hyphenated underneath.
-    return '<text x="' + cx.toFixed(0) + '" y="' + (cy - 4).toFixed(0) + '" text-anchor="middle" font-size="22" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
+    /* Two-line block centred on the centroid: dominant-baseline puts each line's middle
+       on its y, and the offsets sit symmetrically either side of centre. */
+    return '<text x="' + cx.toFixed(1) + '" y="' + (cy - 9).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="22" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
              (pct == null ? '&#8212;' : pct + '%') + '</text>' +
-           '<text x="' + cx.toFixed(0) + '" y="' + (cy + 15).toFixed(0) + '" text-anchor="middle" font-size="13" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
+           '<text x="' + cx.toFixed(1) + '" y="' + (cy + 11).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
              t.m + '-' + t.a + '</text>';
   }).join('');
 
@@ -8562,6 +8563,23 @@ function znPolygon(z) {
   return out;
 }
 
+/* Area centroid of the flattened outline. Averaging vertices pulls the label toward
+   curved edges (they contribute many more points), so use the real polygon centroid. */
+function znCentroid(poly) {
+  if (!poly || !poly.length) return { x: 250, y: 240 };
+  let a2 = 0, cx = 0, cy = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const f = poly[j].x * poly[i].y - poly[i].x * poly[j].y;
+    a2 += f; cx += (poly[j].x + poly[i].x) * f; cy += (poly[j].y + poly[i].y) * f;
+  }
+  a2 *= 0.5;
+  if (Math.abs(a2) < 1e-6) {                       // degenerate outline — fall back
+    return { x: poly.reduce((t, q) => t + q.x, 0) / poly.length,
+             y: poly.reduce((t, q) => t + q.y, 0) / poly.length };
+  }
+  return { x: cx / (6 * a2), y: cy / (6 * a2) };
+}
+
 function znContains(z, x, y) {
   const poly = z._poly || (z._poly = znPolygon(z));
   let inside = false;
@@ -8798,9 +8816,9 @@ function renderZonesView() {
   const labels = State.zones.map(z => {
     const poly = znPolygon(z);
     if (!poly.length) return '';
-    const cx = poly.reduce((a, q) => a + q.x, 0) / poly.length;
-    const cy = poly.reduce((a, q) => a + q.y, 0) / poly.length;
-    return '<text x="' + cx.toFixed(0) + '" y="' + cy.toFixed(0) + '" text-anchor="middle" font-size="13" font-weight="700" ' +
+    const ctr = znCentroid(poly);
+    const cx = ctr.x, cy = ctr.y;
+    return '<text x="' + cx.toFixed(1) + '" y="' + cy.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="700" ' +
            'fill="#fff" style="pointer-events:none;paint-order:stroke;stroke:#0d1117;stroke-width:3px;">' +
            escHtml(z.name) + '</text>';
   }).join('');
