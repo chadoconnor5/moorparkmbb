@@ -6833,7 +6833,14 @@ function renderShotChartView() {
             <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);margin-bottom:8px;">Shot Type / Contest</div>
             ${buildShotMetaTable(shotTypeTableShots, contestTableShots, scFilter.shotTypes, scFilter.contests)}
           </div>
-        </div>`;
+        </div>
+        ${shots.filter(ev => ev.shotFt != null).length ? `
+        <div style="margin-top:16px;">
+          <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);margin-bottom:8px;">Shot Distance</div>
+          ${/* Fully-filtered set: distance has no dimension of its own to exclude, unlike
+                the zone and type tables which each leave their own filter out. */''}
+          ${buildDistanceChart(shots.filter(ev => ev.shotFt != null), null)}
+        </div>` : ''}`;
 
   root.innerHTML = `
     <div class="sc-controls">
@@ -7566,9 +7573,58 @@ function playerEntriesForSession(sess, name, filterTeam = 'all') {
     .filter(p => p.name === name && (filterTeam === 'all' || p.team === filterTeam));
 }
 
+/* ── Shot selection vs shot making ──
+   The box score fuses two different things. Expected PPS values every attempt at what the
+   WHOLE GROUP averages from that distance band, so it describes the shots a player chose
+   to take. Actual PPS is what he produced from them. The gap between them is shot-making.
+
+   A player at 0.85 PPS because he settles for long twos needs a different conversation
+   than one getting good looks and missing them — identical box scores, opposite fixes.
+
+   2s and 3s are binned separately within a band: a corner three and a long two can sit at
+   the same distance and are worth very different amounts. The baseline always spans every
+   player in scope, even when a team filter is on, so the comparison stays common. */
+function computeShotQuality(sessions) {
+  const SHOT_STATS = ['2fg_make', '2fg_miss', '3fg_make', '3fg_miss'];
+  const shots = [];
+  for (const sess of sessions) {
+    for (const ev of (sess.eventLog || [])) {
+      if (!SHOT_STATS.includes(ev.stat) || ev.shotFt == null || !ev.player) continue;
+      const b = shotDistBucket(ev.shotFt);
+      if (!b) continue;
+      shots.push({
+        player: ev.player,
+        key: b.label + (ev.stat.charAt(0) === '3' ? '|3' : '|2'),
+        pts: shotPoints(ev.stat),
+      });
+    }
+  }
+
+  const base = {};
+  for (const s of shots) {
+    if (!base[s.key]) base[s.key] = { pts: 0, att: 0 };
+    base[s.key].pts += s.pts;
+    base[s.key].att += 1;
+  }
+
+  const out = {};
+  for (const s of shots) {
+    if (!out[s.player]) out[s.player] = { att: 0, pts: 0, xpts: 0 };
+    const b = out[s.player];
+    b.att += 1;
+    b.pts += s.pts;
+    b.xpts += base[s.key].pts / base[s.key].att;   // what this shot is worth on average
+  }
+  return out;
+}
+
 function aggregatePlayerStats(filterPeriod, filterTeam) {
   const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const byPlayer = {};
+
+  // Shot quality shares the row scope, so the baseline reflects the same practices shown.
+  const scoped = sessions.filter(s => filterPeriod === 'all' || s.period === filterPeriod);
+  const shotQual = computeShotQuality(scoped);
 
   for (const sess of sessions) {
     if (filterPeriod !== 'all' && sess.period !== filterPeriod) continue;
@@ -7662,6 +7718,15 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          rebounds by type, deflections and fouls fell through as season TOTALS — so a
          2-practice season showed 32.0 "average" 2FGA when the real figure was 16.0. */
       pm: r.pm, pmPG: p1(r.pm / g),
+      /* xPPS = value of the shots taken; PPS = value produced; SHOT+/- = the gap, i.e.
+         shot-making with selection held constant. Null below a handful of attempts —
+         the difference of two small-sample rates is mostly noise. */
+      ...(() => {
+        const q = shotQual[r.name];
+        if (!q || q.att < 5) return { xpps: null, pps: null, shotDiff: null };
+        const xpps = q.xpts / q.att, pps = q.pts / q.att;
+        return { xpps: p1(xpps, 2), pps: p1(pps, 2), shotDiff: p1(pps - xpps, 2) };
+      })(),
       fg2mPG: p1(r.fg2m / g), fg2aPG: p1(r.fg2a / g),
       fg3mPG: p1(r.fg3m / g), fg3aPG: p1(r.fg3a / g),
       ftmPG:  p1(r.ftm  / g), ftaPG:  p1(r.fta  / g),
@@ -7743,6 +7808,9 @@ function renderPlayerTable() {
     { key: 'toPct',     label: 'TO%'   },
     { key: 'stlPct',    label: 'STL%'  },
     { key: 'blkPct',    label: 'BLK%'  },
+    { key: 'xpps',      label: 'xPPS'  },   // value of the shots taken (selection)
+    { key: 'pps',       label: 'PPS'   },   // value actually produced
+    { key: 'shotDiff',  label: 'SHOT+/-' }, // the gap = shot-making
   ];
 
   const PS_COLS = isAdv ? PS_COLS_ADV : isTotals ? [
@@ -7823,6 +7891,13 @@ function renderPlayerTable() {
         const txt = key === 'pm' ? String(n) : n.toFixed(1);
         const col = n > 0 ? 'var(--success)' : n < 0 ? 'var(--danger)' : 'var(--text-dim)';
         return `<td style="font-variant-numeric:tabular-nums;color:${col};font-weight:700;">${n > 0 ? '+' : ''}${txt}</td>`;
+      }
+      // PPS figures carry two decimals — at ~1.00 a single decimal hides real differences.
+      if (key === 'xpps' || key === 'pps') return `<td>${(+v).toFixed(2)}</td>`;
+      if (key === 'shotDiff') {
+        const n = +v;
+        const col = n > 0 ? 'var(--success)' : n < 0 ? 'var(--danger)' : 'var(--text-dim)';
+        return `<td style="font-variant-numeric:tabular-nums;color:${col};font-weight:700;">${n > 0 ? '+' : ''}${n.toFixed(2)}</td>`;
       }
       if (key === 'ortg') return `<td>${Math.round(v)}</td>`;
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
@@ -8562,12 +8637,16 @@ function buildShotTypeBreakdown(fgEvents) {
 
   // Aggregate by shotType
   const byType = {};
+  /* Every tag on the attempt, not just the first one tapped — this page was still reading
+     ev.shotType alone, so a descriptor usually picked second (Off Balance especially) was
+     almost invisible here even after the Shot Charts tab was fixed. Rows therefore total
+     more than the attempt count, which is inherent to multi-tagging. */
   for (const ev of fgEvents) {
-    const t = ev.shotType === 'post_up' ? 'post_moves' : ev.shotType;
-    if (!t) continue;
-    if (!byType[t]) byType[t] = { makes: 0, attempts: 0 };
-    byType[t].attempts++;
-    if (ev.stat.endsWith('make')) byType[t].makes++;
+    for (const t of shotTypesOf(ev)) {
+      if (!byType[t]) byType[t] = { makes: 0, attempts: 0 };
+      byType[t].attempts++;
+      if (ev.stat.endsWith('make')) byType[t].makes++;
+    }
   }
 
   // Contested / uncontested totals (across all types)
@@ -8576,7 +8655,13 @@ function buildShotTypeBreakdown(fgEvents) {
   const contestedMakes   = fgEvents.filter(e => e.shotContest === 'contested'   && e.stat.endsWith('make')).length;
   const uncontestedMakes = fgEvents.filter(e => e.shotContest === 'uncontested' && e.stat.endsWith('make')).length;
 
-  const typeRows = ORDER.filter(t => byType[t]).map(t => {
+  /* Sorted by share of attempts, most-taken first: on a player page the question is what
+     this player's shot diet actually is, so frequency leads. ORDER only breaks ties now,
+     which keeps equal-volume types in a stable, predictable sequence. */
+  const typeRows = Object.keys(byType)
+    .filter(t => LABELS[t])
+    .sort((a, b) => (byType[b].attempts - byType[a].attempts) || (ORDER.indexOf(a) - ORDER.indexOf(b)))
+    .map(t => {
     const { makes, attempts } = byType[t];
     const pct = Math.round(100 * makes / attempts);
     const barW = pct;
@@ -8619,21 +8704,34 @@ function buildShotTypeBreakdown(fgEvents) {
     </div>`;
 }
 
+/* Distance buckets, shared by the profile chart, the Shot Charts panel and the shot-quality
+   baseline so all three bin shots identically. */
+const SHOT_DIST_BUCKETS = [
+  { label: '0–4 ft',   min: 0,  max: 4.9  },
+  { label: '5–9 ft',   min: 5,  max: 9.9  },
+  { label: '10–14 ft', min: 10, max: 14.9 },
+  { label: '15–19 ft', min: 15, max: 19.9 },
+  { label: '20–22 ft', min: 20, max: 22.9 },
+  { label: '22+ ft',   min: 23, max: Infinity },
+];
+
+function shotDistBucket(ft) {
+  if (ft == null) return null;
+  return SHOT_DIST_BUCKETS.find(b => ft >= b.min && ft <= b.max) || null;
+}
+
+function shotPoints(stat) {
+  return stat === '3fg_make' ? 3 : stat === '2fg_make' ? 2 : 0;
+}
+
 function buildDistanceChart(shotEvents, playerName) {
-  // Buckets: 0-4 (restricted), 5-9, 10-14, 15-19, 20-22, 22+ (3pt)
-  const BUCKETS = [
-    { label: '0–4 ft',  min: 0,  max: 4.9  },
-    { label: '5–9 ft',  min: 5,  max: 9.9  },
-    { label: '10–14 ft', min: 10, max: 14.9 },
-    { label: '15–19 ft', min: 15, max: 19.9 },
-    { label: '20–22 ft', min: 20, max: 22.9 },
-    { label: '22+ ft',  min: 23, max: Infinity },
-  ];
+  const BUCKETS = SHOT_DIST_BUCKETS;
 
   const totals = BUCKETS.map(b => {
     const shots = shotEvents.filter(ev => ev.shotFt >= b.min && ev.shotFt <= b.max);
     const made  = shots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
-    return { ...b, att: shots.length, made };
+    const pts   = shots.reduce((s, ev) => s + shotPoints(ev.stat), 0);
+    return { ...b, att: shots.length, made, pts };
   }).filter(b => b.att > 0);
 
   if (!totals.length) return '';
@@ -8641,18 +8739,19 @@ function buildDistanceChart(shotEvents, playerName) {
   const maxAtt = Math.max(...totals.map(b => b.att));
 
   const bars = totals.map(b => {
-    const pct   = Math.round(100 * b.made / b.att);
     const width = Math.round(100 * b.att / maxAtt);
-    const color = b.label.includes('22+') ? '#f59e0b'
-                : pct >= 55 ? '#22c55e'
-                : pct >= 40 ? '#4f6ef7'
-                : '#ef4444';
-    return `<div class="dist-bar-row">
+    /* Coloured by POINTS PER SHOT, same thresholds as the zone breakdown. The old scale
+       judged everything on FG%, which is why the 22+ band needed a hard-coded amber
+       exception — a three can never be compared to a layup on made-percentage. PPS puts
+       every band on one axis and the exception disappears. */
+    const pps   = b.pts / b.att;
+    const color = pps >= 1.10 ? '#22c55e' : pps >= 0.90 ? '#f59e0b' : '#ef4444';
+    return `<div class="dist-bar-row" title="${pps.toFixed(2)} points per shot">
       <div class="dist-bar-label">${b.label}</div>
       <div class="dist-bar-track">
         <div class="dist-bar-fill" style="width:${width}%;background:${color};"></div>
       </div>
-      <div class="dist-bar-stat">${b.made}/${b.att} (${pct}%)</div>
+      <div class="dist-bar-stat">${b.made}/${b.att} · ${pps.toFixed(2)}</div>
     </div>`;
   }).join('');
 
