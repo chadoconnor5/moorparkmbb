@@ -5462,7 +5462,7 @@ function buildPostGameReportPack(session) {
               ${buildStatsTable([
                 ['Team', p.team === 'a' ? session.teamAName : session.teamBName],
                 ['GP', playerGames.gp ?? 0],
-                ['MIN', playerGames.min != null ? `${playerGames.min}` : '—'],
+                ['MIN', playerGames.min != null ? `${(+playerGames.min).toFixed(1)}` : '—'],
                 ['PTS', playerGames.pts ?? 0],
                 ['REB', playerGames.reb ?? 0],
                 ['AST', playerGames.ast ?? 0],
@@ -7546,7 +7546,8 @@ function mergePlayerEntries(entries) {
   // The squad he gave the most minutes to owns the practice — and therefore the result.
   out.team = dominant.team;
   for (const k of _PS_COUNTING) out[k] = dominant[k] ?? 0;
-  out.min = entries.reduce((sum, e) => sum + (e.min || 0), 0);
+  // Rounded: adding decimal minutes in binary floating point yields 29.700000000000003.
+  out.min = +entries.reduce((sum, e) => sum + (e.min || 0), 0).toFixed(1);
   for (const k of _PS_RATES) {
     let wsum = 0, w = 0;
     for (const e of entries) {
@@ -7651,7 +7652,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
     return {
       name: r.name, team: r.team,
       gp: r.gp, wins: r.wins, losses: r.losses,
-      min: r.min, pts: r.pts,
+      min: p1(r.min), pts: r.pts,   // p1 rounds — minutes are the one float total
       fgm: r.fgm, fga: r.fga, fg2m: r.fg2m, fg2a: r.fg2a, fg3m: r.fg3m, fg3a: r.fg3a,
       ftm: r.ftm, fta: r.fta, oreb: r.oreb, dreb: r.dreb, reb: r.reb,
       ast: r.ast, tov: r.tov, stl: r.stl, blk: r.blk, defl: r.defl, pf: r.pf,
@@ -7827,7 +7828,10 @@ function renderPlayerTable() {
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
           'usgPct','minPctVal','shotPct','ftRate'].includes(key))
         return `<td>${v}%</td>`;
-      if (isTotals) return `<td>${v}</td>`;
+      /* Backstop for the whole TOT view: counting stats are integers and print as-is, but
+         anything accumulated from decimals (minutes today, anything similar later) would
+         otherwise leak its full binary expansion into the cell. */
+      if (isTotals) return `<td>${Number.isInteger(+v) ? v : (+v).toFixed(1)}</td>`;
       return `<td>${(+v).toFixed(1)}</td>`;
     }
     return `<tr>
@@ -9045,7 +9049,7 @@ function _luRowHtml(r, team, filtered, cell) {
   return `<tr>
       <td class="lineup-key" title="${escHtml(luFull)}"><span class="lu-name-full">${escHtml(luFull)}</span><span class="lu-name-short">${escHtml(luShort)}</span></td>
       <td>${r.gp}</td>
-      <td>${r.min}'</td>
+      <td>${(+r.min).toFixed(1)}'</td>
       <td>${Math.round(r.poss)}</td>
       <td>${r.ortg}</td>
       <td>${r.drtg}</td>
