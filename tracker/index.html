@@ -6644,6 +6644,25 @@ function deactivateInlineCourt() {
   refreshModalCourt(null, null);
 }
 
+/* ── Every shot-type tag on an attempt ──
+   Shot types are MULTI-select: a shot can be a Drive AND a Layup AND Off Balance. 97 of
+   352 recorded attempts carry more than one. Anything that reads only `ev.shotType` — the
+   first tag tapped — silently undercounts every descriptor that tends to get picked
+   second. Off Balance was the extreme: 2 counted, 31 actually tagged.
+
+   `post_up` is the old name for `post_moves` and is folded in here. */
+function shotTypesOf(ev) {
+  const raw = (Array.isArray(ev.shotTypes) && ev.shotTypes.length)
+    ? ev.shotTypes
+    : (ev.shotType ? [ev.shotType] : []);
+  const out = [];
+  for (const t of raw) {
+    const n = (t === 'post_up') ? 'post_moves' : t;
+    if (n && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
 /* ── Which zone is this shot in? ──
    ONE answer, used by the map, the breakdown table and the zone filter alike. The zones
    Chad drew take precedence: they're what the Zones view renders and what he actually
@@ -6725,14 +6744,14 @@ function renderShotChartView() {
   if (scFilter.mode   === 'makes')  baseShots = baseShots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make');
   if (scFilter.mode   === 'misses') baseShots = baseShots.filter(ev => ev.stat === '2fg_miss' || ev.stat === '3fg_miss');
 
-  const normType = ev => (ev.shotType === 'post_up' ? 'post_moves' : ev.shotType);
   const selectedZones = scFilter.zones || [];
   const selectedTypes = scFilter.shotTypes || [];
   const selectedContests = scFilter.contests || [];
 
   // Keep selected values valid for current base filter scope.
   const availableZones = new Set(baseShots.map(scZoneKey).filter(Boolean));
-  const availableTypes = new Set(baseShots.map(normType).filter(Boolean));
+  // Union of EVERY tag on every shot, not just each shot's first one.
+  const availableTypes = new Set(baseShots.flatMap(shotTypesOf));
   const availableContests = new Set(baseShots.map(ev => ev.shotContest).filter(c => c === 'contested' || c === 'uncontested'));
   scFilter.zones = selectedZones.filter(z => availableZones.has(z));
   scFilter.shotTypes = selectedTypes.filter(t => availableTypes.has(t));
@@ -6740,7 +6759,7 @@ function renderShotChartView() {
 
   // Table views: each table reflects currently selected other dimensions.
   const zoneTableShots = baseShots
-    .filter(ev => !scFilter.shotTypes.length || scFilter.shotTypes.includes(normType(ev)))
+    .filter(ev => !scFilter.shotTypes.length || shotTypesOf(ev).some(t => scFilter.shotTypes.includes(t)))
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
   const shotTypeTableShots = baseShots
@@ -6749,12 +6768,12 @@ function renderShotChartView() {
 
   const contestTableShots = baseShots
     .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
-    .filter(ev => !scFilter.shotTypes.length || scFilter.shotTypes.includes(normType(ev)));
+    .filter(ev => !scFilter.shotTypes.length || shotTypesOf(ev).some(t => scFilter.shotTypes.includes(t)));
 
   // Final dots = intersection of all selected dimensions.
   const shots = baseShots
     .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
-    .filter(ev => !scFilter.shotTypes.length || scFilter.shotTypes.includes(normType(ev)))
+    .filter(ev => !scFilter.shotTypes.length || shotTypesOf(ev).some(t => scFilter.shotTypes.includes(t)))
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
   const sessionOpts = [
@@ -7242,14 +7261,18 @@ function buildShotMetaTable(shotTypeShots, contestShots, selectedTypes = [], sel
     off_balance: 'Off Balance', buzzer_beater: 'Buzzer Beater'
   };
 
-  const normType = ev => (ev.shotType === 'post_up' ? 'post_moves' : ev.shotType);
+  /* A shot lands in EVERY row it was tagged with, so "Off Balance 9-31" answers the real
+     question — how did we shoot when off balance — regardless of whether that tag was
+     tapped first or third. Rows therefore sum to more than the shot count; that is
+     inherent to multi-tagging, not a miscount. */
   const byType = {};
   for (const ev of shotTypeShots) {
-    const t = normType(ev);
-    if (!t || !TYPE_LABELS[t]) continue;
-    if (!byType[t]) byType[t] = { makes: 0, att: 0 };
-    byType[t].att += 1;
-    if (ev.stat.endsWith('make')) byType[t].makes += 1;
+    for (const t of shotTypesOf(ev)) {
+      if (!TYPE_LABELS[t]) continue;
+      if (!byType[t]) byType[t] = { makes: 0, att: 0 };
+      byType[t].att += 1;
+      if (ev.stat.endsWith('make')) byType[t].makes += 1;
+    }
   }
 
   const typeRows = TYPE_ORDER
