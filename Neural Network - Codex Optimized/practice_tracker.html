@@ -7192,13 +7192,26 @@ function buildHeatSvg(shots) {
 function buildZoneTable(shots, selectedZones = []) {
   const drawn = State.zones || [];
 
-  function renderRow(key, label, is3, made, att) {
+  /* Colour by POINTS PER SHOT, not FG%. FG% can't be compared across 2s and 3s: 38% from
+     deep is 1.14 PPS — clearly good — while the old thresholds painted it orange because
+     they judged every zone against the same 50/35 scale built for twos. PPS puts both shot
+     types on one axis, which is the whole point of the number.
+
+     Thresholds are ABSOLUTE, unlike the Zones heat map, which centres its diverging scale
+     on the current selection's own PPS. Deliberate: the map answers "which of our zones
+     are best and worst", a table row answers "is this shot good", and 1.14 PPS is good
+     regardless of what the rest of the chart did. */
+  const ppsColor = pps =>
+    pps >= 1.10 ? 'var(--success)' : pps >= 0.90 ? 'var(--warning)' : 'var(--danger)';
+
+  function renderRow(key, label, is3, made, att, pts) {
     const pct = Math.round(100 * made / att);
-    const pctColor = pct >= 50 ? 'var(--success)' : pct >= 35 ? 'var(--warning)' : 'var(--danger)';
+    const pps = att > 0 ? pts / att : 0;
     const style = is3 ? ' style="color:var(--warning);"' : '';
     const active = selectedZones.includes(key);
     const marker = active ? '&#10003;&nbsp;' : '';
-    return `<tr class="${active ? 'active' : ''}" onclick="scToggleZone('${escHtml(key)}')" style="cursor:pointer;"><td style="text-align:left;"${style}>${marker}${escHtml(label)}</td><td>${made}-${att}</td><td style="color:${pctColor};font-weight:700;">${pct}%</td></tr>`;
+    const tip = `${pps.toFixed(2)} points per shot`;
+    return `<tr class="${active ? 'active' : ''}" onclick="scToggleZone('${escHtml(key)}')" style="cursor:pointer;" title="${tip}"><td style="text-align:left;"${style}>${marker}${escHtml(label)}</td><td>${made}-${att}</td><td style="color:${ppsColor(pps)};font-weight:700;">${pct}%</td></tr>`;
   }
 
   let rows2 = '', rows3 = '', unknown;
@@ -7208,7 +7221,7 @@ function buildZoneTable(shots, selectedZones = []) {
        it's inferred from the shots that landed in it — which is the honest read of what
        the zone actually covers, whatever it got named. */
     const tally = {};
-    drawn.forEach(z => { tally[z.id] = { made: 0, att: 0, threes: 0 }; });
+    drawn.forEach(z => { tally[z.id] = { made: 0, att: 0, threes: 0, pts: 0 }; });
     unknown = [];
     for (const ev of shots) {
       const key = scZoneKey(ev);
@@ -7216,12 +7229,15 @@ function buildZoneTable(shots, selectedZones = []) {
       tally[key].att++;
       if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[key].made++;
       if (ev.stat === '3fg_make' || ev.stat === '3fg_miss') tally[key].threes++;
+      // Points earned here, so a three is worth what it's actually worth.
+      if (ev.stat === '3fg_make') tally[key].pts += 3;
+      else if (ev.stat === '2fg_make') tally[key].pts += 2;
     }
     for (const z of drawn) {
       const t = tally[z.id];
       if (!t.att) continue;
       const is3 = t.threes > t.att / 2;
-      const row = renderRow(z.id, z.name, is3, t.made, t.att);
+      const row = renderRow(z.id, z.name, is3, t.made, t.att, t.pts);
       if (is3) rows3 += row; else rows2 += row;
     }
   } else {
@@ -7231,7 +7247,9 @@ function buildZoneTable(shots, selectedZones = []) {
       const zShots = shots.filter(ev => ev.zone === z);
       const made   = zShots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
       if (!zShots.length) return '';
-      return renderRow(z, def.label, def.is3, made, zShots.length);
+      const pts = zShots.reduce((sum, ev) =>
+        sum + (ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0), 0);
+      return renderRow(z, def.label, def.is3, made, zShots.length, pts);
     }).filter(Boolean).join('');
     rows2 = zoneRows(ZONES_2FG);
     rows3 = zoneRows(ZONES_3FG);
@@ -8982,7 +9000,10 @@ function renderLineupsView() {
 }
 
 /* ── Lineup table sorting ── */
-let luSort = { key: 'net', dir: -1 };
+/* Possessions descending by default: with small samples, net rating puts a lineup that
+   played three possessions above one that played eighty, so sorting by sample size first
+   surfaces the units that actually tell you something. */
+let luSort = { key: 'poss', dir: -1 };
 
 function _luSortRows(rows) {
   const { key, dir } = luSort;
