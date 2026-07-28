@@ -5260,6 +5260,8 @@ function backupBeforeRename() {
     reason: 'auto-backup before player rename',
     roster: State.roster,
     settings: State.settings,
+    // Hand-drawn zone polygons exist nowhere else — a restore without them loses that work.
+    zones: State.zones,
     sessions: getSessions(),
     /* getSessions() is COMPLETED sessions only, but applyPlayerRenames rewrites the
        in-progress one too — and the roster editor is now reachable mid-game from the
@@ -5664,7 +5666,8 @@ async function restoreFromBackup() {
         app: 'moorpark-practice-tracker', version: 1,
         exportedAt: new Date().toISOString(),
         reason: 'auto-backup before restore',
-        roster: State.roster, settings: State.settings, sessions: getSessions(),
+        // zones included for the same reason as backupBeforeRename — they're unrecoverable.
+        roster: State.roster, settings: State.settings, zones: State.zones, sessions: getSessions(),
       };
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       downloadTextFile(`moorpark_tracker_backup_pre_restore_${stamp}.json`, JSON.stringify(pre), 'application/json');
@@ -5677,6 +5680,11 @@ async function restoreFromBackup() {
     }
     if (isBackup && data.settings && typeof data.settings === 'object') {
       State.settings = Object.assign({}, State.settings, data.settings);
+    }
+    /* Zones were being written into backups but never read back out here — importSessions
+       restores them, this path didn't, so a full restore silently dropped the drawings. */
+    if (isBackup && Array.isArray(data.zones) && data.zones.length) {
+      State.zones = data.zones; znPersist();
     }
     if (!persistSessions()) return;   // persistKey already warned on failure
 
@@ -7550,6 +7558,8 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
        halved his per-game averages. Team filtering happens before the merge, so a filtered
        view still shows only that squad's stint. */
     const names = [...new Set((sess.playerStats || []).map(x => x.name))];
+    /* One replay per session, not per player — computePlusMinus walks the whole event log. */
+    const pmAll = computePlusMinus(sess);
     for (const nm of names) {
       const entries = playerEntriesForSession(sess, nm, filterTeam);
       if (!entries.length) continue;
@@ -7558,7 +7568,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       if (!byPlayer[key]) {
         byPlayer[key] = {
           name: p.name, team: p.team,
-          gp: 0, wins: 0, losses: 0,
+          gp: 0, wins: 0, losses: 0, pm: 0,
           min: 0, pts: 0, fgm: 0, fga: 0, fg2m: 0, fg2a: 0, fg3m: 0, fg3a: 0,
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
@@ -7570,6 +7580,12 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       }
       const row = byPlayer[key];
       row.gp++;
+      /* +/- accrues while a player is ON THE FLOOR, and the two team maps cover disjoint
+         stints — so a player who switched squads mid-practice has his White and Black
+         stretches added together, unlike the counting stats which are duplicated. When a
+         squad filter is on, only that squad's stints count. */
+      if (filterTeam === 'all' || filterTeam === 'a') row.pm += pmAll.pmA[nm] || 0;
+      if (filterTeam === 'all' || filterTeam === 'b') row.pm += pmAll.pmB[nm] || 0;
       const ptsA = (sess.teamStats?.a?.pts ?? 0);
       const ptsB = (sess.teamStats?.b?.pts ?? 0);
       if (ptsA !== ptsB) {
@@ -7626,6 +7642,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          mix them: PTS/REB/AST/TOV/STL/BLK/MIN were per-game while the shooting splits,
          rebounds by type, deflections and fouls fell through as season TOTALS — so a
          2-practice season showed 32.0 "average" 2FGA when the real figure was 16.0. */
+      pm: r.pm, pmPG: p1(r.pm / g),
       fg2mPG: p1(r.fg2m / g), fg2aPG: p1(r.fg2a / g),
       fg3mPG: p1(r.fg3m / g), fg3aPG: p1(r.fg3a / g),
       ftmPG:  p1(r.ftm  / g), ftaPG:  p1(r.fta  / g),
@@ -7735,6 +7752,7 @@ function renderPlayerTable() {
     { key: 'blk',    label: 'BLK'    },
     { key: 'defl',   label: 'DEFL'   },
     { key: 'pf',     label: 'PF'     },
+    { key: 'pm',     label: '+/-'    },   // season total
   ] : [
     { key: 'record', label: 'W-L'    },
     { key: 'gp',     label: 'GP'     },
@@ -7761,6 +7779,7 @@ function renderPlayerTable() {
     { key: 'blkPG',  label: 'BLK'    },
     { key: 'deflPG', label: 'DEFL'   },
     { key: 'pfPG',   label: 'PF'     },
+    { key: 'pmPG',   label: '+/-'    },   // per game
   ];
 
   function sortArrow(key) {
@@ -7778,6 +7797,14 @@ function renderPlayerTable() {
       if (v == null) return '<td>\u2014</td>';
       if (key === 'record') return `<td style="font-variant-numeric:tabular-nums;">${v}</td>`;
       if (key === 'gp') return `<td>${v}</td>`;
+      /* Signed, and never run through the generic branches below: the total must stay a
+         whole number while the per-game figure keeps a decimal. */
+      if (key === 'pm' || key === 'pmPG') {
+        const n = +v;
+        const txt = key === 'pm' ? String(n) : n.toFixed(1);
+        const col = n > 0 ? 'var(--success)' : n < 0 ? 'var(--danger)' : 'var(--text-dim)';
+        return `<td style="font-variant-numeric:tabular-nums;color:${col};font-weight:700;">${n > 0 ? '+' : ''}${txt}</td>`;
+      }
       if (key === 'ortg') return `<td>${Math.round(v)}</td>`;
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
           'usgPct','minPctVal','shotPct','ftRate'].includes(key))
