@@ -1002,6 +1002,18 @@
     .scorebar-score.team-a-score { color: #60a5fa; }
     .scorebar-score.team-b-score { color: #fb923c; }
 
+    /* Team name stacked over the kill counter, so the scorebar row stays one line tall. */
+    .scorebar-teaminfo { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+    .scorebar-kills {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+      color: var(--text-dim); white-space: nowrap;
+    }
+    .kill-num  { color: #f5c542; font-weight: 800; }
+    .kill-pips { display: inline-flex; gap: 2px; }
+    .kill-pip  { width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+    .kill-pip.on { background: var(--success); }
+
     .scorebar-center {
       display: flex;
       flex-direction: column;
@@ -1062,6 +1074,42 @@
       width: 100%;
       gap: 10px;
     }
+
+    /* Live lineup +/- card — right of the shot chart in the bottom row. Deliberately the
+       same width/skin as .action-feed so the two side cards read as a matched pair. */
+    .lineup-pm {
+      width: 220px;
+      flex-shrink: 0;
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .lineup-pm-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-dim);
+    }
+    .lineup-pm-body { display: flex; flex-direction: column; gap: 10px; }
+    .lpm-team { display: flex; flex-direction: column; gap: 2px; }
+    .lpm-team-head {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 6px;
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+      padding-bottom: 3px; margin-bottom: 2px; border-bottom: 1px solid var(--border);
+    }
+    .lpm-team-head.a { color: #93c5fd; }
+    .lpm-team-head.b { color: #fdba74; }
+    .lpm-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 11.5px; }
+    .lpm-name { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Tabular figures so the +/- column doesn't jitter as numbers change mid-game. */
+    .lpm-val { font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .lpm-pos  { color: var(--success); }
+    .lpm-neg  { color: var(--danger); }
+    .lpm-zero { color: var(--text-dim); }
+    .lpm-empty { font-size: 11px; color: var(--text-dim); }
 
     /* Action feed */
     .action-feed {
@@ -2040,6 +2088,26 @@
     .box-table tbody tr:hover { background: #c0c8d8 !important; }
     .box-table tr.totals-row td:first-child { position: sticky; left: 0; background: #e2e8f0; z-index: 2; }
 
+    /* +/- is the LAST column and the table scrolls horizontally, so pin it to the right
+       edge the same way PLAYER is pinned to the left. It keeps its box-score position
+       without having to be scrolled to. Each row restates its own background, otherwise
+       the columns underneath show through a transparent sticky cell. */
+    .box-table tbody td:last-child,
+    .box-table thead th:last-child {
+      position: sticky;
+      right: 0;
+      z-index: 2;
+      box-shadow: inset 1px 0 0 var(--border);   /* seam so it reads as pinned, not floating */
+    }
+    .box-table thead th:last-child { background: var(--card); }
+    .box-table tbody tr:nth-child(odd)  td:last-child { background: #d9d9d9; }
+    .box-table tbody tr:nth-child(even) td:last-child { background: #ffffff; }
+    .box-table tbody tr:hover td:last-child { background: #c0c8d8 !important; }
+    .box-table tr.totals-row td:last-child { position: sticky; right: 0; background: #e2e8f0; z-index: 2; }
+    /* The starters/bench separator is one full-width colspan cell — it is simultaneously
+       first- and last-child, so exempt it or it picks up both pins and the seam. */
+    .box-table tr.bench-divider td { position: static; box-shadow: none; }
+
     /* ============================================================
        SHOT CHART STYLES
     ============================================================ */
@@ -2106,6 +2174,9 @@
     .sc-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
     .sc-legend-dot.make { background: #22c55e; }
     .sc-legend-dot.miss { background: #ef4444; opacity: 0.6; }
+    /* Heat view density ramp — gradient is generated from HEAT_STOPS so it can't drift
+       out of sync with the dot colours. */
+    .sc-heat-bar { width: 110px; height: 9px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.12); }
     .zone-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -3268,7 +3339,10 @@
           <div class="tracker-scorebar">
             <div class="scorebar-team team-a">
               <div class="scorebar-score team-a-score" id="live-score-a">0</div>
-              <div class="scorebar-name" id="live-name-a">White</div>
+              <div class="scorebar-teaminfo">
+                <div class="scorebar-name" id="live-name-a">White</div>
+                <div class="scorebar-kills" id="live-kills-a"></div>
+              </div>
             </div>
             <div class="scorebar-center">
               <div class="scorebar-quarter" id="live-quarter">Q1</div>
@@ -3276,7 +3350,10 @@
               <div class="scorebar-session-date" id="live-date"></div>
             </div>
             <div class="scorebar-team team-b">
-              <div class="scorebar-name" id="live-name-b">Blue</div>
+              <div class="scorebar-teaminfo">
+                <div class="scorebar-name" id="live-name-b">Black</div>
+                <div class="scorebar-kills" id="live-kills-b"></div>
+              </div>
               <div class="scorebar-score team-b-score" id="live-score-b">0</div>
             </div>
             <button class="btn btn-ghost btn-sm scorebar-boxscore-btn" onclick="openLiveBoxScore()" title="Check the box score as things stand">&#128202; Box Score</button>
@@ -3389,6 +3466,8 @@
                 <!-- Appears centered under the stat grid only while a made shot is awaiting an assister -->
                 <div class="skip-assist-wrap" style="text-align:center;">
                   <button class="btn btn-ghost btn-sm" id="btn-skip-assist" style="display:none;color:var(--warning);border-color:rgba(245,158,11,0.4);margin-top:12px;" onclick="skipAssist()">No Assist</button>
+                  <!-- Buzzer / dead ball: record the miss with no rebound -->
+                  <button class="btn btn-ghost btn-sm" id="btn-skip-reb" style="display:none;color:var(--warning);border-color:rgba(245,158,11,0.4);margin-top:12px;" onclick="skipRebound()">No Rebound</button>
                 </div>
               </div>
 
@@ -3396,7 +3475,7 @@
               <div style="display:flex;flex-direction:row;gap:10px;align-items:flex-start;">
 
                 <div class="tracker-team-col team-b-col" id="col-team-b">
-                  <div class="team-col-header header-b" id="col-header-b">Blue</div>
+                  <div class="team-col-header header-b" id="col-header-b">Black</div>
                   <!-- Player buttons injected by JS -->
                 </div>
 
@@ -3410,8 +3489,13 @@
 
             </div><!-- /.tracker-top-row -->
 
-            <!-- BOTTOM ROW: Court -->
+            <!-- BOTTOM ROW: Court + live lineup +/- -->
             <div class="tracker-bottom-row">
+
+              <!-- Right counterweight's twin: keeps the shot chart centred now that a card
+                   sits to its right (same trick as .feed-spacer in the top row). -->
+              <div class="lpm-spacer" style="width:220px;flex-shrink:0;"></div>
+
               <div id="tracker-court-col" class="tracker-court-col inline-court-inactive">
                 <div class="court-col-header">
                   <span id="inline-zone-title" class="court-col-title">Shot Location</span>
@@ -3424,6 +3508,13 @@
                   <button class="btn btn-primary btn-sm" id="btn-inline-confirm-shot" disabled onclick="confirmShotLocation()">Confirm</button>
                 </div>
               </div>
+
+              <!-- LIVE LINEUP +/- -->
+              <div class="lineup-pm" id="lineup-pm">
+                <div class="lineup-pm-title">Lineup +/-</div>
+                <div class="lineup-pm-body" id="lineup-pm-body"></div>
+              </div>
+
             </div><!-- /.tracker-bottom-row -->
 
             </div><!-- /.tracker-cols-main -->
@@ -3592,6 +3683,8 @@
       </div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-ghost" style="margin-right:auto;" onclick="openRosterEditor()"
+              title="Add a player who isn't on the roster yet — this modal stays open">&#9881; Edit Roster</button>
       <button class="btn btn-ghost" onclick="hideModal('modal-sub-clock')">Cancel</button>
       <button class="btn btn-success" onclick="confirmAllSubs()">Confirm Subs</button>
     </div>
@@ -4100,6 +4193,31 @@ function addRosterEditorRow(name) {
   if (!name) input.focus();
 }
 
+/* ── Sort player names by LAST name ──
+   Names are stored as one free-text string ("Noah Cotton"), so the last name is the final
+   whitespace-separated token — skipping a generational suffix so "Ray Allen Jr" files
+   under Allen, not Jr. Ties fall back to the full name so two players sharing a surname
+   keep a stable, predictable order. Presentation only: nothing downstream depends on
+   lineup array order (sub replay assigns by index, unit keys sort their own copy). */
+const NAME_SUFFIXES = new Set(['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv', 'v']);
+
+function lastNameKey(name) {
+  const parts = String(name || '').trim().split(/\s+/);
+  if (!parts.length || !parts[0]) return '';
+  let i = parts.length - 1;
+  while (i > 0 && NAME_SUFFIXES.has(parts[i].toLowerCase())) i--;
+  return parts[i].toLowerCase();
+}
+
+function byLastName(a, b) {
+  const ka = lastNameKey(a), kb = lastNameKey(b);
+  if (ka !== kb) return ka.localeCompare(kb);
+  return String(a).toLowerCase().localeCompare(String(b).toLowerCase());
+}
+
+/* Returns a sorted COPY — callers pass live state arrays that must not be reordered. */
+function sortByLastName(names) { return [...(names || [])].sort(byLastName); }
+
 /* One substitution is ONE event, carrying every player swapped at that clock time.
    Sessions recorded before this change stored a separate event per player, so fall
    back to the legacy single-pair fields. */
@@ -4214,6 +4332,8 @@ function saveRosterEdits() {
     );
     // Refresh the setup player grids if they are on screen
     try { renderPlayerGrid('a'); renderPlayerGrid('b'); } catch(e) {}
+    // ...and the Substitutions modal, if the edit was launched from there mid-game.
+    try { refreshSubModalRoster(); } catch(e) {}
   }
 }
 
@@ -4249,7 +4369,8 @@ function renderPlayerGrid(team) {
   const opposite = team === 'a' ? setupState.startersB : setupState.startersA;
 
   grid.innerHTML = '';
-  State.roster.forEach(p => {
+  // Sorted copy — State.roster keeps its own order for the roster editor.
+  [...State.roster].sort((x, y) => byLastName(x.name, y.name)).forEach(p => {
     const name = p.name;
     const isSel = selected.has(name);
     const inOpposite = opposite.has(name);
@@ -4593,16 +4714,101 @@ function onTrackerFilmLoad(input) {
   _filmName = file.name;
   addRecentFilm(file.name);
   initVideoPanel();
+  vcResetZoom();   // a new film starts at 1:1, not wherever the last one was magnified
   showToast(`Film loaded: ${file.name}`, 'success', 2500);
   input.value = '';
 }
 
 /* ── Initialize video panel when entering live tracker ── */
+/* ── Scroll-wheel zoom on the film ──
+   Digital zoom for reading one corner of the court. The <video> is scaled with a CSS
+   transform inside .video-wrap, which already clips it (overflow:hidden). Zoom is anchored
+   on the CURSOR: the frame point under the pointer stays put as the scale changes, so you
+   magnify what you are actually looking at rather than the centre of the picture. */
+let vcZoom = 1, vcPanX = 0, vcPanY = 0, _vcZoomBound = false;
+const VC_ZOOM_MIN = 1, VC_ZOOM_MAX = 8, VC_ZOOM_STEP = 1.15;
+
+function vcApplyZoom() {
+  const v = document.getElementById('film-video');
+  if (!v) return;
+  /* Clamp the pan so the frame can never be dragged off its own box: at scale z there is
+     (z-1)*size of travel. At z=1 the range collapses to zero, which re-centres the picture
+     automatically whenever you zoom all the way back out. */
+  const vw = v.offsetWidth, vh = v.offsetHeight;
+  vcPanX = Math.min(0, Math.max(-(vcZoom - 1) * vw, vcPanX));
+  vcPanY = Math.min(0, Math.max(-(vcZoom - 1) * vh, vcPanY));
+  v.style.transformOrigin = '0 0';
+  v.style.transform = `translate(${vcPanX.toFixed(2)}px, ${vcPanY.toFixed(2)}px) scale(${vcZoom.toFixed(4)})`;
+  v.style.cursor = vcZoom > 1 ? 'grab' : 'pointer';
+}
+
+function vcResetZoom() { vcZoom = 1; vcPanX = 0; vcPanY = 0; vcApplyZoom(); }
+
+function bindVideoZoom() {
+  if (_vcZoomBound) return;
+  const wrap = document.getElementById('video-wrap');
+  const v    = document.getElementById('film-video');
+  if (!wrap || !v) return;
+  _vcZoomBound = true;
+
+  wrap.addEventListener('wheel', e => {
+    if (v.style.display === 'none') return;
+    e.preventDefault();                       // requires passive:false, or the page scrolls
+    const r = v.getBoundingClientRect();      // this box is already transformed
+    // Cursor position in the element's own untransformed coordinates.
+    const ex = (e.clientX - r.left) / vcZoom;
+    const ey = (e.clientY - r.top)  / vcZoom;
+    const prev = vcZoom;
+    vcZoom = Math.min(VC_ZOOM_MAX, Math.max(VC_ZOOM_MIN,
+      vcZoom * (e.deltaY < 0 ? VC_ZOOM_STEP : 1 / VC_ZOOM_STEP)));
+    if (vcZoom === prev) return;
+    // Solve for the pan that keeps that same frame point under the pointer.
+    vcPanX -= ex * (vcZoom - prev);
+    vcPanY -= ey * (vcZoom - prev);
+    vcApplyZoom();
+  }, { passive: false });
+
+  // Drag to pan once zoomed in — zoom without pan would strand you wherever you started.
+  let dragging = false, sx = 0, sy = 0, moved = 0;
+  v.addEventListener('pointerdown', e => {
+    if (vcZoom <= 1) return;
+    dragging = true; moved = 0; sx = e.clientX; sy = e.clientY;
+    try { v.setPointerCapture(e.pointerId); } catch (_) {}
+    v.style.cursor = 'grabbing';
+  });
+  v.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    sx = e.clientX; sy = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    vcPanX += dx; vcPanY += dy;
+    vcApplyZoom();
+  });
+  const endDrag = e => {
+    if (!dragging) return;
+    dragging = false;
+    try { v.releasePointerCapture(e.pointerId); } catch (_) {}
+    vcApplyZoom();
+  };
+  v.addEventListener('pointerup', endDrag);
+  v.addEventListener('pointercancel', endDrag);
+
+  /* A pan finishes with a click on the <video>, whose inline onclick toggles playback.
+     Swallow that click when the pointer actually travelled. Bound on the WRAP in capture
+     phase on purpose: at the target element itself, listeners fire in registration order,
+     so the inline handler (parsed first) would win. An ancestor's capture listener runs
+     strictly earlier. */
+  wrap.addEventListener('click', e => {
+    if (moved > 4) { moved = 0; e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+
 function initVideoPanel() {
   const video = document.getElementById('film-video');
   const noFilm = document.getElementById('video-no-film');
   const controls = document.getElementById('video-controls');
   if (!video) return;
+  bindVideoZoom();
 
   if (_filmObjectUrl) {
     // Only set src if not already loaded — prevents restart on re-render
@@ -5055,8 +5261,14 @@ function backupBeforeRename() {
     roster: State.roster,
     settings: State.settings,
     sessions: getSessions(),
+    /* getSessions() is COMPLETED sessions only, but applyPlayerRenames rewrites the
+       in-progress one too — and the roster editor is now reachable mid-game from the
+       Substitutions modal, so that is no longer a hypothetical. Snapshot it or a rename
+       made during a live scrimmage has nothing to fall back on. Kept as a separate key:
+       importSessions ignores it, so this is a manual-recovery record, not an auto-restore. */
+    liveSession: State.liveSession || null,
   };
-  if (!backup.sessions.length && !backup.roster.length) return;   // nothing to protect yet
+  if (!backup.sessions.length && !backup.roster.length && !backup.liveSession) return;   // nothing to protect yet
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   downloadTextFile(`moorpark_tracker_backup_pre_rename_${stamp}.json`, JSON.stringify(backup, null, 2), 'application/json');
 }
@@ -5852,6 +6064,7 @@ const BS_COLS = [
   { key: 'dreb',   label: 'DR'    },
   { key: 'pf',     label: 'PF'    },
   { key: 'pts',    label: 'PTS'   },
+  { key: 'pm',     label: '+/-'   },   // far right, mirroring a standard box score
 ];
 
 /* ── Box Score table builder ── */
@@ -5864,12 +6077,19 @@ function buildBoxTableHtml(session, team) {
   const starters = team === 'a' ? (session.startersA || []) : (session.startersB || []);
   const allPlayerNames = [...new Set([...starters, ...allPs.filter(p => p.team === team).map(p => p.name)])];
 
+  /* +/- isn't stored on playerStats — it's replayed from the event log, the same routine
+     the live lineup card uses. Works on finished sessions too: it only needs startersA/B
+     plus the log, both of which every saved session carries. */
+  const pmAll = computePlusMinus(session);
+  const pmMap = team === 'a' ? pmAll.pmA : pmAll.pmB;
+
   const rows = allPlayerNames.map(name => {
     const s = psMap[name];
     if (!s) return null;
     return {
       name,
       isStarter: starters.includes(name),
+      pm:     pmMap[name] ?? 0,
       min:    s.min    != null ? Math.round(s.min) : 0,
       pts:    s.pts    ?? 0,
       fg2m:   s.fg2m   ?? 0, fg2a: s.fg2a ?? 0,
@@ -5901,6 +6121,7 @@ function buildBoxTableHtml(session, team) {
     switch (key) {
       case 'min':    return row.min > 0 ? row.min + '\'' : '—';
       case 'pts':    return row.pts;
+      case 'pm':     return (row.pm > 0 ? '+' : '') + row.pm;   // explicit + reads as a margin
       case 'fg2mfa': return `${row.fg2m}-${row.fg2a}`;
       case 'fg3mfa': return `${row.fg3m}-${row.fg3a}`;
       case 'ftmfa':  return `${row.ftm}-${row.fta}`;
@@ -5931,6 +6152,7 @@ function buildBoxTableHtml(session, team) {
   function cellClass(row, key) {
     switch (key) {
       case 'pts':    return hi(row.pts, 20, 5);
+      case 'pm':     return hi(row.pm, 5, -5);
       case 'ortg':   return hi(row.ortg, 115, 90);
       case 'efgPct': return hi(row.efgPct, 55, 40);
       case 'tsPct':  return hi(row.tsPct, 60, 45);
@@ -5956,6 +6178,14 @@ function buildBoxTableHtml(session, team) {
         return totalSecs > 0 ? Math.round(totalSecs / 60) + '\'' : '—';
       }
       case 'pts':    return ts.pts ?? '—';
+      case 'pm': {
+        /* The team figure is the score margin, NOT the sum of the column above it — every
+           point counts for all five on the floor, so summing would give five times the
+           margin. */
+        const os = (session.teamStats || {})[team === 'a' ? 'b' : 'a'] || {};
+        const diff = (ts.pts ?? 0) - (os.pts ?? 0);
+        return (diff > 0 ? '+' : '') + diff;
+      }
       case 'fg2mfa': return `${ts.fg2m??0}-${ts.fg2a??0}`;
       case 'fg3mfa': return `${ts.fg3m??0}-${ts.fg3a??0}`;
       case 'ftmfa':  return `${ts.ftm??0}-${ts.fta??0}`;
@@ -6262,6 +6492,18 @@ function coordsToZone(svgX, svgY) {
   return svgY < 371 ? 'mr_right_high' : 'mr_right_low';
 }
 
+/* Zone NAME for a point, following the same precedence as scZoneKey(): the zones Chad drew
+   win, and the fixed ZONE_DEFS grid is only a fallback for when none have been drawn. If
+   zones exist but the tap lands outside all of them, say so plainly rather than quietly
+   falling back to a grid name the charts will never agree with. */
+function zoneLabelAtPoint(x, y) {
+  const drawn = znZoneAtPoint(x, y);
+  if (drawn) return drawn.name;
+  if ((State.zones || []).length) return 'Outside zones';
+  const def = ZONE_DEFS[coordsToZone(x, y)];
+  return def ? def.label : 'Unknown';
+}
+
 /* ── Shot location modal ── */
 function showShotLocationModal(stat) {
   activateInlineCourt(stat);
@@ -6271,8 +6513,7 @@ function refreshModalCourt(px, py) {
   let dot = '';
   if (px != null && py != null) {
     const dist  = svgDistFt(px, py);
-    const zone  = coordsToZone(px, py);
-    const label = ZONE_DEFS[zone] ? ZONE_DEFS[zone].label : '';
+    const label = zoneLabelAtPoint(px, py);   // the zone Chad drew, not the fixed grid
     const lx    = px > 350 ? px - 6 : px + 6;
     const ta    = px > 350 ? 'end' : 'start';
     dot = `
@@ -6309,13 +6550,13 @@ function courtClick(evt) {
   if (svgY < 15 || svgY > 472 || svgX < 8 || svgX > 492) return;
   pendingShotX = svgX;
   pendingShotY = svgY;
-  const dist = svgDistFt(svgX, svgY);
-  const zone = coordsToZone(svgX, svgY);
-  const zDef = ZONE_DEFS[zone];
+  const dist  = svgDistFt(svgX, svgY);
+  const zName = zoneLabelAtPoint(svgX, svgY);
   const badge = document.getElementById('inline-dist-badge');
   if (badge) badge.textContent = dist + ' ft';
+  // Distance plus the zone Chad designated \u2014 the same name the charts will report.
   const info = document.getElementById('inline-shot-info');
-  if (info) info.textContent = `${dist} ft \u2014 ${zDef ? zDef.label : 'Unknown'}`;
+  if (info) info.textContent = `${dist} ft \u00b7 ${zName}`;
   const confirmBtn = document.getElementById('btn-inline-confirm-shot');
   if (confirmBtn) confirmBtn.disabled = false;
   refreshModalCourt(svgX, svgY);
@@ -6403,6 +6644,22 @@ function deactivateInlineCourt() {
   refreshModalCourt(null, null);
 }
 
+/* ── Which zone is this shot in? ──
+   ONE answer, used by the map, the breakdown table and the zone filter alike. The zones
+   Chad drew take precedence: they're what the Zones view renders and what he actually
+   defined. `ev.zone` — the fixed 14-zone grid stamped at entry time — survives only as a
+   fallback for when nothing has been drawn yet.
+
+   Returns a drawn zone's id (or a legacy zone key in fallback mode), so scFilter.zones
+   holds whichever kind is currently authoritative. */
+function scZoneKey(ev) {
+  if ((State.zones || []).length) {
+    const z = znZoneForShot(ev);
+    return z ? z.id : null;
+  }
+  return ev.zone || null;
+}
+
 /* ── Shot Charts tab renderer ── */
 tabRenderers.shotcharts = function() {
   const root = document.getElementById('shotcharts-root');
@@ -6474,7 +6731,7 @@ function renderShotChartView() {
   const selectedContests = scFilter.contests || [];
 
   // Keep selected values valid for current base filter scope.
-  const availableZones = new Set(baseShots.map(ev => ev.zone).filter(z => z && ZONE_DEFS[z]));
+  const availableZones = new Set(baseShots.map(scZoneKey).filter(Boolean));
   const availableTypes = new Set(baseShots.map(normType).filter(Boolean));
   const availableContests = new Set(baseShots.map(ev => ev.shotContest).filter(c => c === 'contested' || c === 'uncontested'));
   scFilter.zones = selectedZones.filter(z => availableZones.has(z));
@@ -6487,16 +6744,16 @@ function renderShotChartView() {
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
   const shotTypeTableShots = baseShots
-    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(ev.zone))
+    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
   const contestTableShots = baseShots
-    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(ev.zone))
+    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
     .filter(ev => !scFilter.shotTypes.length || scFilter.shotTypes.includes(normType(ev)));
 
   // Final dots = intersection of all selected dimensions.
   const shots = baseShots
-    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(ev.zone))
+    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
     .filter(ev => !scFilter.shotTypes.length || scFilter.shotTypes.includes(normType(ev)))
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
@@ -6510,19 +6767,33 @@ function renderShotChartView() {
       `<option value="${escHtml(p)}" ${scFilter.player === p ? 'selected' : ''}>${escHtml(p)}</option>`
     ).join('');
 
-  const teamALabel = scFilter.sessionId === 'all' ? 'Team A' : (labelSession.teamAName || 'Team A');
-  const teamBLabel = scFilter.sessionId === 'all' ? 'Team B' : (labelSession.teamBName || 'Team B');
+  /* Teams are always White/Black — the aggregate view can't borrow one session's names,
+     so it falls back to the same two labels rather than inventing "Team A"/"Team B". */
+  const teamALabel = scFilter.sessionId === 'all' ? 'White' : (labelSession.teamAName || 'White');
+  const teamBLabel = scFilter.sessionId === 'all' ? 'Black' : (labelSession.teamBName || 'Black');
 
   const teamAStyle = scFilter.team !== 'a' ? 'color:#60a5fa;border-color:#60a5fa;' : '';
   const teamBStyle = scFilter.team !== 'b' ? 'color:#fb923c;border-color:#fb923c;' : '';
 
-  const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots) : buildCourtSvg(shots);
+  const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots)
+                 : scFilter.view === 'heat'  ? buildHeatSvg(shots)
+                 : buildCourtSvg(shots);
 
-  const rightPanel = `
-        <div class="sc-legend">
+  /* Heat colours attempts by crowding, not by result — so the make/miss key would be
+     misleading there. Swap in the density ramp instead. */
+  const legend = scFilter.view === 'heat'
+    ? `<div class="sc-legend">
+          <div class="sc-legend-item">Lone attempt</div>
+          <div class="sc-legend-item"><div class="sc-heat-bar" style="background:${heatLegendGradient()}"></div></div>
+          <div class="sc-legend-item">Dense cluster</div>
+        </div>`
+    : `<div class="sc-legend">
           <div class="sc-legend-item"><div class="sc-legend-dot make"></div> Make</div>
           <div class="sc-legend-item"><div class="sc-legend-dot miss"></div> Miss</div>
-        </div>
+        </div>`;
+
+  const rightPanel = `
+        ${legend}
         ${(scFilter.zones.length || scFilter.shotTypes.length || scFilter.contests.length)
           ? `<div style="margin-bottom:8px;font-size:11.5px;color:var(--text-dim);">Filters active: ${scFilter.zones.length} zone, ${scFilter.shotTypes.length} type, ${scFilter.contests.length} contest <button class="btn btn-ghost btn-sm" style="margin-left:6px;padding:2px 8px;" onclick="scClearAllFilters()">Clear</button></div>`
           : ''}
@@ -6551,7 +6822,8 @@ function renderShotChartView() {
       </div>
       <div class="sc-filter-group">
         <span class="sc-filter-label">View</span>
-        <button class="sc-pill${scFilter.view !== 'zones' ? ' active' : ''}" onclick="scSetFilter('view','dots')">Dots</button>
+        <button class="sc-pill${scFilter.view !== 'zones' && scFilter.view !== 'heat' ? ' active' : ''}" onclick="scSetFilter('view','dots')">Dots</button>
+        <button class="sc-pill${scFilter.view === 'heat'  ? ' active' : ''}" onclick="scSetFilter('view','heat')">Heat</button>
         <button class="sc-pill${scFilter.view === 'zones' ? ' active' : ''}" onclick="scSetFilter('view','zones')">Zones</button>
       </div>
       <div class="sc-filter-group">
@@ -6592,7 +6864,9 @@ function scSetFilter(key, val) {
 }
 
 function scToggleZone(zone) {
-  if (!ZONE_DEFS[zone]) return;
+  // A key is either a drawn zone's id or, in fallback mode, a legacy ZONE_DEFS key.
+  const isDrawn = (State.zones || []).some(z => z.id === zone);
+  if (!isDrawn && !ZONE_DEFS[zone]) return;
   const zones = scFilter.zones || [];
   const idx = zones.indexOf(zone);
   if (idx >= 0) zones.splice(idx, 1);
@@ -6709,25 +6983,30 @@ function buildZoneHeatSvg(shots) {
     '</svg>';
 }
 
-function buildCourtSvg(shots) {
-  const dots = shots.map(ev => {
-    let cx, cy;
+/* Resolve every shot to court coordinates — exact tap position when one was recorded,
+   otherwise a sunflower spiral around the zone centroid so same-zone shots fan out
+   instead of stacking on one pixel. Shared by the Dots and Heat views so a shot lands
+   in the same place in both. */
+function resolveShotPoints(shots) {
+  const pts = [];
+  for (const ev of shots) {
     if (ev.shotX != null && ev.shotY != null) {
-      // Exact tap position
-      cx = Math.round(ev.shotX * 500);
-      cy = Math.round(ev.shotY * 485);
+      pts.push({ ev, x: Math.round(ev.shotX * 500), y: Math.round(ev.shotY * 485) });
     } else if (ev.zone && ZONE_DEFS[ev.zone]) {
-      // Fallback: sunflower jitter around zone centroid
       const def      = ZONE_DEFS[ev.zone];
       const sameZone = shots.filter(s => s.zone === ev.zone && s.shotX == null);
       const idx      = sameZone.indexOf(ev);
       const r        = idx === 0 ? 0 : Math.sqrt(idx) * 9;
       const angle    = idx * 2.39996 * 2;
-      cx = Math.round(def.x + Math.cos(angle) * r);
-      cy = Math.round(def.y + Math.sin(angle) * r);
-    } else {
-      return '';
+      pts.push({ ev, x: Math.round(def.x + Math.cos(angle) * r), y: Math.round(def.y + Math.sin(angle) * r) });
     }
+    // No coords and no known zone → not placeable, drop it.
+  }
+  return pts;
+}
+
+function buildCourtSvg(shots) {
+  const dots = resolveShotPoints(shots).map(({ ev, x: cx, y: cy }) => {
     const isMake = ev.stat === '2fg_make' || ev.stat === '3fg_make';
     const is3pt  = ev.stat === '3fg_make' || ev.stat === '3fg_miss';
     const fill   = isMake ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.15)';
@@ -6754,28 +7033,183 @@ function buildCourtSvg(shots) {
   </svg>`;
 }
 
-/* ── Zone breakdown table ── */
+/* ── Heat view: attempt DENSITY, not accuracy ──
+   One small square per attempt. Each square's colour comes from how crowded its
+   neighbourhood is: a lone shot stays violet, shots piling into the same spot warm through
+   fuchsia and orange, and a heavy concentration burns out to white. Squares rather than
+   circles so that adjacent marks tile edge-to-edge into a solid block with no gaps.
+   Nothing here encodes makes vs misses — use the Mode pills to heat-map only makes or
+   only misses. */
+const HEAT_SIGMA = 26;   // px ≈ 2.8 ft — the radius at which shots count as "close contact"
+
+/* SCALING — two separate problems, two separate fixes.
+
+   (1) WHERE IS WHITE? Pinned to the 97th percentile of this selection's own crowding,
+   floored. Percentile is a rank, so it is invariant to volume: roughly the top 3% of
+   marks burn white whether the chart holds 40 attempts or 600. A fixed absolute
+   threshold cannot survive a season — set it low and by November the entire paint is
+   one featureless white blob, set it high and October charts never leave violet.
+
+   (2) HOW DO WE GET THERE? Shot data is savagely heavy-tailed — the restricted area
+   crams attempts into ~4,300px² while mid-range scatters a few over 20,000px², so the
+   rim's crowding runs 30-50x a jumper's. Mapped linearly against a rim-anchored white
+   point, every shot outside the paint collapses to t≈0.02 and the whole court reads
+   violet with one white dot at the rim: the middle of the ramp never gets used. Raising
+   density to a sub-linear power spreads the busy-but-not-insane middle across fuchsia
+   and orange, which is where the coaching information actually lives. */
+const HEAT_FLOOR = 10;    // minimum kernel-weighted neighbours that may ever read as white
+const HEAT_GAMMA = 0.65;  // <1 compresses the heavy tail; 1.0 would be the linear ramp
+/* Stops are deliberately back-loaded: the ramp lingers in violet/fuchsia through light
+   traffic, only commits to orange past the midpoint, and white is reserved for the very
+   top — a genuinely heavy pile, not a handful of shots that happen to land together. */
+const HEAT_STOPS = [
+  [0.00, [124,  58, 237]],   // violet — isolated attempt
+  [0.30, [192,  38, 211]],   // fuchsia — a few shots in the area
+  [0.62, [249, 115,  22]],   // orange — busy pocket
+  [0.86, [251, 191,  36]],   // amber — heavy traffic
+  [1.00, [255, 255, 255]],   // white — dense mass
+];
+
+function heatRampColor(t) {
+  const u = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < HEAT_STOPS.length; i++) {
+    const [p0, c0] = HEAT_STOPS[i - 1];
+    const [p1, c1] = HEAT_STOPS[i];
+    if (u <= p1) {
+      const k = p1 === p0 ? 0 : (u - p0) / (p1 - p0);
+      return 'rgb(' + c0.map((v, j) => Math.round(v + (c1[j] - v) * k)).join(',') + ')';
+    }
+  }
+  return 'rgb(255,255,255)';
+}
+
+function heatLegendGradient() {
+  return 'linear-gradient(90deg,' +
+    HEAT_STOPS.map(([p, c]) => `rgb(${c.join(',')}) ${Math.round(p * 100)}%`).join(',') + ')';
+}
+
+function buildHeatSvg(shots) {
+  const pts = resolveShotPoints(shots);
+  if (!pts.length) {
+    return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+      COURT_SVG_LINES +
+      '<text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">No shots charted</text>' +
+      '</svg>';
+  }
+
+  /* Gaussian kernel density, self excluded so a single shot sits at 0 (pure violet).
+     Pairs are walked once and credited to both dots. Beyond 3σ the weight is under
+     0.012, so that pair is skipped — keeps this near-linear on realistic shot counts. */
+  const TWO_SIG_SQ = 2 * HEAT_SIGMA * HEAT_SIGMA;
+  const CUTOFF_SQ  = 9 * HEAT_SIGMA * HEAT_SIGMA;
+  const NEAR_SQ    = 28 * 28;            // ~3 ft, used for the plain-English tooltip count
+  const dens = new Array(pts.length).fill(0);
+  const near = new Array(pts.length).fill(0);
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > CUTOFF_SQ) continue;
+      const w = Math.exp(-d2 / TWO_SIG_SQ);
+      dens[i] += w; dens[j] += w;
+      if (d2 <= NEAR_SQ) { near[i]++; near[j]++; }
+    }
+  }
+
+  /* White point = 97th percentile of observed crowding, floored. */
+  const ranked = dens.slice().sort((a, b) => a - b);
+  const full   = Math.max(HEAT_FLOOR, ranked[Math.min(ranked.length - 1, Math.floor(ranked.length * 0.97))]);
+
+  /* Squares shrink as the season's attempts pile up, so a 400-shot aggregate still reads
+     as individual marks in the quiet areas instead of one undifferentiated smear. */
+  const n     = pts.length;
+  const sBase = n > 300 ? 4.6 : n > 120 ? 5.8 : 7;
+
+  /* Coldest first so the hot squares paint on top of their own neighbourhood. */
+  const order = pts.map((_, i) => i).sort((a, b) => dens[a] - dens[b]);
+
+  const marks = [];
+  for (const i of order) {
+    const p = pts[i];
+    const t = Math.pow(Math.min(1, dens[i] / full), HEAT_GAMMA);
+    const col = heatRampColor(t);
+    const ev     = p.ev;
+    const isMake = ev.stat === '2fg_make' || ev.stat === '3fg_make';
+    const is3pt  = ev.stat === '3fg_make' || ev.stat === '3fg_miss';
+    const ftStr  = ev.shotFt != null ? ` · ${ev.shotFt}ft` : '';
+    const nearTxt = near[i] === 1 ? '1 other shot within 3ft' : `${near[i]} other shots within 3ft`;
+    const tip    = `${escHtml(ev.player || '?')} — ${isMake ? 'Made' : 'Missed'} ${is3pt ? '3PT' : '2PT'}${ftStr} (Q${ev.quarter}) · ${nearTxt}`;
+    /* Grows as it heats, so a crowded pocket's squares butt together into one solid block. */
+    const s = sBase + 2.2 * t;
+    marks.push(`<rect x="${(p.x - s / 2).toFixed(1)}" y="${(p.y - s / 2).toFixed(1)}" width="${s.toFixed(1)}" height="${s.toFixed(1)}" fill="${col}"><title>${tip}</title></rect>`);
+  }
+
+  const madeCount = shots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
+  const pct       = shots.length > 0 ? Math.round(100 * madeCount / shots.length) : 0;
+  const peak      = near.reduce((m, c) => Math.max(m, c), 0);
+  const statText  = `${madeCount}/${shots.length} FGM (${pct}%) · densest pocket: ${peak + 1} attempts within 3ft`;
+
+  return `<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">
+    ${COURT_SVG_LINES}
+    ${marks.join('\n    ')}
+    <text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">${statText}</text>
+  </svg>`;
+}
+
+/* ── Zone breakdown table ──
+   Rows are built from the SAME zone assignment the Zones map draws — see scZoneKey().
+   These two used to disagree on every single row: the table grouped by the stored
+   `ev.zone` (the fixed 14-zone grid stamped at entry time) while the map re-tested each
+   shot's coordinates against the drawn polygons. Same 352 attempts, two different sets of
+   boundaries, so e.g. the left corner read 2-18 in the table and 3-23 on the chart. */
 function buildZoneTable(shots, selectedZones = []) {
-  function zoneRows(zoneKeys) {
-    return zoneKeys.map(z => {
+  const drawn = State.zones || [];
+
+  function renderRow(key, label, is3, made, att) {
+    const pct = Math.round(100 * made / att);
+    const pctColor = pct >= 50 ? 'var(--success)' : pct >= 35 ? 'var(--warning)' : 'var(--danger)';
+    const style = is3 ? ' style="color:var(--warning);"' : '';
+    const active = selectedZones.includes(key);
+    const marker = active ? '&#10003;&nbsp;' : '';
+    return `<tr class="${active ? 'active' : ''}" onclick="scToggleZone('${escHtml(key)}')" style="cursor:pointer;"><td style="text-align:left;"${style}>${marker}${escHtml(label)}</td><td>${made}-${att}</td><td style="color:${pctColor};font-weight:700;">${pct}%</td></tr>`;
+  }
+
+  let rows2 = '', rows3 = '', unknown;
+
+  if (drawn.length) {
+    /* Tally against the drawn zones. Their 2PT/3PT split isn't stored on the shape, so
+       it's inferred from the shots that landed in it — which is the honest read of what
+       the zone actually covers, whatever it got named. */
+    const tally = {};
+    drawn.forEach(z => { tally[z.id] = { made: 0, att: 0, threes: 0 }; });
+    unknown = [];
+    for (const ev of shots) {
+      const key = scZoneKey(ev);
+      if (!key || !tally[key]) { unknown.push(ev); continue; }
+      tally[key].att++;
+      if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[key].made++;
+      if (ev.stat === '3fg_make' || ev.stat === '3fg_miss') tally[key].threes++;
+    }
+    for (const z of drawn) {
+      const t = tally[z.id];
+      if (!t.att) continue;
+      const is3 = t.threes > t.att / 2;
+      const row = renderRow(z.id, z.name, is3, t.made, t.att);
+      if (is3) rows3 += row; else rows2 += row;
+    }
+  } else {
+    // No drawn zones yet — fall back to the fixed grid so the table still says something.
+    const zoneRows = zoneKeys => zoneKeys.map(z => {
       const def    = ZONE_DEFS[z];
       const zShots = shots.filter(ev => ev.zone === z);
       const made   = zShots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
-      const att    = zShots.length;
-      if (att === 0) return '';
-      const pct = Math.round(100 * made / att);
-      const pctColor = pct >= 50 ? 'var(--success)' : pct >= 35 ? 'var(--warning)' : 'var(--danger)';
-      const style = def.is3 ? ' style="color:var(--warning);"' : '';
-      const active = selectedZones.includes(z);
-      const cls = active ? 'active' : '';
-      const marker = active ? '&#10003;&nbsp;' : '';
-      return `<tr class="${cls}" onclick="scToggleZone('${z}')" style="cursor:pointer;"><td style="text-align:left;"${style}>${marker}${def.label}</td><td>${made}-${att}</td><td style="color:${pctColor};font-weight:700;">${pct}%</td></tr>`;
-    }).filter(r => r !== '').join('');
+      if (!zShots.length) return '';
+      return renderRow(z, def.label, def.is3, made, zShots.length);
+    }).filter(Boolean).join('');
+    rows2 = zoneRows(ZONES_2FG);
+    rows3 = zoneRows(ZONES_3FG);
+    unknown = shots.filter(ev => !ev.zone || !ZONE_DEFS[ev.zone]);
   }
-
-  const rows2 = zoneRows(ZONES_2FG);
-  const rows3 = zoneRows(ZONES_3FG);
-  const unknown = shots.filter(ev => !ev.zone || !ZONE_DEFS[ev.zone]);
 
   if (!rows2 && !rows3 && !unknown.length) {
     return `<div style="font-size:12px;color:var(--text-dim);padding:12px 0;">No zone data recorded yet.</div>`;
@@ -7034,15 +7468,69 @@ let psProfileName = null;  // null = show table, string = show profile
 let psScopeSessionId = null;  // null = All Practices, session id = single practice scope
 
 /* ── Aggregate player stats across all (or filtered) sessions ── */
+/* ── One player, one practice, one line ──
+   A player who switches squads mid-scrimmage gets a separate playerStats entry per team
+   (the box score shows them as two rows on purpose — each is that stint's real production).
+   Everywhere that counts GAMES, though, those two entries are still one practice. Merge
+   them into a single line: counting stats add up, and the practice is credited to whichever
+   squad he spent more minutes with, so W/L lands on the side he mostly played for.
+
+   Rate stats can't be added, so they're minutes-weighted across the stints — a 6-minute
+   cameo shouldn't drag a 20-minute shift's TS% halfway toward it. */
+const _PS_COUNTING = ['min','pts','fgm','fga','fg2m','fg2a','fg3m','fg3a','ftm','fta',
+                      'oreb','dreb','reb','ast','tov','stl','blk','defl','pf'];
+const _PS_RATES = ['ortg','drtg','usgPct','minPctVal','shotPct','efgPct','tsPct','ftRate',
+                   'orPct','drPct','astPct','toPct','stlPct','blkPct'];
+
+function mergePlayerEntries(entries) {
+  if (!entries || !entries.length) return null;
+  if (entries.length === 1) return entries[0];
+
+  /* STORAGE CONTRACT (verified against real data, Summer Workout #16):
+     computePlayerStats writes a player's WHOLE-SESSION counting totals into EVERY team
+     entry — the two rows are byte-identical for pts/fg2a/ast/dreb/etc. Only `min` and the
+     minutes-derived rates are split per squad. So counting stats must be TAKEN, not summed;
+     summing double-counted a dual-team player's entire production. Minutes are the one
+     figure that genuinely is per-team, so that one adds up. */
+  const dominant = entries.reduce((best, e) => ((e.min || 0) > (best.min || 0) ? e : best));
+  const out = { name: entries[0].name };
+  // The squad he gave the most minutes to owns the practice — and therefore the result.
+  out.team = dominant.team;
+  for (const k of _PS_COUNTING) out[k] = dominant[k] ?? 0;
+  out.min = entries.reduce((sum, e) => sum + (e.min || 0), 0);
+  for (const k of _PS_RATES) {
+    let wsum = 0, w = 0;
+    for (const e of entries) {
+      if (e[k] == null || !isFinite(e[k])) continue;
+      const m = (e.min || 0) || 1;         // guard a 0-minute stint so it still counts a little
+      wsum += e[k] * m; w += m;
+    }
+    out[k] = w > 0 ? wsum / w : null;
+  }
+  return out;
+}
+
+/* Every entry for one player in one session, optionally narrowed to a single squad. */
+function playerEntriesForSession(sess, name, filterTeam = 'all') {
+  return (sess.playerStats || [])
+    .filter(p => p.name === name && (filterTeam === 'all' || p.team === filterTeam));
+}
+
 function aggregatePlayerStats(filterPeriod, filterTeam) {
   const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const byPlayer = {};
 
   for (const sess of sessions) {
     if (filterPeriod !== 'all' && sess.period !== filterPeriod) continue;
-    const ps = sess.playerStats || [];
-    for (const p of ps) {
-      if (filterTeam !== 'all' && p.team !== filterTeam) continue;
+    /* Walk NAMES, not entries. A player who switched squads has one entry per team, and
+       iterating entries counted him as two games played for a single practice — which
+       halved his per-game averages. Team filtering happens before the merge, so a filtered
+       view still shows only that squad's stint. */
+    const names = [...new Set((sess.playerStats || []).map(x => x.name))];
+    for (const nm of names) {
+      const entries = playerEntriesForSession(sess, nm, filterTeam);
+      if (!entries.length) continue;
+      const p = mergePlayerEntries(entries);
       const key = p.name;
       if (!byPlayer[key]) {
         byPlayer[key] = {
@@ -7111,6 +7599,15 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       ftm: r.ftm, fta: r.fta, oreb: r.oreb, dreb: r.dreb, reb: r.reb,
       ast: r.ast, tov: r.tov, stl: r.stl, blk: r.blk, defl: r.defl, pf: r.pf,
       // Per-game counting
+      /* Per-game for EVERY counting stat, not just the headline six. The AVG view used to
+         mix them: PTS/REB/AST/TOV/STL/BLK/MIN were per-game while the shooting splits,
+         rebounds by type, deflections and fouls fell through as season TOTALS — so a
+         2-practice season showed 32.0 "average" 2FGA when the real figure was 16.0. */
+      fg2mPG: p1(r.fg2m / g), fg2aPG: p1(r.fg2a / g),
+      fg3mPG: p1(r.fg3m / g), fg3aPG: p1(r.fg3a / g),
+      ftmPG:  p1(r.ftm  / g), ftaPG:  p1(r.fta  / g),
+      orebPG: p1(r.oreb / g), drebPG: p1(r.dreb / g),
+      deflPG: p1(r.defl / g), pfPG:   p1(r.pf   / g),
       ptsPG: p1(r.pts / g), rebPG: p1(r.reb / g), astPG: p1(r.ast / g),
       stlPG: p1(r.stl / g), blkPG: p1(r.blk / g), tovPG: p1(r.tov / g), minPG: p1(r.min / g),
       // Shooting
@@ -7220,27 +7717,27 @@ function renderPlayerTable() {
     { key: 'gp',     label: 'GP'     },
     { key: 'minPG',  label: 'MIN'    },
     { key: 'ptsPG',  label: 'PTS'    },
-    { key: 'fg2m',   label: '2FGM'   },
-    { key: 'fg2a',   label: '2FGA'   },
-    { key: 'fg2Pct', label: '2FG%'   },
-    { key: 'fg3m',   label: '3PM'    },
-    { key: 'fg3a',   label: '3PA'    },
+    { key: 'fg2mPG', label: '2FGM'   },
+    { key: 'fg2aPG', label: '2FGA'   },
+    { key: 'fg2Pct', label: '2FG%'   },   // a percentage is already rate-based — never divided
+    { key: 'fg3mPG', label: '3PM'    },
+    { key: 'fg3aPG', label: '3PA'    },
     { key: 'fg3Pct', label: '3P%'    },
-    { key: 'ftm',    label: 'FTM'    },
-    { key: 'fta',    label: 'FTA'    },
+    { key: 'ftmPG',  label: 'FTM'    },
+    { key: 'ftaPG',  label: 'FTA'    },
     { key: 'ftPct',  label: 'FT%'    },
     { key: 'fgPct',  label: 'FG%'    },
     { key: 'efgPct', label: 'EFG%'   },
     { key: 'tsPct',  label: 'TS%'    },
     { key: 'rebPG',  label: 'REB'    },
-    { key: 'oreb',   label: 'OREB'   },
-    { key: 'dreb',   label: 'DREB'   },
+    { key: 'orebPG', label: 'OREB'   },
+    { key: 'drebPG', label: 'DREB'   },
     { key: 'astPG',  label: 'AST'    },
     { key: 'tovPG',  label: 'TOV'    },
     { key: 'stlPG',  label: 'STL'    },
     { key: 'blkPG',  label: 'BLK'    },
-    { key: 'defl',   label: 'DEFL'   },
-    { key: 'pf',     label: 'PF'     },
+    { key: 'deflPG', label: 'DEFL'   },
+    { key: 'pfPG',   label: 'PF'     },
   ];
 
   function sortArrow(key) {
@@ -7491,10 +7988,18 @@ function renderPlayerProfile(playerName) {
       totalFgm = 0, totalFga = 0, totalFg3m = 0, totalFg3a = 0,
       totalFtm = 0, totalFta = 0;
 
-  const team = (sessionsWithPlayer[0].playerStats || []).find(p => p.name === playerName)?.team || 'a';
+  /* Team is resolved PER SESSION. It used to be read once from the most recent practice
+     and stamped across the whole history, so a player who changed squads had every earlier
+     row scored from the wrong bench — including its W/L. */
+  const teamInSession = sess =>
+    (mergePlayerEntries(playerEntriesForSession(sess, playerName)) || {}).team || 'a';
+
+  // Header accent only — the squad he turned out for most recently.
+  const primaryTeam = teamInSession(sessionsWithPlayer[0]);
 
   for (const sess of sessionsWithPlayer) {
-    const p = (sess.playerStats || []).find(x => x.name === playerName);
+    // Merged, so a practice split across both squads is one game with combined totals.
+    const p = mergePlayerEntries(playerEntriesForSession(sess, playerName));
     if (!p) continue;
     totalGP++;  totalMin += p.min || 0;
     totalPts += p.pts || 0;  totalReb  += p.reb  || 0;
@@ -7568,11 +8073,14 @@ function renderPlayerProfile(playerName) {
 
   // Game log rows per session
   const glRows = sessionsWithPlayer.map(sess => {
-    const p = (sess.playerStats || []).find(x => x.name === playerName);
+    const p = mergePlayerEntries(playerEntriesForSession(sess, playerName));
     if (!p) return null;
     const pA = sessionScore(sess, 'a'), pB = sessionScore(sess, 'b');
-    const myPts  = team === 'a' ? pA : pB;
-    const oppPts = team === 'a' ? pB : pA;
+    /* Resolved per row: a player who changed squads is scored from the bench he actually
+       spent the most minutes on THAT day, not from whichever team he last appeared for. */
+    const rowTeam = p.team || 'a';
+    const myPts  = rowTeam === 'a' ? pA : pB;
+    const oppPts = rowTeam === 'a' ? pB : pA;
     // W/L from THIS player's team perspective (sessionResultText is Team-A-centric).
     const result = myPts > oppPts ? 'W' : myPts < oppPts ? 'L' : 'T';
     return {
@@ -7729,7 +8237,7 @@ function renderPlayerProfile(playerName) {
       </table>
     </div>`;
 
-  const teamColor = team === 'a' ? '#60a5fa' : '#fb923c';
+  const teamColor = primaryTeam === 'a' ? '#60a5fa' : '#fb923c';
 
   // Event timeline: any practice where this player has tagged (non-sub) events.
   // Clips are never stored — only the tags — so the timeline is driven by events, not video.
@@ -8605,11 +9113,17 @@ function znContains(z, x, y) {
 }
 
 /* Which zone a shot falls in (first match wins). */
-function znZoneForShot(ev) {
-  if (ev.shotX == null || ev.shotY == null) return null;
-  const x = ev.shotX * 500, y = ev.shotY * 485;
+/* Drawn-zone lookup by raw court coordinates. znZoneForShot() is just the event-shaped
+   wrapper around this — the live tracker needs the point version because while the coach
+   is still picking the spot there is no event yet. */
+function znZoneAtPoint(x, y) {
   for (const z of (State.zones || [])) if (znContains(z, x, y)) return z;
   return null;
+}
+
+function znZoneForShot(ev) {
+  if (ev.shotX == null || ev.shotY == null) return null;
+  return znZoneAtPoint(ev.shotX * 500, ev.shotY * 485);
 }
 
 function znPersist() {
@@ -9179,12 +9693,15 @@ function renderOnOffView() {
   for (const playerName of playerSet) {
     const onL = [], offL = [];
     let sessCount = 0;
+    // Floor time available to this player: the played length of the practices they were in.
+    let availableMin = 0;
     for (const sess of filtered) {
       const rec = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
       if (!rec) continue;                       // didn't play in this practice
       const pt = rec.team;                      // their squad in THIS practice
       if (!teamIsAll && pt !== team) continue;  // isolate the selected squad
       sessCount++;
+      availableMin += (getSessionPlayedSeconds(sess) || 0) / 60;
       for (const seg of (sess.lineupSegments || [])) {
         if (seg.endTimeSecs === null) continue;
         const lineup = pt === 'a' ? seg.lineupA : seg.lineupB;
@@ -9194,7 +9711,8 @@ function renderOnOffView() {
     }
     const on = ooAgg(onL);
     if (!on) continue;
-    impact.push({ name: playerName, on: on, off: ooAgg(offL), practices: sessCount });
+    impact.push({ name: playerName, on: on, off: ooAgg(offL), practices: sessCount,
+                  availableMin: availableMin });
   }
 
   if (!impact.length) {
@@ -9207,9 +9725,13 @@ function renderOnOffView() {
     return;
   }
 
-  // Rank by share of floor time, like the leaderboard's "% of minutes".
-  const maxMin = Math.max.apply(null, impact.map(function (p) { return p.on.min; }));
-  impact.forEach(function (p) { p.minPct = maxMin > 0 ? (p.on.min / maxMin) * 100 : 0; });
+  /* Share of the PRACTICE's floor time — the same definition as minPctVal everywhere else
+     (player minutes / game minutes). This used to divide by the busiest player's minutes,
+     which pinned whoever played most at exactly 100% and made everyone else a share of
+     HIM rather than of the game: Reese read 100% in a practice he sat 2 of 41 minutes. */
+  impact.forEach(function (p) {
+    p.minPct = p.availableMin > 0 ? Math.min(100, (p.on.min / p.availableMin) * 100) : 0;
+  });
   impact.sort(function (a, b) { return b.minPct - a.minPct; });
 
   const shown = impact;   // every player, ranked by minutes
@@ -9407,6 +9929,86 @@ const trackerState = {
 // Stats where flow = tap stat → tap one player → done
 const SIMPLE_STATS = ['ast','tov','stl','defl','foul','blk'];
 
+/* ── In-flight flow persistence ──
+   trackerState is memory-only, but a multi-step entry stages its events and writes NOTHING
+   to the event log until the flow finishes. So a refresh part-way through — tap 3FG Miss,
+   pick the shooter, mark the zone, then reload — used to throw the whole attempt away.
+   Mirror the flow to localStorage on every phase change and pick it back up on load.
+
+   saveLiveSession() is untouched: this is separate from session data on purpose, since a
+   half-entered play is UI state, not a recorded event. */
+const LIVE_FLOW_KEY = 'pt_live_flow';
+
+function clearLiveFlow() {
+  try { localStorage.removeItem(LIVE_FLOW_KEY); } catch (e) { /* storage blocked */ }
+}
+
+function saveLiveFlow() {
+  try {
+    // Nothing staged at idle, and a stale record would resurrect a finished play.
+    if (!State.liveSession || trackerState.phase === 'idle') { clearLiveFlow(); return; }
+    localStorage.setItem(LIVE_FLOW_KEY, JSON.stringify({
+      sessionId:          State.liveSession.id,
+      phase:              trackerState.phase,
+      stat:               trackerState.stat,
+      pendingEvents:      trackerState.pendingEvents,
+      shooterTeam:        trackerState.shooterTeam,
+      shooter:            trackerState.shooter,
+      rebType:            trackerState.rebType,
+      blockerInfo:        trackerState.blockerInfo,
+      nextPhaseAfterZone: trackerState.nextPhaseAfterZone,
+      shotType:           trackerState.shotType,
+      shotTypes:          trackerState.shotTypes,
+      shotContest:        trackerState.shotContest,
+      videoTsAtStart:     trackerState.videoTsAtStart,
+      _pendingStat:       trackerState._pendingStat,
+      activeStat,
+      pendingShotX,
+      pendingShotY,
+    }));
+  } catch (e) { /* quota or blocked — the flow still works in memory */ }
+}
+
+function restoreLiveFlow() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LIVE_FLOW_KEY) || 'null'); } catch (e) { saved = null; }
+  // Only resume into the session it came from — never graft a stale play onto a new one.
+  if (!saved || !State.liveSession || saved.sessionId !== State.liveSession.id ||
+      !saved.phase || saved.phase === 'idle') { clearLiveFlow(); return; }
+
+  trackerState.phase              = saved.phase;
+  trackerState.stat               = saved.stat;
+  trackerState.pendingEvents      = saved.pendingEvents || [];
+  trackerState.shooterTeam        = saved.shooterTeam;
+  trackerState.shooter            = saved.shooter;
+  trackerState.rebType            = saved.rebType;
+  trackerState.blockerInfo        = saved.blockerInfo;
+  trackerState.nextPhaseAfterZone = saved.nextPhaseAfterZone;
+  trackerState.shotType           = saved.shotType;
+  trackerState.shotTypes          = saved.shotTypes || [];
+  trackerState.shotContest        = saved.shotContest;
+  trackerState.videoTsAtStart     = saved.videoTsAtStart;
+  trackerState._pendingStat       = saved._pendingStat;
+  pendingShotX = saved.pendingShotX != null ? saved.pendingShotX : null;
+  pendingShotY = saved.pendingShotY != null ? saved.pendingShotY : null;
+
+  /* activeStatEl is a DOM node, so it can't be stored — re-find the button by data-stat
+     to bring back the highlighted stat. */
+  activeStat   = saved.activeStat || null;
+  activeStatEl = activeStat
+    ? document.querySelector('.tracker-stat-col .stat-btn[data-stat="' + activeStat + '"]')
+    : null;
+  if (activeStatEl) activeStatEl.classList.add('stat-active');
+
+  // The zone step owns the court panel, so re-arm it before the phase UI paints.
+  if (trackerState.phase === 'await_zone') activateInlineCourt(trackerState.stat);
+  if (pendingShotX != null && pendingShotY != null) refreshModalCourt(pendingShotX, pendingShotY);
+
+  applyPhaseUI();
+  updateUndoRedo();
+  showToast('Resumed an unfinished entry' + (trackerState.shooter ? ' — ' + trackerState.shooter : ''), 'warning', 5000);
+}
+
 function renderLiveTracker() {
   const session = State.liveSession;
   if (!session) return;
@@ -9434,6 +10036,12 @@ function renderLiveTracker() {
   updateVtsLog();
   updateUndoRedo();
 
+  /* Pick up a half-entered play from before the refresh. Runs last: it needs the player
+     buttons and the court panel to already exist before it can paint the phase. Wrapped
+     because this is startup for a tool used live at practice — a malformed saved flow must
+     never be able to stop the tracker itself from coming up. */
+  try { restoreLiveFlow(); } catch (e) { clearLiveFlow(); }
+
   // Prompt for Q1 setup if no segments exist yet
   if (!session.lineupSegments || session.lineupSegments.length === 0) {
     setTimeout(() => promptQuarterSetup(), 200);
@@ -9445,6 +10053,13 @@ function updateScorebar() {
   if (!session) return;
   document.getElementById('live-score-a').textContent = computeScore('a');
   document.getElementById('live-score-b').textContent = computeScore('b');
+  /* Every scoring change moves plus/minus, and this is the one call every commit, undo
+     and redo path already funnels through. Subs are hooked separately in confirmAllSubs,
+     which changes the lineup without touching the score. */
+  renderLineupPlusMinus();
+  /* Rebounds, steals and turnovers all move the kill count without touching the score,
+     but every one of them lands here — commitEvent and flushPendingEvents both call it. */
+  renderKillCounter();
 }
 
 function computeScore(team) {
@@ -9478,7 +10093,7 @@ function renderTeamColumn(team) {
   const playerGrid = document.createElement('div');
   playerGrid.className = 'player-btn-grid';
 
-  lineup.forEach(name => {
+  sortByLastName(lineup).forEach(name => {
     const btn = document.createElement('button');
     btn.className = 'player-action-btn';
     btn.dataset.player = name;
@@ -9504,6 +10119,10 @@ function enterPhase(phase) {
   trackerState.phase = phase;
   applyPhaseUI();
   updateUndoRedo();  // enable Undo button whenever entering any phase (incl. mid-flow cancel)
+  /* Every step of every flow passes through here, and each step is preceded by whatever
+     mutation it staged (the pushed event, the zone, the blocker) — so this one call keeps
+     the saved copy current without sprinkling saves through the flow. */
+  saveLiveFlow();
 }
 
 /* ── Apply dimming / undimming / status for current phase ── */
@@ -9529,6 +10148,9 @@ function applyPhaseUI() {
 
   const skipBtn = document.getElementById('btn-skip-assist');
   if (skipBtn) skipBtn.style.display = 'none';
+  const skipRebBtn = document.getElementById('btn-skip-reb');
+  if (skipRebBtn) skipRebBtn.style.display = 'none';
+  const showSkipReb = () => { if (skipRebBtn) skipRebBtn.style.display = ''; };
 
   switch (phase) {
 
@@ -9572,6 +10194,7 @@ function applyPhaseUI() {
     case 'await_block_or_reb':
       dimAll();
       undimStats('blk', 'dreb', 'oreb');
+      showSkipReb();
       setPendingStatus('waiting', `${trackerState.shooter} missed — Block, Def Reb, or Off Reb?`);
       break;
 
@@ -9584,6 +10207,7 @@ function applyPhaseUI() {
     case 'await_reb_type_after_block': {
       dimAll();
       undimStats('dreb', 'oreb');
+      showSkipReb();
       const bLabel = trackerState.blockerInfo ? ` (blk: ${trackerState.blockerInfo.name})` : '';
       setPendingStatus('waiting', `Def Reb or Off Reb?${bLabel}`);
       break;
@@ -9602,6 +10226,7 @@ function applyPhaseUI() {
     case 'await_ft_reb_type':
       dimAll();
       undimStats('dreb', 'oreb');
+      showSkipReb();
       setPendingStatus('waiting', `${trackerState.shooter} FT miss — Def Reb or Off Reb?`);
       break;
 
@@ -9847,9 +10472,18 @@ function selectPlayer(team, name) {
 }
 
 /* ── Skip assist ── */
-function skipAssist() {
+/* Commit whatever the flow has gathered and return to idle. The `finally` matters: if the
+   write throws, the UI still unsticks rather than trapping the tracker mid-flow. */
+function commitFlowAndReset() {
   try { flushPendingEvents(); } finally { resetTrackerState(); }
 }
+
+function skipAssist() { commitFlowAndReset(); }
+
+/* A missed shot does not always produce a rebound — the buzzer beats it, or the ball goes
+   out of bounds off nobody. Without this the flow sits forever waiting on Block/Def Reb/
+   Off Reb, and the only other exit (Undo) would DISCARD the attempt. */
+function skipRebound() { commitFlowAndReset(); }
 
 /* ── Commit a single event immediately ── */
 function commitEvent(team, player, stat, videoTsOverride) {
@@ -10082,7 +10716,10 @@ function resetTrackerState() {
   deactivateInlineCourt();
   const skipBtn = document.getElementById('btn-skip-assist');
   if (skipBtn) skipBtn.style.display = 'none';
+  const skipRebBtn = document.getElementById('btn-skip-reb');
+  if (skipRebBtn) skipRebBtn.style.display = 'none';
   setPendingStatus('idle', 'Select a stat to begin');
+  clearLiveFlow();   // nothing staged any more — don't resurrect it on the next load
 }
 
 /* ── Update undo/redo button states ── */
@@ -10392,6 +11029,10 @@ function epConfirmStep() {
 function finalizeSession(timeSecs = 0) {
   const session = State.liveSession;
   if (!session) return;
+
+  /* Same buzzer case as confirmEndQuarter, but worse here: finalizing discards the live
+     session, so an uncommitted attempt would be lost outright rather than just stuck. */
+  if (trackerState.phase !== 'idle') commitFlowAndReset();
 
   const rem = Math.max(0, Math.min(Number(timeSecs) || 0, clockState.quarterDuration));
   const activeSeg = session.lineupSegments.findLast(s => s.endTimeSecs === null);
@@ -10845,6 +11486,188 @@ function rebuildCurrentLineups() {
   }
 }
 
+/* ── Live lineup +/- ──
+   Replays the event log to get both the five currently on the floor and the running
+   plus/minus for every player, then reports the CURRENT five's cumulative number across
+   the whole scrimmage — every stint that exact unit has played, not just this one.
+
+   Deliberately NOT built on segStats(): that skips any stint with endTimeSecs === null,
+   which is always the one on the floor right now, and it needs clock times to attribute
+   events. Plus/minus needs no clock at all — only ORDER. The log is chronological and
+   every sub event is a boundary, so a straight replay attributes points exactly, open
+   stint included. Same walk as rebuildCurrentLineups(), carrying a score along. */
+function computePlusMinus(session) {
+  const res = { lineupA: [], lineupB: [], pmA: {}, pmB: {}, unitA: 0, unitB: 0 };
+  if (!session) return res;
+
+  const luA = [...(session.startersA || [])];
+  const luB = [...(session.startersB || [])];
+  const pmA = {}, pmB = {}, unitA = {}, unitB = {};
+  // Sorted join: the same five is one unit no matter what order subs left them in.
+  const unitKey = arr => arr.slice().sort().join('|');
+
+  for (const ev of (session.eventLog || [])) {
+    if (ev.type === 'sub') {
+      for (const sp of subPairs(ev)) {
+        const lu = (sp.team || ev.team) === 'a' ? luA : luB;
+        const i = lu.indexOf(sp.playerOut);
+        if (i !== -1) lu[i] = sp.playerIn;
+      }
+      continue;
+    }
+    const pts = ev.stat === '2fg_make' ? 2 : ev.stat === '3fg_make' ? 3 : ev.stat === 'ft_make' ? 1 : 0;
+    if (!pts) continue;
+
+    const swing = ev.team === 'a' ? pts : -pts;   // signed from White's point of view
+    luA.forEach(n => { pmA[n] = (pmA[n] || 0) + swing; });
+    luB.forEach(n => { pmB[n] = (pmB[n] || 0) - swing; });
+    const kA = unitKey(luA), kB = unitKey(luB);
+    unitA[kA] = (unitA[kA] || 0) + swing;
+    unitB[kB] = (unitB[kB] || 0) - swing;
+  }
+
+  res.lineupA = [...luA];
+  res.lineupB = [...luB];
+  res.pmA = pmA;
+  res.pmB = pmB;
+  res.unitA = unitA[unitKey(luA)] || 0;
+  res.unitB = unitB[unitKey(luB)] || 0;
+  return res;
+}
+
+function renderLineupPlusMinus() {
+  const el = document.getElementById('lineup-pm-body');
+  if (!el) return;
+  const session = State.liveSession;
+  if (!session) { el.innerHTML = '<div class="lpm-empty">No live session</div>'; return; }
+
+  const d    = computePlusMinus(session);
+  const sign = v => (v > 0 ? '+' : '') + v;
+  const cls  = v => v > 0 ? 'lpm-pos' : v < 0 ? 'lpm-neg' : 'lpm-zero';
+
+  const block = (label, side, names, pm, unit) =>
+    '<div class="lpm-team">' +
+      '<div class="lpm-team-head ' + side + '"><span>' + escHtml(label) + '</span>' +
+        '<span class="lpm-val ' + cls(unit) + '">' + sign(unit) + '</span></div>' +
+      (names.length
+        ? names.map(n =>
+            '<div class="lpm-row"><span class="lpm-name">' + escHtml(n) + '</span>' +
+            '<span class="lpm-val ' + cls(pm[n] || 0) + '">' + sign(pm[n] || 0) + '</span></div>').join('')
+        : '<div class="lpm-empty">No lineup set</div>') +
+    '</div>';
+
+  el.innerHTML =
+    block(session.teamAName || 'White', 'a', sortByLastName(d.lineupA), d.pmA, d.unitA) +
+    block(session.teamBName || 'Black', 'b', sortByLastName(d.lineupB), d.pmB, d.unitB);
+}
+
+/* ── Possession sequence ──
+   Rebuilds the game as an ORDERED list of trips, each marked scored or not.
+
+   The possession figure the stats tabs show — (FGA − OREB) + TOV + 0.475·FTA — is no use
+   here: it is an aggregate ESTIMATE with no ordering and no per-trip outcome. Kills need
+   discrete trips in sequence, so boundaries get read straight off the event log.
+
+   This leans on how the tracker records: every missed shot routes through
+   await_block_or_reb into a mandatory dreb/oreb, so rebounds — the most common boundary —
+   are reliably in the log. A trip still in progress is intentionally left out. */
+function computePossessionSequence(session) {
+  const out = [];
+  if (!session) return out;
+  const other = t => (t === 'a' ? 'b' : 'a');
+
+  let cur = null;                                     // { team, pts }
+  const close = () => { if (cur) { out.push({ team: cur.team, scored: cur.pts > 0 }); cur = null; } };
+  const start = t => { cur = { team: t, pts: 0 }; };
+  /* Any event implying team T has the ball. If someone else was on offence their trip is
+     over — the boundary just never got logged — so close it and hand the ball across. */
+  const ensure = t => { if (!cur) start(t); else if (cur.team !== t) { close(); start(t); } };
+
+  for (const ev of (session.eventLog || [])) {
+    const t = ev.team;
+    if (t !== 'a' && t !== 'b') continue;             // team-level/pseudo events carry no offence
+    switch (ev.stat) {
+      case '2fg_make':
+      case '3fg_make':
+        ensure(t); cur.pts += (ev.stat === '3fg_make' ? 3 : 2); close(); break;
+
+      case 'ft_make':
+        /* Left OPEN on purpose — a second free throw or an and-1 can still follow. The
+           trip closes when the next event hands the ball to the other team. */
+        ensure(t); cur.pts += 1; break;
+
+      case '2fg_miss':
+      case '3fg_miss':
+      case 'ft_miss':
+        ensure(t); break;                             // open, waiting on the rebound
+
+      case 'oreb':
+        ensure(t); break;                             // same team keeps it — same trip
+
+      case 'dreb':
+        close(); start(t); break;                     // defence rebounded; they have it now
+
+      /* A steal and a turnover are separate stat buttons, so ONE live play can produce
+         both — a tov for the ball-handler and a stl for the defender, in either order.
+         Whichever lands second must not close a second possession, or the phantom trip
+         inflates the scoreless run and hands out a kill that was never earned. In both
+         guards below, the ball having already moved is the tell. */
+      case 'tov':
+        if (cur && cur.team !== t) break;              // a stl already moved it — same play
+        ensure(t); close(); start(other(t)); break;
+
+      case 'stl':
+        /* ev.team is the DEFENDER who took it, so the trip that just ended was theirs. */
+        if (cur && cur.team === t) break;              // a tov already moved it — same play
+        close(); start(t); break;
+
+      default: break;                                 // ast, blk, defl, foul, note, sub
+    }
+  }
+  return out;
+}
+
+/* ── Kill counter ──
+   Three straight stops is a kill: if a team fails to score on KILL_THRESHOLD consecutive
+   trips, the other team's DEFENCE banks a kill and the count restarts from zero — so six
+   straight stops is two kills, not one. */
+const KILL_THRESHOLD = 3;
+
+function computeKills(session) {
+  const res = { kills: { a: 0, b: 0 }, streak: { a: 0, b: 0 } };
+  const other = t => (t === 'a' ? 'b' : 'a');
+  for (const p of computePossessionSequence(session)) {
+    if (p.scored) { res.streak[p.team] = 0; continue; }
+    res.streak[p.team]++;
+    if (res.streak[p.team] >= KILL_THRESHOLD) {
+      res.kills[other(p.team)]++;
+      res.streak[p.team] = 0;
+    }
+  }
+  /* streak[T] left over = T's live scoreless run = progress toward the OPPONENT's next kill. */
+  return res;
+}
+
+function renderKillCounter() {
+  const elA = document.getElementById('live-kills-a');
+  const elB = document.getElementById('live-kills-b');
+  if (!elA || !elB) return;
+  const session = State.liveSession;
+  if (!session) { elA.innerHTML = ''; elB.innerHTML = ''; return; }
+
+  const k = computeKills(session);
+  const pips = n => '<span class="kill-pips">' +
+    Array.from({ length: KILL_THRESHOLD }, (_, i) =>
+      '<span class="kill-pip' + (i < n ? ' on' : '') + '"></span>').join('') + '</span>';
+  /* Shown under each team: kills THEIR defence has banked, and the pips filling toward the
+     next one — which is driven by the OPPONENT's current scoreless run. */
+  const line = (kills, oppStreak) =>
+    '<span class="kill-num">' + kills + '</span> KILL' + (kills === 1 ? '' : 'S') + pips(oppStreak);
+
+  elA.innerHTML = line(k.kills.a, k.streak.b);
+  elB.innerHTML = line(k.kills.b, k.streak.a);
+}
+
 /* ── Quarter number helper ── */
 function currentQuarterNum() {
   const session = State.liveSession;
@@ -10917,6 +11740,12 @@ function confirmEndQuarter() {
   const session  = State.liveSession;
   const q        = currentQuarterNum();
 
+  /* A shot at the buzzer leaves the flow parked on Block/Def Reb/Off Reb for a rebound
+     that never happened. Commit it BEFORE the quarter is pushed: flushPendingEvents tags
+     events with currentQuarterNum(), which counts quarters.length — flushing afterwards
+     would file the buzzer attempt in the quarter that hasn't started yet. */
+  if (trackerState.phase !== 'idle') commitFlowAndReset();
+
   const rem = Math.max(0, Math.min(timeSecs, clockState.quarterDuration));
   const playedDuration = Math.max(0, clockState.quarterDuration - rem);
 
@@ -10950,50 +11779,105 @@ function showSubModal() {
   document.getElementById('sub-time-input').value = '';
 
   // subState[team][slotIdx] = { original: name, replacement: name|null, pickingOpen: bool }
+  /* Sorted here, at BUILD time — renderSubSlots keys its click handlers off subState
+     indices, so reordering at render would wire the buttons to the wrong players. */
   subState = {
-    a: clockState.currentLineupA.map(n => ({ original: n, replacement: null, pickingOpen: false })),
-    b: clockState.currentLineupB.map(n => ({ original: n, replacement: null, pickingOpen: false })),
+    a: sortByLastName(clockState.currentLineupA).map(n => ({ original: n, replacement: null, pickingOpen: false })),
+    b: sortByLastName(clockState.currentLineupB).map(n => ({ original: n, replacement: null, pickingOpen: false })),
   };
   renderSubSlots('a');
   renderSubSlots('b');
   showModal('modal-sub-clock');
 }
 
+/* The roster editor is reachable from inside this modal, because a player you forgot to
+   add still has to be able to check in mid-game. When it saves, fold the change into the
+   open sub modal rather than making the user cancel and reopen — reopening would also
+   discard any swaps already lined up. */
+function refreshSubModalRoster() {
+  const overlay = document.getElementById('modal-sub-clock');
+  if (!overlay || overlay.classList.contains('hidden') || !State.liveSession) return;
+
+  /* A rename rewrites the live session's starters and sub events, so the on-court lineup
+     must be replayed from that data before the slots can be trusted. Adding a player
+     leaves the lineup untouched, so this is a no-op in the common case. */
+  rebuildCurrentLineups();
+
+  const rosterNames = new Set((State.roster || []).map(p => p.name));
+  for (const team of ['a', 'b']) {
+    // Same sort as showSubModal, so slot indices still line up with the previous state.
+    const lineup = sortByLastName(team === 'a' ? clockState.currentLineupA : clockState.currentLineupB);
+    const prev   = subState[team] || [];
+    subState[team] = lineup.map((name, i) => {
+      const old = prev[i];
+      /* Carry a pending swap over only if BOTH sides survived the edit untouched —
+         anything renamed or deleted out from under us gets reset rather than guessed at. */
+      const keep = !!(old && old.replacement && old.original === name && rosterNames.has(old.replacement));
+      return { original: name,
+               replacement: keep ? old.replacement : null,
+               pickingOpen: keep ? false : !!(old && old.pickingOpen) };
+    });
+    renderSubSlots(team);
+  }
+}
+
+/* Repaint BOTH sides on any change: a player pending a sub-out on one team appears in the
+   other team's pool, so one team's slots now decide what the other team is offered. */
+function renderAllSubSlots() { renderSubSlots('a'); renderSubSlots('b'); }
+
 function subSlotRemove(team, idx) {
   subState[team][idx].replacement = null;
   subState[team][idx].pickingOpen = true;
-  renderSubSlots(team);
+  renderAllSubSlots();
 }
 
 function subSlotCancelPick(team, idx) {
   subState[team][idx].replacement = null;
   subState[team][idx].pickingOpen = false;
-  renderSubSlots(team);
+  renderAllSubSlots();
 }
 
 function subSlotPick(team, idx, name) {
   subState[team][idx].replacement  = name;
   subState[team][idx].pickingOpen  = false;
-  renderSubSlots(team);
+  renderAllSubSlots();
 }
 
 function subSlotUndo(team, idx) {
   // Restore original (cancel this substitution)
   subState[team][idx].replacement = null;
   subState[team][idx].pickingOpen = false;
-  renderSubSlots(team);
+  renderAllSubSlots();
 }
 
 function renderSubSlots(team) {
   const container = document.getElementById('sub-slots-' + team);
   if (!container) return;
   const slots  = subState[team] || [];
-  const lineup = team === 'a' ? clockState.currentLineupA : clockState.currentLineupB;
 
-  // All players currently claimed as replacements (to exclude from other pools)
-  const usedIn = slots.map(s => s.replacement).filter(Boolean);
-  // Bench = roster minus current lineup minus already-used replacements (excluding the slot being picked)
-  const fullBench = State.roster.map(p => p.name).filter(n => !lineup.includes(n));
+  /* Everyone on the floor RIGHT NOW, BOTH teams. Filtering against only this team's
+     lineup offered the opposite team's five as available bench — and confirming that put
+     one player into two lineups at once. A player already in the game can't be subbed in. */
+  const onFloor = new Set([
+    ...(clockState.currentLineupA || []),
+    ...(clockState.currentLineupB || []),
+  ]);
+
+  /* Players the OPPOSITE team has already lined up to remove. They're still on the floor,
+     but the instant Confirm fires they won't be — so they're legal to bring in here. This
+     is what lets a player switch squads in a single pass instead of two trips through the
+     modal. Only the other team's, never this one's: subbing a player out and back into the
+     same five in one action is a no-op that would just produce a duplicate. */
+  const otherTeam = team === 'a' ? 'b' : 'a';
+  const leavingOther = new Set(
+    (subState[otherTeam] || []).filter(s => s.replacement !== null).map(s => s.original)
+  );
+
+  /* Available = not in either five on the floor, or on their way off the other team. A
+     player already picked for another slot but not yet confirmed stays in the pool. */
+  const fullBench = sortByLastName(
+    State.roster.map(p => p.name).filter(n => !onFloor.has(n) || leavingOther.has(n))
+  );
 
   container.innerHTML = slots.map((slot, i) => {
     if (slot.replacement !== null) {
@@ -11007,9 +11891,8 @@ function renderSubSlots(team) {
       </div>`;
     }
     if (slot.pickingOpen) {
-      // Picking state: show bench pool
-      const otherUsed = slots.filter((_, j) => j !== i).map(s => s.replacement).filter(Boolean);
-      const pool = fullBench.filter(n => !otherUsed.includes(n));
+      // Picking state: the pool is the same for every slot on this team.
+      const pool = fullBench;
       const poolBtns = pool.length
         ? pool.map(n => `<button class="sub-pool-btn" onclick="subSlotPick('${team}',${i},'${escHtml(n)}')">${escHtml(n)}</button>`).join('')
         : `<span style="font-size:11px;color:var(--text-dim);">No bench players available</span>`;
@@ -11055,6 +11938,33 @@ function confirmAllSubs() {
     return;
   }
 
+  /* The pool intentionally keeps pending picks selectable, so the same player can be
+     lined up in two slots. Caught here rather than by hiding them: blocking the impossible
+     OUTCOME costs one toast, while a lineup holding one player twice is silent corruption
+     that every downstream stat inherits. */
+  const incoming = allSubs.map(s => s.in);
+  const dupe = incoming.find((n, i) => incoming.indexOf(n) !== i);
+  if (dupe) {
+    showToast(`${dupe} is subbing into two spots — fix one first`, 'danger', 3500);
+    return;
+  }
+
+  /* A player on the floor may be brought in only if this same batch also takes them off.
+     The pool offers the other team's pending-outs, so cancelling that sub-out afterwards
+     would leave an incoming player who never actually left — and they'd end up in both
+     lineups at once. Re-checked here against the batch as a whole, because the pool was
+     built from a state that may have changed since the pick. */
+  const goingOut = new Set(allSubs.map(s => s.out));
+  const onFloorNow = new Set([
+    ...(clockState.currentLineupA || []),
+    ...(clockState.currentLineupB || []),
+  ]);
+  const stuck = allSubs.find(s => onFloorNow.has(s.in) && !goingOut.has(s.in));
+  if (stuck) {
+    showToast(`${stuck.in} is still on the floor — sub them out first`, 'danger', 3500);
+    return;
+  }
+
   const session = State.liveSession;
   const q = currentQuarterNum();
 
@@ -11090,6 +12000,7 @@ function confirmAllSubs() {
   renderTeamColumn('a');
   renderTeamColumn('b');
   updateActionFeed();
+  renderLineupPlusMinus();   // new five on the floor — the card must follow the swap
   hideModal('modal-sub-clock');
   showToast(`${allSubs.length} sub${allSubs.length !== 1 ? 's' : ''} applied`, 'success', 2500);
 }
