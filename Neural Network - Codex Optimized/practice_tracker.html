@@ -11369,14 +11369,19 @@ function computePlayerStats(session) {
   for (const { name, team } of allPlayers) {
     const evs = session.eventLog.filter(e => e.type !== 'sub' && e.player === name);
     const s   = buildStatLine(evs);
-    s.min = calcPlayerMinutes(session, name, team);
+    /* minExact drives every ratio below; s.min is the rounded copy that gets displayed.
+       Keeping them separate is the whole fix — MIN%, SHOT%, OR%, DR%, AST%, STL%, BLK%,
+       USG% and the ORTG/DRTG minute weights all divide by this, so a numerator rounded up
+       by 0.05 leaked into all of them, most visibly as a 100.1% MIN. */
+    const minExact = calcPlayerSeconds(session, name, team) / 60;
+    s.min = +minExact.toFixed(1);
 
     const oppTeam = team === 'a' ? 'b' : 'a';
     const tS = (session.teamStats || {})[team]    || {};
     const oS = (session.teamStats || {})[oppTeam] || {};
     const p1 = (v, d = 1) => (v != null && isFinite(v)) ? +v.toFixed(d) : null;
 
-    const minPct = gameMin > 0 ? s.min / gameMin : 0;
+    const minPct = gameMin > 0 ? minExact / gameMin : 0;
     s.minPctVal = p1(minPct * 100);
 
     // Shot% = FGA / (Min% × Team FGA)
@@ -11391,8 +11396,8 @@ function computePlayerStats(session) {
 
     // USG% = 100 × (FGA + 0.475×FTA + TOV) × gameMin / (min × (tFGA + 0.475×tFTA + tTOV))
     const tFgaPoss = (tS.fga || 0) + 0.475 * (tS.fta || 0) + (tS.tov || 0);
-    s.usgPct = (s.min > 0 && tFgaPoss > 0)
-      ? p1(100 * (s.fga + 0.475 * s.fta + s.tov) * gameMin / (s.min * tFgaPoss)) : null;
+    s.usgPct = (minExact > 0 && tFgaPoss > 0)
+      ? p1(100 * (s.fga + 0.475 * s.fta + s.tov) * gameMin / (minExact * tFgaPoss)) : null;
 
     // OR%, DR%
     const tOREB = tS.oreb || 0, tDREB = tS.dreb || 0;
@@ -11419,8 +11424,8 @@ function computePlayerStats(session) {
 
     // Individual ORtg — Dean Oliver / BBR formula
     let ortg = null;
-    if (s.min > 0 && gameMin > 0 && (s.fga > 0 || s.fta > 0 || s.tov > 0)) {
-      const MP   = s.min;
+    if (minExact > 0 && gameMin > 0 && (s.fga > 0 || s.fta > 0 || s.tov > 0)) {
+      const MP   = minExact;
       const tMP5 = gameMin;
       const tFGA  = tS.fga  || 0, tFG3M = tS.fg3m || 0;
       const tFTM  = tS.ftm  || 0, tFTA  = tS.fta  || 0;
@@ -11473,8 +11478,8 @@ function computePlayerStats(session) {
        Stops credit a player for steals, blocks, defensive boards, and a share of the
        opponent's forced misses/turnovers proportional to their minutes. */
     let drtg = null;
-    if (s.min > 0 && gameMin > 0 && tS.drtg != null) {
-      const MP  = s.min;
+    if (minExact > 0 && gameMin > 0 && tS.drtg != null) {
+      const MP  = minExact;
       const tMP = gameMin * 5;                       // total team floor-minutes
       const tDRB = tS.dreb || 0, tBLK = tS.blk || 0, tSTL = tS.stl || 0, tPF = tS.pf || 0;
       const oORB = oS.oreb || 0, oFGA = oS.fga || 0, oFGM = oS.fgm || 0;
@@ -11547,7 +11552,12 @@ function calcPossessions(s) {
   return +((s.fga - s.oreb) + s.tov + 0.475 * s.fta).toFixed(2);
 }
 
-function calcPlayerMinutes(session, playerName, team) {
+/* EXACT on-floor seconds. Anything computing a ratio must use this rather than the rounded
+   minutes below: dividing a numerator rounded UP by an unrounded denominator is what made
+   MIN% read 100.1 for a player who never left the floor (54.35 min rounds to 54.4, over a
+   true 54.35). A player cannot exceed the game's own minutes, so that 0.1 was pure
+   rounding, not a measurement. */
+function calcPlayerSeconds(session, playerName, team) {
   let totalSecs = 0;
   for (const seg of session.lineupSegments) {
     if (seg.endTimeSecs === null) continue;                      // skip open segment
@@ -11557,7 +11567,12 @@ function calcPlayerMinutes(session, playerName, team) {
     const dur = session.quarters?.[seg.quarter - 1]?.duration ?? clockState.quarterDuration;
     totalSecs += Math.abs((seg.startTimeSecs ?? dur) - seg.endTimeSecs);
   }
-  return +(totalSecs / 60).toFixed(1);
+  return totalSecs;
+}
+
+/* Rounded for DISPLAY only. */
+function calcPlayerMinutes(session, playerName, team) {
+  return +(calcPlayerSeconds(session, playerName, team) / 60).toFixed(1);
 }
 
 /* ── Completion screen ── */
