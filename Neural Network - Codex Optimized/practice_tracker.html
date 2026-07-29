@@ -4081,6 +4081,62 @@ async function backupWithPassword() {
   }
 }
 
+/* ── Recompute stored stats from the event logs ──
+   teamStats/playerStats are frozen at finalize, so a fix to the compute path never reaches
+   practices that are already saved. This is the deliberate catch-up.
+
+   It replays the CURRENT logic over old event logs, so EVERY change since a session was
+   finalized lands at once — not just whichever fix prompted the run. The no-FT blanking
+   rule in particular was left non-retroactive on purpose, so scrimmages with zero free
+   throws will have TS%/USG%/ORTG blanked where they previously showed a number.
+
+   Event logs are never touched: this only rebuilds what was derived from them. A backup
+   downloads first because there is no undo. */
+async function recomputeAllStats() {
+  const sessions = State.sessions || [];
+  if (!sessions.length) { showToast('No saved practices to recompute', 'warning'); return; }
+
+  const input = prompt('Enter the tracker password to recompute stats for all saved practices:');
+  if (input == null) return;
+  if (await sha256(input) !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — nothing recomputed.', 'danger', 3000);
+    return;
+  }
+
+  if (!confirm(
+    `Recompute stats for ${sessions.length} practice${sessions.length === 1 ? '' : 's'}?\n\n` +
+    `Every team and player stat will be rebuilt from the event logs using the CURRENT ` +
+    `formulas. Your event logs are not modified.\n\n` +
+    `Any figure whose formula changed since a practice was saved will move to the new ` +
+    `value — that is the point, but it does mean saved numbers can change.\n\n` +
+    `A backup downloads first.`
+  )) return;
+
+  try {
+    downloadTextFile(
+      `moorpark_tracker_backup_pre_recompute_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
+      JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
+                       exportedAt: new Date().toISOString(), reason: 'auto-backup before stat recompute',
+                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       sessions: getSessions() }),
+      'application/json');
+  } catch (e) { /* non-fatal — continue */ }
+
+  let done = 0, changed = 0;
+  for (const sess of sessions) {
+    if (!Array.isArray(sess.eventLog) || !sess.eventLog.length) continue;
+    const before = JSON.stringify([sess.teamStats, sess.playerStats]);
+    sess.teamStats   = computeTeamStats(sess);
+    sess.playerStats = computePlayerStats(sess);
+    done++;
+    if (JSON.stringify([sess.teamStats, sess.playerStats]) !== before) changed++;
+  }
+
+  if (!persistSessions()) return;   // persistKey already warned
+  showToast(`Recomputed ${done} practice${done === 1 ? '' : 's'} — ${changed} changed. Re-publish to update the site.`, 'success', 6000);
+  try { tabRenderers.log(); } catch (e) {}
+}
+
 /* Publish: downloads pt_data.json — the file the published site reads. Commit + push it
    to update the live site. Password-gated (same as Backup). */
 async function publishData() {
@@ -5835,7 +5891,8 @@ tabRenderers.log = function() {
         ${_publishedMode ? '' : `
         <button class="btn btn-ghost btn-sm" onclick="importSessions()" title="Add sessions from a file (existing ones are skipped)">⬆ Import</button>
         <button class="btn btn-ghost btn-sm" onclick="backupWithPassword()">⬇ Export All</button>
-        <button class="btn btn-ghost btn-sm" style="color:var(--warning);border-color:rgba(245,158,11,0.35);" onclick="restoreFromBackup()" title="Replace ALL current data with a backup file (password required)">⟲ Restore</button>`}
+        <button class="btn btn-ghost btn-sm" style="color:var(--warning);border-color:rgba(245,158,11,0.35);" onclick="restoreFromBackup()" title="Replace ALL current data with a backup file (password required)">⟲ Restore</button>
+        <button class="btn btn-ghost btn-sm" onclick="recomputeAllStats()" title="Rebuild every saved practice's stats from its event log using the current formulas (password required)">&#8635; Recompute Stats</button>`}
       </div>
     </div>
     <div class="log-table-wrap">
