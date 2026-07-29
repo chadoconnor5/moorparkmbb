@@ -8711,8 +8711,15 @@ const SHOT_DIST_BUCKETS = [
   { label: '5–9 ft',   min: 5,  max: 9.9  },
   { label: '10–14 ft', min: 10, max: 14.9 },
   { label: '15–19 ft', min: 15, max: 19.9 },
-  { label: '20–23 ft', min: 20, max: 22.9 },
-  { label: '23+ ft',   min: 23, max: Infinity },
+  /* The top boundary sits ON the arc (NCAA men's line = 22'1¾" = 22.15 ft, which is what
+     COURT_SVG_LINES draws at r=207px). Any band that straddles it blends long twos with
+     corner threes and reports a PPS that describes neither — the old 20–23 band held 10
+     twos and 3 threes at a meaningless 1.08. Split there and the long two shows its real
+     0.80, while the threes stand on their own. Deep threes get their own band because
+     attempts run out past 30 ft. */
+  { label: '20–22 ft', min: 20,    max: 22.14   },   // long two
+  { label: '22–25 ft', min: 22.15, max: 24.99   },   // three
+  { label: '25+ ft',   min: 25,    max: Infinity },  // deep three
 ];
 
 function shotDistBucket(ft) {
