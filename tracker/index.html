@@ -6401,12 +6401,17 @@ const ZONES_3FG = ['c3_left', 'w3_left', 'ab3', 'w3_right', 'c3_right'];
 let scFilter = { sessionId: 'all', team: 'all', player: 'all', mode: 'all', view: 'dots', zones: [], shotTypes: [], contests: [] };
 
 /* ── Court SVG lines — shared between modal + shot chart ── */
-/* Court scale: 440px = 47ft → 9.36px/ft
+/* Court scale: ONE scale on both axes — 9.36px/ft — which is what svgDistFt() assumes.
+   The boundary used to be 480px wide, i.e. 51.3ft at that scale, so the court was 1.3ft
+   too wide and every lateral distance was overstated by ~2.6% (a tap on the sideline read
+   25.6ft from centre instead of 25.0). Now 468px = 50.0ft exactly, x=16..484.
+   Verified against the NCAA court diagram, 2026-07-28.
+   440px = 47ft → 9.36px/ft
    Basket y=411 (5.25ft from baseline)
    FT line y=282 (19ft from baseline = 15ft from backboard)
    FT circle r=56px (6ft), paint x=194–306 (12ft), men's 3pt r=207px (22.15ft), women's r=194px (20.75ft) */
 const COURT_SVG_LINES = `
-  <rect x="10" y="20" width="480" height="440" fill="#1a1f2e" rx="3"/>
+  <rect x="16" y="20" width="468" height="440" fill="#1a1f2e" rx="3"/>
 
   <!-- Paint / lane (12ft wide, 19ft deep) -->
   <rect x="194" y="282" width="112" height="178" fill="rgba(79,110,247,0.07)" stroke="#8899bb" stroke-width="1.5"/>
@@ -6422,13 +6427,13 @@ const COURT_SVG_LINES = `
   <path d="M 213 411 A 37 37 0 0 1 287 411" fill="none" stroke="#8899bb" stroke-width="1.5"/>
 
   <!-- FT lane marks — left side (block=solid rect at 7ft, hashes at 11/14/17ft from baseline) -->
-  <rect x="183" y="387" width="11" height="14" fill="#8899bb"/>
+  <rect x="183" y="385" width="11" height="9" fill="#8899bb"/>
   <line x1="183" y1="357" x2="194" y2="357" stroke="#8899bb" stroke-width="1.5"/>
   <line x1="183" y1="329" x2="194" y2="329" stroke="#8899bb" stroke-width="1.5"/>
   <line x1="183" y1="301" x2="194" y2="301" stroke="#8899bb" stroke-width="1.5"/>
 
   <!-- FT lane marks — right side -->
-  <rect x="306" y="387" width="11" height="14" fill="#8899bb"/>
+  <rect x="306" y="385" width="11" height="9" fill="#8899bb"/>
   <line x1="306" y1="357" x2="317" y2="357" stroke="#8899bb" stroke-width="1.5"/>
   <line x1="306" y1="329" x2="317" y2="329" stroke="#8899bb" stroke-width="1.5"/>
   <line x1="306" y1="301" x2="317" y2="301" stroke="#8899bb" stroke-width="1.5"/>
@@ -6439,17 +6444,17 @@ const COURT_SVG_LINES = `
   <path d="M 44 391 A 207 207 0 0 1 456 391" fill="none" stroke="#aabbcc" stroke-width="1.5"/>
 
   <!-- Boundary lines -->
-  <line x1="10" y1="460" x2="490" y2="460" stroke="#c8d4e0" stroke-width="2.5"/>
-  <line x1="10" y1="20" x2="490" y2="20" stroke="#8899bb" stroke-width="1"/>
-  <line x1="10" y1="20" x2="10" y2="460" stroke="#8899bb" stroke-width="1.5"/>
-  <line x1="490" y1="20" x2="490" y2="460" stroke="#8899bb" stroke-width="1.5"/>
+  <line x1="16" y1="460" x2="484" y2="460" stroke="#c8d4e0" stroke-width="2.5"/>
+  <line x1="16" y1="20" x2="484" y2="20" stroke="#8899bb" stroke-width="1"/>
+  <line x1="16" y1="20" x2="16" y2="460" stroke="#8899bb" stroke-width="1.5"/>
+  <line x1="484" y1="20" x2="484" y2="460" stroke="#8899bb" stroke-width="1.5"/>
 
   <!-- Half-court half-circle (r=6ft=56px, bows down into court) -->
   <path d="M 194 20 A 56 56 0 0 0 306 20" fill="none" stroke="#8899bb" stroke-width="1.5"/>
 
   <!-- Backboard + rim -->
   <line x1="222" y1="423" x2="278" y2="423" stroke="#c8d4e0" stroke-width="5"/>
-  <circle cx="250" cy="411" r="9" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
+  <circle cx="250" cy="411" r="7" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
 
 /* Court markings WITHOUT background rect — used in zone/frequency maps so markings draw on top of colored fills */
 const COURT_MARKINGS_ONLY = `
@@ -6458,18 +6463,18 @@ const COURT_MARKINGS_ONLY = `
   <path d="M 194 282 A 56 56 0 0 1 306 282" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
   <path d="M 194 282 A 56 56 0 0 0 306 282" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1" stroke-dasharray="5 4"/>
   <path d="M 213 411 A 37 37 0 0 1 287 411" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
-  <rect x="183" y="387" width="11" height="14" fill="rgba(255,255,255,0.25)"/>
-  <rect x="306" y="387" width="11" height="14" fill="rgba(255,255,255,0.25)"/>
+  <rect x="183" y="385" width="11" height="9" fill="rgba(255,255,255,0.25)"/>
+  <rect x="306" y="385" width="11" height="9" fill="rgba(255,255,255,0.25)"/>
   <line x1="44" y1="460" x2="44" y2="391" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
   <line x1="456" y1="460" x2="456" y2="391" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
   <path d="M 44 391 A 207 207 0 0 1 456 391" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
-  <line x1="10" y1="460" x2="490" y2="460" stroke="rgba(255,255,255,0.6)" stroke-width="2.5"/>
-  <line x1="10" y1="20" x2="490" y2="20" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
-  <line x1="10" y1="20" x2="10" y2="460" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
-  <line x1="490" y1="20" x2="490" y2="460" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+  <line x1="16" y1="460" x2="484" y2="460" stroke="rgba(255,255,255,0.6)" stroke-width="2.5"/>
+  <line x1="16" y1="20" x2="484" y2="20" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <line x1="16" y1="20" x2="16" y2="460" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+  <line x1="484" y1="20" x2="484" y2="460" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
   <path d="M 194 20 A 56 56 0 0 0 306 20" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
   <line x1="222" y1="423" x2="278" y2="423" stroke="rgba(255,255,255,0.5)" stroke-width="5"/>
-  <circle cx="250" cy="411" r="9" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
+  <circle cx="250" cy="411" r="7" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
 
 /* ── Distance + zone helpers ── */
 let pendingShotX = null, pendingShotY = null;
@@ -6555,7 +6560,8 @@ function courtClick(evt) {
   const rect = svg.getBoundingClientRect();
   const svgX = (evt.clientX - rect.left) * (500 / rect.width);
   const svgY = (evt.clientY - rect.top)  * (485 / rect.height);
-  if (svgY < 15 || svgY > 472 || svgX < 8 || svgX > 492) return;
+  // Bounds track the drawn court (now a true 50 ft wide, x=16..484) with a small margin.
+  if (svgY < 15 || svgY > 472 || svgX < 14 || svgX > 486) return;
   pendingShotX = svgX;
   pendingShotY = svgY;
   const dist  = svgDistFt(svgX, svgY);
@@ -7449,7 +7455,7 @@ function buildZoneMapSvg(shots) {
   // Court lines drawn on top of zone fills
   const courtLines = `
   <!-- outer boundary -->
-  <rect x="10" y="20" width="480" height="440" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="2"/>
+  <rect x="16" y="20" width="468" height="440" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="2"/>
   <!-- 3pt corner lines -->
   <line x1="44" y1="460" x2="44" y2="391" stroke="rgba(255,255,255,0.8)" stroke-width="2"/>
   <line x1="456" y1="460" x2="456" y2="391" stroke="rgba(255,255,255,0.8)" stroke-width="2"/>
@@ -7466,10 +7472,10 @@ function buildZoneMapSvg(shots) {
   <!-- RA -->
   <path d="M 213 411 A 37 37 0 0 1 287 411" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
   <!-- baseline -->
-  <line x1="10" y1="460" x2="490" y2="460" stroke="rgba(255,255,255,0.9)" stroke-width="2.5"/>
+  <line x1="16" y1="460" x2="484" y2="460" stroke="rgba(255,255,255,0.9)" stroke-width="2.5"/>
   <!-- backboard + rim -->
   <line x1="222" y1="423" x2="278" y2="423" stroke="rgba(255,255,255,0.9)" stroke-width="5"/>
-  <circle cx="250" cy="411" r="9" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
+  <circle cx="250" cy="411" r="7" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
 
   return `<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">
   <rect x="0" y="0" width="500" height="485" fill="#0f172a"/>
@@ -7504,7 +7510,7 @@ function buildFrequencySvg(shots) {
   const madeTotal = shots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
   const statText  = shots.length > 0 ? `${madeTotal}/${shots.length} FGM (${Math.round(100*madeTotal/shots.length)}%)` : 'No shots charted';
   return `<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">
-  <rect x="10" y="20" width="480" height="440" fill="#111827" rx="3"/>
+  <rect x="16" y="20" width="468" height="440" fill="#111827" rx="3"/>
   ${circles}
   ${COURT_MARKINGS_ONLY}
   <text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">${statText}</text>
