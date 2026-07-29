@@ -3468,6 +3468,8 @@
                   <button class="btn btn-ghost btn-sm" id="btn-skip-assist" style="display:none;color:var(--warning);border-color:rgba(245,158,11,0.4);margin-top:12px;" onclick="skipAssist()">No Assist</button>
                   <!-- Buzzer / dead ball: record the miss with no rebound -->
                   <button class="btn btn-ghost btn-sm" id="btn-skip-reb" style="display:none;color:var(--warning);border-color:rgba(245,158,11,0.4);margin-top:12px;" onclick="skipRebound()">No Rebound</button>
+                  <!-- Rewind one stage after a misclick, instead of cancelling the play -->
+                  <button class="btn btn-ghost btn-sm" id="btn-flow-back" style="display:none;margin-top:12px;" onclick="trackerBack()" title="Undo the last step of this entry and pick again">&#8592; Back</button>
                 </div>
               </div>
 
@@ -10244,9 +10246,8 @@ function restoreLiveFlow() {
     : null;
   if (activeStatEl) activeStatEl.classList.add('stat-active');
 
-  // The zone step owns the court panel, so re-arm it before the phase UI paints.
-  if (trackerState.phase === 'await_zone') activateInlineCourt(trackerState.stat);
-  if (pendingShotX != null && pendingShotY != null) refreshModalCourt(pendingShotX, pendingShotY);
+  // Same re-arm the Back button uses — one implementation for both entry points.
+  _rearmPhaseSurfaces();
 
   applyPhaseUI();
   updateUndoRedo();
@@ -10359,7 +10360,107 @@ function renderTeamColumn(team) {
 }
 
 /* ── Enter a new phase ── */
+/* ── Step back one stage in a multi-step entry ──
+   A misclick used to mean cancelling the whole play and re-tapping it from the stat button.
+   Every phase transition banks a snapshot, so Back rewinds one stage with everything chosen
+   before it still intact.
+
+   The snapshot is taken at the END of enterPhase — once a stage is fully entered — and only
+   pushed on the NEXT transition. Taking it at the start would capture state that the
+   staging mutations (pushing the event, setting the zone) had already changed. */
+let _flowHistory = [];
+let _flowSnapshot = null;
+
+function _snapFlow() {
+  return {
+    phase: trackerState.phase, stat: trackerState.stat,
+    pendingEvents: JSON.parse(JSON.stringify(trackerState.pendingEvents || [])),
+    shooterTeam: trackerState.shooterTeam, shooter: trackerState.shooter,
+    rebType: trackerState.rebType,
+    blockerInfo: trackerState.blockerInfo ? Object.assign({}, trackerState.blockerInfo) : null,
+    nextPhaseAfterZone: trackerState.nextPhaseAfterZone,
+    shotType: trackerState.shotType, shotTypes: [...(trackerState.shotTypes || [])],
+    shotContest: trackerState.shotContest, videoTsAtStart: trackerState.videoTsAtStart,
+    _pendingStat: trackerState._pendingStat,
+    activeStat, pendingShotX, pendingShotY,
+  };
+}
+
+function _restoreFlow(s) {
+  trackerState.phase = s.phase;
+  trackerState.stat = s.stat;
+  trackerState.pendingEvents = JSON.parse(JSON.stringify(s.pendingEvents || []));
+  trackerState.shooterTeam = s.shooterTeam;
+  trackerState.shooter = s.shooter;
+  trackerState.rebType = s.rebType;
+  trackerState.blockerInfo = s.blockerInfo;
+  trackerState.nextPhaseAfterZone = s.nextPhaseAfterZone;
+  trackerState.shotType = s.shotType;
+  trackerState.shotTypes = [...(s.shotTypes || [])];
+  trackerState.shotContest = s.shotContest;
+  trackerState.videoTsAtStart = s.videoTsAtStart;
+  trackerState._pendingStat = s._pendingStat;
+  pendingShotX = s.pendingShotX;
+  pendingShotY = s.pendingShotY;
+  activeStat = s.activeStat || null;
+  activeStatEl = activeStat
+    ? document.querySelector('.tracker-stat-col .stat-btn[data-stat="' + activeStat + '"]')
+    : null;
+}
+
+/* Phases that own a surface outside the stat grid must re-arm it. Shared by Back and the
+   refresh-restore so the two cannot drift apart. */
+function _rearmPhaseSurfaces() {
+  if (trackerState.phase !== 'await_zone') return;
+  const px = pendingShotX, py = pendingShotY;
+  activateInlineCourt(trackerState.stat);   // clears the pending tap, so restore it after
+  pendingShotX = px; pendingShotY = py;
+  if (px != null && py != null) {
+    refreshModalCourt(px, py);
+    const btn = document.getElementById('btn-inline-confirm-shot');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _applyShotTypeSelections(types, contest) {
+  trackerState.shotTypes  = [...(types || [])];
+  trackerState.shotType   = trackerState.shotTypes[0] || null;
+  trackerState.shotContest = contest || null;
+  document.querySelectorAll('#shot-type-grid .shot-type-btn').forEach(b =>
+    b.classList.toggle('selected', trackerState.shotTypes.includes(b.dataset.type)));
+  document.querySelectorAll('#shot-contest-row .shot-contest-btn').forEach(b =>
+    b.classList.toggle('selected', b.dataset.contest === trackerState.shotContest));
+}
+
+function trackerBack() {
+  if (!_flowHistory.length) return;
+  const prev = _flowHistory.pop();
+
+  /* Backing out of the first stage of a shot returns to the type picker rather than
+     dead-ending, with whatever was ticked still ticked. */
+  if (prev.__modal === 'shotType') {
+    resetTrackerState();                        // also clears history, which is now empty
+    trackerState.stat         = prev.stat;
+    trackerState._pendingStat = prev.stat;
+    trackerState.videoTsAtStart = prev.videoTsAtStart;
+    activeStat   = prev.stat;
+    activeStatEl = document.querySelector('.tracker-stat-col .stat-btn[data-stat="' + prev.stat + '"]');
+    if (activeStatEl) activeStatEl.classList.add('stat-active');
+    showShotTypeModal(prev.stat);
+    _applyShotTypeSelections(prev.shotTypes, prev.shotContest);
+    return;
+  }
+
+  _restoreFlow(prev);
+  applyPhaseUI();
+  _rearmPhaseSurfaces();
+  updateUndoRedo();
+  saveLiveFlow();
+  _flowSnapshot = _snapFlow();
+}
+
 function enterPhase(phase) {
+  if (_flowSnapshot) _flowHistory.push(_flowSnapshot);
   trackerState.phase = phase;
   applyPhaseUI();
   updateUndoRedo();  // enable Undo button whenever entering any phase (incl. mid-flow cancel)
@@ -10367,6 +10468,7 @@ function enterPhase(phase) {
      mutation it staged (the pushed event, the zone, the blocker) — so this one call keeps
      the saved copy current without sprinkling saves through the flow. */
   saveLiveFlow();
+  _flowSnapshot = _snapFlow();
 }
 
 /* ── Apply dimming / undimming / status for current phase ── */
@@ -10401,6 +10503,11 @@ function applyPhaseUI() {
      is not activeStatEl, so nothing would ever clear it again. */
   allStatBtns.forEach(b => b.classList.remove('stat-active'));
   if (activeStatEl) activeStatEl.classList.add('stat-active');
+
+  // Back is available in any stage that has one behind it — never at idle.
+  const backBtn = document.getElementById('btn-flow-back');
+  if (backBtn) backBtn.style.display =
+    (phase !== 'idle' && _flowHistory.length) ? 'inline-flex' : 'none';
 
   switch (phase) {
 
@@ -10465,9 +10572,11 @@ function applyPhaseUI() {
       break;
 
     case 'await_blocker':
+      /* A block comes from the DEFENCE, and the tracker already knows who shot — so the
+         shooting side is untappable rather than merely unexpected. */
       dimAll();
-      allPlayerBtns.forEach(b => b.classList.remove('dimmed'));
-      setPendingStatus('waiting', 'Tap White or Black (blocker)');
+      undimTeam(trackerState.shooterTeam === 'a' ? 'b' : 'a');
+      setPendingStatus('waiting', 'Tap the blocker');
       break;
 
     case 'await_reb_type_after_block': {
@@ -10515,7 +10624,9 @@ function applyPhaseUI() {
 
     case 'await_assister':
       dimAll();
-      undimTeamExcept(trackerState.shooterTeam, 'TEAM_NONE');
+      /* The scorer's own team, minus the scorer — nobody assists their own basket. The
+         old 'TEAM_NONE' sentinel excluded nobody, so the shooter stayed tappable. */
+      undimTeamExcept(trackerState.shooterTeam, trackerState.shooter);
       if (skipBtn) skipBtn.style.display = 'inline-flex';
       setPendingStatus('waiting', 'Tap White or Black (assister)');
       break;
@@ -10668,6 +10779,12 @@ function _launchFgFlow() {
   trackerState._pendingStat = null;
   if (!stat) return;
   trackerState.stat = stat;
+  /* Marker so Back from the first stage reopens the type picker instead of dead-ending.
+     Carries the ticks so they survive the round trip. */
+  _flowHistory.push({ __modal: 'shotType', stat,
+                      videoTsAtStart: trackerState.videoTsAtStart,
+                      shotTypes: [...(trackerState.shotTypes || [])],
+                      shotContest: trackerState.shotContest });
   if (stat === '2fg_miss' || stat === '3fg_miss') enterPhase('await_shooter_miss');
   else                                             enterPhase('await_scorer');
 }
@@ -11005,8 +11122,11 @@ function resetTrackerState() {
   if (skipBtn) skipBtn.style.display = 'none';
   const skipRebBtn = document.getElementById('btn-skip-reb');
   if (skipRebBtn) skipRebBtn.style.display = 'none';
+  const backBtn = document.getElementById('btn-flow-back');
+  if (backBtn) backBtn.style.display = 'none';
   setPendingStatus('idle', 'Select a stat to begin');
   clearLiveFlow();   // nothing staged any more — don't resurrect it on the next load
+  _flowHistory = []; _flowSnapshot = null;   // nothing to step back into either
 }
 
 /* ── Update undo/redo button states ── */
