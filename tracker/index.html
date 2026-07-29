@@ -10105,7 +10105,7 @@ const trackerState = {
 // await_reb_type_after_block | await_rebounder
 // await_scorer | await_assist_or_done | await_assister
 // await_ft_shooter | await_ft_reb_type | await_ft_rebounder
-// await_player
+// await_player | await_tov_after_stl
 
 // Stats where flow = tap stat → tap one player → done
 const SIMPLE_STATS = ['ast','tov','stl','defl','foul','blk'];
@@ -10333,6 +10333,12 @@ function applyPhaseUI() {
   if (skipRebBtn) skipRebBtn.style.display = 'none';
   const showSkipReb = () => { if (skipRebBtn) skipRebBtn.style.display = ''; };
 
+  /* Rebuild the selected-stat highlight from scratch each time. Phases may light up a
+     button the flow did not start from (the steal→turnover hand-off does), and that button
+     is not activeStatEl, so nothing would ever clear it again. */
+  allStatBtns.forEach(b => b.classList.remove('stat-active'));
+  if (activeStatEl) activeStatEl.classList.add('stat-active');
+
   switch (phase) {
 
     case 'idle':
@@ -10371,6 +10377,22 @@ function applyPhaseUI() {
       allPlayerBtns.forEach(b => b.classList.remove('dimmed'));
       setPendingStatus('waiting', `Tap White or Black (${statLabel(trackerState.stat)})`);
       break;
+
+    case 'await_tov_after_stl': {
+      /* Turnover is the only live stat and it is shown already-selected, because the
+         steal has decided it — there is nothing else this tap could be. Players are
+         restricted to the side that LOST the ball, which makes the wrong team
+         untappable rather than merely discouraged. */
+      dimAll();
+      undimStats('tov');
+      const tovBtn = document.querySelector('.tracker-stat-col .stat-btn[data-stat="tov"]');
+      if (tovBtn) tovBtn.classList.add('stat-active');
+      const lost = trackerState.shooterTeam === 'a' ? 'b' : 'a';
+      undimTeam(lost);
+      const stealer = (trackerState.pendingEvents[0] || {}).player || 'Steal';
+      setPendingStatus('waiting', `${stealer} stole it — tap who turned it over`);
+      break;
+    }
 
     case 'await_block_or_reb':
       dimAll();
@@ -10477,6 +10499,11 @@ function selectStat(stat, el) {
       return;
     }
   }
+
+  /* Turnover is shown lit during the steal hand-off, so tapping it is a natural reflex.
+     Without this it would fall through to the reset below and throw the staged steal away;
+     swallow it and keep waiting for the player instead. */
+  if (phase === 'await_tov_after_stl' && stat === 'tov') return;
 
   if (phase === 'await_assist_or_done' && stat === 'ast') {
     if (activeStatEl) activeStatEl.classList.remove('stat-active');
@@ -10643,10 +10670,26 @@ function selectPlayer(team, name) {
     }
 
     case 'await_player': {
+      /* A steal always takes the ball off someone, so it carries straight on to the
+         turnover rather than leaving the pair to be remembered as two separate taps.
+         Staged, not committed, so both land as ONE undoable group. */
+      if (trackerState.stat === 'stl') {
+        trackerState.shooterTeam = team;   // the stealing side; the turnover is the other one
+        trackerState.pendingEvents.push({ team, player: name, stat: 'stl', videoTs: trackerState.videoTsAtStart });
+        enterPhase('await_tov_after_stl');
+        break;
+      }
       const _stat = trackerState.stat;
       const _ts   = trackerState.videoTsAtStart;
       resetTrackerState();
       commitEvent(team, name, _stat, _ts);
+      break;
+    }
+
+    case 'await_tov_after_stl': {
+      // Only the opposite team is tappable, so `team` here is already the losing side.
+      trackerState.pendingEvents.push({ team, player: name, stat: 'tov', videoTs: trackerState.videoTsAtStart });
+      try { flushPendingEvents(); } finally { resetTrackerState(); }
       break;
     }
   }
