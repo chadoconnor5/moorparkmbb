@@ -4205,6 +4205,13 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+/* Escape a value for use inside a single-quoted JS string in an inline handler.
+   escHtml alone is not enough: it leaves apostrophes intact, so a name like
+   D'Aries Garrett closes the string early and the handler throws. */
+function jsQuote(v) {
+  return escHtml(String(v == null ? '' : v).split('\\').join('\\\\').split("'").join("\\'"));
+}
+
 /* ============================================================
    MODAL HELPERS
 ============================================================ */
@@ -7975,7 +7982,7 @@ function renderPlayerTable() {
       return `<td>${(+v).toFixed(1)}</td>`;
     }
     return `<tr>
-      <td><span class="player-link" onclick="psOpenProfile('${escHtml(r.name)}')">${escHtml(r.name)}</span></td>
+      <td><span class="player-link" onclick="psOpenProfile('${jsQuote(r.name)}')">${escHtml(r.name)}</span></td>
       ${PS_COLS.map(c => cell(c.key)).join('')}
     </tr>`;
   }).join('');
@@ -12316,7 +12323,7 @@ function renderSubSlots(team) {
       // Picking state: the pool is the same for every slot on this team.
       const pool = fullBench;
       const poolBtns = pool.length
-        ? pool.map(n => `<button class="sub-pool-btn" onclick="subSlotPick('${team}',${i},'${escHtml(n)}')">${escHtml(n)}</button>`).join('')
+        ? pool.map(n => `<button class="sub-pool-btn" onclick="subSlotPick('${team}',${i},'${jsQuote(n)}')">${escHtml(n)}</button>`).join('')
         : `<span style="font-size:11px;color:var(--text-dim);">No bench players available</span>`;
       return `<div class="sub-slot replacing">
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;">
