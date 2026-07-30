@@ -8193,7 +8193,9 @@ function buildShotTendencies(fgEvents) {
     const z = znZoneForShot(ev);
     const zoneName = z ? z.name
       : (ev.zone && ZONE_DEFS[ev.zone] ? ZONE_DEFS[ev.zone].label : 'Unzoned');
-    const norm = types.map(t => t === 'post_up' ? 'post_moves' : t).sort();
+    /* Order-independent: sorting means Drive+Layup and Layup+Drive are the same
+       pattern. Deduped too, so a type tapped twice cannot split the row. */
+    const norm = [...new Set(types.map(t => t === 'post_up' ? 'post_moves' : t))].sort();
     const key = zoneName + '|' + norm.join('+') + '|' + (ev.shotContest || 'unknown');
     if (!rows[key]) rows[key] = { zone: zoneName, types: norm, contest: ev.shotContest || null, a: 0, m: 0, pts: 0 };
     const r = rows[key];
