@@ -8174,6 +8174,14 @@ function ppsColor(pps) {
   return pps >= 1.10 ? 'var(--success)' : pps >= 0.90 ? 'var(--warning)' : 'var(--danger)';
 }
 
+/* Patterns below this many attempts are noise, so they start collapsed. */
+const TEND_MIN = 3;
+let tendShowThin = false;
+function tendToggleThin() {
+  tendShowThin = !tendShowThin;
+  if (psProfileName) renderPlayerProfile(psProfileName);
+}
+
 /* Recurring shot patterns: zone + shot-type combination + contest, ranked by how
    often they happen. Answers "what does this player actually do, and does it work". */
 function buildShotTendencies(fgEvents) {
@@ -8201,13 +8209,16 @@ function buildShotTendencies(fgEvents) {
   }
 
   const total = list.reduce((t, r) => t + r.a, 0);
+  const thinCount = list.filter(r => r.a < TEND_MIN).length;
   const body = list.map(r => {
     const pct = Math.round(100 * r.m / r.a);
     const pps = r.pts / r.a;
     const share = Math.round(100 * r.a / total);
     const tags = r.types.map(t => '<span class="tend-tag">' + escHtml(SHOT_TYPE_LABELS[t] || t) + '</span>').join('') +
       (r.contest ? '<span class="tend-tag ' + (r.contest === 'contested' ? 'ct">Contested' : 'un">Uncontested') + '</span>' : '');
-    return '<tr class="' + (r.a < 3 ? 'tend-thin' : '') + '">' +
+    const thin = r.a < TEND_MIN;
+    return '<tr class="' + (thin ? 'tend-thin' : '') + '"' +
+      (thin && !tendShowThin ? ' style="display:none"' : '') + '>' +
       '<td><span class="tend-zone">' + escHtml(r.zone) + '</span>' + tags + '</td>' +
       '<td>' + r.a + '</td>' +
       '<td>' + share + '%</td>' +
@@ -8217,13 +8228,25 @@ function buildShotTendencies(fgEvents) {
       '</tr>';
   }).join('');
 
+  const shownCount = list.length - thinCount;
+  const toggle = thinCount
+    ? '<button class="btn btn-ghost btn-sm" id="tend-toggle" style="margin-top:8px;" onclick="tendToggleThin()">' +
+        (tendShowThin ? 'Hide ' : 'Show ') + thinCount + ' one-off pattern' + (thinCount === 1 ? '' : 's') +
+        ' (under ' + TEND_MIN + ' attempts)</button>'
+    : '';
+  const emptyNote = (!shownCount && !tendShowThin)
+    ? '<div style="font-size:12px;color:var(--text-dim);padding:8px 0;">No pattern has ' + TEND_MIN +
+      '+ attempts yet — expand below to see the one-offs.</div>'
+    : '';
+
   return '<div class="card-title" style="margin:24px 0 8px;">Shot Tendencies</div>' +
     '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">' +
       'Zone + shot type + contest, most frequent first. PPS is points per shot, so a three counts properly. ' +
-      'Faded rows have fewer than 3 attempts.</div>' +
+      'Patterns with fewer than ' + TEND_MIN + ' attempts are hidden by default.</div>' +
+    emptyNote +
     '<div class="table-wrap"><table class="tend-tbl"><thead><tr>' +
       '<th>Pattern</th><th>Shots</th><th>Share</th><th>FG</th><th>FG%</th><th>PPS</th>' +
-    '</tr></thead><tbody>' + body + '</tbody></table></div>';
+    '</tr></thead><tbody>' + body + '</tbody></table></div>' + toggle;
 }
 
 /* ── Player Profile page ── */
