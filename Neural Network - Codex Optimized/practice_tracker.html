@@ -4230,6 +4230,20 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+/* Sort player names by surname. Trailing generational suffixes are skipped, so
+   "Derrick Hill Junior" files under Hill, and hyphenated surnames stay intact. */
+const NAME_SUFFIXES = new Set(['jr', 'jr.', 'junior', 'sr', 'sr.', 'senior', 'ii', 'iii', 'iv', 'v']);
+function lastNameKey(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  let i = parts.length - 1;
+  while (i > 0 && NAME_SUFFIXES.has(parts[i].toLowerCase())) i--;
+  return (parts[i] + ' ' + parts.slice(0, i).join(' ')).toLowerCase();
+}
+function byLastName(a, b) {
+  return lastNameKey(a).localeCompare(lastNameKey(b));
+}
+
 /* Players marked hidden stay in the data - their presence still shapes team totals,
    lineup stints and everyone else's on/off - but they are not shown as a subject of
    analysis: no stats row, no profile, no impact card, no shot-chart filter entry. */
@@ -5498,7 +5512,7 @@ function buildPostGameReportPack(session) {
   const resultText = ptsA > ptsB ? `${session.teamAName} won` : ptsB > ptsA ? `${session.teamBName} won` : 'Tie';
   const players = (session.playerStats || [])
     .slice()
-    .sort((a, b) => (a.team || '').localeCompare(b.team || '') || a.name.localeCompare(b.name));
+    .sort((a, b) => (a.team || '').localeCompare(b.team || '') || byLastName(a.name, b.name));
 
   const teamSection = team => {
     const teamName = team === 'a' ? session.teamAName : session.teamBName;
@@ -6863,7 +6877,7 @@ function renderShotChartView() {
   // so it would only ever produce an empty chart.
   const playerNames = [...new Set(evLog
     .filter(ev => ev.player && ev.player !== 'TEAM' && !isHiddenPlayer(ev.player))
-    .map(ev => ev.player))].sort();
+    .map(ev => ev.player))].sort(byLastName);
 
   // Base filters (team/player/mode)
   let baseShots = zonedShots;
@@ -9872,7 +9886,7 @@ function renderNotesView() {
   if (!root) return;
 
   const all = _collectNotes();
-  const players  = [...new Set(all.map(n => n.player).filter(Boolean))].sort();
+  const players  = [...new Set(all.map(n => n.player).filter(Boolean))].sort(byLastName);
   const sessions = [];
   all.forEach(n => { if (!sessions.some(s => s.id === n.sessionId)) sessions.push({ id: n.sessionId, label: `${n.sessionTitle}${n.date ? ' · ' + n.date : ''}` }); });
 
@@ -11112,8 +11126,8 @@ function openNoteModal() {
 
   // Player list: on-floor players first, then the rest of the roster.
   if (!clockState.currentLineupA.length && !clockState.currentLineupB.length) rebuildCurrentLineups();
-  const onFloor = [...(clockState.currentLineupA || []), ...(clockState.currentLineupB || [])];
-  const others  = (State.roster || []).map(p => p.name).filter(n => !onFloor.includes(n));
+  const onFloor = [...(clockState.currentLineupA || []), ...(clockState.currentLineupB || [])].sort(byLastName);
+  const others  = (State.roster || []).map(p => p.name).filter(n => !onFloor.includes(n)).sort(byLastName);
   document.getElementById('note-player').innerHTML =
     (onFloor.length ? `<optgroup label="On Floor">${onFloor.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
     (others.length  ? `<optgroup label="Bench / Roster">${others.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
@@ -11144,7 +11158,7 @@ function openManualNoteModal(presetPlayer) {
   const seen = new Set(rosterNames);
   all.forEach(s => (s.playerStats || []).forEach(p => { if (!seen.has(p.name)) { seen.add(p.name); rosterNames.push(p.name); } }));
   document.getElementById('note-player').innerHTML =
-    rosterNames.sort().map(n => `<option value="${escHtml(n)}" ${n === presetPlayer ? 'selected' : ''}>${escHtml(n)}</option>`).join('') +
+    rosterNames.sort(byLastName).map(n => `<option value="${escHtml(n)}" ${n === presetPlayer ? 'selected' : ''}>${escHtml(n)}</option>`).join('') +
     `<option value="TEAM" ${presetPlayer === 'TEAM' ? 'selected' : ''}>Team (no single player)</option>`;
 
   document.getElementById('note-ts-hint').textContent =
@@ -12465,7 +12479,7 @@ function renderSubSlots(team) {
     }
     if (slot.pickingOpen) {
       // Picking state: the pool is the same for every slot on this team.
-      const pool = fullBench;
+      const pool = [...fullBench].sort(byLastName);
       const poolBtns = pool.length
         ? pool.map(n => `<button class="sub-pool-btn" onclick="subSlotPick('${team}',${i},'${jsQuote(n)}')">${escHtml(n)}</button>`).join('')
         : `<span style="font-size:11px;color:var(--text-dim);">No bench players available</span>`;
