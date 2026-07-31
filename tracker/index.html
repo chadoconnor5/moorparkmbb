@@ -3232,7 +3232,8 @@
     <button class="nav-tab"        data-tab="notes"     onclick="switchTab('notes',this)">Notes</button>
     <button class="nav-tab editor-only" data-tab="zones" onclick="switchTab('zones',this)">Zones</button>
     <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
-    <button class="nav-tab editor-only" id="nav-publish" style="margin-left:auto;" onclick="publishData()" title="Download pt_data.json to publish the latest data to the live site (password required)">&#8593; Publish</button>
+    <button class="nav-tab editor-only" id="nav-roster" style="margin-left:auto;" onclick="openRosterEditor()" title="Edit roster: rename players or hide them from analysis">&#9881; Roster</button>
+    <button class="nav-tab editor-only" id="nav-publish" onclick="publishData()" title="Download pt_data.json to publish the latest data to the live site (password required)">&#8593; Publish</button>
     <button class="nav-tab editor-only" id="nav-backup" onclick="backupWithPassword()" title="Download a full backup (password required): sessions, roster, and settings">&#11015; Backup</button>
   </nav>
 
@@ -3838,6 +3839,9 @@
       <button class="btn btn-ghost btn-sm" onclick="hideModal('modal-roster')">&#x2715;</button>
     </div>
     <div class="modal-body">
+      <p style="margin:0 0 10px;"><strong>Hide</strong> keeps a player's data but drops them from Player Stats, profiles,
+      On/Off cards and shot-chart filters &mdash; useful for a high-schooler or returner who only appeared once.
+      Their minutes and shots still count toward team totals and everyone else's on/off.</p>
       <p style="margin:0 0 10px;">Changes are saved in this browser. <strong>Edit a name to rename a player</strong> — all their past stats, events, and lineups move with them, so no history is lost. Removing a player (&#x2715;) only takes them off the starter-selection list; their recorded stats are kept.</p>
       <div id="roster-editor-rows" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;"></div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addRosterEditorRow('')">+ Add Player</button>
@@ -4226,6 +4230,14 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+/* Players marked hidden stay in the data - their presence still shapes team totals,
+   lineup stints and everyone else's on/off - but they are not shown as a subject of
+   analysis: no stats row, no profile, no impact card, no shot-chart filter entry. */
+function isHiddenPlayer(name) {
+  const p = (State.roster || []).find(r => r.name === name);
+  return !!(p && p.hidden);
+}
+
 /* Escape a value for use inside a single-quoted JS string in an inline handler.
    escHtml alone is not enough: it leaves apostrophes intact, so a name like
    D'Aries Garrett closes the string early and the handler throws. */
@@ -4253,12 +4265,12 @@ function hideModal(id) {
 function openRosterEditor() {
   const rows = document.getElementById('roster-editor-rows');
   rows.innerHTML = '';
-  State.roster.forEach(p => addRosterEditorRow(p.name));
+  State.roster.forEach(p => addRosterEditorRow(p.name, p.hidden));
   if (!State.roster.length) addRosterEditorRow('');
   showModal('modal-roster');
 }
 
-function addRosterEditorRow(name) {
+function addRosterEditorRow(name, hidden) {
   const rows = document.getElementById('roster-editor-rows');
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:6px;align-items:center;';
@@ -4268,12 +4280,24 @@ function addRosterEditorRow(name) {
   input.dataset.original = name || '';   // remember starting name so a save can detect renames
   input.placeholder = 'Player name';
   input.style.cssText = 'flex:1;padding:6px 8px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;';
+  // Hide = keep their data, drop them from the analysis views.
+  const hideWrap = document.createElement('label');
+  hideWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);cursor:pointer;white-space:nowrap;';
+  hideWrap.title = 'Hide from Player Stats, profiles, On/Off cards and shot-chart filters.\nTheir shots and minutes still count toward team and teammate numbers.';
+  const hide = document.createElement('input');
+  hide.type = 'checkbox';
+  hide.className = 'roster-hide';
+  hide.checked = !!hidden;
+  hideWrap.appendChild(hide);
+  hideWrap.appendChild(document.createTextNode('Hide'));
+
   const del = document.createElement('button');
   del.className = 'btn btn-ghost btn-sm';
   del.innerHTML = '&#x2715;';
   del.title = 'Remove player';
   del.onclick = () => row.remove();
   row.appendChild(input);
+  row.appendChild(hideWrap);
   row.appendChild(del);
   rows.appendChild(row);
   if (!name) input.focus();
@@ -4376,7 +4400,7 @@ function applyPlayerRenames(renameMap) {
 }
 
 function saveRosterEdits() {
-  const inputs = [...document.querySelectorAll('#roster-editor-rows input')];
+  const inputs = [...document.querySelectorAll('#roster-editor-rows input[type="text"]')];
   const seen = new Set();
   const roster = [];
   const renameMap = new Map();   // oldName -> newName (only for in-place edits of existing players)
@@ -4387,7 +4411,8 @@ function saveRosterEdits() {
     const key = name.toLowerCase();
     if (seen.has(key)) { showToast('Duplicate name: ' + name, 'warning'); return; }
     seen.add(key);
-    roster.push({ name });
+    const hideBox = inp.parentElement.querySelector('.roster-hide');
+    roster.push({ name, hidden: !!(hideBox && hideBox.checked) });
     if (original && original !== name) renameMap.set(original, name);
   }
   if (roster.length < 2) { showToast('Roster needs at least 2 players', 'warning'); return; }
@@ -6836,7 +6861,9 @@ function renderShotChartView() {
   const zonedShots  = allShots.filter(ev => ev.zone);
   // Exclude the 'TEAM' pseudo-player (team rebounds/turnovers/fouls) — it never has shots,
   // so it would only ever produce an empty chart.
-  const playerNames = [...new Set(evLog.filter(ev => ev.player && ev.player !== 'TEAM').map(ev => ev.player))].sort();
+  const playerNames = [...new Set(evLog
+    .filter(ev => ev.player && ev.player !== 'TEAM' && !isHiddenPlayer(ev.player))
+    .map(ev => ev.player))].sort();
 
   // Base filters (team/player/mode)
   let baseShots = zonedShots;
@@ -7727,6 +7754,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
     /* One replay per session, not per player — computePlusMinus walks the whole event log. */
     const pmAll = computePlusMinus(sess);
     for (const nm of names) {
+      if (isHiddenPlayer(nm)) continue;              // hidden from the analysis views
       const entries = playerEntriesForSession(sess, nm, filterTeam);
       if (!entries.length) continue;
       const p = mergePlayerEntries(entries);
@@ -9974,7 +10002,7 @@ function renderOnOffView() {
   const playerSet = new Set();
   for (const sess of filtered) {
     for (const p of (sess.playerStats || [])) {
-      if (teamIsAll || p.team === team) playerSet.add(p.name);
+      if ((teamIsAll || p.team === team) && !isHiddenPlayer(p.name)) playerSet.add(p.name);
     }
   }
 
