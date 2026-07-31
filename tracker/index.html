@@ -4230,20 +4230,6 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
-/* Sort player names by surname. Trailing generational suffixes are skipped, so
-   "Derrick Hill Junior" files under Hill, and hyphenated surnames stay intact. */
-const NAME_SUFFIXES = new Set(['jr', 'jr.', 'junior', 'sr', 'sr.', 'senior', 'ii', 'iii', 'iv', 'v']);
-function lastNameKey(name) {
-  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '';
-  let i = parts.length - 1;
-  while (i > 0 && NAME_SUFFIXES.has(parts[i].toLowerCase())) i--;
-  return (parts[i] + ' ' + parts.slice(0, i).join(' ')).toLowerCase();
-}
-function byLastName(a, b) {
-  return lastNameKey(a).localeCompare(lastNameKey(b));
-}
-
 /* Players marked hidden stay in the data - their presence still shapes team totals,
    lineup stints and everyone else's on/off - but they are not shown as a subject of
    analysis: no stats row, no profile, no impact card, no shot-chart filter entry. */
