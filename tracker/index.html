@@ -7900,6 +7900,18 @@ function renderPlayerTable() {
   const col = psFilter.sortCol;
   const dir = psFilter.sortDir;
   rows.sort((a, b) => {
+    /* W-L is a display string, so subtracting produced NaN and left the column
+       effectively unsorted. Rank it by win percentage, then by wins, so 1-0 beats
+       0-4 and a 3-1 beats a 1-0. Players with no decisions sort last. */
+    if (col === 'record') {
+      const pctOf = r => {
+        const g = (r.wins || 0) + (r.losses || 0);
+        return g ? (r.wins || 0) / g : -1;
+      };
+      return ((pctOf(a) - pctOf(b)) || ((a.wins || 0) - (b.wins || 0))) * dir;
+    }
+    // Name is text; everything else is numeric.
+    if (col === 'name') return String(a.name).localeCompare(String(b.name)) * dir;
     const av = a[col] ?? -Infinity;
     const bv = b[col] ?? -Infinity;
     return (av - bv) * dir;
