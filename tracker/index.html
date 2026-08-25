@@ -726,8 +726,9 @@
        Sticky cells need their own background or scrolled content shows through. */
     /* Scoped to the wide light tables only. A bare `tbody td:first-child` selector
        out-specifies the dark tables' own row colors (.zone-table etc.) and would paint
-       their first column white. .box-table, .log-table and .oo-sort-table each have
-       their own pinned-column rules below. */
+       their first column white. .log-table and .oo-sort-table each have their own
+       pinned-column rules below; .box-table deliberately has NONE — it is sized to
+       fit its modal outright, so there is nothing to freeze against. */
     #ps-main-table thead th:first-child,
     #ps-main-table tbody td:first-child,
     .lu-table thead th:first-child,
@@ -2039,8 +2040,19 @@
       width: 100%;
     }
 
+    /* ── Fitting 27 columns without a scrollbar ──
+       PLAYER + 26 stats used to overflow the modal by ~80px, which put PTS just past the
+       right edge. Sticky columns were tried and rejected: pinning trades a scrollbar for an
+       overlap seam, and it still hides everything between the pins. The fix is to make the
+       table genuinely narrower than its container instead.
+
+       Horizontal cell padding is the lever — 7px per side across 26 columns is 364px of pure
+       whitespace. At 4px it is 208px, and that ~156px saving is what closes the gap. Font
+       sizes are deliberately UNCHANGED: shrinking text to fit a table is how box scores
+       become unreadable. Since the table is width:100%, any leftover room on a wide screen
+       gets handed straight back to the columns, so this reads tight only when it has to. */
     .box-table thead th {
-      padding: 5px 7px;
+      padding: 5px 4px;
       font-size: 9.5px;
       font-weight: 700;
       text-transform: uppercase;
@@ -2054,14 +2066,14 @@
     }
 
     .box-table tbody td {
-      padding: 4px 7px;
+      padding: 4px 4px;
       text-align: center;
       color: #000000;
       border-bottom: 1px solid rgba(0,0,0,0.06);
     }
 
     .box-table tfoot td, .box-table tr.totals-row td {
-      padding: 5px 7px;
+      padding: 5px 4px;
       font-weight: 700;
       color: #0f172a;
       border-top: 2px solid #94a3b8;
@@ -2069,44 +2081,20 @@
       background: #e2e8f0;
     }
 
+    /* Name column: a floor, not a fixed width — nowrap still lets it grow for a long name.
+       130px was padding an already-wide table; 96px is enough for the short names and the
+       long ones size themselves. NOTHING here is sticky any more. */
     .box-table tbody td:first-child,
     .box-table thead th:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 2;
-      min-width: 130px;
+      min-width: 96px;
       text-align: left;
     }
 
     .box-table thead th:first-child { background: var(--card); }
 
-    .box-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
-    .box-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
     .box-table tbody tr:nth-child(odd)  { background: #d9d9d9; }
     .box-table tbody tr:nth-child(even) { background: #ffffff; }
-    .box-table tbody tr:hover td:first-child { background: #c0c8d8 !important; }
     .box-table tbody tr:hover { background: #c0c8d8 !important; }
-    .box-table tr.totals-row td:first-child { position: sticky; left: 0; background: #e2e8f0; z-index: 2; }
-
-    /* +/- is the LAST column and the table scrolls horizontally, so pin it to the right
-       edge the same way PLAYER is pinned to the left. It keeps its box-score position
-       without having to be scrolled to. Each row restates its own background, otherwise
-       the columns underneath show through a transparent sticky cell. */
-    .box-table tbody td:last-child,
-    .box-table thead th:last-child {
-      position: sticky;
-      right: 0;
-      z-index: 2;
-      box-shadow: inset 1px 0 0 var(--border);   /* seam so it reads as pinned, not floating */
-    }
-    .box-table thead th:last-child { background: var(--card); }
-    .box-table tbody tr:nth-child(odd)  td:last-child { background: #d9d9d9; }
-    .box-table tbody tr:nth-child(even) td:last-child { background: #ffffff; }
-    .box-table tbody tr:hover td:last-child { background: #c0c8d8 !important; }
-    .box-table tr.totals-row td:last-child { position: sticky; right: 0; background: #e2e8f0; z-index: 2; }
-    /* The starters/bench separator is one full-width colspan cell — it is simultaneously
-       first- and last-child, so exempt it or it picks up both pins and the seam. */
-    .box-table tr.bench-divider td { position: static; box-shadow: none; }
 
     /* ============================================================
        SHOT CHART STYLES
@@ -3104,6 +3092,143 @@
     }
 
     .vts-stat { font-size: 10px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+    /* Substitutions read as structure, not as a stat — dimmer and italic so the eye still
+       skims the log for makes and misses. */
+    .vts-stat.sub { color: #a78bfa; font-style: italic; }
+    /* Edit affordance sits at the far right of every row, after the stat label. Only
+       painted on hover so 30 rows of pencils don't compete with the log itself. */
+    .vts-edit-btn {
+      flex-shrink: 0;
+      margin-left: 2px;
+      padding: 0 4px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 11px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.1s, color 0.1s;
+    }
+    .vts-row:hover .vts-edit-btn { opacity: 1; }
+    .vts-edit-btn:hover { color: var(--primary); }
+    .vts-conflict {
+      margin: 4px 8px 6px;
+      padding: 4px 7px;
+      border-radius: 4px;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #fca5a5;
+      font-size: 9.5px;
+      font-weight: 700;
+      line-height: 1.35;
+      cursor: pointer;
+    }
+    .vts-conflict:hover { background: rgba(239,68,68,0.2); }
+    .vts-flag { color: var(--danger); font-size: 10px; flex-shrink: 0; }
+
+    /* ── Ghost subs ──
+       A ghost sub is bookkeeping, not basketball: it says "the floor changed here and the
+       log can't prove how". Amber rather than the red used for hard lineup conflicts,
+       because a ghost is a note-to-self, not a broken log. */
+    .vts-ghost {
+      margin: 4px 8px 6px;
+      padding: 4px 7px;
+      border-radius: 4px;
+      background: rgba(245,158,11,0.12);
+      border: 1px solid rgba(245,158,11,0.4);
+      color: #fcd34d;
+      font-size: 9.5px;
+      font-weight: 700;
+      line-height: 1.35;
+      cursor: pointer;
+    }
+    .vts-ghost:hover { background: rgba(245,158,11,0.2); }
+    /* Dashed, so a ghost row never reads as a recorded event even at a glance. */
+    .vts-row.ghost {
+      border: 1px dashed rgba(245,158,11,0.5);
+      background: rgba(245,158,11,0.05);
+    }
+    .vts-row.ghost:hover { background: rgba(245,158,11,0.12); }
+    .vts-stat.ghost { color: var(--warning); font-style: italic; }
+    .vts-ghost-mark { color: var(--warning); font-size: 10px; flex-shrink: 0; }
+    .vts-star-btn.ghost-on { color: var(--warning); border-color: var(--warning); }
+
+    /* Review queue rows, shared by both entry points. */
+    .gs-item {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--warning);
+      border-radius: 6px;
+      padding: 9px 11px;
+      margin-bottom: 8px;
+      background: var(--card);
+    }
+    .gs-item.flag { border-left-color: #a78bfa; }
+    .gs-item-head {
+      display: flex; align-items: baseline; gap: 8px;
+      font-size: 12px; font-weight: 800; color: var(--text);
+      margin-bottom: 3px;
+    }
+    .gs-item-when {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 11px; color: var(--primary); font-weight: 700;
+      cursor: pointer;
+    }
+    .gs-item-when:hover { text-decoration: underline; }
+    .gs-item-note { font-size: 11.5px; color: var(--text-secondary); line-height: 1.45; }
+    .gs-item-floor { font-size: 10.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.45; }
+    .gs-item-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .gs-kind {
+      font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      border-radius: 3px; padding: 1px 5px; border: 1px solid currentColor;
+    }
+    .gs-kind.open { color: var(--warning); }
+    .gs-kind.flag { color: #a78bfa; }
+    .gs-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 18px 0; }
+    .vts-search {
+      width: calc(100% - 16px);
+      margin: 3px 8px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 9.5px;
+      height: 18px;
+      line-height: 16px;
+    }
+    .vts-search::placeholder { font-size: 9px; }
+    .vts-search:focus { outline: none; border-color: var(--primary); }
+    .vts-count {
+      font-size: 9.5px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 4px 0 2px;
+      letter-spacing: 0.04em;
+    }
+    .vts-add-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      cursor: pointer;
+    }
+    .vts-add-btn:hover { color: var(--primary); border-color: var(--primary); }
+    .fev-field { margin-bottom: 12px; }
+    .fev-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .fev-hint { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+    .fev-input, .fev-select {
+      width: 100%;
+      padding: 6px 9px;
+      border-radius: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12.5px;
+    }
     .vts-stat.make  { color: #60a5fa; }
     .vts-stat.miss  { color: #f87171; }
     .vts-stat.other { color: var(--text-secondary); }
@@ -3432,8 +3557,20 @@
               <div class="vts-log">
                 <div class="vts-log-title">
                   <span>Film Events</span>
+                  <button class="vts-add-btn" onclick="openFilmEventModal(-1)" title="Add an event you missed — enter the film time it happened at">+ Event</button>
+                  <!-- Survives a refresh: the snapshots behind it live in localStorage,
+                       unlike the in-memory undo stack the tracker uses for live tagging. -->
+                  <button class="vts-add-btn" id="vts-undo-btn" onclick="fevUndoLast()" title="Undo the last film-event change (survives a refresh)" style="display:none;">&#8630; Revert</button>
+                  <!-- Ghost sub: the floor changed and the log can't prove how. Parked
+                       outside eventLog so it can never move a minute or a plus-minus. -->
+                  <button class="vts-add-btn" id="vts-ghost-btn" onclick="ghostOpenModal(null)" title="Ghost sub — mark that a substitution happened here that you can't pin down yet">&#9873; Ghost</button>
                   <button class="vts-star-btn" onclick="openNoteModal()" title="Add a coaching note at this moment (assigns to a player)">&#9733;</button>
                 </div>
+                <!-- The log renders only the tail of a long scrimmage, so anything "far back"
+                     is invisible without a way to reach past the window. Searching drops the
+                     tail cap and scans the WHOLE log. -->
+                <input id="vts-search" class="vts-search" type="text" autocomplete="off"
+                  placeholder="Search…" oninput="vtsSetFilter(this.value)">
                 <div id="vts-log-body" class="vts-log-body">
                   <div class="vts-empty">No events yet</div>
                 </div>
@@ -3818,9 +3955,52 @@
   </div>
 </div>
 
+<!-- FILM EVENT EDITOR (add a missed sub / retime or delete a tagged event) -->
+<div id="modal-film-event" class="modal-overlay hidden" onclick="if(event.target===this)closeFilmEventModal()">
+  <div class="modal" style="max-width:94vw;width:540px;max-height:88vh;overflow-y:auto;padding:20px 22px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div id="fev-title" style="font-size:16px;font-weight:800;color:var(--text)"></div>
+      <button class="btn btn-ghost btn-sm" onclick="closeFilmEventModal()">&#x2715;</button>
+    </div>
+    <div id="fev-body"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Ghost Sub — record a substitution the log can't prove
+============================================================ -->
+<div id="modal-ghost" class="modal-overlay hidden" onclick="if(event.target===this)ghostCloseModal()">
+  <div class="modal" style="max-width:94vw;width:520px;max-height:88vh;overflow-y:auto;padding:20px 22px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div id="gs-title" style="font-size:16px;font-weight:800;color:var(--text)"></div>
+      <button class="btn btn-ghost btn-sm" onclick="ghostCloseModal()">&#x2715;</button>
+    </div>
+    <div id="gs-body"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Ghost Sub review queue — both entry points, one list
+============================================================ -->
+<div id="modal-ghost-review" class="modal-overlay hidden" onclick="if(event.target===this)hideModal('modal-ghost-review')">
+  <div class="modal" style="max-width:94vw;width:640px;max-height:88vh;overflow-y:auto;padding:20px 22px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div style="font-size:16px;font-weight:800;color:var(--text)">&#9873; Subs to review</div>
+      <button class="btn btn-ghost btn-sm" onclick="hideModal('modal-ghost-review')">&#x2715;</button>
+    </div>
+    <div class="fev-hint" style="margin-bottom:14px;">
+      Nothing on this list touches minutes, plus-minus or the box score. Ghost subs live outside
+      the event log entirely, and a review flag is just a marker on a sub that is otherwise
+      behaving normally. Clearing the list changes no number &mdash; resolving an item into a real
+      substitution is what does.
+    </div>
+    <div id="gs-review-body"></div>
+  </div>
+</div>
+
 <!-- BOX SCORE MODAL -->
 <div id="modal-boxscore" class="modal-overlay hidden" onclick="if(event.target===this)closeBoxScoreModal()">
-  <div class="modal" style="max-width:96vw;width:1100px;max-height:90vh;overflow-y:auto;padding:20px 24px;">
+  <div class="modal" style="max-width:96vw;width:1400px;max-height:90vh;overflow-y:auto;padding:20px 24px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div id="bs-modal-title" style="font-size:16px;font-weight:800;color:var(--text)"></div>
       <button class="btn btn-ghost btn-sm" onclick="closeBoxScoreModal()">&#x2715; Close</button>
@@ -5257,6 +5437,20 @@ function seekFilm(secs) {
   }
 }
 
+/* One ghost marker rendered as a log row. Dashed and amber so it never reads as a
+   recorded event, and clickable straight through to its own editor. */
+function ghostRowHtml(g) {
+  const ts = g.videoTs != null ? fmtVideoTs(g.videoTs) : '—';
+  const win = g.endVideoTs != null ? ' \u2192 ' + fmtVideoTs(g.endVideoTs) : '';
+  const tip = (g.note || 'Ghost sub — a substitution the log cannot prove') +
+    '\n\nAffects no statistic. Click to edit or resolve.';
+  return `<div class="vts-row ghost" onclick="ghostOpenModal('${escHtml(g.id)}')" title="${escHtml(tip)}">
+    <span class="vts-ghost-mark">⚑</span><span class="vts-ts">${escHtml(ts + win)}</span>
+    <span class="vts-player" style="color:var(--warning)">GHOST</span>
+    <span class="vts-stat ghost">unresolved</span>
+  </div>`;
+}
+
 /* ── Update the film timestamp event log panel ── */
 function updateVtsLog() {
   const body = document.getElementById('vts-log-body');
@@ -5264,28 +5458,162 @@ function updateVtsLog() {
   const session = State.liveSession;
   if (!session) { body.innerHTML = '<div class="vts-empty">No events yet</div>'; return; }
 
-  // Only show events that have a videoTs
-  const evs = (session.eventLog || []).filter(e => e.videoTs != null && e.type !== 'sub');
-  if (!evs.length) {
+  /* Substitutions belong in this log: they are the events most worth spotting a mistake in,
+     and they are the only ones whose position changes every number that follows. Keep the
+     true eventLog index on each row — edit actions splice the array, so a row has to know
+     exactly which entry it is, not just which stat it shows. */
+  let rows = [];   // let, not const — the search below reassigns it
+  (session.eventLog || []).forEach((ev, idx) => {
+    if (ev.type === 'sub' || ev.videoTs != null) rows.push({ ev, idx, pos: idx });
+  });
+  /* Ghost markers are not IN the log, so they have no index of their own to sort by.
+     filmInsertIndex() gives the position they WOULD occupy; the half-step back puts the
+     marker immediately before the first event it precedes, which is where the eye expects
+     to find it when scanning for the moment something went wrong. */
+  ghostOpen(session).forEach(g => {
+    const pos = g.videoTs != null
+      ? filmInsertIndex(session.eventLog || [], g.videoTs) - 0.5
+      : (session.eventLog || []).length;
+    rows.push({ ghost: g, pos });
+  });
+  rows.sort((x, y) => x.pos - y.pos);
+  if (!rows.length) {
     body.innerHTML = '<div class="vts-empty">No timestamped events yet</div>';
     return;
   }
 
-  // Show newest first (last 30)
-  const recent = evs.slice(-30).reverse();
-  body.innerHTML = recent.map(ev => {
+  /* Newest first. Unfiltered, this panel deliberately shows only the tail — a scrimmage runs to hundreds
+     of events and the card is a sidebar. That cap is exactly what hides an early sub, so a
+     search bypasses it and scans everything. */
+  /* A log with a missed substitution is INTERNALLY INCONSISTENT: some later sub takes a
+     player off who, per the log, never came on. rebuildCurrentLineups() has always skipped
+     those silently. Flag them instead — this banner is the fastest way to find what is
+     actually missing, and the count dropping is how you know a fix worked. */
+  /* The revert button only exists when there is something to revert TO for this session. */
+  const undoBtn = document.getElementById('vts-undo-btn');
+  if (undoBtn) {
+    const n = fevUndoStack().filter(e => e.sessionId === session.id).length;
+    undoBtn.style.display = n ? '' : 'none';
+    undoBtn.textContent = n > 1 ? `\u21B6 Revert (${n})` : '\u21B6 Revert';
+  }
+
+  const conflicts = unapplicableSubs(session);
+  const conflictIdx = new Set(conflicts.map(c => c.index));
+  const banner = conflicts.length
+    ? `<div class="vts-conflict" onclick="vtsShowConflicts()" title="Click for details">⚠ ${conflicts.length} lineup conflict${conflicts.length === 1 ? '' : 's'} — a sub removes someone the log never put on</div>`
+    : '';
+
+  /* Amber, and separate from the red conflict banner above: a conflict means the log is
+     internally broken, a review item means YOU are unsure. Different problems, different
+     urgency, so they never share a counter. */
+  const reviewN = ghostReviewCount(session);
+  const ghostBanner = reviewN
+    ? `<div class="vts-ghost" onclick="ghostReviewShow()" title="Click to work through them">⚑ ${reviewN} sub${reviewN === 1 ? '' : 's'} to review — no stats affected</div>`
+    : '';
+
+  const q = (vtsFilter || '').trim().toLowerCase();
+  const total = rows.length;
+  if (q) rows = rows.filter(r => (r.ghost ? ghostSearchText(r.ghost) : vtsSearchText(r.ev)).includes(q));
+  if (!rows.length) {
+    body.innerHTML = `<div class="vts-empty">No events match “${escHtml(vtsFilter)}”</div>`;
+    return;
+  }
+  const CAP = q ? 300 : 30;
+  const capped = rows.length > CAP;
+  const recent = rows.slice(-CAP).reverse();
+  body.innerHTML = banner + ghostBanner + recent.map(r => {
+    if (r.ghost) return ghostRowHtml(r.ghost);
+    const { ev, idx } = r;
     const MAKES  = new Set(['2fg_make','3fg_make','ft_make']);
     const MISSES = new Set(['2fg_miss','3fg_miss','ft_miss']);
+    const isSub  = ev.type === 'sub';
     const isNote = ev.stat === 'note';
-    const cls = isNote ? 'note' : MAKES.has(ev.stat) ? 'make' : MISSES.has(ev.stat) ? 'miss' : 'other';
+    const cls = isSub ? 'sub' : isNote ? 'note' : MAKES.has(ev.stat) ? 'make' : MISSES.has(ev.stat) ? 'miss' : 'other';
     const teamColor = ev.team === 'a' ? '#60a5fa' : '#fb923c';
-    const label = isNote ? `★ ${ev.note || 'Note'}` : statLabel(ev.stat);
-    return `<div class="vts-row" onclick="seekFilm(${ev.videoTs})" title="${escHtml(isNote ? (ev.note || '') : 'Jump to ' + fmtVideoTs(ev.videoTs))}">
-      <span class="vts-ts">${fmtVideoTs(ev.videoTs)}</span>
-      <span class="vts-player" style="color:${teamColor}">${escHtml(ev.player || '')}</span>
+    const label = isSub ? subSummaryShort(ev) : isNote ? `★ ${ev.note || 'Note'}` : statLabel(ev.stat);
+    const who   = isSub ? 'SUB' : (ev.player || '');
+    const ts    = ev.videoTs != null ? fmtVideoTs(ev.videoTs) : '—';
+    // A sub tagged before film was attached has no position to seek to.
+    const seek  = ev.videoTs != null ? `onclick="seekFilm(${ev.videoTs})"` : '';
+    /* The row can only fit "Cotton → Kubel +1", so the hover spells every swap out. */
+    const tip   = isSub  ? subPairs(ev).map(sp => `${sp.playerOut} → ${sp.playerIn}`).join('\n')
+                : isNote ? (ev.note || '')
+                : ev.videoTs != null ? 'Jump to ' + fmtVideoTs(ev.videoTs)
+                : 'No film position recorded';
+    const flag = conflictIdx.has(idx) ? '<span class="vts-flag" title="This sub removes a player the log never put on the floor">⚠</span>' : '';
+    const rflag = ev.ghostFlag ? '<span class="vts-ghost-mark" title="Flagged for review">⚑</span>' : '';
+    return `<div class="vts-row" ${seek} title="${escHtml(tip)}">
+      ${flag}${rflag}<span class="vts-ts">${ts}</span>
+      <span class="vts-player" style="color:${teamColor}">${escHtml(who)}</span>
       <span class="vts-stat ${cls}">${escHtml(label)}</span>
+      <button class="vts-edit-btn" title="Edit this event"
+        onclick="event.stopPropagation();openFilmEventModal(${idx})">✎</button>
     </div>`;
-  }).join('');
+  }).join('') + (
+    q
+      ? `<div class="vts-count">${rows.length} match${rows.length === 1 ? '' : 'es'} of ${total}${capped ? ' — showing the last ' + CAP : ''}</div>`
+      : (capped ? `<div class="vts-count">showing the last ${CAP} of ${total} — search to reach earlier ones</div>` : '')
+  );
+}
+
+/* Spell the conflicts out: which sub, where in the log, and who it cannot remove.
+   Almost always the answer is "a substitution earlier than this one was never recorded". */
+function vtsShowConflicts() {
+  const session = State.liveSession;
+  if (!session) return;
+  const bad = unapplicableSubs(session);
+  if (!bad.length) { showToast('No lineup conflicts', 'success'); return; }
+  const lines = bad.map(c => {
+    const t = c.ev.videoTs != null ? fmtVideoTs(c.ev.videoTs) : 'no film time';
+    const q = c.ev.quarter ? 'Q' + c.ev.quarter : 'Q?';
+    const clk = c.ev.timeSecs != null ? fmtClockRemain(c.ev.timeSecs) : '?';
+    return `  • log #${c.index + 1}  (${q} ${clk}, ${t})\n      tries to take OFF ${c.pair.playerOut}, who the log never put on\n      bringing on ${c.pair.playerIn}`;
+  }).join('\n\n');
+  alert(
+    `${bad.length} lineup conflict${bad.length === 1 ? '' : 's'}\n\n` +
+    `A substitution removes a player the event log never put on the floor. That almost ` +
+    `always means an EARLIER substitution was never recorded.\n\n${lines}\n\n` +
+    `Fix: use + Event to add the missing earlier sub. When you do, this count should drop.`
+  );
+}
+
+let vtsFilter = '';
+
+function vtsSetFilter(value) {
+  vtsFilter = value;
+  updateVtsLog();
+}
+
+/* Everything about an event worth matching on, lowercased once. Sub events are matched on
+   BOTH names, so searching a player finds the sub that took them off as well as the one
+   that brought them on — which a `player` field alone would never surface, because sub
+   events don't have one. */
+function vtsSearchText(ev) {
+  if (ev._vtsSearch) return ev._vtsSearch;
+  let t;
+  if (ev.type === 'sub') {
+    t = 'sub ' + subPairs(ev).map(sp => `${sp.playerOut || ''} ${sp.playerIn || ''}`).join(' ');
+  } else {
+    t = `${ev.player || ''} ${statLabel(ev.stat) || ev.stat || ''} ${ev.note || ''} ${ev.assister || ''}`;
+  }
+  t = t.toLowerCase();
+  // Cached on the event object, not persisted — saveLiveSession would write it, so keep it
+  // non-enumerable so JSON.stringify skips it.
+  Object.defineProperty(ev, '_vtsSearch', { value: t, enumerable: false, configurable: true });
+  return t;
+}
+
+/* Compact "Cotton → Kubel" for the log; the full detail lives in the edit modal. */
+function subSummaryShort(ev) {
+  const pairs = subPairs(ev);
+  if (!pairs.length) return 'Sub';
+  const one = p => `${lastNameOnly(p.playerOut)} → ${lastNameOnly(p.playerIn)}`;
+  return pairs.length === 1 ? one(pairs[0]) : `${one(pairs[0])} +${pairs.length - 1}`;
+}
+
+function lastNameOnly(name) {
+  const parts = String(name || '').trim().split(/\s+/);
+  return parts.length ? parts[parts.length - 1] : '';
 }
 
 // Hook: tab renderer for tracker calls initVideoPanel after renderLiveTracker runs
@@ -5315,6 +5643,11 @@ function sessionResultClass(session) {
 }
 
 function sessionScore(session, team) {
+  /* One chokepoint. Every W/L badge, WINNER column, game-log row and box-score header in
+     the app reads the final through here, so honouring the override once covers all of
+     them — and nothing that computes a PLAYER's line goes through this function. */
+  const ov = sessionFinalOverride(session);
+  if (ov) return ov[team];
   if (!session.eventLog) return 0;
   return session.eventLog.reduce((sum, ev) => {
     if (ev.team !== team) return sum;
@@ -5351,8 +5684,14 @@ function exportAllSessions() {
     settings: State.settings,
     zones: State.zones,
     sessions: getSessions(),
+    /* getSessions() is COMPLETED practices only, so for a long time the one practice you
+       could not back up was the one you were in the middle of — the only one with no other
+       copy anywhere. restoreFromBackup() reads this key back; importSessions() still
+       ignores it, because merging a half-finished practice into a library of finished ones
+       is not what Import means. */
+    liveSession: State.liveSession || null,
   };
-  if (!backup.sessions.length && !backup.roster.length) { showToast('Nothing to back up yet', 'warning'); return; }
+  if (!backup.sessions.length && !backup.roster.length && !backup.liveSession) { showToast('Nothing to back up yet', 'warning'); return; }
   const filename = `moorpark_tracker_backup_${new Date().toISOString().slice(0,10)}.json`;
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -5493,9 +5832,11 @@ function buildStatsTable(rows) {
 
 function buildPostGameReportPack(session) {
   const dateLabel = `${session.date || ''} ${session.title || ''}`.trim();
-  const ptsA = session.teamStats?.a?.pts ?? 0;
-  const ptsB = session.teamStats?.b?.pts ?? 0;
-  const resultText = ptsA > ptsB ? `${session.teamAName} won` : ptsB > ptsA ? `${session.teamBName} won` : 'Tie';
+  const _ovR = sessionFinalOverride(session);
+  const ptsA = _ovR ? _ovR.a : (session.teamStats?.a?.pts ?? 0);
+  const ptsB = _ovR ? _ovR.b : (session.teamStats?.b?.pts ?? 0);
+  const resultText = (ptsA > ptsB ? `${session.teamAName} won` : ptsB > ptsA ? `${session.teamBName} won` : 'Tie')
+    + (_ovR ? ` (final recorded manually${_ovR.note ? ' — ' + _ovR.note : ''})` : '');
   const players = (session.playerStats || [])
     .slice()
     .sort((a, b) => (a.team || '').localeCompare(b.team || '') || byLastName(a.name, b.name));
@@ -5763,10 +6104,12 @@ async function restoreFromBackup() {
 
     const curCount = (State.sessions || []).length;
     const when = data.publishedAt || data.exportedAt || 'unknown date';
+    const fileLive = (isBackup && data.liveSession && data.liveSession.eventLog) ? data.liveSession : null;
     const ok = confirm(
       `RESTORE — this REPLACES your current data.\n\n` +
       `Backup file: ${valid.length} session${valid.length === 1 ? '' : 's'} (saved ${when})\n` +
       `Currently in this browser: ${curCount} session${curCount === 1 ? '' : 's'}\n\n` +
+      (fileLive ? `This file also contains an IN-PROGRESS practice — you'll be asked about that separately.\n\n` : '') +
       `Your current data will be downloaded as a safety file first.\n\nProceed?`
     );
     if (!ok) return;
@@ -5799,10 +6142,145 @@ async function restoreFromBackup() {
     }
     if (!persistSessions()) return;   // persistKey already warned on failure
 
-    showToast(`Restored ${valid.length} session${valid.length === 1 ? '' : 's'} from backup.`, 'success', 5000);
+    /* The in-progress practice is restored only on an explicit second yes. It is the one
+       piece of data with no other copy — overwriting a live practice by accident, while
+       someone is mid-scrimmage, is unrecoverable in a way replacing finished sessions is
+       not. Asked separately for that reason, never bundled into the first confirm. */
+    let liveMsg = '';
+    if (fileLive) {
+      const cur = State.liveSession;
+      const evN = (fileLive.eventLog || []).length;
+      if (confirm(
+        `Also restore the IN-PROGRESS practice from this file?\n\n` +
+        `  In the file: "${fileLive.title || 'Untitled'}" — ${evN} event${evN === 1 ? '' : 's'}\n` +
+        `  Open right now: ${cur ? `"${cur.title || 'Untitled'}" — ${(cur.eventLog || []).length} events` : 'none'}\n\n` +
+        (cur ? `The practice currently open will be REPLACED and cannot be recovered.\n\n` : '') +
+        `OK = restore it    Cancel = leave the current one alone`
+      )) {
+        State.liveSession = fileLive;
+        saveLiveSession(fileLive);
+        clearLiveFlow();          // a half-entered play from the old session must not survive
+        rebuildCurrentLineups();
+        liveMsg = ' In-progress practice restored too.';
+      }
+    }
+
+    showToast(`Restored ${valid.length} session${valid.length === 1 ? '' : 's'} from backup.${liveMsg}`, 'success', 6000);
     tabRenderers.log();
   };
   input.click();
+}
+
+/* ============================================================
+   WIPE ALL DATA
+   Blank slate: clears every pt_* store this app writes. There is no undo and
+   nothing to restore FROM unless the pre-wipe backup actually landed on disk,
+   so the gates are deliberately heavier than Restore's:
+     password → summary confirm → backup download → EYES-ON confirm → type WIPE.
+
+   The eyes-on step exists because a blob download cannot be verified in code:
+   a.click() resolves the same whether the file saved or the user dismissed the
+   save dialog. Only a human looking at the Downloads folder actually knows. So
+   the human is the check — asking is not belt-and-braces, it's the only check
+   there is.
+
+   pt_pass_hash is deliberately NOT cleared. It is a credential, not data, and
+   initPasswordHash() would just re-seed the same hardcoded default on the next
+   load — so clearing it changes nothing except opening a window where the app is
+   unlocked by whatever the seed happens to be.
+============================================================ */
+const WIPE_KEYS_DATA  = ['pt_sessions', 'pt_live_session', 'pt_live_flow', 'pt_film_last_ts'];
+const WIPE_KEYS_SETUP = ['pt_roster', 'pt_zones'];
+
+async function wipeAllData() {
+  const pw = prompt('Enter the tracker password to WIPE ALL DATA:');
+  if (pw == null) return;
+  if (await sha256(pw) !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — nothing wiped.', 'danger', 3000);
+    return;
+  }
+
+  const sessCount = (State.sessions || []).length;
+  const hasLive   = !!State.liveSession;
+  let noteCount = 0;
+  try { noteCount = _collectNotes().length; } catch (e) { /* notes are cosmetic in this summary */ }
+
+  if (!sessCount && !hasLive) { showToast('Nothing to wipe — no practices stored.', 'warning'); return; }
+
+  if (!confirm(
+    `WIPE ALL DATA — this cannot be undone.\n\n` +
+    `About to delete from this browser:\n` +
+    `  • ${sessCount} saved practice${sessCount === 1 ? '' : 's'} (event logs, box scores, shot charts)\n` +
+    `  • ${noteCount} coaching note${noteCount === 1 ? '' : 's'}\n` +
+    (hasLive ? `  • the IN-PROGRESS practice currently on the Live Tracker\n` : '') +
+    `  • saved film position\n\n` +
+    `A full backup file downloads first. Your tracker password is kept.\n\nContinue?`
+  )) return;
+
+  // Mandatory safety file. Same payload shape as exportAllSessions() → importSessions()/
+  // restoreFromBackup() read it back, plus liveSession as a manual-recovery record.
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const filename = `moorpark_tracker_backup_pre_wipe_${stamp}.json`;
+  try {
+    downloadTextFile(filename, JSON.stringify({
+      app: 'moorpark-practice-tracker',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      reason: 'auto-backup before full wipe',
+      roster:   State.roster,
+      settings: State.settings,
+      zones:    State.zones,       // hand-drawn polygons exist nowhere else
+      sessions: getSessions(),
+      liveSession: State.liveSession || null,
+    }, null, 2), 'application/json');
+  } catch (err) {
+    console.error('Pre-wipe backup failed:', err);
+    showToast('Backup download FAILED — nothing was wiped.', 'danger', 10000);
+    return;   // never wipe without a safety file
+  }
+
+  if (!confirm(
+    `Backup saved as:\n${filename}\n\n` +
+    `OPEN YOUR DOWNLOADS FOLDER AND CONFIRM THAT FILE EXISTS before continuing.\n` +
+    `This is the only copy of your data once the wipe runs.\n\n` +
+    `Click OK only after you have seen the file.`
+  )) { showToast('Wipe cancelled — your data is untouched.', 'info', 4000); return; }
+
+  /* Roster and drawn zones are setup, not results — a new season usually wants them kept.
+     Asked separately so the common case never has to redraw the zone polygons. */
+  const alsoSetup = confirm(
+    `Also wipe the ROSTER (${(State.roster || []).length} players) and your ` +
+    `${(State.zones || []).length} hand-drawn shot-chart zone${(State.zones || []).length === 1 ? '' : 's'}?\n\n` +
+    `OK      = wipe those too (roster falls back to the file's built-in seed list)\n` +
+    `Cancel  = keep roster and zones, wipe practice data only  ← usual choice`
+  );
+
+  const typed = prompt(
+    `Final step. Type   WIPE   to erase ${sessCount} practice${sessCount === 1 ? '' : 's'}` +
+    (alsoSetup ? `, the roster and your drawn zones` : '') + `:`
+  );
+  if ((typed || '').trim().toUpperCase() !== 'WIPE') {
+    showToast('Wipe cancelled — your data is untouched.', 'info', 4000);
+    return;
+  }
+
+  const keys = alsoSetup ? WIPE_KEYS_DATA.concat(WIPE_KEYS_SETUP) : WIPE_KEYS_DATA;
+  keys.forEach(k => { try { localStorage.removeItem(k); } catch (e) { console.warn('Could not remove ' + k, e); } });
+
+  State.sessions    = [];
+  State.liveSession = null;
+  if (alsoSetup) { State.roster = []; State.zones = []; }
+
+  /* Full reload rather than a re-render: trackerState, clockState, subState, the video
+     panel and its timers are all module-level and would otherwise still be holding the
+     wiped session. A reload re-enters through initApp() with a genuinely clean slate. */
+  alert(
+    `Wiped.\n\n` +
+    `Backup: ${filename}\n` +
+    `Restore it any time with the ⟲ Restore button.\n\n` +
+    `Reloading now.`
+  );
+  location.reload();
 }
 
 /* ── Practice Log renderer — Torvik-style team game log ── */
@@ -5940,14 +6418,17 @@ tabRenderers.log = function() {
         <div class="page-title">Practice Log</div>
         <div class="page-subtitle">${sessions.length} session${sessions.length!==1?'s':''} &middot; <span style="color:${logTeamColor};font-weight:700">${escHtml(logTeamName)}</span></div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <!-- flex-wrap matters here: .page-header wraps this whole block, but without wrap
+           ON this row a 7th control just overflows the page and clips off-screen. -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
         <button class="sc-pill${logTeam==='a'?' active':''}" onclick="setLogTeam('a')" style="font-size:11.5px;">${escHtml(sessions[0]?.teamAName||'White')}</button>
         <button class="sc-pill${logTeam==='b'?' active':''}" onclick="setLogTeam('b')" style="font-size:11.5px;">${escHtml(sessions[0]?.teamBName||'Black')}</button>
         ${_publishedMode ? '' : `
         <button class="btn btn-ghost btn-sm" onclick="importSessions()" title="Add sessions from a file (existing ones are skipped)">⬆ Import</button>
         <button class="btn btn-ghost btn-sm" onclick="backupWithPassword()">⬇ Export All</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--warning);border-color:rgba(245,158,11,0.35);" onclick="restoreFromBackup()" title="Replace ALL current data with a backup file (password required)">⟲ Restore</button>
-        <button class="btn btn-ghost btn-sm" onclick="recomputeAllStats()" title="Rebuild every saved practice's stats from its event log using the current formulas (password required)">&#8635; Recompute Stats</button>`}
+        <button class="btn btn-ghost btn-sm" onclick="recomputeAllStats()" title="Rebuild every saved practice's stats from its event log using the current formulas (password required)">&#8635; Recompute Stats</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);margin-left:14px;" onclick="wipeAllData()" title="Erase ALL data in this browser and start fresh — downloads a full backup first (password required)">&#9888; Wipe All Data</button>`}
       </div>
     </div>
     <div class="log-table-wrap">
@@ -6116,6 +6597,20 @@ function renderBoxScoreView(sessionId) {
           </tr>
         </tbody>
       </table>
+      ${(() => {
+        /* The quarter columns are tracked events and the Final may be a recorded override.
+           When they disagree, show BOTH rather than reconciling them: the gap is the
+           information. */
+        const ov = sessionFinalOverride(session);
+        const tA = sessionTrackedPts(session, 'a'), tB = sessionTrackedPts(session, 'b');
+        const editBtn = _publishedMode ? '' :
+          `<button class="btn btn-ghost btn-sm" style="padding:1px 7px;font-size:10px;margin-left:8px;" onclick="setSessionFinalScore('${escHtml(session.id)}')">${ov ? 'Edit' : 'Set final score'}</button>`;
+        if (!ov) return `<div style="font-size:10.5px;color:var(--text-dim);margin-top:8px;">Final is the sum of tracked events.${editBtn}</div>`;
+        return `<div style="font-size:10.5px;color:var(--warning);margin-top:8px;line-height:1.5;">
+          Final recorded manually${ov.note ? ' — ' + escHtml(ov.note) : ''}.
+          Tracked events cover <b>${tA}\u2013${tB}</b>, so the quarter columns and every player line below add up to that, not to the final.${editBtn}
+        </div>`;
+      })()}
     </div>
 
     <div class="bs-tab-row">
@@ -7780,8 +8275,11 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          squad filter is on, only that squad's stints count. */
       if (filterTeam === 'all' || filterTeam === 'a') row.pm += pmAll.pmA[nm] || 0;
       if (filterTeam === 'all' || filterTeam === 'b') row.pm += pmAll.pmB[nm] || 0;
-      const ptsA = (sess.teamStats?.a?.pts ?? 0);
-      const ptsB = (sess.teamStats?.b?.pts ?? 0);
+      /* Credit the win from the TRUE final where one was recorded. A player who was on
+         the floor for a win should read as 1-0 even when the film stopped early. */
+      const _ovWL = sessionFinalOverride(sess);
+      const ptsA = _ovWL ? _ovWL.a : (sess.teamStats?.a?.pts ?? 0);
+      const ptsB = _ovWL ? _ovWL.b : (sess.teamStats?.b?.pts ?? 0);
       if (ptsA !== ptsB) {
         const winTeam = ptsA > ptsB ? 'a' : 'b';
         if (p.team === winTeam) row.wins++; else row.losses++;
@@ -11572,7 +12070,12 @@ function endPractice() {
       `<strong>${session.teamAName}</strong>: ${ptsA} pts &nbsp;|&nbsp; ` +
       `<strong>${session.teamBName}</strong>: ${ptsB} pts<br>` +
       `Quarters played: ${q}<br>` +
-      `Total events: ${evs.length}`;
+      `Total events: ${evs.length}` +
+      /* Last chance to see these: once the practice is finalised the Film Events panel,
+         and with it the review queue, is gone. */
+      (ghostReviewCount(session)
+        ? `<br><span style="color:var(--warning);font-weight:700;">⚑ ${ghostReviewCount(session)} sub${ghostReviewCount(session) === 1 ? '' : 's'} still awaiting review</span>`
+        : '');
   }
 
   showModal('modal-end-practice');
@@ -11917,8 +12420,9 @@ function calcPlayerMinutes(session, playerName, team) {
 
 /* ── Completion screen ── */
 function showCompletionScreen(session) {
-  const ptsA = session.teamStats?.a?.pts ?? 0;
-  const ptsB = session.teamStats?.b?.pts ?? 0;
+  const _ovC = sessionFinalOverride(session);
+  const ptsA = _ovC ? _ovC.a : (session.teamStats?.a?.pts ?? 0);
+  const ptsB = _ovC ? _ovC.b : (session.teamStats?.b?.pts ?? 0);
 
   let resultClass = 'tie', resultText = 'TIE';
   if (ptsA > ptsB)      { resultClass = 'win';  resultText = `${session.teamAName} WIN`; }
@@ -12571,6 +13075,10 @@ function confirmAllSubs() {
     playerIn:  allSubs[0].in,
     timeSecs,
     quarter: q,
+    /* Subs now carry a film position like every other event, so they show up in the Film
+       Events log and ▶ seeks to them. Null when tracking without film — the log falls
+       back to a dash. */
+    videoTs: getVideoTimestamp(),
     ts: Date.now(),
   };
   session.eventLog.push(subEv);
@@ -12585,9 +13093,1193 @@ function confirmAllSubs() {
   renderTeamColumn('a');
   renderTeamColumn('b');
   updateActionFeed();
+  updateVtsLog();            // subs appear in the Film Events log now, so it has to refresh
   renderLineupPlusMinus();   // new five on the floor — the card must follow the swap
   hideModal('modal-sub-clock');
   showToast(`${allSubs.length} sub${allSubs.length !== 1 ? 's' : ''} applied`, 'success', 2500);
+}
+
+/* ============================================================
+   RETROACTIVE FILM EVENTS — add a sub you missed, retime or delete a tag
+
+   Adding a substitution after the fact is NOT the same as logging one live. Live subs get
+   appended, and every lineup figure in this app — who is on the floor, live +/-, box-score
+   +/-, minutes, Lineups, On/Off — is derived by replaying eventLog in ARRAY ORDER. So a sub
+   that actually happened twenty minutes ago has to be SPLICED in at the right index. Giving
+   it an old videoTs and leaving it at the end of the log would fix the display and silently
+   corrupt every lineup number after it.
+
+   TWO CLOCKS ARE IN PLAY AND THEY ARE NOT INTERCHANGEABLE:
+     • videoTs  — seconds into the FILM. Decides ORDER in the event log, and where the row
+                  seeks to when clicked.
+     • timeSecs — game clock REMAINING in the quarter (counts DOWN, so a stint's
+                  startTimeSecs is LARGER than its endTimeSecs). Decides where the lineup
+                  stint splits, which is the only thing minutes are computed from.
+   Neither can be derived from the other — film runs across dead balls, timeouts and
+   huddles — so the form asks for both. Film time alone fixes +/- and leaves minutes wrong;
+   clock time alone fixes minutes and leaves +/- wrong.
+
+   splitSegmentForSub / unsplitSegmentForSub are exact inverses, and every edit is expressed
+   as remove-then-reinsert through that pair. One code path for add, retime and delete
+   instead of three chances to get the segment maths wrong.
+============================================================ */
+
+let fevEditIndex = -1;   // -1 = adding a new event; otherwise an index into session.eventLog
+let fevForm = null;
+
+/* Film positions run to hours on a 3-hour Hudl file, so this accepts h:mm:ss as well as
+   m:ss and bare seconds. parseTimeInput() is the GAME-CLOCK parser and deliberately stays
+   mm:ss only — a quarter is never an hour long. */
+function parseFilmTime(str) {
+  if (str == null) return null;
+  const t = String(str).trim();
+  if (!t) return null;
+  const parts = t.split(':');
+  if (parts.length > 3) return null;
+  let secs = 0;
+  for (const raw of parts) {
+    const n = Number(raw);
+    if (!isFinite(n) || n < 0) return null;
+    secs = secs * 60 + n;
+  }
+  return secs;
+}
+
+/* Where in the log does something at this film position belong?
+   Only events that actually carry a videoTs are compared — anything tagged before film was
+   attached has no film position and keeps its existing relative place rather than being
+   shoved to the front of the log. */
+function filmInsertIndex(eventLog, videoTs) {
+  for (let i = 0; i < eventLog.length; i++) {
+    const t = eventLog[i].videoTs;
+    if (t != null && t > videoTs) return i;
+  }
+  return eventLog.length;
+}
+
+/* The five on each floor as of a given point in a log — the same replay
+   rebuildCurrentLineups() does, stopped early. Needed so the Out/In pickers offer who was
+   ACTUALLY on the court back then, not who is on it now.
+
+   `log` is overridable because EDITING a sub has to reason about a log with that sub
+   REMOVED: otherwise the event's own swap is already applied when we ask what the floor
+   looked like, and it filters its own players out of the pickers. */
+function lineupsAtIndex(session, idx, log) {
+  const a = [...(session.startersA || [])];
+  const b = [...(session.startersB || [])];
+  log = log || session.eventLog || [];
+  for (let i = 0; i < idx && i < log.length; i++) {
+    const ev = log[i];
+    if (ev.type !== 'sub') continue;
+    for (const sp of subPairs(ev)) {
+      const lu = (sp.team || ev.team) === 'a' ? a : b;
+      const j = lu.indexOf(sp.playerOut);
+      if (j !== -1) lu[j] = sp.playerIn;
+    }
+  }
+  return { a, b };
+}
+
+function fevApplySwaps(seg, swaps, invert) {
+  for (const sw of swaps) {
+    const lu = sw.team === 'a' ? seg.lineupA : seg.lineupB;
+    if (!Array.isArray(lu)) continue;
+    const from = invert ? sw.playerIn  : sw.playerOut;
+    const to   = invert ? sw.playerOut : sw.playerIn;
+    const j = lu.indexOf(from);
+    if (j !== -1) lu[j] = to;
+  }
+}
+
+/* Split the stint that was running at this game clock in two, and carry the swap through
+   every stint after it. The clock counts DOWN, so "inside this stint" means
+   start >= clockSecs >= end. An open stint (endTimeSecs === null) is the one on the floor
+   right now and has no lower bound yet. */
+function splitSegmentForSub(session, quarter, clockSecs, swaps) {
+  const segs = session.lineupSegments || [];
+  const idx = segs.findIndex(sg => sg.quarter === quarter
+    && (sg.startTimeSecs == null || sg.startTimeSecs >= clockSecs)
+    && (sg.endTimeSecs === null || sg.endTimeSecs <= clockSecs));
+  if (idx === -1) return false;
+  const seg = segs[idx];
+  const after = {
+    quarter,
+    lineupA: [...(seg.lineupA || [])],
+    lineupB: [...(seg.lineupB || [])],
+    startTimeSecs: clockSecs,
+    endTimeSecs: seg.endTimeSecs,
+  };
+  seg.endTimeSecs = clockSecs;
+  fevApplySwaps(after, swaps, false);
+  segs.splice(idx + 1, 0, after);
+  for (let i = idx + 2; i < segs.length; i++) fevApplySwaps(segs[i], swaps, false);
+  return true;
+}
+
+/* Exact inverse: un-apply the swap from the stint that starts at this clock time and from
+   everything after it, then merge that stint back into its predecessor. */
+function unsplitSegmentForSub(session, quarter, clockSecs, swaps) {
+  const segs = session.lineupSegments || [];
+  const idx = segs.findIndex(sg => sg.quarter === quarter && sg.startTimeSecs === clockSecs);
+  if (idx <= 0) return false;
+  for (let i = idx; i < segs.length; i++) fevApplySwaps(segs[i], swaps, true);
+  segs[idx - 1].endTimeSecs = segs[idx].endTimeSecs;
+  segs.splice(idx, 1);
+  return true;
+}
+
+/* Replay every sub and list the ones whose outgoing player isn't on the floor at that
+   point. rebuildCurrentLineups() applies a swap only `if (lu.indexOf(playerOut) !== -1)` —
+   a guard that is right for live tracking (a stale swap must not corrupt the floor) but
+   catastrophic for retroactive editing, because it turns "this event is impossible" into
+   silence: nothing changes on screen and the log quietly disagrees with the lineup.
+
+   IMPORTANT: a log can ALREADY contain conflicts before you touch it — that is exactly what
+   a missed substitution looks like from the replay's point of view. A later sub takes a
+   player off who, according to the log, never came on. So this returns a COUNT to compare
+   against, never a pass/fail. An edit is judged on whether it makes things WORSE, and
+   adding the missing sub should make the count go DOWN. Failing an edit because of a
+   conflict it did not cause is how this feature locked itself out entirely. */
+function unapplicableSubs(session) {
+  const a = [...(session.startersA || [])];
+  const b = [...(session.startersB || [])];
+  const bad = [];
+  (session.eventLog || []).forEach((ev, index) => {
+    if (ev.type !== 'sub') return;
+    for (const sp of subPairs(ev)) {
+      const lu = (sp.team || ev.team) === 'a' ? a : b;
+      const j = lu.indexOf(sp.playerOut);
+      if (j === -1) { bad.push({ index, ev, pair: sp }); continue; }
+      lu[j] = sp.playerIn;
+    }
+  });
+  return bad;
+}
+
+/* One-line description of an event, for the "lands between X and Y" placement preview. */
+function fevDescribe(ev) {
+  if (!ev) return null;
+  if (ev.type === 'sub') return subSummaryShort(ev);
+  if (ev.stat === 'note') return '★ ' + (ev.note || 'Note');
+  return `${lastNameOnly(ev.player) || '?'} ${statLabel(ev.stat) || ev.stat || ''}`.trim();
+}
+
+/* ── Persistent undo for retroactive edits ──
+   undoGroups lives in memory, so it dies on refresh — and fevAfterMutation() clears it
+   anyway, because a retroactive splice invalidates every position it holds. That combination
+   means an edit made, then a page refresh, used to be permanent with no way back.
+
+   These snapshots go to localStorage instead, so they survive a refresh. Each entry is the
+   WHOLE live session serialised before a mutation: retroactive edits move events between
+   indices and re-cut lineup stints, so there is no meaningful smaller delta to store.
+   Capped hard, because a 400-event session is a few hundred KB and localStorage is shared
+   with the practice data it is protecting. Oldest is dropped first, and if a write fails on
+   quota the edit still proceeds — losing an undo point is better than losing the edit. */
+const FEV_UNDO_KEY = 'pt_fev_undo';
+const FEV_UNDO_MAX = 5;
+
+function fevUndoStack() {
+  try {
+    const raw = localStorage.getItem(FEV_UNDO_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function fevPushUndo(snapshotJson, label, sessionId) {
+  const stack = fevUndoStack().filter(e => e.sessionId === sessionId);
+  stack.push({ sessionId, label, at: Date.now(), session: snapshotJson });
+  while (stack.length > FEV_UNDO_MAX) stack.shift();
+  try {
+    localStorage.setItem(FEV_UNDO_KEY, JSON.stringify(stack));
+  } catch (e) {
+    // Quota: drop everything but the newest and try once more, then give up quietly.
+    try { localStorage.setItem(FEV_UNDO_KEY, JSON.stringify(stack.slice(-1))); } catch (e2) {}
+  }
+}
+
+function fevUndoLast() {
+  const session = State.liveSession;
+  if (!session) { showToast('No live practice open', 'warning'); return; }
+  const stack = fevUndoStack().filter(e => e.sessionId === session.id);
+  if (!stack.length) { showToast('Nothing to revert', 'warning'); return; }
+  const top = stack[stack.length - 1];
+  const when = new Date(top.at).toLocaleTimeString();
+  if (!confirm(
+    `Revert the last film-event change?\n\n  ${top.label}\n  made at ${when}\n\n` +
+    `The practice goes back to exactly how it was before that change. Anything you tracked ` +
+    `AFTER it will be lost.\n\n${stack.length - 1} earlier revert point${stack.length - 1 === 1 ? '' : 's'} would remain.`
+  )) return;
+
+  let restored;
+  try { restored = JSON.parse(top.session); }
+  catch (e) { showToast('That revert point is unreadable', 'danger', 5000); return; }
+
+  stack.pop();
+  try { localStorage.setItem(FEV_UNDO_KEY, JSON.stringify(stack)); } catch (e) {}
+
+  State.liveSession = restored;
+  saveLiveSession(restored);
+  rebuildCurrentLineups();
+  undoGroups.length = 0;
+  redoGroups.length = 0;
+  updateUndoRedo();
+  renderTeamColumn('a');
+  renderTeamColumn('b');
+  updateActionFeed();
+  updateVtsLog();
+  renderLineupPlusMinus();
+  updateScorebar();
+  showToast(`Reverted: ${top.label}`, 'success', 5000);
+}
+
+function swapsOf(ev) {
+  return subPairs(ev).map(sp => ({
+    team: sp.team || ev.team,
+    playerOut: sp.playerOut,
+    playerIn: sp.playerIn,
+  }));
+}
+
+/* ── Modal ──
+   A substitution event is ONE event holding a LIST of swaps: confirmAllSubs() writes
+   `subs: [{team, playerOut, playerIn}, …]` because a double sub at the same dead ball is a
+   single moment, not two. Anything that reads a sub therefore has to walk subPairs(ev) —
+   reading `[0]`, or the legacy flat `playerOut`/`playerIn` mirror, shows only the first
+   swap and quietly hides the rest. */
+function openFilmEventModal(idx) {
+  const session = State.liveSession;
+  if (!session) { showToast('No live practice open', 'warning'); return; }
+  fevEditIndex = idx;
+  const ev = idx >= 0 ? session.eventLog[idx] : null;
+  if (idx >= 0 && !ev) { showToast('That event is no longer in the log', 'danger'); return; }
+
+  const nowTs = getVideoTimestamp();
+  fevForm = ev
+    ? {
+        filmTime: ev.videoTs != null ? fmtVideoTs(ev.videoTs) : '',
+        quarter:  ev.quarter || currentQuarterNum(),
+        clock:    ev.timeSecs != null ? fmtClockRemain(ev.timeSecs) : '',
+        // EVERY pair, not just the first — a two-player sub must show as two rows.
+        swaps: subPairs(ev).map(sp => ({
+          team: sp.team || ev.team || 'a',
+          out:  sp.playerOut || '',
+          in:   sp.playerIn  || '',
+        })),
+      }
+    : {
+        filmTime: nowTs != null ? fmtVideoTs(nowTs) : '',
+        quarter:  currentQuarterNum(),
+        clock:    '',
+        swaps: [{ team: 'a', out: '', in: '' }],
+      };
+
+  document.getElementById('modal-film-event').classList.remove('hidden');
+  renderFilmEventModal();
+}
+
+function closeFilmEventModal() {
+  document.getElementById('modal-film-event').classList.add('hidden');
+  fevEditIndex = -1;
+  fevForm = null;
+  /* Cancelling out of a resolution leaves the ghost standing — intent is not outcome. */
+  _ghostResolving = null;
+}
+
+function fevSet(key, value) {
+  if (!fevForm) return;
+  fevForm[key] = value;
+  renderFilmEventModal();
+}
+
+function fevSetSwap(i, field, value) {
+  if (!fevForm || !fevForm.swaps[i]) return;
+  fevForm.swaps[i][field] = value;
+  /* Switching a row's team invalidates its picks — the floor it was choosing from belongs
+     to the other squad now. Clearing beats leaving a name that isn't on that floor. */
+  if (field === 'team') { fevForm.swaps[i].out = ''; fevForm.swaps[i].in = ''; }
+  renderFilmEventModal();
+}
+
+function fevAddSwap() {
+  if (!fevForm) return;
+  const last = fevForm.swaps[fevForm.swaps.length - 1];
+  fevForm.swaps.push({ team: last ? last.team : 'a', out: '', in: '' });
+  renderFilmEventModal();
+}
+
+function fevRemoveSwap(i) {
+  if (!fevForm || fevForm.swaps.length <= 1) return;
+  fevForm.swaps.splice(i, 1);
+  renderFilmEventModal();
+}
+
+function fevUseCurrentFilmTime() {
+  const t = getVideoTimestamp();
+  if (t == null) { showToast('No film loaded', 'warning'); return; }
+  fevSet('filmTime', fmtVideoTs(t));
+}
+
+/* The floor/bench each swap row should offer.
+   Row N picks from the state AFTER rows 0..N-1 have been applied: once row 0 brings a
+   player on, they are on the floor for row 1 and can't be brought on again — and the
+   player row 0 took off is back on the bench and legal to bring in. Without this the form
+   happily builds a lineup holding one player twice, which confirmAllSubs() blocks live and
+   nothing would have blocked here. */
+function fevSwapStates(session, refIdx, swaps, log) {
+  const base = lineupsAtIndex(session, refIdx, log);
+  const a = [...base.a], b = [...base.b];
+  const states = [];
+  for (const sw of swaps) {
+    states.push({ a: [...a], b: [...b] });
+    const lu = sw.team === 'a' ? a : b;
+    const j = lu.indexOf(sw.out);
+    if (j !== -1 && sw.in) lu[j] = sw.in;
+  }
+  return states;
+}
+
+function renderFilmEventModal() {
+  const body  = document.getElementById('fev-body');
+  const title = document.getElementById('fev-title');
+  if (!body || !fevForm) return;
+  const session = State.liveSession;
+  const ev = fevEditIndex >= 0 ? session.eventLog[fevEditIndex] : null;
+
+  title.textContent = ev ? 'Edit Film Event' : 'Add Missed Substitution';
+
+  /* Film time is REQUIRED to add (there is no other way to place a new event) but OPTIONAL
+     to edit. Leaving it blank keeps the event exactly where it already sits in the log.
+     That distinction matters: none of the subs logged before today carry a videoTs, so
+     forcing a value on edit made every one of them relocate — and a film that starts
+     48 minutes before tip-off means a plausible-looking time lands at index 0. */
+  const timeField = `
+    <div class="fev-field">
+      <div class="fev-label">Film time${ev ? ' <span style="text-transform:none;font-weight:600;color:var(--text-dim)">— optional; blank leaves it in place</span>' : ''}</div>
+      <div style="display:flex;gap:6px;">
+        <input class="fev-input" type="text" value="${escHtml(fevForm.filmTime)}"
+          placeholder="${ev ? 'leave blank to keep its position' : 'e.g. 1:12:05'}" onchange="fevSet('filmTime', this.value)">
+        <button class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="fevUseCurrentFilmTime()">Use current</button>
+      </div>
+      <div class="fev-hint">Position in the film — note your film may not start at tip-off. This decides where the event is spliced into the log, and therefore every lineup number after it.</div>
+    </div>`;
+
+  if (ev && ev.type !== 'sub') {
+    /* Non-sub tags: retime or remove only. Their ORDER is left alone on purpose — the
+       possession and kill counters read event ADJACENCY (a miss followed by its rebound),
+       so resequencing a shot would break that pairing for a cosmetic gain. */
+    body.innerHTML = `
+      <div class="fev-hint" style="margin-bottom:12px;">
+        <b>${escHtml(ev.player || '')}</b> — ${escHtml(ev.stat === 'note' ? ('★ ' + (ev.note || 'Note')) : (statLabel(ev.stat) || ev.stat))}
+      </div>
+      ${timeField}
+      <div class="fev-hint" style="margin-bottom:14px;">Retiming changes where this row seeks to and where it sits in the Event Timeline. Its position in the log is left as-is, because the possession and kill counters read event adjacency.</div>
+      <div style="display:flex;gap:8px;justify-content:space-between;">
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);" onclick="fevDeleteEvent()">Delete event</button>
+        <button class="btn btn-primary btn-sm" onclick="fevSaveRetime()">Save film time</button>
+      </div>`;
+    return;
+  }
+
+  // ── Substitution form (add or edit) ──
+  const teamAName = session.teamAName || 'White';
+  const teamBName = session.teamBName || 'Black';
+  const teamLabel = t => (t === 'a' ? teamAName : teamBName);
+  const teamColor = t => (t === 'a' ? '#60a5fa' : '#fb923c');
+
+  const qMax = currentQuarterNum();
+  const qOpts = Array.from({ length: qMax }, (_, i) => i + 1)
+    .map(q => `<option value="${q}" ${Number(fevForm.quarter) === q ? 'selected' : ''}>Q${q}</option>`).join('');
+
+  const clockFields = `
+    <div style="display:flex;gap:10px;">
+      <div class="fev-field" style="flex:0 0 104px;">
+        <div class="fev-label">Quarter</div>
+        <select class="fev-select" onchange="fevSet('quarter', this.value)">${qOpts}</select>
+      </div>
+      <div class="fev-field" style="flex:1;">
+        <div class="fev-label">Clock remaining</div>
+        <input class="fev-input" type="text" value="${escHtml(fevForm.clock)}" placeholder="e.g. 5:30"
+          onchange="fevSet('clock', this.value)">
+      </div>
+    </div>
+    <div class="fev-hint" style="margin:-6px 0 12px;">Game clock left in that quarter. Separate from film time, and the only thing minutes are split on.</div>`;
+
+  /* Add and edit share one editable swap UI. Editing used to render a read-only list on the
+     theory that a retimed sub keeps its players — but "I put the wrong man in" is at least
+     as common as "I put him in at the wrong time", and the save path already removes and
+     reinserts the whole event, so honouring changed players costs nothing extra. */
+  const filmSecs = parseFilmTime(fevForm.filmTime);
+  /* When editing, reason about a log with THIS event taken out. Both the splice point and
+     the floor-at-that-moment have to ignore the event being edited, or it blocks its own
+     players from appearing in its own pickers. */
+  const workingLog = ev
+    ? (session.eventLog || []).filter((_, k) => k !== fevEditIndex)
+    : (session.eventLog || []);
+  const insertAt = filmSecs == null ? workingLog.length : filmInsertIndex(workingLog, filmSecs);
+  const states = fevSwapStates(session, insertAt, fevForm.swaps, workingLog);
+
+  const swapRows = fevForm.swaps.map((sw, i) => {
+    const st = states[i] || { a: [], b: [] };
+    const onFloor = sw.team === 'a' ? st.a : st.b;
+    const bothFloors = new Set([...st.a, ...st.b]);
+    const bench = sortByLastName(State.roster.map(r => r.name).filter(n => !bothFloors.has(n)));
+
+    /* A stored pick can fall outside its computed list — retime a sub past another one and
+       the player who was on the floor "then" may not be any more. Dropping it would blank
+       the select while fevForm still held the value, so it is kept as a flagged option
+       rather than silently disappearing. */
+    const opts = (list, current, note) => {
+      const names = list.slice();
+      if (current && !names.includes(current)) names.push(current);
+      return ['<option value="">— pick —</option>'].concat(
+        sortByLastName(names).map(n => {
+          const odd = !list.includes(n);
+          return `<option value="${escHtml(n)}" ${current === n ? 'selected' : ''}>${escHtml(n)}${odd ? ' · ' + note : ''}</option>`;
+        })
+      ).join('');
+    };
+    const outOpts = opts(onFloor, sw.out, 'not on floor then');
+    const inOpts  = opts(bench,   sw.in,  'was on floor then');
+
+    return `
+      <div style="border:1px solid var(--border);border-radius:6px;padding:9px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
+          <button class="sc-pill${sw.team === 'a' ? ' active' : ''}" onclick="fevSetSwap(${i},'team','a')">${escHtml(teamAName)}</button>
+          <button class="sc-pill${sw.team === 'b' ? ' active' : ''}" onclick="fevSetSwap(${i},'team','b')">${escHtml(teamBName)}</button>
+          ${fevForm.swaps.length > 1
+            ? `<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:rgba(239,68,68,0.3);padding:1px 7px;" onclick="fevRemoveSwap(${i})" title="Remove this swap">✕</button>`
+            : ''}
+        </div>
+        <div style="display:flex;gap:10px;">
+          <div style="flex:1;">
+            <div class="fev-label">Out (on floor then)</div>
+            <select class="fev-select" onchange="fevSetSwap(${i},'out',this.value)">${outOpts}</select>
+          </div>
+          <div style="flex:1;">
+            <div class="fev-label">In (on bench then)</div>
+            <select class="fev-select" onchange="fevSetSwap(${i},'in',this.value)">${inOpts}</select>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  /* Show exactly where this will land. A film time is only meaningful relative to the
+     events around it, and typing one blind is how a sub ends up at the tip-off. */
+  let placement;
+  if (filmSecs == null) {
+    placement = ev
+      ? `Staying at its current position in the log (#${fevEditIndex + 1} of ${(session.eventLog || []).length}).`
+      : 'Enter a film time to place this event.';
+  } else {
+    const before = fevDescribe(workingLog[insertAt - 1]);
+    const after  = fevDescribe(workingLog[insertAt]);
+    placement = `Lands at #${insertAt + 1} of ${workingLog.length + 1}` +
+      (before ? ` — after “${before}”` : ' — at the very start of the log') +
+      (after ? `, before “${after}”` : ', at the very end of the log') + '.';
+  }
+
+  body.innerHTML = `
+    ${timeField}
+    <div class="fev-hint" style="margin:-6px 0 12px;padding:6px 8px;border-left:2px solid var(--border);">${escHtml(placement)}</div>
+    ${clockFields}
+    <div class="fev-field">
+      <div class="fev-label">Swaps at this moment</div>
+      ${swapRows}
+      <button class="btn btn-ghost btn-sm" onclick="fevAddSwap()">+ Another swap</button>
+      <div class="fev-hint">A double sub at one dead ball is ONE event with two swaps — add a row rather than adding two separate subs, or the log gains a moment that never happened. Each row's lists reflect the floor <i>after</i> the rows above it.</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;">
+      ${ev ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);" onclick="fevDeleteEvent()">Delete substitution</button>` : '<span></span>'}
+      <div style="display:flex;gap:8px;">
+        ${ev ? `<button class="btn btn-ghost btn-sm" style="${ev.ghostFlag ? 'color:var(--warning);border-color:var(--warning);' : ''}" onclick="ghostToggleFlag()" title="Add this sub to the review list without changing anything">⚑ ${ev.ghostFlag ? 'Flagged — clear' : 'Flag for review'}</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="fevSaveSub()">${ev ? 'Save changes' : 'Add substitution'}</button>
+      </div>
+    </div>`;
+}
+
+/* ── Mutations ── */
+
+/* Everything a retroactive edit has to refresh. The undo stack is dropped deliberately: its
+   entries hold log positions that no longer mean what they meant, and a half-valid undo is
+   worse than none. */
+function fevAfterMutation(session, message, snapshotBefore, label) {
+  /* Recorded here, not at the top of the mutators, so a change that gets rolled back never
+     leaves a revert point behind. */
+  if (snapshotBefore) fevPushUndo(snapshotBefore, label || message, session.id);
+  saveLiveSession(session);
+  rebuildCurrentLineups();
+  undoGroups.length = 0;
+  redoGroups.length = 0;
+  updateUndoRedo();
+  renderTeamColumn('a');
+  renderTeamColumn('b');
+  updateActionFeed();
+  updateVtsLog();
+  renderLineupPlusMinus();
+  updateScorebar();
+  closeFilmEventModal();
+  showToast(message, 'success', 4000);
+}
+
+function fevSaveSub() {
+  const session = State.liveSession;
+  if (!session || !fevForm) return;
+  const ev = fevEditIndex >= 0 ? session.eventLog[fevEditIndex] : null;
+  const snapshotBefore = JSON.stringify(session);
+
+  const filmSecs = parseFilmTime(fevForm.filmTime);
+  // Adding needs a film time to place the event at all; editing does not.
+  if (filmSecs == null && !ev) { showToast('Enter a film time so the event can be placed', 'danger', 3500); return; }
+  const clockSecs = parseTimeInput(fevForm.clock);
+  if (clockSecs == null) { showToast('Enter the game clock remaining (e.g. 5:30)', 'danger', 3000); return; }
+  const quarter = Number(fevForm.quarter) || currentQuarterNum();
+
+  /* Validate the form's swaps FIRST, before anything is removed. An edit that fails
+     validation half-way would otherwise leave the log with the old event already spliced
+     out and no replacement — the one state this feature must never reach. */
+  const rows = fevForm.swaps.filter(sw => sw.out || sw.in);
+  if (!rows.length) { showToast('Pick who went out and who came in', 'danger', 3000); return; }
+  const bad = rows.find(sw => !sw.out || !sw.in);
+  if (bad) { showToast('Every swap needs both an Out and an In', 'danger', 3000); return; }
+  const same = rows.find(sw => sw.out === sw.in);
+  if (same) { showToast(`${same.out} can't sub for themselves`, 'danger', 3000); return; }
+  /* Same guard confirmAllSubs() applies live: block the impossible OUTCOME rather than
+     restricting the pickers, because a lineup holding one player twice is silent
+     corruption that every downstream stat inherits. */
+  const ins = rows.map(sw => sw.in);
+  const dupe = ins.find((n, i) => ins.indexOf(n) !== i);
+  if (dupe) { showToast(`${dupe} is subbing into two spots`, 'danger', 3500); return; }
+
+  const swaps = rows.map(sw => ({ team: sw.team, playerOut: sw.out, playerIn: sw.in }));
+
+  /* Transactional from here: snapshot both structures so a mutation that turns out to be
+     impossible can be rolled back entirely rather than half-applied. */
+  const logBackup = (session.eventLog || []).slice();
+  const segBackup = JSON.parse(JSON.stringify(session.lineupSegments || []));
+  /* The conflict COUNT is part of the snapshot. The log may already be inconsistent — a
+     missed sub does exactly that — and an edit must be judged on whether it makes things
+     worse, never on whether the log is perfect. */
+  const badBefore = unapplicableSubs(session).length;
+
+  /* Editing is remove-then-reinsert. The removal must undo the segment split with the
+     event's ORIGINAL swaps and original clock — using the new ones would un-apply a swap
+     that was never applied and leave the stints holding a player who never left. */
+  if (ev) {
+    unsplitSegmentForSub(session, ev.quarter, ev.timeSecs, swapsOf(ev));
+    session.eventLog.splice(fevEditIndex, 1);
+  }
+
+  const subEv = ev || { type: 'sub', ts: Date.now(), manual: true };
+  /* vtsSearchText() memoises an event's searchable string on the event itself. Changing who
+     swapped makes that cache a lie — the Film Events search would keep matching the OLD
+     names and miss the new ones. Drop it whenever the event's contents change. */
+  delete subEv._vtsSearch;
+  subEv.subs      = swaps.map(x => ({ team: x.team, playerOut: x.playerOut, playerIn: x.playerIn }));
+  subEv.team      = swaps[0].team;          // legacy flat mirror of the first swap
+  subEv.playerOut = swaps[0].playerOut;
+  subEv.playerIn  = swaps[0].playerIn;
+  subEv.videoTs   = filmSecs;
+  subEv.timeSecs  = clockSecs;
+  subEv.quarter   = quarter;
+
+  /* No film time on an edit means "leave it where it was" — put it back at its own index
+     instead of asking filmInsertIndex where a null belongs. */
+  const at = filmSecs == null ? Math.min(fevEditIndex, session.eventLog.length)
+                              : filmInsertIndex(session.eventLog, filmSecs);
+  session.eventLog.splice(at, 0, subEv);
+
+  /* The check that would have caught this whole class of bug: if any substitution in the
+     rebuilt log now tries to remove a player who isn't on the floor, the event landed
+     somewhere impossible. Refuse it and restore, rather than letting the silent no-op in
+     rebuildCurrentLineups() hide the mistake. */
+  const badAfter = unapplicableSubs(session);
+  if (badAfter.length > badBefore) {
+    session.eventLog = logBackup;
+    session.lineupSegments = segBackup;
+    const culprit = badAfter.find(x => x.ev === subEv) || badAfter[badAfter.length - 1];
+    showToast(
+      `Can't place it there — ${culprit.pair.playerOut} isn't on the floor at that point ` +
+      `in the log. Check the film time (your film may not start at tip-off). Nothing was changed.`,
+      'danger', 9000);
+    return;
+  }
+  const resolved = badBefore - badAfter.length;
+
+  const n = swaps.length;
+  const verb = ev ? 'updated' : 'added';
+  const where = filmSecs == null ? 'in place' : 'at ' + fmtVideoTs(filmSecs);
+  const split = splitSegmentForSub(session, quarter, clockSecs, swaps);
+  const tail = resolved > 0
+    ? ` — and ${resolved} lineup conflict${resolved === 1 ? '' : 's'} resolved`
+    : (split ? ' — lineups and minutes updated'
+             : ` — lineups updated, but no stint covers Q${quarter} ${fmtClockRemain(clockSecs)}, so minutes are unchanged`);
+  /* Only now — past every validation and the conflict guard — is the ghost settled. It is
+     marked resolved rather than deleted, so the record of "there was a gap here, and this
+     is the sub that closed it" survives. */
+  let ghostTail = '';
+  if (_ghostResolving) {
+    const g = ghostList(session).find(x => x.id === _ghostResolving);
+    if (g) {
+      g.resolved = true;
+      g.resolvedAt = new Date().toISOString();
+      ghostTail = ' — ghost sub resolved';
+    }
+    _ghostResolving = null;
+  }
+
+  fevAfterMutation(session, `${n} sub${n === 1 ? '' : 's'} ${verb} ${where}${tail}${ghostTail}`,
+    snapshotBefore, `${n} sub${n === 1 ? '' : 's'} ${verb} ${where}${ghostTail}`);
+}
+
+function fevSaveRetime() {
+  const session = State.liveSession;
+  const ev = session && fevEditIndex >= 0 ? session.eventLog[fevEditIndex] : null;
+  if (!ev) return;
+  const filmSecs = parseFilmTime(fevForm.filmTime);
+  if (filmSecs == null) { showToast('Enter a valid film time (e.g. 41:20)', 'danger', 3000); return; }
+  const snapshotBefore = JSON.stringify(session);
+  ev.videoTs = filmSecs;
+  delete ev._vtsSearch;
+  fevAfterMutation(session, `Retimed to ${fmtVideoTs(filmSecs)}`, snapshotBefore,
+    `Retimed ${fevDescribe(ev)} to ${fmtVideoTs(filmSecs)}`);
+}
+
+function fevDeleteEvent() {
+  const session = State.liveSession;
+  const ev = session && fevEditIndex >= 0 ? session.eventLog[fevEditIndex] : null;
+  if (!ev) return;
+  const isSub = ev.type === 'sub';
+  const what = isSub ? subSummaryShort(ev) : `${ev.player || ''} ${statLabel(ev.stat) || ev.stat}`;
+  const consequence = isSub
+    ? 'The stint it created is merged back into the one before it, and every later lineup loses this swap.'
+    : "The stat comes off this player's totals when the practice is finalized.";
+  if (!confirm(`Delete this event?\n\n  ${what}\n\n${consequence}\n\nThis cannot be undone.`)) return;
+
+  const snapshotBefore = JSON.stringify(session);
+  if (isSub) unsplitSegmentForSub(session, ev.quarter, ev.timeSecs, swapsOf(ev));
+  session.eventLog.splice(fevEditIndex, 1);
+  fevAfterMutation(session, 'Event deleted', snapshotBefore, `Deleted ${what}`);
+}
+
+/* ============================================================
+   GHOST SUBS - bookkeeping for substitutions the log cannot prove
+   ------------------------------------------------------------
+   Two different mistakes produce the same symptom, and both used to be unrecordable:
+
+     - A sub happened and you cannot yet name it. Film is cut off, the camera panned, two
+       players changed at a dead ball and only one was caught. unapplicableSubs() will
+       eventually SHOUT about this - some later sub takes a player off who, per the log,
+       never came on - but that fires at the wrong end. The moment you notice is while
+       watching, and there was nowhere to put the observation.
+
+     - A sub is recorded, and you suspect it is wrong. Nothing is inconsistent, so no
+       existing check will ever flag it. It just quietly reports the wrong five.
+
+   WHERE THIS DATA LIVES, AND WHY IT MATTERS
+   Ghost markers are held in `session.ghostSubs`, a SIBLING of eventLog - never inside it.
+   That is not tidiness, it is the whole safety argument. Roughly thirty call sites in this
+   file partition the log with `ev.type !== 'sub'` and treat everything else as a stat
+   event; a ghost entry sitting in eventLog would be swept into possession counts, team
+   totals, quarter scores and the play-by-play by every one of them. Kept outside, a ghost
+   sub CANNOT move a minute, a plus-minus or a point, and that guarantee is structural
+   rather than a rule someone has to remember.
+
+   Review flags take the opposite approach for the opposite reason: `ev.ghostFlag` is set
+   ON the substitution event itself. A flag has to survive the log being spliced, retimed
+   and reordered underneath it, and an index would not - fevSaveSub() removes and reinserts
+   events routinely. Travelling with the event is the only binding that holds. Unknown
+   properties are inert here: everything that reads a sub goes through subPairs().
+============================================================ */
+
+function ghostList(session) {
+  return (session && Array.isArray(session.ghostSubs)) ? session.ghostSubs : [];
+}
+
+/* Resolved ghosts are kept, not deleted - "there was a gap here and this is how it was
+   settled" is worth more later than a clean array. Only open ones are surfaced. */
+function ghostOpen(session) {
+  return ghostList(session).filter(g => !g.resolved);
+}
+
+function ghostFlagged(session) {
+  const out = [];
+  ((session && session.eventLog) || []).forEach((ev, idx) => {
+    if (ev.type === 'sub' && ev.ghostFlag) out.push({ ev, idx });
+  });
+  return out;
+}
+
+function ghostReviewCount(session) {
+  return ghostOpen(session).length + ghostFlagged(session).length;
+}
+
+/* The floor at a film moment, captured when the ghost is created. Stored rather than
+   recomputed because the log will keep changing around it, and what you want six weeks
+   later is who you BELIEVED was out there when you flagged it. */
+function ghostLineupsAt(session, videoTs) {
+  const idx = videoTs == null
+    ? (session.eventLog || []).length
+    : filmInsertIndex(session.eventLog || [], videoTs);
+  return lineupsAtIndex(session, idx);
+}
+
+function ghostSearchText(g) {
+  return ('ghost sub review ' + (g.note || '') + ' ' +
+          (g.lineupA || []).join(' ') + ' ' + (g.lineupB || []).join(' ')).toLowerCase();
+}
+
+/* -- Create / edit modal -- */
+
+let gsForm = null;
+let gsEditId = null;
+/* Set while a ghost is being turned into a real substitution, so fevSaveSub() knows to
+   close the ghost out once the sub actually lands. Cleared on every exit path. */
+let _ghostResolving = null;
+
+function ghostOpenModal(id) {
+  const session = State.liveSession;
+  if (!session) { showToast('No live practice open', 'warning'); return; }
+
+  const g = id ? ghostList(session).find(x => x.id === id) : null;
+  if (id && !g) { showToast('That ghost sub is no longer on the list', 'danger'); return; }
+
+  gsEditId = g ? g.id : null;
+  const nowTs = getVideoTimestamp();
+
+  gsForm = g
+    ? {
+        filmTime:    g.videoTs    != null ? fmtVideoTs(g.videoTs)    : '',
+        endFilmTime: g.endVideoTs != null ? fmtVideoTs(g.endVideoTs) : '',
+        quarter:     g.quarter || currentQuarterNum(),
+        clock:       g.clock    != null ? fmtClockRemain(g.clock)    : '',
+        endClock:    g.endClock != null ? fmtClockRemain(g.endClock) : '',
+        note:        g.note || '',
+      }
+    : {
+        filmTime:    nowTs != null ? fmtVideoTs(nowTs) : '',
+        endFilmTime: '',
+        quarter:     currentQuarterNum(),
+        clock:       '',
+        endClock:    '',
+        note:        '',
+      };
+
+  showModal('modal-ghost');
+  renderGhostModal();
+}
+
+function ghostCloseModal() {
+  hideModal('modal-ghost');
+  gsForm = null;
+  gsEditId = null;
+}
+
+function gsSet(key, value) {
+  if (!gsForm) return;
+  gsForm[key] = value;
+  renderGhostModal();
+}
+
+function gsUseCurrentFilmTime(key) {
+  const t = getVideoTimestamp();
+  if (t == null) { showToast('No film loaded', 'warning'); return; }
+  gsSet(key, fmtVideoTs(t));
+}
+
+function renderGhostModal() {
+  const body  = document.getElementById('gs-body');
+  const title = document.getElementById('gs-title');
+  if (!body || !gsForm) return;
+  const session = State.liveSession;
+  if (!session) return;
+
+  title.textContent = gsEditId ? '\u2691 Edit Ghost Sub' : '\u2691 Ghost Sub';
+
+  const filmSecs = parseFilmTime(gsForm.filmTime);
+  const floors = ghostLineupsAt(session, filmSecs);
+  const teamAName = session.teamAName || 'White';
+  const teamBName = session.teamBName || 'Black';
+
+  const qMax = currentQuarterNum();
+  const qOpts = Array.from({ length: qMax }, (_, i) => i + 1)
+    .map(q => `<option value="${q}" ${Number(gsForm.quarter) === q ? 'selected' : ''}>Q${q}</option>`).join('');
+
+  body.innerHTML = `
+    <div class="fev-hint" style="margin-bottom:14px;padding:8px 10px;border-left:2px solid var(--warning);background:rgba(245,158,11,0.07);">
+      Use this when the floor changed and you cannot yet say how &mdash; the film cut away, or two
+      players swapped at a dead ball and you only caught one. It records the moment and the five
+      you believe were out there, and <b>changes no statistic at all</b>: a ghost sub is stored
+      outside the event log, so minutes, plus-minus and the box score cannot see it. Resolve it
+      into a real substitution when you work out what happened.
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <div class="fev-field" style="flex:1;">
+        <div class="fev-label">Film time</div>
+        <div style="display:flex;gap:6px;">
+          <input class="fev-input" type="text" value="${escHtml(gsForm.filmTime)}"
+            placeholder="e.g. 2:20:51" onchange="gsSet('filmTime', this.value)">
+          <button class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="gsUseCurrentFilmTime('filmTime')">Now</button>
+        </div>
+      </div>
+      <div class="fev-field" style="flex:1;">
+        <div class="fev-label">Window ends <span style="text-transform:none;font-weight:600;color:var(--text-dim)">&mdash; optional</span></div>
+        <div style="display:flex;gap:6px;">
+          <input class="fev-input" type="text" value="${escHtml(gsForm.endFilmTime)}"
+            placeholder="next known sub" onchange="gsSet('endFilmTime', this.value)">
+          <button class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="gsUseCurrentFilmTime('endFilmTime')">Now</button>
+        </div>
+      </div>
+    </div>
+    <div class="fev-hint" style="margin:-6px 0 12px;">
+      If you know the change happened somewhere between two points rather than at one, set both.
+      The window is what makes a ghost worth revisiting &mdash; it bounds the search when you come
+      back to the film.
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <div class="fev-field" style="flex:0 0 104px;">
+        <div class="fev-label">Quarter</div>
+        <select class="fev-select" onchange="gsSet('quarter', this.value)">${qOpts}</select>
+      </div>
+      <div class="fev-field" style="flex:1;">
+        <div class="fev-label">Clock <span style="text-transform:none;font-weight:600;color:var(--text-dim)">&mdash; optional</span></div>
+        <input class="fev-input" type="text" value="${escHtml(gsForm.clock)}" placeholder="e.g. 3:21"
+          onchange="gsSet('clock', this.value)">
+      </div>
+      <div class="fev-field" style="flex:1;">
+        <div class="fev-label">Clock at end <span style="text-transform:none;font-weight:600;color:var(--text-dim)">&mdash; optional</span></div>
+        <input class="fev-input" type="text" value="${escHtml(gsForm.endClock)}" placeholder="e.g. 2:04"
+          onchange="gsSet('endClock', this.value)">
+      </div>
+    </div>
+
+    <div class="fev-field">
+      <div class="fev-label">What you saw</div>
+      <input class="fev-input" type="text" value="${escHtml(gsForm.note)}" maxlength="200"
+        placeholder="e.g. Black changed two at the foul - only caught Hees going off"
+        onchange="gsSet('note', this.value)">
+      <div class="fev-hint">Write it for yourself in six weeks, not for right now.</div>
+    </div>
+
+    <div class="fev-field">
+      <div class="fev-label">Floor as the log has it here</div>
+      <div class="gs-item-floor" style="margin-top:2px;">
+        <b style="color:#93c5fd">${escHtml(teamAName)}</b> &mdash; ${escHtml(sortByLastName(floors.a).join(', ')) || '<i>none</i>'}<br>
+        <b style="color:#fdba74">${escHtml(teamBName)}</b> &mdash; ${escHtml(sortByLastName(floors.b).join(', ')) || '<i>none</i>'}
+      </div>
+      <div class="fev-hint">Captured with the ghost, so a later fix cannot quietly rewrite what you were looking at.</div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;">
+      ${gsEditId
+        ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);" onclick="ghostDelete('${escHtml(gsEditId)}')">Delete</button>`
+        : '<span></span>'}
+      <div style="display:flex;gap:8px;">
+        ${gsEditId
+          ? `<button class="btn btn-ghost btn-sm" onclick="ghostResolveToSub('${escHtml(gsEditId)}')">Resolve into a real sub &rarr;</button>`
+          : ''}
+        <button class="btn btn-primary btn-sm" onclick="ghostSave()">${gsEditId ? 'Save' : 'Add ghost sub'}</button>
+      </div>
+    </div>`;
+}
+
+function ghostSave() {
+  const session = State.liveSession;
+  if (!session || !gsForm) return;
+
+  const videoTs = parseFilmTime(gsForm.filmTime);
+  if (videoTs == null) {
+    showToast('A ghost sub needs a film time - that is the whole point of it', 'danger', 4000);
+    return;
+  }
+  const endVideoTs = parseFilmTime(gsForm.endFilmTime);
+  if (endVideoTs != null && endVideoTs < videoTs) {
+    showToast('The window ends before it starts', 'danger', 3500);
+    return;
+  }
+  const clock    = parseTimeInput(gsForm.clock);
+  const endClock = parseTimeInput(gsForm.endClock);
+  /* The game clock counts DOWN, so a window that ends LATER has a SMALLER value. Getting
+     this backwards is easy and silently produces a window nobody can search. */
+  if (clock != null && endClock != null && endClock > clock) {
+    showToast('Clock runs down - the end of the window should be a smaller time than the start', 'danger', 5000);
+    return;
+  }
+
+  const floors = ghostLineupsAt(session, videoTs);
+  session.ghostSubs = ghostList(session).slice();
+
+  const existing = gsEditId ? session.ghostSubs.find(x => x.id === gsEditId) : null;
+  const rec = existing || {
+    id: 'ghost_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    createdAt: new Date().toISOString(),
+    resolved: false,
+    resolvedAt: null,
+  };
+
+  rec.videoTs    = videoTs;
+  rec.endVideoTs = endVideoTs;
+  rec.quarter    = Number(gsForm.quarter) || currentQuarterNum();
+  rec.clock      = clock;
+  rec.endClock   = endClock;
+  rec.note       = (gsForm.note || '').trim();
+  /* Only stamped on creation. Re-saving an old ghost must not overwrite the floor you
+     originally recorded with whatever the log happens to say today. */
+  if (!existing) { rec.lineupA = floors.a; rec.lineupB = floors.b; }
+
+  if (!existing) session.ghostSubs.push(rec);
+
+  saveLiveSession(session);
+  updateVtsLog();
+  ghostCloseModal();
+  showToast(existing ? 'Ghost sub updated' : `Ghost sub marked at ${fmtVideoTs(videoTs)} - no stats changed`, 'success', 4500);
+}
+
+function ghostDelete(id) {
+  const session = State.liveSession;
+  if (!session) return;
+  const g = ghostList(session).find(x => x.id === id);
+  if (!g) return;
+  if (!confirm(`Delete this ghost sub?\n\n  ${fmtVideoTs(g.videoTs)} - ${g.note || 'no note'}\n\nNothing else changes; it never affected a statistic.`)) return;
+  session.ghostSubs = ghostList(session).filter(x => x.id !== id);
+  saveLiveSession(session);
+  updateVtsLog();
+  ghostCloseModal();
+  renderGhostReview();
+  showToast('Ghost sub deleted', 'success');
+}
+
+/* Hand the ghost's coordinates to the ordinary "add a missed substitution" form. The ghost
+   is NOT closed here - only once the sub is actually saved, because the form can still be
+   cancelled or refused by the conflict guard, and a ghost cleared on intent rather than on
+   outcome is exactly the silent data loss this feature exists to prevent. */
+function ghostResolveToSub(id) {
+  const session = State.liveSession;
+  if (!session) return;
+  const g = ghostList(session).find(x => x.id === id);
+  if (!g) return;
+
+  ghostCloseModal();
+  hideModal('modal-ghost-review');
+  openFilmEventModal(-1);
+  if (!fevForm) return;
+  _ghostResolving = g.id;
+  fevForm.filmTime = g.videoTs != null ? fmtVideoTs(g.videoTs) : '';
+  fevForm.quarter  = g.quarter || currentQuarterNum();
+  if (g.clock != null) fevForm.clock = fmtClockRemain(g.clock);
+  renderFilmEventModal();
+  showToast('Fill in who actually swapped - the ghost clears when it saves', 'info', 5000);
+}
+
+/* -- Entry point 2: flag a substitution that is already recorded -- */
+
+function ghostToggleFlag() {
+  const session = State.liveSession;
+  if (!session || fevEditIndex < 0) return;
+  const ev = session.eventLog[fevEditIndex];
+  if (!ev || ev.type !== 'sub') return;
+
+  if (ev.ghostFlag) {
+    delete ev.ghostFlag;
+    saveLiveSession(session);
+    updateVtsLog();
+    renderFilmEventModal();
+    showToast('Review flag cleared', 'success');
+    return;
+  }
+
+  const why = prompt(
+    'Flag this substitution for review.\n\n' +
+    'What looks wrong about it? (optional)\n' +
+    'Nothing changes in the stats - this only adds it to the review list.',
+    ''
+  );
+  if (why === null) return;
+  ev.ghostFlag = { note: (why || '').trim(), at: new Date().toISOString() };
+  saveLiveSession(session);
+  updateVtsLog();
+  renderFilmEventModal();
+  showToast('Flagged for review - no stats changed', 'success', 4000);
+}
+
+function ghostClearFlagAt(idx) {
+  const session = State.liveSession;
+  if (!session) return;
+  const ev = session.eventLog[idx];
+  if (!ev || !ev.ghostFlag) return;
+  delete ev.ghostFlag;
+  saveLiveSession(session);
+  updateVtsLog();
+  renderGhostReview();
+  showToast('Review flag cleared', 'success');
+}
+
+/* -- The shared review queue -- */
+
+function ghostReviewShow() {
+  showModal('modal-ghost-review');
+  renderGhostReview();
+}
+
+function renderGhostReview() {
+  const body = document.getElementById('gs-review-body');
+  if (!body) return;
+  const session = State.liveSession;
+  if (!session) { body.innerHTML = '<div class="gs-empty">No live practice open.</div>'; return; }
+
+  const opens = ghostOpen(session);
+  const flags = ghostFlagged(session);
+  if (!opens.length && !flags.length) {
+    body.innerHTML = '<div class="gs-empty">Nothing waiting. Ghost subs and review flags both land here.</div>';
+    return;
+  }
+
+  const teamAName = session.teamAName || 'White';
+  const teamBName = session.teamBName || 'Black';
+
+  const windowOf = g => {
+    const f = g.videoTs != null ? fmtVideoTs(g.videoTs) : '\u2014';
+    const t = g.endVideoTs != null ? ' \u2192 ' + fmtVideoTs(g.endVideoTs) : '';
+    return f + t;
+  };
+  const clockOf = g => {
+    if (g.clock == null) return '';
+    return ' \u00b7 Q' + (g.quarter || '?') + ' ' + fmtClockRemain(g.clock) +
+           (g.endClock != null ? ' \u2192 ' + fmtClockRemain(g.endClock) : '');
+  };
+
+  const openHtml = opens.map(g => `
+    <div class="gs-item">
+      <div class="gs-item-head">
+        <span class="gs-kind open">Ghost</span>
+        <span class="gs-item-when" onclick="seekFilm(${g.videoTs || 0})" title="Jump the film here">${escHtml(windowOf(g))}</span>
+        <span style="font-weight:600;color:var(--text-dim);font-size:11px;">${escHtml(clockOf(g))}</span>
+      </div>
+      <div class="gs-item-note">${escHtml(g.note || 'No note recorded.')}</div>
+      <div class="gs-item-floor">
+        <b style="color:#93c5fd">${escHtml(teamAName)}</b> ${escHtml(sortByLastName(g.lineupA || []).join(', '))}<br>
+        <b style="color:#fdba74">${escHtml(teamBName)}</b> ${escHtml(sortByLastName(g.lineupB || []).join(', '))}
+      </div>
+      <div class="gs-item-actions">
+        <button class="btn btn-primary btn-sm" onclick="ghostResolveToSub('${escHtml(g.id)}')">Resolve into a real sub</button>
+        <button class="btn btn-ghost btn-sm" onclick="ghostOpenModal('${escHtml(g.id)}')">Edit</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.3);" onclick="ghostDelete('${escHtml(g.id)}')">Delete</button>
+      </div>
+    </div>`).join('');
+
+  const flagHtml = flags.map(({ ev, idx }) => `
+    <div class="gs-item flag">
+      <div class="gs-item-head">
+        <span class="gs-kind flag">Flagged</span>
+        <span class="gs-item-when" ${ev.videoTs != null ? `onclick="seekFilm(${ev.videoTs})" title="Jump the film here"` : 'style="cursor:default;color:var(--text-dim)"'}>${ev.videoTs != null ? escHtml(fmtVideoTs(ev.videoTs)) : 'no film time'}</span>
+        <span style="font-weight:600;color:var(--text-dim);font-size:11px;">${ev.timeSecs != null ? escHtml('\u00b7 Q' + (ev.quarter || '?') + ' ' + fmtClockRemain(ev.timeSecs)) : ''}</span>
+      </div>
+      <div class="gs-item-note"><b>${escHtml(subSummaryShort(ev))}</b>${ev.ghostFlag && ev.ghostFlag.note ? ' &mdash; ' + escHtml(ev.ghostFlag.note) : ''}</div>
+      <div class="gs-item-floor">${escHtml(subPairs(ev).map(sp => `${sp.playerOut} \u2192 ${sp.playerIn}`).join('  \u00b7  '))}</div>
+      <div class="gs-item-actions">
+        <button class="btn btn-primary btn-sm" onclick="hideModal('modal-ghost-review');openFilmEventModal(${idx})">Open and fix</button>
+        <button class="btn btn-ghost btn-sm" onclick="ghostClearFlagAt(${idx})">Looks right &mdash; clear flag</button>
+      </div>
+    </div>`).join('');
+
+  body.innerHTML = openHtml + flagHtml;
+}
+
+/* ============================================================
+   FINAL SCORE OVERRIDE
+   ------------------------------------------------------------
+   The box score is built by replaying tracked events, which is correct and must stay that
+   way: every point in it is attached to a player, a shot type and a possession. But the
+   film is not always the whole practice. When it cuts early the tracked events describe a
+   real, complete, honest SUBSET of the scrimmage - and the actual final score is simply not
+   derivable from them.
+
+   So the override is DISPLAY-ONLY and deliberately narrow. It changes the final score shown
+   and who is credited with the win; it does not fabricate points, does not touch any
+   player's line, and does not alter a single per-quarter column. Where the two disagree the
+   UI says so out loud rather than quietly reconciling them, because a box score that adds
+   up to a different number than the headline is the honest representation of "we tracked
+   what the film showed and the film ended early".
+============================================================ */
+
+function sessionFinalOverride(session) {
+  const o = session && session.finalScore;
+  if (!o) return null;
+  const a = Number(o.a), b = Number(o.b);
+  if (!isFinite(a) || !isFinite(b)) return null;
+  return { a, b, note: o.note || '' };
+}
+
+/* Points as TRACKED - the event-derived truth, always available regardless of any
+   override. Kept separate so the two can be shown side by side. */
+function sessionTrackedPts(session, team) {
+  if (!session || !session.eventLog) return 0;
+  return session.eventLog.reduce((sum, ev) => {
+    if (ev.team !== team) return sum;
+    if (ev.stat === '2fg_make') return sum + 2;
+    if (ev.stat === '3fg_make') return sum + 3;
+    if (ev.stat === 'ft_make')  return sum + 1;
+    return sum;
+  }, 0);
+}
+
+function setSessionFinalScore(sessionId) {
+  const sessions = getSessions();
+  const session = sessions.find(s => s.id === sessionId) ||
+                  (State.liveSession && State.liveSession.id === sessionId ? State.liveSession : null);
+  if (!session) { showToast('Practice not found', 'danger'); return; }
+
+  const tA = sessionTrackedPts(session, 'a');
+  const tB = sessionTrackedPts(session, 'b');
+  const cur = sessionFinalOverride(session);
+
+  const raw = prompt(
+    `Final score for ${session.title || 'this practice'}\n\n` +
+    `Tracked events add up to ${session.teamAName} ${tA} - ${session.teamBName} ${tB}.\n` +
+    `If the film cut off, that is a real subset, not the final.\n\n` +
+    `Enter the TRUE final as "${session.teamAName}-${session.teamBName}", e.g. 99-101.\n` +
+    `Leave blank to clear the override and go back to the tracked score.`,
+    cur ? `${cur.a}-${cur.b}` : ''
+  );
+  if (raw === null) return;
+
+  const txt = raw.trim();
+  if (!txt) {
+    delete session.finalScore;
+    _persistScoreOverride(session, 'Final score override cleared');
+    return;
+  }
+
+  const m = txt.match(/^(\d{1,3})\s*[-\u2013\u2014:\/]\s*(\d{1,3})$/);
+  if (!m) { showToast('Enter it as two numbers, e.g. 99-101', 'danger', 4000); return; }
+  const a = Number(m[1]), b = Number(m[2]);
+  if (a === b) { showToast('A tie needs no override - clear it instead if you meant that', 'warning', 4000); return; }
+
+  const why = prompt(
+    'Why does the tracked score differ? (shown wherever the override appears)',
+    (cur && cur.note) || 'Film cut off before the end of the scrimmage'
+  );
+  if (why === null) return;
+
+  session.finalScore = { a, b, note: (why || '').trim(), setAt: new Date().toISOString() };
+  const winner = a > b ? session.teamAName : session.teamBName;
+  _persistScoreOverride(session, `Final set to ${a}-${b} - ${winner} credited with the win`);
+}
+
+/* A completed practice lives in State.sessions; the in-progress one lives in
+   State.liveSession. They persist through different doors, so the override has to know
+   which it just edited. */
+function _persistScoreOverride(session, message) {
+  if (State.liveSession && State.liveSession.id === session.id) {
+    saveLiveSession(session);
+  } else if (!persistSessions()) {
+    return;   // persistKey already warned
+  }
+  try { tabRenderers.log(); } catch (e) {}
+  try { if (!document.getElementById('modal-boxscore').classList.contains('hidden')) renderBoxScoreView(session.id); } catch (e) {}
+  showToast(message + ' - box score and player lines are unchanged. Re-publish to update the site.', 'success', 7000);
 }
 
 /* ── Time parsing / formatting ── */
