@@ -5806,7 +5806,7 @@ function buildLineupReportRows(session, team, playerName = null) {
     const lineup = team === 'a' ? seg.lineupA : seg.lineupB;
     const st = segStats(session, [seg], team);
     const dur = seg.startTimeSecs != null && seg.endTimeSecs != null
-      ? Math.abs((seg.startTimeSecs ?? 0) - seg.endTimeSecs)
+      ? stintSeconds(seg, 0)
       : null;
     return `<tr>
       <td style="text-align:left;">Q${seg.quarter || '?'}</td>
@@ -9547,7 +9547,7 @@ function segStats(session, segments, team) {
   for (const seg of segments) {
     if (seg.endTimeSecs === null) continue;
     const dur  = session.quarters?.[seg.quarter - 1]?.duration ?? clockState.quarterDuration;
-    const secs = Math.abs((seg.startTimeSecs ?? dur) - seg.endTimeSecs);
+    const secs = stintSeconds(seg, dur);
     totalSecs += secs;
 
     const quarterSegs = segsByQuarter[seg.quarter] || [];
@@ -12408,24 +12408,33 @@ function calcPlayerSeconds(session, playerName, team) {
     const lineup = team === 'a' ? seg.lineupA : seg.lineupB;
     if (!lineup.includes(playerName)) continue;
     const dur = session.quarters?.[seg.quarter - 1]?.duration ?? clockState.quarterDuration;
-    const start = seg.startTimeSecs ?? dur;
-    /* The game clock counts DOWN, so a stint MUST end at a smaller number than it started.
-       This was Math.abs(start - end), which took a backwards stint - the kind
-       closeActiveSegment() leaves behind when a stint is still open as the next quarter
-       stamps its own starting clock onto it - and turned it into a confident positive
-       duration. One such segment (Q5 89 -> 420) handed 4.03 extra minutes to all ten
-       players on the floor and pushed two of them past 100% of the game, with nothing
-       anywhere reporting a problem. Skip it instead: a stint that runs backwards describes
-       no real stretch of basketball, and dropping it is honest where abs() was not. */
-    if (seg.endTimeSecs > start) continue;
-    totalSecs += start - seg.endTimeSecs;
+    totalSecs += stintSeconds(seg, dur);
   }
   return totalSecs;
 }
 
-/* Stints that run backwards. Nothing can compute a duration from one, so they are dropped
-   from minutes - but dropping them quietly is how the original bug survived, so this makes
-   them findable. */
+/* THE one place a stint's length is measured.
+   Player Stats, On/Off and the Lineups table each used to compute this for themselves, and
+   all three reached for Math.abs() - so when a stint came out backwards it did not produce
+   one wrong number that another surface could contradict, it produced the SAME wrong number
+   everywhere and looked like agreement.
+
+   The game clock counts DOWN, so a stint must end at a smaller number than it started.
+   Math.abs() turned an impossible -331 into a confident +331 and handed 4.03 phantom
+   minutes to all ten players on the floor. A backwards stint describes no real stretch of
+   basketball, so it contributes nothing; invertedSegments() is how you find one rather than
+   just missing it. */
+function stintSeconds(seg, fallbackStart) {
+  if (!seg || seg.endTimeSecs == null) return 0;
+  const start = seg.startTimeSecs ?? fallbackStart;
+  if (start == null) return 0;
+  if (seg.endTimeSecs > start) return 0;
+  return start - seg.endTimeSecs;
+}
+
+/* Stints that run backwards. Nothing can compute a duration from one, so they contribute
+   nothing - but doing that quietly is how the original bug survived, so this makes them
+   findable. */
 function invertedSegments(session) {
   return ((session && session.lineupSegments) || [])
     .map((seg, index) => ({ seg, index }))
