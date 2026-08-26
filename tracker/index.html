@@ -2595,6 +2595,29 @@
     @media (max-width: 1100px) { .oo-imp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px)  { .oo-imp-grid { grid-template-columns: 1fr; } .oo-imp-note { text-align: left; } }
 
+    /* Lineup Builder — sits above the lineup table and drives it. */
+    .lu-builder {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); padding: 12px 14px; margin-top: 14px;
+    }
+    .lu-b-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .lu-b-title { font-size: 13px; font-weight: 800; color: var(--text); white-space: nowrap; }
+    .lu-b-slots { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+    .lu-b-slot { min-width: 148px; flex: 0 1 auto; }
+    /* An empty slot recedes; a filled one reads as a committed choice. */
+    .lu-b-slot.is-set { border-color: var(--primary); font-weight: 700; color: var(--text); }
+    .lu-b-note  { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
+    .lu-b-blank { font-size: 12px; color: var(--warning); font-weight: 700; margin-top: 10px; }
+    .lu-b-grid  { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 12px; }
+    /* On a phone the slots take a line of their own rather than sharing one with the title
+       and the Clear button — competing for that row squeezed them to a single dropdown per
+       line when two fit comfortably. */
+    @media (max-width: 900px) {
+      .lu-b-grid  { grid-template-columns: 1fr; }
+      .lu-b-slots { flex: 1 1 100%; }
+      .lu-b-slot  { min-width: 0; flex: 1 1 132px; }
+    }
+
     .oo-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     /* When the card IS the scroll container, its overflow:hidden would clip the wide
        table and make horizontal scrolling impossible. */
@@ -9975,7 +9998,11 @@ function renderLineupsView() {
         const combos = size === 5 ? [fullLineup] : combinations(fullLineup, size);
         for (const combo of combos) {
           const key = [...combo].sort().join(' / ') + (team === 'both' ? `|${t}` : '');
-          if (!lineupMap[key]) lineupMap[key] = { key, displayKey: [...combo].sort().join(' / '), team: t, segments: [] };
+          /* members is the same list displayKey is built from, kept as an array so the
+             Lineup Builder can test membership without splitting a display string back
+             apart on ' / ' — a separator that is only safe until someone's name contains
+             one. Same list, one source. */
+          if (!lineupMap[key]) lineupMap[key] = { key, displayKey: [...combo].sort().join(' / '), members: [...combo].sort(), team: t, segments: [] };
           lineupMap[key].segments.push({ seg, sess, team: t });
         }
       }
@@ -10033,13 +10060,19 @@ function renderLineupsView() {
     const dOrebPct = (totOppOreb + totDreb) > 0 ? +(100*totOppOreb/(totOppOreb+totDreb)).toFixed(1): null;
     const dTovPct  = +(100 * totOppTov / oppPoss).toFixed(1);
     const dFtr     = totOppFga > 0 ? +(totOppFta / totOppFga * 100).toFixed(1)                     : null;
-    return { key: entry.key, displayKey: entry.displayKey || entry.key, team: entry.team, gp, min: +totMin.toFixed(1), poss: +poss.toFixed(1),
+    return { key: entry.key, displayKey: entry.displayKey || entry.key, members: entry.members || [], team: entry.team, gp, min: +totMin.toFixed(1), poss: +poss.toFixed(1),
              ortg, drtg, net, efg, orebPct, tovPct, ftr, dEfg, dOrebPct, dTovPct, dFtr };
   });
 
+  /* Reconcile the builder with the rows that now exist before anything reads it — the size
+     selector changes the slot count, and team/period changes can strand a pick. */
+  _luBuilderSync(lineupRows, size);
+
   const minPoss = Number(seg5Filter.minPoss) || 1;
+  /* The possessions slider spans the whole set, not the builder's subset: rescaling it to
+     the current picks would move the handle under the user every time they chose a player. */
   const maxPoss = Math.max(1, ...lineupRows.map(r => Math.round(r.poss)));
-  const visibleRows = _luSortRows(lineupRows).filter(r => Math.round(r.poss) >= minPoss);
+  const visibleRows = _luSortRows(_luBuilderMatches(lineupRows)).filter(r => Math.round(r.poss) >= minPoss);
 
   // Cache for lightweight slider updates
   window._lineupRows    = lineupRows;
@@ -10061,10 +10094,11 @@ function renderLineupsView() {
     <div class="page-header">
       <div>
         <div class="page-title">Lineup Analytics</div>
-        <div class="page-subtitle" id="lu-subtitle">${visibleRows.length} of ${lineupRows.length} lineup${lineupRows.length !== 1 ? 's' : ''}</div>
+        <div class="page-subtitle" id="lu-subtitle">${visibleRows.length} of ${lineupRows.length} lineup${lineupRows.length !== 1 ? 's' : ''}${luBuilder.filter(Boolean).length ? ` &middot; filtered by ${luBuilder.filter(Boolean).length} pick${luBuilder.filter(Boolean).length === 1 ? '' : 's'}` : ''}</div>
       </div>
       ${_lineupsFilterBar(filtered)}
     </div>
+    ${_luBuilderPanelHtml(lineupRows, size, filtered)}
     <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 0;border-top:1px solid var(--border);">
       <label style="font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">Min. Possessions:</label>
       <input type="range" min="1" max="${maxPoss}" value="${minPoss}" id="lu-poss-slider"
@@ -10134,6 +10168,177 @@ function _luUpdateArrows() {
 }
 
 /* Single lineup row — shared by the initial render, the sort headers, and the slider. */
+/* ── Lineup Builder ─────────────────────────────────────────────────────────
+   Pick players slot by slot and see the unit they form.
+
+   Everything below reads lineupRows, which already holds exactly the N-man combinations
+   that took the floor under the current period/team/size filters. So the builder owns no
+   aggregation of its own and cannot drift from the table beneath it — if a unit is in one
+   it is in the other, by construction.
+
+   luBuilder is one slot per player, '' for empty, always as long as the size selector. */
+let luBuilder = [];
+
+/* Reconcile the slot count with the size selector, and drop only players who have vanished
+   from the data entirely under the current filters.
+
+   A pick that still exists but no longer FITS with the others is deliberately kept. Pruning
+   it would be easy and it would be wrong: "these three never shared the floor" is the exact
+   thing the empty result is there to report, and silently deleting a pick to avoid saying
+   so answers a question the user never asked — and leaves them wondering where their choice
+   went. Dead ends are reported here, not hidden. */
+function _luBuilderSync(rows, size) {
+  const known = new Set(rows.flatMap(r => r.members || []));
+  luBuilder = Array.from({ length: size }, (_, i) => {
+    const n = luBuilder[i];
+    return n && known.has(n) ? n : '';
+  });
+}
+
+/* Which players may still be chosen in one slot.
+
+   The test is "a real lineup exists containing all of these", never "this player exists" —
+   which is what makes the dropdowns cascade. Choose Kubel and the next slot offers only
+   the players who actually shared the floor with him, so a five that never played is
+   unreachable through the UI rather than something you assemble and are then told is
+   empty. (The empty state still exists — changing team or size can strand a pick — but it
+   is a rare corner rather than the normal way to hit a dead end.)
+
+   Keyed off every OTHER slot rather than the earlier ones: fill slot three first and then
+   slot one, and slot one is still constrained by three. Entry order never matters.
+
+   Names already taken elsewhere are removed because a lineup cannot field the same player
+   twice, and members.includes(name) would cheerfully be true for two slots holding it. */
+function _luBuilderOptions(rows, slotIndex) {
+  const others = luBuilder.filter((n, i) => n && i !== slotIndex);
+  const taken  = new Set(others);
+  const out    = new Set();
+  let reachable = false;
+  for (const r of rows) {
+    const m = r.members || [];
+    if (!others.every(n => m.includes(n))) continue;
+    reachable = true;
+    for (const n of m) if (!taken.has(n)) out.add(n);
+  }
+  /* Dead end: the other slots name a group that never shared the floor, so nothing
+     satisfies them and a strictly cascaded list comes back empty — stranding the user with
+     no dropdown able to undo the pick that caused it. Fall back to every available player
+     so the way out is always one change away; the panel states plainly why it is blank. */
+  if (!reachable) {
+    for (const r of rows) for (const n of (r.members || [])) if (!taken.has(n)) out.add(n);
+  }
+  /* This slot's own pick is always listed, even once the filters have made it unreachable.
+     A <select> whose value is missing from its options renders as though nothing were
+     chosen — which would hide a pick that is still filtering the table below. */
+  const mine = luBuilder[slotIndex];
+  if (mine) out.add(mine);
+  return [...out].sort((a, b) => a.localeCompare(b));
+}
+
+/* Rows containing every player picked so far. Nothing picked means every row, which is why
+   an untouched builder leaves the table exactly as it was. */
+function _luBuilderMatches(rows) {
+  const sel = luBuilder.filter(Boolean);
+  if (!sel.length) return rows;
+  return rows.filter(r => sel.every(n => (r.members || []).includes(n)));
+}
+
+function luBuilderSet(i, name) {
+  luBuilder[i] = name || '';
+  renderLineupsView();   // every other slot's options depend on this one
+}
+
+function luBuilderClear() {
+  luBuilder = [];
+  renderLineupsView();
+}
+
+/* One unit's full line, laid out like the On/Off cards so the two read as the same app.
+
+   squadLabel is passed ONLY when a selection matches more than one row, which happens when
+   the same players formed a unit on both squads across different practices — the table keys
+   those separately. The rows deliberately carry no squad badge, because labelling a lineup
+   with one scrimmage team is misleading over a season; but two cards identical down to the
+   name are worse, so the squad appears exactly where it is the only thing telling them
+   apart, and nowhere else. */
+function _luBuilderCardHtml(r, squadLabel) {
+  const f   = (v, s = '') => (v != null ? v + s : '&mdash;');
+  const net = (r.net > 0 ? '+' : '') + r.net;
+  const netCls = r.net > 0 ? 'oo-imp-good' : r.net < 0 ? 'oo-imp-bad' : '';
+  const panel = (title, rows) =>
+    `<table class="oo-imp-tbl"><thead><tr><th>${title}</th><th>Value</th></tr></thead><tbody>` +
+    rows.map(([label, val, cls]) =>
+      `<tr><th>${label}</th><td class="${cls || 'oo-imp-on'}">${val}</td></tr>`).join('') +
+    `</tbody></table>`;
+  return `<div class="oo-imp-card" style="margin-top:10px;margin-bottom:0;">
+      <div class="oo-imp-head">
+        <span class="oo-imp-name">${escHtml(r.displayKey || r.key)}</span>
+        <span class="oo-imp-sub">${squadLabel ? escHtml(squadLabel) + ' &middot; ' : ''}${r.gp} practice${r.gp === 1 ? '' : 's'} &middot; ${(+r.min).toFixed(1)} min &middot; ${Math.round(r.poss)} poss</span>
+      </div>
+      <div class="lu-b-grid">
+        ${panel('Efficiency', [
+          ['Net Rating', net, 'oo-imp-diff ' + netCls],
+          ['Offensive Rating', f(r.ortg)],
+          ['Defensive Rating', f(r.drtg)],
+          ['Possessions', Math.round(r.poss)]
+        ])}
+        ${panel('Offense', [
+          ['Effective FG%', f(r.efg, '%')],
+          ['Off Rebound %', f(r.orebPct, '%')],
+          ['Turnover %', f(r.tovPct, '%')],
+          ['FT Attempt Rate', f(r.ftr, '%')]
+        ])}
+        ${panel('Defense', [
+          ['Opp Effective FG%', f(r.dEfg, '%')],
+          ['Opp Off Rebound %', f(r.dOrebPct, '%')],
+          ['Opp Turnover %', f(r.dTovPct, '%')],
+          ['Opp FT Attempt Rate', f(r.dFtr, '%')]
+        ])}
+      </div>
+    </div>`;
+}
+
+function _luBuilderPanelHtml(rows, size, filtered) {
+  const chosen   = luBuilder.filter(Boolean);
+  const matches  = _luBuilderMatches(rows);
+  const complete = chosen.length === size;
+
+  const slots = luBuilder.map((sel, i) => {
+    const opts = _luBuilderOptions(rows, i)
+      .map(n => `<option value="${escHtml(n)}"${n === sel ? ' selected' : ''}>${escHtml(n)}</option>`)
+      .join('');
+    return `<select class="lu-b-slot${sel ? ' is-set' : ''}" onchange="luBuilderSet(${i}, this.value)">
+        <option value=""${sel ? '' : ' selected'}>Any player</option>
+        ${opts}
+      </select>`;
+  }).join('');
+
+  let body;
+  if (!chosen.length) {
+    body = `<div class="lu-b-note">Choose a player and the other slots narrow to only the players who actually shared the floor with them. Leave a slot on <em>Any player</em> to keep it open — the table below follows your picks.</div>`;
+  } else if (!matches.length) {
+    /* Unreachable by picking alone; reached by picking and THEN changing team, period or
+       size out from under the selection. Say which players, not just "no results". */
+    body = `<div class="lu-b-blank">No lineup on record has ${escHtml(chosen.join(' + '))} on the floor together under these filters.</div>`;
+  } else if (complete) {
+    const squad = r => r.team === 'b' ? (filtered?.[0]?.teamBName || 'Black')
+                                      : (filtered?.[0]?.teamAName || 'White');
+    body = matches.map(r => _luBuilderCardHtml(r, matches.length > 1 ? squad(r) : null)).join('');
+  } else {
+    const left = size - chosen.length;
+    body = `<div class="lu-b-note"><strong>${matches.length}</strong> ${size}-man lineup${matches.length === 1 ? '' : 's'} include ${escHtml(chosen.join(' + '))} — listed below. Fill ${left} more slot${left === 1 ? '' : 's'} to see a single unit.</div>`;
+  }
+
+  return `<div class="lu-builder">
+      <div class="lu-b-head">
+        <span class="lu-b-title">Lineup Builder</span>
+        <div class="lu-b-slots">${slots}</div>
+        <button class="btn btn-ghost btn-sm" onclick="luBuilderClear()" ${chosen.length ? '' : 'disabled style="opacity:.45;"'}>Clear</button>
+      </div>
+      ${body}
+    </div>`;
+}
+
 function _luRowHtml(r, team, filtered, cell) {
   const netStr = (r.net > 0 ? '+' : '') + r.net;
   // No White/Black badge: players rotate between teams across sessions, so tagging a
@@ -10171,14 +10376,19 @@ function _luRenderTbody() {
   const filtered = window._lineupFiltered || [];
   const team     = window._lineupTeam || seg5Filter.team;
   const minPoss  = Number(seg5Filter.minPoss) || 1;
-  const visible  = _luSortRows(rows).filter(r => Math.round(r.poss) >= minPoss);
+  /* Builder first, then sort, then the possessions floor — the same reason the sort and the
+     slider were routed through here in the first place: three controls that each repaint
+     the tbody will otherwise take turns overwriting each other's result. */
+  const visible  = _luSortRows(_luBuilderMatches(rows)).filter(r => Math.round(r.poss) >= minPoss);
 
   const tbody = document.getElementById('lu-tbody');
   if (tbody) tbody.innerHTML = visible.map(r => _luRowHtml(r, team, filtered, cell)).join('');
 
   const subtitle = document.getElementById('lu-subtitle');
   if (subtitle) {
-    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''}`;
+    const picked = luBuilder.filter(Boolean).length;
+    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''}` +
+      (picked ? ` &middot; filtered by ${picked} pick${picked === 1 ? '' : 's'}` : '');
   }
   _luUpdateArrows();
 }
