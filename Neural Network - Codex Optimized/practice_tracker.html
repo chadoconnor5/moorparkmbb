@@ -4344,6 +4344,121 @@ async function recomputeAllStats() {
   try { tabRenderers.log(); } catch (e) {}
 }
 
+/* One-time archive repair for practices dated before todayLocalISO() existed — every
+   session created after 5 PM local carries tomorrow's date. Conservative by construction:
+   sessionDateFix() only touches a date that still matches the UTC date of createdAt, so a
+   date the coach set by hand is never overwritten. */
+async function repairSessionDates() {
+  const sessions = State.sessions || [];
+  if (!sessions.length) { showToast('No saved practices to repair', 'warning'); return; }
+
+  const input = prompt('Enter the tracker password to correct practice dates:');
+  if (input == null) return;
+  if (await sha256(input) !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — no dates changed.', 'danger', 3000);
+    return;
+  }
+
+  const pending = [];
+  for (const sess of sessions) {
+    const fixed = sessionDateFix(sess);
+    if (fixed) pending.push({ sess, from: sess.date, to: fixed });
+  }
+  if (!pending.length) {
+    showToast('Every practice date already matches its local start time.', 'success', 3500);
+    return;
+  }
+
+  const preview = pending.slice(0, 8)
+    .map(p => `  ${p.sess.title || '(untitled)'}:  ${p.from}  →  ${p.to}`).join('\n');
+  if (!confirm(
+    `Correct ${pending.length} practice date${pending.length === 1 ? '' : 's'}?\n\n` +
+    preview + (pending.length > 8 ? `\n  …and ${pending.length - 8} more` : '') + `\n\n` +
+    `These were stored in UTC, so any practice starting after 5 PM local was filed a day ` +
+    `late. Each new date is the local calendar date the practice actually began, taken ` +
+    `from its createdAt timestamp.\n\n` +
+    `Only dates still matching the UTC value are touched — anything you set by hand is ` +
+    `left alone.\n\n` +
+    `A backup downloads first.`
+  )) return;
+
+  try {
+    downloadTextFile(
+      `moorpark_tracker_backup_pre_date_repair_${todayLocalISO()}.json`,
+      JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
+                       exportedAt: new Date().toISOString(), reason: 'auto-backup before date repair',
+                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       sessions: getSessions() }),
+      'application/json');
+  } catch (e) { /* non-fatal — continue */ }
+
+  for (const p of pending) p.sess.date = p.to;
+
+  if (!persistSessions()) return;   // persistKey already warned
+  showToast(`Corrected ${pending.length} practice date${pending.length === 1 ? '' : 's'}. ` +
+            `Re-publish to update the site.`, 'success', 6000);
+  try { tabRenderers.log(); } catch (e) {}
+}
+
+/* One-time archive repair for stints recorded before the start-of-stint exemption.
+   Password-gated and backed up first, exactly like Recompute Stats - and note that
+   Recompute Stats cannot do this job: it rebuilds teamStats and playerStats from the event
+   logs but never touches lineupSegments, which is where these live. */
+async function repairEmptyStints() {
+  const sessions = State.sessions || [];
+  if (!sessions.length) { showToast('No saved practices to repair', 'warning'); return; }
+
+  const input = prompt('Enter the tracker password to repair lineup stints:');
+  if (input == null) return;
+  if (await sha256(input) !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — nothing repaired.', 'danger', 3000);
+    return;
+  }
+
+  // Count on throwaway copies first, so the confirm can state exactly what will change.
+  let willFix = 0;
+  for (const sess of sessions) {
+    try { willFix += collapseEmptyStints(JSON.parse(JSON.stringify(sess))); } catch (e) {}
+  }
+  if (!willFix) {
+    showToast('No empty stints found — nothing to repair.', 'success', 3500);
+    return;
+  }
+
+  if (!confirm(
+    `Remove ${willFix} empty lineup stint${willFix === 1 ? '' : 's'} across ` +
+    `${sessions.length} practice${sessions.length === 1 ? '' : 's'}?\n\n` +
+    `Each one has zero elapsed clock AND no events attributed to it — a lineup that ` +
+    `never took the floor, recorded when a substitution was entered on the same clock a ` +
+    `stint opened.\n\n` +
+    `No team, player or lineup number changes: a stint with no time and no events feeds ` +
+    `nothing. What changes is that phantom rows leave the Lineups tab and On/Off stops ` +
+    `dividing by them.\n\n` +
+    `A backup downloads first.`
+  )) return;
+
+  try {
+    downloadTextFile(
+      `moorpark_tracker_backup_pre_stint_repair_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
+      JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
+                       exportedAt: new Date().toISOString(), reason: 'auto-backup before empty-stint repair',
+                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       sessions: getSessions() }),
+      'application/json');
+  } catch (e) { /* non-fatal — continue */ }
+
+  let fixed = 0, touched = 0;
+  for (const sess of sessions) {
+    const n = collapseEmptyStints(sess);
+    if (n) { fixed += n; touched++; }
+  }
+
+  if (!persistSessions()) return;   // persistKey already warned
+  showToast(`Removed ${fixed} empty stint${fixed === 1 ? '' : 's'} from ${touched} ` +
+            `practice${touched === 1 ? '' : 's'}. Re-publish to update the site.`, 'success', 6000);
+  try { tabRenderers.log(); } catch (e) {}
+}
+
 /* Publish: downloads pt_data.json — the file the published site reads. Commit + push it
    to update the live site. Password-gated (same as Backup). */
 async function publishData() {
@@ -4636,9 +4751,52 @@ const setupState = {
   startersB: new Set(),
 };
 
+/* Today as YYYY-MM-DD in the LOCAL timezone.
+   Deliberately NOT toISOString().slice(0,10). toISOString converts to UTC before it
+   formats — that is its contract, the trailing Z says so — so an evening practice in
+   California (UTC-7) was stamped with tomorrow's date: a 7:56 PM session on Aug 25 stored
+   itself as 2026-08-26. Every practice starting after 5 PM PDT was filed a day late, and
+   the date it wrote drives export filenames, the Log table, box score headers and the
+   chronological sort on the trend charts.
+
+   Built by hand rather than through toLocaleDateString('en-CA'), which also emits
+   YYYY-MM-DD today: that would depend on a locale CONVENTION to produce a MACHINE format,
+   and the date input accepts nothing else. getFullYear/getMonth/getDate are the local-time
+   accessors (the UTC variants are getUTCFullYear and friends), so this reads the calendar
+   date the user is actually standing in. */
+function todayLocalISO(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/* The same two readings of one instant, used to tell a date the bug wrote from one the
+   coach typed. Null on anything unparseable, so a malformed record is left alone. */
+function localDateOfISO(iso) {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : todayLocalISO(d);
+}
+function utcDateOfISO(iso) {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+/* The corrected date for a session, or null to leave it exactly as it is.
+   Only rewrites a date that still looks like the one the bug produced: it matches the UTC
+   date of createdAt, and the local date disagrees. A date set by hand — tagging film from
+   an earlier day — will not match UTC-of-createdAt, so it is never touched. */
+function sessionDateFix(session) {
+  if (!session || !session.createdAt || !session.date) return null;
+  const utc = utcDateOfISO(session.createdAt);
+  const loc = localDateOfISO(session.createdAt);
+  if (!utc || !loc) return null;
+  if (session.date !== utc) return null;   // hand-set, or already correct
+  if (loc === utc) return null;            // no rollover happened
+  return loc;
+}
+
 function setupInit() {
   // Set today's date as default
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
   document.getElementById('setup-date').value = today;
 
   const exBox = document.getElementById('setup-exclude-stats');
@@ -4740,7 +4898,7 @@ function setupReset() {
   document.getElementById('setup-title').value = '';
   const exBox = document.getElementById('setup-exclude-stats');
   if (exBox) exBox.checked = false;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
   document.getElementById('setup-date').value = today;
   renderPlayerGrid('a');
   renderPlayerGrid('b');
@@ -5692,7 +5850,7 @@ function exportAllSessions() {
     liveSession: State.liveSession || null,
   };
   if (!backup.sessions.length && !backup.roster.length && !backup.liveSession) { showToast('Nothing to back up yet', 'warning'); return; }
-  const filename = `moorpark_tracker_backup_${new Date().toISOString().slice(0,10)}.json`;
+  const filename = `moorpark_tracker_backup_${todayLocalISO()}.json`;
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -6428,6 +6586,8 @@ tabRenderers.log = function() {
         <button class="btn btn-ghost btn-sm" onclick="backupWithPassword()">⬇ Export All</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--warning);border-color:rgba(245,158,11,0.35);" onclick="restoreFromBackup()" title="Replace ALL current data with a backup file (password required)">⟲ Restore</button>
         <button class="btn btn-ghost btn-sm" onclick="recomputeAllStats()" title="Rebuild every saved practice's stats from its event log using the current formulas (password required)">&#8635; Recompute Stats</button>
+        <button class="btn btn-ghost btn-sm" onclick="repairEmptyStints()" title="Remove lineup stints with no elapsed time and no events &mdash; phantom fives left by substitutions entered on the clock a stint opened (password required)">&#9876; Repair Stints</button>
+        <button class="btn btn-ghost btn-sm" onclick="repairSessionDates()" title="Correct practice dates stored in UTC &mdash; evening practices were filed a day late (password required)">&#128197; Fix Dates</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);margin-left:14px;" onclick="wipeAllData()" title="Erase ALL data in this browser and start fresh — downloads a full backup first (password required)">&#9888; Wipe All Data</button>`}
       </div>
     </div>
@@ -9612,8 +9772,11 @@ function segStats(session, segments, team) {
     }
   }
 
-  const rawPoss    = Math.max(0, (fga - oreb) + tov + 0.475 * fta);
-  const rawOppPoss = Math.max(0, (oppFga - oppOreb) + oppTov + 0.475 * oppFta);
+  const estPoss    = Math.max(0, (fga - oreb) + tov + 0.475 * fta);
+  const estOppPoss = Math.max(0, (oppFga - oppOreb) + oppTov + 0.475 * oppFta);
+  /* A stint and the five it is on the floor against face the SAME possessions - see the
+     note in computeTeamStats. Splitting them let one stint disagree with itself. */
+  const rawPoss = (estPoss + estOppPoss) / 2, rawOppPoss = rawPoss;
   const poss    = Math.max(1, rawPoss);
   const oppPoss = Math.max(1, rawOppPoss);
   const efg  = fga  > 0 ? +((fgm + 0.5 * fg3m) / fga * 100).toFixed(1) : null;
@@ -9625,6 +9788,12 @@ function segStats(session, segments, team) {
   const min  = +(totalSecs / 60).toFixed(1);
 
   return { pts, fgm, fga, fg3m, fg3a, ftm, fta, oreb, dreb, tov, stl, blk, ast, pf, defl,
+           /* EXACT seconds next to the rounded display minutes. Anything summing several
+              stint groups has to add these, never `min` - see the note on
+              calcPlayerSeconds. Rounding each group to 0.1 first and adding afterwards is
+              what made a player's on-court and off-court minutes fail to add up to the
+              practice they were both taken from. */
+           secs: totalSecs,
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
            oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss };
@@ -10543,26 +10712,38 @@ function renderOnOffView() {
                   'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss'];
     const T = {};
     keys.forEach(function (k) { T[k] = 0; });
-    let min = 0;
+    /* Seconds, summed exactly, and divided ONCE at the end. Adding each practice's rounded
+       minutes instead put on-court + off-court up to 0.1 min away from the practice total,
+       and every per-40 rate below divides by this - on a two-minute bench sample that is a
+       5% error in Points/40 for no reason at all. */
+    let secs = 0;
     for (const grp of Object.values(bySess)) {
       const s = segStats(grp.sess, grp.segs, grp.team);
       keys.forEach(function (k) { T[k] += (s[k] || 0); });
-      min += parseFloat(s.min) || 0;
+      secs += s.secs || 0;
     }
-    // 6 of this session's stints were logged with start == end (0 seconds), so a bench
-    // player's off-court time can total 0 minutes while still containing real possessions.
-    // Bail only when there is nothing at all; per-40 rates go null when minutes are missing.
+    const min = secs / 60;
+    /* Empty stints are collapsed now (see collapseEmptyStints), so 0 minutes no longer
+       means "the clock was never recorded". It means there is genuinely no sample: anyone
+       who never left the floor has an empty off-court list by definition. */
     if (min <= 0 && T.poss <= 0 && T.oppPoss <= 0) return null;
-    const poss = Math.max(1, T.poss), oppPoss = Math.max(1, T.oppPoss);
+    /* Possessions are a SAMPLE SIZE, never a floor. Math.max(1, ...) here manufactured a
+       possession nobody played, which turned "no off-court sample" into a confident
+       three-digit rating - 2 points over 0 possessions read as an ORtg of 200, and the
+       Diff column then subtracted that fiction from a real on-court number. A rating with
+       no possessions behind it is not a number, it is a blank, and ooPanel already renders
+       null as an em dash. */
+    const poss = T.poss, oppPoss = T.oppPoss;
     const per40 = function (v) { return min > 0 ? +(v / min * 40).toFixed(2) : null; };
     const pct = function (num, den) { return den > 0 ? +(num / den * 100).toFixed(2) : null; };
-    const ortg = +(100 * T.pts / poss).toFixed(2);
-    const drtg = +(100 * T.oppPts / oppPoss).toFixed(2);
+    const ortg = poss > 0 ? +(100 * T.pts / poss).toFixed(2) : null;
+    const drtg = oppPoss > 0 ? +(100 * T.oppPts / oppPoss).toFixed(2) : null;
     const stlPct = pct(T.stl, oppPoss);
     const blkPct = pct(T.blk, Math.max(0, T.oppFga - T.oppFg3a));
     return {
       min: min,
-      eff: { ortg: ortg, drtg: drtg, net: +(ortg - drtg).toFixed(2) },
+      eff: { ortg: ortg, drtg: drtg,
+             net: (ortg != null && drtg != null) ? +(ortg - drtg).toFixed(2) : null },
       rate: {
         pace: per40(poss),
         tpar: pct(T.fg3a, T.fga),
@@ -11929,11 +12110,22 @@ function trackerUndo() {
       if (idx !== -1) lineup[idx] = p.playerOut;
       renderTeamColumn(p.team);
     }
-    // Pop the segment that was opened by the sub(s)
-    if (session.lineupSegments.length > 0) session.lineupSegments.pop();
-    // Re-open the segment that was closed by the sub (set endTimeSecs back to null)
-    const prevSeg = session.lineupSegments[session.lineupSegments.length - 1];
-    if (prevSeg) prevSeg.endTimeSecs = null;
+    if (sp.inPlace) {
+      /* An absorbed sub never split a stint - it rewrote the open one. Undo puts the
+         original five back into that same stint; popping here would delete a stint that
+         holds real minutes. The patch loop above has already reverted clockState. */
+      const openSeg = session.lineupSegments.findLast(s => s.endTimeSecs === null);
+      if (openSeg) {
+        openSeg.lineupA = [...clockState.currentLineupA];
+        openSeg.lineupB = [...clockState.currentLineupB];
+      }
+    } else {
+      // Pop the segment that was opened by the sub(s)
+      if (session.lineupSegments.length > 0) session.lineupSegments.pop();
+      // Re-open the segment that was closed by the sub (set endTimeSecs back to null)
+      const prevSeg = session.lineupSegments[session.lineupSegments.length - 1];
+      if (prevSeg) prevSeg.endTimeSecs = null;
+    }
   }
 
   redoGroups.push(group);
@@ -11973,11 +12165,20 @@ function trackerRedo() {
       if (idx !== -1) lineup[idx] = p.playerIn;
       renderTeamColumn(p.team);
     }
-    // Close the segment that was re-opened during undo
-    const prevSeg = session.lineupSegments[session.lineupSegments.length - 1];
-    if (prevSeg && prevSeg.endTimeSecs === null) prevSeg.endTimeSecs = sp.timeSecs;
-    // Re-open the sub's new segment
-    openLineupSegment(sp.timeSecs);
+    if (sp.inPlace) {
+      // Re-absorb: rewrite the open stint, exactly as the original sub did.
+      const openSeg = session.lineupSegments.findLast(s => s.endTimeSecs === null);
+      if (openSeg) {
+        openSeg.lineupA = [...clockState.currentLineupA];
+        openSeg.lineupB = [...clockState.currentLineupB];
+      }
+    } else {
+      // Close the segment that was re-opened during undo
+      const prevSeg = session.lineupSegments[session.lineupSegments.length - 1];
+      if (prevSeg && prevSeg.endTimeSecs === null) prevSeg.endTimeSecs = sp.timeSecs;
+      // Re-open the sub's new segment
+      openLineupSegment(sp.timeSecs);
+    }
   }
 
   undoGroups.push(group);
@@ -12167,15 +12368,26 @@ function sessionHasFreeThrows(session) {
 function computeTeamStats(session) {
   const stats = {};
   const hasFT = sessionHasFreeThrows(session);
+  const line = {
+    a: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'a')),
+    b: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'b')),
+  };
+
+  /* ONE possession count, shared by both teams. Two teams in the same scrimmage alternate
+     possessions by definition, so they cannot have played a different number of them - any
+     gap between the two estimates is the estimator talking, not basketball. Letting each
+     side divide by its own estimate made the net ratings disagree about a single game:
+     +24.0 and -22.8, where one five-point margin should read as the same number twice,
+     once with each sign. Averaging restores ORtg(a) === DRtg(b) and net(a) === -net(b). */
+  const sharedPoss = +(((calcPossessions(line.a) + calcPossessions(line.b)) / 2).toFixed(2));
+
   for (const team of ['a', 'b']) {
-    const evs = session.eventLog.filter(e => e.type !== 'sub' && e.team === team);
-    const s   = buildStatLine(evs);
-    const opp = session.eventLog.filter(e => e.type !== 'sub' && e.team !== team);
-    const o   = buildStatLine(opp);
-    s.possessions = calcPossessions(s);
+    const s = line[team];
+    const o = line[team === 'a' ? 'b' : 'a'];
+    s.possessions = sharedPoss;
     // Team ratings are possession-based and remain trackable without free throws.
-    s.ortg  = s.possessions > 0 ? +(100 * s.pts / s.possessions).toFixed(1) : 0;
-    s.drtg  = s.possessions > 0 ? +(100 * o.pts / s.possessions).toFixed(1) : 0;
+    s.ortg  = sharedPoss > 0 ? +(100 * s.pts / sharedPoss).toFixed(1) : 0;
+    s.drtg  = sharedPoss > 0 ? +(100 * o.pts / sharedPoss).toFixed(1) : 0;
     s.netrtg = +(s.ortg - s.drtg).toFixed(1);
     s.efgPct = s.fga > 0 ? +((s.fgm + 0.5 * s.fg3m) / s.fga * 100).toFixed(1) : 0;
     s.tsPct  = !hasFT ? null
@@ -12441,6 +12653,70 @@ function invertedSegments(session) {
     .filter(({ seg }) => seg.endTimeSecs !== null
                       && seg.startTimeSecs !== null
                       && seg.endTimeSecs > seg.startTimeSecs);
+}
+
+/* How many events each stint owns, by the SAME walk segStats() uses to attribute them:
+   the log is chronological, and a sub advances the pointer only when its clock matches the
+   next stint's start (so a multi-player swap advances once). Kept here, in one place, so
+   the repair below and the stats can never disagree about where an event belongs. */
+function segEventCounts(session) {
+  const segs = session.lineupSegments || [];
+  const log  = session.eventLog || [];
+  const counts = new Map();
+  for (const q of [...new Set(segs.map(s => s.quarter))]) {
+    const qSegs = segs.filter(s => s.quarter === q);
+    let p = 0;
+    for (const e of log) {
+      if (e.quarter !== q) continue;
+      if (e.type === 'sub') {
+        const next = qSegs[p + 1];
+        if (next && next.startTimeSecs != null && e.timeSecs != null
+            && next.startTimeSecs === e.timeSecs) p++;
+        continue;
+      }
+      const seg = qSegs[p];
+      if (seg) counts.set(seg, (counts.get(seg) || 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function segHasEvents(session, seg) {
+  return (segEventCounts(session).get(seg) || 0) > 0;
+}
+
+/* Stints that never happened: zero elapsed clock AND no event attributed to them.
+   Before the start-of-stint exemption existed, a substitution entered on the clock a stint
+   opened closed that stint at the second it opened - a lineup that never took the floor.
+
+   The test is deliberately two-part, because zero seconds ALONE is not enough: a play
+   tagged on the opening tick followed by a sub leaves a stint that is 0:00 long but
+   genuinely owns that play, and segStats() attributes it there. Only a stint that is both
+   instantaneous and empty contributed to nothing - which is exactly what makes removing it
+   provably change no team, player or lineup figure. Anything else stays put.
+
+   Returns how many were removed. */
+function collapseEmptyStints(session) {
+  const segs = session.lineupSegments || [];
+  const log  = session.eventLog || [];
+  if (!segs.length) return 0;
+  const counts = segEventCounts(session);
+
+  let removed = 0;
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const seg = segs[i];
+    if (seg.startTimeSecs == null || seg.endTimeSecs == null) continue;  // open stint
+    if (seg.startTimeSecs !== seg.endTimeSecs) continue;                 // holds real time
+    if (counts.get(seg)) continue;                                       // holds real plays
+    /* Flag the sub that produced it so the log still explains the change of five, then
+       drop the shell. */
+    const subEv = log.find(e => e.type === 'sub' && e.quarter === seg.quarter
+                             && e.timeSecs === seg.startTimeSecs);
+    if (subEv) subEv.startOfStint = true;
+    segs.splice(i, 1);
+    removed++;
+  }
+  return removed;
 }
 
 /* Rounded for DISPLAY only. */
@@ -12832,6 +13108,22 @@ function openLineupSegment(startTimeSecs) {
   saveLiveSession(session);
 }
 
+/* True when anything has actually been PLAYED in the stint that is currently open.
+   Walks back from the end of the log: the first non-sub event in this quarter means a play
+   landed in the open stint; a sub event means we reached the boundary that opened it; a
+   different quarter means we walked back past the quarter start. Order is enough - non-sub
+   events carry no clock of their own, and the log is chronological. */
+function stintHasPlay(session, quarter) {
+  const log = session.eventLog || [];
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    if (e.quarter !== quarter) break;   // walked back past the start of this quarter
+    if (e.type === 'sub') break;        // reached the boundary that opened this stint
+    return true;                        // a play sits inside the open stint
+  }
+  return false;
+}
+
 /* ── Close the currently active lineup segment ── */
 function closeActiveSegment(endTimeSecs) {
   const session = State.liveSession;
@@ -13087,12 +13379,40 @@ function confirmAllSubs() {
   const session = State.liveSession;
   const q = currentQuarterNum();
 
-  closeActiveSegment(timeSecs);
+  /* START-OF-STINT EXEMPTION.
+     A sub entered on the same clock the open stint started, before a single play was
+     logged into it, did not break that stint up - it changed who was on the floor for it.
+     Treating it as an ordinary substitution closed a stint at the very second it opened:
+     a five that never took the floor, worth 0:00. Those phantoms are not harmless. They
+     pad stint counts, show up in Lineups as a row nobody played, and hand every
+     per-minute rate a zero denominator - the On/Off tab already carries a workaround
+     comment written around exactly this. So rewrite the open stint in place and never
+     open a second one.
+
+     Covers both shapes of it: the common one at a quarter break (the incoming player is
+     simply who started the quarter) and two subs typed on the same clock mid-quarter.
+     The sub EVENT is still written, flagged, so the Film Events log and the seek still
+     find it - and because no stint now starts at its clock, the attribution walk in
+     segStats() stops advancing a pointer for it, which is what keeps the swap counted
+     exactly once. */
+  const activeSeg = session.lineupSegments.findLast(s => s.endTimeSecs === null);
+  const inPlace = !!activeSeg
+               && activeSeg.quarter === q
+               && activeSeg.startTimeSecs === timeSecs
+               && !stintHasPlay(session, q);
+
+  if (!inPlace) closeActiveSegment(timeSecs);
 
   for (const s of allSubs) {
     const lineup = s.team === 'a' ? clockState.currentLineupA : clockState.currentLineupB;
     const idx = lineup.indexOf(s.out);
     if (idx !== -1) lineup[idx] = s.in;
+  }
+
+  if (inPlace) {
+    // The stint opened with these five instead - no boundary, just a corrected lineup.
+    activeSeg.lineupA = [...clockState.currentLineupA];
+    activeSeg.lineupB = [...clockState.currentLineupB];
   }
 
   // A substitution is a single event, however many players changed at that moment.
@@ -13105,6 +13425,9 @@ function confirmAllSubs() {
     playerIn:  allSubs[0].in,
     timeSecs,
     quarter: q,
+    /* Absorbed into the stint it opened rather than splitting one off. Written on every
+       sub, not only the absorbed ones, so the export keeps a single shape. */
+    startOfStint: inPlace,
     /* Subs now carry a film position like every other event, so they show up in the Film
        Events log and ▶ seeks to them. Null when tracking without film — the log falls
        back to a dash. */
@@ -13114,10 +13437,11 @@ function confirmAllSubs() {
   session.eventLog.push(subEv);
   const addedEvents = [subEv];
 
-  openLineupSegment(timeSecs);
+  if (!inPlace) openLineupSegment(timeSecs);
   pushUndoGroup(addedEvents, {
     patches: allSubs.map(s => ({ team: s.team, playerOut: s.out, playerIn: s.in })),
     timeSecs,
+    inPlace,
   });
   saveLiveSession(session);
   renderTeamColumn('a');
@@ -13232,6 +13556,17 @@ function splitSegmentForSub(session, quarter, clockSecs, swaps) {
     && (sg.endTimeSecs === null || sg.endTimeSecs <= clockSecs));
   if (idx === -1) return false;
   const seg = segs[idx];
+
+  /* Same start-of-stint exemption the live path applies: a sub landing on the clock this
+     stint opened is a change of who played it, not a boundary inside it. Rewrite this
+     stint and every one after it rather than splitting off a 0:00 shell. Guarded on the
+     stint holding no events yet - a play tagged on the opening tick makes the stint real,
+     however short, and it has to keep its own lineup. */
+  if (seg.startTimeSecs === clockSecs && !segHasEvents(session, seg)) {
+    for (let i = idx; i < segs.length; i++) fevApplySwaps(segs[i], swaps, false);
+    return true;
+  }
+
   const after = {
     quarter,
     lineupA: [...(seg.lineupA || [])],
@@ -13252,6 +13587,10 @@ function unsplitSegmentForSub(session, quarter, clockSecs, swaps) {
   const segs = session.lineupSegments || [];
   const idx = segs.findIndex(sg => sg.quarter === quarter && sg.startTimeSecs === clockSecs);
   if (idx <= 0) return false;
+  /* Never merge across a quarter boundary. A start-of-quarter sub leaves no stint of its
+     own now, so the stint starting at this clock IS the quarter opener - merging it into
+     its predecessor would hand its minutes to the previous quarter's five. */
+  if (segs[idx - 1].quarter !== quarter) return false;
   for (let i = idx; i < segs.length; i++) fevApplySwaps(segs[i], swaps, true);
   segs[idx - 1].endTimeSecs = segs[idx].endTimeSecs;
   segs.splice(idx, 1);
