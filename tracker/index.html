@@ -2603,17 +2603,18 @@
     .lu-b-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .lu-b-title { font-size: 13px; font-weight: 800; color: var(--text); white-space: nowrap; }
     .lu-b-slots { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
-    .lu-b-slot { min-width: 148px; flex: 0 1 auto; }
+    /* width:auto is load-bearing: the app styles <select> at width:100% globally, which
+       stretched every slot to the full row and stacked five dropdowns vertically. min-width
+       alone loses to it — the slots have to opt out of the width before flex can size them. */
+    .lu-b-slot { width: auto; min-width: 148px; flex: 0 1 auto; }
     /* An empty slot recedes; a filled one reads as a committed choice. */
     .lu-b-slot.is-set { border-color: var(--primary); font-weight: 700; color: var(--text); }
     .lu-b-note  { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
     .lu-b-blank { font-size: 12px; color: var(--warning); font-weight: 700; margin-top: 10px; }
-    .lu-b-grid  { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 12px; }
     /* On a phone the slots take a line of their own rather than sharing one with the title
        and the Clear button — competing for that row squeezed them to a single dropdown per
        line when two fit comfortably. */
     @media (max-width: 900px) {
-      .lu-b-grid  { grid-template-columns: 1fr; }
       .lu-b-slots { flex: 1 1 100%; }
       .lu-b-slot  { min-width: 0; flex: 1 1 132px; }
     }
@@ -4644,9 +4645,17 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
-/* Players marked hidden stay in the data - their presence still shapes team totals,
-   lineup stints and everyone else's on/off - but they are not shown as a subject of
-   analysis: no stats row, no profile, no impact card, no shot-chart filter entry. */
+/* Players marked hidden stay in the DATA - their minutes really happened, so they still
+   shape team totals and their teammates' numbers - but their NAME appears nowhere: no stats
+   row, no profile, no impact card, no shot-chart entry, no lineup they are a member of, and
+   no picker that could put them into a new practice.
+
+   The Lineups tab is where that distinction has to be drawn carefully. A five containing a
+   hidden player has no five left to show, so it drops out - unavoidable, a five needs five
+   names. But the four visible players in it are still a real four-man unit that shared real
+   minutes, so combinations are drawn from the VISIBLE players rather than discarding the
+   stint. Discarding it would have cost the other four 226 of their 864 two-man minutes to
+   hide one name, and taken 37% of all lineup minutes with it. */
 function isHiddenPlayer(name) {
   const p = (State.roster || []).find(r => r.name === name);
   return !!(p && p.hidden);
@@ -4937,8 +4946,10 @@ function renderPlayerGrid(team) {
   const opposite = team === 'a' ? setupState.startersB : setupState.startersA;
 
   grid.innerHTML = '';
-  // Sorted copy — State.roster keeps its own order for the roster editor.
-  [...State.roster].sort((x, y) => byLastName(x.name, y.name)).forEach(p => {
+  /* Sorted copy — State.roster keeps its own order for the roster editor. Hidden players
+     are not offered: hiding one says they are gone, and a picker that still lists them
+     invites putting them into a practice they were never at. Unhide in Edit Roster. */
+  [...State.roster].filter(p => !p.hidden).sort((x, y) => byLastName(x.name, y.name)).forEach(p => {
     const name = p.name;
     const isSel = selected.has(name);
     const inOpposite = opposite.has(name);
@@ -9995,7 +10006,14 @@ function renderLineupsView() {
         if (seg.endTimeSecs === null) continue;
         const fullLineup = t === 'a' ? seg.lineupA : seg.lineupB;
         if (!fullLineup || fullLineup.length !== 5) continue;
-        const combos = size === 5 ? [fullLineup] : combinations(fullLineup, size);
+        /* Units are drawn from the visible players, not the whole five. The stint itself is
+           never discarded for containing a hidden player — the four who remain shared those
+           minutes for real, and a 4-man row has always meant "these four, plus whoever else
+           was out there", so a stint whose fifth is hidden is exactly the case it already
+           describes. Only a 5-man row genuinely cannot survive: it needs five names. */
+        const pool = fullLineup.filter(n => !isHiddenPlayer(n));
+        if (pool.length < size) continue;
+        const combos = pool.length === size ? [pool] : combinations(pool, size);
         for (const combo of combos) {
           /* Keyed on personnel alone. Which pinnie a group wore is a property of that
              afternoon, not of the group: the squads are redrawn every practice, so
@@ -10266,45 +10284,10 @@ function luBuilderClear() {
   renderLineupsView();
 }
 
-/* One unit's full line, laid out like the On/Off cards so the two read as the same app.
-   A completed selection always names exactly one unit — lineups are keyed on personnel, so
-   there is no second row for the same players in different pinnies to tell apart. */
-function _luBuilderCardHtml(r) {
-  const f   = (v, s = '') => (v != null ? v + s : '&mdash;');
-  const net = (r.net > 0 ? '+' : '') + r.net;
-  const netCls = r.net > 0 ? 'oo-imp-good' : r.net < 0 ? 'oo-imp-bad' : '';
-  const panel = (title, rows) =>
-    `<table class="oo-imp-tbl"><thead><tr><th>${title}</th><th>Value</th></tr></thead><tbody>` +
-    rows.map(([label, val, cls]) =>
-      `<tr><th>${label}</th><td class="${cls || 'oo-imp-on'}">${val}</td></tr>`).join('') +
-    `</tbody></table>`;
-  return `<div class="oo-imp-card" style="margin-top:10px;margin-bottom:0;">
-      <div class="oo-imp-head">
-        <span class="oo-imp-name">${escHtml(r.displayKey || r.key)}</span>
-        <span class="oo-imp-sub">${r.gp} practice${r.gp === 1 ? '' : 's'} &middot; ${(+r.min).toFixed(1)} min &middot; ${Math.round(r.poss)} poss</span>
-      </div>
-      <div class="lu-b-grid">
-        ${panel('Efficiency', [
-          ['Net Rating', net, 'oo-imp-diff ' + netCls],
-          ['Offensive Rating', f(r.ortg)],
-          ['Defensive Rating', f(r.drtg)],
-          ['Possessions', Math.round(r.poss)]
-        ])}
-        ${panel('Offense', [
-          ['Effective FG%', f(r.efg, '%')],
-          ['Off Rebound %', f(r.orebPct, '%')],
-          ['Turnover %', f(r.tovPct, '%')],
-          ['FT Attempt Rate', f(r.ftr, '%')]
-        ])}
-        ${panel('Defense', [
-          ['Opp Effective FG%', f(r.dEfg, '%')],
-          ['Opp Off Rebound %', f(r.dOrebPct, '%')],
-          ['Opp Turnover %', f(r.dTovPct, '%')],
-          ['Opp FT Attempt Rate', f(r.dFtr, '%')]
-        ])}
-      </div>
-    </div>`;
-}
+/* No card here on purpose. The builder narrows the table below rather than reprinting one
+   of its rows above it — same fifteen columns, same numbers, twice on one screen, and two
+   places to keep in step the next time a column is added. The builder's job is to pick the
+   unit; the table's job is to show it. */
 
 function _luBuilderPanelHtml(rows, size) {
   const chosen   = luBuilder.filter(Boolean);
@@ -10329,10 +10312,12 @@ function _luBuilderPanelHtml(rows, size) {
        size out from under the selection. Say which players, not just "no results". */
     body = `<div class="lu-b-blank">No lineup on record has ${escHtml(chosen.join(' + '))} on the floor together under these filters.</div>`;
   } else if (complete) {
-    body = matches.map(_luBuilderCardHtml).join('');
+    /* Personnel-keyed rows mean a full selection resolves to exactly one lineup, so this
+       says which and leaves the reading to the row underneath. */
+    body = `<div class="lu-b-note">Showing <strong>${escHtml(matches[0].displayKey || matches[0].key)}</strong> in the table below &mdash; ${matches[0].gp} practice${matches[0].gp === 1 ? '' : 's'}, ${(+matches[0].min).toFixed(1)} min, ${Math.round(matches[0].poss)} poss.</div>`;
   } else {
     const left = size - chosen.length;
-    body = `<div class="lu-b-note"><strong>${matches.length}</strong> ${size}-man lineup${matches.length === 1 ? '' : 's'} include ${escHtml(chosen.join(' + '))} — listed below. Fill ${left} more slot${left === 1 ? '' : 's'} to see a single unit.</div>`;
+    body = `<div class="lu-b-note"><strong>${matches.length}</strong> ${size}-man lineup${matches.length === 1 ? '' : 's'} include ${escHtml(chosen.join(' + '))} &mdash; listed below. Fill ${left} more slot${left === 1 ? '' : 's'} to narrow to one.</div>`;
   }
 
   return `<div class="lu-builder">
@@ -12117,7 +12102,11 @@ function openNoteModal() {
   // Player list: on-floor players first, then the rest of the roster.
   if (!clockState.currentLineupA.length && !clockState.currentLineupB.length) rebuildCurrentLineups();
   const onFloor = [...(clockState.currentLineupA || []), ...(clockState.currentLineupB || [])].sort(byLastName);
-  const others  = (State.roster || []).map(p => p.name).filter(n => !onFloor.includes(n)).sort(byLastName);
+  /* Hidden players are dropped from the bench list. Anyone actually on the floor still
+     appears above — if they are out there right now you must be able to tag them, whatever
+     the roster says. */
+  const others  = (State.roster || []).filter(p => !p.hidden).map(p => p.name)
+    .filter(n => !onFloor.includes(n)).sort(byLastName);
   document.getElementById('note-player').innerHTML =
     (onFloor.length ? `<optgroup label="On Floor">${onFloor.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
     (others.length  ? `<optgroup label="Bench / Roster">${others.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
@@ -13622,8 +13611,12 @@ function renderSubSlots(team) {
 
   /* Available = not in either five on the floor, or on their way off the other team. A
      player already picked for another slot but not yet confirmed stays in the pool. */
+  /* Hidden players are never on the bench — the same reason they are not in the starters
+     picker. A player already on the floor when they were hidden still subs out normally,
+     because that comes from the lineup, not from here. */
   const fullBench = sortByLastName(
-    State.roster.map(p => p.name).filter(n => !onFloor.has(n) || leavingOther.has(n))
+    State.roster.filter(p => !p.hidden).map(p => p.name)
+      .filter(n => !onFloor.has(n) || leavingOther.has(n))
   );
 
   container.innerHTML = slots.map((slot, i) => {
