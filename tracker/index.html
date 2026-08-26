@@ -4459,6 +4459,102 @@ async function repairEmptyStints() {
   try { tabRenderers.log(); } catch (e) {}
 }
 
+/* Archive repair for stints recorded BACKWARDS - an end larger than its start, which a
+   clock counting down makes impossible. stintSeconds() already refuses to measure one,
+   returning 0 rather than the Math.abs() that used to hand all ten players on the floor
+   4+ phantom minutes - so no number is ever wrong. What goes wrong is quieter: the seconds
+   that stint covers belong to NO stint, so every player in that five is short them, and
+   On/Off reads someone who never came off at 96% of a practice with an empty Off column.
+
+   This is the third repair because it is a third kind of damage, and neither of the others
+   reaches it:
+     - Recompute Stats rebuilds teamStats/playerStats from the event logs and never touches
+       lineupSegments, which is where the impossible number lives.
+     - Repair Stints removes stints that contributed nothing; this one FIXES a stint that
+       should have contributed and did not.
+   And unlike Repair Stints, this moves real numbers, so it has to recompute afterwards:
+   minutes are stored at finalize, and minExact divides MIN%, SHOT%, OR%, DR%, AST%, TO%,
+   STL%, BLK%, USG% and the ORTG/DRTG minute weights. */
+async function repairInvertedStints() {
+  const sessions = State.sessions || [];
+  if (!sessions.length) { showToast('No saved practices to repair', 'warning'); return; }
+
+  const input = prompt('Enter the tracker password to repair backwards lineup stints:');
+  if (input == null) return;
+  if (await sha256(input) !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — nothing repaired.', 'danger', 3000);
+    return;
+  }
+
+  /* Survey first so the confirm can state exactly what will change. correctedStintEnd() is
+     pure, so unlike the empty-stint repair this needs no throwaway copies. */
+  const fixable = [], manual = [];
+  for (const sess of sessions) {
+    for (const { seg } of invertedSegments(sess)) {
+      const end = correctedStintEnd(sess, seg);
+      (end == null ? manual : fixable).push({ sess, seg, end });
+    }
+  }
+
+  if (!fixable.length && !manual.length) {
+    showToast('No backwards stints found — nothing to repair.', 'success', 3500);
+    return;
+  }
+
+  const describe = ({ sess, seg, end }) =>
+    `  ${sess.title} — Q${seg.quarter} ${seg.startTimeSecs} → ${seg.endTimeSecs}` +
+    (end == null ? '  (cannot be resolved automatically)'
+                 : `  becomes ${seg.startTimeSecs} → ${end}  (${seg.startTimeSecs - end}s restored)`);
+
+  if (!fixable.length) {
+    alert(`${manual.length} backwards stint${manual.length === 1 ? '' : 's'} found, but ` +
+          `none can be resolved automatically:\n\n${manual.map(describe).join('\n')}\n\n` +
+          `Nothing was changed — these need to be corrected by hand.`);
+    return;
+  }
+
+  if (!confirm(
+    `Repair ${fixable.length} backwards lineup stint${fixable.length === 1 ? '' : 's'}?\n\n` +
+    `${fixable.map(describe).join('\n')}\n\n` +
+    (manual.length ? `${manual.length} other${manual.length === 1 ? '' : 's'} cannot be ` +
+                     `resolved automatically and will be LEFT ALONE:\n${manual.map(describe).join('\n')}\n\n` : '') +
+    `Each end is set to where the next stint in that quarter begins — or, for the last ` +
+    `stint, to the clock the quarter actually stopped at.\n\n` +
+    `Minutes ARE affected: every player in these lineups gets the missing time back, and ` +
+    `stats are recomputed so MIN%, USG% and the other minute-weighted rates follow. Your ` +
+    `event logs are not modified.\n\n` +
+    `A backup downloads first.`
+  )) return;
+
+  try {
+    downloadTextFile(
+      `moorpark_tracker_backup_pre_inverted_stint_repair_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
+      JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
+                       exportedAt: new Date().toISOString(), reason: 'auto-backup before inverted-stint repair',
+                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       sessions: getSessions() }),
+      'application/json');
+  } catch (e) { /* non-fatal — continue */ }
+
+  for (const { seg, end } of fixable) seg.endTimeSecs = end;
+
+  /* Recomputed per session, and only for the ones actually touched — a blanket pass would
+     quietly drag every OTHER practice onto the current formulas too, which is Recompute
+     Stats' job to do deliberately, not this repair's to do as a side effect. */
+  const touched = [...new Set(fixable.map(f => f.sess))];
+  for (const sess of touched) {
+    sess.teamStats   = computeTeamStats(sess);
+    sess.playerStats = computePlayerStats(sess);
+  }
+
+  if (!persistSessions()) return;   // persistKey already warned
+  showToast(`Repaired ${fixable.length} backwards stint${fixable.length === 1 ? '' : 's'} in ` +
+            `${touched.length} practice${touched.length === 1 ? '' : 's'}` +
+            (manual.length ? ` — ${manual.length} left for manual review` : '') +
+            `. Re-publish to update the site.`, 'success', 6000);
+  try { tabRenderers.log(); } catch (e) {}
+}
+
 /* Publish: downloads pt_data.json — the file the published site reads. Commit + push it
    to update the live site. Password-gated (same as Backup). */
 async function publishData() {
@@ -6587,6 +6683,7 @@ tabRenderers.log = function() {
         <button class="btn btn-ghost btn-sm" style="color:var(--warning);border-color:rgba(245,158,11,0.35);" onclick="restoreFromBackup()" title="Replace ALL current data with a backup file (password required)">⟲ Restore</button>
         <button class="btn btn-ghost btn-sm" onclick="recomputeAllStats()" title="Rebuild every saved practice's stats from its event log using the current formulas (password required)">&#8635; Recompute Stats</button>
         <button class="btn btn-ghost btn-sm" onclick="repairEmptyStints()" title="Remove lineup stints with no elapsed time and no events &mdash; phantom fives left by substitutions entered on the clock a stint opened (password required)">&#9876; Repair Stints</button>
+        <button class="btn btn-ghost btn-sm" onclick="repairInvertedStints()" title="Fix lineup stints that run backwards &mdash; an end later than its start, which leaves those seconds belonging to no stint and every player in that five short the minutes (password required)">&#8617; Fix Backwards Stints</button>
         <button class="btn btn-ghost btn-sm" onclick="repairSessionDates()" title="Correct practice dates stored in UTC &mdash; evening practices were filed a day late (password required)">&#128197; Fix Dates</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);margin-left:14px;" onclick="wipeAllData()" title="Erase ALL data in this browser and start fresh — downloads a full backup first (password required)">&#9888; Wipe All Data</button>`}
       </div>
@@ -12653,6 +12750,29 @@ function invertedSegments(session) {
     .filter(({ seg }) => seg.endTimeSecs !== null
                       && seg.startTimeSecs !== null
                       && seg.endTimeSecs > seg.startTimeSecs);
+}
+
+/* THE one place a backwards stint's correct end is worked out - same reasoning as
+   stintSeconds() owning duration: if the repair and any future caller each decided this
+   for themselves they would eventually disagree, and both would look confident.
+
+   Stints chain. Each one ends where the NEXT in its quarter begins, and the last one ends
+   wherever the clock was stopped - the quarter's timeRemaining, which is not always zero.
+   A blanket 0 is the tempting fix and it is wrong for exactly the quarters that matter: a
+   practice called early leaves timeRemaining positive, and 0 would invent every second
+   between the real stop and the end of the period.
+
+   Returns null when the chain cannot produce a legal end - a stint wrong in some other way
+   is one to look at by hand, not to guess at. */
+function correctedStintEnd(session, seg) {
+  if (!session || !seg || seg.startTimeSecs == null) return null;
+  const qSegs = (session.lineupSegments || []).filter(g => g.quarter === seg.quarter);
+  const next  = qSegs[qSegs.indexOf(seg) + 1];
+  const q     = (session.quarters || [])[seg.quarter - 1] || {};
+  const end   = (next && next.startTimeSecs != null)
+    ? next.startTimeSecs
+    : (q.timeRemaining != null ? q.timeRemaining : 0);
+  return end > seg.startTimeSecs ? null : end;
 }
 
 /* How many events each stint owns, by the SAME walk segStats() uses to attribute them:
