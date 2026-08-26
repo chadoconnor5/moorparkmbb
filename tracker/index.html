@@ -9997,12 +9997,23 @@ function renderLineupsView() {
         if (!fullLineup || fullLineup.length !== 5) continue;
         const combos = size === 5 ? [fullLineup] : combinations(fullLineup, size);
         for (const combo of combos) {
-          const key = [...combo].sort().join(' / ') + (team === 'both' ? `|${t}` : '');
+          /* Keyed on personnel alone. Which pinnie a group wore is a property of that
+             afternoon, not of the group: the squads are redrawn every practice, so
+             splitting a unit into a White row and a Black row files one set of teammates
+             under two headings and halves the sample that made either worth reading.
+             Duran-Morales and Niles played 20.3 minutes together in White and 10.5 in
+             Black — that is one pairing with 30.8 minutes, not two pairings.
+
+             Merging is safe because the sample was never keyed here anyway: the segments
+             below are grouped per session AND per squad before segStats() sees them, so
+             each stint is still measured against the right team's events. Only the heading
+             they are collected under changes. */
+          const key = [...combo].sort().join(' / ');
           /* members is the same list displayKey is built from, kept as an array so the
              Lineup Builder can test membership without splitting a display string back
              apart on ' / ' — a separator that is only safe until someone's name contains
              one. Same list, one source. */
-          if (!lineupMap[key]) lineupMap[key] = { key, displayKey: [...combo].sort().join(' / '), members: [...combo].sort(), team: t, segments: [] };
+          if (!lineupMap[key]) lineupMap[key] = { key, displayKey: [...combo].sort().join(' / '), members: [...combo].sort(), segments: [] };
           lineupMap[key].segments.push({ seg, sess, team: t });
         }
       }
@@ -10060,7 +10071,9 @@ function renderLineupsView() {
     const dOrebPct = (totOppOreb + totDreb) > 0 ? +(100*totOppOreb/(totOppOreb+totDreb)).toFixed(1): null;
     const dTovPct  = +(100 * totOppTov / oppPoss).toFixed(1);
     const dFtr     = totOppFga > 0 ? +(totOppFta / totOppFga * 100).toFixed(1)                     : null;
-    return { key: entry.key, displayKey: entry.displayKey || entry.key, members: entry.members || [], team: entry.team, gp, min: +totMin.toFixed(1), poss: +poss.toFixed(1),
+    /* No team on the row: a lineup is its personnel. gp counts session-and-squad groups, so
+       a pairing that played together in two practices reads 2 whichever pinnies they wore. */
+    return { key: entry.key, displayKey: entry.displayKey || entry.key, members: entry.members || [], gp, min: +totMin.toFixed(1), poss: +poss.toFixed(1),
              ortg, drtg, net, efg, orebPct, tovPct, ftr, dEfg, dOrebPct, dTovPct, dFtr };
   });
 
@@ -10098,7 +10111,7 @@ function renderLineupsView() {
       </div>
       ${_lineupsFilterBar(filtered)}
     </div>
-    ${_luBuilderPanelHtml(lineupRows, size, filtered)}
+    ${_luBuilderPanelHtml(lineupRows, size)}
     <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 0;border-top:1px solid var(--border);">
       <label style="font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">Min. Possessions:</label>
       <input type="range" min="1" max="${maxPoss}" value="${minPoss}" id="lu-poss-slider"
@@ -10254,14 +10267,9 @@ function luBuilderClear() {
 }
 
 /* One unit's full line, laid out like the On/Off cards so the two read as the same app.
-
-   squadLabel is passed ONLY when a selection matches more than one row, which happens when
-   the same players formed a unit on both squads across different practices — the table keys
-   those separately. The rows deliberately carry no squad badge, because labelling a lineup
-   with one scrimmage team is misleading over a season; but two cards identical down to the
-   name are worse, so the squad appears exactly where it is the only thing telling them
-   apart, and nowhere else. */
-function _luBuilderCardHtml(r, squadLabel) {
+   A completed selection always names exactly one unit — lineups are keyed on personnel, so
+   there is no second row for the same players in different pinnies to tell apart. */
+function _luBuilderCardHtml(r) {
   const f   = (v, s = '') => (v != null ? v + s : '&mdash;');
   const net = (r.net > 0 ? '+' : '') + r.net;
   const netCls = r.net > 0 ? 'oo-imp-good' : r.net < 0 ? 'oo-imp-bad' : '';
@@ -10273,7 +10281,7 @@ function _luBuilderCardHtml(r, squadLabel) {
   return `<div class="oo-imp-card" style="margin-top:10px;margin-bottom:0;">
       <div class="oo-imp-head">
         <span class="oo-imp-name">${escHtml(r.displayKey || r.key)}</span>
-        <span class="oo-imp-sub">${squadLabel ? escHtml(squadLabel) + ' &middot; ' : ''}${r.gp} practice${r.gp === 1 ? '' : 's'} &middot; ${(+r.min).toFixed(1)} min &middot; ${Math.round(r.poss)} poss</span>
+        <span class="oo-imp-sub">${r.gp} practice${r.gp === 1 ? '' : 's'} &middot; ${(+r.min).toFixed(1)} min &middot; ${Math.round(r.poss)} poss</span>
       </div>
       <div class="lu-b-grid">
         ${panel('Efficiency', [
@@ -10298,7 +10306,7 @@ function _luBuilderCardHtml(r, squadLabel) {
     </div>`;
 }
 
-function _luBuilderPanelHtml(rows, size, filtered) {
+function _luBuilderPanelHtml(rows, size) {
   const chosen   = luBuilder.filter(Boolean);
   const matches  = _luBuilderMatches(rows);
   const complete = chosen.length === size;
@@ -10321,9 +10329,7 @@ function _luBuilderPanelHtml(rows, size, filtered) {
        size out from under the selection. Say which players, not just "no results". */
     body = `<div class="lu-b-blank">No lineup on record has ${escHtml(chosen.join(' + '))} on the floor together under these filters.</div>`;
   } else if (complete) {
-    const squad = r => r.team === 'b' ? (filtered?.[0]?.teamBName || 'Black')
-                                      : (filtered?.[0]?.teamAName || 'White');
-    body = matches.map(r => _luBuilderCardHtml(r, matches.length > 1 ? squad(r) : null)).join('');
+    body = matches.map(_luBuilderCardHtml).join('');
   } else {
     const left = size - chosen.length;
     body = `<div class="lu-b-note"><strong>${matches.length}</strong> ${size}-man lineup${matches.length === 1 ? '' : 's'} include ${escHtml(chosen.join(' + '))} — listed below. Fill ${left} more slot${left === 1 ? '' : 's'} to see a single unit.</div>`;
