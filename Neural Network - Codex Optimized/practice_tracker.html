@@ -1404,20 +1404,25 @@
     .stat-btn.stat-active { outline: 2px solid #fff; outline-offset: 1px; }
 
     /* Stat button color palette */
-    .sb-2fg-miss  { background: #9f1239; color: #fda4af; }  /* rose       */
-    .sb-2fg-make  { background: #1e40af; color: #bfdbfe; }  /* blue       */
-    .sb-3fg-miss  { background: #5b21b6; color: #ddd6fe; }  /* indigo     */
-    .sb-3fg-make  { background: #b45309; color: #fef08a; }  /* amber/gold */
-    .sb-ft-miss   { background: #701a75; color: #f0abfc; }  /* fuchsia    */
-    .sb-ft-make   { background: #155e75; color: #cffafe; }  /* cyan       */
-    .sb-dreb      { background: #134e4a; color: #5eead4; }
-    .sb-oreb      { background: #431407; color: #fdba74; }
-    .sb-ast       { background: #3b0764; color: #d8b4fe; }
-    .sb-tov       { background: #450a0a; color: #fca5a5; }
-    .sb-blk       { background: #172554; color: #93c5fd; }
-    .sb-stl       { background: #422006; color: #fde68a; }
-    .sb-defl      { background: #083344; color: #67e8f9; }
-    .sb-foul      { background: #1e3a5f; color: #93c5fd; }
+    /* White label on every one. The background still carries the colour coding that makes
+       the grid scannable at a glance; the text no longer has to. A tinted label drawn from
+       its own background's hue is the lowest-contrast choice available for that swatch, and
+       these buttons get hit at speed, in a gym, from arm's length - legibility beats
+       tonal matching. Backgrounds are unchanged, so muscle memory for the grid survives. */
+    .sb-2fg-miss  { background: #9f1239; color: #fff; }  /* rose       */
+    .sb-2fg-make  { background: #1e40af; color: #fff; }  /* blue       */
+    .sb-3fg-miss  { background: #5b21b6; color: #fff; }  /* indigo     */
+    .sb-3fg-make  { background: #b45309; color: #fff; }  /* amber/gold */
+    .sb-ft-miss   { background: #701a75; color: #fff; }  /* fuchsia    */
+    .sb-ft-make   { background: #155e75; color: #fff; }  /* cyan       */
+    .sb-dreb      { background: #134e4a; color: #fff; }
+    .sb-oreb      { background: #431407; color: #fff; }
+    .sb-ast       { background: #3b0764; color: #fff; }
+    .sb-tov       { background: #450a0a; color: #fff; }
+    .sb-blk       { background: #172554; color: #fff; }
+    .sb-stl       { background: #422006; color: #fff; }
+    .sb-defl      { background: #083344; color: #fff; }
+    .sb-foul      { background: #1e3a5f; color: #fff; }
 
     .stat-divider {
       height: 1px;
@@ -2083,14 +2088,43 @@
 
     /* Name column: a floor, not a fixed width — nowrap still lets it grow for a long name.
        130px was padding an already-wide table; 96px is enough for the short names and the
-       long ones size themselves. NOTHING here is sticky any more. */
+       long ones size themselves.
+
+       Pinned again, deliberately. The earlier note here said sticky had been "tried and
+       rejected" because the table was made narrow enough to fit its modal outright, so
+       there was nothing to freeze against. That holds on a wide desktop and stops holding
+       the moment the window is narrower than 27 columns need — on a laptop or a phone the
+       table scrolls and the names walk off the left edge, which is exactly the case the
+       other four stat tables pin for.
+
+       Sticky costs nothing when it is not needed: with no horizontal overflow there is no
+       scroll offset, so the cell never leaves its natural position. The seam the old note
+       worried about is handled the way every other pinned table here handles it - an opaque
+       background per row parity, and a hairline shadow standing in for the border that
+       sticky positioning drops. */
     .box-table tbody td:first-child,
     .box-table thead th:first-child {
       min-width: 96px;
       text-align: left;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      box-shadow: 1px 0 0 var(--border);
     }
 
-    .box-table thead th:first-child { background: var(--card); }
+    .box-table thead th:first-child { background: var(--card); z-index: 3; }
+
+    /* Row striping lives on the <tr>, which a sticky cell scrolls out from under, so the
+       first cell has to carry its own copy of every row state. */
+    .box-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+    .box-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+    .box-table tbody tr:hover td:first-child { background: #c0c8d8 !important; }
+    /* tbody is load-bearing here: without it this is (0,3,2) and the nth-child stripe above
+       is (0,3,3), so the totals row lost its own colour and rendered as a white body row. */
+    .box-table tfoot td:first-child,
+    .box-table tbody tr.totals-row td:first-child { background: #e2e8f0; }
+    /* The bench divider is a single full-width bar; pinning its cell would leave a notch. */
+    .box-table tbody tr.bench-divider td:first-child { position: static; box-shadow: none; }
 
     .box-table tbody tr:nth-child(odd)  { background: #d9d9d9; }
     .box-table tbody tr:nth-child(even) { background: #ffffff; }
@@ -2594,6 +2628,46 @@
     .oo-imp-tbl tbody td.oo-imp-bad  { color: #e0342c; }
     @media (max-width: 1100px) { .oo-imp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px)  { .oo-imp-grid { grid-template-columns: 1fr; } .oo-imp-note { text-align: left; } }
+
+    /* Lineup Builder — sits above the lineup table and drives it. */
+    .lu-builder {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); padding: 12px 14px; margin-top: 14px;
+    }
+    .lu-b-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .lu-b-title { font-size: 13px; font-weight: 800; color: var(--text); white-space: nowrap; }
+    .lu-b-slots { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+    /* width:auto is load-bearing: the app styles <select> at width:100% globally, which
+       stretched every slot to the full row and stacked five dropdowns vertically. min-width
+       alone loses to it — the slots have to opt out of the width before flex can size them. */
+    .lu-b-slot { width: auto; min-width: 148px; flex: 0 1 auto; }
+    /* An empty slot recedes; a filled one reads as a committed choice. */
+    .lu-b-slot.is-set { border-color: var(--primary); font-weight: 700; color: var(--text); }
+    .lu-b-note  { font-size: 11.5px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
+    .lu-b-blank { font-size: 12px; color: var(--warning); font-weight: 700; margin-top: 10px; }
+    /* On a phone the slots take a line of their own rather than sharing one with the title
+       and the Clear button — competing for that row squeezed them to a single dropdown per
+       line when two fit comfortably. */
+    @media (max-width: 900px) {
+      .lu-b-slots { flex: 1 1 100%; }
+      .lu-b-slot  { min-width: 0; flex: 1 1 132px; }
+    }
+
+    /* Tendency Read — prose, so it gets prose treatment: a comfortable measure, a little
+       more line-height than the tables around it, and a quiet footer naming the span it
+       describes so it is never mistaken for the scoped panels beside it. */
+    .tr-read {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); padding: 14px 16px 12px;
+    }
+    .tr-body {
+      margin: 0; font-size: 13.5px; line-height: 1.62; color: var(--text);
+      max-width: 62ch; font-variant-numeric: tabular-nums;
+    }
+    .tr-foot {
+      margin-top: 11px; padding-top: 9px; border-top: 1px solid var(--border);
+      font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em;
+    }
 
     .oo-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     /* When the card IS the scroll container, its overflow:hidden would clip the wide
@@ -3336,9 +3410,52 @@
       .profile-stat-val { font-size: 17px; }
       #profile-panel-overview > div:first-child { grid-template-columns: 1fr !important; }
     }
+    /* LOADING GATE - see initApp(). The shell is interactive from first paint but its
+       data arrives a fetch later, so the app stays covered until real data is on screen. */
+    #app-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--bg);
+      color: var(--text-secondary);
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+    #app-loading.is-done {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease-out;
+    }
+    .app-loading-spinner {
+      width: 28px;
+      height: 28px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: app-loading-spin 700ms linear infinite;
+    }
+    @keyframes app-loading-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .app-loading-spinner { animation-duration: 2400ms; }
+    }
   </style>
 </head>
 <body>
+
+<!-- LOADING GATE. The nav and tabs are clickable the moment the HTML parses, but the roster
+     and sessions only exist once initApp() has run. Anything opened before then rendered
+     whatever State happened to hold - which is how last season's seed roster kept showing
+     up in the roster editor and the starter grid. initApp() removes this in a finally, so
+     a throw cannot strand the app behind it. -->
+<div id="app-loading" role="status" aria-live="polite">
+  <div class="app-loading-spinner"></div>
+  <div class="app-loading-text">Loading practice data&hellip;</div>
+</div>
 
 <!-- ============================================================
      APP SHELL
@@ -4073,18 +4190,24 @@
 ============================================================ -->
 <script type="application/json" id="roster-data">
 [
-  {"name": "Noah Cotton"},
   {"name": "Josh Castaniero"},
+  {"name": "Matthew Wilson"},
+  {"name": "Alex Bello"},
+  {"name": "SoulJah Niles"},
+  {"name": "Mikey Duran-Morales"},
   {"name": "Eric Kubel"},
-  {"name": "Roman Finney"},
-  {"name": "Dominique Brutus"},
-  {"name": "Tidiane Sy"},
-  {"name": "Matt Mowers"},
-  {"name": "Santos Cordero"},
-  {"name": "Player 9"},
-  {"name": "Player 10"},
-  {"name": "Player 11"},
-  {"name": "Player 12"}
+  {"name": "Quian Khawaja"},
+  {"name": "KaLeke Singletary-Jinks"},
+  {"name": "Brendan Banks-Speed"},
+  {"name": "George Hees"},
+  {"name": "Jonathan Galloway", "hidden": true},
+  {"name": "Emmitt Claiborne"},
+  {"name": "Sean Castro"},
+  {"name": "CJ Temme", "hidden": true},
+  {"name": "Axel Ostergard"},
+  {"name": "Jaylen Smith"},
+  {"name": "Finn Ortiz"},
+  {"name": "Jack Johnson"}
 ]
 </script>
 
@@ -4105,7 +4228,8 @@
    GLOBAL STATE
 ============================================================ */
 const State = {
-  roster:      [],      // loaded from #roster-data
+  roster:      [],      // localStorage pt_roster, or the published snapshot, or seedRoster
+  seedRoster:  [],      // #roster-data: the first-run seed ONLY (see loadEmbeddedData)
   settings:    {},      // loaded from #settings-data
   zones:       [],      // shot-chart zones drawn in the Zones tab
   sessions:    [],      // all completed sessions (from localStorage)
@@ -4115,12 +4239,17 @@ const State = {
 /* ============================================================
    DATA LOADING
 ============================================================ */
+/* The embedded #roster-data block is a first-run seed and nothing more, so it is stashed
+   rather than assigned. It used to land straight in State.roster, which meant that for the
+   whole pt_data.json round-trip the app was holding last season's names and would render
+   them into any picker opened in that window. Now loadPersistentData and loadPublishedData
+   get first refusal, and applySeedRoster() fills in only if neither produced a roster. */
 function loadEmbeddedData() {
   try {
-    State.roster = JSON.parse(document.getElementById('roster-data').textContent);
+    State.seedRoster = JSON.parse(document.getElementById('roster-data').textContent);
   } catch(e) {
     console.warn('Failed to parse roster-data:', e);
-    State.roster = [];
+    State.seedRoster = [];
   }
   try {
     State.settings = JSON.parse(document.getElementById('settings-data').textContent);
@@ -4459,6 +4588,102 @@ async function repairEmptyStints() {
   try { tabRenderers.log(); } catch (e) {}
 }
 
+/* Archive repair for stints recorded BACKWARDS - an end larger than its start, which a
+   clock counting down makes impossible. stintSeconds() already refuses to measure one,
+   returning 0 rather than the Math.abs() that used to hand all ten players on the floor
+   4+ phantom minutes - so no number is ever wrong. What goes wrong is quieter: the seconds
+   that stint covers belong to NO stint, so every player in that five is short them, and
+   On/Off reads someone who never came off at 96% of a practice with an empty Off column.
+
+   This is the third repair because it is a third kind of damage, and neither of the others
+   reaches it:
+     - Recompute Stats rebuilds teamStats/playerStats from the event logs and never touches
+       lineupSegments, which is where the impossible number lives.
+     - Repair Stints removes stints that contributed nothing; this one FIXES a stint that
+       should have contributed and did not.
+   And unlike Repair Stints, this moves real numbers, so it has to recompute afterwards:
+   minutes are stored at finalize, and minExact divides MIN%, SHOT%, OR%, DR%, AST%, TO%,
+   STL%, BLK%, USG% and the ORTG/DRTG minute weights. */
+async function repairInvertedStints() {
+  const sessions = State.sessions || [];
+  if (!sessions.length) { showToast('No saved practices to repair', 'warning'); return; }
+
+  const input = prompt('Enter the tracker password to repair backwards lineup stints:');
+  if (input == null) return;
+  if (await sha256(input) !== localStorage.getItem('pt_pass_hash')) {
+    showToast('Incorrect password — nothing repaired.', 'danger', 3000);
+    return;
+  }
+
+  /* Survey first so the confirm can state exactly what will change. correctedStintEnd() is
+     pure, so unlike the empty-stint repair this needs no throwaway copies. */
+  const fixable = [], manual = [];
+  for (const sess of sessions) {
+    for (const { seg } of invertedSegments(sess)) {
+      const end = correctedStintEnd(sess, seg);
+      (end == null ? manual : fixable).push({ sess, seg, end });
+    }
+  }
+
+  if (!fixable.length && !manual.length) {
+    showToast('No backwards stints found — nothing to repair.', 'success', 3500);
+    return;
+  }
+
+  const describe = ({ sess, seg, end }) =>
+    `  ${sess.title} — Q${seg.quarter} ${seg.startTimeSecs} → ${seg.endTimeSecs}` +
+    (end == null ? '  (cannot be resolved automatically)'
+                 : `  becomes ${seg.startTimeSecs} → ${end}  (${seg.startTimeSecs - end}s restored)`);
+
+  if (!fixable.length) {
+    alert(`${manual.length} backwards stint${manual.length === 1 ? '' : 's'} found, but ` +
+          `none can be resolved automatically:\n\n${manual.map(describe).join('\n')}\n\n` +
+          `Nothing was changed — these need to be corrected by hand.`);
+    return;
+  }
+
+  if (!confirm(
+    `Repair ${fixable.length} backwards lineup stint${fixable.length === 1 ? '' : 's'}?\n\n` +
+    `${fixable.map(describe).join('\n')}\n\n` +
+    (manual.length ? `${manual.length} other${manual.length === 1 ? '' : 's'} cannot be ` +
+                     `resolved automatically and will be LEFT ALONE:\n${manual.map(describe).join('\n')}\n\n` : '') +
+    `Each end is set to where the next stint in that quarter begins — or, for the last ` +
+    `stint, to the clock the quarter actually stopped at.\n\n` +
+    `Minutes ARE affected: every player in these lineups gets the missing time back, and ` +
+    `stats are recomputed so MIN%, USG% and the other minute-weighted rates follow. Your ` +
+    `event logs are not modified.\n\n` +
+    `A backup downloads first.`
+  )) return;
+
+  try {
+    downloadTextFile(
+      `moorpark_tracker_backup_pre_inverted_stint_repair_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
+      JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
+                       exportedAt: new Date().toISOString(), reason: 'auto-backup before inverted-stint repair',
+                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       sessions: getSessions() }),
+      'application/json');
+  } catch (e) { /* non-fatal — continue */ }
+
+  for (const { seg, end } of fixable) seg.endTimeSecs = end;
+
+  /* Recomputed per session, and only for the ones actually touched — a blanket pass would
+     quietly drag every OTHER practice onto the current formulas too, which is Recompute
+     Stats' job to do deliberately, not this repair's to do as a side effect. */
+  const touched = [...new Set(fixable.map(f => f.sess))];
+  for (const sess of touched) {
+    sess.teamStats   = computeTeamStats(sess);
+    sess.playerStats = computePlayerStats(sess);
+  }
+
+  if (!persistSessions()) return;   // persistKey already warned
+  showToast(`Repaired ${fixable.length} backwards stint${fixable.length === 1 ? '' : 's'} in ` +
+            `${touched.length} practice${touched.length === 1 ? '' : 's'}` +
+            (manual.length ? ` — ${manual.length} left for manual review` : '') +
+            `. Re-publish to update the site.`, 'success', 6000);
+  try { tabRenderers.log(); } catch (e) {}
+}
+
 /* Publish: downloads pt_data.json — the file the published site reads. Commit + push it
    to update the live site. Password-gated (same as Backup). */
 async function publishData() {
@@ -4525,9 +4750,17 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
-/* Players marked hidden stay in the data - their presence still shapes team totals,
-   lineup stints and everyone else's on/off - but they are not shown as a subject of
-   analysis: no stats row, no profile, no impact card, no shot-chart filter entry. */
+/* Players marked hidden stay in the DATA - their minutes really happened, so they still
+   shape team totals and their teammates' numbers - but their NAME appears nowhere: no stats
+   row, no profile, no impact card, no shot-chart entry, no lineup they are a member of, and
+   no picker that could put them into a new practice.
+
+   The Lineups tab is where that distinction has to be drawn carefully. A five containing a
+   hidden player has no five left to show, so it drops out - unavoidable, a five needs five
+   names. But the four visible players in it are still a real four-man unit that shared real
+   minutes, so combinations are drawn from the VISIBLE players rather than discarding the
+   stint. Discarding it would have cost the other four 226 of their 864 two-man minutes to
+   hide one name, and taken 37% of all lineup minutes with it. */
 function isHiddenPlayer(name) {
   const p = (State.roster || []).find(r => r.name === name);
   return !!(p && p.hidden);
@@ -4575,16 +4808,34 @@ function addRosterEditorRow(name, hidden) {
   input.dataset.original = name || '';   // remember starting name so a save can detect renames
   input.placeholder = 'Player name';
   input.style.cssText = 'flex:1;padding:6px 8px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;';
-  // Hide = keep their data, drop them from the analysis views.
+  /* Hide = keep their data, take their NAME out of the app.
+     This tooltip is the only place the rule is written down for the coach, so it has to
+     track what hiding actually does - it used to describe the narrower version (stats,
+     profiles, On/Off, shot-chart filters) and had gone stale. */
   const hideWrap = document.createElement('label');
   hideWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);cursor:pointer;white-space:nowrap;';
-  hideWrap.title = 'Hide from Player Stats, profiles, On/Off cards and shot-chart filters.\nTheir shots and minutes still count toward team and teammate numbers.';
+  hideWrap.title = 'Hide removes the player from Player Stats, profiles, On/Off cards, '
+    + 'shot-chart filters, lineups, the Lineup Builder, the note list, the starter picker '
+    + 'and the substitution bench.\n\nNothing is deleted: their shots and minutes still '
+    + 'count toward team and teammate numbers, and unhiding brings everything straight back.';
   const hide = document.createElement('input');
   hide.type = 'checkbox';
   hide.className = 'roster-hide';
   hide.checked = !!hidden;
   hideWrap.appendChild(hide);
   hideWrap.appendChild(document.createTextNode('Hide'));
+
+  /* A hidden row used to look identical to a visible one apart from an 11px tick, which
+     makes the roster editor the one screen where you cannot tell at a glance who is hidden
+     - and it is the screen you open specifically to find that out. */
+  const markHidden = () => {
+    row.style.opacity = hide.checked ? '0.55' : '1';
+    input.style.textDecoration = hide.checked ? 'line-through' : 'none';
+    hideWrap.style.color = hide.checked ? 'var(--warning)' : 'var(--text-dim)';
+    hideWrap.style.fontWeight = hide.checked ? '700' : '400';
+  };
+  hide.addEventListener('change', markHidden);
+  markHidden();
 
   const del = document.createElement('button');
   del.className = 'btn btn-ghost btn-sm';
@@ -4818,8 +5069,10 @@ function renderPlayerGrid(team) {
   const opposite = team === 'a' ? setupState.startersB : setupState.startersA;
 
   grid.innerHTML = '';
-  // Sorted copy — State.roster keeps its own order for the roster editor.
-  [...State.roster].sort((x, y) => byLastName(x.name, y.name)).forEach(p => {
+  /* Sorted copy — State.roster keeps its own order for the roster editor. Hidden players
+     are not offered: hiding one says they are gone, and a picker that still lists them
+     invites putting them into a practice they were never at. Unhide in Edit Roster. */
+  [...State.roster].filter(p => !p.hidden).sort((x, y) => byLastName(x.name, y.name)).forEach(p => {
     const name = p.name;
     const isSel = selected.has(name);
     const inOpposite = opposite.has(name);
@@ -6587,6 +6840,7 @@ tabRenderers.log = function() {
         <button class="btn btn-ghost btn-sm" style="color:var(--warning);border-color:rgba(245,158,11,0.35);" onclick="restoreFromBackup()" title="Replace ALL current data with a backup file (password required)">⟲ Restore</button>
         <button class="btn btn-ghost btn-sm" onclick="recomputeAllStats()" title="Rebuild every saved practice's stats from its event log using the current formulas (password required)">&#8635; Recompute Stats</button>
         <button class="btn btn-ghost btn-sm" onclick="repairEmptyStints()" title="Remove lineup stints with no elapsed time and no events &mdash; phantom fives left by substitutions entered on the clock a stint opened (password required)">&#9876; Repair Stints</button>
+        <button class="btn btn-ghost btn-sm" onclick="repairInvertedStints()" title="Fix lineup stints that run backwards &mdash; an end later than its start, which leaves those seconds belonging to no stint and every player in that five short the minutes (password required)">&#8617; Fix Backwards Stints</button>
         <button class="btn btn-ghost btn-sm" onclick="repairSessionDates()" title="Correct practice dates stored in UTC &mdash; evening practices were filed a day late (password required)">&#128197; Fix Dates</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);margin-left:14px;" onclick="wipeAllData()" title="Erase ALL data in this browser and start fresh — downloads a full backup first (password required)">&#9888; Wipe All Data</button>`}
       </div>
@@ -8887,6 +9141,489 @@ function tendSetMin(delta) {
 
 /* Recurring shot patterns: zone + shot-type combination + contest, ranked by how
    often they happen. Answers "what does this player actually do, and does it work". */
+/* ── Tendency Read ───────────────────────────────────────────────────────────
+   A written season-long read on one player, rebuilt from the data every time the profile
+   renders. No stored text, so a new scrimmage changes it the moment it is published.
+
+   Three rules hold the whole thing up.
+
+   1. EVERY CLAIM CARRIES ITS OWN SAMPLE, and the sample decides the language. Shooting and
+      location are counted in attempts; rate stats are counted in MINUTES, which is why a
+      player with six shots and forty minutes can still be worth a sentence. Below the gate
+      a claim is discarded outright - it never reaches ranking, so it can never be phrased.
+
+   2. RATES ARE SHRUNK TOWARD THE TEAM by n/(n+k) before they are ranked, so a hot six
+      attempts cannot outrank a real thirty. This is the same instinct as ooAgg() returning
+      null rather than inventing a possession: a number with nothing behind it is not a
+      number.
+
+   3. THE REGISTER IS FLAT. The figure and what it is measured against, no verdict nouns -
+      no "weak spot", no "the problem". The comparison is the judgement and a coach reads it
+      faster than a sentence can tell him what to think.
+
+   Wording varies by hashing name+claim rather than at random, so two players with the same
+   finding read differently while any one player stays put until his numbers move. A random
+   draw would reword on every render and you could never tell which had changed. */
+
+const TR_ZONE = { ft:'the FT circle', paint_ul:'the right lane', paint_ur:'the left lane',
+  paint_ll:'the right post', paint_lr:'the left post', mr_left_high:'the right elbow',
+  mr_left_low:'the right baseline', mr_right_high:'the left elbow', mr_right_low:'the left baseline',
+  c3_left:'the right corner', w3_left:'the right wing', ab3:'above the break',
+  w3_right:'the left wing', c3_right:'the left corner' };
+const TR_SIDE = { paint_ul:'right', paint_ll:'right', mr_left_high:'right', mr_left_low:'right',
+  c3_left:'right', w3_left:'right', paint_ur:'left', paint_lr:'left', mr_right_high:'left',
+  mr_right_low:'left', c3_right:'left', w3_right:'left', ft:'middle', ab3:'middle' };
+const TR_GROUP = { c3_left:'the corners', c3_right:'the corners', w3_left:'the wings',
+  w3_right:'the wings', ab3:'above the break' };
+const TR_PAINT = ['paint_ul','paint_ur','paint_ll','paint_lr'];
+const TR_TYPE = { drive:'drives', catch_shoot:'catch-and-shoot', layup:'layups', pull_up:'pull-ups',
+  post_moves:'post-ups', floater:'floaters', off_balance:'off-balance shots', dunk:'dunks',
+  alley_oop:'alley-oops', buzzer_beater:'buzzer-beaters' };
+/* Fourth column is the raw counting stat the rate is built from. Minutes alone are not a
+   sample for a rate: 21 minutes at 5% usage is a handful of possessions, and one turnover
+   across two of them reads as "50% turnovers" - a true division and a worthless sentence.
+   The rate is only eligible once the count behind it clears TR_RATE_MIN_EVENTS. */
+/* The app's own column labels, not friendlier synonyms for them. "Playmaking" was my word
+   for astPct; every other surface here - Player Stats ADV, the box score, the game log -
+   calls it AST%, and inventing a second name for a stat that already has one makes the
+   reader work out whether they are the same thing. These must stay in step with PS_COLS_ADV
+   and BS_COLS.
+   Note the labels already carry their unit, so the values are printed bare. */
+const TR_RATES = [
+  ['orPct','OR%','high','oreb'],
+  ['drPct','DR%','high','dreb'],
+  ['astPct','AST%','high','ast'],
+  ['toPct','TO%','low','tov'],
+  ['stlPct','STL%','high','stl'],
+  ['blkPct','BLK%','high','blk'],
+  ['ftRate','FTR','high','fta'],
+];
+const TR_RATE_MIN_EVENTS = 3;
+const TR_SHOT_STATS = ['2fg_make','2fg_miss','3fg_make','3fg_miss'];
+
+const TR_BANK = {
+  role: [
+    '{F} has played {min} minutes across {gp} {prac}, on the floor for {mp}% of them, using {usg}% of possessions while out there.',
+    '{F} has been on the floor for {mp}% of {gp} {prac} — {min} minutes — and used {usg}% of possessions while out there.',
+    'Across {gp} {prac} {F} has logged {min} minutes, {mp}% of what was available, carrying {usg}% of the possessions he was out for.',
+    '{min} minutes over {gp} {prac} puts {F} on the floor for {mp}% of them, with a {usg}% usage rate.',
+    '{F} sees {mp}% of the floor time across {gp} {prac} ({min} minutes) and uses {usg}% of possessions.' ],
+  shot_strong: [
+    '{Phr} he is at {pps} points per shot across {n} attempts, against a team mark of {tm}.',
+    'He scores {pps} a shot {phr} — {n} attempts, {sh}% of his volume — where the team is at {tm}.',
+    '{n} attempts {phr} have returned {pps} points per shot; the team averages {tm}.',
+    '{Phr}: {pps} points per shot on {n} attempts, team {tm}.',
+    'His {n} attempts {phr} are worth {pps} a shot, against {tm} for the team.' ],
+  shot_moderate: [
+    '{Phr} he is at {pps} points per shot across {n} attempts, against a team mark of {tm}.',
+    'He has scored {pps} a shot {phr} — {n} attempts, {sh}% of his volume — where the team is at {tm}.',
+    '{n} attempts {phr} have returned {pps} points per shot; the team averages {tm}.',
+    '{Phr}: {pps} points per shot on {n} attempts, team {tm}.',
+    'His {n} attempts {phr} have been worth {pps} a shot, against {tm} for the team.' ],
+  shot_weak: [
+    '{Phr} he is at {pps} points per shot, though on {n} attempts so far; the team is at {tm}.',
+    /* "Across", not "On" — the phrase already starts with a preposition for shot types
+       ("on pull-ups"), and "On 4 attempts on pull-ups" doubles it. */
+    'Across {n} attempts {phr} he is scoring {pps} a shot, against a team mark of {tm} — a small sample.',
+    '{Phr}: {pps} points per shot, {n} attempts so far, team {tm}.',
+    'His {n} attempts {phr} have returned {pps} a shot against {tm} for the team, early days.',
+    'So far {phr} he is at {pps} points per shot on {n} attempts; the team averages {tm}.' ],
+  side: [
+    '{pct}% of his shots come from the {side} side of the floor.',
+    '{pct}% of his attempts are on the {side} side.',
+    'His attempts are {pct}% {side} side.',
+    'He shoots {pct}% of the time from the {side} side.',
+    '{pct}% of his volume sits on the {side} side.' ],
+  contest: [
+    '{pct}% of his shots have come contested.',
+    'He has been contested on {pct}% of his attempts.',
+    '{pct}% of his attempts came with a hand up.',
+    'Defenders closed out on {pct}% of his shots.',
+    'His attempts are contested {pct}% of the time.' ],
+  three: [
+    'Threes are {pct}% of what he takes.',
+    '{pct}% of his attempts are from three.',
+    'He takes {pct}% of his shots from behind the arc.',
+    'Three-point attempts make up {pct}% of his volume.',
+    '{pct}% of his shot diet is threes.' ],
+  dist: [
+    'His average attempt comes from {ft} feet.',
+    'He shoots from {ft} feet on average.',
+    'Mean shot distance is {ft} feet.',
+    'His attempts average {ft} feet out.',
+    'On average he is {ft} feet from the rim when he shoots.' ],
+  thin: [
+    'Only {n} {shots} on record so far, too few to read a shooting pattern from.',
+    'At {n} {shots} there is not yet enough to read a shooting pattern.',
+    '{n} {shots} so far — not yet a sample to read.',
+    'His shooting is still {n} {shots} in, short of a readable sample.',
+    '{n} {shots} on record, not yet enough to read.' ],
+  even: [
+    'Across {n} shots nothing separates — he is close to team average wherever he shoots from.',
+    '{n} shots in, he is about team average from everywhere.',
+    'His {n} shots are evenly valued — no spot stands apart yet.',
+    'Nothing leans across {n} shots; he scores at roughly the team rate throughout.',
+    '{n} shots and no pattern separates — team-average value everywhere.' ],
+  trend: [
+    'Over his last {n} shots he is at {a} points per shot, against {b} before that.',
+    'His most recent {n} attempts have returned {a} a shot, where earlier ones were {b}.',
+    'The last {n} shots are worth {a} each; the ones before them were {b}.',
+    'Recent form: {a} points per shot over {n} attempts, against {b} previously.',
+    'His last {n} attempts sit at {a} a shot, where the earlier ones were {b}.' ],
+};
+/* Rank-asserting lines are tagged. A sentence claiming he leads the roster is only in the
+   pool when he actually does — otherwise it is a lie dressed up as variety, which is how an
+   earlier pass handed "nobody draws contact like he does" to two different players. */
+/* Eight phrasings, not five, and the last three name the middle differently rather than
+   just rearranging the same clause — "the middle of the roster", "a typical man on this
+   roster", "the roster centres on". With three rate lines now allowed in one paragraph, a
+   five-deep bank was landing the same construction twice on the same player. */
+/* {label} is the stat's own name (AST%, OR%, FTR), so it already carries the unit and the
+   figures print bare — "AST% 21.7, where the team median is 12.5", never "AST%: 21.7%".
+   Articles are avoided throughout: "a AST%" and "an OR%" cannot both be right, and no
+   template should have to know which. */
+const TR_RANKED_HI = [
+  [true,  'He leads the team in {label}, {v} to a median of {med}.'],
+  [false, 'His {label} is {v}, against a team median of {med}.'],
+  [false, '{label} {v}, where the team median is {med}.'],
+  [false, 'He carries {label} {v}, where the roster median is {med}.'],
+  [false, 'He posts {label} {v} against a median of {med}.'],
+  [false, 'He sits at {v} in {label}, where the middle of the roster is {med}.'],
+  [false, 'In {label} he runs {v}; a typical man on this roster is at {med}.'],
+  [false, 'The roster centres on {med} in {label}; he is at {v}.'] ];
+const TR_RANKED_LO = [
+  [true,  'He is last on the roster in {label}, {v} to a median of {med}.'],
+  [false, 'His {label} is {v}, against a team median of {med}.'],
+  [false, '{label} {v}, where the team median is {med}.'],
+  [false, 'He carries {label} {v}, where the roster median is {med}.'],
+  [false, 'He posts {label} {v} against a median of {med}.'],
+  [false, 'He sits at {v} in {label}, where the middle of the roster is {med}.'],
+  [false, 'In {label} he runs {v}; a typical man on this roster is at {med}.'],
+  [false, 'The roster centres on {med} in {label}; he is at {v}.'] ];
+
+function trHash(s) {
+  let x = 2166136261;
+  for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619) >>> 0; }
+  return x;
+}
+function trPick(bank, seed) { return bank[trHash(seed) % bank.length]; }
+function trFill(tpl, vals) { return tpl.replace(/\{(\w+)\}/g, (m, k) => (vals[k] != null ? vals[k] : m)); }
+function trShotPts(e) { return e.stat === '3fg_make' ? 3 : e.stat === '2fg_make' ? 2 : 0; }
+function trPPS(evs) { return evs.length ? evs.reduce((t, e) => t + trShotPts(e), 0) / evs.length : null; }
+function trBucket(ft) {
+  return ft <= 4 ? 'the rim' : ft <= 9 ? 'short range' : ft <= 17 ? 'mid-range'
+       : ft < 22 ? 'long twos' : 'three';
+}
+function trMedian(arr) {
+  const a = arr.slice().sort((x, y) => x - y);
+  if (!a.length) return null;
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+/* Minute-weighted, because a rate from a 30-minute practice should not count the same as
+   one from a 6-minute cameo. */
+function trWavg(rows, key) {
+  let num = 0, den = 0;
+  for (const r of rows) {
+    const v = r[key], w = r.min || 0;
+    if (v != null && w) { num += v * w; den += w; }
+  }
+  return den ? num / den : null;
+}
+
+/* THE one place a shot is sorted into the buckets the read talks about. The player's shots
+   and the whole team's go through it, so every fact can look up its own baseline by the
+   exact same key — if the two were categorised separately they would eventually disagree
+   about what "from the corners" means, and nothing would report the mismatch. */
+/* Locations are named, never blurred. The read used to speak in groupings - "from the
+   wings", "in the paint" - because a single spot rarely cleared a 6-attempt gate. That made
+   it vague exactly where a coach needs precision, and it put a SECOND vocabulary on a page
+   whose Shot Tendencies table right below already speaks in the fourteen zones actually
+   drawn on the court. One page, one set of names.
+
+   So the drawn zone wins, via the same znZoneForShot() the tendencies table uses, and the
+   gate drops to four attempts - a zone is the thing worth being specific about, and the
+   hedging ladder already marks a thin one as thin. The fixed fallback grid is only for a
+   shot that lands outside every drawn zone. */
+function trZoneName(e) {
+  const z = (typeof znZoneForShot === 'function') ? znZoneForShot(e) : null;
+  if (z && z.name) return z.name;
+  return TR_ZONE[e.zone] ? TR_ZONE[e.zone].replace(/^the /, '') : null;
+}
+
+function trCategorize(shots) {
+  const out = {};
+  const push = (phr, e, tier) => {
+    if (!out[phr]) { out[phr] = []; out[phr].tier = tier; }
+    out[phr].push(e);
+  };
+  for (const e of shots) {
+    const zn = trZoneName(e);
+    if (zn) push('from ' + zn, e, 1);
+    const types = (Array.isArray(e.shotTypes) && e.shotTypes.length) ? e.shotTypes
+                : (e.shotType ? [e.shotType] : []);
+    for (const t of types) push('on ' + (TR_TYPE[t] || t), e, 2);
+  }
+  return out;
+}
+
+function buildTendencyRead(playerName, playerSessions, allSessions) {
+  /* 15, up from 10. The gates below are untouched - nothing weaker gets in - so this
+     only stops the paragraph being cut short for a player who has genuinely earned more
+     to say. A thin sample still produces a short read, which is the point. */
+  const TR_K = 12, MIN_FLOOR = 20, MAX_SENT = 15;
+  const shotsOf = (sess, name) => (sess.eventLog || []).filter(e =>
+    TR_SHOT_STATS.includes(e.stat) && e.player === name);
+
+  /* Season-long always, whatever the page scope is set to — a read that swapped to a single
+     practice would be describing a sample too small to say anything about, and the panel
+     says which span it is describing so the two are never confused. */
+  const chron = playerSessions.slice().sort((a, b) =>
+    String(a.date || '').localeCompare(String(b.date || '')));
+  const shots = chron.flatMap(s => shotsOf(s, playerName));
+  const advRows = chron.map(s => (s.playerStats || []).find(p => p.name === playerName)).filter(Boolean);
+  if (!advRows.length) return '';
+
+  const totalMin = advRows.reduce((t, r) => t + (r.min || 0), 0);
+  const gp = advRows.length;
+  const mp = trWavg(advRows, 'minPctVal') || 0;
+  const usg = trWavg(advRows, 'usgPct') || 0;
+
+  // Team baselines, over visible players only.
+  const teamShots = [];
+  const perPlayerAdv = {};
+  for (const s of allSessions) {
+    for (const e of (s.eventLog || [])) {
+      if (TR_SHOT_STATS.includes(e.stat) && e.player && !isHiddenPlayer(e.player)) teamShots.push(e);
+    }
+    for (const p of (s.playerStats || [])) {
+      if (isHiddenPlayer(p.name)) continue;
+      (perPlayerAdv[p.name] = perPlayerAdv[p.name] || []).push(p);
+    }
+  }
+  const teamPPS = trPPS(teamShots);
+  if (teamPPS == null) return '';
+
+  const qualified = Object.keys(perPlayerAdv).filter(n =>
+    perPlayerAdv[n].reduce((t, r) => t + (r.min || 0), 0) >= MIN_FLOOR);
+  const med = {}, rankTop = {}, rankBottom = {};
+  for (const [key] of TR_RATES) {
+    const vals = {};
+    for (const n of qualified) {
+      const v = trWavg(perPlayerAdv[n], key);
+      if (v != null) vals[n] = v;
+    }
+    const names = Object.keys(vals);
+    if (names.length < 4) continue;
+    const m = trMedian(names.map(n => vals[n]));
+    /* A median of zero means most of the roster has never done this, so "above the median"
+       is true of anyone non-zero and says nothing at all. Not comparable, not eligible. */
+    if (!(m > 0)) continue;
+    med[key] = m;
+    rankTop[key] = names.reduce((a, b) => vals[a] >= vals[b] ? a : b);
+    rankBottom[key] = names.reduce((a, b) => vals[a] <= vals[b] ? a : b);
+  }
+
+  const lines = [];       // { p: priority, t: text }
+  const first = String(playerName).split(/\s+/)[0];
+  lines.push({ p: 0, t: trFill(trPick(TR_BANK.role, playerName + '|role'), {
+    F: escHtml(first), min: Math.round(totalMin), gp,
+    prac: gp === 1 ? 'practice' : 'practices', mp: Math.round(mp), usg: Math.round(usg) }) });
+
+  /* ── candidate shooting + location facts ──
+     Categorised by ONE function, used for the player and for the team, so the two are
+     keyed identically and a fact can always find its own baseline. */
+  const teamCats = trCategorize(teamShots);
+  const myCats = trCategorize(shots);
+
+  /* A corner three and a layup are not the same shot, so measuring both against one
+     team-wide 1.09 flatters every three and punishes every rim attempt — the comparison
+     would be reporting shot selection, not shooting. Each fact is judged against the team's
+     mark FROM THAT SAME PLACE: his corner threes against the team's corner threes.
+
+     The exception is a baseline too thin to trust. If the whole roster has taken six shots
+     from the left corner, that average is noise, and a noisy baseline makes a confident
+     claim out of nothing - so those fall back to the team-wide mark, which is at least a
+     real number. Shrinkage then pulls toward whichever baseline was used. */
+  const facts = [];
+  const addFact = (phr, evs, tier) => {
+    if (!evs.length) return;
+    const teamEvs = teamCats[phr] || [];
+    const localOk = teamEvs.length >= 10;
+    const base = localOk ? trPPS(teamEvs) : teamPPS;
+    if (base == null) return;
+    facts.push({ phr, Phr: phr.charAt(0).toUpperCase() + phr.slice(1), n: evs.length,
+                 pps: trPPS(evs), set: new Set(evs), share: evs.length / shots.length, tier,
+                 base, baseN: teamEvs.length, baseLocal: localOk });
+  };
+  // tier 1 is the exact zone, tier 2 the grouping — most specific that clears the gate wins
+  for (const phr in myCats) addFact(phr, myCats[phr], myCats[phr].tier);
+
+  /* Four is the floor now, not six. A named spot is the thing worth being precise about,
+     and the 'weak' wording already says "though on N attempts so far" out loud, so a thin
+     zone reports itself as thin rather than being hidden behind a vaguer word. */
+  const tier = n => n >= 25 ? 'strong' : n >= 12 ? 'moderate' : n >= 4 ? 'weak' : null;
+  const scored = [];
+  for (const f of facts) {
+    const h = tier(f.n);
+    if (!h) continue;
+    f.h = h;
+    // Shrunk toward, and measured against, this fact's OWN baseline.
+    f.edge = (f.n * f.pps + TR_K * f.base) / (f.n + TR_K) - f.base;
+    scored.push(f);
+  }
+  scored.sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge) || a.tier - b.tier);
+  /* Two facts covering mostly the same shots say one thing twice — "catch-and-shoot" and
+     "from three" off the same fourteen attempts. Keep the stronger, skip the echo. */
+  const kept = [];
+  for (const f of scored) {
+    let overlaps = false;
+    for (const g of kept) {
+      let shared = 0;
+      for (const e of f.set) if (g.set.has(e)) shared++;
+      if (shared / Math.min(f.set.size, g.set.size) > 0.5) { overlaps = true; break; }
+    }
+    if (!overlaps) kept.push(f);
+  }
+  /* Three above and two below, up from two and one. Same 0.06 edge either side, so the
+     extra slots can only be filled by a fact that would already have qualified and was
+     being dropped for want of room - a player with one real strength still gets one. */
+  const above = kept.filter(f => f.edge > 0.06).slice(0, 3);
+  const below = kept.filter(f => f.edge < -0.06).slice(0, 2);
+  /* The same walk-forward the rates use below. shot_strong/moderate/weak are five deep
+     each, and five shot sentences drawn by hash alone will hand two facts the same
+     construction - the OR%/DR% collision again, one paragraph up. Hash for the starting
+     point, then step to the first phrasing this read has not spent, so the wording is
+     still deterministic and still holds still between renders. */
+  const usedFactTpl = new Set();
+  const sayFact = (f, pri, seed) => {
+    const pool = TR_BANK['shot_' + f.h];
+    const start = trHash(seed) % pool.length;
+    let tpl = pool[start];
+    for (let i = 0; i < pool.length; i++) {
+      const t = pool[(start + i) % pool.length];
+      if (!usedFactTpl.has(t)) { tpl = t; break; }
+    }
+    usedFactTpl.add(tpl);
+    lines.push({ p: pri, t: trFill(tpl, {
+      F: escHtml(first), phr: f.phr, Phr: f.Phr, pps: f.pps.toFixed(2), n: f.n,
+      sh: Math.round(f.share * 100), tm: f.base.toFixed(2) }) });
+  };
+  above.forEach((f, i) => sayFact(f, 1 + i, playerName + '|s' + i + f.phr));
+  /* Seed unchanged for the first weak fact, so the read a coach already knows does not
+     reword itself just because a second slot opened up behind it. */
+  below.forEach((f, i) => sayFact(f, 5 + i, playerName + '|w' + (i || '') + f.phr));
+
+  if (shots.length && !above.length && !below.length) {
+    /* Which silence is this? Under the gate it is "no sample"; over it, the sample is real
+       and the finding is that he is average — which is worth saying rather than implying
+       there is not enough data. */
+    lines.push({ p: 1, t: shots.length >= 12
+      ? trFill(trPick(TR_BANK.even, playerName + '|even'), { n: shots.length })
+      : trFill(trPick(TR_BANK.thin, playerName + '|thin'), {
+          n: shots.length, shots: shots.length === 1 ? 'shot' : 'shots' }) });
+  }
+
+  // ── advanced rates: sample is MINUTES, ranked against this roster ──
+  if (totalMin >= MIN_FLOOR) {
+    const cand = [];
+    for (const [key, label, dir, countKey] of TR_RATES) {
+      if (med[key] == null) continue;
+      const v = trWavg(advRows, key);
+      if (v == null) continue;
+      // The rate needs real events behind it, not just minutes on the floor.
+      const events = advRows.reduce((t, r) => t + (r[countKey] || 0), 0);
+      if (events < TR_RATE_MIN_EVENTS) continue;
+      let rel = (v - med[key]) / Math.max(0.5, med[key]);
+      if (dir === 'low') rel = -rel;
+      cand.push({ key, label, v, rel });
+    }
+    /* The old rule - one rate above the median, one below, each needing to be a full median
+       away - meant most players got no advanced line at all, on a page whose whole point is
+       that the box score is already elsewhere. Take the three most distinctive rates he has,
+       whichever side of the median they fall. They have already passed the two gates that
+       matter (a comparable median, and real events behind the count), so the only thing
+       being relaxed here is how unusual a number must be to be worth a sentence. */
+    /* ...but "9.0% against a median of 9.0%" is not an advanced stat, it is a true division
+       with nothing in it. A rate still has to be some way off the middle to be worth a
+       sentence - just not the full median the old rule demanded. Players who have three
+       distinctive rates get three; players who have one get one. */
+    cand.sort((a, b) => Math.abs(b.rel) - Math.abs(a.rel));
+    const TR_RATE_MIN_REL = 0.35;
+    /* Hashing the stat key gives each rate its own draw, but three draws from an eight-deep
+       bank collide often enough to matter — OR% and DR% both landed on "The roster centres
+       on…" for Wilson, one sentence after the other. Walk forward from the hashed position
+       to the first construction this paragraph has not already used: still deterministic,
+       still stable between renders, and it cannot repeat itself. */
+    const usedRateTpl = new Set();
+    const sayRate = (c, pri, seed) => {
+      const above = c.rel >= 0;
+      const bank = above ? TR_RANKED_HI : TR_RANKED_LO;
+      const holds = above ? rankTop[c.key] === playerName : rankBottom[c.key] === playerName;
+      const pool = bank.filter(([tag]) => holds || !tag).map(([, t]) => t);
+      const start = trHash(seed) % pool.length;
+      let tpl = pool[start];
+      for (let i = 0; i < pool.length; i++) {
+        const t = pool[(start + i) % pool.length];
+        if (!usedRateTpl.has(t)) { tpl = t; break; }
+      }
+      usedRateTpl.add(tpl);
+      lines.push({ p: pri, t: trFill(tpl, {
+        label: c.label, v: c.v.toFixed(1), med: med[c.key].toFixed(1) }) });
+    };
+    /* Five, up from three. TR_RATE_MIN_REL still decides what counts as distinctive, and
+       TR_RANKED_HI/LO are 16 and 8 deep, so five draws cannot exhaust the walk-forward. */
+    cand.filter(c => Math.abs(c.rel) >= TR_RATE_MIN_REL).slice(0, 5)
+        .forEach((c, i) => sayRate(c, 10 + i, playerName + '|adv' + c.key));
+  }
+
+  /* Trend over a rolling window of ATTEMPTS, never of practices. A 13-minute scrimmage
+     leaves everyone four shots; "last practice vs the one before" would call three players
+     breakout shooters off eight attempts between them. */
+  if (shots.length >= 30) {
+    const recent = shots.slice(-20), prior = shots.slice(0, -20);
+    if (prior.length >= 15) {
+      const a = trPPS(recent), b = trPPS(prior);
+      const sa = (20 * a + TR_K * teamPPS) / (20 + TR_K);
+      const sb = (prior.length * b + TR_K * teamPPS) / (prior.length + TR_K);
+      if (Math.abs(sa - sb) > 0.15) {
+        lines.push({ p: 20, t: trFill(trPick(TR_BANK.trend, playerName + '|trend'), {
+          n: 20, a: a.toFixed(2), b: b.toFixed(2) }) });
+      }
+    }
+  }
+
+  // ── habits: shares, so they need volume rather than accuracy ──
+  if (shots.length >= 10) {
+    const sides = {};
+    for (const e of shots) { const s = TR_SIDE[e.zone]; if (s) sides[s] = (sides[s] || 0) + 1; }
+    const topSide = Object.keys(sides).sort((a, b) => sides[b] - sides[a])[0];
+    if (topSide && topSide !== 'middle' && sides[topSide] / shots.length >= 0.5) {
+      lines.push({ p: 21, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
+        pct: Math.round(100 * sides[topSide] / shots.length), side: topSide }) });
+    }
+    const contested = shots.filter(e => e.shotContest === 'contested').length;
+    lines.push({ p: 22, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
+      pct: Math.round(100 * contested / shots.length) }) });
+    const threes = shots.filter(e => String(e.stat).startsWith('3')).length;
+    lines.push({ p: 23, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
+      pct: Math.round(100 * threes / shots.length) }) });
+    const withFt = shots.filter(e => e.shotFt != null);
+    if (withFt.length) {
+      lines.push({ p: 24, t: trFill(trPick(TR_BANK.dist, playerName + '|dist'), {
+        ft: Math.round(withFt.reduce((t, e) => t + e.shotFt, 0) / withFt.length) }) });
+    }
+  }
+
+  lines.sort((a, b) => a.p - b.p);
+  const body = lines.slice(0, MAX_SENT).map(l => l.t).join(' ');
+  const span = gp === 1 ? '1 practice' : gp + ' practices';
+  return `<div class="tr-read">
+      <p class="tr-body">${body}</p>
+      <div class="tr-foot">Season to date &middot; ${span} &middot; rebuilt from the data after every scrimmage</div>
+    </div>`;
+}
+
 function buildShotTendencies(fgEvents) {
   const rows = {};
   for (const ev of fgEvents) {
@@ -9318,11 +10055,14 @@ function renderPlayerProfile(playerName) {
           ${courtHtml}
         </div>
         <div>
-          <div class="card-title" style="margin-bottom:10px;">Shot Distance</div>
-          ${distSection || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No distance data recorded yet.</div>'}
+          <div class="card-title" style="margin-bottom:10px;">Tendency Read</div>
+          ${buildTendencyRead(playerName, allSessionsForPlayer, sessions)
+            || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">Nothing to read yet — this fills in once he has been tracked.</div>'}
         </div>
       </div>
       ${shotTypeSection}
+      <div class="card-title" style="margin:24px 0 8px;">Shot Distance</div>
+      ${distSection || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No distance data recorded yet.</div>'}
       ${buildShotTendencies(allFgEvents)}
       ${scopedSession ? '' : buildTrendChart(glRows)}
       ${gameLogHtml}
@@ -9875,10 +10615,32 @@ function renderLineupsView() {
         if (seg.endTimeSecs === null) continue;
         const fullLineup = t === 'a' ? seg.lineupA : seg.lineupB;
         if (!fullLineup || fullLineup.length !== 5) continue;
-        const combos = size === 5 ? [fullLineup] : combinations(fullLineup, size);
+        /* Units are drawn from the visible players, not the whole five. The stint itself is
+           never discarded for containing a hidden player — the four who remain shared those
+           minutes for real, and a 4-man row has always meant "these four, plus whoever else
+           was out there", so a stint whose fifth is hidden is exactly the case it already
+           describes. Only a 5-man row genuinely cannot survive: it needs five names. */
+        const pool = fullLineup.filter(n => !isHiddenPlayer(n));
+        if (pool.length < size) continue;
+        const combos = pool.length === size ? [pool] : combinations(pool, size);
         for (const combo of combos) {
-          const key = [...combo].sort().join(' / ') + (team === 'both' ? `|${t}` : '');
-          if (!lineupMap[key]) lineupMap[key] = { key, displayKey: [...combo].sort().join(' / '), team: t, segments: [] };
+          /* Keyed on personnel alone. Which pinnie a group wore is a property of that
+             afternoon, not of the group: the squads are redrawn every practice, so
+             splitting a unit into a White row and a Black row files one set of teammates
+             under two headings and halves the sample that made either worth reading.
+             Duran-Morales and Niles played 20.3 minutes together in White and 10.5 in
+             Black — that is one pairing with 30.8 minutes, not two pairings.
+
+             Merging is safe because the sample was never keyed here anyway: the segments
+             below are grouped per session AND per squad before segStats() sees them, so
+             each stint is still measured against the right team's events. Only the heading
+             they are collected under changes. */
+          const key = [...combo].sort().join(' / ');
+          /* members is the same list displayKey is built from, kept as an array so the
+             Lineup Builder can test membership without splitting a display string back
+             apart on ' / ' — a separator that is only safe until someone's name contains
+             one. Same list, one source. */
+          if (!lineupMap[key]) lineupMap[key] = { key, displayKey: [...combo].sort().join(' / '), members: [...combo].sort(), segments: [] };
           lineupMap[key].segments.push({ seg, sess, team: t });
         }
       }
@@ -9936,13 +10698,21 @@ function renderLineupsView() {
     const dOrebPct = (totOppOreb + totDreb) > 0 ? +(100*totOppOreb/(totOppOreb+totDreb)).toFixed(1): null;
     const dTovPct  = +(100 * totOppTov / oppPoss).toFixed(1);
     const dFtr     = totOppFga > 0 ? +(totOppFta / totOppFga * 100).toFixed(1)                     : null;
-    return { key: entry.key, displayKey: entry.displayKey || entry.key, team: entry.team, gp, min: +totMin.toFixed(1), poss: +poss.toFixed(1),
+    /* No team on the row: a lineup is its personnel. gp counts session-and-squad groups, so
+       a pairing that played together in two practices reads 2 whichever pinnies they wore. */
+    return { key: entry.key, displayKey: entry.displayKey || entry.key, members: entry.members || [], gp, min: +totMin.toFixed(1), poss: +poss.toFixed(1),
              ortg, drtg, net, efg, orebPct, tovPct, ftr, dEfg, dOrebPct, dTovPct, dFtr };
   });
 
+  /* Reconcile the builder with the rows that now exist before anything reads it — the size
+     selector changes the slot count, and team/period changes can strand a pick. */
+  _luBuilderSync(lineupRows, size);
+
   const minPoss = Number(seg5Filter.minPoss) || 1;
+  /* The possessions slider spans the whole set, not the builder's subset: rescaling it to
+     the current picks would move the handle under the user every time they chose a player. */
   const maxPoss = Math.max(1, ...lineupRows.map(r => Math.round(r.poss)));
-  const visibleRows = _luSortRows(lineupRows).filter(r => Math.round(r.poss) >= minPoss);
+  const visibleRows = _luSortRows(_luBuilderMatches(lineupRows)).filter(r => Math.round(r.poss) >= minPoss);
 
   // Cache for lightweight slider updates
   window._lineupRows    = lineupRows;
@@ -9964,10 +10734,11 @@ function renderLineupsView() {
     <div class="page-header">
       <div>
         <div class="page-title">Lineup Analytics</div>
-        <div class="page-subtitle" id="lu-subtitle">${visibleRows.length} of ${lineupRows.length} lineup${lineupRows.length !== 1 ? 's' : ''}</div>
+        <div class="page-subtitle" id="lu-subtitle">${visibleRows.length} of ${lineupRows.length} lineup${lineupRows.length !== 1 ? 's' : ''}${luBuilder.filter(Boolean).length ? ` &middot; filtered by ${luBuilder.filter(Boolean).length} pick${luBuilder.filter(Boolean).length === 1 ? '' : 's'}` : ''}</div>
       </div>
       ${_lineupsFilterBar(filtered)}
     </div>
+    ${_luBuilderPanelHtml(lineupRows, size)}
     <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 0;border-top:1px solid var(--border);">
       <label style="font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">Min. Possessions:</label>
       <input type="range" min="1" max="${maxPoss}" value="${minPoss}" id="lu-poss-slider"
@@ -10037,6 +10808,137 @@ function _luUpdateArrows() {
 }
 
 /* Single lineup row — shared by the initial render, the sort headers, and the slider. */
+/* ── Lineup Builder ─────────────────────────────────────────────────────────
+   Pick players slot by slot and see the unit they form.
+
+   Everything below reads lineupRows, which already holds exactly the N-man combinations
+   that took the floor under the current period/team/size filters. So the builder owns no
+   aggregation of its own and cannot drift from the table beneath it — if a unit is in one
+   it is in the other, by construction.
+
+   luBuilder is one slot per player, '' for empty, always as long as the size selector. */
+let luBuilder = [];
+
+/* Reconcile the slot count with the size selector, and drop only players who have vanished
+   from the data entirely under the current filters.
+
+   A pick that still exists but no longer FITS with the others is deliberately kept. Pruning
+   it would be easy and it would be wrong: "these three never shared the floor" is the exact
+   thing the empty result is there to report, and silently deleting a pick to avoid saying
+   so answers a question the user never asked — and leaves them wondering where their choice
+   went. Dead ends are reported here, not hidden. */
+function _luBuilderSync(rows, size) {
+  const known = new Set(rows.flatMap(r => r.members || []));
+  luBuilder = Array.from({ length: size }, (_, i) => {
+    const n = luBuilder[i];
+    return n && known.has(n) ? n : '';
+  });
+}
+
+/* Which players may still be chosen in one slot.
+
+   The test is "a real lineup exists containing all of these", never "this player exists" —
+   which is what makes the dropdowns cascade. Choose Kubel and the next slot offers only
+   the players who actually shared the floor with him, so a five that never played is
+   unreachable through the UI rather than something you assemble and are then told is
+   empty. (The empty state still exists — changing team or size can strand a pick — but it
+   is a rare corner rather than the normal way to hit a dead end.)
+
+   Keyed off every OTHER slot rather than the earlier ones: fill slot three first and then
+   slot one, and slot one is still constrained by three. Entry order never matters.
+
+   Names already taken elsewhere are removed because a lineup cannot field the same player
+   twice, and members.includes(name) would cheerfully be true for two slots holding it. */
+function _luBuilderOptions(rows, slotIndex) {
+  const others = luBuilder.filter((n, i) => n && i !== slotIndex);
+  const taken  = new Set(others);
+  const out    = new Set();
+  let reachable = false;
+  for (const r of rows) {
+    const m = r.members || [];
+    if (!others.every(n => m.includes(n))) continue;
+    reachable = true;
+    for (const n of m) if (!taken.has(n)) out.add(n);
+  }
+  /* Dead end: the other slots name a group that never shared the floor, so nothing
+     satisfies them and a strictly cascaded list comes back empty — stranding the user with
+     no dropdown able to undo the pick that caused it. Fall back to every available player
+     so the way out is always one change away; the panel states plainly why it is blank. */
+  if (!reachable) {
+    for (const r of rows) for (const n of (r.members || [])) if (!taken.has(n)) out.add(n);
+  }
+  /* This slot's own pick is always listed, even once the filters have made it unreachable.
+     A <select> whose value is missing from its options renders as though nothing were
+     chosen — which would hide a pick that is still filtering the table below. */
+  const mine = luBuilder[slotIndex];
+  if (mine) out.add(mine);
+  return [...out].sort((a, b) => a.localeCompare(b));
+}
+
+/* Rows containing every player picked so far. Nothing picked means every row, which is why
+   an untouched builder leaves the table exactly as it was. */
+function _luBuilderMatches(rows) {
+  const sel = luBuilder.filter(Boolean);
+  if (!sel.length) return rows;
+  return rows.filter(r => sel.every(n => (r.members || []).includes(n)));
+}
+
+function luBuilderSet(i, name) {
+  luBuilder[i] = name || '';
+  renderLineupsView();   // every other slot's options depend on this one
+}
+
+function luBuilderClear() {
+  luBuilder = [];
+  renderLineupsView();
+}
+
+/* No card here on purpose. The builder narrows the table below rather than reprinting one
+   of its rows above it — same fifteen columns, same numbers, twice on one screen, and two
+   places to keep in step the next time a column is added. The builder's job is to pick the
+   unit; the table's job is to show it. */
+
+function _luBuilderPanelHtml(rows, size) {
+  const chosen   = luBuilder.filter(Boolean);
+  const matches  = _luBuilderMatches(rows);
+  const complete = chosen.length === size;
+
+  const slots = luBuilder.map((sel, i) => {
+    const opts = _luBuilderOptions(rows, i)
+      .map(n => `<option value="${escHtml(n)}"${n === sel ? ' selected' : ''}>${escHtml(n)}</option>`)
+      .join('');
+    return `<select class="lu-b-slot${sel ? ' is-set' : ''}" onchange="luBuilderSet(${i}, this.value)">
+        <option value=""${sel ? '' : ' selected'}>Any player</option>
+        ${opts}
+      </select>`;
+  }).join('');
+
+  let body;
+  if (!chosen.length) {
+    body = `<div class="lu-b-note">Choose a player and the other slots narrow to only the players who actually shared the floor with them. Leave a slot on <em>Any player</em> to keep it open — the table below follows your picks.</div>`;
+  } else if (!matches.length) {
+    /* Unreachable by picking alone; reached by picking and THEN changing team, period or
+       size out from under the selection. Say which players, not just "no results". */
+    body = `<div class="lu-b-blank">No lineup on record has ${escHtml(chosen.join(' + '))} on the floor together under these filters.</div>`;
+  } else if (complete) {
+    /* Personnel-keyed rows mean a full selection resolves to exactly one lineup, so this
+       says which and leaves the reading to the row underneath. */
+    body = `<div class="lu-b-note">Showing <strong>${escHtml(matches[0].displayKey || matches[0].key)}</strong> in the table below &mdash; ${matches[0].gp} practice${matches[0].gp === 1 ? '' : 's'}, ${(+matches[0].min).toFixed(1)} min, ${Math.round(matches[0].poss)} poss.</div>`;
+  } else {
+    const left = size - chosen.length;
+    body = `<div class="lu-b-note"><strong>${matches.length}</strong> ${size}-man lineup${matches.length === 1 ? '' : 's'} include ${escHtml(chosen.join(' + '))} &mdash; listed below. Fill ${left} more slot${left === 1 ? '' : 's'} to narrow to one.</div>`;
+  }
+
+  return `<div class="lu-builder">
+      <div class="lu-b-head">
+        <span class="lu-b-title">Lineup Builder</span>
+        <div class="lu-b-slots">${slots}</div>
+        <button class="btn btn-ghost btn-sm" onclick="luBuilderClear()" ${chosen.length ? '' : 'disabled style="opacity:.45;"'}>Clear</button>
+      </div>
+      ${body}
+    </div>`;
+}
+
 function _luRowHtml(r, team, filtered, cell) {
   const netStr = (r.net > 0 ? '+' : '') + r.net;
   // No White/Black badge: players rotate between teams across sessions, so tagging a
@@ -10074,14 +10976,19 @@ function _luRenderTbody() {
   const filtered = window._lineupFiltered || [];
   const team     = window._lineupTeam || seg5Filter.team;
   const minPoss  = Number(seg5Filter.minPoss) || 1;
-  const visible  = _luSortRows(rows).filter(r => Math.round(r.poss) >= minPoss);
+  /* Builder first, then sort, then the possessions floor — the same reason the sort and the
+     slider were routed through here in the first place: three controls that each repaint
+     the tbody will otherwise take turns overwriting each other's result. */
+  const visible  = _luSortRows(_luBuilderMatches(rows)).filter(r => Math.round(r.poss) >= minPoss);
 
   const tbody = document.getElementById('lu-tbody');
   if (tbody) tbody.innerHTML = visible.map(r => _luRowHtml(r, team, filtered, cell)).join('');
 
   const subtitle = document.getElementById('lu-subtitle');
   if (subtitle) {
-    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''}`;
+    const picked = luBuilder.filter(Boolean).length;
+    subtitle.innerHTML = `${visible.length} of ${rows.length} lineup${rows.length !== 1 ? 's' : ''}` +
+      (picked ? ` &middot; filtered by ${picked} pick${picked === 1 ? '' : 's'}` : '');
   }
   _luUpdateArrows();
 }
@@ -11804,7 +12711,11 @@ function openNoteModal() {
   // Player list: on-floor players first, then the rest of the roster.
   if (!clockState.currentLineupA.length && !clockState.currentLineupB.length) rebuildCurrentLineups();
   const onFloor = [...(clockState.currentLineupA || []), ...(clockState.currentLineupB || [])].sort(byLastName);
-  const others  = (State.roster || []).map(p => p.name).filter(n => !onFloor.includes(n)).sort(byLastName);
+  /* Hidden players are dropped from the bench list. Anyone actually on the floor still
+     appears above — if they are out there right now you must be able to tag them, whatever
+     the roster says. */
+  const others  = (State.roster || []).filter(p => !p.hidden).map(p => p.name)
+    .filter(n => !onFloor.includes(n)).sort(byLastName);
   document.getElementById('note-player').innerHTML =
     (onFloor.length ? `<optgroup label="On Floor">${onFloor.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
     (others.length  ? `<optgroup label="Bench / Roster">${others.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}</optgroup>` : '') +
@@ -12655,6 +13566,29 @@ function invertedSegments(session) {
                       && seg.endTimeSecs > seg.startTimeSecs);
 }
 
+/* THE one place a backwards stint's correct end is worked out - same reasoning as
+   stintSeconds() owning duration: if the repair and any future caller each decided this
+   for themselves they would eventually disagree, and both would look confident.
+
+   Stints chain. Each one ends where the NEXT in its quarter begins, and the last one ends
+   wherever the clock was stopped - the quarter's timeRemaining, which is not always zero.
+   A blanket 0 is the tempting fix and it is wrong for exactly the quarters that matter: a
+   practice called early leaves timeRemaining positive, and 0 would invent every second
+   between the real stop and the end of the period.
+
+   Returns null when the chain cannot produce a legal end - a stint wrong in some other way
+   is one to look at by hand, not to guess at. */
+function correctedStintEnd(session, seg) {
+  if (!session || !seg || seg.startTimeSecs == null) return null;
+  const qSegs = (session.lineupSegments || []).filter(g => g.quarter === seg.quarter);
+  const next  = qSegs[qSegs.indexOf(seg) + 1];
+  const q     = (session.quarters || [])[seg.quarter - 1] || {};
+  const end   = (next && next.startTimeSecs != null)
+    ? next.startTimeSecs
+    : (q.timeRemaining != null ? q.timeRemaining : 0);
+  return end > seg.startTimeSecs ? null : end;
+}
+
 /* How many events each stint owns, by the SAME walk segStats() uses to attribute them:
    the log is chronological, and a sub advances the pointer only when its clock matches the
    next stint's start (so a multi-player swap advances once). Kept here, in one place, so
@@ -13286,8 +14220,12 @@ function renderSubSlots(team) {
 
   /* Available = not in either five on the floor, or on their way off the other team. A
      player already picked for another slot but not yet confirmed stays in the pool. */
+  /* Hidden players are never on the bench — the same reason they are not in the starters
+     picker. A player already on the floor when they were hidden still subs out normally,
+     because that comes from the lineup, not from here. */
   const fullBench = sortByLastName(
-    State.roster.map(p => p.name).filter(n => !onFloor.has(n) || leavingOther.has(n))
+    State.roster.filter(p => !p.hidden).map(p => p.name)
+      .filter(n => !onFloor.has(n) || leavingOther.has(n))
   );
 
   container.innerHTML = slots.map((slot, i) => {
@@ -14706,7 +15644,12 @@ function applyPublishedMode() {
 async function loadPublishedData() {
   if ((State.sessions || []).length) return;   // local data present → this is the editor, keep it
   try {
-    const res = await fetch('pt_data.json', { cache: 'no-store' });
+    /* cache:'no-store' only bypasses THIS browser's cache. pt_data.json is served from the
+       GitHub Pages CDN with max-age=600, so for up to ten minutes after a publish the edge
+       keeps handing out the PREVIOUS snapshot - which is how purged players kept coming
+       back with their old stats, and why a reload a minute later "fixed" it. A unique query
+       string is a different cache key, so the edge has to go to origin for it. */
+    const res = await fetch(`pt_data.json?v=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     if (Array.isArray(data.sessions)) State.sessions = data.sessions;
@@ -14721,35 +15664,61 @@ async function loadPublishedData() {
   }
 }
 
+/* Last resort, run once both real sources have had their turn: a genuine first run - no
+   pt_roster saved, no pt_data.json reachable - still needs names to put on screen. */
+function applySeedRoster() {
+  if (!State.roster.length && State.seedRoster.length) {
+    State.roster = State.seedRoster;
+    console.log(`No saved or published roster found - using the embedded seed (${State.roster.length} players).`);
+  }
+}
+
+/* Lift the loading gate. Called from initApp's finally so a thrower cannot leave the app
+   permanently covered, and safe to call twice. */
+function revealApp() {
+  const gate = document.getElementById('app-loading');
+  if (!gate || gate.classList.contains('is-done')) return;
+  gate.classList.add('is-done');
+  setTimeout(() => gate.remove(), 300);
+}
+
 async function initApp() {
-  loadEmbeddedData();
-  loadPersistentData();
-  await loadPublishedData();
-  console.log(
-    `%cMoorpark MBB Practice Tracker`,
-    'color:#4f6ef7;font-weight:bold;font-size:14px'
-  );
-  console.log(
-    `Roster: ${State.roster.length} players | Completed sessions: ${State.sessions.length}`
-  );
+  try {
+    loadEmbeddedData();
+    loadPersistentData();
+    await loadPublishedData();
+    applySeedRoster();
+    console.log(
+      `%cMoorpark MBB Practice Tracker`,
+      'color:#4f6ef7;font-weight:bold;font-size:14px'
+    );
+    console.log(
+      `Roster: ${State.roster.length} players | Completed sessions: ${State.sessions.length}`
+    );
 
-  // If already authenticated this browser session, skip the lock screen
-  if (isTrackerUnlocked()) {
-    unlockTracker();
+    // If already authenticated this browser session, skip the lock screen
+    if (isTrackerUnlocked()) {
+      unlockTracker();
+    }
+
+    if (State.liveSession) {
+      console.log('⚠️  In-progress session detected:', State.liveSession.title);
+      showToast('In-progress session detected. Navigate to Live Tracker to resume.', 'info', 5000);
+      // Mark tracker nav tab with live indicator
+      document.querySelector('[data-tab="tracker"]').classList.add('live-active');
+    }
+
+    // Restore film from saved FileSystemFileHandle (if browser supports it)
+    restoreFilmFromHandle();
+
+    // Render the default active tab (Player Stats)
+    if (typeof tabRenderers.players === 'function') tabRenderers.players();
+  } finally {
+    /* Data is loaded and the first tab is painted, so the app is safe to touch. In a
+       finally because a half-initialised app the user can see and work around beats an
+       app stuck behind a spinner with no way forward. */
+    revealApp();
   }
-
-  if (State.liveSession) {
-    console.log('⚠️  In-progress session detected:', State.liveSession.title);
-    showToast('In-progress session detected. Navigate to Live Tracker to resume.', 'info', 5000);
-    // Mark tracker nav tab with live indicator
-    document.querySelector('[data-tab="tracker"]').classList.add('live-active');
-  }
-
-  // Restore film from saved FileSystemFileHandle (if browser supports it)
-  restoreFilmFromHandle();
-
-  // Render the default active tab (Player Stats)
-  if (typeof tabRenderers.players === 'function') tabRenderers.players();
 }
 
 /* ============================================================
