@@ -7166,7 +7166,7 @@ function buildBoxTableHtml(session, team) {
 
   function cellVal(row, key) {
     switch (key) {
-      case 'min':    return row.min > 0 ? row.min + '\'' : '—';
+      case 'min':    return row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—';
       case 'pts':    return row.pts;
       case 'pm':     return (row.pm > 0 ? '+' : '') + row.pm;   // explicit + reads as a margin
       case 'fg2mfa': return `${row.fg2m}-${row.fg2a}`;
@@ -8976,10 +8976,16 @@ function renderPlayerTable() {
         const col = n > 0 ? 'var(--success)' : n < 0 ? 'var(--danger)' : 'var(--text-dim)';
         return `<td style="font-variant-numeric:tabular-nums;color:${col};font-weight:700;">${n > 0 ? '+' : ''}${n.toFixed(2)}</td>`;
       }
-      if (key === 'ortg') return `<td>${Math.round(v)}</td>`;
+      /* ORtg used to round to a whole number while DRtg, one column over, kept a decimal -
+         the same kind of figure printed two ways in the same row. Both take the generic
+         one-decimal path below now. */
+      /* Percentages print through toFixed too. Storing them via p1() drops a trailing zero,
+         so a column read "58.3%" beside a bare "50%" and the decimal place moved around as
+         the eye went down it. A rate is never a whole-number stat, so it always shows the
+         tenth, even when the tenth is zero. */
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
           'usgPct','minPctVal','shotPct','ftRate'].includes(key))
-        return `<td>${v}%</td>`;
+        return `<td>${(+v).toFixed(1)}%</td>`;
       /* Backstop for the whole TOT view: counting stats are integers and print as-is, but
          anything accumulated from decimals (minutes today, anything similar later) would
          otherwise leak its full binary expansion into the cell. */
@@ -9688,9 +9694,11 @@ function buildShotTendencies(fgEvents) {
   const total = list.reduce((t, r) => t + r.a, 0);
   const thinCount = list.filter(r => r.a < tendMin).length;
   const body = list.map(r => {
-    const pct = Math.round(100 * r.m / r.a);
+    /* One decimal, like every other rate in the app. These were the last two columns still
+       rounding to whole numbers, so a 25% here sat beside a 44.4% one table up. */
+    const pct = (100 * r.m / r.a).toFixed(1);
     const pps = r.pts / r.a;
-    const share = Math.round(100 * r.a / total);
+    const share = (100 * r.a / total).toFixed(1);
     const tags = r.types.map(t => '<span class="tend-tag">' + escHtml(SHOT_TYPE_LABELS[t] || t) + '</span>').join('') +
       (r.contest ? '<span class="tend-tag ' + (r.contest === 'contested' ? 'ct">Contested' : 'un">Uncontested') + '</span>' : '');
     const thin = r.a < tendMin;
@@ -9941,21 +9949,21 @@ function renderPlayerProfile(playerName) {
         const c = row.result === 'W' ? '#22c55e' : row.result === 'L' ? '#ef4444' : 'var(--text-dim)';
         return `<td style="font-weight:800;color:${c};">${row.result} ${row.score}</td>`;
       }
-      case 'min':    return `<td>${row.min > 0 ? row.min + '\'' : '—'}</td>`;
-      case 'minPctVal': return `<td>${row.minPctVal != null ? row.minPctVal + '%' : '—'}</td>`;
-      case 'ortg':   return `<td>${row.ortg   != null ? Math.round(row.ortg) : '—'}</td>`;
-      case 'drtg':   return `<td>${row.drtg   != null ? Math.round(row.drtg) : '—'}</td>`;
-      case 'usgPct': return `<td>${row.usgPct != null ? row.usgPct + '%' : '—'}</td>`;
-      case 'shotPct': return `<td>${row.shotPct != null ? row.shotPct + '%' : '—'}</td>`;
-      case 'efgPct': return `<td>${row.efgPct != null ? row.efgPct + '%' : '—'}</td>`;
-      case 'tsPct':  return `<td>${row.tsPct  != null ? row.tsPct  + '%' : '—'}</td>`;
-      case 'ftRate':  return `<td>${row.ftRate  != null ? row.ftRate  + '%' : '—'}</td>`;
-      case 'orPct':  return `<td>${row.orPct  != null ? row.orPct  + '%' : '—'}</td>`;
-      case 'drPct':  return `<td>${row.drPct  != null ? row.drPct  + '%' : '—'}</td>`;
-      case 'astPct': return `<td>${row.astPct != null ? row.astPct + '%' : '—'}</td>`;
-      case 'toPct':  return `<td>${row.toPct  != null ? row.toPct  + '%' : '—'}</td>`;
-      case 'stlPct': return `<td>${row.stlPct != null ? row.stlPct + '%' : '—'}</td>`;
-      case 'blkPct': return `<td>${row.blkPct != null ? row.blkPct + '%' : '—'}</td>`;
+      case 'min':    return `<td>${row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—'}</td>`;
+      case 'minPctVal': return `<td>${row.minPctVal != null ? (+row.minPctVal).toFixed(1) + '%' : '—'}</td>`;
+      case 'ortg':   return `<td>${row.ortg   != null ? (+row.ortg).toFixed(1) : '—'}</td>`;
+      case 'drtg':   return `<td>${row.drtg   != null ? (+row.drtg).toFixed(1) : '—'}</td>`;
+      case 'usgPct': return `<td>${row.usgPct != null ? (+row.usgPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'shotPct': return `<td>${row.shotPct != null ? (+row.shotPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'efgPct': return `<td>${row.efgPct != null ? (+row.efgPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'tsPct':  return `<td>${row.tsPct  != null ? (+row.tsPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'ftRate':  return `<td>${row.ftRate  != null ? (+row.ftRate).toFixed(1) + '%' : '—'}</td>`;
+      case 'orPct':  return `<td>${row.orPct  != null ? (+row.orPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'drPct':  return `<td>${row.drPct  != null ? (+row.drPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'astPct': return `<td>${row.astPct != null ? (+row.astPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'toPct':  return `<td>${row.toPct  != null ? (+row.toPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'stlPct': return `<td>${row.stlPct != null ? (+row.stlPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'blkPct': return `<td>${row.blkPct != null ? (+row.blkPct).toFixed(1) + '%' : '—'}</td>`;
       case 'fg2':    return `<td>${row.fg2m}-${row.fg2a}</td>`;
       case 'fg3':    return `<td>${row.fg3m}-${row.fg3a}</td>`;
       case 'ft':     return `<td>${row.ftm}-${row.fta}</td>`;
@@ -10238,21 +10246,21 @@ function glSort(key) {
       case 'date':   return `<td style="text-align:left;color:var(--text-dim);font-size:11px;">${row.date}</td>`;
       case 'title':  return `<td style="text-align:left;font-weight:600;white-space:nowrap;">${escHtml(row.title)}</td>`;
       case 'result': { const c = row.result==='W'?'#22c55e':row.result==='L'?'#ef4444':'var(--text-dim)'; return `<td style="font-weight:800;color:${c};">${row.result} ${row.score}</td>`; }
-      case 'min':    return `<td>${row.min > 0 ? row.min + '\'' : '—'}</td>`;
-      case 'minPctVal': return `<td>${row.minPctVal != null ? row.minPctVal+'%' : '—'}</td>`;
-      case 'ortg':   return `<td>${row.ortg   != null ? Math.round(row.ortg) : '—'}</td>`;
-      case 'drtg':   return `<td>${row.drtg   != null ? Math.round(row.drtg) : '—'}</td>`;
-      case 'usgPct': return `<td>${row.usgPct != null ? row.usgPct+'%' : '—'}</td>`;
-      case 'shotPct': return `<td>${row.shotPct != null ? row.shotPct+'%' : '—'}</td>`;
-      case 'efgPct': return `<td>${row.efgPct != null ? row.efgPct+'%' : '—'}</td>`;
-      case 'tsPct':  return `<td>${row.tsPct  != null ? row.tsPct +'%' : '—'}</td>`;
-      case 'ftRate': return `<td>${row.ftRate  != null ? row.ftRate +'%' : '—'}</td>`;
-      case 'orPct':  return `<td>${row.orPct  != null ? row.orPct +'%' : '—'}</td>`;
-      case 'drPct':  return `<td>${row.drPct  != null ? row.drPct +'%' : '—'}</td>`;
-      case 'astPct': return `<td>${row.astPct != null ? row.astPct+'%' : '—'}</td>`;
-      case 'toPct':  return `<td>${row.toPct  != null ? row.toPct +'%' : '—'}</td>`;
-      case 'stlPct': return `<td>${row.stlPct != null ? row.stlPct+'%' : '—'}</td>`;
-      case 'blkPct': return `<td>${row.blkPct != null ? row.blkPct+'%' : '—'}</td>`;
+      case 'min':    return `<td>${row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—'}</td>`;
+      case 'minPctVal': return `<td>${row.minPctVal != null ? (+row.minPctVal).toFixed(1) + '%' : '—'}</td>`;
+      case 'ortg':   return `<td>${row.ortg   != null ? (+row.ortg).toFixed(1) : '—'}</td>`;
+      case 'drtg':   return `<td>${row.drtg   != null ? (+row.drtg).toFixed(1) : '—'}</td>`;
+      case 'usgPct': return `<td>${row.usgPct != null ? (+row.usgPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'shotPct': return `<td>${row.shotPct != null ? (+row.shotPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'efgPct': return `<td>${row.efgPct != null ? (+row.efgPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'tsPct':  return `<td>${row.tsPct  != null ? (+row.tsPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'ftRate': return `<td>${row.ftRate  != null ? (+row.ftRate).toFixed(1) + '%' : '—'}</td>`;
+      case 'orPct':  return `<td>${row.orPct  != null ? (+row.orPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'drPct':  return `<td>${row.drPct  != null ? (+row.drPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'astPct': return `<td>${row.astPct != null ? (+row.astPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'toPct':  return `<td>${row.toPct  != null ? (+row.toPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'stlPct': return `<td>${row.stlPct != null ? (+row.stlPct).toFixed(1) + '%' : '—'}</td>`;
+      case 'blkPct': return `<td>${row.blkPct != null ? (+row.blkPct).toFixed(1) + '%' : '—'}</td>`;
       case 'fg2':    return `<td>${row.fg2m}-${row.fg2a}</td>`;
       case 'fg3':    return `<td>${row.fg3m}-${row.fg3a}</td>`;
       case 'ft':     return `<td>${row.ftm}-${row.fta}</td>`;
@@ -10761,7 +10769,9 @@ function renderLineupsView() {
     : team === 'b' ? (filtered[0]?.teamBName || 'Black')
     : (filtered[0]?.teamAName || 'White');
 
-  function cell(v, suf='') { return v != null ? v + suf : '—'; }
+  /* One decimal, always. These arrive already rounded to a tenth, and printing the number
+     raw drops a trailing zero - so a 75% sat beside a 44.4% in the same column. */
+  function cell(v, suf='') { return v != null ? (+v).toFixed(1) + suf : '—'; }
 
   const trs = visibleRows.map(r => _luRowHtml(r, team, filtered, cell)).join('');
 
@@ -10975,7 +10985,7 @@ function _luBuilderPanelHtml(rows, size) {
 }
 
 function _luRowHtml(r, team, filtered, cell) {
-  const netStr = (r.net > 0 ? '+' : '') + r.net;
+  const netStr = (r.net > 0 ? '+' : '') + (+r.net).toFixed(1);
   // No White/Black badge: players rotate between teams across sessions, so tagging a
   // lineup with one scrimmage team would be misleading over a season.
   // Full names on desktop; last names only on phones (CSS swaps them) so the frozen
@@ -10989,8 +10999,8 @@ function _luRowHtml(r, team, filtered, cell) {
       <td>${r.gp}</td>
       <td>${(+r.min).toFixed(1)}'</td>
       <td>${Math.round(r.poss)}</td>
-      <td>${r.ortg}</td>
-      <td>${r.drtg}</td>
+      <td>${r.ortg != null ? (+r.ortg).toFixed(1) : '—'}</td>
+      <td>${r.drtg != null ? (+r.drtg).toFixed(1) : '—'}</td>
       <td><strong>${netStr}</strong></td>
       <td>${cell(r.efg,'%')}</td>
       <td>${cell(r.orebPct,'%')}</td>
@@ -11007,7 +11017,7 @@ function _luRowHtml(r, team, filtered, cell) {
    and the min-possessions slider so the two compose instead of overwriting each other. */
 function _luRenderTbody() {
   const rows     = window._lineupRows || [];
-  const cell     = window._lineupCell || ((v, s='') => v != null ? v + s : '—');
+  const cell     = window._lineupCell || ((v, s='') => v != null ? (+v).toFixed(1) + s : '—');
   const filtered = window._lineupFiltered || [];
   const team     = window._lineupTeam || seg5Filter.team;
   const minPoss  = Number(seg5Filter.minPoss) || 1;
