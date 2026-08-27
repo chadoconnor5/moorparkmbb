@@ -9309,12 +9309,25 @@ const TR_BANK = {
     'His attempts are {pct}% {side} side.',
     'He shoots {pct}% of the time from the {side} side.',
     '{pct}% of his volume sits on the {side} side.' ],
+  /* Kept only as the thin-sample fallback. On its own a contest rate is not a finding:
+     being contested often is neither good nor bad until you know what came of it. */
   contest: [
     '{pct}% of his shots have come contested.',
     'He has been contested on {pct}% of his attempts.',
     '{pct}% of his attempts came with a hand up.',
     'Defenders closed out on {pct}% of his shots.',
     'His attempts are contested {pct}% of the time.' ],
+  /* The rate with what came of it. Three numbers - how often, what he gets, what the team
+     gets from the same kind of shot - and the gap between the last two is the whole point:
+     it separates a man worth creating contested looks for from one who should be giving
+     the ball up. The attempt count rides along because a PPS on six shots is not the same
+     claim as a PPS on thirty. */
+  contest_vs: [
+    'Defenders closed out on {pct}% of his shots, and on those {n} he has scored {pps} a shot against {tm} for the team.',
+    '{pct}% of his attempts came contested; he is at {pps} a shot on them across {n} attempts, where the team is at {tm}.',
+    'He has been contested on {pct}% of his attempts, scoring {pps} on those {n} shots where the team scores {tm}.',
+    '{pct}% of his shots came with a hand up, and on those {n} he is at {pps} a shot where the team gets {tm}.',
+    'His attempts are contested {pct}% of the time, and they return {pps} a shot across {n} attempts - the team gets {tm} on the same.' ],
   three: [
     'Threes are {pct}% of what he takes.',
     '{pct}% of his attempts are from three.',
@@ -9677,9 +9690,21 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       lines.push({ p: 21, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
         pct: Math.round(100 * sides[topSide] / shots.length), side: topSide }) });
     }
-    const contested = shots.filter(e => e.shotContest === 'contested').length;
-    lines.push({ p: 22, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
-      pct: Math.round(100 * contested / shots.length) }) });
+    /* A contest rate alone is not feedback. "Defenders closed out on 54% of his shots" is
+       true of a man who should stop shooting and of a man worth running offence through,
+       and it reads the same either way. Paired with what he returns on those shots and what
+       the team returns on the same kind, the comparison does the judging - which is rule
+       three of this section, and the bare rate was quietly breaking it.
+       Below four contested attempts there is no number worth quoting, so it falls back. */
+    const contestedEvs = shots.filter(e => e.shotContest === 'contested');
+    const contested    = contestedEvs.length;
+    const cPct         = Math.round(100 * contested / shots.length);
+    const cPPS         = trPPS(contestedEvs);
+    const teamCPPS     = trPPS(teamShots.filter(e => e.shotContest === 'contested'));
+    lines.push({ p: 22, t: (contested >= 4 && cPPS != null && teamCPPS != null)
+      ? trFill(trPick(TR_BANK.contest_vs, playerName + '|contv'), {
+          pct: cPct, n: contested, pps: cPPS.toFixed(2), tm: teamCPPS.toFixed(2) })
+      : trFill(trPick(TR_BANK.contest, playerName + '|cont'), { pct: cPct }) });
     const threes = shots.filter(e => String(e.stat).startsWith('3')).length;
     lines.push({ p: 23, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
       pct: Math.round(100 * threes / shots.length) }) });
