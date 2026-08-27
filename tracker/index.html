@@ -7101,6 +7101,147 @@ function renderBsPanel(session) {
 }
 
 // Torvik-style column order: advanced first, then counting, then pts
+/* ── PER (Hollinger) ──────────────────────────────────────────────────────────────
+   Player Efficiency Rating, computed against THIS roster rather than a borrowed league.
+   That is the whole reason it is the value metric that fits here. PER is a DEFINITION, not
+   a fitted model: hand it a different population and it renormalises, so 15 always means
+   the average minute played by whoever is in the pool. BPM's coefficients, by contrast,
+   were regression-fitted on the NBA and would quietly describe a league this team is not
+   in; and RAPM/BPR need far more stints than a handful of practices provides.
+
+   League constants come from EVERY completed practice, both squads - never from the one
+   practice on screen. That is what puts a single game's PER and a season PER on the same
+   scale, so a coach can read one against the other. Recomputing per practice would make
+   each night average 15 by construction and the comparison would be meaningless.
+
+   No pace adjustment. Hollinger's version divides by league pace to compare teams that play
+   at different speeds; White and Black play the same scrimmage at the same pace, so the term
+   is identical for everyone and cancels in the normalisation.
+
+   What it cannot see: PER is close to blind on defence - steals and blocks only. It ignores
+   DEFLECTIONS entirely, which is a stat this app goes out of its way to record. It also
+   rewards volume: a high-usage scorer at league-average efficiency will out-rate an
+   efficient low-usage one. Read it beside SHOT+/-, which measures what PER structurally
+   cannot. */
+let _perCache = null;
+
+function perContext() {
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
+  const key = sessions.map(x => x.id + ':' + (x.completedAt || '')).join('|');
+  if (_perCache && _perCache.key === key) return _perCache;
+
+  const L = { FG:0, FGA:0, FT:0, FTA:0, PTS:0, ORB:0, TRB:0, AST:0, TOV:0, PF:0 };
+  const entries = [];
+  for (const sess of sessions) {
+    const ts = sess.teamStats || {};
+    for (const p of sess.playerStats || []) {
+      if (isHiddenPlayer(p.name)) continue;
+      const n = k => p[k] || 0;
+      const e = {
+        sid: sess.id, name: p.name, team: p.team, MP: n('min'),
+        FG: n('fg2m') + n('fg3m'), FGA: n('fg2a') + n('fg3a'), TP: n('fg3m'),
+        FT: n('ftm'), FTA: n('fta'), AST: n('ast'), ORB: n('oreb'), TRB: n('reb'),
+        STL: n('stl'), BLK: n('blk'), TOV: n('tov'), PF: n('pf'), PTS: n('pts'),
+        tm: ts[p.team] || {},
+      };
+      entries.push(e);
+      L.FG += e.FG; L.FGA += e.FGA; L.FT += e.FT; L.FTA += e.FTA; L.PTS += e.PTS;
+      L.ORB += e.ORB; L.TRB += e.TRB; L.AST += e.AST; L.TOV += e.TOV; L.PF += e.PF;
+    }
+  }
+
+  /* Nothing to normalise against yet - one practice with no made shots, or an empty app. */
+  const ok = L.FG > 0 && L.FT > 0 && L.TRB > 0 && L.PF > 0 &&
+             (L.FGA - L.ORB + L.TOV + 0.44 * L.FTA) > 0;
+  if (!ok) { _perCache = { key, bySession: {}, byPlayer: {} }; return _perCache; }
+
+  const factor = (2 / 3) - (0.5 * (L.AST / L.FG)) / (2 * (L.FG / L.FT));
+  const VOP    = L.PTS / (L.FGA - L.ORB + L.TOV + 0.44 * L.FTA);
+  const DRBP   = (L.TRB - L.ORB) / L.TRB;
+
+  /* Raw uPER, still un-normalised and NOT yet divided by minutes - the division comes after
+     the league rate is known, so the two stay in step. */
+  const raw = e => {
+    const tmFG = e.tm.fgm || 0, tmAST = e.tm.ast || 0;
+    const r = tmFG > 0 ? tmAST / tmFG : 0;
+    return e.TP
+      + (2 / 3) * e.AST
+      + (2 - factor * r) * e.FG
+      + e.FT * 0.5 * (1 + (1 - r) + (2 / 3) * r)
+      - VOP * e.TOV
+      - VOP * DRBP * (e.FGA - e.FG)
+      - VOP * 0.44 * (0.44 + 0.56 * DRBP) * (e.FTA - e.FT)
+      + VOP * (1 - DRBP) * (e.TRB - e.ORB)
+      + VOP * DRBP * e.ORB
+      + VOP * e.STL
+      + VOP * DRBP * e.BLK
+      - e.PF * ((L.FT / L.PF) - 0.44 * (L.FTA / L.PF) * VOP);
+  };
+
+  let sumU = 0, sumMP = 0;
+  for (const e of entries) { e.u = raw(e); if (e.MP > 0) { sumU += e.u; sumMP += e.MP; } }
+  const lgUPer = sumMP > 0 ? sumU / sumMP : 0;
+  if (!(lgUPer > 0)) { _perCache = { key, bySession: {}, byPlayer: {} }; return _perCache; }
+  const scale = 15 / lgUPer;
+
+  const bySession = {}, agg = {};
+  for (const e of entries) {
+    if (e.MP > 0) {
+      (bySession[e.sid] = bySession[e.sid] || {})[e.name] = (e.u / e.MP) * scale;
+    }
+    const a = agg[e.name] = agg[e.name] || { u: 0, mp: 0, byTeam: {} };
+    a.u += e.u; a.mp += e.MP;
+    const t = a.byTeam[e.team] = a.byTeam[e.team] || { u: 0, mp: 0 };
+    t.u += e.u; t.mp += e.MP;
+  }
+  /* Season PER is the minutes-weighted figure, not the mean of the game PERs: a man's
+     seven-minute night should not weigh the same as his thirty-five-minute one. */
+  const byPlayer = {};
+  for (const n in agg) {
+    const a = agg[n];
+    byPlayer[n] = { all: a.mp > 0 ? (a.u / a.mp) * scale : null, min: a.mp, byTeam: {} };
+    for (const t in a.byTeam) {
+      const x = a.byTeam[t];
+      byPlayer[n].byTeam[t] = { per: x.mp > 0 ? (x.u / x.mp) * scale : null, min: x.mp };
+    }
+  }
+
+  _perCache = { key, bySession, byPlayer, scale, factor, VOP, DRBP };
+  return _perCache;
+}
+
+/* One practice, one player. */
+function perForGame(sessionId, name) {
+  const v = perContext().bySession[sessionId];
+  return v && v[name] != null ? v[name] : null;
+}
+
+/* Season, optionally narrowed to the minutes he played for one squad. Gated on minutes:
+   PER over a single short stint swings wildly (a seven-minute night produced -12.8 in
+   testing) and a number that unstable is worse than no number. */
+function perForPlayer(name, team, minFloor) {
+  const rec = perContext().byPlayer[name];
+  if (!rec) return null;
+  const src = (team && team !== 'all') ? rec.byTeam[team] : { per: rec.all, min: rec.min };
+  if (!src || src.per == null) return null;
+  if (minFloor != null && src.min < minFloor) return null;
+  return src.per;
+}
+
+/* A squad's PER for one practice: the minutes-weighted average of the men who played in it,
+   so it reads against 15 the same way a player does. */
+function perForTeam(session, team) {
+  const map = perContext().bySession[session.id];
+  if (!map) return null;
+  let u = 0, mp = 0;
+  for (const p of session.playerStats || []) {
+    if (p.team !== team || isHiddenPlayer(p.name) || !(p.min > 0)) continue;
+    if (map[p.name] == null) continue;
+    u += map[p.name] * p.min; mp += p.min;
+  }
+  return mp > 0 ? u / mp : null;
+}
+
 const BS_COLS = [
   { key: 'min',      label: 'MIN'   },
   { key: 'minPctVal',label: 'MIN%'  },
@@ -7127,6 +7268,7 @@ const BS_COLS = [
   { key: 'dreb',   label: 'DR'    },
   { key: 'pf',     label: 'PF'    },
   { key: 'pts',    label: 'PTS'   },
+  { key: 'per',    label: 'PER'   },   // value, read against a league average of 15
   { key: 'pm',     label: '+/-'   },   // far right, mirroring a standard box score
 ];
 
@@ -7184,6 +7326,11 @@ function buildBoxTableHtml(session, team) {
     switch (key) {
       case 'min':    return row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—';
       case 'pts':    return row.pts;
+      /* This practice only, on the season-wide scale - so a good night reads as a good night
+         rather than being flattened to 15 by its own game. Ungated on purpose: a box score
+         is the record of what happened, however few minutes it took. */
+      case 'per': { const v = perForGame(session.id, row.name);
+                    return v == null ? '—' : v.toFixed(1); }
       case 'pm':     return (row.pm > 0 ? '+' : '') + row.pm;   // explicit + reads as a margin
       case 'fg2mfa': return `${row.fg2m}-${row.fg2a}`;
       case 'fg3mfa': return `${row.fg3m}-${row.fg3a}`;
@@ -7195,7 +7342,7 @@ function buildBoxTableHtml(session, team) {
       case 'oreb':   return row.oreb;
       case 'dreb':   return row.dreb;
       case 'pf':     return row.pf;
-      case 'ortg':     return fp(row.ortg, 0);
+      case 'ortg':     return fp(row.ortg);
       case 'usgPct':   return fp(row.usgPct);
       case 'shotPct':  return fp(row.shotPct);
       case 'efgPct':   return fp(row.efgPct);
@@ -7238,9 +7385,13 @@ function buildBoxTableHtml(session, team) {
     switch (key) {
       case 'min': {
         const totalSecs = getSessionPlayedSeconds(session);
-        return totalSecs > 0 ? Math.round(totalSecs / 60) + '\'' : '—';
+        return totalSecs > 0 ? (totalSecs / 60).toFixed(1) + '\'' : '—';
       }
       case 'pts':    return ts.pts ?? '—';
+      /* The squad's PER for this practice: minutes-weighted across the men who played it,
+         so it reads against 15 exactly the way a player's does. */
+      case 'per': { const v = perForTeam(session, team);
+                    return v == null ? '—' : v.toFixed(1); }
       case 'pm': {
         /* The team figure is the score margin, NOT the sum of the column above it — every
            point counts for all five on the floor, so summing would give five times the
@@ -7259,7 +7410,7 @@ function buildBoxTableHtml(session, team) {
       case 'oreb':   return ts.oreb ?? '—';
       case 'dreb':   return ts.dreb ?? '—';
       case 'pf':     return ts.pf   ?? '—';
-      case 'ortg':   return fp(ts.ortg, 0);
+      case 'ortg':   return fp(ts.ortg);
       case 'efgPct': return fp(ts.efgPct);
       case 'tsPct':  return fp(ts.tsPct);
       default:       return '—';
@@ -8851,6 +9002,10 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          not a player who out-played the clock. The cap costs nothing real: 100% is the true
          ceiling, and nothing below it is touched. */
       minPctVal:availableMin > 0 ? p1(Math.min(100, 100 * r.min / availableMin)) : null,
+      /* Season PER, narrowed to the squad in view so it agrees with the minutes beside it.
+         Gated at twenty minutes: below that PER is mostly noise - a seven-minute night
+         produced -12.8 in testing - and a blank says that more honestly than a number. */
+      per:      p1(perForPlayer(r.name, filterTeam, 20)),
       shotPct:  avg(r._shotPct),
       efgPct:   avg(r._efgPct),
       tsPct:    avg(r._tsPct),
@@ -8930,6 +9085,7 @@ function renderPlayerTable() {
     { key: 'toPct',     label: 'TO%'   },
     { key: 'stlPct',    label: 'STL%'  },
     { key: 'blkPct',    label: 'BLK%'  },
+    { key: 'per',       label: 'PER'   },   // value, read against a league average of 15
     { key: 'xpps',      label: 'xPPS'  },   // value of the shots taken (selection)
     { key: 'pps',       label: 'PPS'   },   // value actually produced
     { key: 'shotDiff',  label: 'SHOT+/-' }, // the gap = shot-making
@@ -9820,13 +9976,13 @@ function buildShotTendencies(fgEvents) {
    formatting pass had to be applied to both by hand: 28 identical edits, twice, with
    nothing to catch it if one had been missed. One definition means a change to how a
    stat prints lands everywhere the stat appears. */
-const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
+const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts','per'];
 const glColLabel = { date:'DATE', title:'OPPONENT', result:'RESULT', min:'MINS',
   minPctVal:'MIN%', ortg:'ORtg', usgPct:'USAGE', drtg:'DRtg', shotPct:'SHOT%',
   efgPct:'EFG', tsPct:'TS%', ftRate:'FTR',
   orPct:'OR%', drPct:'DR%', astPct:'AST%', toPct:'TO%', stlPct:'STL%', blkPct:'BLK%',
   fg2:'2PT', fg3:'3PT', ft:'FT', ast:'AST', tov:'TO', stl:'STL', blk:'BLK',
-  oreb:'OR', dreb:'DR', pf:'PF', pts:'PTS' };
+  oreb:'OR', dreb:'DR', pf:'PF', pts:'PTS', per:'PER' };
 
 function glCell(row, key) {
   switch (key) {
@@ -9862,6 +10018,7 @@ function glCell(row, key) {
     case 'dreb':   return `<td>${row.dreb}</td>`;
     case 'pf':     return `<td>${row.pf}</td>`;
     case 'pts':    return `<td style="font-weight:700;">${row.pts}</td>`;
+    case 'per':    return `<td>${row.per != null ? (+row.per).toFixed(1) : '—'}</td>`;
     default: return '<td>—</td>';
   }
 }
@@ -10043,6 +10200,7 @@ function renderPlayerProfile(playerName) {
       ftm:    p.ftm    ?? 0, fta:  p.fta  ?? 0,
       fgm:    p.fgm    ?? 0, fga:  p.fga  ?? 0,
       minPctVal: p.minPctVal ?? null,
+      per:    perForGame(sess.id, playerName),
       shotPct:   p.shotPct   ?? null,
       ftRate:    p.ftRate    ?? null,
       efgPct: p.efgPct ?? null,
