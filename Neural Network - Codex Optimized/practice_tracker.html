@@ -3439,6 +3439,28 @@
       border-radius: 50%;
       animation: app-loading-spin 700ms linear infinite;
     }
+    /* Published-data stamp. Whether you are looking at current data is the one question a
+       viewer cannot otherwise answer - pt_data.json has carried publishedAt all along, but
+       it only ever reached the console. Sits in the space the editor-only buttons vacate. */
+    .nav-stamp {
+      margin-left: auto;
+      padding: 0 2px 0 14px;
+      font-size: 11px;
+      line-height: 1.25;
+      color: var(--text-muted);
+      white-space: nowrap;
+      text-align: right;
+    }
+    .nav-stamp b {
+      display: block;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+    .nav-stamp.is-stale b { color: var(--warning); }
+    @media (max-width: 768px) {
+      .nav-stamp { font-size: 10px; padding-left: 8px; }
+    }
+
     @keyframes app-loading-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) {
       .app-loading-spinner { animation-duration: 2400ms; }
@@ -3477,6 +3499,9 @@
     <button class="nav-tab editor-only" id="nav-roster" style="margin-left:auto;" onclick="openRosterEditor()" title="Edit roster: rename players or hide them from analysis">&#9881; Roster</button>
     <button class="nav-tab editor-only" id="nav-publish" onclick="publishData()" title="Download pt_data.json to publish the latest data to the live site (password required)">&#8593; Publish</button>
     <button class="nav-tab editor-only" id="nav-backup" onclick="backupWithPassword()" title="Download a full backup (password required): sessions, roster, and settings">&#11015; Backup</button>
+    <!-- Filled in by showPublishedStamp() on the published site. Stays hidden in the editor,
+         where the data is whatever is in this browser and has no publish date to show. -->
+    <div class="nav-stamp" id="nav-stamp" style="display:none;"></div>
   </nav>
 
   <!-- ── LIVE TRACKER ── -->
@@ -15641,6 +15666,34 @@ function applyPublishedMode() {
   }
 }
 
+/* "Data as of ..." for the published site. Staleness is a relative question, so the useful
+   answer is "2 hours ago" rather than an ISO string - but the exact local time is what you
+   need the moment it actually matters, so it shows both and keeps the full stamp on hover.
+   Over a week old turns amber: at that point the more likely explanation is a publish that
+   never got pushed, not a quiet fortnight. */
+function showPublishedStamp(publishedAt) {
+  const el = document.getElementById('nav-stamp');
+  if (!el || !publishedAt) return;
+  const d = new Date(publishedAt);
+  if (isNaN(d.getTime())) return;
+
+  const mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  const ago =
+    mins < 2    ? 'just now' :
+    mins < 60   ? mins + ' min ago' :
+    mins < 120  ? 'an hour ago' :
+    mins < 1440 ? Math.round(mins / 60) + ' hours ago' :
+    mins < 2880 ? 'yesterday' :
+                  Math.round(mins / 1440) + ' days ago';
+  const when = d.toLocaleString([], { month: 'short', day: 'numeric',
+                                      hour: 'numeric', minute: '2-digit' });
+
+  el.innerHTML = '<b>Data as of ' + escHtml(when) + '</b>' + escHtml(ago);
+  el.title = 'Snapshot published ' + d.toString();
+  el.classList.toggle('is-stale', mins >= 10080);   // a week
+  el.style.display = '';
+}
+
 async function loadPublishedData() {
   if ((State.sessions || []).length) return;   // local data present → this is the editor, keep it
   try {
@@ -15658,6 +15711,7 @@ async function loadPublishedData() {
     if (data.settings && typeof data.settings === 'object') State.settings = Object.assign({}, State.settings, data.settings);
     _publishedMode = true;
     applyPublishedMode();
+    showPublishedStamp(data.publishedAt);
     console.log(`Loaded published snapshot: ${(data.sessions||[]).length} sessions (published ${data.publishedAt || 'unknown'})`);
   } catch (e) {
     /* No pt_data.json reachable (e.g. opened as a local single file) — fine, use local/empty data. */
