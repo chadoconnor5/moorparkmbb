@@ -8663,12 +8663,21 @@ function computeShotQuality(sessions) {
   return out;
 }
 
+/* The period filter takes 'all', a period key, or one practice as 's:<id>'. The prefix is
+   what keeps the two apart: a session id is free text a coach typed, so without it a
+   practice called "pre" would silently become the Pre-Jamboree filter. */
+function psScopeMatches(sess, scope) {
+  if (!scope || scope === 'all') return true;
+  if (String(scope).startsWith('s:')) return String(sess.id) === String(scope).slice(2);
+  return sess.period === scope;
+}
+
 function aggregatePlayerStats(filterPeriod, filterTeam) {
   const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const byPlayer = {};
 
   // Shot quality shares the row scope, so the baseline reflects the same practices shown.
-  const scoped = sessions.filter(s => filterPeriod === 'all' || s.period === filterPeriod);
+  const scoped = sessions.filter(s => psScopeMatches(s, filterPeriod));
   const shotQual = computeShotQuality(scoped);
 
   /* MIN% denominator: every minute the team was on the floor across the practices in scope,
@@ -8684,7 +8693,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   const availableMin = scoped.reduce((t, x) => t + getSessionPlayedSeconds(x) / 60, 0);
 
   for (const sess of sessions) {
-    if (filterPeriod !== 'all' && sess.period !== filterPeriod) continue;
+    if (!psScopeMatches(sess, filterPeriod)) continue;
     /* Walk NAMES, not entries. A player who switched squads has one entry per team, and
        iterating entries counted him as two games played for a single practice — which
        halved his per-game averages. Team filtering happens before the merge, so a filtered
@@ -9002,6 +9011,19 @@ function renderPlayerTable() {
     `<option value="${v}" ${psFilter.team === v ? 'selected' : ''}>${lbl}</option>`;
   const perOpts = (v, lbl) =>
     `<option value="${v}" ${psFilter.period === v ? 'selected' : ''}>${lbl}</option>`;
+  /* Individual practices, newest first, in their own group under the period options. A
+     single practice is a real scope here: MIN% divides by that practice's floor time and
+     the shot-quality baseline is rebuilt from it, so the column means the same thing it
+     does across a season - just over one night. */
+  const psSessionOpts = () => {
+    const list = getSessions()
+      .filter(x => x.completed && !x.excludeFromStats)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    if (!list.length) return '';
+    return '<optgroup label="Individual scrimmages">' + list.map(x =>
+      perOpts('s:' + x.id, (x.date || '') + '  ' + (x.title || 'Untitled'))
+    ).join('') + '</optgroup>';
+  };
 
   root.innerHTML = `
     <div class="page-header">
@@ -9014,6 +9036,7 @@ function renderPlayerTable() {
           ${perOpts('all','All Sessions')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
+          ${psSessionOpts()}
         </select>
         <select onchange="psSetFilter('team',this.value)">
           ${teamOpts('all','Both Teams')}
