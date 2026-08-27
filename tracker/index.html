@@ -9742,6 +9742,63 @@ function buildShotTendencies(fgEvents) {
     '</div>';
 }
 
+/* ── Game log: column order, labels and cell rendering ──────────────────────────
+   Module scope, and shared. These lived inside renderPlayerProfile with a second copy
+   inside glSort - which re-renders the tbody after a header click and so needs to print
+   cells exactly the same way. The two drifted into copies of each other, and the last
+   formatting pass had to be applied to both by hand: 28 identical edits, twice, with
+   nothing to catch it if one had been missed. One definition means a change to how a
+   stat prints lands everywhere the stat appears. */
+const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
+const glColLabel = { date:'DATE', title:'OPPONENT', result:'RESULT', min:'MINS',
+  minPctVal:'MIN%', ortg:'ORtg', usgPct:'USAGE', drtg:'DRtg', shotPct:'SHOT%',
+  efgPct:'EFG', tsPct:'TS%', ftRate:'FTR',
+  orPct:'OR%', drPct:'DR%', astPct:'AST%', toPct:'TO%', stlPct:'STL%', blkPct:'BLK%',
+  fg2:'2PT', fg3:'3PT', ft:'FT', ast:'AST', tov:'TO', stl:'STL', blk:'BLK',
+  oreb:'OR', dreb:'DR', pf:'PF', pts:'PTS' };
+
+function glCell(row, key) {
+  switch (key) {
+    case 'date':   return `<td style="text-align:left;color:var(--text-dim);font-size:11px;">${row.date}</td>`;
+    case 'title':  return `<td style="text-align:left;font-weight:600;white-space:nowrap;">${escHtml(row.title)}</td>`;
+    case 'result': {
+      const c = row.result === 'W' ? '#22c55e' : row.result === 'L' ? '#ef4444' : 'var(--text-dim)';
+      return `<td style="font-weight:800;color:${c};">${row.result} ${row.score}</td>`;
+    }
+    case 'min':    return `<td>${row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—'}</td>`;
+    case 'minPctVal': return `<td>${row.minPctVal != null ? (+row.minPctVal).toFixed(1) + '%' : '—'}</td>`;
+    case 'ortg':   return `<td>${row.ortg   != null ? (+row.ortg).toFixed(1) : '—'}</td>`;
+    case 'drtg':   return `<td>${row.drtg   != null ? (+row.drtg).toFixed(1) : '—'}</td>`;
+    case 'usgPct': return `<td>${row.usgPct != null ? (+row.usgPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'shotPct': return `<td>${row.shotPct != null ? (+row.shotPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'efgPct': return `<td>${row.efgPct != null ? (+row.efgPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'tsPct':  return `<td>${row.tsPct  != null ? (+row.tsPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'ftRate':  return `<td>${row.ftRate  != null ? (+row.ftRate).toFixed(1) + '%' : '—'}</td>`;
+    case 'orPct':  return `<td>${row.orPct  != null ? (+row.orPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'drPct':  return `<td>${row.drPct  != null ? (+row.drPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'astPct': return `<td>${row.astPct != null ? (+row.astPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'toPct':  return `<td>${row.toPct  != null ? (+row.toPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'stlPct': return `<td>${row.stlPct != null ? (+row.stlPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'blkPct': return `<td>${row.blkPct != null ? (+row.blkPct).toFixed(1) + '%' : '—'}</td>`;
+    case 'fg2':    return `<td>${row.fg2m}-${row.fg2a}</td>`;
+    case 'fg3':    return `<td>${row.fg3m}-${row.fg3a}</td>`;
+    case 'ft':     return `<td>${row.ftm}-${row.fta}</td>`;
+    case 'ast':    return `<td>${row.ast}</td>`;
+    case 'tov':    return `<td>${row.tov}</td>`;
+    case 'stl':    return `<td>${row.stl}</td>`;
+    case 'blk':    return `<td>${row.blk}</td>`;
+    case 'oreb':   return `<td>${row.oreb}</td>`;
+    case 'dreb':   return `<td>${row.dreb}</td>`;
+    case 'pf':     return `<td>${row.pf}</td>`;
+    case 'pts':    return `<td style="font-weight:700;">${row.pts}</td>`;
+    default: return '<td>—</td>';
+  }
+}
+
+// Career averages footer row
+
+
+
 /* ── Player Profile page ── */
 function renderPlayerProfile(playerName) {
   const root = document.getElementById('players-root');
@@ -9933,53 +9990,9 @@ function renderPlayerProfile(playerName) {
     };
   }).filter(Boolean);
 
-  const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
-  const glColLabel = { date:'DATE', title:'OPPONENT', result:'RESULT', min:'MINS',
-    minPctVal:'MIN%', ortg:'ORtg', usgPct:'USAGE', drtg:'DRtg', shotPct:'SHOT%',
-    efgPct:'EFG', tsPct:'TS%', ftRate:'FTR',
-    orPct:'OR%', drPct:'DR%', astPct:'AST%', toPct:'TO%', stlPct:'STL%', blkPct:'BLK%',
-    fg2:'2PT', fg3:'3PT', ft:'FT', ast:'AST', tov:'TO', stl:'STL', blk:'BLK',
-    oreb:'OR', dreb:'DR', pf:'PF', pts:'PTS' };
-
-  function glCell(row, key) {
-    switch (key) {
-      case 'date':   return `<td style="text-align:left;color:var(--text-dim);font-size:11px;">${row.date}</td>`;
-      case 'title':  return `<td style="text-align:left;font-weight:600;white-space:nowrap;">${escHtml(row.title)}</td>`;
-      case 'result': {
-        const c = row.result === 'W' ? '#22c55e' : row.result === 'L' ? '#ef4444' : 'var(--text-dim)';
-        return `<td style="font-weight:800;color:${c};">${row.result} ${row.score}</td>`;
-      }
-      case 'min':    return `<td>${row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—'}</td>`;
-      case 'minPctVal': return `<td>${row.minPctVal != null ? (+row.minPctVal).toFixed(1) + '%' : '—'}</td>`;
-      case 'ortg':   return `<td>${row.ortg   != null ? (+row.ortg).toFixed(1) : '—'}</td>`;
-      case 'drtg':   return `<td>${row.drtg   != null ? (+row.drtg).toFixed(1) : '—'}</td>`;
-      case 'usgPct': return `<td>${row.usgPct != null ? (+row.usgPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'shotPct': return `<td>${row.shotPct != null ? (+row.shotPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'efgPct': return `<td>${row.efgPct != null ? (+row.efgPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'tsPct':  return `<td>${row.tsPct  != null ? (+row.tsPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'ftRate':  return `<td>${row.ftRate  != null ? (+row.ftRate).toFixed(1) + '%' : '—'}</td>`;
-      case 'orPct':  return `<td>${row.orPct  != null ? (+row.orPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'drPct':  return `<td>${row.drPct  != null ? (+row.drPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'astPct': return `<td>${row.astPct != null ? (+row.astPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'toPct':  return `<td>${row.toPct  != null ? (+row.toPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'stlPct': return `<td>${row.stlPct != null ? (+row.stlPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'blkPct': return `<td>${row.blkPct != null ? (+row.blkPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'fg2':    return `<td>${row.fg2m}-${row.fg2a}</td>`;
-      case 'fg3':    return `<td>${row.fg3m}-${row.fg3a}</td>`;
-      case 'ft':     return `<td>${row.ftm}-${row.fta}</td>`;
-      case 'ast':    return `<td>${row.ast}</td>`;
-      case 'tov':    return `<td>${row.tov}</td>`;
-      case 'stl':    return `<td>${row.stl}</td>`;
-      case 'blk':    return `<td>${row.blk}</td>`;
-      case 'oreb':   return `<td>${row.oreb}</td>`;
-      case 'dreb':   return `<td>${row.dreb}</td>`;
-      case 'pf':     return `<td>${row.pf}</td>`;
-      case 'pts':    return `<td style="font-weight:700;">${row.pts}</td>`;
-      default: return '<td>—</td>';
-    }
-  }
-
-  // Career averages footer row
+  /* Stays local, unlike glCell above: this one closes over glRows, gp and fp - the
+     profile's own data - and it was never the duplicated half. Only the cell renderer
+     needed sharing. */
   function glAvgCell(key) {
     const fp = (v, d=1) => v != null ? Number(v).toFixed(d) : '—';
     switch (key) {
@@ -10241,46 +10254,10 @@ function glSort(key) {
     return 0;
   });
 
-  function glCellSort(row, k) {
-    switch (k) {
-      case 'date':   return `<td style="text-align:left;color:var(--text-dim);font-size:11px;">${row.date}</td>`;
-      case 'title':  return `<td style="text-align:left;font-weight:600;white-space:nowrap;">${escHtml(row.title)}</td>`;
-      case 'result': { const c = row.result==='W'?'#22c55e':row.result==='L'?'#ef4444':'var(--text-dim)'; return `<td style="font-weight:800;color:${c};">${row.result} ${row.score}</td>`; }
-      case 'min':    return `<td>${row.min > 0 ? (+row.min).toFixed(1) + '\'' : '—'}</td>`;
-      case 'minPctVal': return `<td>${row.minPctVal != null ? (+row.minPctVal).toFixed(1) + '%' : '—'}</td>`;
-      case 'ortg':   return `<td>${row.ortg   != null ? (+row.ortg).toFixed(1) : '—'}</td>`;
-      case 'drtg':   return `<td>${row.drtg   != null ? (+row.drtg).toFixed(1) : '—'}</td>`;
-      case 'usgPct': return `<td>${row.usgPct != null ? (+row.usgPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'shotPct': return `<td>${row.shotPct != null ? (+row.shotPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'efgPct': return `<td>${row.efgPct != null ? (+row.efgPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'tsPct':  return `<td>${row.tsPct  != null ? (+row.tsPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'ftRate': return `<td>${row.ftRate  != null ? (+row.ftRate).toFixed(1) + '%' : '—'}</td>`;
-      case 'orPct':  return `<td>${row.orPct  != null ? (+row.orPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'drPct':  return `<td>${row.drPct  != null ? (+row.drPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'astPct': return `<td>${row.astPct != null ? (+row.astPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'toPct':  return `<td>${row.toPct  != null ? (+row.toPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'stlPct': return `<td>${row.stlPct != null ? (+row.stlPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'blkPct': return `<td>${row.blkPct != null ? (+row.blkPct).toFixed(1) + '%' : '—'}</td>`;
-      case 'fg2':    return `<td>${row.fg2m}-${row.fg2a}</td>`;
-      case 'fg3':    return `<td>${row.fg3m}-${row.fg3a}</td>`;
-      case 'ft':     return `<td>${row.ftm}-${row.fta}</td>`;
-      case 'ast':    return `<td>${row.ast}</td>`;
-      case 'tov':    return `<td>${row.tov}</td>`;
-      case 'stl':    return `<td>${row.stl}</td>`;
-      case 'blk':    return `<td>${row.blk}</td>`;
-      case 'oreb':   return `<td>${row.oreb}</td>`;
-      case 'dreb':   return `<td>${row.dreb}</td>`;
-      case 'pf':     return `<td>${row.pf}</td>`;
-      case 'pts':    return `<td style="font-weight:700;">${row.pts}</td>`;
-      default: return '<td>—</td>';
-    }
-  }
-
-  const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts'];
   const tbody = document.getElementById('gl-tbody');
   if (tbody) {
     tbody.innerHTML = rows.map(row =>
-      `<tr>${glColOrder.map(k => glCellSort(row, k)).join('')}</tr>`
+      `<tr>${glColOrder.map(k => glCell(row, k)).join('')}</tr>`
     ).join('');
   }
   updateGlArrows();
@@ -10760,7 +10737,6 @@ function renderLineupsView() {
   // Cache for lightweight slider updates
   window._lineupRows    = lineupRows;
   window._lineupMaxPoss = maxPoss;
-  window._lineupCell    = cell;
   window._lineupFiltered = filtered;
   window._lineupTeam    = team;
 
@@ -10769,11 +10745,7 @@ function renderLineupsView() {
     : team === 'b' ? (filtered[0]?.teamBName || 'Black')
     : (filtered[0]?.teamAName || 'White');
 
-  /* One decimal, always. These arrive already rounded to a tenth, and printing the number
-     raw drops a trailing zero - so a 75% sat beside a 44.4% in the same column. */
-  function cell(v, suf='') { return v != null ? (+v).toFixed(1) + suf : '—'; }
-
-  const trs = visibleRows.map(r => _luRowHtml(r, team, filtered, cell)).join('');
+  const trs = visibleRows.map(r => _luRowHtml(r, team, filtered)).join('');
 
   root.innerHTML = `
     <div class="page-header">
@@ -10984,7 +10956,13 @@ function _luBuilderPanelHtml(rows, size) {
     </div>`;
 }
 
-function _luRowHtml(r, team, filtered, cell) {
+/* One definition, used by both the full render and the slider's tbody-only redraw.
+   It was declared inside the renderer and stashed on window for the redraw to find, with
+   an inline fallback at that call site in case the stash was empty - so the same cell
+   format existed twice, and the fallback quietly printed numbers the other way. */
+function luCell(v, suf = '') { return v != null ? (+v).toFixed(1) + suf : '—'; }
+
+function _luRowHtml(r, team, filtered) {
   const netStr = (r.net > 0 ? '+' : '') + (+r.net).toFixed(1);
   // No White/Black badge: players rotate between teams across sessions, so tagging a
   // lineup with one scrimmage team would be misleading over a season.
@@ -11002,14 +10980,14 @@ function _luRowHtml(r, team, filtered, cell) {
       <td>${r.ortg != null ? (+r.ortg).toFixed(1) : '—'}</td>
       <td>${r.drtg != null ? (+r.drtg).toFixed(1) : '—'}</td>
       <td><strong>${netStr}</strong></td>
-      <td>${cell(r.efg,'%')}</td>
-      <td>${cell(r.orebPct,'%')}</td>
-      <td>${cell(r.tovPct,'%')}</td>
-      <td>${cell(r.ftr,'%')}</td>
-      <td class="lu-def-sep">${cell(r.dEfg,'%')}</td>
-      <td>${cell(r.dOrebPct,'%')}</td>
-      <td>${cell(r.dTovPct,'%')}</td>
-      <td>${cell(r.dFtr,'%')}</td>
+      <td>${luCell(r.efg,'%')}</td>
+      <td>${luCell(r.orebPct,'%')}</td>
+      <td>${luCell(r.tovPct,'%')}</td>
+      <td>${luCell(r.ftr,'%')}</td>
+      <td class="lu-def-sep">${luCell(r.dEfg,'%')}</td>
+      <td>${luCell(r.dOrebPct,'%')}</td>
+      <td>${luCell(r.dTovPct,'%')}</td>
+      <td>${luCell(r.dFtr,'%')}</td>
     </tr>`;
 }
 
@@ -11017,7 +10995,6 @@ function _luRowHtml(r, team, filtered, cell) {
    and the min-possessions slider so the two compose instead of overwriting each other. */
 function _luRenderTbody() {
   const rows     = window._lineupRows || [];
-  const cell     = window._lineupCell || ((v, s='') => v != null ? (+v).toFixed(1) + s : '—');
   const filtered = window._lineupFiltered || [];
   const team     = window._lineupTeam || seg5Filter.team;
   const minPoss  = Number(seg5Filter.minPoss) || 1;
@@ -11027,7 +11004,7 @@ function _luRenderTbody() {
   const visible  = _luSortRows(_luBuilderMatches(rows)).filter(r => Math.round(r.poss) >= minPoss);
 
   const tbody = document.getElementById('lu-tbody');
-  if (tbody) tbody.innerHTML = visible.map(r => _luRowHtml(r, team, filtered, cell)).join('');
+  if (tbody) tbody.innerHTML = visible.map(r => _luRowHtml(r, team, filtered)).join('');
 
   const subtitle = document.getElementById('lu-subtitle');
   if (subtitle) {
