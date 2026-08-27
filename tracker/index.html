@@ -7295,7 +7295,12 @@ function buildBoxTableHtml(session, team) {
       name,
       isStarter: starters.includes(name),
       pm:     pmMap[name] ?? 0,
-      min:    s.min    != null ? Math.round(s.min) : 0,
+      /* The real figure, not Math.round(s.min). The box score used to print whole minutes,
+         which was harmless while it rendered "19'" - but under the one-decimal rule that
+         same rounded value renders "19.0'", claiming a precision it had thrown away and
+         making every player in the game end in .0. playerStats already holds minutes to a
+         tenth; this is the only surface that was discarding it. */
+      min:    s.min    != null ? s.min : 0,
       pts:    s.pts    ?? 0,
       fg2m:   s.fg2m   ?? 0, fg2a: s.fg2a ?? 0,
       fg3m:   s.fg3m   ?? 0, fg3a: s.fg3a ?? 0,
@@ -10186,7 +10191,8 @@ function renderPlayerProfile(playerName) {
       title:  sess.title || '',
       result,
       score:  `${myPts}–${oppPts}`,
-      min:    Math.round(p.min || 0),
+      /* True minutes, like the box score. Rounding here read as 21.0' for a 21.4' night. */
+      min:    p.min || 0,
       pts:    p.pts    ?? 0,
       reb:    p.reb    ?? 0,
       ast:    p.ast    ?? 0,
