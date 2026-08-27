@@ -9161,7 +9161,9 @@ const TR_BANK = {
     'His {n} attempts {phr} have been worth {pps} a shot, against {tm} for the team.' ],
   shot_weak: [
     '{Phr} he is at {pps} points per shot, though on {n} attempts so far; the team is at {tm}.',
-    'On {n} attempts {phr} he is scoring {pps} a shot, against a team mark of {tm} — a small sample.',
+    /* "Across", not "On" — the phrase already starts with a preposition for shot types
+       ("on pull-ups"), and "On 4 attempts on pull-ups" doubles it. */
+    'Across {n} attempts {phr} he is scoring {pps} a shot, against a team mark of {tm} — a small sample.',
     '{Phr}: {pps} points per shot, {n} attempts so far, team {tm}.',
     'His {n} attempts {phr} have returned {pps} a shot against {tm} for the team, early days.',
     'So far {phr} he is at {pps} points per shot on {n} attempts; the team averages {tm}.' ],
@@ -9258,6 +9260,22 @@ function trWavg(rows, key) {
    and the whole team's go through it, so every fact can look up its own baseline by the
    exact same key — if the two were categorised separately they would eventually disagree
    about what "from the corners" means, and nothing would report the mismatch. */
+/* Locations are named, never blurred. The read used to speak in groupings - "from the
+   wings", "in the paint" - because a single spot rarely cleared a 6-attempt gate. That made
+   it vague exactly where a coach needs precision, and it put a SECOND vocabulary on a page
+   whose Shot Tendencies table right below already speaks in the fourteen zones actually
+   drawn on the court. One page, one set of names.
+
+   So the drawn zone wins, via the same znZoneForShot() the tendencies table uses, and the
+   gate drops to four attempts - a zone is the thing worth being specific about, and the
+   hedging ladder already marks a thin one as thin. The fixed fallback grid is only for a
+   shot that lands outside every drawn zone. */
+function trZoneName(e) {
+  const z = (typeof znZoneForShot === 'function') ? znZoneForShot(e) : null;
+  if (z && z.name) return z.name;
+  return TR_ZONE[e.zone] ? TR_ZONE[e.zone].replace(/^the /, '') : null;
+}
+
 function trCategorize(shots) {
   const out = {};
   const push = (phr, e, tier) => {
@@ -9265,10 +9283,8 @@ function trCategorize(shots) {
     out[phr].push(e);
   };
   for (const e of shots) {
-    if (TR_ZONE[e.zone])  push('from ' + TR_ZONE[e.zone], e, 1);
-    if (TR_GROUP[e.zone]) push('from ' + TR_GROUP[e.zone], e, 2);
-    if (TR_PAINT.includes(e.zone)) push('in the paint', e, 2);
-    if (e.shotFt != null) push('from ' + trBucket(e.shotFt), e, 2);
+    const zn = trZoneName(e);
+    if (zn) push('from ' + zn, e, 1);
     const types = (Array.isArray(e.shotTypes) && e.shotTypes.length) ? e.shotTypes
                 : (e.shotType ? [e.shotType] : []);
     for (const t of types) push('on ' + (TR_TYPE[t] || t), e, 2);
@@ -9277,7 +9293,7 @@ function trCategorize(shots) {
 }
 
 function buildTendencyRead(playerName, playerSessions, allSessions) {
-  const TR_K = 12, MIN_FLOOR = 20, MAX_SENT = 7;
+  const TR_K = 12, MIN_FLOOR = 20, MAX_SENT = 10;
   const shotsOf = (sess, name) => (sess.eventLog || []).filter(e =>
     TR_SHOT_STATS.includes(e.stat) && e.player === name);
 
@@ -9365,7 +9381,10 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
   // tier 1 is the exact zone, tier 2 the grouping — most specific that clears the gate wins
   for (const phr in myCats) addFact(phr, myCats[phr], myCats[phr].tier);
 
-  const tier = n => n >= 25 ? 'strong' : n >= 12 ? 'moderate' : n >= 6 ? 'weak' : null;
+  /* Four is the floor now, not six. A named spot is the thing worth being precise about,
+     and the 'weak' wording already says "though on N attempts so far" out loud, so a thin
+     zone reports itself as thin rather than being hidden behind a vaguer word. */
+  const tier = n => n >= 25 ? 'strong' : n >= 12 ? 'moderate' : n >= 4 ? 'weak' : null;
   const scored = [];
   for (const f of facts) {
     const h = tier(f.n);
@@ -9420,16 +9439,28 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       if (dir === 'low') rel = -rel;
       cand.push({ key, label, Label, v, rel });
     }
+    /* The old rule - one rate above the median, one below, each needing to be a full median
+       away - meant most players got no advanced line at all, on a page whose whole point is
+       that the box score is already elsewhere. Take the three most distinctive rates he has,
+       whichever side of the median they fall. They have already passed the two gates that
+       matter (a comparable median, and real events behind the count), so the only thing
+       being relaxed here is how unusual a number must be to be worth a sentence. */
+    /* ...but "9.0% against a median of 9.0%" is not an advanced stat, it is a true division
+       with nothing in it. A rate still has to be some way off the middle to be worth a
+       sentence - just not the full median the old rule demanded. Players who have three
+       distinctive rates get three; players who have one get one. */
     cand.sort((a, b) => Math.abs(b.rel) - Math.abs(a.rel));
-    const hi = cand.filter(c => c.rel >= 1).slice(0, 1);
-    const lo = cand.filter(c => c.rel <= -1).slice(0, 1);
-    const sayRate = (c, bank, holds, pri, seed) => {
+    const TR_RATE_MIN_REL = 0.35;
+    const sayRate = (c, pri, seed) => {
+      const above = c.rel >= 0;
+      const bank = above ? TR_RANKED_HI : TR_RANKED_LO;
+      const holds = above ? rankTop[c.key] === playerName : rankBottom[c.key] === playerName;
       const pool = bank.filter(([tag]) => holds || !tag).map(([, t]) => t);
       lines.push({ p: pri, t: trFill(pool[trHash(seed) % pool.length], {
         label: c.label, Label: c.Label, v: c.v.toFixed(1), med: med[c.key].toFixed(1) }) });
     };
-    hi.forEach(c => sayRate(c, TR_RANKED_HI, rankTop[c.key] === playerName, 4, playerName + '|ah' + c.key));
-    lo.forEach(c => sayRate(c, TR_RANKED_LO, rankBottom[c.key] === playerName, 5, playerName + '|al' + c.key));
+    cand.filter(c => Math.abs(c.rel) >= TR_RATE_MIN_REL).slice(0, 3)
+        .forEach((c, i) => sayRate(c, 4 + i, playerName + '|adv' + c.key));
   }
 
   /* Trend over a rolling window of ATTEMPTS, never of practices. A 13-minute scrimmage
@@ -9442,7 +9473,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       const sa = (20 * a + TR_K * teamPPS) / (20 + TR_K);
       const sb = (prior.length * b + TR_K * teamPPS) / (prior.length + TR_K);
       if (Math.abs(sa - sb) > 0.15) {
-        lines.push({ p: 6, t: trFill(trPick(TR_BANK.trend, playerName + '|trend'), {
+        lines.push({ p: 7, t: trFill(trPick(TR_BANK.trend, playerName + '|trend'), {
           n: 20, a: a.toFixed(2), b: b.toFixed(2) }) });
       }
     }
@@ -9454,18 +9485,18 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     for (const e of shots) { const s = TR_SIDE[e.zone]; if (s) sides[s] = (sides[s] || 0) + 1; }
     const topSide = Object.keys(sides).sort((a, b) => sides[b] - sides[a])[0];
     if (topSide && topSide !== 'middle' && sides[topSide] / shots.length >= 0.5) {
-      lines.push({ p: 7, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
+      lines.push({ p: 8, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
         pct: Math.round(100 * sides[topSide] / shots.length), side: topSide }) });
     }
     const contested = shots.filter(e => e.shotContest === 'contested').length;
-    lines.push({ p: 8, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
+    lines.push({ p: 9, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
       pct: Math.round(100 * contested / shots.length) }) });
     const threes = shots.filter(e => String(e.stat).startsWith('3')).length;
-    lines.push({ p: 9, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
+    lines.push({ p: 10, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
       pct: Math.round(100 * threes / shots.length) }) });
     const withFt = shots.filter(e => e.shotFt != null);
     if (withFt.length) {
-      lines.push({ p: 10, t: trFill(trPick(TR_BANK.dist, playerName + '|dist'), {
+      lines.push({ p: 11, t: trFill(trPick(TR_BANK.dist, playerName + '|dist'), {
         ft: Math.round(withFt.reduce((t, e) => t + e.shotFt, 0) / withFt.length) }) });
     }
   }
