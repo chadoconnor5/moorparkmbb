@@ -3410,9 +3410,52 @@
       .profile-stat-val { font-size: 17px; }
       #profile-panel-overview > div:first-child { grid-template-columns: 1fr !important; }
     }
+    /* LOADING GATE - see initApp(). The shell is interactive from first paint but its
+       data arrives a fetch later, so the app stays covered until real data is on screen. */
+    #app-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--bg);
+      color: var(--text-secondary);
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+    #app-loading.is-done {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease-out;
+    }
+    .app-loading-spinner {
+      width: 28px;
+      height: 28px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: app-loading-spin 700ms linear infinite;
+    }
+    @keyframes app-loading-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .app-loading-spinner { animation-duration: 2400ms; }
+    }
   </style>
 </head>
 <body>
+
+<!-- LOADING GATE. The nav and tabs are clickable the moment the HTML parses, but the roster
+     and sessions only exist once initApp() has run. Anything opened before then rendered
+     whatever State happened to hold - which is how last season's seed roster kept showing
+     up in the roster editor and the starter grid. initApp() removes this in a finally, so
+     a throw cannot strand the app behind it. -->
+<div id="app-loading" role="status" aria-live="polite">
+  <div class="app-loading-spinner"></div>
+  <div class="app-loading-text">Loading practice data&hellip;</div>
+</div>
 
 <!-- ============================================================
      APP SHELL
@@ -4179,7 +4222,8 @@
    GLOBAL STATE
 ============================================================ */
 const State = {
-  roster:      [],      // loaded from #roster-data
+  roster:      [],      // localStorage pt_roster, or the published snapshot, or seedRoster
+  seedRoster:  [],      // #roster-data: the first-run seed ONLY (see loadEmbeddedData)
   settings:    {},      // loaded from #settings-data
   zones:       [],      // shot-chart zones drawn in the Zones tab
   sessions:    [],      // all completed sessions (from localStorage)
@@ -4189,12 +4233,17 @@ const State = {
 /* ============================================================
    DATA LOADING
 ============================================================ */
+/* The embedded #roster-data block is a first-run seed and nothing more, so it is stashed
+   rather than assigned. It used to land straight in State.roster, which meant that for the
+   whole pt_data.json round-trip the app was holding last season's names and would render
+   them into any picker opened in that window. Now loadPersistentData and loadPublishedData
+   get first refusal, and applySeedRoster() fills in only if neither produced a roster. */
 function loadEmbeddedData() {
   try {
-    State.roster = JSON.parse(document.getElementById('roster-data').textContent);
+    State.seedRoster = JSON.parse(document.getElementById('roster-data').textContent);
   } catch(e) {
     console.warn('Failed to parse roster-data:', e);
-    State.roster = [];
+    State.seedRoster = [];
   }
   try {
     State.settings = JSON.parse(document.getElementById('settings-data').textContent);
@@ -15563,7 +15612,12 @@ function applyPublishedMode() {
 async function loadPublishedData() {
   if ((State.sessions || []).length) return;   // local data present → this is the editor, keep it
   try {
-    const res = await fetch('pt_data.json', { cache: 'no-store' });
+    /* cache:'no-store' only bypasses THIS browser's cache. pt_data.json is served from the
+       GitHub Pages CDN with max-age=600, so for up to ten minutes after a publish the edge
+       keeps handing out the PREVIOUS snapshot - which is how purged players kept coming
+       back with their old stats, and why a reload a minute later "fixed" it. A unique query
+       string is a different cache key, so the edge has to go to origin for it. */
+    const res = await fetch(`pt_data.json?v=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     if (Array.isArray(data.sessions)) State.sessions = data.sessions;
@@ -15578,35 +15632,61 @@ async function loadPublishedData() {
   }
 }
 
+/* Last resort, run once both real sources have had their turn: a genuine first run - no
+   pt_roster saved, no pt_data.json reachable - still needs names to put on screen. */
+function applySeedRoster() {
+  if (!State.roster.length && State.seedRoster.length) {
+    State.roster = State.seedRoster;
+    console.log(`No saved or published roster found - using the embedded seed (${State.roster.length} players).`);
+  }
+}
+
+/* Lift the loading gate. Called from initApp's finally so a thrower cannot leave the app
+   permanently covered, and safe to call twice. */
+function revealApp() {
+  const gate = document.getElementById('app-loading');
+  if (!gate || gate.classList.contains('is-done')) return;
+  gate.classList.add('is-done');
+  setTimeout(() => gate.remove(), 300);
+}
+
 async function initApp() {
-  loadEmbeddedData();
-  loadPersistentData();
-  await loadPublishedData();
-  console.log(
-    `%cMoorpark MBB Practice Tracker`,
-    'color:#4f6ef7;font-weight:bold;font-size:14px'
-  );
-  console.log(
-    `Roster: ${State.roster.length} players | Completed sessions: ${State.sessions.length}`
-  );
+  try {
+    loadEmbeddedData();
+    loadPersistentData();
+    await loadPublishedData();
+    applySeedRoster();
+    console.log(
+      `%cMoorpark MBB Practice Tracker`,
+      'color:#4f6ef7;font-weight:bold;font-size:14px'
+    );
+    console.log(
+      `Roster: ${State.roster.length} players | Completed sessions: ${State.sessions.length}`
+    );
 
-  // If already authenticated this browser session, skip the lock screen
-  if (isTrackerUnlocked()) {
-    unlockTracker();
+    // If already authenticated this browser session, skip the lock screen
+    if (isTrackerUnlocked()) {
+      unlockTracker();
+    }
+
+    if (State.liveSession) {
+      console.log('⚠️  In-progress session detected:', State.liveSession.title);
+      showToast('In-progress session detected. Navigate to Live Tracker to resume.', 'info', 5000);
+      // Mark tracker nav tab with live indicator
+      document.querySelector('[data-tab="tracker"]').classList.add('live-active');
+    }
+
+    // Restore film from saved FileSystemFileHandle (if browser supports it)
+    restoreFilmFromHandle();
+
+    // Render the default active tab (Player Stats)
+    if (typeof tabRenderers.players === 'function') tabRenderers.players();
+  } finally {
+    /* Data is loaded and the first tab is painted, so the app is safe to touch. In a
+       finally because a half-initialised app the user can see and work around beats an
+       app stuck behind a spinner with no way forward. */
+    revealApp();
   }
-
-  if (State.liveSession) {
-    console.log('⚠️  In-progress session detected:', State.liveSession.title);
-    showToast('In-progress session detected. Navigate to Live Tracker to resume.', 'info', 5000);
-    // Mark tracker nav tab with live indicator
-    document.querySelector('[data-tab="tracker"]').classList.add('live-active');
-  }
-
-  // Restore film from saved FileSystemFileHandle (if browser supports it)
-  restoreFilmFromHandle();
-
-  // Render the default active tab (Player Stats)
-  if (typeof tabRenderers.players === 'function') tabRenderers.players();
 }
 
 /* ============================================================
