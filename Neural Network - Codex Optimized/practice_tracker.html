@@ -3441,25 +3441,21 @@
     }
     /* Published-data stamp. Whether you are looking at current data is the one question a
        viewer cannot otherwise answer - pt_data.json has carried publishedAt all along, but
-       it only ever reached the console. Sits in the space the editor-only buttons vacate. */
-    .nav-stamp {
-      margin-left: auto;
-      padding: 0 2px 0 14px;
-      font-size: 11px;
-      line-height: 1.25;
+       it only ever reached the console. Centred between the view toggle and the table, so
+       it reads as a caption on the numbers rather than as chrome. */
+    .data-stamp {
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 16px 0 2px;
+      font-size: 11.5px;
       color: var(--text-muted);
-      white-space: nowrap;
-      text-align: right;
     }
-    .nav-stamp b {
-      display: block;
-      font-weight: 700;
-      color: var(--text-secondary);
-    }
-    .nav-stamp.is-stale b { color: var(--warning); }
-    @media (max-width: 768px) {
-      .nav-stamp { font-size: 10px; padding-left: 8px; }
-    }
+    .data-stamp b { font-weight: 700; color: var(--text-secondary); }
+    .data-stamp.is-stale b { color: var(--warning); }
+    .data-stamp .sep { opacity: 0.5; }
 
     @keyframes app-loading-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) {
@@ -3499,9 +3495,6 @@
     <button class="nav-tab editor-only" id="nav-roster" style="margin-left:auto;" onclick="openRosterEditor()" title="Edit roster: rename players or hide them from analysis">&#9881; Roster</button>
     <button class="nav-tab editor-only" id="nav-publish" onclick="publishData()" title="Download pt_data.json to publish the latest data to the live site (password required)">&#8593; Publish</button>
     <button class="nav-tab editor-only" id="nav-backup" onclick="backupWithPassword()" title="Download a full backup (password required): sessions, roster, and settings">&#11015; Backup</button>
-    <!-- Filled in by showPublishedStamp() on the published site. Stays hidden in the editor,
-         where the data is whatever is in this browser and has no publish date to show. -->
-    <div class="nav-stamp" id="nav-stamp" style="display:none;"></div>
   </nav>
 
   <!-- ── LIVE TRACKER ── -->
@@ -8678,6 +8671,18 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   const scoped = sessions.filter(s => filterPeriod === 'all' || s.period === filterPeriod);
   const shotQual = computeShotQuality(scoped);
 
+  /* MIN% denominator: every minute the team was on the floor across the practices in scope,
+     INCLUDING the ones this player missed. Averaging his per-practice MIN% answered a
+     different question - "when he played, how much did he play" - and so read a man who
+     turned up once and played the whole thing as a full-time starter. Someone available for
+     one scrimmage in three is a third of the floor time, and that is the thing a coach is
+     looking at this column to see.
+
+     The per-practice MIN% in the box score and the game log is deliberately untouched:
+     there, one practice IS the scope, so minutes over that practice's length is already the
+     right denominator. Same stat, honestly different question at a different altitude. */
+  const availableMin = scoped.reduce((t, x) => t + getSessionPlayedSeconds(x) / 60, 0);
+
   for (const sess of sessions) {
     if (filterPeriod !== 'all' && sess.period !== filterPeriod) continue;
     /* Walk NAMES, not entries. A player who switched squads has one entry per team, and
@@ -8701,7 +8706,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
           // Per-game ADV accumulators for averaging
-          _ortg: [], _drtg: [], _usgPct: [], _minPctVal: [], _shotPct: [],
+          _ortg: [], _drtg: [], _usgPct: [], _shotPct: [],
           _efgPct: [], _tsPct: [], _ftRate: [],
           _orPct: [], _drPct: [], _astPct: [], _toPct: [], _stlPct: [], _blkPct: [],
         };
@@ -8737,7 +8742,6 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       if (p.ortg      != null) row._ortg.push(p.ortg);
       if (p.drtg      != null) row._drtg.push(p.drtg);
       if (p.usgPct    != null) row._usgPct.push(p.usgPct);
-      if (p.minPctVal != null) row._minPctVal.push(p.minPctVal);
       if (p.shotPct   != null) row._shotPct.push(p.shotPct);
       if (p.efgPct    != null) row._efgPct.push(p.efgPct);
       if (p.tsPct     != null) row._tsPct.push(p.tsPct);
@@ -8796,7 +8800,12 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
       usgPct:   avg(r._usgPct),
-      minPctVal:avg(r._minPctVal),
+      /* Capped, the way the On/Off impact card caps it. playerStats stores each practice's
+         minutes already rounded to 0.1, so a man who played every second of every scrimmage
+         sums to a hair over the exact floor time and reads 100.1% - noise from the rounding,
+         not a player who out-played the clock. The cap costs nothing real: 100% is the true
+         ceiling, and nothing below it is touched. */
+      minPctVal:availableMin > 0 ? p1(Math.min(100, 100 * r.min / availableMin)) : null,
       shotPct:  avg(r._shotPct),
       efgPct:   avg(r._efgPct),
       tsPct:    avg(r._tsPct),
@@ -9012,6 +9021,7 @@ function renderPlayerTable() {
         </div>
       </div>
     </div>
+    ${publishedStampHtml()}
     ${rows.length ? `<div class="table-wrap">
       <table id="ps-main-table">
         <thead><tr>
@@ -15670,12 +15680,18 @@ function applyPublishedMode() {
    answer is "2 hours ago" rather than an ISO string - but the exact local time is what you
    need the moment it actually matters, so it shows both and keeps the full stamp on hover.
    Over a week old turns amber: at that point the more likely explanation is a publish that
-   never got pushed, not a quiet fortnight. */
-function showPublishedStamp(publishedAt) {
-  const el = document.getElementById('nav-stamp');
-  if (!el || !publishedAt) return;
-  const d = new Date(publishedAt);
-  if (isNaN(d.getTime())) return;
+   never got pushed, not a quiet fortnight.
+
+   Returned as markup rather than written into the DOM, because it lives inside the Player
+   Stats table, which re-renders on every filter change - anything poked in once would be
+   wiped by the first click on TOT. Empty string in the editor, where the data is whatever
+   is in this browser and has no publish date to show. */
+let _publishedAt = null;
+
+function publishedStampHtml() {
+  if (!_publishedAt) return '';
+  const d = new Date(_publishedAt);
+  if (isNaN(d.getTime())) return '';
 
   const mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
   const ago =
@@ -15688,10 +15704,10 @@ function showPublishedStamp(publishedAt) {
   const when = d.toLocaleString([], { month: 'short', day: 'numeric',
                                       hour: 'numeric', minute: '2-digit' });
 
-  el.innerHTML = '<b>Data as of ' + escHtml(when) + '</b>' + escHtml(ago);
-  el.title = 'Snapshot published ' + d.toString();
-  el.classList.toggle('is-stale', mins >= 10080);   // a week
-  el.style.display = '';
+  return '<div class="data-stamp' + (mins >= 10080 ? ' is-stale' : '') +
+    '" title="Snapshot published ' + escHtml(d.toString()) + '">' +
+    '<b>Data as of ' + escHtml(when) + '</b>' +
+    '<span class="sep">&middot;</span><span>' + escHtml(ago) + '</span></div>';
 }
 
 async function loadPublishedData() {
@@ -15711,7 +15727,7 @@ async function loadPublishedData() {
     if (data.settings && typeof data.settings === 'object') State.settings = Object.assign({}, State.settings, data.settings);
     _publishedMode = true;
     applyPublishedMode();
-    showPublishedStamp(data.publishedAt);
+    _publishedAt = data.publishedAt || null;
     console.log(`Loaded published snapshot: ${(data.sessions||[]).length} sessions (published ${data.publishedAt || 'unknown'})`);
   } catch (e) {
     /* No pt_data.json reachable (e.g. opened as a local single file) — fine, use local/empty data. */
