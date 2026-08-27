@@ -2088,14 +2088,43 @@
 
     /* Name column: a floor, not a fixed width — nowrap still lets it grow for a long name.
        130px was padding an already-wide table; 96px is enough for the short names and the
-       long ones size themselves. NOTHING here is sticky any more. */
+       long ones size themselves.
+
+       Pinned again, deliberately. The earlier note here said sticky had been "tried and
+       rejected" because the table was made narrow enough to fit its modal outright, so
+       there was nothing to freeze against. That holds on a wide desktop and stops holding
+       the moment the window is narrower than 27 columns need — on a laptop or a phone the
+       table scrolls and the names walk off the left edge, which is exactly the case the
+       other four stat tables pin for.
+
+       Sticky costs nothing when it is not needed: with no horizontal overflow there is no
+       scroll offset, so the cell never leaves its natural position. The seam the old note
+       worried about is handled the way every other pinned table here handles it - an opaque
+       background per row parity, and a hairline shadow standing in for the border that
+       sticky positioning drops. */
     .box-table tbody td:first-child,
     .box-table thead th:first-child {
       min-width: 96px;
       text-align: left;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      box-shadow: 1px 0 0 var(--border);
     }
 
-    .box-table thead th:first-child { background: var(--card); }
+    .box-table thead th:first-child { background: var(--card); z-index: 3; }
+
+    /* Row striping lives on the <tr>, which a sticky cell scrolls out from under, so the
+       first cell has to carry its own copy of every row state. */
+    .box-table tbody tr:nth-child(odd)  td:first-child { background: #d9d9d9; }
+    .box-table tbody tr:nth-child(even) td:first-child { background: #ffffff; }
+    .box-table tbody tr:hover td:first-child { background: #c0c8d8 !important; }
+    /* tbody is load-bearing here: without it this is (0,3,2) and the nth-child stripe above
+       is (0,3,3), so the totals row lost its own colour and rendered as a white body row. */
+    .box-table tfoot td:first-child,
+    .box-table tbody tr.totals-row td:first-child { background: #e2e8f0; }
+    /* The bench divider is a single full-width bar; pinning its cell would leave a notch. */
+    .box-table tbody tr.bench-divider td:first-child { position: static; box-shadow: none; }
 
     .box-table tbody tr:nth-child(odd)  { background: #d9d9d9; }
     .box-table tbody tr:nth-child(even) { background: #ffffff; }
