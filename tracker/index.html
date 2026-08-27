@@ -9128,14 +9128,20 @@ const TR_TYPE = { drive:'drives', catch_shoot:'catch-and-shoot', layup:'layups',
    sample for a rate: 21 minutes at 5% usage is a handful of possessions, and one turnover
    across two of them reads as "50% turnovers" - a true division and a worthless sentence.
    The rate is only eligible once the count behind it clears TR_RATE_MIN_EVENTS. */
+/* The app's own column labels, not friendlier synonyms for them. "Playmaking" was my word
+   for astPct; every other surface here - Player Stats ADV, the box score, the game log -
+   calls it AST%, and inventing a second name for a stat that already has one makes the
+   reader work out whether they are the same thing. These must stay in step with PS_COLS_ADV
+   and BS_COLS.
+   Note the labels already carry their unit, so the values are printed bare. */
 const TR_RATES = [
-  ['orPct','offensive rebounding','Offensive rebounding','high','oreb'],
-  ['drPct','defensive rebounding','Defensive rebounding','high','dreb'],
-  ['astPct','playmaking','Playmaking','high','ast'],
-  ['toPct','turnovers','Turnovers','low','tov'],
-  ['stlPct','steals','Steals','high','stl'],
-  ['blkPct','shot blocking','Shot blocking','high','blk'],
-  ['ftRate','free-throw rate','Free-throw rate','high','fta'],
+  ['orPct','OR%','high','oreb'],
+  ['drPct','DR%','high','dreb'],
+  ['astPct','AST%','high','ast'],
+  ['toPct','TO%','low','tov'],
+  ['stlPct','STL%','high','stl'],
+  ['blkPct','BLK%','high','blk'],
+  ['ftRate','FTR','high','fta'],
 ];
 const TR_RATE_MIN_EVENTS = 3;
 const TR_SHOT_STATS = ['2fg_make','2fg_miss','3fg_make','3fg_miss'];
@@ -9217,24 +9223,28 @@ const TR_BANK = {
    just rearranging the same clause — "the middle of the roster", "a typical man on this
    roster", "the roster centres on". With three rate lines now allowed in one paragraph, a
    five-deep bank was landing the same construction twice on the same player. */
+/* {label} is the stat's own name (AST%, OR%, FTR), so it already carries the unit and the
+   figures print bare — "AST% 21.7, where the team median is 12.5", never "AST%: 21.7%".
+   Articles are avoided throughout: "a AST%" and "an OR%" cannot both be right, and no
+   template should have to know which. */
 const TR_RANKED_HI = [
-  [true,  'He leads the team in {label}, {v}% to a median of {med}%.'],
-  [false, 'He is at {v}% in {label}, against a team median of {med}%.'],
-  [false, '{Label}: {v}%, where the team median is {med}%.'],
-  [false, 'His {label} rate is {v}%; the roster median is {med}%.'],
-  [false, 'He posts {v}% in {label} against a median of {med}%.'],
-  [false, 'He sits at {v}% in {label}, where the middle of the roster is {med}%.'],
-  [false, 'In {label} he runs {v}%; a typical man on this roster is at {med}%.'],
-  [false, 'The roster centres on {med}% in {label}; he is at {v}%.'] ];
+  [true,  'He leads the team in {label}, {v} to a median of {med}.'],
+  [false, 'His {label} is {v}, against a team median of {med}.'],
+  [false, '{label} {v}, where the team median is {med}.'],
+  [false, 'He carries {label} {v}, where the roster median is {med}.'],
+  [false, 'He posts {label} {v} against a median of {med}.'],
+  [false, 'He sits at {v} in {label}, where the middle of the roster is {med}.'],
+  [false, 'In {label} he runs {v}; a typical man on this roster is at {med}.'],
+  [false, 'The roster centres on {med} in {label}; he is at {v}.'] ];
 const TR_RANKED_LO = [
-  [true,  'He is last on the roster in {label}, {v}% to a median of {med}%.'],
-  [false, 'He is at {v}% in {label}, against a team median of {med}%.'],
-  [false, '{Label}: {v}%, where the team median is {med}%.'],
-  [false, 'His {label} rate is {v}%; the roster median is {med}%.'],
-  [false, 'He posts {v}% in {label} against a median of {med}%.'],
-  [false, 'He sits at {v}% in {label}, where the middle of the roster is {med}%.'],
-  [false, 'In {label} he runs {v}%; a typical man on this roster is at {med}%.'],
-  [false, 'The roster centres on {med}% in {label}; he is at {v}%.'] ];
+  [true,  'He is last on the roster in {label}, {v} to a median of {med}.'],
+  [false, 'His {label} is {v}, against a team median of {med}.'],
+  [false, '{label} {v}, where the team median is {med}.'],
+  [false, 'He carries {label} {v}, where the roster median is {med}.'],
+  [false, 'He posts {label} {v} against a median of {med}.'],
+  [false, 'He sits at {v} in {label}, where the middle of the roster is {med}.'],
+  [false, 'In {label} he runs {v}; a typical man on this roster is at {med}.'],
+  [false, 'The roster centres on {med} in {label}; he is at {v}.'] ];
 
 function trHash(s) {
   let x = 2166136261;
@@ -9438,7 +9448,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
   // ── advanced rates: sample is MINUTES, ranked against this roster ──
   if (totalMin >= MIN_FLOOR) {
     const cand = [];
-    for (const [key, label, Label, dir, countKey] of TR_RATES) {
+    for (const [key, label, dir, countKey] of TR_RATES) {
       if (med[key] == null) continue;
       const v = trWavg(advRows, key);
       if (v == null) continue;
@@ -9447,7 +9457,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       if (events < TR_RATE_MIN_EVENTS) continue;
       let rel = (v - med[key]) / Math.max(0.5, med[key]);
       if (dir === 'low') rel = -rel;
-      cand.push({ key, label, Label, v, rel });
+      cand.push({ key, label, v, rel });
     }
     /* The old rule - one rate above the median, one below, each needing to be a full median
        away - meant most players got no advanced line at all, on a page whose whole point is
@@ -9461,13 +9471,26 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
        distinctive rates get three; players who have one get one. */
     cand.sort((a, b) => Math.abs(b.rel) - Math.abs(a.rel));
     const TR_RATE_MIN_REL = 0.35;
+    /* Hashing the stat key gives each rate its own draw, but three draws from an eight-deep
+       bank collide often enough to matter — OR% and DR% both landed on "The roster centres
+       on…" for Wilson, one sentence after the other. Walk forward from the hashed position
+       to the first construction this paragraph has not already used: still deterministic,
+       still stable between renders, and it cannot repeat itself. */
+    const usedRateTpl = new Set();
     const sayRate = (c, pri, seed) => {
       const above = c.rel >= 0;
       const bank = above ? TR_RANKED_HI : TR_RANKED_LO;
       const holds = above ? rankTop[c.key] === playerName : rankBottom[c.key] === playerName;
       const pool = bank.filter(([tag]) => holds || !tag).map(([, t]) => t);
-      lines.push({ p: pri, t: trFill(pool[trHash(seed) % pool.length], {
-        label: c.label, Label: c.Label, v: c.v.toFixed(1), med: med[c.key].toFixed(1) }) });
+      const start = trHash(seed) % pool.length;
+      let tpl = pool[start];
+      for (let i = 0; i < pool.length; i++) {
+        const t = pool[(start + i) % pool.length];
+        if (!usedRateTpl.has(t)) { tpl = t; break; }
+      }
+      usedRateTpl.add(tpl);
+      lines.push({ p: pri, t: trFill(tpl, {
+        label: c.label, v: c.v.toFixed(1), med: med[c.key].toFixed(1) }) });
     };
     cand.filter(c => Math.abs(c.rel) >= TR_RATE_MIN_REL).slice(0, 3)
         .forEach((c, i) => sayRate(c, 4 + i, playerName + '|adv' + c.key));
