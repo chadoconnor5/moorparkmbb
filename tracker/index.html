@@ -4703,16 +4703,34 @@ function addRosterEditorRow(name, hidden) {
   input.dataset.original = name || '';   // remember starting name so a save can detect renames
   input.placeholder = 'Player name';
   input.style.cssText = 'flex:1;padding:6px 8px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;';
-  // Hide = keep their data, drop them from the analysis views.
+  /* Hide = keep their data, take their NAME out of the app.
+     This tooltip is the only place the rule is written down for the coach, so it has to
+     track what hiding actually does - it used to describe the narrower version (stats,
+     profiles, On/Off, shot-chart filters) and had gone stale. */
   const hideWrap = document.createElement('label');
   hideWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim);cursor:pointer;white-space:nowrap;';
-  hideWrap.title = 'Hide from Player Stats, profiles, On/Off cards and shot-chart filters.\nTheir shots and minutes still count toward team and teammate numbers.';
+  hideWrap.title = 'Hide removes the player from Player Stats, profiles, On/Off cards, '
+    + 'shot-chart filters, lineups, the Lineup Builder, the note list, the starter picker '
+    + 'and the substitution bench.\n\nNothing is deleted: their shots and minutes still '
+    + 'count toward team and teammate numbers, and unhiding brings everything straight back.';
   const hide = document.createElement('input');
   hide.type = 'checkbox';
   hide.className = 'roster-hide';
   hide.checked = !!hidden;
   hideWrap.appendChild(hide);
   hideWrap.appendChild(document.createTextNode('Hide'));
+
+  /* A hidden row used to look identical to a visible one apart from an 11px tick, which
+     makes the roster editor the one screen where you cannot tell at a glance who is hidden
+     - and it is the screen you open specifically to find that out. */
+  const markHidden = () => {
+    row.style.opacity = hide.checked ? '0.55' : '1';
+    input.style.textDecoration = hide.checked ? 'line-through' : 'none';
+    hideWrap.style.color = hide.checked ? 'var(--warning)' : 'var(--text-dim)';
+    hideWrap.style.fontWeight = hide.checked ? '700' : '400';
+  };
+  hide.addEventListener('change', markHidden);
+  markHidden();
 
   const del = document.createElement('button');
   del.className = 'btn btn-ghost btn-sm';
