@@ -57,6 +57,30 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - All scripts are run from the project root.
 - Output files are overwritten on each run.
 
+## Practice Tracker (two copies, kept identical)
+
+The practice tracker ships as two byte-identical files:
+
+- `tracker/index.html` — what GitHub Pages serves, with `tracker/pt_data.json` beside it
+- `Neural Network - Codex Optimized/practice_tracker.html` — the local editor copy
+
+They are the same app. The only difference is that `pt_data.json` sits next to the
+published one, and `loadPublishedData()` treats that file's presence as "this is the
+published site": it sets `_publishedMode` and hides Live Tracker, Publish and Backup.
+**Never put a `pt_data.json` next to the editor copy** — it would turn it view-only.
+The editor copy's data comes from `localStorage`.
+
+Edit either file; a `pre-commit` hook runs `tools/sync_tracker.py` and copies your
+change to the other one automatically. It infers the direction from which side you
+changed, and refuses the commit only if both were edited to different content. Run
+`python tools/sync_tracker.py --check` to test for drift without writing anything.
+(The hook lives in `.git/hooks/` and is not cloned — reinstall it after a fresh clone.)
+
+Publishing data is separate: the ↑ Publish button downloads `pt_data.json`, which you
+commit next to `tracker/index.html`. GitHub Pages serves it with `max-age=600` behind
+a CDN, so the fetch carries a `?v=` timestamp to force a fresh copy; `index.html`
+itself cannot bust its own cache and will trail a push by a few minutes.
+
 ## Agent/LLM Guidance
 - Always run the full pipeline (scrape → stats → analytics) for up-to-date results.
 - Validate output files after each step.
