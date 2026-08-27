@@ -9362,7 +9362,10 @@ function trCategorize(shots) {
 }
 
 function buildTendencyRead(playerName, playerSessions, allSessions) {
-  const TR_K = 12, MIN_FLOOR = 20, MAX_SENT = 10;
+  /* 15, up from 10. The gates below are untouched - nothing weaker gets in - so this
+     only stops the paragraph being cut short for a player who has genuinely earned more
+     to say. A thin sample still produces a short read, which is the point. */
+  const TR_K = 12, MIN_FLOOR = 20, MAX_SENT = 15;
   const shotsOf = (sess, name) => (sess.eventLog || []).filter(e =>
     TR_SHOT_STATS.includes(e.stat) && e.player === name);
 
@@ -9476,13 +9479,34 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     }
     if (!overlaps) kept.push(f);
   }
-  const above = kept.filter(f => f.edge > 0.06).slice(0, 2);
-  const below = kept.filter(f => f.edge < -0.06).slice(0, 1);
-  const sayFact = (f, pri, seed) => lines.push({ p: pri, t: trFill(trPick(TR_BANK['shot_' + f.h], seed), {
-    F: escHtml(first), phr: f.phr, Phr: f.Phr, pps: f.pps.toFixed(2), n: f.n,
-    sh: Math.round(f.share * 100), tm: f.base.toFixed(2) }) });
+  /* Three above and two below, up from two and one. Same 0.06 edge either side, so the
+     extra slots can only be filled by a fact that would already have qualified and was
+     being dropped for want of room - a player with one real strength still gets one. */
+  const above = kept.filter(f => f.edge > 0.06).slice(0, 3);
+  const below = kept.filter(f => f.edge < -0.06).slice(0, 2);
+  /* The same walk-forward the rates use below. shot_strong/moderate/weak are five deep
+     each, and five shot sentences drawn by hash alone will hand two facts the same
+     construction - the OR%/DR% collision again, one paragraph up. Hash for the starting
+     point, then step to the first phrasing this read has not spent, so the wording is
+     still deterministic and still holds still between renders. */
+  const usedFactTpl = new Set();
+  const sayFact = (f, pri, seed) => {
+    const pool = TR_BANK['shot_' + f.h];
+    const start = trHash(seed) % pool.length;
+    let tpl = pool[start];
+    for (let i = 0; i < pool.length; i++) {
+      const t = pool[(start + i) % pool.length];
+      if (!usedFactTpl.has(t)) { tpl = t; break; }
+    }
+    usedFactTpl.add(tpl);
+    lines.push({ p: pri, t: trFill(tpl, {
+      F: escHtml(first), phr: f.phr, Phr: f.Phr, pps: f.pps.toFixed(2), n: f.n,
+      sh: Math.round(f.share * 100), tm: f.base.toFixed(2) }) });
+  };
   above.forEach((f, i) => sayFact(f, 1 + i, playerName + '|s' + i + f.phr));
-  below.forEach(f => sayFact(f, 3, playerName + '|w' + f.phr));
+  /* Seed unchanged for the first weak fact, so the read a coach already knows does not
+     reword itself just because a second slot opened up behind it. */
+  below.forEach((f, i) => sayFact(f, 5 + i, playerName + '|w' + (i || '') + f.phr));
 
   if (shots.length && !above.length && !below.length) {
     /* Which silence is this? Under the gate it is "no sample"; over it, the sample is real
@@ -9541,8 +9565,10 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       lines.push({ p: pri, t: trFill(tpl, {
         label: c.label, v: c.v.toFixed(1), med: med[c.key].toFixed(1) }) });
     };
-    cand.filter(c => Math.abs(c.rel) >= TR_RATE_MIN_REL).slice(0, 3)
-        .forEach((c, i) => sayRate(c, 4 + i, playerName + '|adv' + c.key));
+    /* Five, up from three. TR_RATE_MIN_REL still decides what counts as distinctive, and
+       TR_RANKED_HI/LO are 16 and 8 deep, so five draws cannot exhaust the walk-forward. */
+    cand.filter(c => Math.abs(c.rel) >= TR_RATE_MIN_REL).slice(0, 5)
+        .forEach((c, i) => sayRate(c, 10 + i, playerName + '|adv' + c.key));
   }
 
   /* Trend over a rolling window of ATTEMPTS, never of practices. A 13-minute scrimmage
@@ -9555,7 +9581,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       const sa = (20 * a + TR_K * teamPPS) / (20 + TR_K);
       const sb = (prior.length * b + TR_K * teamPPS) / (prior.length + TR_K);
       if (Math.abs(sa - sb) > 0.15) {
-        lines.push({ p: 7, t: trFill(trPick(TR_BANK.trend, playerName + '|trend'), {
+        lines.push({ p: 20, t: trFill(trPick(TR_BANK.trend, playerName + '|trend'), {
           n: 20, a: a.toFixed(2), b: b.toFixed(2) }) });
       }
     }
@@ -9567,18 +9593,18 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     for (const e of shots) { const s = TR_SIDE[e.zone]; if (s) sides[s] = (sides[s] || 0) + 1; }
     const topSide = Object.keys(sides).sort((a, b) => sides[b] - sides[a])[0];
     if (topSide && topSide !== 'middle' && sides[topSide] / shots.length >= 0.5) {
-      lines.push({ p: 8, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
+      lines.push({ p: 21, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
         pct: Math.round(100 * sides[topSide] / shots.length), side: topSide }) });
     }
     const contested = shots.filter(e => e.shotContest === 'contested').length;
-    lines.push({ p: 9, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
+    lines.push({ p: 22, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
       pct: Math.round(100 * contested / shots.length) }) });
     const threes = shots.filter(e => String(e.stat).startsWith('3')).length;
-    lines.push({ p: 10, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
+    lines.push({ p: 23, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
       pct: Math.round(100 * threes / shots.length) }) });
     const withFt = shots.filter(e => e.shotFt != null);
     if (withFt.length) {
-      lines.push({ p: 11, t: trFill(trPick(TR_BANK.dist, playerName + '|dist'), {
+      lines.push({ p: 24, t: trFill(trPick(TR_BANK.dist, playerName + '|dist'), {
         ft: Math.round(withFt.reduce((t, e) => t + e.shotFt, 0) / withFt.length) }) });
     }
   }
