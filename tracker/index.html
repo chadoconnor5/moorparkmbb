@@ -8665,8 +8665,28 @@ function computeShotQuality(sessions) {
 
 /* The period filter takes 'all', a period key, or one practice as 's:<id>'. The prefix is
    what keeps the two apart: a session id is free text a coach typed, so without it a
-   practice called "pre" would silently become the Pre-Jamboree filter. */
-function psScopeMatches(sess, scope) {
+   practice called "pre" would silently become the Pre-Jamboree filter.
+
+   Shared by Player Stats, Lineups and On/Off. Those three each had their own copy of the
+   period test, which is how only one of them learned about single scrimmages. */
+/* Individual practices, newest first, in their own group under the period options. A
+   single practice is a real scope, not a special case: rates divide by that practice's
+   floor time and baselines rebuild from its events, so a column means the same thing it
+   means across a season - just over one night. One builder, so the three dropdowns cannot
+   end up offering different practices. */
+function scrimmageOptsHtml(selected) {
+  const list = getSessions()
+    .filter(x => x.completed && !x.excludeFromStats)
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  if (!list.length) return '';
+  return '<optgroup label="Individual scrimmages">' + list.map(x => {
+    const v = 's:' + x.id;
+    return `<option value="${escHtml(v)}" ${selected === v ? 'selected' : ''}>` +
+      escHtml((x.date || '') + '  ' + (x.title || 'Untitled')) + '</option>';
+  }).join('') + '</optgroup>';
+}
+
+function sessionInScope(sess, scope) {
   if (!scope || scope === 'all') return true;
   if (String(scope).startsWith('s:')) return String(sess.id) === String(scope).slice(2);
   return sess.period === scope;
@@ -8677,7 +8697,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   const byPlayer = {};
 
   // Shot quality shares the row scope, so the baseline reflects the same practices shown.
-  const scoped = sessions.filter(s => psScopeMatches(s, filterPeriod));
+  const scoped = sessions.filter(s => sessionInScope(s, filterPeriod));
   const shotQual = computeShotQuality(scoped);
 
   /* MIN% denominator: every minute the team was on the floor across the practices in scope,
@@ -8693,7 +8713,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   const availableMin = scoped.reduce((t, x) => t + getSessionPlayedSeconds(x) / 60, 0);
 
   for (const sess of sessions) {
-    if (!psScopeMatches(sess, filterPeriod)) continue;
+    if (!sessionInScope(sess, filterPeriod)) continue;
     /* Walk NAMES, not entries. A player who switched squads has one entry per team, and
        iterating entries counted him as two games played for a single practice — which
        halved his per-game averages. Team filtering happens before the merge, so a filtered
@@ -9011,19 +9031,6 @@ function renderPlayerTable() {
     `<option value="${v}" ${psFilter.team === v ? 'selected' : ''}>${lbl}</option>`;
   const perOpts = (v, lbl) =>
     `<option value="${v}" ${psFilter.period === v ? 'selected' : ''}>${lbl}</option>`;
-  /* Individual practices, newest first, in their own group under the period options. A
-     single practice is a real scope here: MIN% divides by that practice's floor time and
-     the shot-quality baseline is rebuilt from it, so the column means the same thing it
-     does across a season - just over one night. */
-  const psSessionOpts = () => {
-    const list = getSessions()
-      .filter(x => x.completed && !x.excludeFromStats)
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-    if (!list.length) return '';
-    return '<optgroup label="Individual scrimmages">' + list.map(x =>
-      perOpts('s:' + x.id, (x.date || '') + '  ' + (x.title || 'Untitled'))
-    ).join('') + '</optgroup>';
-  };
 
   root.innerHTML = `
     <div class="page-header">
@@ -9036,7 +9043,7 @@ function renderPlayerTable() {
           ${perOpts('all','All Sessions')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
-          ${psSessionOpts()}
+          ${scrimmageOptsHtml(psFilter.period)}
         </select>
         <select onchange="psSetFilter('team',this.value)">
           ${teamOpts('all','Both Teams')}
@@ -10600,6 +10607,7 @@ function _lineupsFilterBar(filtered) {
           ${perOpts('all','All Sessions')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
+          ${scrimmageOptsHtml(seg5Filter.period)}
         </select>
         <select onchange="seg5SetFilter('team',this.value)">
           <option value="both" ${seg5Filter.team==='both'||seg5Filter.team==='all'?'selected':''}>Both Teams</option>
@@ -10620,8 +10628,7 @@ function renderLineupsView() {
   if (!root) return;
 
   const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
-  const filtered = seg5Filter.period === 'all' ? sessions
-    : sessions.filter(s => s.period === seg5Filter.period);
+  const filtered = sessions.filter(s => sessionInScope(s, seg5Filter.period));
 
   if (!filtered.length) {
     root.innerHTML = `
@@ -11597,6 +11604,7 @@ function _onoffFilterBar(filtered) {
           ${perOpts('all','All Sessions')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
+          ${scrimmageOptsHtml(seg5Filter.period)}
         </select>
         <select onchange="seg5SetFilter('team',this.value)">
           <option value="all" ${seg5Filter.team==='all'||seg5Filter.team==='both' ? 'selected':''}>Both Teams</option>
@@ -11611,8 +11619,7 @@ function renderOnOffView() {
   if (!root) return;
 
   const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
-  const filtered = seg5Filter.period === 'all' ? sessions
-    : sessions.filter(s => s.period === seg5Filter.period);
+  const filtered = sessions.filter(s => sessionInScope(s, seg5Filter.period));
 
   if (!filtered.length) {
     root.innerHTML = `
