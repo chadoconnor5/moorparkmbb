@@ -2653,6 +2653,22 @@
       .lu-b-slot  { min-width: 0; flex: 1 1 132px; }
     }
 
+    /* Tendency Read — prose, so it gets prose treatment: a comfortable measure, a little
+       more line-height than the tables around it, and a quiet footer naming the span it
+       describes so it is never mistaken for the scoped panels beside it. */
+    .tr-read {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); padding: 14px 16px 12px;
+    }
+    .tr-body {
+      margin: 0; font-size: 13.5px; line-height: 1.62; color: var(--text);
+      max-width: 62ch; font-variant-numeric: tabular-nums;
+    }
+    .tr-foot {
+      margin-top: 11px; padding-top: 9px; border-top: 1px solid var(--border);
+      font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em;
+    }
+
     .oo-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     /* When the card IS the scroll container, its overflow:hidden would clip the wide
        table and make horizontal scrolling impossible. */
@@ -9070,6 +9086,399 @@ function tendSetMin(delta) {
 
 /* Recurring shot patterns: zone + shot-type combination + contest, ranked by how
    often they happen. Answers "what does this player actually do, and does it work". */
+/* ── Tendency Read ───────────────────────────────────────────────────────────
+   A written season-long read on one player, rebuilt from the data every time the profile
+   renders. No stored text, so a new scrimmage changes it the moment it is published.
+
+   Three rules hold the whole thing up.
+
+   1. EVERY CLAIM CARRIES ITS OWN SAMPLE, and the sample decides the language. Shooting and
+      location are counted in attempts; rate stats are counted in MINUTES, which is why a
+      player with six shots and forty minutes can still be worth a sentence. Below the gate
+      a claim is discarded outright - it never reaches ranking, so it can never be phrased.
+
+   2. RATES ARE SHRUNK TOWARD THE TEAM by n/(n+k) before they are ranked, so a hot six
+      attempts cannot outrank a real thirty. This is the same instinct as ooAgg() returning
+      null rather than inventing a possession: a number with nothing behind it is not a
+      number.
+
+   3. THE REGISTER IS FLAT. The figure and what it is measured against, no verdict nouns -
+      no "weak spot", no "the problem". The comparison is the judgement and a coach reads it
+      faster than a sentence can tell him what to think.
+
+   Wording varies by hashing name+claim rather than at random, so two players with the same
+   finding read differently while any one player stays put until his numbers move. A random
+   draw would reword on every render and you could never tell which had changed. */
+
+const TR_ZONE = { ft:'the FT circle', paint_ul:'the right lane', paint_ur:'the left lane',
+  paint_ll:'the right post', paint_lr:'the left post', mr_left_high:'the right elbow',
+  mr_left_low:'the right baseline', mr_right_high:'the left elbow', mr_right_low:'the left baseline',
+  c3_left:'the right corner', w3_left:'the right wing', ab3:'above the break',
+  w3_right:'the left wing', c3_right:'the left corner' };
+const TR_SIDE = { paint_ul:'right', paint_ll:'right', mr_left_high:'right', mr_left_low:'right',
+  c3_left:'right', w3_left:'right', paint_ur:'left', paint_lr:'left', mr_right_high:'left',
+  mr_right_low:'left', c3_right:'left', w3_right:'left', ft:'middle', ab3:'middle' };
+const TR_GROUP = { c3_left:'the corners', c3_right:'the corners', w3_left:'the wings',
+  w3_right:'the wings', ab3:'above the break' };
+const TR_PAINT = ['paint_ul','paint_ur','paint_ll','paint_lr'];
+const TR_TYPE = { drive:'drives', catch_shoot:'catch-and-shoot', layup:'layups', pull_up:'pull-ups',
+  post_moves:'post-ups', floater:'floaters', off_balance:'off-balance shots', dunk:'dunks',
+  alley_oop:'alley-oops', buzzer_beater:'buzzer-beaters' };
+/* Fourth column is the raw counting stat the rate is built from. Minutes alone are not a
+   sample for a rate: 21 minutes at 5% usage is a handful of possessions, and one turnover
+   across two of them reads as "50% turnovers" - a true division and a worthless sentence.
+   The rate is only eligible once the count behind it clears TR_RATE_MIN_EVENTS. */
+const TR_RATES = [
+  ['orPct','offensive rebounding','Offensive rebounding','high','oreb'],
+  ['drPct','defensive rebounding','Defensive rebounding','high','dreb'],
+  ['astPct','playmaking','Playmaking','high','ast'],
+  ['toPct','turnovers','Turnovers','low','tov'],
+  ['stlPct','steals','Steals','high','stl'],
+  ['blkPct','shot blocking','Shot blocking','high','blk'],
+  ['ftRate','free-throw rate','Free-throw rate','high','fta'],
+];
+const TR_RATE_MIN_EVENTS = 3;
+const TR_SHOT_STATS = ['2fg_make','2fg_miss','3fg_make','3fg_miss'];
+
+const TR_BANK = {
+  role: [
+    '{F} has played {min} minutes across {gp} {prac}, on the floor for {mp}% of them, using {usg}% of possessions while out there.',
+    '{F} has been on the floor for {mp}% of {gp} {prac} — {min} minutes — and used {usg}% of possessions while out there.',
+    'Across {gp} {prac} {F} has logged {min} minutes, {mp}% of what was available, carrying {usg}% of the possessions he was out for.',
+    '{min} minutes over {gp} {prac} puts {F} on the floor for {mp}% of them, with a {usg}% usage rate.',
+    '{F} sees {mp}% of the floor time across {gp} {prac} ({min} minutes) and uses {usg}% of possessions.' ],
+  shot_strong: [
+    '{Phr} he is at {pps} points per shot across {n} attempts, against a team mark of {tm}.',
+    'He scores {pps} a shot {phr} — {n} attempts, {sh}% of his volume — where the team is at {tm}.',
+    '{n} attempts {phr} have returned {pps} points per shot; the team averages {tm}.',
+    '{Phr}: {pps} points per shot on {n} attempts, team {tm}.',
+    'His {n} attempts {phr} are worth {pps} a shot, against {tm} for the team.' ],
+  shot_moderate: [
+    '{Phr} he is at {pps} points per shot across {n} attempts, against a team mark of {tm}.',
+    'He has scored {pps} a shot {phr} — {n} attempts, {sh}% of his volume — where the team is at {tm}.',
+    '{n} attempts {phr} have returned {pps} points per shot; the team averages {tm}.',
+    '{Phr}: {pps} points per shot on {n} attempts, team {tm}.',
+    'His {n} attempts {phr} have been worth {pps} a shot, against {tm} for the team.' ],
+  shot_weak: [
+    '{Phr} he is at {pps} points per shot, though on {n} attempts so far; the team is at {tm}.',
+    'On {n} attempts {phr} he is scoring {pps} a shot, against a team mark of {tm} — a small sample.',
+    '{Phr}: {pps} points per shot, {n} attempts so far, team {tm}.',
+    'His {n} attempts {phr} have returned {pps} a shot against {tm} for the team, early days.',
+    'So far {phr} he is at {pps} points per shot on {n} attempts; the team averages {tm}.' ],
+  side: [
+    '{pct}% of his shots come from the {side} side of the floor.',
+    '{pct}% of his attempts are on the {side} side.',
+    'His attempts are {pct}% {side} side.',
+    'He shoots {pct}% of the time from the {side} side.',
+    '{pct}% of his volume sits on the {side} side.' ],
+  contest: [
+    '{pct}% of his shots have come contested.',
+    'He has been contested on {pct}% of his attempts.',
+    '{pct}% of his attempts came with a hand up.',
+    'Defenders closed out on {pct}% of his shots.',
+    'His attempts are contested {pct}% of the time.' ],
+  three: [
+    'Threes are {pct}% of what he takes.',
+    '{pct}% of his attempts are from three.',
+    'He takes {pct}% of his shots from behind the arc.',
+    'Three-point attempts make up {pct}% of his volume.',
+    '{pct}% of his shot diet is threes.' ],
+  dist: [
+    'His average attempt comes from {ft} feet.',
+    'He shoots from {ft} feet on average.',
+    'Mean shot distance is {ft} feet.',
+    'His attempts average {ft} feet out.',
+    'On average he is {ft} feet from the rim when he shoots.' ],
+  thin: [
+    'Only {n} {shots} on record so far, too few to read a shooting pattern from.',
+    'At {n} {shots} there is not yet enough to read a shooting pattern.',
+    '{n} {shots} so far — not yet a sample to read.',
+    'His shooting is still {n} {shots} in, short of a readable sample.',
+    '{n} {shots} on record, not yet enough to read.' ],
+  even: [
+    'Across {n} shots nothing separates — he is close to team average wherever he shoots from.',
+    '{n} shots in, he is about team average from everywhere.',
+    'His {n} shots are evenly valued — no spot stands apart yet.',
+    'Nothing leans across {n} shots; he scores at roughly the team rate throughout.',
+    '{n} shots and no pattern separates — team-average value everywhere.' ],
+  trend: [
+    'Over his last {n} shots he is at {a} points per shot, against {b} before that.',
+    'His most recent {n} attempts have returned {a} a shot, where earlier ones were {b}.',
+    'The last {n} shots are worth {a} each; the ones before them were {b}.',
+    'Recent form: {a} points per shot over {n} attempts, against {b} previously.',
+    'His last {n} attempts sit at {a} a shot, where the earlier ones were {b}.' ],
+};
+/* Rank-asserting lines are tagged. A sentence claiming he leads the roster is only in the
+   pool when he actually does — otherwise it is a lie dressed up as variety, which is how an
+   earlier pass handed "nobody draws contact like he does" to two different players. */
+const TR_RANKED_HI = [
+  [true,  'He leads the team in {label}, {v}% to a median of {med}%.'],
+  [false, 'He is at {v}% in {label}, against a team median of {med}%.'],
+  [false, '{Label}: {v}%, where the team median is {med}%.'],
+  [false, 'His {label} rate is {v}%; the roster median is {med}%.'],
+  [false, 'He posts {v}% in {label} against a median of {med}%.'] ];
+const TR_RANKED_LO = [
+  [true,  'He is last on the roster in {label}, {v}% to a median of {med}%.'],
+  [false, 'He is at {v}% in {label}, against a team median of {med}%.'],
+  [false, '{Label}: {v}%, where the team median is {med}%.'],
+  [false, 'His {label} rate is {v}%; the roster median is {med}%.'],
+  [false, 'He posts {v}% in {label} against a median of {med}%.'] ];
+
+function trHash(s) {
+  let x = 2166136261;
+  for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619) >>> 0; }
+  return x;
+}
+function trPick(bank, seed) { return bank[trHash(seed) % bank.length]; }
+function trFill(tpl, vals) { return tpl.replace(/\{(\w+)\}/g, (m, k) => (vals[k] != null ? vals[k] : m)); }
+function trShotPts(e) { return e.stat === '3fg_make' ? 3 : e.stat === '2fg_make' ? 2 : 0; }
+function trPPS(evs) { return evs.length ? evs.reduce((t, e) => t + trShotPts(e), 0) / evs.length : null; }
+function trBucket(ft) {
+  return ft <= 4 ? 'the rim' : ft <= 9 ? 'short range' : ft <= 17 ? 'mid-range'
+       : ft < 22 ? 'long twos' : 'three';
+}
+function trMedian(arr) {
+  const a = arr.slice().sort((x, y) => x - y);
+  if (!a.length) return null;
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+/* Minute-weighted, because a rate from a 30-minute practice should not count the same as
+   one from a 6-minute cameo. */
+function trWavg(rows, key) {
+  let num = 0, den = 0;
+  for (const r of rows) {
+    const v = r[key], w = r.min || 0;
+    if (v != null && w) { num += v * w; den += w; }
+  }
+  return den ? num / den : null;
+}
+
+/* THE one place a shot is sorted into the buckets the read talks about. The player's shots
+   and the whole team's go through it, so every fact can look up its own baseline by the
+   exact same key — if the two were categorised separately they would eventually disagree
+   about what "from the corners" means, and nothing would report the mismatch. */
+function trCategorize(shots) {
+  const out = {};
+  const push = (phr, e, tier) => {
+    if (!out[phr]) { out[phr] = []; out[phr].tier = tier; }
+    out[phr].push(e);
+  };
+  for (const e of shots) {
+    if (TR_ZONE[e.zone])  push('from ' + TR_ZONE[e.zone], e, 1);
+    if (TR_GROUP[e.zone]) push('from ' + TR_GROUP[e.zone], e, 2);
+    if (TR_PAINT.includes(e.zone)) push('in the paint', e, 2);
+    if (e.shotFt != null) push('from ' + trBucket(e.shotFt), e, 2);
+    const types = (Array.isArray(e.shotTypes) && e.shotTypes.length) ? e.shotTypes
+                : (e.shotType ? [e.shotType] : []);
+    for (const t of types) push('on ' + (TR_TYPE[t] || t), e, 2);
+  }
+  return out;
+}
+
+function buildTendencyRead(playerName, playerSessions, allSessions) {
+  const TR_K = 12, MIN_FLOOR = 20, MAX_SENT = 7;
+  const shotsOf = (sess, name) => (sess.eventLog || []).filter(e =>
+    TR_SHOT_STATS.includes(e.stat) && e.player === name);
+
+  /* Season-long always, whatever the page scope is set to — a read that swapped to a single
+     practice would be describing a sample too small to say anything about, and the panel
+     says which span it is describing so the two are never confused. */
+  const chron = playerSessions.slice().sort((a, b) =>
+    String(a.date || '').localeCompare(String(b.date || '')));
+  const shots = chron.flatMap(s => shotsOf(s, playerName));
+  const advRows = chron.map(s => (s.playerStats || []).find(p => p.name === playerName)).filter(Boolean);
+  if (!advRows.length) return '';
+
+  const totalMin = advRows.reduce((t, r) => t + (r.min || 0), 0);
+  const gp = advRows.length;
+  const mp = trWavg(advRows, 'minPctVal') || 0;
+  const usg = trWavg(advRows, 'usgPct') || 0;
+
+  // Team baselines, over visible players only.
+  const teamShots = [];
+  const perPlayerAdv = {};
+  for (const s of allSessions) {
+    for (const e of (s.eventLog || [])) {
+      if (TR_SHOT_STATS.includes(e.stat) && e.player && !isHiddenPlayer(e.player)) teamShots.push(e);
+    }
+    for (const p of (s.playerStats || [])) {
+      if (isHiddenPlayer(p.name)) continue;
+      (perPlayerAdv[p.name] = perPlayerAdv[p.name] || []).push(p);
+    }
+  }
+  const teamPPS = trPPS(teamShots);
+  if (teamPPS == null) return '';
+
+  const qualified = Object.keys(perPlayerAdv).filter(n =>
+    perPlayerAdv[n].reduce((t, r) => t + (r.min || 0), 0) >= MIN_FLOOR);
+  const med = {}, rankTop = {}, rankBottom = {};
+  for (const [key] of TR_RATES) {
+    const vals = {};
+    for (const n of qualified) {
+      const v = trWavg(perPlayerAdv[n], key);
+      if (v != null) vals[n] = v;
+    }
+    const names = Object.keys(vals);
+    if (names.length < 4) continue;
+    const m = trMedian(names.map(n => vals[n]));
+    /* A median of zero means most of the roster has never done this, so "above the median"
+       is true of anyone non-zero and says nothing at all. Not comparable, not eligible. */
+    if (!(m > 0)) continue;
+    med[key] = m;
+    rankTop[key] = names.reduce((a, b) => vals[a] >= vals[b] ? a : b);
+    rankBottom[key] = names.reduce((a, b) => vals[a] <= vals[b] ? a : b);
+  }
+
+  const lines = [];       // { p: priority, t: text }
+  const first = String(playerName).split(/\s+/)[0];
+  lines.push({ p: 0, t: trFill(trPick(TR_BANK.role, playerName + '|role'), {
+    F: escHtml(first), min: Math.round(totalMin), gp,
+    prac: gp === 1 ? 'practice' : 'practices', mp: Math.round(mp), usg: Math.round(usg) }) });
+
+  /* ── candidate shooting + location facts ──
+     Categorised by ONE function, used for the player and for the team, so the two are
+     keyed identically and a fact can always find its own baseline. */
+  const teamCats = trCategorize(teamShots);
+  const myCats = trCategorize(shots);
+
+  /* A corner three and a layup are not the same shot, so measuring both against one
+     team-wide 1.09 flatters every three and punishes every rim attempt — the comparison
+     would be reporting shot selection, not shooting. Each fact is judged against the team's
+     mark FROM THAT SAME PLACE: his corner threes against the team's corner threes.
+
+     The exception is a baseline too thin to trust. If the whole roster has taken six shots
+     from the left corner, that average is noise, and a noisy baseline makes a confident
+     claim out of nothing - so those fall back to the team-wide mark, which is at least a
+     real number. Shrinkage then pulls toward whichever baseline was used. */
+  const facts = [];
+  const addFact = (phr, evs, tier) => {
+    if (!evs.length) return;
+    const teamEvs = teamCats[phr] || [];
+    const localOk = teamEvs.length >= 10;
+    const base = localOk ? trPPS(teamEvs) : teamPPS;
+    if (base == null) return;
+    facts.push({ phr, Phr: phr.charAt(0).toUpperCase() + phr.slice(1), n: evs.length,
+                 pps: trPPS(evs), set: new Set(evs), share: evs.length / shots.length, tier,
+                 base, baseN: teamEvs.length, baseLocal: localOk });
+  };
+  // tier 1 is the exact zone, tier 2 the grouping — most specific that clears the gate wins
+  for (const phr in myCats) addFact(phr, myCats[phr], myCats[phr].tier);
+
+  const tier = n => n >= 25 ? 'strong' : n >= 12 ? 'moderate' : n >= 6 ? 'weak' : null;
+  const scored = [];
+  for (const f of facts) {
+    const h = tier(f.n);
+    if (!h) continue;
+    f.h = h;
+    // Shrunk toward, and measured against, this fact's OWN baseline.
+    f.edge = (f.n * f.pps + TR_K * f.base) / (f.n + TR_K) - f.base;
+    scored.push(f);
+  }
+  scored.sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge) || a.tier - b.tier);
+  /* Two facts covering mostly the same shots say one thing twice — "catch-and-shoot" and
+     "from three" off the same fourteen attempts. Keep the stronger, skip the echo. */
+  const kept = [];
+  for (const f of scored) {
+    let overlaps = false;
+    for (const g of kept) {
+      let shared = 0;
+      for (const e of f.set) if (g.set.has(e)) shared++;
+      if (shared / Math.min(f.set.size, g.set.size) > 0.5) { overlaps = true; break; }
+    }
+    if (!overlaps) kept.push(f);
+  }
+  const above = kept.filter(f => f.edge > 0.06).slice(0, 2);
+  const below = kept.filter(f => f.edge < -0.06).slice(0, 1);
+  const sayFact = (f, pri, seed) => lines.push({ p: pri, t: trFill(trPick(TR_BANK['shot_' + f.h], seed), {
+    F: escHtml(first), phr: f.phr, Phr: f.Phr, pps: f.pps.toFixed(2), n: f.n,
+    sh: Math.round(f.share * 100), tm: f.base.toFixed(2) }) });
+  above.forEach((f, i) => sayFact(f, 1 + i, playerName + '|s' + i + f.phr));
+  below.forEach(f => sayFact(f, 3, playerName + '|w' + f.phr));
+
+  if (shots.length && !above.length && !below.length) {
+    /* Which silence is this? Under the gate it is "no sample"; over it, the sample is real
+       and the finding is that he is average — which is worth saying rather than implying
+       there is not enough data. */
+    lines.push({ p: 1, t: shots.length >= 12
+      ? trFill(trPick(TR_BANK.even, playerName + '|even'), { n: shots.length })
+      : trFill(trPick(TR_BANK.thin, playerName + '|thin'), {
+          n: shots.length, shots: shots.length === 1 ? 'shot' : 'shots' }) });
+  }
+
+  // ── advanced rates: sample is MINUTES, ranked against this roster ──
+  if (totalMin >= MIN_FLOOR) {
+    const cand = [];
+    for (const [key, label, Label, dir, countKey] of TR_RATES) {
+      if (med[key] == null) continue;
+      const v = trWavg(advRows, key);
+      if (v == null) continue;
+      // The rate needs real events behind it, not just minutes on the floor.
+      const events = advRows.reduce((t, r) => t + (r[countKey] || 0), 0);
+      if (events < TR_RATE_MIN_EVENTS) continue;
+      let rel = (v - med[key]) / Math.max(0.5, med[key]);
+      if (dir === 'low') rel = -rel;
+      cand.push({ key, label, Label, v, rel });
+    }
+    cand.sort((a, b) => Math.abs(b.rel) - Math.abs(a.rel));
+    const hi = cand.filter(c => c.rel >= 1).slice(0, 1);
+    const lo = cand.filter(c => c.rel <= -1).slice(0, 1);
+    const sayRate = (c, bank, holds, pri, seed) => {
+      const pool = bank.filter(([tag]) => holds || !tag).map(([, t]) => t);
+      lines.push({ p: pri, t: trFill(pool[trHash(seed) % pool.length], {
+        label: c.label, Label: c.Label, v: c.v.toFixed(1), med: med[c.key].toFixed(1) }) });
+    };
+    hi.forEach(c => sayRate(c, TR_RANKED_HI, rankTop[c.key] === playerName, 4, playerName + '|ah' + c.key));
+    lo.forEach(c => sayRate(c, TR_RANKED_LO, rankBottom[c.key] === playerName, 5, playerName + '|al' + c.key));
+  }
+
+  /* Trend over a rolling window of ATTEMPTS, never of practices. A 13-minute scrimmage
+     leaves everyone four shots; "last practice vs the one before" would call three players
+     breakout shooters off eight attempts between them. */
+  if (shots.length >= 30) {
+    const recent = shots.slice(-20), prior = shots.slice(0, -20);
+    if (prior.length >= 15) {
+      const a = trPPS(recent), b = trPPS(prior);
+      const sa = (20 * a + TR_K * teamPPS) / (20 + TR_K);
+      const sb = (prior.length * b + TR_K * teamPPS) / (prior.length + TR_K);
+      if (Math.abs(sa - sb) > 0.15) {
+        lines.push({ p: 6, t: trFill(trPick(TR_BANK.trend, playerName + '|trend'), {
+          n: 20, a: a.toFixed(2), b: b.toFixed(2) }) });
+      }
+    }
+  }
+
+  // ── habits: shares, so they need volume rather than accuracy ──
+  if (shots.length >= 10) {
+    const sides = {};
+    for (const e of shots) { const s = TR_SIDE[e.zone]; if (s) sides[s] = (sides[s] || 0) + 1; }
+    const topSide = Object.keys(sides).sort((a, b) => sides[b] - sides[a])[0];
+    if (topSide && topSide !== 'middle' && sides[topSide] / shots.length >= 0.5) {
+      lines.push({ p: 7, t: trFill(trPick(TR_BANK.side, playerName + '|side'), {
+        pct: Math.round(100 * sides[topSide] / shots.length), side: topSide }) });
+    }
+    const contested = shots.filter(e => e.shotContest === 'contested').length;
+    lines.push({ p: 8, t: trFill(trPick(TR_BANK.contest, playerName + '|cont'), {
+      pct: Math.round(100 * contested / shots.length) }) });
+    const threes = shots.filter(e => String(e.stat).startsWith('3')).length;
+    lines.push({ p: 9, t: trFill(trPick(TR_BANK.three, playerName + '|three'), {
+      pct: Math.round(100 * threes / shots.length) }) });
+    const withFt = shots.filter(e => e.shotFt != null);
+    if (withFt.length) {
+      lines.push({ p: 10, t: trFill(trPick(TR_BANK.dist, playerName + '|dist'), {
+        ft: Math.round(withFt.reduce((t, e) => t + e.shotFt, 0) / withFt.length) }) });
+    }
+  }
+
+  lines.sort((a, b) => a.p - b.p);
+  const body = lines.slice(0, MAX_SENT).map(l => l.t).join(' ');
+  const span = gp === 1 ? '1 practice' : gp + ' practices';
+  return `<div class="tr-read">
+      <p class="tr-body">${body}</p>
+      <div class="tr-foot">Season to date &middot; ${span} &middot; rebuilt from the data after every scrimmage</div>
+    </div>`;
+}
+
 function buildShotTendencies(fgEvents) {
   const rows = {};
   for (const ev of fgEvents) {
@@ -9501,11 +9910,14 @@ function renderPlayerProfile(playerName) {
           ${courtHtml}
         </div>
         <div>
-          <div class="card-title" style="margin-bottom:10px;">Shot Distance</div>
-          ${distSection || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No distance data recorded yet.</div>'}
+          <div class="card-title" style="margin-bottom:10px;">Tendency Read</div>
+          ${buildTendencyRead(playerName, allSessionsForPlayer, sessions)
+            || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">Nothing to read yet — this fills in once he has been tracked.</div>'}
         </div>
       </div>
       ${shotTypeSection}
+      <div class="card-title" style="margin:24px 0 8px;">Shot Distance</div>
+      ${distSection || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No distance data recorded yet.</div>'}
       ${buildShotTendencies(allFgEvents)}
       ${scopedSession ? '' : buildTrendChart(glRows)}
       ${gameLogHtml}
