@@ -34,7 +34,14 @@
       --text:          #f8fafc;
       --text-secondary:#94a3b8;
       --text-muted:    #64748b;
-      --text-dim:      #475569;
+      /* Was #475569, which sat at 2.49:1 on the app background - under half the 4.5:1
+         needed to be read comfortably. Everything wearing it was small print that still had
+         to be legible: shot chart filter labels, legends, section captions, the note under
+         the Shot Tendencies table. White, matching the On/Off impact cards.
+         The old value is restored inside tbody below: data tables are LIGHT (#d9d9d9 and
+         #ffffff rows), so dim text in there needs to stay dark or it disappears. */
+      --text-dim:      #ffffff;
+      --text-dim-onlight: #475569;
 
       --radius-sm:     6px;
       --radius:        8px;
@@ -707,6 +714,11 @@
     }
 
     tbody tr:last-child { border-bottom: none; }
+    /* Light rows, so the dim token flips back to its dark value for anything inside them.
+       Scoping the variable rather than the colour means every existing var(--text-dim) in a
+       table keeps working, and anything added later inherits the right one automatically. */
+    tbody { --text-dim: var(--text-dim-onlight); }
+
     tbody tr:nth-child(odd)  { background: #d9d9d9; }
     tbody tr:nth-child(even) { background: #ffffff; }
     tbody tr:hover { background: #c0c8d8 !important; }
