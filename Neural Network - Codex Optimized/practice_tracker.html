@@ -13535,13 +13535,8 @@ function finalizeSession(timeSecs = 0) {
 /* True if any free throw (make or miss) was attempted in the scrimmage. When false,
    FT-based advanced stats (TS%, FTR, USG%) are left blank (null) rather than computed,
    since with no FTs they're either degenerate (FTR=0) or misleading (TS% ≡ eFG%). */
-function sessionHasFreeThrows(session) {
-  return (session.eventLog || []).some(e => e.stat === 'ft_make' || e.stat === 'ft_miss');
-}
-
 function computeTeamStats(session) {
   const stats = {};
-  const hasFT = sessionHasFreeThrows(session);
   const line = {
     a: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'a')),
     b: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'b')),
@@ -13564,9 +13559,8 @@ function computeTeamStats(session) {
     s.drtg  = sharedPoss > 0 ? +(100 * o.pts / sharedPoss).toFixed(1) : 0;
     s.netrtg = +(s.ortg - s.drtg).toFixed(1);
     s.efgPct = s.fga > 0 ? +((s.fgm + 0.5 * s.fg3m) / s.fga * 100).toFixed(1) : 0;
-    s.tsPct  = !hasFT ? null
-      : (s.fga + 0.475 * s.fta) > 0
-        ? +(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100).toFixed(1) : 0;
+    s.tsPct  = (s.fga + 0.475 * s.fta) > 0
+      ? +(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100).toFixed(1) : 0;
     stats[team] = s;
   }
   return stats;
@@ -13592,7 +13586,6 @@ function computePlayerStats(session) {
 
   // Total game minutes (quarter durations are stored in seconds)
   const gameMin = getSessionPlayedSeconds(session) / 60;
-  const hasFT = sessionHasFreeThrows(session);   // no FTs → leave FT-based stats blank
 
   const result = [];
   for (const { name, team } of allPlayers) {
@@ -13738,11 +13731,18 @@ function computePlayerStats(session) {
     }
     s.drtg = drtg;
 
-    // No free throws in the scrimmage → blank every FT-incorporating advanced stat.
-    // Individual ORtg and DRtg are included: both are built on scoring-possession
-    // estimates that need foul-shot data, so they are withheld rather than approximated.
-    // (Team ORTG/DRTG/NET stay — they are possession-based and hold up without FTs.)
-    if (!hasFT) { s.tsPct = null; s.ftRate = null; s.usgPct = null; s.ortg = null; s.drtg = null; }
+    /* A scrimmage with no free throws in it used to blank TS%, FTR, USG% and individual
+       ORtg/DRtg, on the reasoning that scoring-possession estimates need foul-shot data.
+       That treated an empty FT column as missing data when it is nothing of the kind: no
+       free throws were shot because no shooting fouls were called, which is a fact about
+       the night, not a gap in it. Every one of these formulas takes FTA = 0 in its stride -
+       the FT term drops out and the rest is still a true description of what happened.
+       So they are all computed now, whatever the foul count.
+
+       Two readings to keep in mind rather than gate on: FTR is genuinely 0 on such a night,
+       which is a real finding about how the game was called and not a flaw in the player;
+       and TS% without free throws sits closer to eFG% by construction, so a no-whistle
+       scrimmage will read a shade lower than one full of and-ones. */
 
     result.push({ name, team, ...s });
   }
