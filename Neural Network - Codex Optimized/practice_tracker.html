@@ -1640,6 +1640,14 @@
       color: var(--text) !important;
     }
 
+    /* The clock boxes open pre-filled with 0:00 rather than empty, because submitting the
+       default is the common case and the parser needs a value to read. That means the
+       placeholder never shows, so the default rendered in full white and looked like a time
+       somebody had already entered. Dimmed while it is still untouched, full white the
+       instant it is typed into - the value itself never changes, so nothing downstream of
+       this cares. */
+    .clock-input.is-default { color: var(--placeholder) !important; }
+
     .modal-footer {
       display: flex;
       gap: 8px;
@@ -3939,7 +3947,7 @@
     </div>
     <div class="modal-body">
       <label>Time Remaining on Clock (MM:SS)</label>
-      <input type="text" id="ep-time-input" class="clock-input" placeholder="0:00" value="0:00" style="margin-bottom:10px;">
+      <input type="text" id="ep-time-input" class="clock-input is-default" placeholder="0:00" value="0:00" style="margin-bottom:10px;">
       <p style="margin:0 0 10px;">This will finalize the session and save all statistics.</p>
       <div id="ep-summary" style="background:var(--card);border-radius:var(--radius);padding:12px;font-size:12px;line-height:1.8;color:var(--text-secondary);"></div>
     </div>
@@ -4086,7 +4094,7 @@
     </div>
     <div class="modal-body" style="margin-bottom:0;">
       <label>Time Remaining at Buzzer (MM:SS)</label>
-      <input type="text" id="eq-time-input" class="clock-input" placeholder="0:00" value="0:00">
+      <input type="text" id="eq-time-input" class="clock-input is-default" placeholder="0:00" value="0:00">
       <div class="clock-hint" style="margin-top:6px;">Enter 0:00 if quarter ended at the buzzer</div>
     </div>
     <div class="modal-footer">
@@ -13432,7 +13440,7 @@ function endPractice() {
   if (ep)  ep.style.display   = 'none';
   if (btn) btn.textContent    = 'End Practice';
   const timeInput = document.getElementById('ep-time-input');
-  if (timeInput) timeInput.value = '0:00';
+  setClockDefault(timeInput, '0:00');
 
   // Fill summary
   const ptsA = computeScore('a');
@@ -14333,12 +14341,27 @@ function closeActiveSegment(endTimeSecs) {
 }
 
 /* ── End Quarter ── */
+/* Set a clock box to its default and mark it as untouched. Presentation only: the value is
+   the same string confirmEndQuarter and the End Practice flow have always parsed. */
+function setClockDefault(el, val) {
+  if (!el) return;
+  el.value = val;
+  el.classList.add('is-default');
+}
+
+/* First keystroke means the coach is entering a real time, so it stops looking like a
+   default. Delegated, so it covers every clock box including any added later. */
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('clock-input')) t.classList.remove('is-default');
+});
+
 function endQuarter() {
   const session = State.liveSession;
   if (!session) return;
   const q = currentQuarterNum();
   document.getElementById('eq-quarter-label').textContent = `End Quarter ${q}`;
-  document.getElementById('eq-time-input').value = '0:00';
+  setClockDefault(document.getElementById('eq-time-input'), '0:00');
   showModal('modal-end-quarter');
 }
 
