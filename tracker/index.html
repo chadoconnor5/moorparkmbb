@@ -13654,7 +13654,19 @@ function computePlayerStats(session) {
 
     // Individual ORtg — Dean Oliver / BBR formula
     let ortg = null;
-    if (minExact > 0 && gameMin > 0 && (s.fga > 0 || s.fta > 0 || s.tov > 0)) {
+    /* The gate asks whether he was involved in a possession at all, not just whether he
+       ended one. Shots, free throws and turnovers END possessions; assists and offensive
+       rebounds CONTRIBUTE to them, and Oliver's formula credits both - an assist produces
+       points, an offensive board creates a possession. Testing only the first three meant
+       Bello, with an assist and an offensive rebound on 27/08, was withheld while
+       Castaniero was rated 121 off five assists purely because he also turned it over
+       once. Turning the ball over should not be what qualifies a man for a rating.
+
+       A player with none of the five still returns null. He never touched a possession, so
+       there is nothing to rate, and 0 would read as "he was poor" when the truth is that
+       he was not involved. */
+    if (minExact > 0 && gameMin > 0 &&
+        (s.fga > 0 || s.fta > 0 || s.tov > 0 || s.ast > 0 || s.oreb > 0)) {
       const MP   = minExact;
       const tMP5 = gameMin;
       const tFGA  = tS.fga  || 0, tFG3M = tS.fg3m || 0;
