@@ -2690,6 +2690,18 @@
        the green effectively invisible. Same hues, carried down to 5.14:1 and 4.87:1. */
     .oo-imp-tbl tbody td.oo-imp-good { color: var(--success-onlight); }
     .oo-imp-tbl tbody td.oo-imp-bad  { color: var(--danger-onlight); }
+    /* The attempt count rides inside the PPS cell rather than taking a fourth column: the
+       sample is what decides whether a 1.50 means anything, so it belongs against the number
+       it qualifies, not two columns away. Dimmed and small — present when looked for,
+       silent when not. */
+    /* Bracketed, not bare: an unbracketed count sitting beside a two-decimal PPS reads as
+       one number — "0.62" next to "13" is indistinguishable from 0.6213 at a glance. */
+    .pps-att { font-size: 9.5px; color: #6b7280; font-weight: 600; margin-left: 5px;
+               vertical-align: baseline; }
+    .pps-na  { color: #8b95a6; }
+    .pps-total th, .pps-total td { border-top: 2px solid #cbd2dc; font-weight: 800; }
+    .sc-pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
     /* REB's table stands alone instead of sitting in the four-up grid the On/Off panels
        use, so the inherited width:100% stretched it across the whole page and the label
        column swallowed every spare pixel — a 28-character label in a 900px cell.
@@ -3637,6 +3649,7 @@
     <button class="nav-tab active" data-tab="players"   onclick="switchTab('players',this)">Player Stats</button>
     <button class="nav-tab"        data-tab="log"       onclick="switchTab('log',this)">Practice Log</button>
     <button class="nav-tab"        data-tab="shotcharts"onclick="switchTab('shotcharts',this)">Shot Charts</button>
+    <button class="nav-tab"        data-tab="pps"       onclick="switchTab('pps',this)">PPS</button>
     <button class="nav-tab"        data-tab="onoff"     onclick="switchTab('onoff',this)">On/Off</button>
     <button class="nav-tab"        data-tab="lineups"   onclick="switchTab('lineups',this)">Lineups</button>
     <button class="nav-tab"        data-tab="connections" onclick="switchTab('connections',this)">Connections</button>
@@ -4019,6 +4032,16 @@
       <div class="placeholder">
         <div class="placeholder-icon">🎯</div>
         <div>No sessions yet &mdash; complete a practice to see shot charts.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PPS ── -->
+  <div id="tab-pps" class="tab-content">
+    <div class="page" id="pps-root">
+      <div class="placeholder">
+        <div class="placeholder-icon">🎯</div>
+        <div>No sessions yet &mdash; complete a practice to see points per shot.</div>
       </div>
     </div>
   </div>
@@ -4905,6 +4928,7 @@ const tabRenderers = {
   boxscores:  () => {},
   players:    () => {},
   shotcharts: () => {},
+  pps:        () => {},
   onoff:      () => {},
   lineups:    () => {},
   connections:() => {},
@@ -13167,6 +13191,199 @@ function _onoffFilterBar(filtered) {
           <option value="b"   ${seg5Filter.team==='b'   ? 'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
         </select>
       </div>`;
+}
+
+/* ============================================================
+   PPS TAB — points per shot, by spot, split by contest and shot type
+============================================================
+   One player against the team from every zone on the shot chart. PPS rather than FG%
+   because a corner three and a layup are not the same made basket: 40% from three is 1.20
+   a shot and 40% at the rim is 0.80, and only one of those is a shot worth taking.
+
+   The team column is POOLED — every attempt in scope over every point in scope — not the
+   mean of the players' PPS. A mean of rates would let a man with three attempts move the
+   baseline as far as one with sixty, and the baseline is meant to be what the shot is
+   worth to this group, not what the average shooter averages.
+
+   SHOT TYPE IS A LIST, NOT A LABEL. Events carry shotTypes as an array — 'drive'+'pull_up',
+   'off_balance'+'pull_up', 'catch_shoot'+'off_balance' — so catch-and-shoot and pull-up are
+   membership tests. Reading e.shotType alone would have found 26 pull-ups where there are
+   53, quietly halving the split. shotType is kept only as the fallback for older events. */
+
+const PPS_SPLITS = [
+  { key: 'all',    label: 'All Shots'          },
+  { key: 'unc',    label: 'Uncontested'        },
+  { key: 'con',    label: 'Contested'          },
+  { key: 'csUnc',  label: 'C&S Uncontested'    },
+  { key: 'csCon',  label: 'C&S Contested'      },
+  { key: 'puUnc',  label: 'Pull-Up Uncontested'},
+  { key: 'puCon',  label: 'Pull-Up Contested'  },
+];
+
+let ppsFilter = { period: 'all', team: 'all', player: null, split: 'all' };
+
+function ppsSetFilter(k, v) { ppsFilter[k] = v; renderPpsView(); }
+function ppsSetPlayer(n) { ppsFilter.player = n || null; renderPpsView(); }
+
+/* Which splits a single attempt belongs to. A shot is always in 'all', in exactly one of
+   contested/uncontested, and in a type split only if it carries that type. */
+function _ppsSplitsFor(ev) {
+  const out = ['all'];
+  const c = ev.shotContest;
+  if (c !== 'contested' && c !== 'uncontested') return out;   // untagged: totals only
+  const unc = c === 'uncontested';
+  out.push(unc ? 'unc' : 'con');
+  const types = Array.isArray(ev.shotTypes) && ev.shotTypes.length
+    ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
+  if (types.includes('catch_shoot')) out.push(unc ? 'csUnc' : 'csCon');
+  if (types.includes('pull_up'))     out.push(unc ? 'puUnc' : 'puCon');
+  return out;
+}
+
+/* { byPlayer: {name: {zoneKey: {split: {pts, att}}}}, team: {zoneKey: {split: {pts, att}}} }
+   Zones follow scZoneKey()'s precedence, so these rows are the shot chart's own zones. */
+function computePpsGrid(sessions, teamFilter) {
+  const VAL = { '2fg_make': 2, '3fg_make': 3, '2fg_miss': 0, '3fg_miss': 0 };
+  const all = teamFilter === 'all' || teamFilter === 'both';
+  const byPlayer = {}, team = {};
+  const bump = (bucket, zk, sp, pts) => {
+    const z = bucket[zk] || (bucket[zk] = {});
+    const s = z[sp] || (z[sp] = { pts: 0, att: 0 });
+    s.pts += pts; s.att += 1;
+  };
+  for (const sess of sessions) {
+    for (const ev of (sess.eventLog || [])) {
+      if (VAL[ev.stat] == null || !ev.player) continue;
+      if (!all && ev.team !== teamFilter) continue;
+      if (isHiddenPlayer(ev.player)) continue;
+      const zk = scZoneKey(ev);
+      if (!zk) continue;                       // outside every drawn zone
+      const pts = VAL[ev.stat];
+      const splits = _ppsSplitsFor(ev);
+      const mine = byPlayer[ev.player] || (byPlayer[ev.player] = {});
+      for (const sp of splits) { bump(mine, zk, sp, pts); bump(team, zk, sp, pts); }
+    }
+  }
+  return { byPlayer, team };
+}
+
+tabRenderers.pps = function () { renderPpsView(); };
+
+function renderPpsView() {
+  const root = document.getElementById('pps-root');
+  if (!root) return;
+
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
+  const filtered = sessions.filter(s => sessionInScope(s, ppsFilter.period));
+
+  /* Declared before the empty-scope early return below: the filter bar renders on that path
+     too, and a `const` assigned further down would put this in the temporal dead zone and
+     throw instead of showing the bar. */
+  let ppsNames = [];
+  function _ppsPlayerSelect() {
+    if (!ppsNames.length) return '';
+    return `<select onchange="ppsSetPlayer(this.value)">` + ppsNames.map(n =>
+      `<option value="${escHtml(n)}"${n === ppsFilter.player ? ' selected' : ''}>${escHtml(n)}</option>`
+    ).join('') + `</select>`;
+  }
+
+  const perOpts = (v, lbl) => `<option value="${v}" ${ppsFilter.period === v ? 'selected' : ''}>${lbl}</option>`;
+  const bar = filtered => `<div class="seg-filter-bar">
+      <select onchange="ppsSetFilter('period',this.value)">
+        ${perOpts('all','All Sessions')}${perOpts('pre','Pre-Jamboree')}${perOpts('post','Post-Jamboree')}
+        ${scrimmageOptsHtml(ppsFilter.period)}
+      </select>
+      <select onchange="ppsSetFilter('team',this.value)">
+        <option value="all" ${ppsFilter.team==='all'?'selected':''}>Both Teams</option>
+        <option value="a" ${ppsFilter.team==='a'?'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
+        <option value="b" ${ppsFilter.team==='b'?'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
+      </select>
+      ${_ppsPlayerSelect(filtered)}
+    </div>`;
+
+  if (!filtered.length) {
+    root.innerHTML = `<div class="page-header"><div><div class="page-title">Points Per Shot</div></div>${bar(filtered)}</div>
+      <div class="placeholder" style="margin-top:20px;"><div>No sessions in scope.</div></div>`;
+    return;
+  }
+
+  const grid = computePpsGrid(filtered, ppsFilter.team);
+  ppsNames = Object.keys(grid.byPlayer).sort();
+  if (!ppsNames.includes(ppsFilter.player)) ppsFilter.player = ppsNames[0] || null;
+
+
+  const split = ppsFilter.split;
+  const pills = PPS_SPLITS.map(s =>
+    `<button class="sc-pill${split === s.key ? ' active' : ''}" onclick="ppsSetFilter('split','${s.key}')">${escHtml(s.label)}</button>`
+  ).join('');
+
+  const mine = grid.byPlayer[ppsFilter.player] || {};
+  const zones = rebZoneList();
+
+  /* A PPS off one or two attempts is not a rate, so the number is shown but never coloured
+     and never carries a diff — the attempt count beside it is the honest headline. */
+  const MIN_FOR_COLOUR = 5;
+  const pps = b => (b && b.att > 0) ? b.pts / b.att : null;
+  const cell = (b, colour) => {
+    const v = pps(b);
+    if (v == null) return '<td class="pps-na">—</td>';
+    const col = (colour && b.att >= MIN_FOR_COLOUR) ? ppsColor(v) : '';
+    return `<td${col ? ` style="color:${col};font-weight:800;"` : ''}>${v.toFixed(2)}` +
+           `<span class="pps-att">(${b.att})</span></td>`;
+  };
+
+  let sumP = { pts: 0, att: 0 }, sumT = { pts: 0, att: 0 };
+  const rows = zones.map(z => {
+    const p = (mine[z.key] || {})[split], t = (grid.team[z.key] || {})[split];
+    if (p) { sumP.pts += p.pts; sumP.att += p.att; }
+    if (t) { sumT.pts += t.pts; sumT.att += t.att; }
+    const pv = pps(p), tv = pps(t);
+    let diff = '<td class="pps-na">—</td>';
+    if (pv != null && tv != null && p.att >= MIN_FOR_COLOUR) {
+      const d = pv - tv;
+      const cls = Math.abs(d) < 0.005 ? '' : (d > 0 ? ' oo-imp-good' : ' oo-imp-bad');
+      diff = `<td class="oo-imp-diff${cls}">${d > 0 ? '+' : ''}${d.toFixed(2)}</td>`;
+    }
+    return `<tr><th>${escHtml(z.label)}</th>${cell(p, true)}${cell(t, false)}${diff}</tr>`;
+  }).join('');
+
+  /* The totals row takes the same gate as the rows above it. Without it a one-attempt
+     split produced "3.00 vs 0.41, +2.59" in bold at the foot of the table — the most
+     authoritative-looking number on the page resting on a single shot. */
+  const tp = pps(sumP), tt = pps(sumT);
+  let totDiff = '<td class="pps-na">—</td>';
+  if (tp != null && tt != null && sumP.att >= MIN_FOR_COLOUR) {
+    const d = tp - tt;
+    const cls = Math.abs(d) < 0.005 ? '' : (d > 0 ? ' oo-imp-good' : ' oo-imp-bad');
+    totDiff = `<td class="oo-imp-diff${cls}">${d > 0 ? '+' : ''}${d.toFixed(2)}</td>`;
+  }
+  const totalRow = `<tr class="pps-total"><th>All Zones</th>${cell(sumP, true)}${cell(sumT, false)}${totDiff}</tr>`;
+
+  root.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Points Per Shot</div>
+        <div class="page-subtitle">${escHtml(ppsFilter.player || '')} &middot; ${escHtml((PPS_SPLITS.find(s => s.key === split) || {}).label || '')} &middot; by zone</div>
+      </div>
+      ${bar(filtered)}
+    </div>
+    <div class="sc-pill-row" style="margin-bottom:12px;">${pills}</div>
+    <div class="oo-imp-card reb-ww-card">
+      <div class="oo-imp-head">
+        <span class="oo-imp-name">${escHtml(ppsFilter.player || '')}</span>
+        <span class="oo-imp-sub">${sumP.att} attempt${sumP.att === 1 ? '' : 's'} in this split &middot; team ${sumT.att}</span>
+      </div>
+      <div class="oo-imp-grid" style="grid-template-columns:1fr;">
+        <table class="oo-imp-tbl reb-ww"><thead><tr>
+          <th>Zone</th><th>Player</th><th>Team</th><th>Diff</th>
+        </tr></thead><tbody>${rows}${totalRow}</tbody></table>
+      </div>
+    </div>
+    <div style="max-width:580px;margin:10px auto 0;font-size:11px;color:var(--text-dim);">
+      Points per shot from each zone. The small figure beside a PPS is the attempts behind it.
+      Team is pooled over everyone in scope, not an average of players. Colour and the diff are
+      withheld under ${MIN_FOR_COLOUR} attempts — below that the number is shown but is not a rate.
+    </div>`;
 }
 
 /* ── One player's stints, split into on-floor and off-floor ─────────────────────
