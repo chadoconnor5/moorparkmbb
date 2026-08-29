@@ -11901,16 +11901,12 @@ function hkGraphSvg(rows, given, got) {
   const hasRest = n => hkShowRest && ((restOut[n] || 0) + (restIn[n] || 0)) > 0;
 
   const W = 880, H = 580, cx = W / 2, cy = H / 2, RX = 286, RY = 182;
-  /* Satellites sit further out and are far bigger than the 9px they started at - at that
-     size they were almost impossible to land a cursor on, so their tooltips never appeared,
-     and the hop to them was too short to show a line. */
   const SAT = 1.42, SATR = 17;
   const maxInv = Math.max.apply(null, names.map(n => invol[n]));
   const maxHup = Math.max.apply(null, edges.map(e => e.hup).concat([1]));
-  const pos = {}, sat = {}, ang = {};
+  const pos = {}, sat = {};
   names.forEach((n, i) => {
     const th = (-Math.PI / 2) + (2 * Math.PI * i / names.length);
-    ang[n] = th;
     pos[n] = { x: cx + RX * Math.cos(th), y: cy + RY * Math.sin(th), r: 18 + 14 * (invol[n] / maxInv) };
     sat[n] = { x: cx + RX * SAT * Math.cos(th), y: cy + RY * SAT * Math.sin(th), r: SATR };
   });
@@ -11919,8 +11915,14 @@ function hkGraphSvg(rows, given, got) {
      left and arrived at the same two points on the bubbles, so they converged at each end and
      read as a single line with an arrowhead stuck on either side - given and received looked
      like the same path. Pushing the attachment points sideways along the perpendicular fixes
-     it, because that vector flips with the direction of travel. */
-  function arc(p1, p2, hup, aName, scName, cls, bow, showLabel, style) {
+     it, because that vector flips with the direction of travel.
+
+     Returns the line and its number separately. A chord across the ellipse passes behind
+     whichever bubbles sit between its two ends, and the bubbles are painted after the lines
+     so they cover them - which is right for the line and wrong for the number, since a count
+     hidden under a bubble may as well not be drawn. The numbers go into their own layer
+     painted last, on top of everything. */
+  function arc(p1, p2, hup, aName, scName, cls, bow, style) {
     const dx = p2.x - p1.x, dy = p2.y - p1.y, d = Math.hypot(dx, dy) || 1;
     const ux = dx / d, uy = dy / d;
     const px = -uy, py = ux;
@@ -11930,42 +11932,35 @@ function hkGraphSvg(rows, given, got) {
     const mx = (sx + ex) / 2 + px * d * bow, my = (sy + ey) / 2 + py * d * bow;
     const lx = 0.25 * sx + 0.5 * mx + 0.25 * ex;
     const ly = 0.25 * sy + 0.5 * my + 0.25 * ey;
-    /* Weight climbs harder than it used to. At 0.8 + 3.6x a single hookup drew at 1.5 and the
-       heaviest pairing on the board at 4.4 - only three times thicker for five times the
-       assists, so the picture flattened everything into "some lines". Squaring the ratio
-       holds the one-offs thin and lets a real partnership stand out at a glance. */
     const k = hup / maxHup;
     const w = style ? style.w : 0.7 + 9 * k * k + 1.6 * k;
     const op = style ? style.op : 0.28 + 0.62 * k;
-    return '<g data-a="' + escHtml(aName) + '" data-sc="' + escHtml(scName) + '">' +
-      '<path class="hk-edge' + (cls ? ' ' + cls : '') + '" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
-      ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + ex.toFixed(1) + ',' + ey.toFixed(1) +
-      '" stroke-width="' + w.toFixed(2) + '" stroke-opacity="' + op.toFixed(2) +
-      '" marker-end="url(#hk-arrow)"><title>' + escHtml(aName) + ' → ' + escHtml(scName) +
-      ': ' + hup + '</title></path>' +
-      (showLabel === false ? ''
-        : '<text class="hk-edge-lbl" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '">' +
-          hup + '</text>') + '</g>';
+    const attrs = ' data-a="' + escHtml(aName) + '" data-sc="' + escHtml(scName) + '"';
+    return {
+      path: '<g' + attrs + '><path class="hk-edge' + (cls ? ' ' + cls : '') +
+        '" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
+        ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + ex.toFixed(1) + ',' + ey.toFixed(1) +
+        '" stroke-width="' + w.toFixed(2) + '" stroke-opacity="' + op.toFixed(2) +
+        '" marker-end="url(#hk-arrow)"><title>' + escHtml(aName) + ' → ' + escHtml(scName) +
+        ': ' + hup + '</title></path></g>',
+      label: '<g' + attrs + '><text class="hk-edge-lbl" x="' + lx.toFixed(1) +
+        '" y="' + ly.toFixed(1) + '">' + hup + '</text></g>',
+    };
   }
 
-  const paths = edges.map(e => arc(pos[e.a], pos[e.sc], e.hup, e.a, e.sc, '', 0.20, true)).join('');
+  const playerArcs = edges.map(e => arc(pos[e.a], pos[e.sc], e.hup, e.a, e.sc, '', 0.20));
 
-  /* Two lines to the satellite, not one: given and received are separate facts about a
-     player's relationship with everyone off the graph, and a coach reads them differently -
-     a man who feeds the bench is doing something different from one the bench feeds. Same
-     lane separation as the player-to-player arcs, so the two never sit on top of each other,
-     and each carries its own count. */
-  const restPaths = names.filter(hasRest).map(n => {
+  /* Rest lines keep a single thin weight whatever the count. Thickness on this graph means
+     "how strong is this pairing", and a satellite is not a pairing - it is a bucket holding
+     several. A fat line to a bucket competes with the real partnerships for attention while
+     saying something much vaguer, so the count goes on the line and the line stays thin. */
+  const REST_STYLE = { w: 2.1, op: 0.75 };
+  const restArcs = [];
+  names.filter(hasRest).forEach(n => {
     const label = 'Rest of team';
-    let out = '';
-    /* Rest lines get a floor rather than the shared scale. One assist to the bench is a real
-       connection, but scaled against the heaviest pairing on the board it drew at 1.4px and
-       40% opacity - dashed, over a short hop, which is to say invisible. */
-    const rw = h => ({ w: Math.max(2.6, 0.7 + 9 * (h / maxHup) ** 2 + 1.6 * (h / maxHup)), op: 0.85 });
-    if (restOut[n]) out += arc(pos[n], sat[n], restOut[n], n, label, 'hk-edge-rest', 0.10, true, rw(restOut[n]));
-    if (restIn[n]) out += arc(sat[n], pos[n], restIn[n], label, n, 'hk-edge-rest', 0.10, true, rw(restIn[n]));
-    return out;
-  }).join('');
+    if (restOut[n]) restArcs.push(arc(pos[n], sat[n], restOut[n], n, label, 'hk-edge-rest', 0.10, REST_STYLE));
+    if (restIn[n]) restArcs.push(arc(sat[n], pos[n], restIn[n], label, n, 'hk-edge-rest', 0.10, REST_STYLE));
+  });
 
   const restNodes = names.filter(hasRest).map(n => {
     const s = sat[n];
@@ -12004,12 +11999,16 @@ function hkGraphSvg(rows, given, got) {
           names.length + ' and are not drawn.</div>')
     : '<div class="hk-graph-note">Every pairing in the table is drawn.</div>';
 
+  const all = playerArcs.concat(restArcs);
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Assist network"' +
     ' onmouseleave="hkBlur()">' +
     '<defs><marker id="hk-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" ' +
     'markerHeight="5" orient="auto-start-reverse">' +
     '<path d="M0,1 L9,5 L0,9 z" fill="var(--text-secondary)"/></marker></defs>' +
-    paths + restPaths + restNodes + nodes + '</svg>' + note;
+    all.map(x => x.path).join('') +
+    restNodes + nodes +
+    all.map(x => x.label).join('') +
+    '</svg>' + note;
 }
 
 function renderConnectionsView() {
