@@ -8969,32 +8969,40 @@ function computeShotQuality(sessions) {
 
 
 /* ── Rebounding split by what was missed ────────────────────────────────────────
-   OR% and DR% answer "what share of the available boards did he take". These four split
-   that by the shot that created the board, because a miss from three and a miss from two
-   are different rebounds: the three comes off long and lands outside the paint, which is
-   why a guard can post a real OR% on threes and none at all on twos.
+   OR% and DR% answer "what share of the available boards did he take". Everything here
+   splits that by the shot that created the board, because a miss from three is a different
+   rebound from a miss from two — it comes off long and lands outside the paint — and a miss
+   from the left corner is a different rebound again from one above the break.
 
-   Which miss a board came off is read from log ORDER, as with the assist pairing. Checked
-   before it was relied on: every one of the 171 rebounds in this data traces to a miss —
-   160 sit directly behind one, and the other 11 sit behind a `blk` logged after the shot it
-   rejected. So the lookback steps over exactly one block and stops. Nothing else has ever
-   intervened, and anything that did would be dropped rather than charged to the wrong shot.
+   Every board is filed under three headings at once: its shot value ('2', '3' or 'ft'), and
+   for field goals the zone the shot came from ('z:' + zone key). One walk of the log, one
+   set of counts, so the ADV columns and the REB tab can never disagree about a rebound.
 
-   Free-throw boards are counted in neither split. They are 2 of 171 here, and a missed free
-   throw is not a two or a three — folding it into either would be inventing a value the
-   shot did not have. The parent OR%/DR% still include them, so the two splits are not meant
-   to add up to the whole; they are the shooting-foul remainder short.
+   Which miss a board came off is read from log ORDER, as with the assist pairing, and was
+   checked before it was relied on: all 171 rebounds in this data trace to a miss — 160 sit
+   directly behind one, and the other 11 sit behind a `blk` logged after the shot it
+   rejected. The lookback steps over exactly one block and stops. Nothing else has ever
+   intervened, and anything that did is dropped rather than charged to the wrong shot.
 
-   DENOMINATOR, exactly as orPct/drPct build theirs: every board available off that kind of
-   miss while he was on the floor, estimated by his share of the minutes. Offensive boards
-   available to his team off ITS missed 2s are all the rebounds of those misses, whoever
-   collected them; the defensive denominator is the same count off the opponent's misses. */
+   Free-throw boards get their own heading rather than being forced into 2 or 3, which is
+   why the 2PT and 3PT pair does not add up to the parent OR%/DR% — it is short by exactly
+   the free-throw remainder (2 of 171 here).
+
+   Zones follow scZoneKey()'s precedence, so this agrees with the shot charts: the zones
+   Chad drew win and the fixed grid stands in only when none are drawn. A miss with no
+   coordinates still counts under its shot value; it simply has no zone to file under.
+
+   DENOMINATOR, exactly as orPct/drPct build theirs: every board available under that
+   heading while he was on the floor, by his share of the minutes. The boards available to
+   his team off ITS missed twos are all the rebounds of those misses, whoever collected
+   them; the defensive denominator is the same count off the opponent's misses. */
 function computeReboundSplits(sessions) {
-  const MISS = { '2fg_miss': 2, '3fg_miss': 3 };
+  const MISS = { '2fg_miss': '2', '3fg_miss': '3' };
   const out = {};
   for (const sess of sessions) {
     const ev = (sess.eventLog || []).filter(e => e.type !== 'sub');
     const byPlayer = {}, avail = {};
+    const bump = (obj, k) => { obj[k] = (obj[k] || 0) + 1; };
     ev.forEach((e, i) => {
       if (e.stat !== 'oreb' && e.stat !== 'dreb') return;
       /* Step back to the miss this board came off, over a block if one was logged between.
@@ -9002,22 +9010,39 @@ function computeReboundSplits(sessions) {
       let shot = null;
       for (let j = i - 1; j >= 0 && j >= i - 2; j--) {
         const st = ev[j].stat;
-        if (MISS[st]) { shot = ev[j]; break; }
+        if (MISS[st] || st === 'ft_miss') { shot = ev[j]; break; }
         if (st === 'blk') continue;
         break;
       }
       if (!shot || !shot.team) return;
-      const v = MISS[shot.stat];
-      const ak = shot.team + '|' + v;
-      avail[ak] = (avail[ak] || 0) + 1;            // counted whoever ends up with it
+
+      const cats = [MISS[shot.stat] || 'ft'];
+      if (MISS[shot.stat]) {
+        const zk = scZoneKey(shot);
+        if (zk) cats.push('z:' + zk);
+      }
+
+      const ak = avail[shot.team] || (avail[shot.team] = {});
+      for (const c of cats) bump(ak, c);        // counted whoever ends up with it
+
       if (!e.player || isHiddenPlayer(e.player)) return;
-      const kind = (e.team === shot.team) ? 'or' : 'dr';
-      const b = byPlayer[e.player] || (byPlayer[e.player] = { or2: 0, or3: 0, dr2: 0, dr3: 0 });
-      b[kind + v]++;
+      const side = (e.team === shot.team) ? 'or' : 'dr';
+      const b = byPlayer[e.player] || (byPlayer[e.player] = { or: {}, dr: {} });
+      for (const c of cats) bump(b[side], c);
     });
     out[sess.id] = { byPlayer, avail };
   }
   return out;
+}
+
+/* The zone columns the REB tab shows, in the order Chad drew them — same precedence as
+   scZoneKey(), so the tab's columns are the shot chart's zones and nothing else. Keys are
+   positional rather than the zone name: a name can carry an apostrophe, and these keys are
+   written into the sort handler's inline onclick. */
+function rebZoneList() {
+  const drawn = State.zones || [];
+  if (drawn.length) return drawn.map(z => ({ key: z.id, label: z.name }));
+  return Object.keys(ZONE_DEFS).map(k => ({ key: k, label: ZONE_DEFS[k].label }));
 }
 
 /* ── TS% with a man's own putbacks taken out ────────────────────────────────────
@@ -9177,8 +9202,10 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
         byPlayer[key] = {
           name: p.name, team: p.team,
           gp: 0, wins: 0, losses: 0, pm: 0, poss: 0,
-          // split rebounds, and the minutes-weighted boards available off each kind of miss
-          or2: 0, or3: 0, dr2: 0, dr3: 0, dOr2: 0, dOr3: 0, dDr2: 0, dDr3: 0,
+          /* Split rebounds keyed by category ('2', '3', 'ft', 'z:<zone>'), with the
+             minutes-weighted boards available under each. Open maps rather than fixed
+             fields: the zone list is whatever Chad has drawn. */
+          rebOr: {}, rebDr: {}, rebOrDen: {}, rebDrDen: {},
           min: 0, pts: 0, fgm: 0, fga: 0, fg2m: 0, fg2a: 0, fg3m: 0, fg3a: 0,
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
@@ -9207,15 +9234,16 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       const _rs = rebSplit[sess.id];
       if (_rs) {
         const _pb = _rs.byPlayer[nm];
-        if (_pb) { row.or2 += _pb.or2; row.or3 += _pb.or3;
-                   row.dr2 += _pb.dr2; row.dr3 += _pb.dr3; }
+        if (_pb) {
+          for (const c in _pb.or) row.rebOr[c] = (row.rebOr[c] || 0) + _pb.or[c];
+          for (const c in _pb.dr) row.rebDr[c] = (row.rebDr[c] || 0) + _pb.dr[c];
+        }
         if (_gameMin > 0) for (const en of entries) {
-          const mp = (en.min || 0) / _gameMin;
+          const mp  = (en.min || 0) / _gameMin;
           const opp = en.team === 'a' ? 'b' : 'a';
-          row.dOr2 += mp * (_rs.avail[en.team + '|2'] || 0);
-          row.dOr3 += mp * (_rs.avail[en.team + '|3'] || 0);
-          row.dDr2 += mp * (_rs.avail[opp + '|2'] || 0);
-          row.dDr3 += mp * (_rs.avail[opp + '|3'] || 0);
+          const mine = _rs.avail[en.team] || {}, theirs = _rs.avail[opp] || {};
+          for (const c in mine)   row.rebOrDen[c] = (row.rebOrDen[c] || 0) + mp * mine[c];
+          for (const c in theirs) row.rebDrDen[c] = (row.rebDrDen[c] || 0) + mp * theirs[c];
         }
       }
       /* +/- accrues while a player is ON THE FLOOR, and the two team maps cover disjoint
@@ -9297,14 +9325,38 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
        there one practice IS the scope, so that denominator was already the right one. */
     const ftRate = r.fga > 0 ? p1(100 * r.fta / r.fga) : null;
     /* From season totals, like the shooting rates above and unlike the per-game means these
-       four sit beside. Deliberate: a split rebound rate is a handful of boards a night, and
-       a mean of per-practice rates lets a single board on a short night weigh as much as a
+       sit beside. Deliberate: a split rebound rate is a handful of boards a night, and a
+       mean of per-practice rates lets a single board on a short night weigh as much as a
        full one. Worth knowing that OR%/DR% next door are still per-game means, so the parent
-       and its two children are not built the same way. */
-    const orPct2 = r.dOr2 > 0 ? p1(100 * r.or2 / r.dOr2) : null;
-    const orPct3 = r.dOr3 > 0 ? p1(100 * r.or3 / r.dOr3) : null;
-    const drPct2 = r.dDr2 > 0 ? p1(100 * r.dr2 / r.dDr2) : null;
-    const drPct3 = r.dDr3 > 0 ? p1(100 * r.dr3 / r.dDr3) : null;
+       and its children are not built the same way. */
+    /* Two guards, both of which the split columns need and the parent OR%/DR% never did,
+       because splitting the boards shrinks every denominator underneath them.
+
+       BLANK below one available board. The denominator is "boards of this kind that existed
+       while he was on the floor"; under 1.0 there was less than a single opportunity to take
+       a share of, and a percentage of that is not a small sample, it is not a sample.
+
+       CAPPED at 100, the way MIN% is capped and for the same reason. The denominator is an
+       estimate from minutes share, so a man who happened to be out for the only two boards
+       of a kind can be credited with more than existed — Castaniero read 124% off the two
+       free-throw rebounds in the whole season. 100% is the true ceiling; nothing below it
+       is touched. */
+    const rebRate = (side, cat) => {
+      const den = (side === 'or' ? r.rebOrDen : r.rebDrDen)[cat] || 0;
+      if (!(den >= 1)) return null;
+      const got = (side === 'or' ? r.rebOr : r.rebDr)[cat] || 0;
+      return p1(Math.min(100, 100 * got / den));
+    };
+    const orPct2 = rebRate('or', '2'), orPct3 = rebRate('or', '3');
+    const drPct2 = rebRate('dr', '2'), drPct3 = rebRate('dr', '3');
+    const orPctFt = rebRate('or', 'ft'), drPctFt = rebRate('dr', 'ft');
+    /* One flat key per zone per side, positional, so the sort handler and the cell reader
+       can address them the same way every other column is addressed. */
+    const zoneRates = {};
+    rebZoneList().forEach((z, i) => {
+      zoneRates['orz' + i] = rebRate('or', 'z:' + z.key);
+      zoneRates['drz' + i] = rebRate('dr', 'z:' + z.key);
+    });
 
     return {
       name: r.name, team: r.team,
@@ -9349,7 +9401,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       stlPG: p1(r.stl / g), blkPG: p1(r.blk / g), tovPG: p1(r.tov / g), minPG: p1(r.min / g),
       // Shooting
       fgPct, fg2Pct, fg3Pct, ftPct, fg3aRate,
-      orPct2, orPct3, drPct2, drPct3,
+      orPct2, orPct3, drPct2, drPct3, orPctFt, drPctFt, ...zoneRates,
       // ADV (averages of per-game values)
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
@@ -9427,6 +9479,7 @@ function renderPlayerTable() {
 
   const isTotals = psFilter.view === 'tot';
   const isAdv     = psFilter.view === 'adv';
+  const isReb     = psFilter.view === 'reb';
 
   // ── Advanced columns (computed from season-aggregated totals) ──
   const PS_COLS_ADV = [
@@ -9461,7 +9514,29 @@ function renderPlayerTable() {
     { key: 'shotDiff',  label: 'SHOT+/-' }, // the gap = shot-making
   ];
 
-  const PS_COLS = isAdv ? PS_COLS_ADV : isTotals ? [
+  /* REB — the rebounding tab. The parents first, then the shot-value splits, then a pair
+     of columns for every zone on the shot chart. Wide on purpose: the point of the tab is
+     that a rebounder is not one number, and the zones are where that shows. GP and MIN lead
+     so the sample behind a rate is visible before the rate is read — most of these cells
+     rest on a handful of boards. */
+  const PS_COLS_REB = [
+    { key: 'gp',     label: 'GP'  },
+    { key: 'minPG',  label: 'MIN' },
+    { key: 'orPct',  label: 'OR%' },
+    { key: 'drPct',  label: 'DR%' },
+    { key: 'orPct2', label: 'OR% 2PT' },
+    { key: 'drPct2', label: 'DR% 2PT' },
+    { key: 'orPct3', label: 'OR% 3PT' },
+    { key: 'drPct3', label: 'DR% 3PT' },
+    { key: 'orPctFt',label: 'OR% FT'  },
+    { key: 'drPctFt',label: 'DR% FT'  },
+    ...rebZoneList().flatMap((z, i) => ([
+      { key: 'orz' + i, label: z.label + ' OR%' },
+      { key: 'drz' + i, label: z.label + ' DR%' },
+    ])),
+  ];
+
+  const PS_COLS = isReb ? PS_COLS_REB : isAdv ? PS_COLS_ADV : isTotals ? [
     { key: 'record', label: 'W-L'    },
     { key: 'gp',     label: 'GP'     },
     { key: 'min',    label: 'MIN'    },
@@ -9556,7 +9631,8 @@ function renderPlayerTable() {
          tenth, even when the tenth is zero. */
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
           'usgPct','minPctVal','shotPct','ftRate','fg3aRate',
-          'orPct2','orPct3','drPct2','drPct3'].includes(key))
+          'orPct2','orPct3','drPct2','drPct3','orPctFt','drPctFt'].includes(key)
+          || /^(or|dr)z\d+$/.test(key))
         return `<td>${(+v).toFixed(1)}%</td>`;
       /* Backstop for the whole TOT view: counting stats are integers and print as-is, but
          anything accumulated from decimals (minutes today, anything similar later) would
@@ -9579,7 +9655,7 @@ function renderPlayerTable() {
     <div class="page-header">
       <div>
         <div class="page-title">Player Stats</div>
-        <div class="page-subtitle">${rows.length} players · ${isAdv ? 'advanced analytics' : isTotals ? 'season totals' : 'averages per game'}</div>
+        <div class="page-subtitle">${rows.length} players · ${isReb ? 'rebounding by shot type and zone' : isAdv ? 'advanced analytics' : isTotals ? 'season totals' : 'averages per game'}</div>
       </div>
       <div class="ps-filter-bar">
         <select onchange="psSetFilter('period',this.value)">
@@ -9594,9 +9670,10 @@ function renderPlayerTable() {
           ${teamOpts('b','Black')}
         </select>
         <div class="btn-group" style="display:flex;gap:2px;">
-          <button class="btn btn-sm${!isTotals && !isAdv ? ' btn-primary' : ''}" onclick="psSetFilter('view','avg')">AVG</button>
+          <button class="btn btn-sm${!isTotals && !isAdv && !isReb ? ' btn-primary' : ''}" onclick="psSetFilter('view','avg')">AVG</button>
           <button class="btn btn-sm${isTotals ? ' btn-primary' : ''}" onclick="psSetFilter('view','tot')">TOT</button>
           <button class="btn btn-sm${isAdv ? ' btn-primary' : ''}" onclick="psSetFilter('view','adv')">ADV</button>
+          <button class="btn btn-sm${isReb ? ' btn-primary' : ''}" onclick="psSetFilter('view','reb')">REB</button>
         </div>
       </div>
     </div>
