@@ -2199,6 +2199,18 @@
     .sc-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
     .sc-legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); }
 
+    /* WOWY on/off chips + picker */
+    .wowy-picker { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
+    .wowy-slot { min-width:150px; }
+    .wowy-chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px;
+                 font-weight:700; margin:1px 4px 1px 0; white-space:nowrap; }
+    .wowy-on   { background:rgba(34,197,94,0.18);   color:#4ade80;
+                 border:1px solid rgba(34,197,94,0.38); }
+    /* Dimmed, not struck through or hidden: an OFF row is a real observation, and the
+       column has to stay scannable down its length as a pattern, not read as an absence. */
+    .wowy-off  { background:rgba(148,163,184,0.10); color:var(--text-dim);
+                 border:1px solid rgba(148,163,184,0.22); }
+
     /* Zone breakdown table — always dark */
     .zone-table { border-collapse: collapse; width: 100%; }
     .zone-table thead th { background: var(--card); color: #f8fafc; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
@@ -10991,7 +11003,7 @@ function buildDistanceChart(shotEvents, playerName) {
    SEGMENT 5 — LINEUPS + ON/OFF
 ============================================================ */
 
-let seg5Filter = { period: 'all', team: 'both', lineupSize: 5, minPoss: 1 };
+let seg5Filter = { period: 'all', team: 'both', lineupSize: 5, minPoss: 1, mode: 'lineups' };
 
 /* ─────────────────────────────────────────────────────────────
    SHARED HELPERS — compute stats for a set of lineup segments
@@ -11124,6 +11136,260 @@ function segStats(session, segments, team) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   WOWY — With Or Without You
+   ─────────────────────────────────────────────────────────────
+   Pick 2-5 players and see every on/off combination of them: 2^K rows, each carrying the
+   same ORtg / DRtg / NET and four factors the lineup table does, over the stints matching
+   that pattern.
+
+   THE ONE THING THAT MAKES THIS HONEST. In the NBA, "off" means sitting on the bench. In a
+   practice scrimmage it can also mean playing for the OTHER squad — actively guarding the
+   unit being measured — and those are opposite states, not one state. Measured across this
+   data, 59% of all off-floor observations were the man standing on the opposing floor, not
+   resting. Pooling the two would have made most of this table a comparison of White against
+   Black wearing a WOWY label.
+
+   So a practice+squad only contributes if EVERY picked player was on that squad's roster
+   that day. Then "off" can only mean he was on the bench, because he was dressed for this
+   side and simply was not in the five. Squads are redrawn between practices but never
+   within one — checked, and no player appeared for both squads inside any single session —
+   so the roster test is a clean per-practice split rather than an approximation.
+
+   Practices where the picks were split across squads are not silently dropped: the count is
+   reported under the table, because "these three were never on the same side" is the honest
+   answer to some questions and should not be indistinguishable from missing data.
+
+   Everything else is deliberately the lineup table's own machinery — segStats() for the
+   stint arithmetic, the same four-factor formulas — so a WOWY row and a lineup row covering
+   the same stints cannot disagree. */
+
+let wowyPicks = [];
+
+/* Minutes are summed from EXACT seconds, never from the rounded per-group `min`. segStats
+   explains why: rounding each group to a tenth and adding afterwards is what once stopped a
+   player's on-court and off-court minutes adding up to the practice they both came from. */
+function computeWowyRows(sessions, picks, teamsToShow) {
+  const K = picks.length;
+  if (!K) return null;
+  const nPat = 1 << K;
+
+  const blank = () => ({
+    secs: 0, poss: 0, oppPoss: 0, units: 0,
+    pts: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, tov: 0,
+    oppPts: 0, oppFgm: 0, oppFga: 0, oppFg3m: 0, oppFg3a: 0, oppFtm: 0, oppFta: 0,
+    oppOreb: 0, oppDreb: 0, oppTov: 0,
+  });
+  const acc = Array.from({ length: nPat }, blank);
+  let unitsUsed = 0, unitsSplit = 0;
+
+  for (const sess of sessions) {
+    for (const t of teamsToShow) {
+      const listKey = t === 'a' ? 'lineupA' : 'lineupB';
+      const segs = (sess.lineupSegments || [])
+        .filter(g => g.endTimeSecs !== null && (g[listKey] || []).length);
+      if (!segs.length) continue;
+
+      // This squad's roster for this practice — everyone who took the floor for it.
+      const roster = new Set();
+      for (const g of segs) for (const n of (g[listKey] || [])) roster.add(n);
+      if (!picks.every(p => roster.has(p))) { unitsSplit++; continue; }
+      unitsUsed++;
+
+      // Bucket this squad's stints by which of the picks were on the floor.
+      const byPat = {};
+      for (const g of segs) {
+        const on = new Set(g[listKey] || []);
+        let pat = 0;
+        picks.forEach((p, i) => { if (on.has(p)) pat |= (1 << i); });
+        (byPat[pat] = byPat[pat] || []).push(g);
+      }
+
+      for (const pat of Object.keys(byPat)) {
+        const st = segStats(sess, byPat[pat], t);
+        const a = acc[+pat];
+        a.units++;
+        a.secs    += st.secs;
+        a.poss    += st.poss;     a.oppPoss += st.oppPoss;
+        a.pts     += st.pts;      a.fgm     += st.fgm;   a.fga  += st.fga;
+        a.fg3m    += st.fg3m;     a.fg3a    += st.fg3a;
+        a.ftm     += st.ftm;      a.fta     += st.fta;
+        a.oreb    += st.oreb;     a.dreb    += st.dreb;  a.tov  += st.tov;
+        a.oppPts  += st.oppPts;   a.oppFgm  += st.oppFgm;  a.oppFga  += st.oppFga;
+        a.oppFg3m += st.oppFg3m;  a.oppFg3a += st.oppFg3a;
+        a.oppFtm  += st.oppFtm;   a.oppFta  += st.oppFta;
+        a.oppOreb += st.oppOreb;  a.oppDreb += st.oppDreb; a.oppTov += st.oppTov;
+      }
+    }
+  }
+
+  const rows = [];
+  for (let pat = 0; pat < nPat; pat++) {
+    const a = acc[pat];
+    if (a.secs <= 0 && a.poss <= 0) continue;          // a pattern that never took the floor
+    const poss    = Math.max(1, a.poss);
+    const oppPoss = Math.max(1, a.oppPoss);
+    const ortg = +(100 * a.pts    / poss).toFixed(1);
+    const drtg = +(100 * a.oppPts / oppPoss).toFixed(1);
+    rows.push({
+      pat,
+      gp:   a.units,
+      min:  +(a.secs / 60).toFixed(1),
+      poss: +a.poss.toFixed(1),
+      ortg, drtg, net: +(ortg - drtg).toFixed(1),
+      efg:      a.fga > 0 ? +((a.fgm + 0.5 * a.fg3m) / a.fga * 100).toFixed(1) : null,
+      orebPct:  (a.oreb + a.oppDreb) > 0 ? +(100 * a.oreb / (a.oreb + a.oppDreb)).toFixed(1) : null,
+      tovPct:   +(100 * a.tov / poss).toFixed(1),
+      ftr:      a.fga > 0 ? +(a.fta / a.fga * 100).toFixed(1) : null,
+      dEfg:     a.oppFga > 0 ? +((a.oppFgm + 0.5 * a.oppFg3m) / a.oppFga * 100).toFixed(1) : null,
+      dOrebPct: (a.oppOreb + a.dreb) > 0 ? +(100 * a.oppOreb / (a.oppOreb + a.dreb)).toFixed(1) : null,
+      dTovPct:  +(100 * a.oppTov / oppPoss).toFixed(1),
+      dFtr:     a.oppFga > 0 ? +(a.oppFta / a.oppFga * 100).toFixed(1) : null,
+    });
+  }
+  return { rows, unitsUsed, unitsSplit };
+}
+
+/* Everyone who took the floor in scope, for the pick dropdowns. Read off lineupSegments
+   rather than playerStats: a man with a stat line but no logged stint has no on/off to
+   split, and offering him would produce a table of blanks. */
+function _wowyRoster(sessions, teamsToShow) {
+  const out = new Set();
+  for (const sess of sessions)
+    for (const t of teamsToShow)
+      for (const g of (sess.lineupSegments || []))
+        if (g.endTimeSecs !== null)
+          for (const n of (g[t === 'a' ? 'lineupA' : 'lineupB'] || []))
+            if (!isHiddenPlayer(n)) out.add(n);
+  return [...out].sort();
+}
+
+function wowySetPick(i, name) {
+  if (name) wowyPicks[i] = name; else wowyPicks.splice(i, 1);
+  wowyPicks = wowyPicks.filter(Boolean);
+  renderLineupsView();
+}
+function wowyClearPicks()     { wowyPicks = []; renderLineupsView(); }
+
+/* The split sizes itself: however many men are picked, that is the K in 2^K. There is no
+   size selector to keep in step with the picks — pick a fourth and the table becomes a
+   sixteen-row split on its own; clear one and it falls back to eight.
+
+   Picks are compacted first, so clearing the middle slot closes the gap rather than leaving
+   a hole that the next render would read as an empty pick. One spare slot always trails the
+   chosen men, up to five, which is the whole "add another" affordance. */
+function _wowyPickerHtml(roster) {
+  wowyPicks = wowyPicks.filter(n => n && roster.includes(n));
+  const slots = (wowyPicks.length < 5 ? [...wowyPicks, ''] : [...wowyPicks]).map((mine, i) => {
+    /* A name already taken in another slot is dropped from this one — the same player twice
+       is not a combination, and 2^K assumes K distinct men. */
+    const taken = wowyPicks.filter((n, j) => j !== i);
+    const opts = roster.filter(n => n === mine || !taken.includes(n))
+      .map(n => '<option value="' + escHtml(n) + '"' + (n === mine ? ' selected' : '') + '>' + escHtml(n) + '</option>')
+      .join('');
+    return '<select class="wowy-slot" onchange="wowySetPick(' + i + ', this.value)">' +
+           '<option value="">' + (mine ? '— remove —' : 'Add a player…') + '</option>' +
+           opts + '</select>';
+  }).join('');
+  return '<div class="wowy-picker">' + slots +
+    '<button class="btn btn-sm btn-ghost" onclick="wowyClearPicks()"' +
+    (wowyPicks.length ? '' : ' disabled') + '>Clear</button></div>';
+}
+
+function _wowyRowHtml(r, picks) {
+  const chips = picks.map((n, i) => {
+    const on = !!(r.pat & (1 << i));
+    const parts = n.trim().split(/\s+/);
+    const short = parts.length > 1 ? parts[parts.length - 1] : n;
+    return '<span class="wowy-chip ' + (on ? 'wowy-on' : 'wowy-off') +
+           '" title="' + escHtml(n) + (on ? ' ON' : ' OFF') + '">' + escHtml(short) + '</span>';
+  }).join('');
+  const netStr = (r.net > 0 ? '+' : '') + (+r.net).toFixed(1);
+  return '<tr>' +
+    '<td class="lineup-key">' + chips + '</td>' +
+    '<td>' + r.gp + '</td>' +
+    '<td>' + (+r.min).toFixed(1) + '\'</td>' +
+    '<td>' + Math.round(r.poss) + '</td>' +
+    '<td>' + (r.ortg != null ? (+r.ortg).toFixed(1) : '—') + '</td>' +
+    '<td>' + (r.drtg != null ? (+r.drtg).toFixed(1) : '—') + '</td>' +
+    '<td><strong>' + netStr + '</strong></td>' +
+    '<td>' + luCell(r.efg, '%') + '</td>' +
+    '<td>' + luCell(r.orebPct, '%') + '</td>' +
+    '<td>' + luCell(r.tovPct, '%') + '</td>' +
+    '<td>' + luCell(r.ftr, '%') + '</td>' +
+    '<td class="lu-def-sep">' + luCell(r.dEfg, '%') + '</td>' +
+    '<td>' + luCell(r.dOrebPct, '%') + '</td>' +
+    '<td>' + luCell(r.dTovPct, '%') + '</td>' +
+    '<td>' + luCell(r.dFtr, '%') + '</td>' +
+  '</tr>';
+}
+
+const _WOWY_HEAD = [
+  ['gp','GP'], ['min','MIN'], ['poss','POSS'], ['ortg','ORTG'], ['drtg','DRTG'], ['net','NET'],
+  ['efg','EFG%','off'], ['orebPct','OREB%','off'], ['tovPct','TO%','off'], ['ftr','FTR','off'],
+  ['dEfg','D-EFG%','sep'], ['dOrebPct','D-OREB%','def'], ['dTovPct','D-TO%','def'], ['dFtr','D-FTR','def'],
+];
+
+function renderWowyInto(root, filtered, teamsToShow) {
+  const roster = _wowyRoster(filtered, teamsToShow);
+  const pickerHtml = _wowyPickerHtml(roster);
+  const picks = wowyPicks.filter(Boolean);
+
+  const header =
+    '<div class="page-header"><div>' +
+      '<div class="page-title">WOWY</div>' +
+      '<div class="page-subtitle">' +
+        (picks.length >= 2
+          ? picks.length + '-man split · ' + (1 << picks.length) + ' on/off combinations'
+          : 'With Or Without You — add players and the split sizes itself') +
+      '</div>' +
+    '</div>' + _lineupsFilterBar(filtered) + '</div>' + pickerHtml;
+
+  if (picks.length < 2) {
+    root.innerHTML = header +
+      '<div class="placeholder" style="margin-top:20px;"><div>' +
+      'Pick at least two players to split the stints by who was on the floor.</div></div>';
+    return;
+  }
+
+  const res  = computeWowyRows(filtered, picks, teamsToShow);
+  const rows = _luSortRows(res.rows);
+
+  if (!rows.length) {
+    root.innerHTML = header +
+      '<div class="placeholder" style="margin-top:20px;"><div>These ' + picks.length +
+      ' were never on the same squad in the practices in scope, so there is nothing to split.' +
+      '</div></div>';
+    return;
+  }
+
+  const heads = _WOWY_HEAD.map(([k, lbl, cls]) => {
+    const c = cls === 'off' ? ' class="lu-th-off"'
+            : cls === 'sep' ? ' class="lu-th-def lu-def-sep"'
+            : cls === 'def' ? ' class="lu-th-def"' : '';
+    return '<th' + c + ' style="cursor:pointer;" onclick="lineupSort(\'' + k + '\')">' +
+           lbl + '<span id="lu-arrow-' + k + '"></span></th>';
+  }).join('');
+
+  const splitNote = res.unitsSplit
+    ? ' ' + res.unitsSplit + ' practice-squad' + (res.unitsSplit === 1 ? '' : 's') +
+      ' excluded, where they were not all on the same side.'
+    : '';
+
+  root.innerHTML = header +
+    '<div class="table-wrap" style="margin-top:12px;"><table class="lu-table"><thead><tr>' +
+      '<th style="text-align:left;min-width:200px;">ON / OFF</th>' + heads +
+    '</tr></thead><tbody>' + rows.map(r => _wowyRowHtml(r, picks)).join('') + '</tbody></table></div>' +
+    '<div style="margin-top:10px;font-size:11px;color:var(--text-dim);">' +
+      rows.length + ' of ' + (1 << picks.length) + ' combinations occurred; the rest never took the floor.' +
+      splitNote +
+      ' Only practices where all ' + picks.length + ' dressed for the same squad are counted, so OFF means he sat — not that he was on the other side.' +
+      ' Ratings per 100 possessions. Blue = offense, orange = defense.' +
+    '</div>';
+
+  _luUpdateArrows();
+}
+
+/* ─────────────────────────────────────────────────────────────
    LINEUPS TAB
 ───────────────────────────────────────────────────────────── */
 tabRenderers.lineups = function() {
@@ -11148,6 +11414,10 @@ function _lineupsFilterBar(filtered) {
           <option value="a" ${seg5Filter.team==='a'?'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
           <option value="b" ${seg5Filter.team==='b'?'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
         </select>
+        <div class="btn-group" style="display:flex;gap:2px;">
+          <button class="btn btn-sm${seg5Filter.mode !== 'wowy' ? ' btn-primary' : ''}" onclick="seg5SetFilter('mode','lineups')">LINEUPS</button>
+          <button class="btn btn-sm${seg5Filter.mode === 'wowy' ? ' btn-primary' : ''}" onclick="seg5SetFilter('mode','wowy')">WOWY</button>
+        </div>
         <select onchange="seg5SetFilter('lineupSize',this.value)">
           <option value="2" ${size===2?'selected':''}>2-Man</option>
           <option value="3" ${size===3?'selected':''}>3-Man</option>
@@ -11177,6 +11447,10 @@ function renderLineupsView() {
   const team = seg5Filter.team; // 'a' | 'b' | 'both'
   const teamsToShow = (team === 'both') ? ['a', 'b'] : [team === 'all' ? 'a' : team];
   const size = Number(seg5Filter.lineupSize) || 5;
+
+  /* WOWY reuses everything above — the same scoped sessions, the same squad selection and
+     the same size selector — and then splits by on/off instead of by exact personnel. */
+  if (seg5Filter.mode === 'wowy') { renderWowyInto(root, filtered, teamsToShow); return; }
 
   // Helper: all k-size combinations from an array
   function combinations(arr, k) {
