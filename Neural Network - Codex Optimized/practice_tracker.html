@@ -2690,6 +2690,21 @@
        the green effectively invisible. Same hues, carried down to 5.14:1 and 4.87:1. */
     .oo-imp-tbl tbody td.oo-imp-good { color: var(--success-onlight); }
     .oo-imp-tbl tbody td.oo-imp-bad  { color: var(--danger-onlight); }
+    /* REB's table stands alone instead of sitting in the four-up grid the On/Off panels
+       use, so the inherited width:100% stretched it across the whole page and the label
+       column swallowed every spare pixel — a 28-character label in a 900px cell.
+
+       Capped to roughly what the content needs, with table-layout:fixed so the three number
+       columns take equal shares and align down the page instead of each row sizing itself.
+       Percentages rather than pixels so the card still shrinks on a phone, and the label is
+       allowed to wrap there rather than spilling out of its cell. */
+    .reb-ww-card { max-width: 580px; }
+    .reb-ww { table-layout: fixed; }
+    .reb-ww thead th:first-child,
+    .reb-ww tbody th { width: 46%; white-space: normal; }
+    .reb-ww thead th:not(:first-child),
+    .reb-ww tbody td { width: 18%; }
+
     @media (max-width: 1100px) { .oo-imp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px)  { .oo-imp-grid { grid-template-columns: 1fr; } .oo-imp-note { text-align: left; } }
 
@@ -9690,17 +9705,19 @@ function renderPlayerTable() {
              `<td class="oo-imp-on">${fmt(on)}</td>` +
              `<td class="oo-imp-off">${fmt(off)}</td>${diff}</tr>`;
     }).join('');
-    return `<div class="oo-imp-card" style="margin-top:12px;">
+    return `<div class="oo-imp-card reb-ww-card" style="margin-top:12px;">
         <div class="oo-imp-head">
           <span class="oo-imp-name">${escHtml(rebPlayer)}</span>
           <span class="oo-imp-sub">${W.minPct.toFixed(0)}% min &middot; ${W.practices} practice${W.practices === 1 ? '' : 's'}
             &middot; ${Math.round(W.onBoards)} boards on / ${Math.round(W.offBoards)} off</span>
         </div>
-        <table class="oo-imp-tbl reb-ww"><thead><tr>
-          <th>Rebounding</th><th>With</th><th>Without</th><th>Diff</th>
-        </tr></thead><tbody>${rows}</tbody></table>
+        <div class="oo-imp-grid" style="grid-template-columns:1fr;">
+          <table class="oo-imp-tbl reb-ww"><thead><tr>
+            <th>Rebounding</th><th>With</th><th>Without</th><th>Diff</th>
+          </tr></thead><tbody>${rows}</tbody></table>
+        </div>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--text-dim);">
+      <div style="max-width:580px;margin-top:10px;font-size:11px;color:var(--text-dim);">
         Every row is a <strong>team</strong> rate with ${escHtml(rebPlayer)} on the floor vs. off it.
         Diff = with minus without; green = the team rebounded better with him on.
         A dash means fewer than one board of that kind came up in that split.
