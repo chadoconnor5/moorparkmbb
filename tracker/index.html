@@ -3449,7 +3449,7 @@
        screen to follow one arc. */
     .hk-wrap { display: block; }
     .hk-graph {
-      width: 100%; max-width: 640px; margin: 0 auto 16px;
+      width: 100%; max-width: 780px; margin: 0 auto 16px;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-lg); padding: 8px 10px 4px;
     }
@@ -3472,8 +3472,9 @@
     .hk-node-lbl  { fill: #00395f; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
     /* The rest-of-team satellites: deliberately small and grey so they never read as players.
        They stand for a group, and a gold bubble the size of the others would say otherwise. */
-    .hk-rest      { fill: var(--card-hover); stroke: var(--border-light); stroke-width: 1.5; }
-    .hk-edge-rest { stroke-dasharray: 4 3; }
+    .hk-rest      { fill: var(--card-hover); stroke: var(--border-light); stroke-width: 2; }
+    .hk-rest-g    { cursor: pointer; }
+    .hk-edge-rest { stroke-dasharray: 6 4; }
     .hk-edge      { fill: none; stroke: var(--text-secondary); transition: stroke-opacity .12s; }
     .hk-node-g    { cursor: pointer; }
     /* Counts ride the arcs but stay invisible until a bubble is hovered - printed always,
@@ -11899,8 +11900,11 @@ function hkGraphSvg(rows, given, got) {
   });
   const hasRest = n => hkShowRest && ((restOut[n] || 0) + (restIn[n] || 0)) > 0;
 
-  const W = 760, H = 490, cx = W / 2, cy = H / 2, RX = 252, RY = 150;
-  const SAT = 1.34;                       // satellite ring, just outside the players
+  const W = 880, H = 580, cx = W / 2, cy = H / 2, RX = 286, RY = 182;
+  /* Satellites sit further out and are far bigger than the 9px they started at - at that
+     size they were almost impossible to land a cursor on, so their tooltips never appeared,
+     and the hop to them was too short to show a line. */
+  const SAT = 1.42, SATR = 17;
   const maxInv = Math.max.apply(null, names.map(n => invol[n]));
   const maxHup = Math.max.apply(null, edges.map(e => e.hup).concat([1]));
   const pos = {}, sat = {}, ang = {};
@@ -11908,7 +11912,7 @@ function hkGraphSvg(rows, given, got) {
     const th = (-Math.PI / 2) + (2 * Math.PI * i / names.length);
     ang[n] = th;
     pos[n] = { x: cx + RX * Math.cos(th), y: cy + RY * Math.sin(th), r: 18 + 14 * (invol[n] / maxInv) };
-    sat[n] = { x: cx + RX * SAT * Math.cos(th), y: cy + RY * SAT * Math.sin(th), r: 9 };
+    sat[n] = { x: cx + RX * SAT * Math.cos(th), y: cy + RY * SAT * Math.sin(th), r: SATR };
   });
 
   /* Each direction gets its own lane. Bowing the curve alone was not enough: both arcs still
@@ -11916,7 +11920,7 @@ function hkGraphSvg(rows, given, got) {
      read as a single line with an arrowhead stuck on either side - given and received looked
      like the same path. Pushing the attachment points sideways along the perpendicular fixes
      it, because that vector flips with the direction of travel. */
-  function arc(p1, p2, hup, aName, scName, cls, bow, showLabel) {
+  function arc(p1, p2, hup, aName, scName, cls, bow, showLabel, style) {
     const dx = p2.x - p1.x, dy = p2.y - p1.y, d = Math.hypot(dx, dy) || 1;
     const ux = dx / d, uy = dy / d;
     const px = -uy, py = ux;
@@ -11931,8 +11935,8 @@ function hkGraphSvg(rows, given, got) {
        assists, so the picture flattened everything into "some lines". Squaring the ratio
        holds the one-offs thin and lets a real partnership stand out at a glance. */
     const k = hup / maxHup;
-    const w = 0.7 + 9 * k * k + 1.6 * k;
-    const op = 0.28 + 0.62 * k;
+    const w = style ? style.w : 0.7 + 9 * k * k + 1.6 * k;
+    const op = style ? style.op : 0.28 + 0.62 * k;
     return '<g data-a="' + escHtml(aName) + '" data-sc="' + escHtml(scName) + '">' +
       '<path class="hk-edge' + (cls ? ' ' + cls : '') + '" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
       ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + ex.toFixed(1) + ',' + ey.toFixed(1) +
@@ -11954,8 +11958,12 @@ function hkGraphSvg(rows, given, got) {
   const restPaths = names.filter(hasRest).map(n => {
     const label = 'Rest of team';
     let out = '';
-    if (restOut[n]) out += arc(pos[n], sat[n], restOut[n], n, label, 'hk-edge-rest', 0.10, true);
-    if (restIn[n]) out += arc(sat[n], pos[n], restIn[n], label, n, 'hk-edge-rest', 0.10, true);
+    /* Rest lines get a floor rather than the shared scale. One assist to the bench is a real
+       connection, but scaled against the heaviest pairing on the board it drew at 1.4px and
+       40% opacity - dashed, over a short hop, which is to say invisible. */
+    const rw = h => ({ w: Math.max(2.6, 0.7 + 9 * (h / maxHup) ** 2 + 1.6 * (h / maxHup)), op: 0.85 });
+    if (restOut[n]) out += arc(pos[n], sat[n], restOut[n], n, label, 'hk-edge-rest', 0.10, true, rw(restOut[n]));
+    if (restIn[n]) out += arc(sat[n], pos[n], restIn[n], label, n, 'hk-edge-rest', 0.10, true, rw(restIn[n]));
     return out;
   }).join('');
 
@@ -11964,7 +11972,9 @@ function hkGraphSvg(rows, given, got) {
     const parts = [];
     if (restOut[n]) parts.push(restOut[n] + ' assist' + (restOut[n] === 1 ? '' : 's') + ' to team');
     if (restIn[n]) parts.push(restIn[n] + ' received');
-    return '<g data-node="' + escHtml(n) + '-rest" class="hk-rest-g">' +
+    return '<g data-node="' + escHtml(n) + '-rest" class="hk-rest-g"' +
+      ' onmouseenter="hkFocus(\'' + jsQuote(n) + '\')" onmouseleave="hkBlur()"' +
+      ' onclick="hkFocus(\'' + jsQuote(n) + '\')">' +
       '<title>' + escHtml(n) + ' — rest of team: ' + escHtml(parts.join(', ')) + '</title>' +
       '<circle class="hk-rest" cx="' + s.x.toFixed(1) + '" cy="' + s.y.toFixed(1) +
       '" r="' + s.r + '"/></g>';
