@@ -2210,6 +2210,11 @@
     .wowy-chip { display:inline-block; padding:2px 8px; border-radius:3px; font-size:11px;
                  font-weight:700; margin:1px 4px 1px 0; white-space:nowrap; color:#0b0f1a; }
     .wowy-on   { background:#4ade80; border:1px solid #22c55e; }
+    /* A combination that never happened stays legible but recedes - context for the rows
+       above it, not a result competing with them. Chips keep full colour so the on/off
+       pattern is still readable at a glance. */
+    .wowy-never td { opacity:0.45; }
+    .wowy-never .wowy-chip { opacity:1; }
     .wowy-off  { background:#f87171; border:1px solid #ef4444; }
 
     /* Zone breakdown table — always dark */
@@ -11226,7 +11231,18 @@ function computeWowyRows(sessions, picks, teamsToShow) {
   const rows = [];
   for (let pat = 0; pat < nPat; pat++) {
     const a = acc[pat];
-    if (a.secs <= 0 && a.poss <= 0) continue;          // a pattern that never took the floor
+    /* Every combination gets a row, including the ones that never took the floor. Dropping
+       them made the table a different shape for every set of picks and left the reader to
+       work out which of the 2^K were missing - and "these three were never off together"
+       is a fact about the rotation, not an absence of data. A five-man squad cannot put any
+       of three men on the bench at once, and that is worth seeing stated. Rates are null
+       rather than zero, so the row reads as "never happened", not "scored nothing". */
+    if (a.secs <= 0 && a.poss <= 0) {
+      rows.push({ pat, never: true, gp: 0, min: 0, poss: 0,
+                  ortg: null, drtg: null, net: null, efg: null, orebPct: null, tovPct: null,
+                  ftr: null, dEfg: null, dOrebPct: null, dTovPct: null, dFtr: null });
+      continue;
+    }
     const poss    = Math.max(1, a.poss);
     const oppPoss = Math.max(1, a.oppPoss);
     const ortg = +(100 * a.pts    / poss).toFixed(1);
@@ -11304,12 +11320,12 @@ function _wowyRowHtml(r, picks) {
     return '<span class="wowy-chip ' + (on ? 'wowy-on' : 'wowy-off') +
            '" title="' + escHtml(n) + (on ? ' ON' : ' OFF') + '">' + escHtml(short) + '</span>';
   }).join('');
-  const netStr = (r.net > 0 ? '+' : '') + (+r.net).toFixed(1);
-  return '<tr>' +
+  const netStr = r.net == null ? '—' : (r.net > 0 ? '+' : '') + (+r.net).toFixed(1);
+  return '<tr' + (r.never ? ' class="wowy-never"' : '') + '>' +
     '<td class="lineup-key">' + chips + '</td>' +
-    '<td>' + r.gp + '</td>' +
-    '<td>' + (+r.min).toFixed(1) + '\'</td>' +
-    '<td>' + Math.round(r.poss) + '</td>' +
+    '<td>' + (r.never ? '—' : r.gp) + '</td>' +
+    '<td>' + (r.never ? '—' : (+r.min).toFixed(1) + "'") + '</td>' +
+    '<td>' + (r.never ? '—' : Math.round(r.poss)) + '</td>' +
     '<td>' + (r.ortg != null ? (+r.ortg).toFixed(1) : '—') + '</td>' +
     '<td>' + (r.drtg != null ? (+r.drtg).toFixed(1) : '—') + '</td>' +
     '<td><strong>' + netStr + '</strong></td>' +
@@ -11381,7 +11397,8 @@ function renderWowyInto(root, filtered, teamsToShow) {
       '<th style="text-align:left;min-width:200px;">ON / OFF</th>' + heads +
     '</tr></thead><tbody>' + rows.map(r => _wowyRowHtml(r, picks)).join('') + '</tbody></table></div>' +
     '<div style="margin-top:10px;font-size:11px;color:var(--text-dim);">' +
-      rows.length + ' of ' + (1 << picks.length) + ' combinations occurred; the rest never took the floor.' +
+      res.rows.filter(r => !r.never).length + ' of ' + (1 << picks.length) +
+      ' combinations took the floor; the rest are shown dimmed, with no stints behind them.' +
       splitNote +
       ' Only practices where all ' + picks.length + ' dressed for the same squad are counted, so OFF means he sat — not that he was on the other side.' +
       ' Ratings per 100 possessions. Blue = offense, orange = defense.' +
