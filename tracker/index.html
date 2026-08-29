@@ -3443,12 +3443,13 @@
     /* ============================================================
        CONNECTIONS (assist network)
     ============================================================ */
-    /* Graph above the table, full width. Beside it the circle had to shrink to 380px and
-       the arcs crowded into a knot; given the whole width it can spread onto an ellipse and
-       the connections separate. */
+    /* Above the table, but capped rather than stretched to it. The table is as wide as the
+       page and the network does not need to be: past about 640px the bubbles just drift
+       further apart without any more becoming legible, and the eye has to travel the whole
+       screen to follow one arc. */
     .hk-wrap { display: block; }
     .hk-graph {
-      width: 100%; margin-bottom: 16px;
+      width: 100%; max-width: 640px; margin-bottom: 16px;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-lg); padding: 8px 10px 4px;
     }
@@ -11869,9 +11870,9 @@ function hkGraphSvg(rows, given, got) {
   const keep = new Set(names);
   const edges = rows.filter(r => keep.has(r.a) && keep.has(r.sc));
 
-  /* Ellipse, not a circle: the panel is far wider than it is tall now, and seating players
-     on a circle inside it would waste the width and leave the arcs bunched. */
-  const W = 900, H = 470, cx = W / 2, cy = H / 2, RX = 352, RY = 178;
+  /* A gentle ellipse. The panel is wider than it is tall but not by much now it is capped,
+     so the seats only need to spread enough to use the extra width. */
+  const W = 720, H = 450, cx = W / 2, cy = H / 2, RX = 278, RY = 168;
   const maxInv = Math.max.apply(null, names.map(n => invol[n]));
   const maxHup = Math.max.apply(null, edges.map(e => e.hup).concat([1]));
   const pos = {};
