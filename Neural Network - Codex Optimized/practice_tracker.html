@@ -3483,9 +3483,9 @@
        48 of them would bury the picture they are meant to explain. paint-order gives each
        one a halo of the panel colour so it reads where arcs cross underneath it. */
     .hk-edge-lbl {
-      fill: var(--text); font-size: 13px; font-weight: 800; text-anchor: middle;
+      fill: var(--text); font-size: 17px; font-weight: 800; text-anchor: middle;
       dominant-baseline: middle; opacity: 0; pointer-events: none;
-      paint-order: stroke; stroke: var(--surface); stroke-width: 3px;
+      paint-order: stroke; stroke: var(--surface); stroke-width: 4px;
     }
     svg.is-focused g.hk-off  { opacity: 0.10; }
     svg.is-focused g.hk-on .hk-edge { stroke: #005695; stroke-opacity: 1; }
@@ -11986,8 +11986,11 @@ function hkGraphSvg(rows, given, got) {
         '"><title>' + escHtml(aName) + ' → ' + escHtml(scName) +
         ': ' + hup + '</title></path>' +
         '<polygon class="hk-head" points="' + head + '" fill-opacity="' + op.toFixed(2) + '"/></g>',
-      label: '<g' + attrs + '><text class="hk-edge-lbl" x="' + lx.toFixed(1) +
-        '" y="' + ly.toFixed(1) + '">' + hup + '</text></g>',
+      /* Position only. The finished markup waits until every label is placed, because
+         whether this one has to move depends on where all the others landed. Nudged off the
+         curve along the perpendicular so it sits beside its line rather than on top of it. */
+      lbl: { x: lx + px * 11, y: ly + py * 11, ox: lx + px * 11, oy: ly + py * 11,
+             text: String(hup), attrs: attrs },
     };
   }
 
@@ -12043,12 +12046,46 @@ function hkGraphSvg(rows, given, got) {
     : '<div class="hk-graph-note">Every pairing in the table is drawn.</div>';
 
   const all = playerArcs.concat(restArcs);
+
+  /* Push overlapping counts apart. Two arcs running close together put their numbers on top
+     of each other and both become unreadable - worse than either being absent, because a
+     half-covered 4 over a 1 can be read as neither. A few rounds of relaxation: any pair
+     closer than MIN gets shoved apart along the line between them, then each is pulled back
+     inside a short leash of where its own arc actually is, so a label can dodge a neighbour
+     without drifting off and belonging to nobody. */
+  const labels = all.map(x => x.lbl);
+  const MIN = 21, LEASH = 17;
+  for (let iter = 0; iter < 80; iter++) {
+    let moved = false;
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        const a = labels[i], b = labels[j];
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= MIN) continue;
+        if (dist < 0.01) { dx = 1; dy = 0; dist = 1; }
+        const push = (MIN - dist) / 2 + 0.05;
+        dx /= dist; dy /= dist;
+        a.x -= dx * push; a.y -= dy * push;
+        b.x += dx * push; b.y += dy * push;
+        moved = true;
+      }
+    }
+    labels.forEach(l => {
+      const dx = l.x - l.ox, dy = l.y - l.oy, d = Math.hypot(dx, dy);
+      if (d > LEASH) { l.x = l.ox + dx / d * LEASH; l.y = l.oy + dy / d * LEASH; }
+    });
+    if (!moved) break;
+  }
+  const labelMarkup = labels.map(l =>
+    '<g' + l.attrs + '><text class="hk-edge-lbl" x="' + l.x.toFixed(1) +
+    '" y="' + l.y.toFixed(1) + '">' + l.text + '</text></g>').join('');
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Assist network"' +
     ' onmouseleave="hkBlur()">' +
     '' +
     all.map(x => x.path).join('') +
     restNodes + nodes +
-    all.map(x => x.label).join('') +
+    labelMarkup +
     '</svg>' + note;
 }
 
