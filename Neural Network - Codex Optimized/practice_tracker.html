@@ -2231,49 +2231,6 @@
     .wowy-never .wowy-chip { opacity:1; }
     .wowy-off  { background:#f87171; border:1px solid #ef4444; }
 
-    /* REB is transposed and must fit every player across one screen, so its cells are
-       tighter than the other tables and its headers carry last names only. */
-    #ps-main-table.reb-t th,
-    #ps-main-table.reb-t td { padding: 4px 7px; font-size: 11.5px; white-space: nowrap; }
-
-    /* Player names head the COLUMNS here, and the header strip is dark. The shared
-       .player-link blue is a link colour meant for the light table body; on this strip it
-       was the lowest-contrast text on the page. Names take the header's own near-white and
-       keep the blue for hover, where it reads as affordance rather than as body text. */
-    #ps-main-table.reb-t thead th {
-      text-align: center;
-      /* Names are not uppercase words. Capitals cost width and legibility on surnames like
-         Singletary-Jinks, and this table is spending every pixel on fitting the squad. */
-      text-transform: none;
-      letter-spacing: 0;
-      padding: 7px 7px;
-    }
-    #ps-main-table.reb-t thead th .player-link { color: #f8fafc; font-weight: 700; }
-    #ps-main-table.reb-t thead th .player-link:hover { color: var(--primary); text-decoration: underline; }
-
-    /* The label column is the only wide one, and it is what the eye tracks down, so it keeps
-       the zone's real name rather than an abbreviation invented for this table. */
-    #ps-main-table.reb-t tbody td:first-child {
-      text-align: left; font-weight: 700; cursor: pointer; min-width: 140px;
-    }
-    #ps-main-table.reb-t tbody td:first-child:hover { color: var(--primary); }
-
-    /* Most of this grid is 0.0% and em-dashes — 432 of its 684 cells. Muting them lets the
-       numbers that mean something carry the eye across seventeen columns instead of drowning
-       in the ones that do not.
-
-       Muted, not hidden: measured at 4.64:1 on the grey row band and 6.54:1 on the white
-       one, so both clear AA while still reading as clearly secondary to the near-black of a
-       real value. The first pass used #8b95a6, which came out at 2.14:1 — that is not
-       de-emphasis, that is a number the reader cannot check. */
-    #ps-main-table.reb-t tbody td.reb-dim { color: #565e6b; font-weight: 400; }
-
-    /* Each zone's OR and DR are a pair; the hairline groups them so a long scan down the
-       label column does not lose which two rows belong together. The heavier rule marks
-       where the season-wide splits end and the zone breakdown begins. */
-    #ps-main-table.reb-t tbody tr.reb-grp  td { border-top: 1px solid rgba(0,0,0,0.16); }
-    #ps-main-table.reb-t tbody tr.reb-band td { border-top: 2px solid #4a5568; }
-
     /* Zone breakdown table — always dark */
     .zone-table { border-collapse: collapse; width: 100%; }
     .zone-table thead th { background: var(--card); color: #f8fafc; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
@@ -9511,6 +9468,10 @@ function renderPlayerTable() {
   const root = document.getElementById('players-root');
   if (!root) return;
   const rows = aggregatePlayerStats(psFilter.period, psFilter.team);
+  /* REB reads stints rather than the aggregated rows, so it needs the sessions themselves —
+     scoped by the same period filter the table above uses. */
+  const rebScoped = getSessions().filter(s => s.completed && !s.excludeFromStats)
+                                 .filter(s => sessionInScope(s, psFilter.period));
   // Empty message stays INSIDE the layout so the filter bar never disappears (otherwise a
   // filter with no data would leave the user stuck with no way to switch back).
   const emptyMsg = (psFilter.period === 'all' && psFilter.team === 'all')
@@ -9575,30 +9536,7 @@ function renderPlayerTable() {
     { key: 'shotDiff',  label: 'SHOT+/-' }, // the gap = shot-making
   ];
 
-  /* REB — the rebounding tab. The parents first, then the shot-value splits, then a pair
-     of columns for every zone on the shot chart. Wide on purpose: the point of the tab is
-     that a rebounder is not one number, and the zones are where that shows. GP and MIN lead
-     so the sample behind a rate is visible before the rate is read — most of these cells
-     rest on a handful of boards. */
-  const PS_COLS_REB = [
-    { key: 'gp',     label: 'GP'  },
-    { key: 'minPG',  label: 'MIN' },
-    { key: 'orPct',  label: 'OR%' },
-    { key: 'drPct',  label: 'DR%' },
-    { key: 'orPct2', label: 'OR% 2PT' },
-    { key: 'drPct2', label: 'DR% 2PT' },
-    { key: 'orPct3', label: 'OR% 3PT' },
-    { key: 'drPct3', label: 'DR% 3PT' },
-    { key: 'orPctFt',label: 'OR% FT'  },
-    { key: 'drPctFt',label: 'DR% FT'  },
-    ...rebZoneList().flatMap((z, i) => ([
-      // band the first zone off from the season splits above it; hairline each pair after
-      { key: 'orz' + i, label: z.label + ' OR%', grp: i === 0 ? 'band' : 'grp' },
-      { key: 'drz' + i, label: z.label + ' DR%' },
-    ])),
-  ];
-
-  const PS_COLS = isReb ? PS_COLS_REB : isAdv ? PS_COLS_ADV : isTotals ? [
+  const PS_COLS = isAdv ? PS_COLS_ADV : isTotals ? [
     { key: 'record', label: 'W-L'    },
     { key: 'gp',     label: 'GP'     },
     { key: 'min',    label: 'MIN'    },
@@ -9709,63 +9647,65 @@ function renderPlayerTable() {
       ${PS_COLS.map(c => cell(r, c.key)).join('')}
     </tr>`).join('');
 
-  /* ── REB is transposed ──────────────────────────────────────────────────────
-     Metrics down the side, players across the top. Upright it was 39 columns and every
-     player needed a horizontal scroll to read; on its side the long axis is the one the
-     screen has, and the whole squad fits at once.
+  /* ── REB: one player, With / Without / Diff ──────────────────────────────────
+     Rebounding asked the way pbpstats asks it. Every row is a TEAM rate — what the floor
+     rebounded while this man was on it, what it rebounded while he sat, and the gap. That
+     is a different question from the one the rest of Player Stats answers, and a more
+     useful one about a rebounder: a man can post a fine personal DR% on a team that
+     rebounds worse whenever he plays.
 
-     Headers carry last names only, which is what makes them fit. Collisions are disambig-
-     uated with a first initial rather than left to sit as two identical columns — the roster
-     has none today, but a table that silently shows the wrong man later is worse than one
-     that is slightly wider now. Full names stay in the title attribute either way.
-
-     Clicking a ROW label sorts the player columns by that row, which is the transposed
-     equivalent of clicking a column header — "who rebounds Bottom Key Left best" is the
-     question this layout exists to answer. */
-  const rebShort = (() => {
-    const last = n => { const p = String(n).trim().split(/\s+/); return p.length > 1 ? p[p.length - 1] : n; };
-    const seen = {};
-    rows.forEach(r => { const l = last(r.name); seen[l] = (seen[l] || 0) + 1; });
-    const out = {};
-    rows.forEach(r => {
-      const l = last(r.name);
-      out[r.name] = seen[l] > 1 ? String(r.name).trim().charAt(0) + '. ' + l : l;
-    });
-    return out;
+     The stint split comes from ooSplitStints(), the same function On/Off uses, so the two
+     tabs cannot end up partitioning the floor differently. */
+  const rebRoster = (() => {
+    const t = psFilter.team, all = t === 'all' || t === 'both';
+    const out = new Set();
+    for (const s of rebScoped)
+      for (const p of (s.playerStats || []))
+        if ((all || p.team === t) && !isHiddenPlayer(p.name)) out.add(p.name);
+    return [...out].sort();
   })();
+  if (!rebRoster.includes(rebPlayer)) rebPlayer = rebRoster[0] || null;
 
-  const rebOrdered = [...rows].sort((a, b) => {
-    const av = a[rebSort.key], bv = b[rebSort.key];
-    if (av == null && bv == null) return 0;
-    if (av == null) return 1;                     // blanks last, whichever way it is sorted
-    if (bv == null) return -1;
-    return (av - bv) * rebSort.dir;
-  });
+  const rebPickerHtml = rebRoster.length
+    ? `<select onchange="rebSetPlayer(this.value)">` + rebRoster.map(n =>
+        `<option value="${escHtml(n)}"${n === rebPlayer ? ' selected' : ''}>${escHtml(n)}</option>`
+      ).join('') + `</select>`
+    : '';
 
-  const rebArrow = k => rebSort.key === k ? (rebSort.dir === 1 ? ' ↑' : ' ↓') : '';
-
-  const rebTableHtml = `<div class="table-wrap">
-      <table id="ps-main-table" class="reb-t">
-        <thead><tr>
-          <th style="text-align:left;">REBOUND %</th>
-          ${rebOrdered.map(r => `<th title="${escHtml(r.name)}"><span class="player-link" onclick="psOpenProfile('${jsQuote(r.name)}')">${escHtml(rebShort[r.name])}</span></th>`).join('')}
-        </tr></thead>
-        <tbody>
-          ${PS_COLS_REB.map(c => `<tr class="${c.grp ? 'reb-' + c.grp : ''}">
-            <td onclick="rebSortBy('${c.key}')" title="Sort players by ${escHtml(c.label)}">${escHtml(c.label)}${rebArrow(c.key)}</td>
-            ${rebOrdered.map(r => {
-              /* A zero and a blank are the two things this grid has too many of, so both are
-                 muted. Injecting the class rather than threading one more argument through
-                 cell(): none of the branches REB reaches emit a class of their own, so there
-                 is nothing here to collide with. */
-              const td = cell(r, c.key);
-              const v  = r[c.key];
-              return (v == null || v === 0) ? td.replace('<td', '<td class="reb-dim"') : td;
-            }).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
+  const rebTableHtml = (() => {
+    if (!rebPlayer) return '<div class="placeholder" style="margin-top:20px;"><div>No players in scope.</div></div>';
+    const W = computeRebWithWithout(rebScoped, rebPlayer, psFilter.team);
+    const fmt = v => (v == null || isNaN(v)) ? '—' : (+v).toFixed(1) + '%';
+    const rows = rebRowDefs().map(([label, key, hi]) => {
+      const on = W.on[key], off = W.off[key];
+      let diff = '<td class="oo-imp-diff">—</td>';
+      if (on != null && off != null) {
+        const d = on - off;
+        /* Zero is neither good nor bad, so it takes no colour — a green +0.0 reads as an
+           improvement that did not happen. */
+        const cls = Math.abs(d) < 1e-9 ? '' : ((hi ? d > 0 : d < 0) ? ' oo-imp-good' : ' oo-imp-bad');
+        diff = `<td class="oo-imp-diff${cls}">${d > 0 ? '+' : ''}${d.toFixed(1)}%</td>`;
+      }
+      return `<tr><th>${escHtml(label)}</th>` +
+             `<td class="oo-imp-on">${fmt(on)}</td>` +
+             `<td class="oo-imp-off">${fmt(off)}</td>${diff}</tr>`;
+    }).join('');
+    return `<div class="oo-imp-card" style="margin-top:12px;">
+        <div class="oo-imp-head">
+          <span class="oo-imp-name">${escHtml(rebPlayer)}</span>
+          <span class="oo-imp-sub">${W.minPct.toFixed(0)}% min &middot; ${W.practices} practice${W.practices === 1 ? '' : 's'}
+            &middot; ${Math.round(W.onBoards)} boards on / ${Math.round(W.offBoards)} off</span>
+        </div>
+        <table class="oo-imp-tbl reb-ww"><thead><tr>
+          <th>Rebounding</th><th>With</th><th>Without</th><th>Diff</th>
+        </tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text-dim);">
+        Every row is a <strong>team</strong> rate with ${escHtml(rebPlayer)} on the floor vs. off it.
+        Diff = with minus without; green = the team rebounded better with him on.
+        A dash means fewer than one board of that kind came up in that split.
+      </div>`;
+  })();
 
   const teamOpts = (v, lbl) =>
     `<option value="${v}" ${psFilter.team === v ? 'selected' : ''}>${lbl}</option>`;
@@ -9796,10 +9736,11 @@ function renderPlayerTable() {
           <button class="btn btn-sm${isAdv ? ' btn-primary' : ''}" onclick="psSetFilter('view','adv')">ADV</button>
           <button class="btn btn-sm${isReb ? ' btn-primary' : ''}" onclick="psSetFilter('view','reb')">REB</button>
         </div>
+        ${isReb ? rebPickerHtml : ''}
       </div>
     </div>
     ${publishedStampHtml()}
-    ${rows.length ? (isReb ? rebTableHtml : `<div class="table-wrap">
+    ${isReb ? rebTableHtml : rows.length ? (`<div class="table-wrap">
       <table id="ps-main-table">
         <thead><tr>
           <th style="cursor:pointer;text-align:left;" onclick="psSort('name')">PLAYER${sortArrow('name')}</th>
@@ -9808,16 +9749,6 @@ function renderPlayerTable() {
         <tbody>${bodyRows}</tbody>
       </table>
     </div>`) : `<div class="placeholder" style="margin-top:20px;"><div>${emptyMsg}</div></div>`}`;
-}
-
-/* REB sorts its player COLUMNS, so it needs its own state — psFilter.sortCol addresses
-   the metric axis, which in this view is the rows. Minutes descending by default, so the
-   men who actually played sit nearest the labels. */
-let rebSort = { key: 'minPG', dir: -1 };
-function rebSortBy(key) {
-  if (rebSort.key === key) rebSort.dir *= -1;
-  else { rebSort.key = key; rebSort.dir = -1; }
-  renderPlayerTable();
 }
 
 function psSort(col) {
@@ -13214,28 +13145,120 @@ function _onoffFilterBar(filtered) {
           <option value="a"   ${seg5Filter.team==='a'   ? 'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
           <option value="b"   ${seg5Filter.team==='b'   ? 'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
         </select>
-        ${_ooPlayerSelectHtml(filtered)}
       </div>`;
 }
 
-/* The player this view is about. Sits on the filter bar beside period and squad, because it
-   is the same kind of thing: what the page is scoped to. */
-let ooPlayer = null;
-
-function _ooPlayerSelectHtml(filtered) {
-  const team = seg5Filter.team, teamIsAll = team === 'all' || team === 'both';
-  const names = new Set();
-  for (const sess of filtered)
-    for (const p of (sess.playerStats || []))
-      if ((teamIsAll || p.team === team) && !isHiddenPlayer(p.name)) names.add(p.name);
-  const list = [...names].sort();
-  if (!list.length) return '';
-  return `<select onchange="ooSetPlayer(this.value)">` +
-    list.map(n => `<option value="${escHtml(n)}"${n === ooPlayer ? ' selected' : ''}>${escHtml(n)}</option>`).join('') +
-    `</select>`;
+/* ── One player's stints, split into on-floor and off-floor ─────────────────────
+   Shared by On/Off and by the REB tab, because the two must partition the floor the same
+   way or they will quietly answer different questions with the same words. A player's squad
+   is resolved PER SESSION — they rotate between White and Black across practices — so
+   "Both Teams" counts every practice using whichever squad he was on that day, while
+   picking a squad keeps only the practices he played for it. */
+function ooSplitStints(filtered, playerName, team) {
+  const teamIsAll = team === 'all' || team === 'both';
+  const onL = [], offL = [];
+  let sessCount = 0, availableMin = 0;
+  for (const sess of filtered) {
+    const rec = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
+    if (!rec) continue;                       // didn't play in this practice
+    const pt = rec.team;                      // their squad in THIS practice
+    if (!teamIsAll && pt !== team) continue;  // isolate the selected squad
+    sessCount++;
+    availableMin += (getSessionPlayedSeconds(sess) || 0) / 60;
+    for (const seg of (sess.lineupSegments || [])) {
+      if (seg.endTimeSecs === null) continue;
+      const lineup = pt === 'a' ? seg.lineupA : seg.lineupB;
+      if (!lineup) continue;
+      (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: pt });
+    }
+  }
+  return { onL: onL, offL: offL, sessCount: sessCount, availableMin: availableMin };
 }
 
-function ooSetPlayer(name) { ooPlayer = name || null; renderOnOffView(); }
+/* Roll a list of stints up into the four rebound-category maps segStats returns, grouped by
+   session AND squad first so each stint is measured against the right team's events. */
+function rebAggStints(list) {
+  const R = { rebOr: {}, rebDr: {}, rebOrAv: {}, rebDrAv: {} };
+  const bySess = {};
+  for (const it of list) {
+    const k = it.sess.id + '|' + it.team;
+    if (!bySess[k]) bySess[k] = { sess: it.sess, team: it.team, segs: [] };
+    bySess[k].segs.push(it.seg);
+  }
+  let secs = 0;
+  for (const k in bySess) {
+    const g = bySess[k];
+    const s = segStats(g.sess, g.segs, g.team);
+    ['rebOr', 'rebDr', 'rebOrAv', 'rebDrAv'].forEach(function (m) {
+      const from = s[m] || {};
+      for (const c in from) R[m][c] = (R[m][c] || 0) + from[c];
+    });
+    secs += s.secs || 0;
+  }
+  return { R: R, min: secs / 60 };
+}
+
+/* Category maps → the rates the table prints. Gated at one available board: under 1.0 there
+   was less than a single opportunity to take a share of, and a percentage of that is not a
+   small sample, it is not a sample. No cap needed — this is a team rate over a real board
+   count, not a minutes-share estimate, so it cannot exceed 100. */
+function rebRatesFrom(R) {
+  const rate = function (side, cat) {
+    const av = (side === 'or' ? R.rebOrAv : R.rebDrAv)[cat] || 0;
+    if (!(av >= 1)) return null;
+    return +(100 * ((side === 'or' ? R.rebOr : R.rebDr)[cat] || 0) / av).toFixed(2);
+  };
+  const anyFg = function (m, mAv) {
+    const av = (R[mAv]['2'] || 0) + (R[mAv]['3'] || 0);
+    if (!(av >= 1)) return null;
+    return +(100 * ((R[m]['2'] || 0) + (R[m]['3'] || 0)) / av).toFixed(2);
+  };
+  const out = {
+    orAll: anyFg('rebOr', 'rebOrAv'), drAll: anyFg('rebDr', 'rebDrAv'),
+    or2: rate('or', '2'), or3: rate('or', '3'), orFt: rate('or', 'ft'),
+    dr2: rate('dr', '2'), dr3: rate('dr', '3'), drFt: rate('dr', 'ft'),
+  };
+  rebZoneList().forEach(function (z, i) {
+    out['orz' + i] = rate('or', 'z:' + z.key);
+    out['drz' + i] = rate('dr', 'z:' + z.key);
+  });
+  return out;
+}
+
+/* Every rebounding row REB prints, in shot-chart order. [label, key, higherIsBetter]. */
+function rebRowDefs() {
+  const base = [
+    ['Off Rebound % — FGs', 'orAll', true], ['Def Rebound % — FGs', 'drAll', true],
+    ['OReb% — Missed 2s', 'or2', true],   ['DReb% — Missed 2s', 'dr2', true],
+    ['OReb% — Missed 3s', 'or3', true],   ['DReb% — Missed 3s', 'dr3', true],
+    ['OReb% — Missed FTs', 'orFt', true], ['DReb% — Missed FTs', 'drFt', true],
+  ];
+  rebZoneList().forEach(function (z, i) {
+    base.push([z.label + ' OReb%', 'orz' + i, true]);
+    base.push([z.label + ' DReb%', 'drz' + i, true]);
+  });
+  return base;
+}
+
+/* The whole REB tab for one man: what the team rebounded with him on the floor, without
+   him, and the gap. Team rates on purpose — the question is what the floor did while he
+   was on it, not what he personally collected. */
+function computeRebWithWithout(filtered, playerName, team) {
+  const sp = ooSplitStints(filtered, playerName, team);
+  const on = rebAggStints(sp.onL), off = rebAggStints(sp.offL);
+  return {
+    on: rebRatesFrom(on.R), off: rebRatesFrom(off.R),
+    onMin: on.min, offMin: off.min,
+    practices: sp.sessCount,
+    minPct: sp.availableMin > 0 ? Math.min(100, on.min / sp.availableMin * 100) : 0,
+    onBoards: (on.R.rebOrAv['2'] || 0) + (on.R.rebOrAv['3'] || 0),
+    offBoards: (off.R.rebOrAv['2'] || 0) + (off.R.rebOrAv['3'] || 0),
+  };
+}
+
+/* Who REB is about. Held across filter changes while he is still in scope. */
+let rebPlayer = null;
+function rebSetPlayer(name) { rebPlayer = name || null; renderPlayerTable(); }
 
 function renderOnOffView() {
   const root = document.getElementById('onoff-root');
@@ -13355,33 +13378,6 @@ function renderOnOffView() {
       pf_eff: T.pf > 0 ? +((T.stl + T.blk) / T.pf).toFixed(2) : null,
       stl_pf: T.pf > 0 ? +(T.stl / T.pf).toFixed(2) : null,
       blk_pf: T.pf > 0 ? +(T.blk / T.pf).toFixed(2) : null,
-      /* Rebounding splits, as rates, on the same shape the panel reads by path: reb.or2,
-         reb.dr3, reb.orz0 ... Gated at one available board, exactly as the REB tab is —
-         under 1.0 there was less than a single opportunity to take a share of. Not capped
-         here: this is a TEAM rate off a real denominator, not a minutes-share estimate, so
-         it cannot exceed 100 in the first place. */
-      reb: (function () {
-        const rate = function (side, cat) {
-          const av = (side === 'or' ? R.rebOrAv : R.rebDrAv)[cat] || 0;
-          if (!(av >= 1)) return null;
-          return +(100 * ((side === 'or' ? R.rebOr : R.rebDr)[cat] || 0) / av).toFixed(2);
-        };
-        const anyFg = function (side, m, mAv) {
-          const av = (R[mAv]['2'] || 0) + (R[mAv]['3'] || 0);
-          if (!(av >= 1)) return null;
-          return +(100 * ((R[m]['2'] || 0) + (R[m]['3'] || 0)) / av).toFixed(2);
-        };
-        const out = {
-          orAll: anyFg('or', 'rebOr', 'rebOrAv'), drAll: anyFg('dr', 'rebDr', 'rebDrAv'),
-          or2: rate('or','2'), or3: rate('or','3'), orFt: rate('or','ft'),
-          dr2: rate('dr','2'), dr3: rate('dr','3'), drFt: rate('dr','ft'),
-        };
-        rebZoneList().forEach(function (z, i) {
-          out['orz' + i] = rate('or', 'z:' + z.key);
-          out['drz' + i] = rate('dr', 'z:' + z.key);
-        });
-        return out;
-      })(),
       offPoss: Math.round(T.poss),
       games: Object.keys(bySess).length
     };
@@ -13398,20 +13394,9 @@ function renderOnOffView() {
     let sessCount = 0;
     // Floor time available to this player: the played length of the practices they were in.
     let availableMin = 0;
-    for (const sess of filtered) {
-      const rec = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
-      if (!rec) continue;                       // didn't play in this practice
-      const pt = rec.team;                      // their squad in THIS practice
-      if (!teamIsAll && pt !== team) continue;  // isolate the selected squad
-      sessCount++;
-      availableMin += (getSessionPlayedSeconds(sess) || 0) / 60;
-      for (const seg of (sess.lineupSegments || [])) {
-        if (seg.endTimeSecs === null) continue;
-        const lineup = pt === 'a' ? seg.lineupA : seg.lineupB;
-        if (!lineup) continue;
-        (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: pt });
-      }
-    }
+    const _sp = ooSplitStints(filtered, playerName, team);
+    onL.push.apply(onL, _sp.onL); offL.push.apply(offL, _sp.offL);
+    sessCount = _sp.sessCount; availableMin = _sp.availableMin;
     const on = ooAgg(onL);
     if (!on) continue;
     impact.push({ name: playerName, on: on, off: ooAgg(offL), practices: sessCount,
@@ -13437,13 +13422,7 @@ function renderOnOffView() {
   });
   impact.sort(function (a, b) { return b.minPct - a.minPct; });
 
-  /* ONE player, chosen from the bar. Every player at once meant four panels times
-     seventeen men down a single page, and the comparison the view exists for — this man on
-     against this man off — was never the one on screen together. Defaults to the man with
-     the most floor time, and holds the pick across filter changes while he is still in
-     scope. */
-  if (!impact.some(function (p) { return p.name === ooPlayer; })) ooPlayer = impact[0] && impact[0].name;
-  const shown = impact.filter(function (p) { return p.name === ooPlayer; });
+  const shown = impact;   // every player, ranked by minutes
 
   // [label, path, decimals, higherIsBetter (null = neutral), suffix]
   const OO_CORE = [['Net Rating','eff.net',1,true,''],['Offensive Rating','eff.ortg',1,true,''],
@@ -13462,19 +13441,6 @@ function renderOnOffView() {
     ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
     ['Hakeem %','hakeem',1,true,'%'],['PF Efficiency','pf_eff',2,true,''],
     ['Steals / PF','stl_pf',2,true,''],['Blocks / PF','blk_pf',2,true,'']];
-
-  /* Every rebounding row the REB tab carries, in the same order, so the two views read as
-     the same stat asked two ways: REB asks who collected it, On/Off asks what the team did
-     while a man was out there. */
-  const OO_REB = [['Off Rebound % — FGs','reb.orAll',1,true,'%'],
-    ['Def Rebound % — FGs','reb.drAll',1,true,'%'],
-    ['OReb% — Missed 2s','reb.or2',1,true,'%'],['DReb% — Missed 2s','reb.dr2',1,true,'%'],
-    ['OReb% — Missed 3s','reb.or3',1,true,'%'],['DReb% — Missed 3s','reb.dr3',1,true,'%'],
-    ['OReb% — Missed FTs','reb.orFt',1,true,'%'],['DReb% — Missed FTs','reb.drFt',1,true,'%'],
-  ].concat(rebZoneList().flatMap(function (z, i) {
-    return [[z.label + ' OReb%', 'reb.orz' + i, 1, true, '%'],
-            [z.label + ' DReb%', 'reb.drz' + i, 1, true, '%']];
-  }));
 
   const ooGet = function (o, path) {
     if (!o || !path) return null;
@@ -13502,10 +13468,8 @@ function renderOnOffView() {
              '<td class="oo-imp-on">' + fmt(on, dec, suf) + '</td>' +
              '<td class="oo-imp-off">' + fmt(off, dec, suf) + '</td>' + diffHtml + '</tr>';
     }).join('');
-    /* "With / Without" rather than "On / Off": the row is a TEAM number, and On/Off reads
-       as though it were the player's own. */
     return '<table class="oo-imp-tbl"><thead><tr><th>' + escHtml(title) +
-           '</th><th>With</th><th>Without</th><th>Diff</th></tr></thead><tbody>' + rows + '</tbody></table>';
+           '</th><th>On</th><th>Off</th><th>Diff</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   const cards = shown.map(function (p) {
@@ -13520,7 +13484,6 @@ function renderOnOffView() {
         ooPanel('Box Stats', OO_BOX, p) +
         ooPanel('Offense', OO_OFF, p) +
         ooPanel('Defense', OO_DEF, p) +
-        ooPanel('Rebounding', OO_REB, p) +
       '</div></div>';
   }).join('');
 
@@ -13528,7 +13491,7 @@ function renderOnOffView() {
     '<div class="page-header">' +
       '<div>' +
         '<div class="page-title">Player On-Court Impact</div>' +
-        '<div class="page-subtitle">' + (shown[0] ? escHtml(shown[0].name) + ' &middot; ' : '') +
+        '<div class="page-subtitle">' + shown.length + ' players &middot; ranked by minutes &middot; ' +
           (teamIsAll ? 'both teams'
             : 'only practices played for ' + escHtml(team === 'a'
                 ? (filtered[0] && filtered[0].teamAName || 'White')
@@ -13537,10 +13500,9 @@ function renderOnOffView() {
       _onoffFilterBar(filtered) +
     '</div>' +
     '<div class="oo-imp-bar">' +
-      '<div class="oo-imp-note">Every row is a <strong>team</strong> stat with this player on the floor vs. off it. ' +
-      'Diff = with minus without; green = team better with him on. ' +
-      'Without shows &mdash; for a player who never left the floor, and for any rebound row ' +
-      'where fewer than one board of that kind came up while he sat.</div>' +
+      '<div class="oo-imp-note">Every row is a <strong>team</strong> stat with the player on vs. off the floor. ' +
+      'Diff = on minus off; green = team better with the player on. ' +
+      'Off shows &mdash; for a player who never left the floor.</div>' +
     '</div>' + cards;
 }
 
