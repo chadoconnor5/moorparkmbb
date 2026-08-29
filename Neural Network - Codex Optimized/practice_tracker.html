@@ -11228,6 +11228,14 @@ let seg5Filter = { period: 'all', team: 'both', lineupSize: 5, minPoss: 1, mode:
 function segStats(session, segments, team) {
   const opp = team === 'a' ? 'b' : 'a';
   const ev  = session.eventLog || [];
+  /* Rebounding split by the shot that created the board, accumulated per stint so the
+     On/Off view can ask it of any subset of the floor time. Four maps keyed by category
+     ('2', '3', 'ft', 'z:<zone>'):
+       rebOr / rebDr   — boards THIS team took off its own / the opponent's misses
+       rebOrAv / rebDrAv — every board off those misses, whoever collected it
+     A rate is rebOr[c] / rebOrAv[c]. Team-level on purpose: On/Off asks what the team did
+     while a man was out there, not what he personally grabbed. */
+  const rebOr = {}, rebDr = {}, rebOrAv = {}, rebDrAv = {};
   let pts=0, fgm=0, fga=0, fg3m=0, fg3a=0, ftm=0, fta=0,
       oreb=0, dreb=0, tov=0, stl=0, blk=0, ast=0, pf=0, defl=0,
       oppPts=0, oppFgm=0, oppFga=0, oppFg3m=0, oppFg3a=0,
@@ -11293,6 +11301,32 @@ function segStats(session, segments, team) {
 
     let segEvents = eventsForThisStint();
 
+    /* Same rule computeReboundSplits() uses — the board belongs to the miss directly behind
+       it, stepping over a block if one was logged between. Read from THIS stint's events, so
+       a board whose miss fell on the far side of a substitution is simply not categorised
+       rather than being charged to the wrong lineup. */
+    const _RM = { '2fg_miss': '2', '3fg_miss': '3' };
+    const _bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
+    segEvents.forEach((e, i) => {
+      if (e.stat !== 'oreb' && e.stat !== 'dreb') return;
+      let shot = null;
+      for (let j = i - 1; j >= 0 && j >= i - 2; j--) {
+        const st = segEvents[j].stat;
+        if (_RM[st] || st === 'ft_miss') { shot = segEvents[j]; break; }
+        if (st === 'blk') continue;
+        break;
+      }
+      if (!shot || !shot.team) return;
+      const cats = [_RM[shot.stat] || 'ft'];
+      if (_RM[shot.stat]) { const zk = scZoneKey(shot); if (zk) cats.push('z:' + zk); }
+      const shooterIsUs = shot.team === team;
+      for (const c of cats) {
+        _bump(shooterIsUs ? rebOrAv : rebDrAv, c);          // every board off that miss
+        if (e.team !== team) continue;                      // only ours count in the numerator
+        _bump(shooterIsUs ? rebOr : rebDr, c);
+      }
+    });
+
     for (const e of segEvents) {
       if (e.team === team) {
         if (e.stat === '2fg_make') { pts += 2; fgm++; fga++; }
@@ -11345,6 +11379,7 @@ function segStats(session, segments, team) {
               what made a player's on-court and off-court minutes fail to add up to the
               practice they were both taken from. */
            secs: totalSecs,
+           rebOr, rebDr, rebOrAv, rebDrAv,
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
            oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss };
@@ -13161,8 +13196,28 @@ function _onoffFilterBar(filtered) {
           <option value="a"   ${seg5Filter.team==='a'   ? 'selected':''}>${escHtml(filtered[0]?.teamAName||'White')}</option>
           <option value="b"   ${seg5Filter.team==='b'   ? 'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
         </select>
+        ${_ooPlayerSelectHtml(filtered)}
       </div>`;
 }
+
+/* The player this view is about. Sits on the filter bar beside period and squad, because it
+   is the same kind of thing: what the page is scoped to. */
+let ooPlayer = null;
+
+function _ooPlayerSelectHtml(filtered) {
+  const team = seg5Filter.team, teamIsAll = team === 'all' || team === 'both';
+  const names = new Set();
+  for (const sess of filtered)
+    for (const p of (sess.playerStats || []))
+      if ((teamIsAll || p.team === team) && !isHiddenPlayer(p.name)) names.add(p.name);
+  const list = [...names].sort();
+  if (!list.length) return '';
+  return `<select onchange="ooSetPlayer(this.value)">` +
+    list.map(n => `<option value="${escHtml(n)}"${n === ooPlayer ? ' selected' : ''}>${escHtml(n)}</option>`).join('') +
+    `</select>`;
+}
+
+function ooSetPlayer(name) { ooPlayer = name || null; renderOnOffView(); }
 
 function renderOnOffView() {
   const root = document.getElementById('onoff-root');
@@ -13221,6 +13276,7 @@ function renderOnOffView() {
                   'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss'];
     const T = {};
     keys.forEach(function (k) { T[k] = 0; });
+    const R = { rebOr: {}, rebDr: {}, rebOrAv: {}, rebDrAv: {} };
     /* Seconds, summed exactly, and divided ONCE at the end. Adding each practice's rounded
        minutes instead put on-court + off-court up to 0.1 min away from the practice total,
        and every per-40 rate below divides by this - on a two-minute bench sample that is a
@@ -13229,6 +13285,11 @@ function renderOnOffView() {
     for (const grp of Object.values(bySess)) {
       const s = segStats(grp.sess, grp.segs, grp.team);
       keys.forEach(function (k) { T[k] += (s[k] || 0); });
+      // Category maps add key by key — the categories present differ stint to stint.
+      ['rebOr','rebDr','rebOrAv','rebDrAv'].forEach(function (m) {
+        const src2 = s[m] || {};
+        for (const c in src2) R[m][c] = (R[m][c] || 0) + src2[c];
+      });
       secs += s.secs || 0;
     }
     const min = secs / 60;
@@ -13276,6 +13337,33 @@ function renderOnOffView() {
       pf_eff: T.pf > 0 ? +((T.stl + T.blk) / T.pf).toFixed(2) : null,
       stl_pf: T.pf > 0 ? +(T.stl / T.pf).toFixed(2) : null,
       blk_pf: T.pf > 0 ? +(T.blk / T.pf).toFixed(2) : null,
+      /* Rebounding splits, as rates, on the same shape the panel reads by path: reb.or2,
+         reb.dr3, reb.orz0 ... Gated at one available board, exactly as the REB tab is —
+         under 1.0 there was less than a single opportunity to take a share of. Not capped
+         here: this is a TEAM rate off a real denominator, not a minutes-share estimate, so
+         it cannot exceed 100 in the first place. */
+      reb: (function () {
+        const rate = function (side, cat) {
+          const av = (side === 'or' ? R.rebOrAv : R.rebDrAv)[cat] || 0;
+          if (!(av >= 1)) return null;
+          return +(100 * ((side === 'or' ? R.rebOr : R.rebDr)[cat] || 0) / av).toFixed(2);
+        };
+        const anyFg = function (side, m, mAv) {
+          const av = (R[mAv]['2'] || 0) + (R[mAv]['3'] || 0);
+          if (!(av >= 1)) return null;
+          return +(100 * ((R[m]['2'] || 0) + (R[m]['3'] || 0)) / av).toFixed(2);
+        };
+        const out = {
+          orAll: anyFg('or', 'rebOr', 'rebOrAv'), drAll: anyFg('dr', 'rebDr', 'rebDrAv'),
+          or2: rate('or','2'), or3: rate('or','3'), orFt: rate('or','ft'),
+          dr2: rate('dr','2'), dr3: rate('dr','3'), drFt: rate('dr','ft'),
+        };
+        rebZoneList().forEach(function (z, i) {
+          out['orz' + i] = rate('or', 'z:' + z.key);
+          out['drz' + i] = rate('dr', 'z:' + z.key);
+        });
+        return out;
+      })(),
       offPoss: Math.round(T.poss),
       games: Object.keys(bySess).length
     };
@@ -13331,7 +13419,13 @@ function renderOnOffView() {
   });
   impact.sort(function (a, b) { return b.minPct - a.minPct; });
 
-  const shown = impact;   // every player, ranked by minutes
+  /* ONE player, chosen from the bar. Every player at once meant four panels times
+     seventeen men down a single page, and the comparison the view exists for — this man on
+     against this man off — was never the one on screen together. Defaults to the man with
+     the most floor time, and holds the pick across filter changes while he is still in
+     scope. */
+  if (!impact.some(function (p) { return p.name === ooPlayer; })) ooPlayer = impact[0] && impact[0].name;
+  const shown = impact.filter(function (p) { return p.name === ooPlayer; });
 
   // [label, path, decimals, higherIsBetter (null = neutral), suffix]
   const OO_CORE = [['Net Rating','eff.net',1,true,''],['Offensive Rating','eff.ortg',1,true,''],
@@ -13350,6 +13444,19 @@ function renderOnOffView() {
     ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
     ['Hakeem %','hakeem',1,true,'%'],['PF Efficiency','pf_eff',2,true,''],
     ['Steals / PF','stl_pf',2,true,''],['Blocks / PF','blk_pf',2,true,'']];
+
+  /* Every rebounding row the REB tab carries, in the same order, so the two views read as
+     the same stat asked two ways: REB asks who collected it, On/Off asks what the team did
+     while a man was out there. */
+  const OO_REB = [['Off Rebound % — FGs','reb.orAll',1,true,'%'],
+    ['Def Rebound % — FGs','reb.drAll',1,true,'%'],
+    ['OReb% — Missed 2s','reb.or2',1,true,'%'],['DReb% — Missed 2s','reb.dr2',1,true,'%'],
+    ['OReb% — Missed 3s','reb.or3',1,true,'%'],['DReb% — Missed 3s','reb.dr3',1,true,'%'],
+    ['OReb% — Missed FTs','reb.orFt',1,true,'%'],['DReb% — Missed FTs','reb.drFt',1,true,'%'],
+  ].concat(rebZoneList().flatMap(function (z, i) {
+    return [[z.label + ' OReb%', 'reb.orz' + i, 1, true, '%'],
+            [z.label + ' DReb%', 'reb.drz' + i, 1, true, '%']];
+  }));
 
   const ooGet = function (o, path) {
     if (!o || !path) return null;
@@ -13377,8 +13484,10 @@ function renderOnOffView() {
              '<td class="oo-imp-on">' + fmt(on, dec, suf) + '</td>' +
              '<td class="oo-imp-off">' + fmt(off, dec, suf) + '</td>' + diffHtml + '</tr>';
     }).join('');
+    /* "With / Without" rather than "On / Off": the row is a TEAM number, and On/Off reads
+       as though it were the player's own. */
     return '<table class="oo-imp-tbl"><thead><tr><th>' + escHtml(title) +
-           '</th><th>On</th><th>Off</th><th>Diff</th></tr></thead><tbody>' + rows + '</tbody></table>';
+           '</th><th>With</th><th>Without</th><th>Diff</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   const cards = shown.map(function (p) {
@@ -13393,6 +13502,7 @@ function renderOnOffView() {
         ooPanel('Box Stats', OO_BOX, p) +
         ooPanel('Offense', OO_OFF, p) +
         ooPanel('Defense', OO_DEF, p) +
+        ooPanel('Rebounding', OO_REB, p) +
       '</div></div>';
   }).join('');
 
@@ -13400,7 +13510,7 @@ function renderOnOffView() {
     '<div class="page-header">' +
       '<div>' +
         '<div class="page-title">Player On-Court Impact</div>' +
-        '<div class="page-subtitle">' + shown.length + ' players &middot; ranked by minutes &middot; ' +
+        '<div class="page-subtitle">' + (shown[0] ? escHtml(shown[0].name) + ' &middot; ' : '') +
           (teamIsAll ? 'both teams'
             : 'only practices played for ' + escHtml(team === 'a'
                 ? (filtered[0] && filtered[0].teamAName || 'White')
@@ -13409,9 +13519,10 @@ function renderOnOffView() {
       _onoffFilterBar(filtered) +
     '</div>' +
     '<div class="oo-imp-bar">' +
-      '<div class="oo-imp-note">Every row is a <strong>team</strong> stat with the player on vs. off the floor. ' +
-      'Diff = on minus off; green = team better with the player on. ' +
-      'Off shows &mdash; for a player who never left the floor.</div>' +
+      '<div class="oo-imp-note">Every row is a <strong>team</strong> stat with this player on the floor vs. off it. ' +
+      'Diff = with minus without; green = team better with him on. ' +
+      'Without shows &mdash; for a player who never left the floor, and for any rebound row ' +
+      'where fewer than one board of that kind came up while he sat.</div>' +
     '</div>' + cards;
 }
 
