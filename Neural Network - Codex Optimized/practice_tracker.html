@@ -13307,7 +13307,26 @@ const PPS_SPLITS = [
   { key: 'csCon',  label: 'C&S Contested'      },
   { key: 'puUnc',  label: 'Pull-Up Uncontested'},
   { key: 'puCon',  label: 'Pull-Up Contested'  },
+  { key: 'ast',      label: 'Assisted'                },
+  { key: 'unast',    label: 'Unassisted'              },
+  { key: 'astUnc',   label: 'Assisted Uncontested'    },
+  { key: 'astCon',   label: 'Assisted Contested'      },
+  { key: 'unastUnc', label: 'Unassisted Uncontested'  },
+  { key: 'unastCon', label: 'Unassisted Contested'    },
 ];
+
+/* READ THE ASSISTED ROWS AS COUNTS, NOT AS RATES. An assist is only ever logged on a make,
+   so every shot in an assisted split is a make and its PPS is the shot's face value — 2.00
+   in a two-point zone, 3.00 from three, always, for every player. The diff against the team
+   is 0.00 for the same reason. What the row carries is the bracketed count: how many of his
+   makes from that spot someone set up.
+
+   The unassisted rows are the mirror of that and are biased low by construction: every miss
+   lands there, including the ones that came off a pass, because a missed shot carries no
+   assist either way. They are not "his PPS when creating for himself".
+
+   The split that DOES answer that question on attempts is Catch & Shoot against Pull-Up
+   above, because shotTypes is recorded on misses too. */
 
 /* Period and team come from psFilter now that PPS is a Player Stats view; only the player
    is its own, because the other views address every player at once. */
@@ -13317,12 +13336,13 @@ function ppsSetPlayer(n) { ppsFilter.player = n || null; renderPlayerTable(); }
 
 /* Which splits a single attempt belongs to. A shot is always in 'all', in exactly one of
    contested/uncontested, and in a type split only if it carries that type. */
-function _ppsSplitsFor(ev) {
-  const out = ['all'];
+function _ppsSplitsFor(ev, assisted) {
+  const out = ['all', assisted ? 'ast' : 'unast'];
   const c = ev.shotContest;
   if (c !== 'contested' && c !== 'uncontested') return out;   // untagged: totals only
   const unc = c === 'uncontested';
   out.push(unc ? 'unc' : 'con');
+  out.push(assisted ? (unc ? 'astUnc' : 'astCon') : (unc ? 'unastUnc' : 'unastCon'));
   const types = Array.isArray(ev.shotTypes) && ev.shotTypes.length
     ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
   if (types.includes('catch_shoot')) out.push(unc ? 'csUnc' : 'csCon');
@@ -13342,17 +13362,24 @@ function computePpsGrid(sessions, teamFilter) {
     s.pts += pts; s.att += 1;
   };
   for (const sess of sessions) {
-    for (const ev of (sess.eventLog || [])) {
-      if (VAL[ev.stat] == null || !ev.player) continue;
-      if (!all && ev.team !== teamFilter) continue;
-      if (isHiddenPlayer(ev.player)) continue;
+    /* Subs filtered out before the walk: whether a shot was assisted is read from the event
+       directly after it, the same adjacency the Connections tab uses, and a substitution
+       logged between the basket and the assist would break the pair. */
+    const log = (sess.eventLog || []).filter(e => e.type !== 'sub');
+    log.forEach((ev, i) => {
+      if (VAL[ev.stat] == null || !ev.player) return;
+      if (!all && ev.team !== teamFilter) return;
+      if (isHiddenPlayer(ev.player)) return;
       const zk = scZoneKey(ev);
-      if (!zk) continue;                       // outside every drawn zone
+      if (!zk) return;                         // outside every drawn zone
       const pts = VAL[ev.stat];
-      const splits = _ppsSplitsFor(ev);
+      const nxt = log[i + 1];
+      const assisted = pts > 0 && !!nxt && nxt.stat === 'ast'
+                       && nxt.team === ev.team && nxt.player !== ev.player;
+      const splits = _ppsSplitsFor(ev, assisted);
       const mine = byPlayer[ev.player] || (byPlayer[ev.player] = {});
       for (const sp of splits) { bump(mine, zk, sp, pts); bump(team, zk, sp, pts); }
-    }
+    });
   }
   return { byPlayer, team };
 }
