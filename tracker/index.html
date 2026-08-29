@@ -3476,6 +3476,8 @@
     .hk-rest-g    { cursor: pointer; }
     .hk-edge-rest { stroke-dasharray: 6 4; }
     .hk-edge      { fill: none; stroke: var(--text-secondary); transition: stroke-opacity .12s; }
+    .hk-head      { fill: var(--text-secondary); }
+    svg.is-focused g.hk-on .hk-head { fill: #005695; fill-opacity: 1; }
     .hk-node-g    { cursor: pointer; }
     /* Counts ride the arcs but stay invisible until a bubble is hovered - printed always,
        48 of them would bury the picture they are meant to explain. paint-order gives each
@@ -11929,20 +11931,61 @@ function hkGraphSvg(rows, given, got) {
     const o1 = p1.r * 0.55, o2 = p2.r * 0.55;
     const sx = p1.x + ux * p1.r + px * o1, sy = p1.y + uy * p1.r + py * o1;
     const ex = p2.x - ux * (p2.r + 7) + px * o2, ey = p2.y - uy * (p2.r + 7) + py * o2;
-    const mx = (sx + ex) / 2 + px * d * bow, my = (sy + ey) / 2 + py * d * bow;
+    /* Bow toward the middle, not sideways. Every bubble sits ON the ring, so the inside of
+       the ellipse is empty space - an arc curved inward crosses nothing, while the old fixed
+       perpendicular bow pushed roughly half of them outward through whoever was sitting
+       between the two ends.
+
+       Two parts to the control point. The inward pull is capped by how far the midpoint
+       actually is from the centre, so a chord that already runs near the middle is left
+       alone rather than yanked past it; a short hop between neighbours, whose midpoint sits
+       way out on the rim, gets pulled properly inside. The lane term stays perpendicular and
+       still flips with direction, which is what keeps given and received apart. */
+    const mid = { x: (sx + ex) / 2, y: (sy + ey) / 2 };
+    let ix = cx - mid.x, iy = cy - mid.y;
+    const il = Math.hypot(ix, iy) || 1;
+    ix /= il; iy /= il;
+    const inward = Math.min(d * 0.30, il * 0.75);
+    const mx = mid.x + ix * inward + px * d * bow;
+    const my = mid.y + iy * inward + py * d * bow;
     const lx = 0.25 * sx + 0.5 * mx + 0.25 * ex;
     const ly = 0.25 * sy + 0.5 * my + 0.25 * ey;
+    /* Linear, and topping out around 6px. Two reasons the squared curve had to go. It was
+       simply too heavy at the top - five assists drew an 11px rope. And because every width
+       is relative to the heaviest pairing on screen, squaring gets worse as the season runs:
+       against a 50-assist partnership a five-assist one would fall to 0.95px, so the very
+       pairings worth noticing would thin out as more data arrived. Linear holds the floor -
+       the same five reads 1.68px against a 50 - and nothing ever grows past 6. */
     const k = hup / maxHup;
-    const w = style ? style.w : 0.7 + 9 * k * k + 1.6 * k;
-    const op = style ? style.op : 0.28 + 0.62 * k;
+    const w = style ? style.w : 1.2 + 4.8 * k;
+    const op = style ? style.op : 0.35 + 0.5 * k;
+    /* Arrowhead drawn as a real triangle instead of an SVG marker, and the line stopped at
+       its base. A marker defaults to markerUnits="strokeWidth", so the head grew with the
+       line - five times the stroke - and a heavy stroke's outer edge still squeezed past the
+       narrow tip, which is the line appearing to run through the point of its own arrow.
+       Drawing it means the head is sized on its own terms and the stroke provably ends
+       before it starts.
+
+       Tangent at the end of a quadratic is simply the direction from the control point to
+       the end point, so the head sits square on the curve rather than on the chord. */
+    let tx = ex - mx, ty = ey - my;
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl; ty /= tl;
+    const AL = 7 + w * 0.9;                    // head length, grows gently with the line
+    const AW = AL * 0.42;                      // half-width at the base
+    const bx = ex - tx * AL, by = ey - ty * AL;
+    const head = (bx - ty * AW).toFixed(1) + ',' + (by + tx * AW).toFixed(1) + ' ' +
+                 ex.toFixed(1) + ',' + ey.toFixed(1) + ' ' +
+                 (bx + ty * AW).toFixed(1) + ',' + (by - tx * AW).toFixed(1);
     const attrs = ' data-a="' + escHtml(aName) + '" data-sc="' + escHtml(scName) + '"';
     return {
       path: '<g' + attrs + '><path class="hk-edge' + (cls ? ' ' + cls : '') +
         '" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
-        ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + ex.toFixed(1) + ',' + ey.toFixed(1) +
+        ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + bx.toFixed(1) + ',' + by.toFixed(1) +
         '" stroke-width="' + w.toFixed(2) + '" stroke-opacity="' + op.toFixed(2) +
-        '" marker-end="url(#hk-arrow)"><title>' + escHtml(aName) + ' → ' + escHtml(scName) +
-        ': ' + hup + '</title></path></g>',
+        '"><title>' + escHtml(aName) + ' → ' + escHtml(scName) +
+        ': ' + hup + '</title></path>' +
+        '<polygon class="hk-head" points="' + head + '" fill-opacity="' + op.toFixed(2) + '"/></g>',
       label: '<g' + attrs + '><text class="hk-edge-lbl" x="' + lx.toFixed(1) +
         '" y="' + ly.toFixed(1) + '">' + hup + '</text></g>',
     };
@@ -12002,9 +12045,7 @@ function hkGraphSvg(rows, given, got) {
   const all = playerArcs.concat(restArcs);
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Assist network"' +
     ' onmouseleave="hkBlur()">' +
-    '<defs><marker id="hk-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" ' +
-    'markerHeight="5" orient="auto-start-reverse">' +
-    '<path d="M0,1 L9,5 L0,9 z" fill="var(--text-secondary)"/></marker></defs>' +
+    '' +
     all.map(x => x.path).join('') +
     restNodes + nodes +
     all.map(x => x.label).join('') +
