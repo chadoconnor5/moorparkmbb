@@ -11885,14 +11885,24 @@ function hkGraphSvg(rows, given, got) {
     };
   });
 
-  /* Curved, so A to B and B to A stay separate arcs instead of one line standing for both,
-     and stopped short of the target so the arrowhead is not buried under the circle. */
+  /* Each direction gets its own lane. Bowing the curve alone was not enough: both arcs still
+     left and arrived at the same two points on the bubbles, so they converged at each end and
+     read as a single line with an arrowhead stuck on either side - given and received looked
+     like the same path.
+
+     So the attachment points are pushed sideways too, along the perpendicular. That vector
+     flips with the direction of travel, so A-to-B hugs one side of the pair and B-to-A hugs
+     the other, all the way from bubble to bubble rather than only in the middle. The bow
+     leans the same way, which keeps each arc on its own side for its whole length. */
   const paths = edges.map(e => {
     const p1 = pos[e.a], p2 = pos[e.sc];
     const dx = p2.x - p1.x, dy = p2.y - p1.y, d = Math.hypot(dx, dy) || 1;
-    const sx = p1.x + (dx / d) * p1.r, sy = p1.y + (dy / d) * p1.r;
-    const ex = p2.x - (dx / d) * (p2.r + 7), ey = p2.y - (dy / d) * (p2.r + 7);
-    const mx = (sx + ex) / 2 - dy * 0.16, my = (sy + ey) / 2 + dx * 0.16;
+    const ux = dx / d, uy = dy / d;
+    const px = -uy, py = ux;                       // perpendicular; reverses with direction
+    const o1 = p1.r * 0.55, o2 = p2.r * 0.55;
+    const sx = p1.x + ux * p1.r + px * o1, sy = p1.y + uy * p1.r + py * o1;
+    const ex = p2.x - ux * (p2.r + 7) + px * o2, ey = p2.y - uy * (p2.r + 7) + py * o2;
+    const mx = (sx + ex) / 2 + px * d * 0.20, my = (sy + ey) / 2 + py * d * 0.20;
     /* Point at t=0.5 on the quadratic, so the count sits ON the arc rather than on the
        straight line between the two men, which for a curved edge is somewhere else. */
     const lx = 0.25 * sx + 0.5 * mx + 0.25 * ex;
