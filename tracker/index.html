@@ -8951,6 +8951,65 @@ function computeShotQuality(sessions) {
    absent. Drawn zones are matched by NAME, not id: ids are minted fresh whenever a zone is
    re-cut, so an id match would silently zero the column after a redraw. */
 
+
+/* ── Box Creation, Offensive Load, Adjusted TOV% ────────────────────────────────
+   Ben Taylor's three, in his order, because each feeds the next. The source formulas,
+   verbatim (thinkingbasketball.net, 2017-10-16 and the Nylon Calculus write-up):
+
+     3pt proficiency = (2/(1+EXP(-3PA))-1) * 3P%
+     Creation        = Ast*0.1843 + (Pts+TOV)*0.0969 - 2.3021*(3pt prof)
+                       + 0.0582*(Ast*(Pts+TOV)*3pt prof) - 1.1942
+     Offensive Load  = (Assists-(0.38*Box Creation))*0.75 + FGA + FTA*0.44
+                       + Box Creation + Turnovers
+     cTOV%           = Turnovers per 100 / Offensive Load
+
+   Every input is per 100 possessions, so all six are built from SEASON totals over the
+   possession estimate, not from per-game means. Coefficients this specific deserve a
+   stable denominator.
+
+   WHAT LOAD IS FOR: it is USG% that counts playmaking as work. Castaniero carries the
+   lowest usage on the roster and the second-highest load — a pure distributor is invisible
+   to USG% and USG% sits three columns to its left, which is why Load is placed beside it.
+
+   WHAT cTOV% PROMISES AND DOES NOT DELIVER HERE: dividing turnovers by load instead of by
+   scoring chances is meant to stop punishing playmakers for handling the ball. On this data
+   it barely separates from plain TO% — 7.7 against 8.9, 6.5 against 6.8, 12.4 against 12.5,
+   same ordering throughout — because the spread in Creation across a practice roster is a
+   fraction of the NBA spread the adjustment was tuned against. It is here because it is
+   the other half of the article; read it as a near-duplicate of TO% until the assist volume
+   grows enough to pull the two apart.
+
+   CALIBRATION, PLAINLY: these coefficients were fit against hand-tracked NBA games. Nothing
+   about a JUCO practice scrimmage was in that sample, and the -1.1942 intercept in
+   particular assumes NBA production levels — it drives low-minute players negative, which
+   is why Creation is floored at zero below. A negative count of open shots created is not a
+   statement about a player, it is the model out of its range. Treat all three as ordinal
+   within this roster, not as figures comparable to a published NBA number. */
+const LOAD_MIN_POSS = 50;
+
+function computeCreationLoad(r) {
+  const P = r.poss;
+  if (!(P > 0) || P < LOAD_MIN_POSS) return { boxCreate: null, offLoad: null, ctovPct: null };
+  const per  = v => 100 * (v || 0) / P;
+  const ast  = per(r.ast), pts = per(r.pts), tov = per(r.tov);
+  const fga  = per(r.fga), fta = per(r.fta), tpa = per(r.fg3a);
+  const tp3  = r.fg3a > 0 ? r.fg3m / r.fg3a : 0;      // a fraction, not a percentage
+  const prof = (2 / (1 + Math.exp(-tpa)) - 1) * tp3;
+
+  let create = ast * 0.1843 + (pts + tov) * 0.0969 - 2.3021 * prof
+             + 0.0582 * (ast * (pts + tov) * prof) - 1.1942;
+  /* Floored, and floored BEFORE it feeds Load, so the two columns cannot disagree about how
+     many shots a man created. */
+  create = Math.max(0, create);
+
+  const load = (ast - 0.38 * create) * 0.75 + fga + fta * 0.44 + create + tov;
+  return {
+    boxCreate: create,
+    offLoad:   load,
+    ctovPct:   load > 0 ? 100 * tov / load : null,
+  };
+}
+
 /* ── TS% with a man's own putbacks taken out ────────────────────────────────────
    A tip-in off your own miss is the cheapest attempt in basketball: no creation, no
    defender set, often from two feet. A big who generates a lot of them carries a TS% that
@@ -9207,6 +9266,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
        The per-practice FTR in the box score and the game log is deliberately untouched:
        there one practice IS the scope, so that denominator was already the right one. */
     const ftRate = r.fga > 0 ? p1(100 * r.fta / r.fga) : null;
+    const cl = computeCreationLoad(r);
 
     return {
       name: r.name, team: r.team,
@@ -9251,6 +9311,10 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       stlPG: p1(r.stl / g), blkPG: p1(r.blk / g), tovPG: p1(r.tov / g), minPG: p1(r.min / g),
       // Shooting
       fgPct, fg2Pct, fg3Pct, ftPct, fg3aRate,
+      /* Blank below LOAD_MIN_POSS rather than printed: a per-100 figure off thirty
+         possessions swung Carraway to a 57 load and Johnson to a 51% cTOV in testing, and
+         a coefficient-heavy model is the last place to show a number that unstable. */
+      boxCreate: p1(cl.boxCreate), offLoad: p1(cl.offLoad), ctovPct: p1(cl.ctovPct),
       // ADV (averages of per-game values)
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
@@ -9337,6 +9401,7 @@ function renderPlayerTable() {
     { key: 'minPctVal', label: 'MIN%'  },
     { key: 'ortg',      label: 'ORtg'  },
     { key: 'usgPct',    label: 'USG%'  },
+    { key: 'offLoad',   label: 'LOAD'  },   // USG% that counts playmaking as work
     { key: 'drtg',      label: 'DRtg'  },
     { key: 'shotPct',   label: 'SHOT%' },
     { key: 'efgPct',    label: 'EFG%'  },
@@ -9348,8 +9413,10 @@ function renderPlayerTable() {
     { key: 'drPct',     label: 'DR%'   },
     { key: 'astPct',    label: 'AST%'  },
     { key: 'ptsCreated',label: 'PTS CR'  }, // per game: his own points + points he assisted
+    { key: 'boxCreate', label: 'CREATE'  }, // per 100: open shots estimated created
     { key: 'rimAstP100',label: 'RIM AST/100' }, // per 100 poss: assists finishing at the rim
     { key: 'toPct',     label: 'TO%'   },
+    { key: 'ctovPct',   label: 'cTOV%' },   // turnovers per 100 over offensive load
     { key: 'stlPct',    label: 'STL%'  },
     { key: 'blkPct',    label: 'BLK%'  },
     { key: 'per',       label: 'PER'   },   // value, read against a league average of 15
