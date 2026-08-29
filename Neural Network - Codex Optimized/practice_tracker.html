@@ -3463,11 +3463,17 @@
       .hk-graph { overflow-x: auto; }
       .hk-graph svg { min-width: 620px; }
     }
-    .hk-node      { fill: #f5c542; stroke: #7a5c00; stroke-width: 1.5; }
+    /* Moorpark Columbia blue, the same #B9D9EB the WSC leaderboard uses for the team, outlined
+       and lettered in the navy that goes with it. */
+    .hk-node      { fill: #B9D9EB; stroke: #005695; stroke-width: 1.5; }
     /* Initials only. The involvement count used to sit under them, but it is the one number
        that is true of every render regardless of what you are looking at - the hover counts
        on the arcs are the ones that answer a question. */
-    .hk-node-lbl  { fill: #3a2c00; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+    .hk-node-lbl  { fill: #00395f; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+    /* The rest-of-team satellites: deliberately small and grey so they never read as players.
+       They stand for a group, and a gold bubble the size of the others would say otherwise. */
+    .hk-rest      { fill: var(--card-hover); stroke: var(--border-light); stroke-width: 1.5; }
+    .hk-edge-rest { stroke-dasharray: 4 3; }
     .hk-edge      { fill: none; stroke: var(--text-secondary); transition: stroke-opacity .12s; }
     .hk-node-g    { cursor: pointer; }
     /* Counts ride the arcs but stay invisible until a bubble is hovered - printed always,
@@ -3479,7 +3485,7 @@
       paint-order: stroke; stroke: var(--surface); stroke-width: 3px;
     }
     svg.is-focused g.hk-off  { opacity: 0.10; }
-    svg.is-focused g.hk-on .hk-edge { stroke: #f5c542; stroke-opacity: 0.95; }
+    svg.is-focused g.hk-on .hk-edge { stroke: #005695; stroke-opacity: 1; }
     svg.is-focused g.hk-on .hk-edge-lbl { opacity: 1; }
     .hk-table-wrap { width: 100%; min-width: 0; }
     .hk-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -3491,6 +3497,9 @@
     .hk-tbl td.hk-name { text-align: left; white-space: nowrap; font-weight: 600; }
     .hk-arrow { color: var(--text-muted); padding: 0 2px; }
     .hk-note { font-size: 11px; color: var(--text-dim); margin: 6px 0 10px; }
+    /* Says what the picture is leaving out. Without it a bubble's tooltip reports a man's
+       true totals while the arcs around him show fewer, and nothing accounts for the gap. */
+    .hk-graph-note { font-size: 11px; color: var(--text-dim); text-align: center; padding: 2px 4px 4px; }
 
 
     /* LOADING GATE - see initApp(). The shell is interactive from first paint but its
@@ -11813,6 +11822,10 @@ function computeHookups(sessions) {
 
 let hkSort = { col: 'hup', dir: -1 };
 let hkNodes = 8;
+/* On by default. Without the satellites the graph silently drops every pairing that reaches
+   outside the top N, which is how Kubel came to show 4 assists given and only 3 arcs. */
+let hkShowRest = true;
+function hkToggleRest() { hkShowRest = !hkShowRest; renderConnectionsView(); }
 
 function hkSetSort(col) {
   if (hkSort.col === col) hkSort.dir *= -1;
@@ -11841,8 +11854,12 @@ function hkFocus(name) {
   svg.querySelectorAll('g[data-a].hk-on').forEach(g => {
     partners.add(g.dataset.a); partners.add(g.dataset.sc);
   });
+  /* A satellite belongs to one player, so it stays lit only for him - it is named
+     "<player>-rest" rather than by the group it stands for. */
   svg.querySelectorAll('g[data-node]').forEach(g => {
-    g.classList.toggle('hk-off', !partners.has(g.dataset.node));
+    const n = g.dataset.node;
+    const mine = partners.has(n) || n === name + '-rest';
+    g.classList.toggle('hk-off', !mine);
   });
 }
 
@@ -11870,53 +11887,87 @@ function hkGraphSvg(rows, given, got) {
   const keep = new Set(names);
   const edges = rows.filter(r => keep.has(r.a) && keep.has(r.sc));
 
-  /* A gentle ellipse. The panel is wider than it is tall but not by much now it is capped,
-     so the seats only need to spread enough to use the extra width. */
-  const W = 720, H = 450, cx = W / 2, cy = H / 2, RX = 278, RY = 168;
+  /* An arc needs both ends on screen, so capping the bubbles drops every pairing involving
+     anyone outside them - Kubel showed 4 assists given but only 3 arcs, because the fourth
+     went to a man who is not drawn. Rather than lose it, each player gets a small satellite
+     standing for everyone off the graph, carrying his totals to and from the rest of the
+     team. The connection stays visible and the numbers add up to what the table says. */
+  const restOut = {}, restIn = {};
+  rows.forEach(r => {
+    if (keep.has(r.a) && !keep.has(r.sc)) restOut[r.a] = (restOut[r.a] || 0) + r.hup;
+    if (keep.has(r.sc) && !keep.has(r.a)) restIn[r.sc] = (restIn[r.sc] || 0) + r.hup;
+  });
+  const hasRest = n => hkShowRest && ((restOut[n] || 0) + (restIn[n] || 0)) > 0;
+
+  const W = 760, H = 490, cx = W / 2, cy = H / 2, RX = 252, RY = 150;
+  const SAT = 1.34;                       // satellite ring, just outside the players
   const maxInv = Math.max.apply(null, names.map(n => invol[n]));
   const maxHup = Math.max.apply(null, edges.map(e => e.hup).concat([1]));
-  const pos = {};
+  const pos = {}, sat = {}, ang = {};
   names.forEach((n, i) => {
     const th = (-Math.PI / 2) + (2 * Math.PI * i / names.length);
-    pos[n] = {
-      x: cx + RX * Math.cos(th),
-      y: cy + RY * Math.sin(th),
-      r: 20 + 16 * (invol[n] / maxInv),
-    };
+    ang[n] = th;
+    pos[n] = { x: cx + RX * Math.cos(th), y: cy + RY * Math.sin(th), r: 18 + 14 * (invol[n] / maxInv) };
+    sat[n] = { x: cx + RX * SAT * Math.cos(th), y: cy + RY * SAT * Math.sin(th), r: 9 };
   });
 
   /* Each direction gets its own lane. Bowing the curve alone was not enough: both arcs still
      left and arrived at the same two points on the bubbles, so they converged at each end and
      read as a single line with an arrowhead stuck on either side - given and received looked
-     like the same path.
-
-     So the attachment points are pushed sideways too, along the perpendicular. That vector
-     flips with the direction of travel, so A-to-B hugs one side of the pair and B-to-A hugs
-     the other, all the way from bubble to bubble rather than only in the middle. The bow
-     leans the same way, which keeps each arc on its own side for its whole length. */
-  const paths = edges.map(e => {
-    const p1 = pos[e.a], p2 = pos[e.sc];
+     like the same path. Pushing the attachment points sideways along the perpendicular fixes
+     it, because that vector flips with the direction of travel. */
+  function arc(p1, p2, hup, aName, scName, cls, bow, showLabel) {
     const dx = p2.x - p1.x, dy = p2.y - p1.y, d = Math.hypot(dx, dy) || 1;
     const ux = dx / d, uy = dy / d;
-    const px = -uy, py = ux;                       // perpendicular; reverses with direction
+    const px = -uy, py = ux;
     const o1 = p1.r * 0.55, o2 = p2.r * 0.55;
     const sx = p1.x + ux * p1.r + px * o1, sy = p1.y + uy * p1.r + py * o1;
     const ex = p2.x - ux * (p2.r + 7) + px * o2, ey = p2.y - uy * (p2.r + 7) + py * o2;
-    const mx = (sx + ex) / 2 + px * d * 0.20, my = (sy + ey) / 2 + py * d * 0.20;
-    /* Point at t=0.5 on the quadratic, so the count sits ON the arc rather than on the
-       straight line between the two men, which for a curved edge is somewhere else. */
+    const mx = (sx + ex) / 2 + px * d * bow, my = (sy + ey) / 2 + py * d * bow;
     const lx = 0.25 * sx + 0.5 * mx + 0.25 * ex;
     const ly = 0.25 * sy + 0.5 * my + 0.25 * ey;
-    const w = 0.8 + 3.6 * (e.hup / maxHup);
-    const op = 0.22 + 0.62 * (e.hup / maxHup);
-    return '<g data-a="' + escHtml(e.a) + '" data-sc="' + escHtml(e.sc) + '">' +
-      '<path class="hk-edge" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
+    /* Weight climbs harder than it used to. At 0.8 + 3.6x a single hookup drew at 1.5 and the
+       heaviest pairing on the board at 4.4 - only three times thicker for five times the
+       assists, so the picture flattened everything into "some lines". Squaring the ratio
+       holds the one-offs thin and lets a real partnership stand out at a glance. */
+    const k = hup / maxHup;
+    const w = 0.7 + 9 * k * k + 1.6 * k;
+    const op = 0.28 + 0.62 * k;
+    return '<g data-a="' + escHtml(aName) + '" data-sc="' + escHtml(scName) + '">' +
+      '<path class="hk-edge' + (cls ? ' ' + cls : '') + '" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
       ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + ex.toFixed(1) + ',' + ey.toFixed(1) +
       '" stroke-width="' + w.toFixed(2) + '" stroke-opacity="' + op.toFixed(2) +
-      '" marker-end="url(#hk-arrow)"><title>' + escHtml(e.a) + ' → ' + escHtml(e.sc) +
-      ': ' + e.hup + '</title></path>' +
-      '<text class="hk-edge-lbl" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '">' +
-      e.hup + '</text></g>';
+      '" marker-end="url(#hk-arrow)"><title>' + escHtml(aName) + ' → ' + escHtml(scName) +
+      ': ' + hup + '</title></path>' +
+      (showLabel === false ? ''
+        : '<text class="hk-edge-lbl" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '">' +
+          hup + '</text>') + '</g>';
+  }
+
+  const paths = edges.map(e => arc(pos[e.a], pos[e.sc], e.hup, e.a, e.sc, '', 0.20, true)).join('');
+
+  /* Two lines to the satellite, not one: given and received are separate facts about a
+     player's relationship with everyone off the graph, and a coach reads them differently -
+     a man who feeds the bench is doing something different from one the bench feeds. Same
+     lane separation as the player-to-player arcs, so the two never sit on top of each other,
+     and each carries its own count. */
+  const restPaths = names.filter(hasRest).map(n => {
+    const label = 'Rest of team';
+    let out = '';
+    if (restOut[n]) out += arc(pos[n], sat[n], restOut[n], n, label, 'hk-edge-rest', 0.10, true);
+    if (restIn[n]) out += arc(sat[n], pos[n], restIn[n], label, n, 'hk-edge-rest', 0.10, true);
+    return out;
+  }).join('');
+
+  const restNodes = names.filter(hasRest).map(n => {
+    const s = sat[n];
+    const parts = [];
+    if (restOut[n]) parts.push(restOut[n] + ' assist' + (restOut[n] === 1 ? '' : 's') + ' to team');
+    if (restIn[n]) parts.push(restIn[n] + ' received');
+    return '<g data-node="' + escHtml(n) + '-rest" class="hk-rest-g">' +
+      '<title>' + escHtml(n) + ' — rest of team: ' + escHtml(parts.join(', ')) + '</title>' +
+      '<circle class="hk-rest" cx="' + s.x.toFixed(1) + '" cy="' + s.y.toFixed(1) +
+      '" r="' + s.r + '"/></g>';
   }).join('');
 
   const nodes = names.map(n => {
@@ -11933,12 +11984,22 @@ function hkGraphSvg(rows, given, got) {
       '" font-size="' + (p.r * 0.72).toFixed(1) + '">' + escHtml(ini) + '</text></g>';
   }).join('');
 
+  const restTotal = Object.values(restOut).reduce((t, v) => t + v, 0) +
+                    Object.values(restIn).reduce((t, v) => t + v, 0);
+  const note = restTotal
+    ? (hkShowRest
+        ? '<div class="hk-graph-note">Small bubbles are the rest of the team: ' + restTotal +
+          ' assists involving players outside the top ' + names.length + '.</div>'
+        : '<div class="hk-graph-note">' + restTotal + ' assists involve players outside the top ' +
+          names.length + ' and are not drawn.</div>')
+    : '<div class="hk-graph-note">Every pairing in the table is drawn.</div>';
+
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Assist network"' +
     ' onmouseleave="hkBlur()">' +
     '<defs><marker id="hk-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" ' +
     'markerHeight="5" orient="auto-start-reverse">' +
     '<path d="M0,1 L9,5 L0,9 z" fill="var(--text-secondary)"/></marker></defs>' +
-    paths + nodes + '</svg>';
+    paths + restPaths + restNodes + nodes + '</svg>' + note;
 }
 
 function renderConnectionsView() {
@@ -12014,6 +12075,9 @@ function renderConnectionsView() {
     '<div class="hk-wrap">' +
       '<div class="hk-graph">' +
         '<div style="display:flex;justify-content:flex-end;margin-bottom:4px;">' +
+        '<label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);margin-right:10px;cursor:pointer;">' +
+        '<input type="checkbox" onchange="hkToggleRest()" style="width:auto;margin:0;"' +
+        (hkShowRest ? ' checked' : '') + '> Rest-of-team nodes</label>' +
         '<select onchange="hkSetNodes(this.value)" style="width:auto;font-size:11px;padding:4px 8px;">' +
         opts + '</select></div>' +
         hkGraphSvg(rows, hk.given, hk.got) +
