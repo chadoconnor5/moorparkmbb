@@ -3498,6 +3498,8 @@
     }
     .hk-tbl td { text-align: center; }
     .hk-tbl td.hk-name { text-align: left; white-space: nowrap; font-weight: 600; }
+    /* Rest-of-team rows read as a group rather than a man: same numbers, quieter name. */
+    .hk-tbl tr.hk-rest-row td.hk-name { font-style: italic; color: var(--text-secondary); }
     .hk-arrow { color: var(--text-muted); padding: 0 2px; }
     .hk-note { font-size: 11px; color: var(--text-dim); margin: 6px 0 10px; }
     /* Says what the picture is leaving out. Without it a bubble's tooltip reports a man's
@@ -11873,33 +11875,79 @@ function hkBlur() {
   svg.querySelectorAll('.hk-on, .hk-off').forEach(g => g.classList.remove('hk-on', 'hk-off'));
 }
 
-/* Circular layout rather than a force simulation. With a dozen players a force layout lands
-   somewhere different on every render, which makes the picture impossible to compare between
-   practices. Fixed seats, ordered by involvement, mean a player stays put until his numbers
-   move - the same reasoning the Tendency Read uses for hashing its wording. */
-function hkGraphSvg(rows, given, got) {
+/* Who is on screen, decided once. The graph and the table have to agree about which players
+   the "Show N" control is admitting and what the rest-of-team rows add up to; computing that
+   twice is how the two ends of this tab would drift apart, which has already happened once
+   today with the period filter. One function, both callers.
+
+   Ranking is by involvement - assists given plus received - so "top 5" means the five men
+   most tangled up in the passing, not the five best at one half of it. */
+function hkVisible(rows, madeBy, given) {
   const invol = {};
   rows.forEach(r => {
     invol[r.a] = (invol[r.a] || 0) + r.hup;
     invol[r.sc] = (invol[r.sc] || 0) + r.hup;
   });
   const names = Object.keys(invol).sort((x, y) => invol[y] - invol[x]).slice(0, hkNodes);
+  const keep = new Set(names);
+
+  const pairRows = rows.filter(r => keep.has(r.a) && keep.has(r.sc));
+
+  /* Everything reaching outside the visible set, folded per player and per direction. Given
+     and received stay apart: a man who feeds the bench is doing something different from one
+     the bench feeds, and merging them would hide which. */
+  const out = {}, inn = {};
+  const bump = (bag, k, r) => {
+    const b = bag[k] = bag[k] || { hup: 0, pts: 0, two: 0, three: 0 };
+    b.hup += r.hup; b.pts += r.pts; b.two += r.two; b.three += r.three;
+  };
+  rows.forEach(r => {
+    if (keep.has(r.a) && !keep.has(r.sc)) bump(out, r.a, r);
+    if (keep.has(r.sc) && !keep.has(r.a)) bump(inn, r.sc, r);
+  });
+
+  /* Table rows for those satellites, shaped like any other row so sorting and rendering do
+     not need to know they are different. The share columns only fill in where they mean
+     something: "% of scorer" against a bucket of players is not a figure, so it stays blank. */
+  const restRows = [];
+  names.forEach(n => {
+    if (out[n]) restRows.push({
+      a: n, sc: 'Rest of team', isRest: true,
+      hup: out[n].hup, pts: out[n].pts, two: out[n].two, three: out[n].three,
+      pctScorer: null,
+      pctAssister: given[n] ? 100 * out[n].hup / given[n] : null,
+    });
+    if (inn[n]) restRows.push({
+      a: 'Rest of team', sc: n, isRest: true,
+      hup: inn[n].hup, pts: inn[n].pts, two: inn[n].two, three: inn[n].three,
+      pctScorer: madeBy[n] ? 100 * inn[n].hup / madeBy[n] : null,
+      pctAssister: null,
+    });
+  });
+
+  const restOut = {}, restIn = {};
+  for (const k in out) restOut[k] = out[k].hup;
+  for (const k in inn) restIn[k] = inn[k].hup;
+
+  return { names, keep, invol, pairRows, restRows, restOut, restIn };
+}
+
+/* Circular layout rather than a force simulation. With a dozen players a force layout lands
+   somewhere different on every render, which makes the picture impossible to compare between
+   practices. Fixed seats, ordered by involvement, mean a player stays put until his numbers
+   move - the same reasoning the Tendency Read uses for hashing its wording. */
+function hkGraphSvg(rows, given, got, vis) {
+  const names = vis.names, invol = vis.invol;
   if (names.length < 2) {
     return '<div class="placeholder"><div>Not enough assists to draw a network yet.</div></div>';
   }
-  const keep = new Set(names);
-  const edges = rows.filter(r => keep.has(r.a) && keep.has(r.sc));
-
+  const edges = vis.pairRows;
   /* An arc needs both ends on screen, so capping the bubbles drops every pairing involving
      anyone outside them - Kubel showed 4 assists given but only 3 arcs, because the fourth
      went to a man who is not drawn. Rather than lose it, each player gets a small satellite
      standing for everyone off the graph, carrying his totals to and from the rest of the
      team. The connection stays visible and the numbers add up to what the table says. */
-  const restOut = {}, restIn = {};
-  rows.forEach(r => {
-    if (keep.has(r.a) && !keep.has(r.sc)) restOut[r.a] = (restOut[r.a] || 0) + r.hup;
-    if (keep.has(r.sc) && !keep.has(r.a)) restIn[r.sc] = (restIn[r.sc] || 0) + r.hup;
-  });
+  const restOut = vis.restOut, restIn = vis.restIn;
   const hasRest = n => hkShowRest && ((restOut[n] || 0) + (restIn[n] || 0)) > 0;
 
   const W = 880, H = 580, cx = W / 2, cy = H / 2, RX = 286, RY = 182;
@@ -12106,10 +12154,14 @@ function renderConnectionsView() {
   });
 
   const hk = computeHookups(src);
-  const rows = hk.rows;
   const filterBar = _onoffFilterBar(scoped);
+  /* The table shows what the graph shows. "Top 5" narrows both, and with the satellites on
+     their rows join the table too - so a hookup that is drawn is always findable, and one
+     that is not drawn is not silently listed either. */
+  const vis = hkVisible(hk.rows, hk.madeBy, hk.given);
+  const rows = vis.pairRows.concat(hkShowRest ? vis.restRows : []);
 
-  if (!rows.length) {
+  if (!hk.rows.length) {
     root.innerHTML = '<div class="page-header"><div><div class="page-title">Connections</div>' +
       '<div class="page-subtitle">who sets up whom</div></div>' + filterBar + '</div>' +
       '<div class="placeholder" style="margin-top:20px;"><div>No assists recorded for this scope yet.</div></div>';
@@ -12131,7 +12183,7 @@ function renderConnectionsView() {
     (c[0] === 'a' || c[0] === 'sc' ? ' style="text-align:left;"' : '') + '>' +
     c[1] + arrow(c[0]) + '</th>').join('');
 
-  const body = rows.map(r => '<tr>' +
+  const body = rows.map(r => '<tr' + (r.isRest ? ' class="hk-rest-row"' : '') + '>' +
     '<td class="hk-name">' + escHtml(r.a) + '</td>' +
     '<td class="hk-name"><span class="hk-arrow">→</span>' + escHtml(r.sc) + '</td>' +
     '<td style="font-weight:800;">' + r.hup + '</td><td>' + r.pts + '</td>' +
@@ -12141,9 +12193,8 @@ function renderConnectionsView() {
 
   const people = new Set();
   rows.forEach(r => { people.add(r.a); people.add(r.sc); });
-  const opts = [6, 8, 10, 12, 99].map(n => '<option value="' + n + '"' +
-    (hkNodes === n ? ' selected' : '') + '>' +
-    (n === 99 ? 'All players' : 'Show ' + n + ' players') + '</option>').join('');
+  const opts = [5, 6, 7, 8, 9, 10].map(n => '<option value="' + n + '"' +
+    (hkNodes === n ? ' selected' : '') + '>Show ' + n + ' players</option>').join('');
 
   const unmatchedNote = hk.unmatched
     ? ' ' + hk.unmatched + ' assist' + (hk.unmatched === 1 ? '' : 's') +
@@ -12153,8 +12204,8 @@ function renderConnectionsView() {
   root.innerHTML =
     '<div class="page-header"><div><div class="page-title">Connections</div>' +
     '<div class="page-subtitle">' + hk.matched + ' assist' + (hk.matched === 1 ? '' : 's') +
-    ' · ' + rows.length + ' pairing' + (rows.length === 1 ? '' : 's') +
-    ' · ' + people.size + ' players</div></div>' + filterBar + '</div>' +
+    ' across ' + hk.rows.length + ' pairing' + (hk.rows.length === 1 ? '' : 's') +
+    ' · showing top ' + vis.names.length + '</div></div>' + filterBar + '</div>' +
     '<div class="hk-note">Read from the event log: an assist is paired with the basket logged ' +
     'immediately before it. <b>HUp</b> is how many times that passer found that scorer. ' +
     '<b>% of scorer</b> is the share of the scorer\'s made field goals this man set up; ' +
@@ -12167,7 +12218,7 @@ function renderConnectionsView() {
         (hkShowRest ? ' checked' : '') + '> Rest-of-team nodes</label>' +
         '<select onchange="hkSetNodes(this.value)" style="width:auto;font-size:11px;padding:4px 8px;">' +
         opts + '</select></div>' +
-        hkGraphSvg(rows, hk.given, hk.got) +
+        hkGraphSvg(hk.rows, hk.given, hk.got, vis) +
       '</div>' +
       '<div class="hk-table-wrap"><div class="table-wrap">' +
       '<table class="hk-tbl"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
