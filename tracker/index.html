@@ -3440,6 +3440,44 @@
       .profile-stat-val { font-size: 17px; }
       #profile-panel-overview > div:first-child { grid-template-columns: 1fr !important; }
     }
+    /* ============================================================
+       CONNECTIONS (assist network)
+    ============================================================ */
+    .hk-wrap { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+    .hk-graph {
+      flex: 0 0 380px; max-width: 100%;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 8px;
+    }
+    .hk-graph svg { width: 100%; height: auto; display: block; }
+    .hk-node      { fill: #f5c542; stroke: #7a5c00; stroke-width: 1.5; }
+    .hk-node-lbl  { fill: #3a2c00; font-weight: 800; text-anchor: middle; }
+    .hk-node-sub  { fill: #6b5200; font-weight: 700; text-anchor: middle; }
+    .hk-edge      { fill: none; stroke: var(--text-secondary); transition: stroke-opacity .12s; }
+    .hk-node-g    { cursor: pointer; }
+    /* Counts ride the arcs but stay invisible until a bubble is hovered - printed always,
+       48 of them would bury the picture they are meant to explain. paint-order gives each
+       one a halo of the panel colour so it reads where arcs cross underneath it. */
+    .hk-edge-lbl {
+      fill: var(--text); font-size: 11px; font-weight: 800; text-anchor: middle;
+      dominant-baseline: middle; opacity: 0; pointer-events: none;
+      paint-order: stroke; stroke: var(--surface); stroke-width: 3px;
+    }
+    svg.is-focused g.hk-off  { opacity: 0.10; }
+    svg.is-focused g.hk-on .hk-edge { stroke: #f5c542; stroke-opacity: 0.95; }
+    svg.is-focused g.hk-on .hk-edge-lbl { opacity: 1; }
+    .hk-table-wrap { flex: 1 1 460px; min-width: 0; }
+    .hk-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .hk-tbl th {
+      cursor: pointer; white-space: nowrap; font-size: 10px; letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .hk-tbl td { text-align: center; }
+    .hk-tbl td.hk-name { text-align: left; white-space: nowrap; font-weight: 600; }
+    .hk-arrow { color: var(--text-muted); padding: 0 2px; }
+    .hk-note { font-size: 11px; color: var(--text-dim); margin: 6px 0 10px; }
+    @media (max-width: 900px) { .hk-graph { flex: 1 1 100%; } }
+
     /* LOADING GATE - see initApp(). The shell is interactive from first paint but its
        data arrives a fetch later, so the app stays covered until real data is on screen. */
     #app-loading {
@@ -3519,6 +3557,7 @@
     <button class="nav-tab"        data-tab="shotcharts"onclick="switchTab('shotcharts',this)">Shot Charts</button>
     <button class="nav-tab"        data-tab="onoff"     onclick="switchTab('onoff',this)">On/Off</button>
     <button class="nav-tab"        data-tab="lineups"   onclick="switchTab('lineups',this)">Lineups</button>
+    <button class="nav-tab"        data-tab="connections" onclick="switchTab('connections',this)">Connections</button>
     <button class="nav-tab"        data-tab="notes"     onclick="switchTab('notes',this)">Notes</button>
     <button class="nav-tab editor-only" data-tab="zones" onclick="switchTab('zones',this)">Zones</button>
     <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
@@ -3924,6 +3963,12 @@
 
   <div id="tab-zones" class="tab-content">
     <div id="zones-root" class="page"></div>
+  </div>
+
+  <div id="tab-connections" class="tab-content">
+    <div id="connections-root" class="page">
+      <div class="placeholder"><div>No assists recorded yet.</div></div>
+    </div>
   </div>
 
   <div id="tab-notes" class="tab-content">
@@ -4780,6 +4825,7 @@ const tabRenderers = {
   shotcharts: () => {},
   onoff:      () => {},
   lineups:    () => {},
+  connections:() => {},
 };
 
 /* ============================================================
@@ -11696,6 +11742,265 @@ let notesFilter = { player: 'all', session: 'all', q: '' };
 
 function notesSetFilter(key, val) { notesFilter[key] = val; renderNotesView(); }
 
+/* ── Connections: who sets up whom ──────────────────────────────────────────────
+   The passer-to-scorer link is not stored on the make. Every event carries an `assister`
+   field and it has never once been filled - the Live Tracker writes the assist as its own
+   `ast` event instead, naming the passer but not who he found.
+
+   It is recoverable anyway, because the tracker logs that `ast` immediately after the make
+   it belongs to. Across 803 events and four practices, all 84 assists sat exactly one
+   position behind a made field goal, every one on the same team, none self-assisted. So the
+   pair is read from adjacency rather than from a field.
+
+   That is an assumption about log ORDER, not a stored fact, so it is checked rather than
+   trusted: an `ast` counts only if the event directly before it is a made field goal by a
+   different player on the same team. Anything else - a retroactive film edit slipping an
+   event between the two, a tracker flow that changes - is counted as unmatched and reported
+   under the table, rather than being quietly dropped or paired with the wrong basket. */
+function computeHookups(sessions) {
+  const MAKE = { '2fg_make': 2, '3fg_make': 3 };
+  const pairs = {};
+  const given = {}, got = {}, madeBy = {};
+  let matched = 0, unmatched = 0;
+
+  for (const sess of sessions) {
+    const ev = (sess.eventLog || []).filter(e => e.type !== 'sub');
+    ev.forEach((e, i) => {
+      if (MAKE[e.stat] && e.player && !isHiddenPlayer(e.player)) {
+        madeBy[e.player] = (madeBy[e.player] || 0) + 1;
+      }
+      if (e.stat !== 'ast') return;
+      const prev = i > 0 ? ev[i - 1] : null;
+      const a = e.player, sc = prev && prev.player;
+      const ok = prev && MAKE[prev.stat] && a && sc && a !== sc && e.team === prev.team;
+      if (!ok) { unmatched++; return; }
+      if (isHiddenPlayer(a) || isHiddenPlayer(sc)) return;
+      matched++;
+      const k = a + '|' + sc;
+      const r = pairs[k] = pairs[k] || { a, sc, hup: 0, pts: 0, two: 0, three: 0 };
+      r.hup++; r.pts += MAKE[prev.stat];
+      if (prev.stat === '3fg_make') r.three++; else r.two++;
+      given[a] = (given[a] || 0) + 1;
+      got[sc] = (got[sc] || 0) + 1;
+    });
+  }
+
+  /* Two readings off the same hookup: what share of the SCORER's baskets this man set up,
+     and what share of the ASSISTER's passing went to him. A pair can be large on one and
+     small on the other, and which it is changes what you do about it. */
+  const rows = Object.values(pairs).map(r => ({
+    a: r.a, sc: r.sc, hup: r.hup, pts: r.pts, two: r.two, three: r.three,
+    pctScorer: madeBy[r.sc] ? 100 * r.hup / madeBy[r.sc] : null,
+    pctAssister: given[r.a] ? 100 * r.hup / given[r.a] : null,
+  }));
+  return { rows, given, got, madeBy, matched, unmatched };
+}
+
+let hkSort = { col: 'hup', dir: -1 };
+let hkNodes = 8;
+
+function hkSetSort(col) {
+  if (hkSort.col === col) hkSort.dir *= -1;
+  else { hkSort.col = col; hkSort.dir = -1; }
+  renderConnectionsView();
+}
+
+function hkSetNodes(n) { hkNodes = +n || 8; renderConnectionsView(); }
+
+/* Hovering a bubble is the only way this picture is readable once there are more than a
+   handful of players: at 26 edges everything overlaps everything. Focus dims the arcs that
+   do not touch the hovered man, darkens the ones that do, and prints the hookup count on
+   each - so "who does he play with, and how often" is one hover rather than a hunt through
+   48 table rows. Handled in JS rather than CSS :hover because the edges are siblings of the
+   node, not descendants, so no selector reaches from one to the other. */
+function hkFocus(name) {
+  const svg = document.querySelector('#connections-root svg');
+  if (!svg) return;
+  svg.classList.add('is-focused');
+  svg.querySelectorAll('g[data-a]').forEach(g => {
+    const on = g.dataset.a === name || g.dataset.sc === name;
+    g.classList.toggle('hk-on', on);
+    g.classList.toggle('hk-off', !on);
+  });
+  const partners = new Set([name]);
+  svg.querySelectorAll('g[data-a].hk-on').forEach(g => {
+    partners.add(g.dataset.a); partners.add(g.dataset.sc);
+  });
+  svg.querySelectorAll('g[data-node]').forEach(g => {
+    g.classList.toggle('hk-off', !partners.has(g.dataset.node));
+  });
+}
+
+function hkBlur() {
+  const svg = document.querySelector('#connections-root svg');
+  if (!svg) return;
+  svg.classList.remove('is-focused');
+  svg.querySelectorAll('.hk-on, .hk-off').forEach(g => g.classList.remove('hk-on', 'hk-off'));
+}
+
+/* Circular layout rather than a force simulation. With a dozen players a force layout lands
+   somewhere different on every render, which makes the picture impossible to compare between
+   practices. Fixed seats, ordered by involvement, mean a player stays put until his numbers
+   move - the same reasoning the Tendency Read uses for hashing its wording. */
+function hkGraphSvg(rows, given, got) {
+  const invol = {};
+  rows.forEach(r => {
+    invol[r.a] = (invol[r.a] || 0) + r.hup;
+    invol[r.sc] = (invol[r.sc] || 0) + r.hup;
+  });
+  const names = Object.keys(invol).sort((x, y) => invol[y] - invol[x]).slice(0, hkNodes);
+  if (names.length < 2) {
+    return '<div class="placeholder"><div>Not enough assists to draw a network yet.</div></div>';
+  }
+  const keep = new Set(names);
+  const edges = rows.filter(r => keep.has(r.a) && keep.has(r.sc));
+
+  const W = 400, H = 380, cx = W / 2, cy = H / 2, R = 138;
+  const maxInv = Math.max.apply(null, names.map(n => invol[n]));
+  const maxHup = Math.max.apply(null, edges.map(e => e.hup).concat([1]));
+  const pos = {};
+  names.forEach((n, i) => {
+    const th = (-Math.PI / 2) + (2 * Math.PI * i / names.length);
+    pos[n] = {
+      x: cx + R * Math.cos(th),
+      y: cy + R * Math.sin(th),
+      r: 13 + 9 * (invol[n] / maxInv),
+    };
+  });
+
+  /* Curved, so A to B and B to A stay separate arcs instead of one line standing for both,
+     and stopped short of the target so the arrowhead is not buried under the circle. */
+  const paths = edges.map(e => {
+    const p1 = pos[e.a], p2 = pos[e.sc];
+    const dx = p2.x - p1.x, dy = p2.y - p1.y, d = Math.hypot(dx, dy) || 1;
+    const sx = p1.x + (dx / d) * p1.r, sy = p1.y + (dy / d) * p1.r;
+    const ex = p2.x - (dx / d) * (p2.r + 7), ey = p2.y - (dy / d) * (p2.r + 7);
+    const mx = (sx + ex) / 2 - dy * 0.16, my = (sy + ey) / 2 + dx * 0.16;
+    /* Point at t=0.5 on the quadratic, so the count sits ON the arc rather than on the
+       straight line between the two men, which for a curved edge is somewhere else. */
+    const lx = 0.25 * sx + 0.5 * mx + 0.25 * ex;
+    const ly = 0.25 * sy + 0.5 * my + 0.25 * ey;
+    const w = 0.8 + 3.6 * (e.hup / maxHup);
+    const op = 0.22 + 0.62 * (e.hup / maxHup);
+    return '<g data-a="' + escHtml(e.a) + '" data-sc="' + escHtml(e.sc) + '">' +
+      '<path class="hk-edge" d="M' + sx.toFixed(1) + ',' + sy.toFixed(1) +
+      ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + ex.toFixed(1) + ',' + ey.toFixed(1) +
+      '" stroke-width="' + w.toFixed(2) + '" stroke-opacity="' + op.toFixed(2) +
+      '" marker-end="url(#hk-arrow)"><title>' + escHtml(e.a) + ' → ' + escHtml(e.sc) +
+      ': ' + e.hup + '</title></path>' +
+      '<text class="hk-edge-lbl" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '">' +
+      e.hup + '</text></g>';
+  }).join('');
+
+  const nodes = names.map(n => {
+    const p = pos[n];
+    const parts = n.trim().split(/\s+/);
+    const ini = (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+    return '<g data-node="' + escHtml(n) + '" class="hk-node-g"' +
+      ' onmouseenter="hkFocus(\'' + jsQuote(n) + '\')" onmouseleave="hkBlur()"' +
+      ' onclick="hkFocus(\'' + jsQuote(n) + '\')">' +
+      '<title>' + escHtml(n) + ' — ' + (given[n] || 0) + ' given, ' + (got[n] || 0) + ' received</title>' +
+      '<circle class="hk-node" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+      '" r="' + p.r.toFixed(1) + '"/>' +
+      '<text class="hk-node-lbl" x="' + p.x.toFixed(1) + '" y="' + (p.y - 1).toFixed(1) +
+      '" font-size="' + (p.r * 0.62).toFixed(1) + '">' + escHtml(ini) + '</text>' +
+      '<text class="hk-node-sub" x="' + p.x.toFixed(1) + '" y="' + (p.y + p.r * 0.66).toFixed(1) +
+      '" font-size="' + (p.r * 0.46).toFixed(1) + '">' + invol[n] + '</text></g>';
+  }).join('');
+
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Assist network"' +
+    ' onmouseleave="hkBlur()">' +
+    '<defs><marker id="hk-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" ' +
+    'markerHeight="5" orient="auto-start-reverse">' +
+    '<path d="M0,1 L9,5 L0,9 z" fill="var(--text-secondary)"/></marker></defs>' +
+    paths + nodes + '</svg>';
+}
+
+function renderConnectionsView() {
+  const root = document.getElementById('connections-root');
+  if (!root) return;
+
+  const all = getSessions().filter(x => x.completed && !x.excludeFromStats);
+  const scoped = all.filter(x => sessionInScope(x, seg5Filter.period));
+  const team = seg5Filter.team;
+  /* Filtering by squad filters the EVENTS, not the practices: a man plays White one night
+     and Black the next, and only his White hookups belong under White. */
+  const src = (!team || team === 'all' || team === 'both') ? scoped : scoped.map(sess => {
+    const copy = {};
+    for (const k in sess) copy[k] = sess[k];
+    copy.eventLog = (sess.eventLog || []).filter(e => e.team === team);
+    return copy;
+  });
+
+  const hk = computeHookups(src);
+  const rows = hk.rows;
+  const filterBar = _onoffFilterBar(scoped);
+
+  if (!rows.length) {
+    root.innerHTML = '<div class="page-header"><div><div class="page-title">Connections</div>' +
+      '<div class="page-subtitle">who sets up whom</div></div>' + filterBar + '</div>' +
+      '<div class="placeholder" style="margin-top:20px;"><div>No assists recorded for this scope yet.</div></div>';
+    return;
+  }
+
+  const dir = hkSort.dir, col = hkSort.col;
+  const val = (r, c) => c === 'a' ? r.a : c === 'sc' ? r.sc : (r[c] == null ? -Infinity : r[c]);
+  rows.sort((x, y) => {
+    const a = val(x, col), b = val(y, col);
+    if (typeof a === 'string') return a.localeCompare(b) * dir * -1;
+    return (a - b) * dir;
+  });
+
+  const arrow = c => hkSort.col === c ? (hkSort.dir === 1 ? ' ↑' : ' ↓') : '';
+  const COLS = [['a', 'Assister'], ['sc', 'Scorer'], ['hup', 'HUp'], ['pts', 'PTS'],
+    ['pctScorer', '% of scorer'], ['pctAssister', '% of assister'], ['two', '2PT'], ['three', '3PT']];
+  const head = COLS.map(c => '<th onclick="hkSetSort(\'' + c[0] + '\')"' +
+    (c[0] === 'a' || c[0] === 'sc' ? ' style="text-align:left;"' : '') + '>' +
+    c[1] + arrow(c[0]) + '</th>').join('');
+
+  const body = rows.map(r => '<tr>' +
+    '<td class="hk-name">' + escHtml(r.a) + '</td>' +
+    '<td class="hk-name"><span class="hk-arrow">→</span>' + escHtml(r.sc) + '</td>' +
+    '<td style="font-weight:800;">' + r.hup + '</td><td>' + r.pts + '</td>' +
+    '<td>' + (r.pctScorer == null ? '—' : r.pctScorer.toFixed(1) + '%') + '</td>' +
+    '<td>' + (r.pctAssister == null ? '—' : r.pctAssister.toFixed(1) + '%') + '</td>' +
+    '<td>' + r.two + '</td><td>' + r.three + '</td></tr>').join('');
+
+  const people = new Set();
+  rows.forEach(r => { people.add(r.a); people.add(r.sc); });
+  const opts = [6, 8, 10, 12, 99].map(n => '<option value="' + n + '"' +
+    (hkNodes === n ? ' selected' : '') + '>' +
+    (n === 99 ? 'All players' : 'Show ' + n + ' players') + '</option>').join('');
+
+  const unmatchedNote = hk.unmatched
+    ? ' ' + hk.unmatched + ' assist' + (hk.unmatched === 1 ? '' : 's') +
+      ' could not be matched to a basket and ' + (hk.unmatched === 1 ? 'is' : 'are') + ' left out.'
+    : '';
+
+  root.innerHTML =
+    '<div class="page-header"><div><div class="page-title">Connections</div>' +
+    '<div class="page-subtitle">' + hk.matched + ' assist' + (hk.matched === 1 ? '' : 's') +
+    ' · ' + rows.length + ' pairing' + (rows.length === 1 ? '' : 's') +
+    ' · ' + people.size + ' players</div></div>' + filterBar + '</div>' +
+    '<div class="hk-note">Read from the event log: an assist is paired with the basket logged ' +
+    'immediately before it. <b>HUp</b> is how many times that passer found that scorer. ' +
+    '<b>% of scorer</b> is the share of the scorer\'s made field goals this man set up; ' +
+    '<b>% of assister</b> is the share of his passing that went to this scorer.' + unmatchedNote + '</div>' +
+    '<div class="hk-wrap">' +
+      '<div class="hk-graph">' +
+        '<div style="display:flex;justify-content:flex-end;margin-bottom:4px;">' +
+        '<select onchange="hkSetNodes(this.value)" style="width:auto;font-size:11px;padding:4px 8px;">' +
+        opts + '</select></div>' +
+        hkGraphSvg(rows, hk.given, hk.got) +
+      '</div>' +
+      '<div class="hk-table-wrap"><div class="table-wrap">' +
+      '<table class="hk-tbl"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
+      '</div></div>' +
+    '</div>';
+}
+
+tabRenderers.connections = function() { renderConnectionsView(); };
+
 tabRenderers.notes = function() { renderNotesView(); };
 
 /* Flatten notes out of every session (completed + the one in progress). */
@@ -12085,17 +12390,25 @@ function renderOnOffView() {
 }
 
 /* ── Shared filter setter ── */
+/* Every tab that reads seg5Filter must be listed here or its filter bar becomes a control
+   that changes nothing. That is exactly what happened when Connections was added: it was the
+   third tab on this filter and the third place to remember, and the chain of named ifs did
+   not mention it, so picking a practice moved the state and left the view alone. A registry
+   makes adding a fourth a one-line job instead of a thing to notice. */
+const SEG5_VIEWS = [
+  ['lineups-root',     () => renderLineupsView()],
+  ['onoff-root',       () => renderOnOffView()],
+  ['connections-root', () => renderConnectionsView()],
+];
+
 function seg5SetFilter(key, val) {
   seg5Filter[key] = val;
-  // Re-render whichever tab is active
-  const lineupRoot = document.getElementById('lineups-root');
-  const onoffRoot  = document.getElementById('onoff-root');
-  if (lineupRoot && lineupRoot.closest('.tab-content.active')) renderLineupsView();
-  if (onoffRoot  && onoffRoot.closest('.tab-content.active'))  renderOnOffView();
-  // If neither check works, render both (safe fallback)
-  if (!lineupRoot?.closest('.tab-content.active') && !onoffRoot?.closest('.tab-content.active')) {
-    renderLineupsView();
-    renderOnOffView();
+  /* Only the tab on screen. The others re-render through switchTab when they are opened, so
+     rebuilding them here was work nobody could see - and the old fallback did exactly that
+     whenever the active tab was one the chain had not heard of. */
+  for (const [id, render] of SEG5_VIEWS) {
+    const el = document.getElementById(id);
+    if (el && el.closest('.tab-content.active')) render();
   }
 }
 
