@@ -8924,6 +8924,116 @@ function computeShotQuality(sessions) {
   return out;
 }
 
+/* ── Points created + rim assists ──────────────────────────────────────────────
+   Both read off the same passer→basket pairing the Connections tab uses, and for the same
+   reason: the make does not record who set it up. The tracker writes the `ast` as its own
+   event directly after the basket it belongs to, so the pair is recovered from ORDER.
+
+   That is an assumption, so it is checked rather than trusted — identical rule to
+   computeHookups(): the event before the assist must be a made field goal by a different
+   player on the same team. A retroactive film edit that slips an event between the two is
+   dropped rather than credited to the wrong basket, which is why these two columns and the
+   Connections table can never drift apart.
+
+   What this returns is the ASSIST half of PTS CR — the scoreboard value of the baskets he
+   set up. That is the half needing the 2/3 split: sixteen assists worth 43 points is a
+   different passer from sixteen worth 32. The column itself adds his own scoring on top,
+   so PTS CR answers "how many points does this man put on the board, by any route" — a
+   volume scorer and a pure distributor can land in the same place, which is the use of it.
+
+   RIM AST counts only the ones that finished at the rim — inside Bottom Key Left or Bottom
+   Key Right AND from 4 feet or closer — and the column divides that count by possessions. The zone alone is not enough: it runs to the paint's
+   bottom corners, ~7.9ft out at the widest, so the distance gate is what keeps this column
+   meaning finishes at the basket rather than short jumpers in the same box.
+
+   Zone membership follows scZoneKey()'s precedence so this agrees with the shot charts —
+   the zones Chad drew win, the fixed grid's two posts stand in only when those zones are
+   absent. Drawn zones are matched by NAME, not id: ids are minted fresh whenever a zone is
+   re-cut, so an id match would silently zero the column after a redraw. */
+
+/* ── TS% with a man's own putbacks taken out ────────────────────────────────────
+   A tip-in off your own miss is the cheapest attempt in basketball: no creation, no
+   defender set, often from two feet. A big who generates a lot of them carries a TS% that
+   partly measures his rebounding, not his shot-making — and the two want different
+   conversations. Removing those attempts leaves what he shot on everything he had to
+   actually create or finish in a set defence.
+
+   A putback is read off log ORDER, the same way the assist pairing is: the tracker writes
+   the rebound immediately after the miss and the follow-up immediately after the rebound,
+   so the shot directly behind a man's OWN offensive board is his own second chance. The
+   assumption was checked against the data before it was relied on — every one of the 67
+   sequences found had a missed shot or a block two events back, never anything else, so
+   the pattern does not fire on unrelated attempts.
+
+   Both halves come out together: the attempt leaves the denominator and its points leave
+   the numerator. So this is NOT a one-way deflator. A good finisher's number falls (his
+   easy makes are gone); a poor one's RISES, because the bricks came out too. That is the
+   honest reading of "what he shot on everything else", and the direction of the move is
+   itself the finding.
+
+   Free throws stay in the pool. FTs are logged behind a `foul` event, never behind the
+   shot that drew them, so a putback and-one cannot be attributed back to the attempt it
+   came from without guessing — and across the current data exactly one putback was
+   followed by a foul at all. Leaving FTA whole is the smaller error than inventing a link
+   the log does not carry. */
+function computeSelfObPutbacks(sessions) {
+  const SHOT = { '2fg_make': 2, '2fg_miss': 0, '3fg_make': 3, '3fg_miss': 0 };
+  const out = {};
+  for (const sess of sessions) {
+    const ev = (sess.eventLog || []).filter(e => e.type !== 'sub');
+    const bySess = out[sess.id] = {};
+    ev.forEach((e, i) => {
+      if (SHOT[e.stat] == null || !e.player) return;
+      const prev = i > 0 ? ev[i - 1] : null;
+      if (!prev || prev.stat !== 'oreb' || prev.player !== e.player) return;
+      const b = bySess[e.player] || (bySess[e.player] = { att: 0, pts: 0 });
+      b.att++;
+      b.pts += SHOT[e.stat];
+    });
+  }
+  return out;
+}
+
+const RIM_ZONE_NAMES    = ['bottom key left', 'bottom key right'];
+const RIM_ZONE_FALLBACK = ['paint_ll', 'paint_lr'];   // the fixed grid's two posts
+const RIM_ASSIST_MAX_FT = 4;
+
+function computeAssistCreation(sessions, filterTeam) {
+  const MAKE = { '2fg_make': 2, '3fg_make': 3 };
+
+  /* Resolved once, not per shot. If zones have been drawn but none carry the rim names —
+     they were renamed — the fixed grid is the honest fallback, rather than every player
+     quietly reading 0.0 with nothing to say why. */
+  const drawnRim = (State.zones || [])
+    .filter(z => RIM_ZONE_NAMES.includes(String(z.name || '').trim().toLowerCase()));
+  const rimIds = new Set(drawnRim.map(z => z.id));
+
+  function atRim(ev) {
+    if (ev.shotFt == null || ev.shotFt > RIM_ASSIST_MAX_FT) return false;
+    if (rimIds.size) { const z = znZoneForShot(ev); return !!z && rimIds.has(z.id); }
+    return RIM_ZONE_FALLBACK.includes(ev.zone);
+  }
+
+  const out = {};
+  for (const sess of sessions) {
+    const ev = (sess.eventLog || []).filter(e => e.type !== 'sub');
+    ev.forEach((e, i) => {
+      if (e.stat !== 'ast') return;
+      /* Scoped by the assist's own team, matching how the counting stats are scoped above:
+         a man who switched squads has only the filtered squad's passing counted. */
+      if (filterTeam && filterTeam !== 'all' && e.team !== filterTeam) return;
+      const prev = i > 0 ? ev[i - 1] : null;
+      const a = e.player, sc = prev && prev.player;
+      if (!(prev && MAKE[prev.stat] && a && sc && a !== sc && e.team === prev.team)) return;
+      if (isHiddenPlayer(a)) return;
+      const b = out[a] || (out[a] = { astPts: 0, rimAst: 0 });
+      b.astPts += MAKE[prev.stat];
+      if (atRim(prev)) b.rimAst++;
+    });
+  }
+  return out;
+}
+
 /* The period filter takes 'all', a period key, or one practice as 's:<id>'. The prefix is
    what keeps the two apart: a session id is free text a coach typed, so without it a
    practice called "pre" would silently become the Pre-Jamboree filter.
@@ -8960,6 +9070,11 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   // Shot quality shares the row scope, so the baseline reflects the same practices shown.
   const scoped = sessions.filter(s => sessionInScope(s, filterPeriod));
   const shotQual = computeShotQuality(scoped);
+  /* Same scope again, but team-aware: unlike shot quality — which needs a baseline common
+     to everyone — points created is this man's own production and is filtered like the
+     counting stats beside it. */
+  const created  = computeAssistCreation(scoped, filterTeam);
+  const putbacks = computeSelfObPutbacks(scoped);
 
   /* MIN% denominator: every minute the team was on the floor across the practices in scope,
      INCLUDING the ones this player missed. Averaging his per-practice MIN% answered a
@@ -8991,18 +9106,29 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       if (!byPlayer[key]) {
         byPlayer[key] = {
           name: p.name, team: p.team,
-          gp: 0, wins: 0, losses: 0, pm: 0,
+          gp: 0, wins: 0, losses: 0, pm: 0, poss: 0,
           min: 0, pts: 0, fgm: 0, fga: 0, fg2m: 0, fg2a: 0, fg3m: 0, fg3a: 0,
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
           // Per-game ADV accumulators for averaging
           _ortg: [], _drtg: [], _usgPct: [], _shotPct: [],
-          _efgPct: [], _tsPct: [], _ftRate: [],
+          _efgPct: [], _tsPct: [], _tsNoPb: [],
           _orPct: [], _drPct: [], _astPct: [], _toPct: [], _stlPct: [], _blkPct: [],
         };
       }
       const row = byPlayer[key];
       row.gp++;
+      /* Estimated possessions he was on the floor for: his share of this practice's minutes
+         times the possessions his squad actually played. This is the SAME estimate STL%
+         already divides by — minPct × team possessions — rather than a second definition of
+         "a possession he was out for" that would quietly disagree with the column beside it.
+         Summed per ENTRY, not after the merge, so a man who switched squads mid-practice is
+         charged each squad's own pace instead of one of them twice. */
+      const _gameMin = getSessionPlayedSeconds(sess) / 60;
+      if (_gameMin > 0) for (const en of entries) {
+        const tp = ((sess.teamStats || {})[en.team] || {}).possessions || 0;
+        if (tp > 0) row.poss += (en.min || 0) / _gameMin * tp;
+      }
       /* +/- accrues while a player is ON THE FLOOR, and the two team maps cover disjoint
          stints — so a player who switched squads mid-practice has his White and Black
          stretches added together, unlike the counting stats which are duplicated. When a
@@ -9035,7 +9161,19 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       if (p.shotPct   != null) row._shotPct.push(p.shotPct);
       if (p.efgPct    != null) row._efgPct.push(p.efgPct);
       if (p.tsPct     != null) row._tsPct.push(p.tsPct);
-      if (p.ftRate    != null) row._ftRate.push(p.ftRate);
+      /* Built per session and averaged, exactly as tsPct above is — not from season totals.
+         The whole use of this column is the gap between it and TS%, and a gap between two
+         figures assembled different ways would measure the assembly as much as the shooting.
+         The base is playerStats, the same source TS% divides, so the only difference between
+         the two numbers is the exclusion itself. Counting stats are whole-session by the
+         storage contract, and the putback count is read off the same whole session, so the
+         two agree even when a squad filter is on. */
+      {
+        const _pb  = (putbacks[sess.id] || {})[nm] || { att: 0, pts: 0 };
+        const _fga = (p.fga || 0) - _pb.att;
+        const _den = _fga + 0.475 * (p.fta || 0);
+        if (_den > 0) row._tsNoPb.push(100 * 0.5 * ((p.pts || 0) - _pb.pts) / _den);
+      }
       if (p.orPct     != null) row._orPct.push(p.orPct);
       if (p.drPct     != null) row._drPct.push(p.drPct);
       if (p.astPct    != null) row._astPct.push(p.astPct);
@@ -9054,6 +9192,21 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
     const fg2Pct = r.fg2a > 0 ? p1(100 * r.fg2m / r.fg2a) : null;
     const fg3Pct = r.fg3a > 0 ? p1(100 * r.fg3m / r.fg3a) : null;
     const ftPct  = r.fta  > 0 ? p1(100 * r.ftm  / r.fta)  : null;
+    /* 3PAR = share of his shots taken from three. Built from SEASON totals, like the four
+       shooting percentages above it and unlike the per-game means further down, because a
+       mean of per-game attempt shares is dragged by low-volume nights: one shot taken in a
+       scrimmage, and if it was a three that practice reads 100% and pulls the average up as
+       hard as a 20-attempt night. Totals ask the question the column is actually for — of
+       everything he put up, how much of it was from three. */
+    const fg3aRate = r.fga > 0 ? p1(100 * r.fg3a / r.fga) : null;
+    /* FTR is the same shape of stat — attempts of one kind over total attempts — and moved
+       here for the same reason. It used to be the mean of each practice's FTR, which read
+       Bello at 22.2% off two free throws in eighteen shots; the true figure is 11.1%. The
+       practice where he took 2 FTA on 3 FGA counted as heavily as the one where he put up
+       13 and never got to the line, and a factor of two is not a rounding difference.
+       The per-practice FTR in the box score and the game log is deliberately untouched:
+       there one practice IS the scope, so that denominator was already the right one. */
+    const ftRate = r.fga > 0 ? p1(100 * r.fta / r.fga) : null;
 
     return {
       name: r.name, team: r.team,
@@ -9077,6 +9230,18 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
         const xpps = q.xpts / q.att, pps = q.pts / q.att;
         return { xpps: p1(xpps, 2), pps: p1(pps, 2), shotDiff: p1(pps - xpps, 2) };
       })(),
+      /* PTS CR = his own scoring plus the points his passing produced, per game. Both
+         halves are divided by the SAME g, so the column is directly comparable with the
+         PTS column in the AVG view rather than being a total sitting among per-game figures.
+         Zero is a real answer here — a man who neither scored nor set anything up created
+         nothing — so it prints 0, not the em-dash that elsewhere means "too little to say". */
+      ptsCreated: p1((r.pts + ((created[r.name] || {}).astPts || 0)) / g),
+      /* Per 100 possessions, not per game: a rim assist is a thing that happens inside a
+         possession, so pace and playing time both have to come out of it before two men can
+         be compared. A blank means no possessions to divide by — he never took the floor —
+         which is a different statement from a 0.0 he earned. */
+      rimAstP100: r.poss > 0
+        ? p1(100 * ((created[r.name] || {}).rimAst || 0) / r.poss) : null,
       fg2mPG: p1(r.fg2m / g), fg2aPG: p1(r.fg2a / g),
       fg3mPG: p1(r.fg3m / g), fg3aPG: p1(r.fg3a / g),
       ftmPG:  p1(r.ftm  / g), ftaPG:  p1(r.fta  / g),
@@ -9085,7 +9250,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       ptsPG: p1(r.pts / g), rebPG: p1(r.reb / g), astPG: p1(r.ast / g),
       stlPG: p1(r.stl / g), blkPG: p1(r.blk / g), tovPG: p1(r.tov / g), minPG: p1(r.min / g),
       // Shooting
-      fgPct, fg2Pct, fg3Pct, ftPct,
+      fgPct, fg2Pct, fg3Pct, ftPct, fg3aRate,
       // ADV (averages of per-game values)
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
@@ -9103,7 +9268,11 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       shotPct:  avg(r._shotPct),
       efgPct:   avg(r._efgPct),
       tsPct:    avg(r._tsPct),
-      ftRate:   avg(r._ftRate),
+      /* Blank, not zero, when nothing survives the exclusion — a man whose only attempt of
+         the night was a tip-in has no non-putback shooting to report, which is a different
+         statement from having shot 0%. */
+      tsNoPbPct:avg(r._tsNoPb),
+      ftRate,
       orPct:    avg(r._orPct),
       drPct:    avg(r._drPct),
       astPct:   avg(r._astPct),
@@ -9172,10 +9341,14 @@ function renderPlayerTable() {
     { key: 'shotPct',   label: 'SHOT%' },
     { key: 'efgPct',    label: 'EFG%'  },
     { key: 'tsPct',     label: 'TS%'   },
+    { key: 'tsNoPbPct', label: 'TS% NO-PB' }, // TS% minus his own putback attempts
+    { key: 'fg3aRate',  label: '3PAR'  },   // share of his attempts taken from three
     { key: 'ftRate',    label: 'FTR'   },
     { key: 'orPct',     label: 'OR%'   },
     { key: 'drPct',     label: 'DR%'   },
     { key: 'astPct',    label: 'AST%'  },
+    { key: 'ptsCreated',label: 'PTS CR'  }, // per game: his own points + points he assisted
+    { key: 'rimAstP100',label: 'RIM AST/100' }, // per 100 poss: assists finishing at the rim
     { key: 'toPct',     label: 'TO%'   },
     { key: 'stlPct',    label: 'STL%'  },
     { key: 'blkPct',    label: 'BLK%'  },
@@ -9279,7 +9452,7 @@ function renderPlayerTable() {
          the eye went down it. A rate is never a whole-number stat, so it always shows the
          tenth, even when the tenth is zero. */
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
-          'usgPct','minPctVal','shotPct','ftRate'].includes(key))
+          'usgPct','minPctVal','shotPct','ftRate','fg3aRate'].includes(key))
         return `<td>${(+v).toFixed(1)}%</td>`;
       /* Backstop for the whole TOT view: counting stats are integers and print as-is, but
          anything accumulated from decimals (minutes today, anything similar later) would
