@@ -3443,30 +3443,44 @@
     /* ============================================================
        CONNECTIONS (assist network)
     ============================================================ */
-    .hk-wrap { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+    /* Graph above the table, full width. Beside it the circle had to shrink to 380px and
+       the arcs crowded into a knot; given the whole width it can spread onto an ellipse and
+       the connections separate. */
+    .hk-wrap { display: block; }
     .hk-graph {
-      flex: 0 0 380px; max-width: 100%;
+      width: 100%; margin-bottom: 16px;
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 8px;
+      border-radius: var(--radius-lg); padding: 8px 10px 4px;
     }
     .hk-graph svg { width: 100%; height: auto; display: block; }
+    /* On a phone the full width is 355px, which squashes the ellipse to about 170px tall and
+       leaves the bubbles too small to tap. Scroll it sideways instead - the same thing every
+       wide table in here does - so the graph keeps a legible size rather than a fitting one.
+       Tapping works as well as hovering: the nodes carry onclick alongside onmouseenter,
+       because touch has no hover to give. */
+    @media (max-width: 700px) {
+      .hk-graph { overflow-x: auto; }
+      .hk-graph svg { min-width: 620px; }
+    }
     .hk-node      { fill: #f5c542; stroke: #7a5c00; stroke-width: 1.5; }
-    .hk-node-lbl  { fill: #3a2c00; font-weight: 800; text-anchor: middle; }
-    .hk-node-sub  { fill: #6b5200; font-weight: 700; text-anchor: middle; }
+    /* Initials only. The involvement count used to sit under them, but it is the one number
+       that is true of every render regardless of what you are looking at - the hover counts
+       on the arcs are the ones that answer a question. */
+    .hk-node-lbl  { fill: #3a2c00; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
     .hk-edge      { fill: none; stroke: var(--text-secondary); transition: stroke-opacity .12s; }
     .hk-node-g    { cursor: pointer; }
     /* Counts ride the arcs but stay invisible until a bubble is hovered - printed always,
        48 of them would bury the picture they are meant to explain. paint-order gives each
        one a halo of the panel colour so it reads where arcs cross underneath it. */
     .hk-edge-lbl {
-      fill: var(--text); font-size: 11px; font-weight: 800; text-anchor: middle;
+      fill: var(--text); font-size: 13px; font-weight: 800; text-anchor: middle;
       dominant-baseline: middle; opacity: 0; pointer-events: none;
       paint-order: stroke; stroke: var(--surface); stroke-width: 3px;
     }
     svg.is-focused g.hk-off  { opacity: 0.10; }
     svg.is-focused g.hk-on .hk-edge { stroke: #f5c542; stroke-opacity: 0.95; }
     svg.is-focused g.hk-on .hk-edge-lbl { opacity: 1; }
-    .hk-table-wrap { flex: 1 1 460px; min-width: 0; }
+    .hk-table-wrap { width: 100%; min-width: 0; }
     .hk-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
     .hk-tbl th {
       cursor: pointer; white-space: nowrap; font-size: 10px; letter-spacing: 0.4px;
@@ -3476,7 +3490,7 @@
     .hk-tbl td.hk-name { text-align: left; white-space: nowrap; font-weight: 600; }
     .hk-arrow { color: var(--text-muted); padding: 0 2px; }
     .hk-note { font-size: 11px; color: var(--text-dim); margin: 6px 0 10px; }
-    @media (max-width: 900px) { .hk-graph { flex: 1 1 100%; } }
+
 
     /* LOADING GATE - see initApp(). The shell is interactive from first paint but its
        data arrives a fetch later, so the app stays covered until real data is on screen. */
@@ -11855,16 +11869,18 @@ function hkGraphSvg(rows, given, got) {
   const keep = new Set(names);
   const edges = rows.filter(r => keep.has(r.a) && keep.has(r.sc));
 
-  const W = 400, H = 380, cx = W / 2, cy = H / 2, R = 138;
+  /* Ellipse, not a circle: the panel is far wider than it is tall now, and seating players
+     on a circle inside it would waste the width and leave the arcs bunched. */
+  const W = 900, H = 470, cx = W / 2, cy = H / 2, RX = 352, RY = 178;
   const maxInv = Math.max.apply(null, names.map(n => invol[n]));
   const maxHup = Math.max.apply(null, edges.map(e => e.hup).concat([1]));
   const pos = {};
   names.forEach((n, i) => {
     const th = (-Math.PI / 2) + (2 * Math.PI * i / names.length);
     pos[n] = {
-      x: cx + R * Math.cos(th),
-      y: cy + R * Math.sin(th),
-      r: 13 + 9 * (invol[n] / maxInv),
+      x: cx + RX * Math.cos(th),
+      y: cy + RY * Math.sin(th),
+      r: 20 + 16 * (invol[n] / maxInv),
     };
   });
 
@@ -11902,10 +11918,8 @@ function hkGraphSvg(rows, given, got) {
       '<title>' + escHtml(n) + ' — ' + (given[n] || 0) + ' given, ' + (got[n] || 0) + ' received</title>' +
       '<circle class="hk-node" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
       '" r="' + p.r.toFixed(1) + '"/>' +
-      '<text class="hk-node-lbl" x="' + p.x.toFixed(1) + '" y="' + (p.y - 1).toFixed(1) +
-      '" font-size="' + (p.r * 0.62).toFixed(1) + '">' + escHtml(ini) + '</text>' +
-      '<text class="hk-node-sub" x="' + p.x.toFixed(1) + '" y="' + (p.y + p.r * 0.66).toFixed(1) +
-      '" font-size="' + (p.r * 0.46).toFixed(1) + '">' + invol[n] + '</text></g>';
+      '<text class="hk-node-lbl" x="' + p.x.toFixed(1) + '" y="' + p.y.toFixed(1) +
+      '" font-size="' + (p.r * 0.72).toFixed(1) + '">' + escHtml(ini) + '</text></g>';
   }).join('');
 
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Assist network"' +
