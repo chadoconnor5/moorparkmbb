@@ -8968,6 +8968,58 @@ function computeShotQuality(sessions) {
    re-cut, so an id match would silently zero the column after a redraw. */
 
 
+/* ── Rebounding split by what was missed ────────────────────────────────────────
+   OR% and DR% answer "what share of the available boards did he take". These four split
+   that by the shot that created the board, because a miss from three and a miss from two
+   are different rebounds: the three comes off long and lands outside the paint, which is
+   why a guard can post a real OR% on threes and none at all on twos.
+
+   Which miss a board came off is read from log ORDER, as with the assist pairing. Checked
+   before it was relied on: every one of the 171 rebounds in this data traces to a miss —
+   160 sit directly behind one, and the other 11 sit behind a `blk` logged after the shot it
+   rejected. So the lookback steps over exactly one block and stops. Nothing else has ever
+   intervened, and anything that did would be dropped rather than charged to the wrong shot.
+
+   Free-throw boards are counted in neither split. They are 2 of 171 here, and a missed free
+   throw is not a two or a three — folding it into either would be inventing a value the
+   shot did not have. The parent OR%/DR% still include them, so the two splits are not meant
+   to add up to the whole; they are the shooting-foul remainder short.
+
+   DENOMINATOR, exactly as orPct/drPct build theirs: every board available off that kind of
+   miss while he was on the floor, estimated by his share of the minutes. Offensive boards
+   available to his team off ITS missed 2s are all the rebounds of those misses, whoever
+   collected them; the defensive denominator is the same count off the opponent's misses. */
+function computeReboundSplits(sessions) {
+  const MISS = { '2fg_miss': 2, '3fg_miss': 3 };
+  const out = {};
+  for (const sess of sessions) {
+    const ev = (sess.eventLog || []).filter(e => e.type !== 'sub');
+    const byPlayer = {}, avail = {};
+    ev.forEach((e, i) => {
+      if (e.stat !== 'oreb' && e.stat !== 'dreb') return;
+      /* Step back to the miss this board came off, over a block if one was logged between.
+         Bounded at one step: past that the trail leaves the possession. */
+      let shot = null;
+      for (let j = i - 1; j >= 0 && j >= i - 2; j--) {
+        const st = ev[j].stat;
+        if (MISS[st]) { shot = ev[j]; break; }
+        if (st === 'blk') continue;
+        break;
+      }
+      if (!shot || !shot.team) return;
+      const v = MISS[shot.stat];
+      const ak = shot.team + '|' + v;
+      avail[ak] = (avail[ak] || 0) + 1;            // counted whoever ends up with it
+      if (!e.player || isHiddenPlayer(e.player)) return;
+      const kind = (e.team === shot.team) ? 'or' : 'dr';
+      const b = byPlayer[e.player] || (byPlayer[e.player] = { or2: 0, or3: 0, dr2: 0, dr3: 0 });
+      b[kind + v]++;
+    });
+    out[sess.id] = { byPlayer, avail };
+  }
+  return out;
+}
+
 /* ── TS% with a man's own putbacks taken out ────────────────────────────────────
    A tip-in off your own miss is the cheapest attempt in basketball: no creation, no
    defender set, often from two feet. A big who generates a lot of them carries a TS% that
@@ -9092,6 +9144,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
      counting stats beside it. */
   const created  = computeAssistCreation(scoped, filterTeam);
   const putbacks = computeSelfObPutbacks(scoped);
+  const rebSplit = computeReboundSplits(scoped);
 
   /* MIN% denominator: every minute the team was on the floor across the practices in scope,
      INCLUDING the ones this player missed. Averaging his per-practice MIN% answered a
@@ -9124,6 +9177,8 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
         byPlayer[key] = {
           name: p.name, team: p.team,
           gp: 0, wins: 0, losses: 0, pm: 0, poss: 0,
+          // split rebounds, and the minutes-weighted boards available off each kind of miss
+          or2: 0, or3: 0, dr2: 0, dr3: 0, dOr2: 0, dOr3: 0, dDr2: 0, dDr3: 0,
           min: 0, pts: 0, fgm: 0, fga: 0, fg2m: 0, fg2a: 0, fg3m: 0, fg3a: 0,
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
@@ -9145,6 +9200,23 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       if (_gameMin > 0) for (const en of entries) {
         const tp = ((sess.teamStats || {})[en.team] || {}).possessions || 0;
         if (tp > 0) row.poss += (en.min || 0) / _gameMin * tp;
+      }
+      /* Boards are whole-session and added once; the denominators are per ENTRY, so a man
+         who switched squads is charged each squad's own share of the floor — the same split
+         the possession estimate above makes. */
+      const _rs = rebSplit[sess.id];
+      if (_rs) {
+        const _pb = _rs.byPlayer[nm];
+        if (_pb) { row.or2 += _pb.or2; row.or3 += _pb.or3;
+                   row.dr2 += _pb.dr2; row.dr3 += _pb.dr3; }
+        if (_gameMin > 0) for (const en of entries) {
+          const mp = (en.min || 0) / _gameMin;
+          const opp = en.team === 'a' ? 'b' : 'a';
+          row.dOr2 += mp * (_rs.avail[en.team + '|2'] || 0);
+          row.dOr3 += mp * (_rs.avail[en.team + '|3'] || 0);
+          row.dDr2 += mp * (_rs.avail[opp + '|2'] || 0);
+          row.dDr3 += mp * (_rs.avail[opp + '|3'] || 0);
+        }
       }
       /* +/- accrues while a player is ON THE FLOOR, and the two team maps cover disjoint
          stints — so a player who switched squads mid-practice has his White and Black
@@ -9224,6 +9296,15 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
        The per-practice FTR in the box score and the game log is deliberately untouched:
        there one practice IS the scope, so that denominator was already the right one. */
     const ftRate = r.fga > 0 ? p1(100 * r.fta / r.fga) : null;
+    /* From season totals, like the shooting rates above and unlike the per-game means these
+       four sit beside. Deliberate: a split rebound rate is a handful of boards a night, and
+       a mean of per-practice rates lets a single board on a short night weigh as much as a
+       full one. Worth knowing that OR%/DR% next door are still per-game means, so the parent
+       and its two children are not built the same way. */
+    const orPct2 = r.dOr2 > 0 ? p1(100 * r.or2 / r.dOr2) : null;
+    const orPct3 = r.dOr3 > 0 ? p1(100 * r.or3 / r.dOr3) : null;
+    const drPct2 = r.dDr2 > 0 ? p1(100 * r.dr2 / r.dDr2) : null;
+    const drPct3 = r.dDr3 > 0 ? p1(100 * r.dr3 / r.dDr3) : null;
 
     return {
       name: r.name, team: r.team,
@@ -9268,6 +9349,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       stlPG: p1(r.stl / g), blkPG: p1(r.blk / g), tovPG: p1(r.tov / g), minPG: p1(r.min / g),
       // Shooting
       fgPct, fg2Pct, fg3Pct, ftPct, fg3aRate,
+      orPct2, orPct3, drPct2, drPct3,
       // ADV (averages of per-game values)
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
@@ -9362,7 +9444,11 @@ function renderPlayerTable() {
     { key: 'fg3aRate',  label: '3PAR'  },   // share of his attempts taken from three
     { key: 'ftRate',    label: 'FTR'   },
     { key: 'orPct',     label: 'OR%'   },
+    { key: 'orPct2',    label: 'OR% 2PT' },   // his share of the boards off missed 2s
+    { key: 'orPct3',    label: 'OR% 3PT' },   // ditto off missed 3s — a different rebound
     { key: 'drPct',     label: 'DR%'   },
+    { key: 'drPct2',    label: 'DR% 2PT' },
+    { key: 'drPct3',    label: 'DR% 3PT' },
     { key: 'astPct',    label: 'AST%'  },
     { key: 'ptsCreated',label: 'PTS CR'  }, // per game: his own points + points he assisted
     { key: 'rimAstP100',label: 'RIM AST/100' }, // per 100 poss: assists finishing at the rim
@@ -9469,7 +9555,8 @@ function renderPlayerTable() {
          the eye went down it. A rate is never a whole-number stat, so it always shows the
          tenth, even when the tenth is zero. */
       if (key.endsWith('Pct') || ['orPct','drPct','astPct','toPct','stlPct','blkPct',
-          'usgPct','minPctVal','shotPct','ftRate','fg3aRate'].includes(key))
+          'usgPct','minPctVal','shotPct','ftRate','fg3aRate',
+          'orPct2','orPct3','drPct2','drPct3'].includes(key))
         return `<td>${(+v).toFixed(1)}%</td>`;
       /* Backstop for the whole TOT view: counting stats are integers and print as-is, but
          anything accumulated from decimals (minutes today, anything similar later) would
