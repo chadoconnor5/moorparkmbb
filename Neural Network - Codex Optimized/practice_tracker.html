@@ -2200,8 +2200,6 @@
     .sc-legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); }
 
     /* WOWY on/off chips + picker */
-    .wowy-picker { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
-    .wowy-slot { min-width:150px; }
     /* Square, solid, and black-lettered on both states. Green/red carries the on/off read
        on its own, so the two chips are the same weight and size as each other — an OFF row
        is a real observation, and the column has to scan down its length as a pattern rather
@@ -11266,50 +11264,108 @@ function computeWowyRows(sessions, picks, teamsToShow) {
   return { rows, unitsUsed, unitsSplit };
 }
 
-/* Everyone who took the floor in scope, for the pick dropdowns. Read off lineupSegments
-   rather than playerStats: a man with a stat line but no logged stint has no on/off to
-   split, and offering him would produce a table of blanks. */
-function _wowyRoster(sessions, teamsToShow) {
-  const out = new Set();
-  for (const sess of sessions)
-    for (const t of teamsToShow)
+const WOWY_SLOTS = 5;
+
+/* Every (practice, squad) roster in scope, as a list of names.
+
+   This is the unit WOWY aggregates over — a man is only comparable with men he actually
+   dressed alongside — so it is also the right thing to cascade the dropdowns against. The
+   Lineup Builder narrows on "a lineup exists containing all of these"; here the test is
+   "a practice-squad exists containing all of these", which is the condition a WOWY row
+   needs to have any sample at all. Narrowing on anything looser would let you assemble a
+   selection the table can only answer with an empty page. */
+function _wowyUnits(sessions, teamsToShow) {
+  const out = [];
+  for (const sess of sessions) {
+    for (const t of teamsToShow) {
+      const listKey = t === 'a' ? 'lineupA' : 'lineupB';
+      const roster = new Set();
       for (const g of (sess.lineupSegments || []))
         if (g.endTimeSecs !== null)
-          for (const n of (g[t === 'a' ? 'lineupA' : 'lineupB'] || []))
-            if (!isHiddenPlayer(n)) out.add(n);
-  return [...out].sort();
+          for (const n of (g[listKey] || [])) if (!isHiddenPlayer(n)) roster.add(n);
+      if (roster.size) out.push([...roster]);
+    }
+  }
+  return out;
+}
+
+/* Which players may still be chosen in one slot — same cascade the Lineup Builder uses,
+   and for the same reasons, so the two panels behave identically under the hand.
+
+   Keyed off every OTHER slot rather than the earlier ones, so entry order never matters.
+   Names taken elsewhere are dropped, because the same man twice is not a split. And if the
+   other slots name a group that never shared a squad, the strict list comes back empty and
+   would strand the user with no dropdown able to undo the pick that caused it — so that
+   case falls back to every available player and the panel says plainly why. */
+function _wowyOptions(units, slotIndex) {
+  const others = wowyPicks.filter((n, i) => n && i !== slotIndex);
+  const taken  = new Set(others);
+  const out    = new Set();
+  let reachable = false;
+  for (const u of units) {
+    if (!others.every(n => u.includes(n))) continue;
+    reachable = true;
+    for (const n of u) if (!taken.has(n)) out.add(n);
+  }
+  if (!reachable) for (const u of units) for (const n of u) if (!taken.has(n)) out.add(n);
+  /* This slot's own pick is always listed even once unreachable: a <select> whose value is
+     missing from its options renders as though nothing were chosen, hiding a pick that is
+     still driving the table below. */
+  const mine = wowyPicks[slotIndex];
+  if (mine) out.add(mine);
+  return [...out].sort((a, b) => a.localeCompare(b));
 }
 
 function wowySetPick(i, name) {
-  if (name) wowyPicks[i] = name; else wowyPicks.splice(i, 1);
-  wowyPicks = wowyPicks.filter(Boolean);
-  renderLineupsView();
+  wowyPicks[i] = name || '';
+  renderLineupsView();     // every other slot's options depend on this one
 }
-function wowyClearPicks()     { wowyPicks = []; renderLineupsView(); }
+function wowyClearPicks() { wowyPicks = []; renderLineupsView(); }
 
-/* The split sizes itself: however many men are picked, that is the K in 2^K. There is no
-   size selector to keep in step with the picks — pick a fourth and the table becomes a
-   sixteen-row split on its own; clear one and it falls back to eight.
+/* Slots are fixed at five and an empty one simply is not part of the split — so the split
+   still sizes itself from what is filled: three picks make eight rows, a fourth makes
+   sixteen, clearing one drops it back. No size selector to keep in step with the picks. */
+function _wowyBuilderPanelHtml(units) {
+  const known = new Set(units.flat());
+  wowyPicks = Array.from({ length: WOWY_SLOTS }, (_, i) => {
+    const n = wowyPicks[i];
+    return n && known.has(n) ? n : '';
+  });
 
-   Picks are compacted first, so clearing the middle slot closes the gap rather than leaving
-   a hole that the next render would read as an empty pick. One spare slot always trails the
-   chosen men, up to five, which is the whole "add another" affordance. */
-function _wowyPickerHtml(roster) {
-  wowyPicks = wowyPicks.filter(n => n && roster.includes(n));
-  const slots = (wowyPicks.length < 5 ? [...wowyPicks, ''] : [...wowyPicks]).map((mine, i) => {
-    /* A name already taken in another slot is dropped from this one — the same player twice
-       is not a combination, and 2^K assumes K distinct men. */
-    const taken = wowyPicks.filter((n, j) => j !== i);
-    const opts = roster.filter(n => n === mine || !taken.includes(n))
-      .map(n => '<option value="' + escHtml(n) + '"' + (n === mine ? ' selected' : '') + '>' + escHtml(n) + '</option>')
+  const slots = wowyPicks.map((sel, i) => {
+    const opts = _wowyOptions(units, i)
+      .map(n => `<option value="${escHtml(n)}"${n === sel ? ' selected' : ''}>${escHtml(n)}</option>`)
       .join('');
-    return '<select class="wowy-slot" onchange="wowySetPick(' + i + ', this.value)">' +
-           '<option value="">' + (mine ? '— remove —' : 'Add a player…') + '</option>' +
-           opts + '</select>';
+    return `<select class="lu-b-slot${sel ? ' is-set' : ''}" onchange="wowySetPick(${i}, this.value)">
+        <option value=""${sel ? '' : ' selected'}>Any player</option>
+        ${opts}
+      </select>`;
   }).join('');
-  return '<div class="wowy-picker">' + slots +
-    '<button class="btn btn-sm btn-ghost" onclick="wowyClearPicks()"' +
-    (wowyPicks.length ? '' : ' disabled') + '>Clear</button></div>';
+
+  const chosen = wowyPicks.filter(Boolean);
+  const shared = units.filter(u => chosen.every(n => u.includes(n))).length;
+
+  let body;
+  if (!chosen.length) {
+    body = `<div class="lu-b-note">Choose a player and the other slots narrow to only the players who actually shared a squad with them. Leave a slot on <em>Any player</em> to keep it out of the split — the table below splits by whoever you pick.</div>`;
+  } else if (chosen.length === 1) {
+    body = `<div class="lu-b-note">Pick one more to split. With <strong>${escHtml(chosen[0])}</strong> alone there is nothing to be with or without.</div>`;
+  } else if (!shared) {
+    /* Reachable by picking and THEN changing team or period out from under the selection.
+       Name the players rather than saying "no results". */
+    body = `<div class="lu-b-blank">${escHtml(chosen.join(' + '))} never dressed for the same squad under these filters, so there is nothing to split.</div>`;
+  } else {
+    body = `<div class="lu-b-note"><strong>${chosen.length}-man split</strong> — ${1 << chosen.length} on/off combinations of ${escHtml(chosen.join(' + '))}, across ${shared} practice-squad${shared === 1 ? '' : 's'} where all ${chosen.length} dressed together. Add another to double the split.</div>`;
+  }
+
+  return `<div class="lu-builder">
+      <div class="lu-b-head">
+        <span class="lu-b-title">Lineup Builder</span>
+        <div class="lu-b-slots">${slots}</div>
+        <button class="btn btn-ghost btn-sm" onclick="wowyClearPicks()" ${chosen.length ? '' : 'disabled style="opacity:.45;"'}>Clear</button>
+      </div>
+      ${body}
+    </div>`;
 }
 
 function _wowyRowHtml(r, picks) {
@@ -11347,8 +11403,8 @@ const _WOWY_HEAD = [
 ];
 
 function renderWowyInto(root, filtered, teamsToShow) {
-  const roster = _wowyRoster(filtered, teamsToShow);
-  const pickerHtml = _wowyPickerHtml(roster);
+  const units = _wowyUnits(filtered, teamsToShow);
+  const pickerHtml = _wowyBuilderPanelHtml(units);
   const picks = wowyPicks.filter(Boolean);
 
   const header =
