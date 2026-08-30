@@ -9786,9 +9786,12 @@ function renderPlayerTable() {
        a diff. The attempt count beside it is the honest headline. */
     const MIN = 5;
     const pps = b => (b && b.att > 0) ? b.pts / b.att : null;
-    const cell = (b, colour) => {
+    const cell = (b, colour, sp) => {
       const v = pps(b);
       if (v == null) return '<td class="pps-na">—</td>';
+      /* A share is a percentage of makes, so it never takes the PPS colour scale — 0.91
+         there would read as a poor shot rather than a well-fed one. */
+      if (sp && sp.pct) return `<td>${(v * 100).toFixed(0)}%<span class="pps-att">(${b.att})</span></td>`;
       const col = (colour && b.att >= MIN) ? ppsColor(v) : '';
       return `<td${col ? ` style="color:${col};font-weight:800;"` : ''}>${v.toFixed(2)}<span class="pps-att">(${b.att})</span></td>`;
     };
@@ -9797,10 +9800,16 @@ function renderPlayerTable() {
        1.20 — showed a dash where the answer was -1.20. A thin sample is a reason not to
        DRESS a number as a finding, not a reason to withhold the arithmetic; the colour
        carries that warning and the attempt count beside it carries the rest. */
-    const diffCell = (p, t) => {
+    const diffCell = (p, t, sp) => {
       const pv = pps(p), tv = pps(t);
       if (pv == null || tv == null) return '<td class="pps-na">—</td>';
       const d = pv - tv;
+      if (sp && sp.pct) {
+        /* Neutral: a high assisted share is a finisher and a low one a creator, and which of
+           those you want depends on the player. Green would be picking a side. */
+        const pd = d * 100;
+        return `<td class="oo-imp-diff">${pd > 0 ? '+' : ''}${pd.toFixed(0)}%</td>`;
+      }
       const thin = p.att < MIN;
       const cls = (thin || Math.abs(d) < 0.005) ? '' : (d > 0 ? ' oo-imp-good' : ' oo-imp-bad');
       return `<td class="oo-imp-diff${cls}">${d > 0 ? '+' : ''}${d.toFixed(2)}</td>`;
@@ -9813,13 +9822,13 @@ function renderPlayerTable() {
         const p = (mine[z.key] || {})[sp.key], t = (ppsGrid.team[z.key] || {})[sp.key];
         if (p) { sP.pts += p.pts; sP.att += p.att; }
         if (t) { sT.pts += t.pts; sT.att += t.att; }
-        return `<tr><th>${escHtml(z.label)}</th>${cell(p, true)}${cell(t, false)}${p && t ? diffCell(p, t) : '<td class="pps-na">—</td>'}</tr>`;
+        return `<tr><th>${escHtml(z.label)}</th>${cell(p, true, sp)}${cell(t, false, sp)}${p && t ? diffCell(p, t, sp) : '<td class="pps-na">—</td>'}</tr>`;
       }).join('');
       if (sp.key === 'all') { grand.p = sP.pts; grand.a = sP.att; }
       const tot = `<tr class="pps-total"><th>${escHtml(sp.label)} — all zones</th>` +
-                  `${cell(sP, true)}${cell(sT, false)}${diffCell(sP, sT)}</tr>`;
+                  `${cell(sP, true, sp)}${cell(sT, false, sp)}${diffCell(sP, sT, sp)}</tr>`;
       return `<tr class="pps-band"><th colspan="4">${escHtml(sp.label)}` +
-             `<span class="pps-att">${sP.att} att</span></th></tr>` + zrows + tot;
+             `<span class="pps-att">${sP.att} ${sp.pct ? 'makes' : 'att'}</span></th></tr>` + zrows + tot;
     }).join('');
 
     return `<div class="oo-imp-card reb-ww-card">
@@ -13307,42 +13316,43 @@ const PPS_SPLITS = [
   { key: 'csCon',  label: 'C&S Contested'      },
   { key: 'puUnc',  label: 'Pull-Up Uncontested'},
   { key: 'puCon',  label: 'Pull-Up Contested'  },
-  { key: 'ast',      label: 'Assisted'                },
-  { key: 'unast',    label: 'Unassisted'              },
-  { key: 'astUnc',   label: 'Assisted Uncontested'    },
-  { key: 'astCon',   label: 'Assisted Contested'      },
-  { key: 'unastUnc', label: 'Unassisted Uncontested'  },
-  { key: 'unastCon', label: 'Unassisted Contested'    },
+  /* Not a PPS. Of the baskets he made from this spot, the share someone set up. */
+  { key: 'astShare', label: 'Assisted % of Makes', pct: true },
 ];
 
-/* READ THE ASSISTED ROWS AS COUNTS, NOT AS RATES. An assist is only ever logged on a make,
-   so every shot in an assisted split is a make and its PPS is the shot's face value — 2.00
-   in a two-point zone, 3.00 from three, always, for every player. The diff against the team
-   is 0.00 for the same reason. What the row carries is the bracketed count: how many of his
-   makes from that spot someone set up.
+/* WHY THIS IS A SHARE AND NOT A PPS. Assisted PPS was tried first and is degenerate: an
+   assist is only ever logged on a make, so every shot in an assisted split IS a make and its
+   PPS is the shot's face value — 2.00 in a two-point zone, 3.00 from three, every player,
+   every zone, diff 0.00. There is no variance in it to read.
 
-   The unassisted rows are the mirror of that and are biased low by construction: every miss
-   lands there, including the ones that came off a pass, because a missed shot carries no
-   assist either way. They are not "his PPS when creating for himself".
+   The share has plenty. Across this data it runs 91% of made threes against 10% of made
+   short mid-range, and separates the roster from Khawaja at 79% down to Niles at 25% — which
+   is what those rows were reaching for: how much of a man's scoring is manufactured for him.
 
-   The split that DOES answer that question on attempts is Catch & Shoot against Pull-Up
-   above, because shotTypes is recorded on misses too. */
+   Conditioned on makes, so the denominator is his baskets rather than his attempts and a
+   cold night leaves it riding on very few. That is a small sample, not a tautology.
 
-/* Period and team come from psFilter now that PPS is a Player Stats view; only the player
-   is its own, because the other views address every player at once. */
+   Uncoloured on purpose: neither direction is good. A high share is a finisher, a low one a
+   creator, and which you want depends on the man.
+
+   (Catch & Shoot above is the attempt-level cousin, and exact as far as it goes: across this
+   data every catch-and-shoot make was assisted, 45 of 45, no exceptions. It simply does not
+   reach the rim, where nobody catches and shoots.) */
+
+/* Period and team come from psFilter now that PPS is a Player Stats view; only the player is
+   its own, because the other views address every player at once. */
 let ppsFilter = { player: null };
 
 function ppsSetPlayer(n) { ppsFilter.player = n || null; renderPlayerTable(); }
 
-/* Which splits a single attempt belongs to. A shot is always in 'all', in exactly one of
+/* Which splits a single attempt belongs to. A shot is always in 'all', and in exactly one of
    contested/uncontested, and in a type split only if it carries that type. */
-function _ppsSplitsFor(ev, assisted) {
-  const out = ['all', assisted ? 'ast' : 'unast'];
+function _ppsSplitsFor(ev) {
+  const out = ['all'];
   const c = ev.shotContest;
   if (c !== 'contested' && c !== 'uncontested') return out;   // untagged: totals only
   const unc = c === 'uncontested';
   out.push(unc ? 'unc' : 'con');
-  out.push(assisted ? (unc ? 'astUnc' : 'astCon') : (unc ? 'unastUnc' : 'unastCon'));
   const types = Array.isArray(ev.shotTypes) && ev.shotTypes.length
     ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
   if (types.includes('catch_shoot')) out.push(unc ? 'csUnc' : 'csCon');
@@ -13376,9 +13386,16 @@ function computePpsGrid(sessions, teamFilter) {
       const nxt = log[i + 1];
       const assisted = pts > 0 && !!nxt && nxt.stat === 'ast'
                        && nxt.team === ev.team && nxt.player !== ev.player;
-      const splits = _ppsSplitsFor(ev, assisted);
+      const splits = _ppsSplitsFor(ev);
       const mine = byPlayer[ev.player] || (byPlayer[ev.player] = {});
       for (const sp of splits) { bump(mine, zk, sp, pts); bump(team, zk, sp, pts); }
+      /* Makes only, riding the same {pts, att} shape as everything else: att counts his
+         baskets from the spot, pts counts the ones that were set up, so pts/att is the
+         share. One accumulator type, one renderer. */
+      if (pts > 0) {
+        bump(mine, zk, 'astShare', assisted ? 1 : 0);
+        bump(team, zk, 'astShare', assisted ? 1 : 0);
+      }
     });
   }
   return { byPlayer, team };
