@@ -13023,16 +13023,28 @@ function hkGraphSvg(rows, given, got, vis) {
 
   const nodes = names.map(n => {
     const p = pos[n];
-    const parts = n.trim().split(/\s+/);
-    const ini = (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+    /* A hyphenated surname is ONE name made of parts, and every part earns a letter:
+       Brendan Banks-Speed is BBS, not BB, and Singletary-Jinks is KSJ. Splitting only on
+       whitespace gave the whole surname a single initial, which put Banks-Speed and a
+       hypothetical B. Brown on identical bubbles.
+
+       Spaces are treated differently from hyphens on purpose: a middle name is a separate
+       name and still drops out, so first initial plus every segment of the surname. */
+    const parts   = n.trim().split(/\s+/);
+    const surname = parts.length > 1 ? parts[parts.length - 1] : '';
+    const ini = (parts[0][0] + surname.split(/[-‐-―]/).filter(Boolean)
+                 .map(w => w[0]).join('')).toUpperCase();
     return '<g data-node="' + escHtml(n) + '" class="hk-node-g"' +
       ' onmouseenter="hkFocus(\'' + jsQuote(n) + '\')" onmouseleave="hkBlur()"' +
       ' onclick="hkFocus(\'' + jsQuote(n) + '\')">' +
       '<title>' + escHtml(n) + ' — ' + (given[n] || 0) + ' given, ' + (got[n] || 0) + ' received</title>' +
       '<circle class="hk-node" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
       '" r="' + p.r.toFixed(1) + '"/>' +
+      /* Scaled by how many letters there are: 0.72 of the radius fits two comfortably and
+         spills a three-letter set outside the circle it belongs to. */
       '<text class="hk-node-lbl" x="' + p.x.toFixed(1) + '" y="' + p.y.toFixed(1) +
-      '" font-size="' + (p.r * 0.72).toFixed(1) + '">' + escHtml(ini) + '</text></g>';
+      '" font-size="' + (p.r * (ini.length >= 4 ? 0.44 : ini.length === 3 ? 0.56 : 0.72)).toFixed(1) +
+      '">' + escHtml(ini) + '</text></g>';
   }).join('');
 
   const restTotal = Object.values(restOut).reduce((t, v) => t + v, 0) +
