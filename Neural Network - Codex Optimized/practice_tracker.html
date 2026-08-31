@@ -8398,10 +8398,13 @@ function buildZoneHeatSvg(shots) {
              t.m + '-' + t.a + '</text>';
   }).join('');
 
+  /* Same correction as the dots footer. eFG% is exactly half the PPS already printed
+     beside it — allPts / attempts / 2 — so the two figures here now agree instead of the
+     percentage contradicting the points-per-shot next to it. */
   const made = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
   const foot = shots.length
-    ? made + '/' + shots.length + ' FGM (' + Math.round(100 * made / shots.length) + '%)' +
-      ' · ' + (shots.length ? (allPts / shots.length).toFixed(2) : '0.00') + ' PPS' +
+    ? made + '/' + shots.length + ' FGM · ' + (100 * allPts / shots.length / 2).toFixed(1) + '% eFG' +
+      ' · ' + (allPts / shots.length).toFixed(2) + ' PPS' +
       (unzoned ? ' · ' + unzoned + ' outside any zone' : '')
     : 'No shots charted';
 
@@ -8447,11 +8450,17 @@ function buildCourtSvg(shots) {
     <circle cx="${cx}" cy="${cy}" r="2.5" fill="${inner}" opacity="0.9"/>`;
   }).filter(s => s !== '').join('\n    ');
 
+  /* eFG%, not FG%, because every filter above this can mix twos and threes and raw FG%
+     then understates the selection by however much of it came from behind the arc. Catch &
+     Shoot is 92% threes here and read 37.8% where the honest figure is 54.6% — the filter
+     that says most about shot creation was the one most wrong. Makes/attempts stay beside
+     it so the raw count is never lost. */
   const madeCount  = shots.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
+  const made3Count = shots.filter(ev => ev.stat === '3fg_make').length;
   const totalCount = shots.length;
-  const pct        = totalCount > 0 ? Math.round(100 * madeCount / totalCount) : 0;
+  const efg        = totalCount > 0 ? (100 * (madeCount + 0.5 * made3Count) / totalCount) : 0;
   const statText   = totalCount > 0
-    ? `${madeCount}/${totalCount} FGM (${pct}%)`
+    ? `${madeCount}/${totalCount} FGM · ${efg.toFixed(1)}% eFG`
     : 'No shots charted';
 
   return `<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">
@@ -8690,26 +8699,38 @@ function buildShotMetaTable(shotTypeShots, contestShots, selectedTypes = [], sel
      question — how did we shoot when off balance — regardless of whether that tag was
      tapped first or third. Rows therefore sum to more than the shot count; that is
      inherent to multi-tagging, not a miscount. */
+  /* eFG%, NOT FG%. Every row here is a selection that can mix twos and threes, and the
+     shot types correlate hard with distance — 92% of catch-and-shoot attempts are threes,
+     while a layup is never one. Raw FG% therefore understated exactly the rows worth
+     reading: Catch & Shoot printed 38% where the honest figure is 55%, and Uncontested 58%
+     where it is 69%. Layup and Drive are unaffected, which is the tell — the error is the
+     three-point share of the row and nothing else.
+
+     Points are carried alongside the makes so the rate divides the same way the zone table
+     and the footers do. */
   const byType = {};
   for (const ev of shotTypeShots) {
     for (const t of shotTypesOf(ev)) {
       if (!TYPE_LABELS[t]) continue;
-      if (!byType[t]) byType[t] = { makes: 0, att: 0 };
+      if (!byType[t]) byType[t] = { makes: 0, att: 0, pts: 0 };
       byType[t].att += 1;
-      if (ev.stat.endsWith('make')) byType[t].makes += 1;
+      if (ev.stat.endsWith('make')) { byType[t].makes += 1; byType[t].pts += shotPoints(ev.stat); }
     }
   }
+  /* eFG% is exactly half the points per shot, so one expression serves both and they can
+     never disagree the way the old footer disagreed with the PPS printed beside it. */
+  const efgOf = (pts, att) => att > 0 ? (100 * pts / att / 2) : 0;
 
   const typeRows = TYPE_ORDER
     .filter(t => byType[t] && byType[t].att > 0)
     .map(t => {
       const m = byType[t].makes;
       const a = byType[t].att;
-      const pct = Math.round(100 * m / a);
+      const efg = efgOf(byType[t].pts, a);
       const active = selectedTypes.includes(t);
       const cls = active ? 'active' : '';
       const marker = active ? '&#10003;&nbsp;' : '';
-      return `<tr class="${cls}" onclick="scToggleShotType('${t}')" style="cursor:pointer;"><td style="text-align:left;">${marker}${TYPE_LABELS[t]}</td><td>${m}-${a}</td><td style="font-weight:700;">${pct}%</td></tr>`;
+      return `<tr class="${cls}" onclick="scToggleShotType('${t}')" style="cursor:pointer;"><td style="text-align:left;">${marker}${TYPE_LABELS[t]}</td><td>${m}-${a}</td><td style="font-weight:700;color:${ppsColor(byType[t].pts / a)};">${efg.toFixed(1)}%</td></tr>`;
     }).join('');
 
   const contestRows = ['contested', 'uncontested']
@@ -8718,12 +8739,13 @@ function buildShotMetaTable(shotTypeShots, contestShots, selectedTypes = [], sel
       if (!cShots.length) return '';
       const m = cShots.filter(ev => ev.stat.endsWith('make')).length;
       const a = cShots.length;
-      const pct = Math.round(100 * m / a);
+      const pts = cShots.reduce((s, ev) => s + shotPoints(ev.stat), 0);
+      const efg = efgOf(pts, a);
       const label = c === 'contested' ? 'Contested' : 'Uncontested';
       const active = selectedContests.includes(c);
       const cls = active ? 'active' : '';
       const marker = active ? '&#10003;&nbsp;' : '';
-      return `<tr class="${cls}" onclick="scToggleContest('${c}')" style="cursor:pointer;"><td style="text-align:left;">${marker}${label}</td><td>${m}-${a}</td><td style="font-weight:700;">${pct}%</td></tr>`;
+      return `<tr class="${cls}" onclick="scToggleContest('${c}')" style="cursor:pointer;"><td style="text-align:left;">${marker}${label}</td><td>${m}-${a}</td><td style="font-weight:700;color:${ppsColor(pts / a)};">${efg.toFixed(1)}%</td></tr>`;
     }).filter(Boolean).join('');
 
   if (!typeRows && !contestRows) {
@@ -8731,7 +8753,7 @@ function buildShotMetaTable(shotTypeShots, contestShots, selectedTypes = [], sel
   }
 
   return `<div class="table-wrap"><table class="zone-table" style="font-size:12px;"><thead><tr>
-    <th style="text-align:left;min-width:130px;">Type / Contest</th><th>FGM-A</th><th>FG%</th>
+    <th style="text-align:left;min-width:130px;">Type / Contest</th><th>FGM-A</th><th>eFG%</th>
   </tr></thead><tbody>
     ${typeRows ? `<tr><td colspan="3" style="padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">Shot Type</td></tr>${typeRows}` : ''}
     ${contestRows ? `<tr><td colspan="3" style="padding-top:${typeRows ? '8' : '0'}px;padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);${typeRows ? 'border-top:1px solid var(--border);' : ''}">Contest</td></tr>${contestRows}` : ''}
