@@ -4661,7 +4661,7 @@ async function recomputeAllStats() {
       `moorpark_tracker_backup_pre_recompute_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before stat recompute',
-                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       roster: State.roster, settings: State.settings, zones: znForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4724,7 +4724,7 @@ async function repairSessionDates() {
       `moorpark_tracker_backup_pre_date_repair_${todayLocalISO()}.json`,
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before date repair',
-                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       roster: State.roster, settings: State.settings, zones: znForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4779,7 +4779,7 @@ async function repairEmptyStints() {
       `moorpark_tracker_backup_pre_stint_repair_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before empty-stint repair',
-                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       roster: State.roster, settings: State.settings, zones: znForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4868,7 +4868,7 @@ async function repairInvertedStints() {
       `moorpark_tracker_backup_pre_inverted_stint_repair_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before inverted-stint repair',
-                       roster: State.roster, settings: State.settings, zones: State.zones,
+                       roster: State.roster, settings: State.settings, zones: znForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4908,7 +4908,7 @@ async function publishData() {
     publishedAt: new Date().toISOString(),
     roster: State.roster,
     settings: State.settings,
-    zones: State.zones,
+    zones: znForExport(),
     sessions: getSessions(),   // all completed sessions (exhibition flag travels with them)
   };
   downloadTextFile('pt_data.json', JSON.stringify(payload), 'application/json');
@@ -6302,7 +6302,7 @@ function exportAllSessions() {
     exportedAt: new Date().toISOString(),
     roster: State.roster,
     settings: State.settings,
-    zones: State.zones,
+    zones: znForExport(),
     sessions: getSessions(),
     /* getSessions() is COMPLETED practices only, so for a long time the one practice you
        could not back up was the one you were in the middle of — the only one with no other
@@ -6331,7 +6331,7 @@ function backupBeforeRename() {
     roster: State.roster,
     settings: State.settings,
     // Hand-drawn zone polygons exist nowhere else — a restore without them loses that work.
-    zones: State.zones,
+    zones: znForExport(),
     sessions: getSessions(),
     /* getSessions() is COMPLETED sessions only, but applyPlayerRenames rewrites the
        in-progress one too — and the roster editor is now reachable mid-game from the
@@ -6741,7 +6741,7 @@ async function restoreFromBackup() {
         exportedAt: new Date().toISOString(),
         reason: 'auto-backup before restore',
         // zones included for the same reason as backupBeforeRename — they're unrecoverable.
-        roster: State.roster, settings: State.settings, zones: State.zones, sessions: getSessions(),
+        roster: State.roster, settings: State.settings, zones: znForExport(), sessions: getSessions(),
       };
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       downloadTextFile(`moorpark_tracker_backup_pre_restore_${stamp}.json`, JSON.stringify(pre), 'application/json');
@@ -12401,6 +12401,26 @@ function znZoneAtPoint(x, y) {
 function znZoneForShot(ev) {
   if (ev.shotX == null || ev.shotY == null) return null;
   return znZoneAtPoint(ev.shotX * 500, ev.shotY * 485);
+}
+
+/* Zones as they should leave this browser: without the _poly cache.
+
+   znPolygon() memoises its flattened outline onto the zone object it is handed —
+   `z._poly || (z._poly = znPolygon(z))` — so any zone that has been hit-tested or drawn
+   since load carries one. znPersist() below deletes it before writing to localStorage; the
+   eight export payloads were each written separately and none did, so 133 cached points
+   rode into the published pt_data.json and every backup.
+
+   Harmless while the geometry matches, which is why it went unseen for so long. It is still
+   a computed value masquerading as stored data, and a stale one would be USED rather than
+   rebuilt, because the lookup trusts the cache before recomputing. Stripped once here rather
+   than at eight call sites that will not all be remembered next time one is added. */
+function znForExport() {
+  return (State.zones || []).map(z => {
+    const out = {};
+    for (const k in z) if (k !== '_poly') out[k] = z[k];
+    return out;
+  });
 }
 
 function znPersist() {
