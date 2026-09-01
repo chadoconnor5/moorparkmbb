@@ -13787,8 +13787,18 @@ function renderOnOffView() {
     return '<div class="oo-imp-card">' +
       '<div class="oo-imp-head">' +
         '<span class="oo-imp-name">' + escHtml(p.name) + '</span>' +
+        /* Both sides of the split, because the sample behind the WITHOUT column is the one
+           that decides whether any of the diffs below mean anything — and it was the one
+           number the card never showed.
+
+           The old line read "125 off poss" off p.on.offPoss, which is the ON figure:
+           offPoss is OFFENSIVE possessions, not off-court ones. It named the on-court
+           sample as though it were the bench sample, the exact opposite of what a reader
+           checking a diff needs. Spelled out now so neither half can be misread. */
         '<span class="oo-imp-sub">' + p.minPct.toFixed(0) + '% min &middot; ' + p.practices +
-        ' practice' + (p.practices === 1 ? '' : 's') + ' &middot; ' + p.on.offPoss + ' off poss</span>' +
+        ' practice' + (p.practices === 1 ? '' : 's') + ' &middot; ' +
+        p.on.offPoss + ' poss on &middot; ' +
+        (p.off ? p.off.offPoss + ' off' : 'never off the floor') + '</span>' +
       '</div>' +
       '<div class="oo-imp-grid">' +
         ooPanel('Core Stats', OO_CORE, p) +
