@@ -4421,7 +4421,7 @@
 
 <script type="application/json" id="settings-data">
 {
-  "jamboreeDate": null,
+  "jamboreeDate": "2026-09-21",
   "appVersion": "1.0.0"
 }
 </script>
@@ -4546,9 +4546,45 @@ function clearLiveSession() {
 /* ============================================================
    UTILITY — Jamboree Tagger
 ============================================================ */
+/* jamboreeDate is the FIRST POST-JAMBOREE DAY, not the day the Jamboree opens — the test is
+   >=, so a practice dated on it is already 'post'. The 2026 Jamboree runs Sep 18-20, so the
+   date is 2026-09-21 and the three Jamboree days themselves fall on the 'pre' side. */
 function getPeriodTag(dateStr) {
   if (!State.settings.jamboreeDate) return 'pre';
   return dateStr >= State.settings.jamboreeDate ? 'post' : 'pre';
+}
+
+/* The period a practice belongs to is DERIVED from its date, not frozen at the moment it was
+   created. getPeriodTag stamps a new session so the field is never empty, but the Jamboree
+   date can be set or moved long after practices are already in the archive — it was null for
+   the whole fall preseason — and a stamped-once field would leave every one of those tagged
+   'pre' for good. Re-derived on each load instead, in memory only: no localStorage write, so
+   viewing a published snapshot never rewrites anything. */
+function retagSessionPeriods() {
+  const all = (State.sessions || []).concat(State.liveSession ? [State.liveSession] : []);
+  let moved = 0;
+  for (const sess of all) {
+    if (!sess || !sess.date) continue;
+    const tag = getPeriodTag(sess.date);
+    if (sess.period !== tag) { sess.period = tag; moved++; }
+  }
+  if (moved) console.log(`Re-tagged ${moved} practice${moved === 1 ? '' : 's'} against Jamboree date ${State.settings.jamboreeDate}.`);
+  return moved;
+}
+
+/* Settings arriving from a published snapshot or a backup file are merged rather than swapped
+   in — but a plain merge is not enough. Every export written before the Jamboree date existed
+   carries "jamboreeDate": null, and Object.assign writes that null straight over a real date,
+   which would drop every practice back into Pre-Jamboree the next time the site loaded its own
+   pt_data.json. A null or empty incoming value means "this file has nothing to say about it"
+   and the value already in hand stands. */
+function mergeSettings(incoming) {
+  if (!incoming || typeof incoming !== 'object') return;
+  const merged = Object.assign({}, State.settings, incoming);
+  if (!incoming.jamboreeDate && State.settings.jamboreeDate) {
+    merged.jamboreeDate = State.settings.jamboreeDate;
+  }
+  State.settings = merged;
 }
 
 /* ============================================================
@@ -4675,6 +4711,10 @@ async function recomputeAllStats() {
     done++;
     if (JSON.stringify([sess.teamStats, sess.playerStats]) !== before) changed++;
   }
+
+  /* The load-time retag is in-memory only; this is the one place a write is already
+     happening behind a password and a backup, so the corrected periods are saved here too. */
+  retagSessionPeriods();
 
   if (!persistSessions()) return;   // persistKey already warned
   showToast(`Recomputed ${done} practice${done === 1 ? '' : 's'} — ${changed} changed. Re-publish to update the site.`, 'success', 6000);
@@ -6670,9 +6710,7 @@ function importSessions() {
           rosterRestored = true;
         }
       }
-      if (isBackup && data.settings && typeof data.settings === 'object') {
-        State.settings = Object.assign({}, State.settings, data.settings);
-      }
+      if (isBackup) mergeSettings(data.settings);
       if (isBackup && Array.isArray(data.zones) && data.zones.length) {
         State.zones = data.zones; znPersist();
       }
@@ -6752,9 +6790,7 @@ async function restoreFromBackup() {
       State.roster = data.roster;
       persistRoster();
     }
-    if (isBackup && data.settings && typeof data.settings === 'object') {
-      State.settings = Object.assign({}, State.settings, data.settings);
-    }
+    if (isBackup) mergeSettings(data.settings);
     /* Zones were being written into backups but never read back out here — importSessions
        restores them, this path didn't, so a full restore silently dropped the drawings. */
     if (isBackup && Array.isArray(data.zones) && data.zones.length) {
@@ -9884,7 +9920,7 @@ function renderPlayerTable() {
       </div>
       <div class="ps-filter-bar">
         <select onchange="psSetFilter('period',this.value)">
-          ${perOpts('all','All Sessions')}
+          ${perOpts('all','Total (All Sessions)')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
           ${scrimmageOptsHtml(psFilter.period)}
@@ -11838,7 +11874,7 @@ function _lineupsFilterBar(filtered) {
   const perOpts = (v, lbl) => `<option value="${v}" ${seg5Filter.period === v ? 'selected' : ''}>${lbl}</option>`;
   return `<div class="seg-filter-bar">
         <select onchange="seg5SetFilter('period',this.value)">
-          ${perOpts('all','All Sessions')}
+          ${perOpts('all','Total (All Sessions)')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
           ${scrimmageOptsHtml(seg5Filter.period)}
@@ -13336,7 +13372,7 @@ function _onoffFilterBar(filtered) {
   const perOpts = (v, lbl) => `<option value="${v}" ${seg5Filter.period === v ? 'selected' : ''}>${lbl}</option>`;
   return `<div class="seg-filter-bar">
         <select onchange="seg5SetFilter('period',this.value)">
-          ${perOpts('all','All Sessions')}
+          ${perOpts('all','Total (All Sessions)')}
           ${perOpts('pre','Pre-Jamboree')}
           ${perOpts('post','Post-Jamboree')}
           ${scrimmageOptsHtml(seg5Filter.period)}
@@ -17738,7 +17774,7 @@ async function loadPublishedData() {
     if (Array.isArray(data.sessions)) State.sessions = data.sessions;
     if (Array.isArray(data.zones)) State.zones = data.zones;
     if (Array.isArray(data.roster) && data.roster.length) State.roster = data.roster;
-    if (data.settings && typeof data.settings === 'object') State.settings = Object.assign({}, State.settings, data.settings);
+    mergeSettings(data.settings);
     _publishedMode = true;
     applyPublishedMode();
     _publishedAt = data.publishedAt || null;
@@ -17772,6 +17808,7 @@ async function initApp() {
     loadPersistentData();
     await loadPublishedData();
     applySeedRoster();
+    retagSessionPeriods();
     console.log(
       `%cMoorpark MBB Practice Tracker`,
       'color:#4f6ef7;font-weight:bold;font-size:14px'
