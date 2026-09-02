@@ -1708,38 +1708,6 @@
        PRACTICE LOG + BOX SCORE STYLES
     ============================================================ */
 
-    /* Session selector strip */
-    .session-strip {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      padding: 0 0 18px;
-    }
-
-    .session-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: 100px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--text-secondary);
-      font-size: 11.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.12s;
-      white-space: nowrap;
-    }
-
-    .session-chip:hover { border-color: var(--border-light); color: var(--text); }
-
-    .session-chip.active {
-      border-color: var(--primary);
-      background: rgba(79,110,247,0.12);
-      color: var(--primary);
-    }
-
     /* Practice Log — Torvik-style game log table */
     .log-table-wrap {
       overflow-x: auto;
@@ -7224,18 +7192,13 @@ function renderBoxScoreView(sessionId) {
   const qRowA = Array.from({length: qCount}, (_,i) => `<td>${qScores.a[i+1] ?? 0}</td>`).join('');
   const qRowB = Array.from({length: qCount}, (_,i) => `<td>${qScores.b[i+1] ?? 0}</td>`).join('');
 
-  // Session selector chips — prepend a LIVE chip while a session is in progress.
-  const liveChip = live
-    ? `<button class="session-chip${isLiveView ? ' active' : ''}" style="border-color:rgba(239,68,68,0.5);" onclick="openLiveBoxScore()">&#128308; LIVE <span style="opacity:0.7;font-weight:400">${escHtml(live.title || '')}</span></button>`
-    : '';
-  const chips = liveChip + sessions.map(s => {
-    const active = (!isLiveView && s.id === session.id) ? ' active' : '';
-    return `<button class="session-chip${active}" onclick="renderBoxScoreView('${escHtml(s.id)}')">${escHtml(s.title)} <span style="opacity:0.6;font-weight:400">${s.date}</span></button>`;
-  }).join('');
-
+  /* No session-selector strip. This modal opens on ONE practice and shows that practice:
+     a chip per scrimmage across the top pushed the score table down, grew with every
+     practice tracked, and invited a mis-click onto someone else's night while you were
+     reading this one. Switching box scores is the Practice Log's job — every row has its
+     own Box button — and the live one has the scorebar's Box Score button. Nothing is
+     stranded by leaving it out; the modal just stops offering a second way to navigate. */
   root.innerHTML = `
-    <div class="session-strip">${chips}</div>
-
     <div class="bs-scorebox">
       <div class="bs-scorebox-title">${escHtml(session.title)}</div>
       <div class="bs-scorebox-date">${session.date}</div>
@@ -11821,7 +11784,13 @@ function renderWowyInto(root, filtered, teamsToShow) {
   }
 
   const res  = computeWowyRows(filtered, picks, teamsToShow);
-  const rows = _luSortRows(res.rows);
+  /* Combinations that never took the floor are pinned last, whichever way the column runs.
+     They are placeholders carrying zeros rather than data, and sorting them in with the rest
+     opens an ascending GP/MIN/POSS sort with a block of dashes and buries the rows that
+     actually played. _luSortRows itself is left alone — the Lineups table has no such rows
+     and should not pay for this. */
+  const rows = _luSortRows(res.rows.filter(r => !r.never))
+                 .concat(res.rows.filter(r => r.never));
 
   if (!rows.length) {
     root.innerHTML = header +
@@ -12122,7 +12091,15 @@ function _luSortRows(rows) {
 function lineupSort(key) {
   if (luSort.key === key) luSort.dir = -luSort.dir;
   else { luSort.key = key; luSort.dir = (key === 'lineup') ? 1 : -1; }
-  _luRenderTbody();
+  /* WOWY and Lineups are two modes of ONE root and share this sort state, but not the
+     repaint path. _luRenderTbody writes into #lu-tbody from window._lineupRows, and in WOWY
+     mode neither exists — the WOWY table has no tbody id and its rows come from
+     computeWowyRows — so a header click flipped luSort and repainted nothing at all. Every
+     WOWY column looked dead. Route by mode: WOWY re-renders its view (small table, and
+     wowyPicks lives outside the render so the picker keeps its selections), Lineups keeps
+     the cheap tbody-only path it needs for the builder and the possessions slider. */
+  if (seg5Filter.mode === 'wowy') renderLineupsView();
+  else _luRenderTbody();
 }
 
 function _luUpdateArrows() {
