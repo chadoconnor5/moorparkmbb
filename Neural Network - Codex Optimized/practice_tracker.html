@@ -13504,14 +13504,31 @@ function computePpsGrid(sessions, teamFilter) {
 function ooSplitStints(filtered, playerName, team) {
   const teamIsAll = team === 'all' || team === 'both';
   const onL = [], offL = [];
-  let sessCount = 0, availableMin = 0;
+  let sessCount = 0;
+  /* MIN% denominator: every minute of floor time across the practices IN SCOPE, including
+     the ones this man missed — the same denominator aggregatePlayerStats uses, so the On/Off
+     card and the Player Stats column finally answer the same question.
+
+     It used to accumulate inside the loop, one practice at a time, and so only counted the
+     practices he appeared in. That answered "when he played, how much did he play", which
+     is a real question but not the one this column is read for: KaLeke turned up to two of
+     six scrimmages and played most of both, and the card called that a 77% minutes load.
+     Against the full six it is 32%, and a man who played one practice end to end read 100%
+     instead of 28%. Availability is part of what a coach is looking at here.
+
+     Deliberately NOT narrowed by the team filter, matching Player Stats: picking White still
+     divides by all the floor time in scope, so his White stint is measured against the same
+     yardstick as everyone else's. sessCount stays a count of the practices he was actually
+     in — that is what the card's "N practices" means and it should keep meaning it. */
+  const availableMin = filtered.reduce(function (t, x) {
+    return t + (getSessionPlayedSeconds(x) || 0) / 60;
+  }, 0);
   for (const sess of filtered) {
     const rec = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
     if (!rec) continue;                       // didn't play in this practice
     const pt = rec.team;                      // their squad in THIS practice
     if (!teamIsAll && pt !== team) continue;  // isolate the selected squad
     sessCount++;
-    availableMin += (getSessionPlayedSeconds(sess) || 0) / 60;
     for (const seg of (sess.lineupSegments || [])) {
       if (seg.endTimeSecs === null) continue;
       const lineup = pt === 'a' ? seg.lineupA : seg.lineupB;
@@ -13739,7 +13756,7 @@ function renderOnOffView() {
   for (const playerName of playerSet) {
     const onL = [], offL = [];
     let sessCount = 0;
-    // Floor time available to this player: the played length of the practices they were in.
+    // Floor time in scope — every practice, not just the ones he was in (see ooSplitStints).
     let availableMin = 0;
     const _sp = ooSplitStints(filtered, playerName, team);
     onL.push.apply(onL, _sp.onL); offL.push.apply(offL, _sp.offL);
