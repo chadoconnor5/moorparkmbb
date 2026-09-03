@@ -10637,15 +10637,34 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       to state. Everything in the 'high' direction still needs its counting events - one
       rebound is not a rebounding profile. */
 const SW_MIN_MIN = 20;   // minutes before a player joins the median pool at all
-const SW_MIN_POOL = 4;   // qualified players a category needs before a median means anything
-/* A dead band around the median, as a FRACTION of the median rather than a fixed number of
-   points, so it scales with the category: 5% of a 12.2 TO% is 0.6 points, 5% of a 1.9 STL%
-   is 0.1. Without it a strict above/below test hands out a colour for a rounding difference
-   - DR% 11.4 against a median of 11.5 was printing red, which reads as a weakness and is
-   really a man sitting exactly on the roster's pace. Anything inside the band is reported as
-   level and kept in its own quiet group: still worth seeing, not worth a verdict.
-   One number to tune - raise it to widen what counts as level. */
+const SW_MIN_POOL = 6;   // qualified players a category needs before quartiles mean anything
+
+/* THE MIDDLE HALF OF THE ROSTER IS NOT A FINDING. A strict above/below-median test made a
+   verdict out of every rounding difference, and widening it into a fixed percentage band
+   only moved the arbitrary line: AST% 10.1 against a median of 11.3 still printed red, and a
+   man ninth of sixteen in assists is not a weak passer, he is a normal one.
+
+   Quartiles say it properly, and they adapt to the category instead of being tuned to it.
+   Above Q3 is a strength, below Q1 is a weakness, and the middle half is level - which is
+   what "around the median" always meant. AST% runs Q1 7.1 / median 11.3 / Q3 18.2 on this
+   roster, so 10.1 lands where it belongs.
+
+   The relative band survives as a SECOND condition rather than the only one. Quartiles alone
+   would still flag four men in each tail of a category where the whole roster sits within a
+   point of each other - a real tail, a meaningless gap. A value has to be both outside the
+   middle half AND more than SW_LEVEL_PCT away from the median before it earns a colour. */
 const SW_LEVEL_PCT = 0.05;
+const SW_MIN_POOL_LEGACY = 4;   // shooting only needs enough players to quote a median
+
+/* Q1 / median / Q3, exclusive method: the halves either side of the median, with the median
+   itself left out of both when the count is odd. Same convention trMedian already uses, so
+   the middle value of the three agrees with every median printed elsewhere on the page. */
+function _swQuartiles(arr) {
+  const a = arr.slice().sort((x, y) => x - y), n = a.length;
+  const lo = a.slice(0, n >> 1);
+  const hi = n % 2 ? a.slice((n >> 1) + 1) : a.slice(n >> 1);
+  return { q1: trMedian(lo), med: trMedian(a), q3: trMedian(hi) };
+}
 
 const SW_CATS = [
   { key:'pts40',  label:'PTS/40',  dir:'high', need:20, suffix:'',
@@ -10764,9 +10783,11 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
       const v = cat.val(e.tot, e.rows);
       if (v != null) vals.push(v);
     }
-    /* The median is context for a shooting category and the verdict for everything else, so
-       a thin pool only disqualifies the ones it decides. */
-    const med = vals.length >= SW_MIN_POOL ? trMedian(vals) : null;
+    /* Shooting only needs a median to quote in the tooltip, so it clears a lower bar than a
+       category whose verdict depends on where the quartiles fall. */
+    const need = cat.ppsFloor != null ? SW_MIN_POOL_LEGACY : SW_MIN_POOL;
+    const Q = vals.length >= need ? _swQuartiles(vals) : null;
+    const med = Q ? Q.med : null;
     if (cat.ppsFloor == null && !(med > 0)) { skipped++; continue; }
 
     const shown = mine.toFixed(1) + cat.suffix;
@@ -10788,17 +10809,24 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
                                 : ' \u2014 below the 1.00 break-even') +
                (medTxt ? '. Team median ' + medTxt + ' across ' + vals.length + ' qualified players.' : '.');
     } else {
-      /* Level first, before direction is even asked. Inside the band the question "is he
-         above or below" has an answer but not a meaningful one, and answering it anyway is
-         what put a red chip on a man 0.1 off the median. */
-      const level  = Math.abs(mine - med) <= med * SW_LEVEL_PCT;
-      const isGood = cat.dir === 'high' ? mine > med : mine < med;
+      /* Both conditions, and the tail is checked first: outside the middle half of the
+         roster, AND far enough from the median that the gap is worth a word. Either one
+         alone produces a verdict somebody can argue with. */
+      const inTail = cat.dir === 'high' ? (mine > Q.q3 || mine < Q.q1)
+                                        : (mine < Q.q1 || mine > Q.q3);
+      const apart  = Math.abs(mine - med) > med * SW_LEVEL_PCT;
+      const level  = !inTail || !apart;
+      const isGood = cat.dir === 'high' ? mine > Q.q3 : mine < Q.q1;
       cls    = level ? 'is-even' : isGood ? 'is-good' : 'is-bad';
       bucket = level ? even     : isGood ? good      : bad;
       tail   = '<span class="sw-med">med ' + medTxt + '</span>';
-      tip    = escHtml(cat.label) + ' ' + shown + ' vs a team median of ' + medTxt +
-               ' across ' + vals.length + ' qualified players' +
-               (level ? ' \u2014 within ' + Math.round(SW_LEVEL_PCT * 100) + '% of it, so neither' : '');
+      /* Rank is in the tooltip because it is the sentence a coach would say out loud, and
+         because it makes the quartile call checkable at a glance. */
+      const rank = vals.filter(v => cat.dir === 'high' ? v > mine : v < mine).length + 1;
+      tip    = escHtml(cat.label) + ' ' + shown + ' \u2014 ' + rank + ' of ' + vals.length +
+               ' qualified players. Q1 ' + Q.q1.toFixed(1) + cat.suffix +
+               ' / median ' + medTxt + ' / Q3 ' + Q.q3.toFixed(1) + cat.suffix +
+               (level ? '. In the middle half of the roster, so neither.' : '.');
     }
 
     bucket.push(
