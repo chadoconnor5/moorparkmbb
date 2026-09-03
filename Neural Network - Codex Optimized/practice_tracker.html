@@ -2609,6 +2609,21 @@
     .zn-handle { cursor: grab; }
     .zn-handle:active { cursor: grabbing; }
 
+    /* -- Regions: a circular override layer drawn on top of the zones -- */
+    .zn-sections { display: flex; gap: 6px; margin: 0 0 12px; }
+    .zn-sec-btn {
+      background: var(--card); border: 1px solid var(--border); color: var(--text-dim);
+      font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 100px; cursor: pointer;
+    }
+    .zn-sec-btn:hover { background: var(--card-hover); color: var(--text); }
+    .zn-sec-btn.active { border-color: var(--primary); background: rgba(99,102,241,0.15); color: var(--primary); }
+    /* Round swatch so a region reads as a circle in the list, against a zone's square. */
+    .rg-swatch { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+    /* Precedence rank badge -- a region's position in the override order. */
+    .rg-rank { font-size: 10px; font-weight: 800; color: var(--text-dim); min-width: 16px;
+               text-align: center; font-variant-numeric: tabular-nums; }
+    .rg-ovr { font-size: 10.5px; font-weight: 700; color: #f5c542; }
+
     /* ── Player On-Court Impact cards (mirrors the leaderboard layout) ── */
     .oo-imp-bar {
       display: flex; justify-content: space-between; align-items: center;
@@ -4455,6 +4470,7 @@ const State = {
   seedRoster:  [],      // #roster-data: the first-run seed ONLY (see loadEmbeddedData)
   settings:    {},      // loaded from #settings-data
   zones:       [],      // shot-chart zones drawn in the Zones tab
+  regions:     [],      // circular override areas drawn over the zones (Zones tab -> Regions)
   sessions:    [],      // all completed sessions (from localStorage)
   liveSession: null,    // currently active session (in-progress)
 };
@@ -4503,6 +4519,12 @@ function loadPersistentData() {
     if (raw) { const z = JSON.parse(raw); if (Array.isArray(z)) State.zones = z; }
   } catch(e) {
     console.warn('Failed to load zones from localStorage:', e);
+  }
+  try {
+    const raw = localStorage.getItem('pt_regions');
+    if (raw) { const r = JSON.parse(raw); if (Array.isArray(r)) State.regions = r; }
+  } catch(e) {
+    console.warn('Failed to load regions from localStorage:', e);
   }
   try {
     const raw = localStorage.getItem('pt_roster');
@@ -4713,6 +4735,7 @@ async function recomputeAllStats() {
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before stat recompute',
                        roster: State.roster, settings: State.settings, zones: znForExport(),
+                       regions: rgForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4780,6 +4803,7 @@ async function repairSessionDates() {
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before date repair',
                        roster: State.roster, settings: State.settings, zones: znForExport(),
+                       regions: rgForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4835,6 +4859,7 @@ async function repairEmptyStints() {
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before empty-stint repair',
                        roster: State.roster, settings: State.settings, zones: znForExport(),
+                       regions: rgForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4924,6 +4949,7 @@ async function repairInvertedStints() {
       JSON.stringify({ app: 'moorpark-practice-tracker', version: 1,
                        exportedAt: new Date().toISOString(), reason: 'auto-backup before inverted-stint repair',
                        roster: State.roster, settings: State.settings, zones: znForExport(),
+                       regions: rgForExport(),
                        sessions: getSessions() }),
       'application/json');
   } catch (e) { /* non-fatal — continue */ }
@@ -4964,6 +4990,7 @@ async function publishData() {
     roster: State.roster,
     settings: State.settings,
     zones: znForExport(),
+    regions: rgForExport(),
     sessions: getSessions(),   // all completed sessions (exhibition flag travels with them)
   };
   downloadTextFile('pt_data.json', JSON.stringify(payload), 'application/json');
@@ -6358,6 +6385,7 @@ function exportAllSessions() {
     roster: State.roster,
     settings: State.settings,
     zones: znForExport(),
+    regions: rgForExport(),
     sessions: getSessions(),
     /* getSessions() is COMPLETED practices only, so for a long time the one practice you
        could not back up was the one you were in the middle of — the only one with no other
@@ -6387,6 +6415,7 @@ function backupBeforeRename() {
     settings: State.settings,
     // Hand-drawn zone polygons exist nowhere else — a restore without them loses that work.
     zones: znForExport(),
+    regions: rgForExport(),
     sessions: getSessions(),
     /* getSessions() is COMPLETED sessions only, but applyPlayerRenames rewrites the
        in-progress one too — and the roster editor is now reachable mid-game from the
@@ -6729,6 +6758,9 @@ function importSessions() {
       if (isBackup && Array.isArray(data.zones) && data.zones.length) {
         State.zones = data.zones; znPersist();
       }
+      if (isBackup && Array.isArray(data.regions) && data.regions.length) {
+        State.regions = data.regions; rgPersist();
+      }
       if (added > 0) persistSessions();
       if (added > 0 || rosterRestored) {
         tabRenderers.log();
@@ -6794,7 +6826,8 @@ async function restoreFromBackup() {
         exportedAt: new Date().toISOString(),
         reason: 'auto-backup before restore',
         // zones included for the same reason as backupBeforeRename — they're unrecoverable.
-        roster: State.roster, settings: State.settings, zones: znForExport(), sessions: getSessions(),
+        roster: State.roster, settings: State.settings, zones: znForExport(),
+        regions: rgForExport(), sessions: getSessions(),
       };
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       downloadTextFile(`moorpark_tracker_backup_pre_restore_${stamp}.json`, JSON.stringify(pre), 'application/json');
@@ -6810,6 +6843,9 @@ async function restoreFromBackup() {
        restores them, this path didn't, so a full restore silently dropped the drawings. */
     if (isBackup && Array.isArray(data.zones) && data.zones.length) {
       State.zones = data.zones; znPersist();
+    }
+    if (isBackup && Array.isArray(data.regions) && data.regions.length) {
+      State.regions = data.regions; rgPersist();
     }
     if (!persistSessions()) return;   // persistKey already warned on failure
 
@@ -6861,7 +6897,7 @@ async function restoreFromBackup() {
    unlocked by whatever the seed happens to be.
 ============================================================ */
 const WIPE_KEYS_DATA  = ['pt_sessions', 'pt_live_session', 'pt_live_flow', 'pt_film_last_ts'];
-const WIPE_KEYS_SETUP = ['pt_roster', 'pt_zones'];
+const WIPE_KEYS_SETUP = ['pt_roster', 'pt_zones', 'pt_regions'];
 
 async function wipeAllData() {
   const pw = prompt('Enter the tracker password to WIPE ALL DATA:');
@@ -6901,6 +6937,7 @@ async function wipeAllData() {
       roster:   State.roster,
       settings: State.settings,
       zones:    State.zones,       // hand-drawn polygons exist nowhere else
+      regions:  State.regions,     // ditto for the circular override layer
       sessions: getSessions(),
       liveSession: State.liveSession || null,
     }, null, 2), 'application/json');
@@ -6921,14 +6958,15 @@ async function wipeAllData() {
      Asked separately so the common case never has to redraw the zone polygons. */
   const alsoSetup = confirm(
     `Also wipe the ROSTER (${(State.roster || []).length} players) and your ` +
-    `${(State.zones || []).length} hand-drawn shot-chart zone${(State.zones || []).length === 1 ? '' : 's'}?\n\n` +
+    `${(State.zones || []).length} hand-drawn shot-chart zone${(State.zones || []).length === 1 ? '' : 's'}` +
+    `${(State.regions || []).length ? ' and ' + (State.regions || []).length + ' region' + ((State.regions || []).length === 1 ? '' : 's') : ''}?\n\n` +
     `OK      = wipe those too (roster falls back to the file's built-in seed list)\n` +
     `Cancel  = keep roster and zones, wipe practice data only  ← usual choice`
   );
 
   const typed = prompt(
     `Final step. Type   WIPE   to erase ${sessCount} practice${sessCount === 1 ? '' : 's'}` +
-    (alsoSetup ? `, the roster and your drawn zones` : '') + `:`
+    (alsoSetup ? `, the roster and your drawn zones and regions` : '') + `:`
   );
   if ((typed || '').trim().toUpperCase() !== 'WIPE') {
     showToast('Wipe cancelled — your data is untouched.', 'info', 4000);
@@ -6940,7 +6978,7 @@ async function wipeAllData() {
 
   State.sessions    = [];
   State.liveSession = null;
-  if (alsoSetup) { State.roster = []; State.zones = []; }
+  if (alsoSetup) { State.roster = []; State.zones = []; State.regions = []; }
 
   /* Full reload rather than a re-render: trackerState, clockState, subState, the video
      panel and its timers are all module-level and would otherwise still be holding the
@@ -7944,7 +7982,7 @@ function coordsToZone(svgX, svgY) {
 function zoneLabelAtPoint(x, y) {
   const drawn = znZoneAtPoint(x, y);
   if (drawn) return drawn.name;
-  if ((State.zones || []).length) return 'Outside zones';
+  if ((State.zones || []).length || (State.regions || []).length) return 'Outside zones';
   const def = ZONE_DEFS[coordsToZone(x, y)];
   return def ? def.label : 'Unknown';
 }
@@ -8118,7 +8156,7 @@ function shotTypesOf(ev) {
    Returns a drawn zone's id (or a legacy zone key in fallback mode), so scFilter.zones
    holds whichever kind is currently authoritative. */
 function scZoneKey(ev) {
-  if ((State.zones || []).length) {
+  if ((State.zones || []).length || (State.regions || []).length) {
     const z = znZoneForShot(ev);
     return z ? z.id : null;
   }
@@ -8242,13 +8280,18 @@ function renderShotChartView() {
   const teamAStyle = scFilter.team !== 'a' ? 'color:#60a5fa;border-color:#60a5fa;' : '';
   const teamBStyle = scFilter.team !== 'b' ? 'color:#fb923c;border-color:#fb923c;' : '';
 
+  /* zonedShots, not baseShots: the baseline follows the practice filter but ignores
+     team, player and mode, so a player is always compared against everyone. */
   const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots)
                  : scFilter.view === 'heat'  ? buildHeatSvg(shots)
+                 : scFilter.view === 'regions' ? buildRegionFgSvg(shots, zonedShots)
                  : buildCourtSvg(shots);
 
   /* Heat colours attempts by crowding, not by result — so the make/miss key would be
      misleading there. Swap in the density ramp instead. */
-  const legend = scFilter.view === 'heat'
+  const legend = scFilter.view === 'regions'
+    ? ''
+    : scFilter.view === 'heat'
     ? `<div class="sc-legend">
           <div class="sc-legend-item">Lone attempt</div>
           <div class="sc-legend-item"><div class="sc-heat-bar" style="background:${heatLegendGradient()}"></div></div>
@@ -8296,10 +8339,17 @@ function renderShotChartView() {
       </div>
       <div class="sc-filter-group">
         <span class="sc-filter-label">View</span>
-        <button class="sc-pill${scFilter.view !== 'zones' && scFilter.view !== 'heat' ? ' active' : ''}" onclick="scSetFilter('view','dots')">Dots</button>
+        <button class="sc-pill${scFilter.view !== 'zones' && scFilter.view !== 'heat' && scFilter.view !== 'regions' ? ' active' : ''}" onclick="scSetFilter('view','dots')">Dots</button>
         <button class="sc-pill${scFilter.view === 'heat'  ? ' active' : ''}" onclick="scSetFilter('view','heat')">Heat</button>
         <button class="sc-pill${scFilter.view === 'zones' ? ' active' : ''}" onclick="scSetFilter('view','zones')">Zones</button>
+        <button class="sc-pill${scFilter.view === 'regions' ? ' active' : ''}" onclick="scSetFilter('view','regions')" title="Regions map — red above average, blue below">Regions</button>
       </div>
+      ${scFilter.view === 'regions' ? `
+      <div class="sc-filter-group">
+        <span class="sc-filter-label">Regions</span>
+        <button class="sc-pill${rfgMode === 'rate' ? ' active' : ''}" onclick="rfgSetMode('rate')" title="Label is that region's share of all attempts; colour is points per shot, centred on this selection's own PPS">Rate</button>
+        <button class="sc-pill${rfgMode === 'vsavg' ? ' active' : ''}" onclick="rfgSetMode('vsavg')" title="Colour is FG% against the team's average in that same region — bluest 15 points below, white at the average, reddest 15 points above">vs Avg</button>
+      </div>` : ''}
       <div class="sc-filter-group">
         <span class="sc-filter-label">Team</span>
         <button class="sc-pill${scFilter.team === 'all' ? ' active' : ''}" onclick="scSetFilter('team','all')">Both</button>
@@ -8383,8 +8433,9 @@ function scClearAllFilters() {
 /* Zone heat map: fills each drawn zone by its FG%, light (cold) to dark (hot),
    with the percentage and makes/attempts inside — mirrors the Hudl zone report. */
 function buildZoneHeatSvg(shots) {
-  const zones = State.zones || [];
-  if (!zones.length) {
+  const zones   = State.zones || [];
+  const regions = State.regions || [];
+  if (!zones.length && !regions.length) {
     return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
       COURT_SVG_LINES +
       '<text x="250" y="240" text-anchor="middle" fill="#8b95b5" font-size="15" font-family="system-ui,sans-serif">No zones drawn yet</text>' +
@@ -8394,6 +8445,9 @@ function buildZoneHeatSvg(shots) {
 
   const tally = {};
   zones.forEach(z => { tally[z.id] = { m: 0, a: 0, pts: 0 }; });
+  /* Regions get tally buckets for the same reason they get precedence: znZoneForShot()
+     now hands their ids back, and without a bucket the credit line below would throw. */
+  regions.forEach(rg => { tally[rg.id] = { m: 0, a: 0, pts: 0 }; });
   let unzoned = 0, allPts = 0;
   for (const ev of shots) {
     const z = znZoneForShot(ev);
@@ -8428,11 +8482,44 @@ function buildZoneHeatSvg(shots) {
            '</title></path>';
   }).join('');
 
+  /* Regions paint after the zones so the override is visible as one, and carry a dark
+     ring rather than the zones' white edge so you can tell at a glance which shapes are
+     taking shots away from what is under them. */
+  const rgBodies = regions.map(rg => {
+    const t = tally[rg.id];
+    const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
+    const pps = t.a > 0 ? t.pts / t.a : null;
+    return rgShapeSvg(rg, {
+      fill: heat(pps), stroke: '#0d1117', 'stroke-width': 2.5, 'stroke-opacity': 0.9,
+    }, '<title>' + escHtml(rg.name) + ' (region · ' + rgSizeLabel(rg) + ')' +
+       (t.a ? ' — ' + t.m + '-' + t.a + ' (' + pct + '%) · ' + pps.toFixed(2) + ' PPS'
+            : ' — no shots') + '</title>');
+  }).reverse().join('');
+
+  /* One label per PART, all carrying the region's combined figure — seeing the same
+     8-19 in both corners is what tells you the two are counted as one region. */
+  const rgLabels = regions.map(rg => rgParts(rg).map(part => {
+    if (rgLabelHidden(rg, part)) return '';
+    const t = tally[rg.id];
+    const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
+    const ctr = rgLabelPos(part);
+    const k = znLabelScale(rg), ps = ZN_PCT_SIZE * k, ss = ZN_SUB_SIZE * k;
+    return '<text x="' + ctr.x.toFixed(1) + '" y="' + (ctr.y - ss * 0.55).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + ps.toFixed(1) + '" font-weight="800" fill="#000000" font-family="system-ui,sans-serif">' +
+             (pct == null ? '&#8212;' : pct + '%') + '</text>' +
+           '<text x="' + ctr.x.toFixed(1) + '" y="' + (ctr.y + ps * 0.62).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + ss.toFixed(1) + '" font-weight="600" fill="#333333" font-family="system-ui,sans-serif">' +
+             t.m + '-' + t.a + '</text>';
+  }).join('')).join('');
+
   const labels = zones.map(z => {
     const t = tally[z.id];
     const poly = znPolygon(z);
     if (!poly.length) return '';
     const ctr = znLabelPos(z, poly);
+    /* A region covering this zone's label spot prints its own numbers there, and two
+       label blocks on one point are unreadable — the rim circle landed on top of two
+       zones reading "0-0" and the three overlapped into nonsense. The region has
+       precedence over the shots, so it takes the label position with them. */
+    if (rgRegionAtPoint(ctr.x, ctr.y)) return '';
     const cx = ctr.x, cy = ctr.y;
     const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
     /* Two-line block centred on the centroid: dominant-baseline puts each line's middle
@@ -8455,7 +8542,7 @@ function buildZoneHeatSvg(shots) {
     : 'No shots charted';
 
   return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
-    COURT_SVG_LINES + bodies + COURT_MARKINGS_ONLY + labels +
+    COURT_SVG_LINES + bodies + rgBodies + COURT_MARKINGS_ONLY + labels + rgLabels +
     '<text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">' + foot + '</text>' +
     '</svg>';
 }
@@ -8639,6 +8726,283 @@ function buildHeatSvg(shots) {
   </svg>`;
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   FG% BY REGION — a fourth court view
+
+   Same court, same shapes, one different question. The Zones view centres its diverging
+   scale on the CURRENT SELECTION's own PPS, which answers "which of our spots are best".
+   Filter that to one player and he is being measured against himself, so every region
+   drifts toward white and the map stops saying anything.
+
+   This view scores each region against what the WHOLE GROUP shoots from that same
+   region, so a player's 65% at the rim is read next to what the rim is actually worth.
+   The gap is in percentage points, which is why the ramp is centred on zero rather than
+   on a rate, and why it is FG% here rather than the Zones view's PPS.
+
+   The baseline pool follows the practice filter but ignores team, player and mode — the
+   same rule computeShotQuality() uses, and for the same reason: a comparison only means
+   something if both sides come from a common population.
+
+   Red is ABOVE the group, blue below, saturating at +/-15 points.
+───────────────────────────────────────────────────────────── */
+const RFG_SPREAD = 15;
+
+/* Two ways to read the same regions, because they answer different questions.
+
+   'rate'   - the label is that region's SHARE OF ALL ATTEMPTS, and the colour is points
+              per shot. Shot selection: where do the attempts go, and is what comes back
+              from there worth taking. PPS is the right axis for that because it values a
+              three properly against a two, which FG% cannot.
+
+   'vsavg'  - the colour is FG% measured against the same region's average, saturating at
+              15 points either side. Shot making: better or worse than the group from this
+              spot. Flat white for All Players is correct, not a bug - the selection IS
+              the baseline there.
+
+   Red is above in both. */
+let rfgMode = 'vsavg';
+function rfgSetMode(m) { rfgMode = m; renderShotChartView(); }
+
+/* PPS -> blue/white/red, centred on the selection's own points per shot so the map reads
+   as "which of these spots pay" rather than against an absolute nobody agreed on.
+   Saturates at +/-0.35, the same spread the Zones view uses. */
+const RFG_PPS_SPREAD = 0.35;
+function rfgPpsColor(pps, mid) {
+  if (pps == null) return '#eceff3';
+  const t = Math.max(-1, Math.min(1, (pps - mid) / RFG_PPS_SPREAD));
+  const end = t >= 0 ? [178, 34, 34] : [31, 92, 196];
+  const k = Math.abs(t);
+  return 'rgb(' + [255, 255, 255].map((v, i) => Math.round(v + (end[i] - v) * k)).join(',') + ')';
+}
+
+function rfgPpsInk(pps, mid) {
+  if (pps == null) return '#7a8394';
+  const m = rfgPpsColor(pps, mid).match(/\d+/g).map(Number);
+  return (0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]) / 255 > 0.55 ? '#141821' : '#ffffff';
+}
+
+function rfgColor(diff) {
+  if (diff == null) return '#eceff3';                       // no attempts
+  const t = Math.max(-1, Math.min(1, diff / RFG_SPREAD));
+  const end = t >= 0 ? [178, 34, 34] : [31, 92, 196];
+  const k = Math.abs(t);
+  return 'rgb(' + [255, 255, 255].map((v, i) => Math.round(v + (end[i] - v) * k)).join(',') + ')';
+}
+
+/* Ink that survives its own background. The ramp runs white-to-saturated at BOTH ends,
+   so one fixed text colour is unreadable at one end or the other. */
+function rfgInk(diff) {
+  if (diff == null) return '#7a8394';
+  const m = rfgColor(diff).match(/\d+/g).map(Number);
+  return (0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]) / 255 > 0.55 ? '#141821' : '#ffffff';
+}
+
+/* Narrow and tall -> print the label sideways. Without this, a strip a few units wide
+   gets a 22px number laid across it and the text runs out over its neighbours. */
+function _rfgAngle(poly) {
+  if (!poly || !poly.length) return 0;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of poly) {
+    if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+    if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+  }
+  const w = x1 - x0, h = y1 - y0;
+  return (w > 0 && w < 86 && h / w > 1.9) ? -90 : 0;
+}
+
+/* Team FG% per region key across every player in the pool. */
+function buildRegionBaseline(pool) {
+  const out = {};
+  for (const ev of pool) {
+    const k = scZoneKey(ev);
+    if (!k) continue;
+    const t = out[k] || (out[k] = { m: 0, a: 0 });
+    t.a++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') t.m++;
+  }
+  return out;
+}
+
+function _rfgLabel(x, y, angle, pct, made, att, ink, scale) {
+  const ps = ZN_PCT_SIZE * scale, ss = ZN_SUB_SIZE * scale;
+  const tf = 'translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ')' + (angle ? ' rotate(' + angle + ')' : '');
+  return '<g transform="' + tf + '" style="pointer-events:none" font-family="system-ui,sans-serif">' +
+    '<text x="0" y="' + (-ss * 0.55).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" ' +
+      'font-size="' + ps.toFixed(1) + '" font-weight="800" fill="' + ink + '">' +
+      /* Whole percent, matching the Zones view beside it. The reference card prints a
+         decimal, but it does so on 331 season attempts across big regions; here a region
+         can hold two shots, where '100.0%' is both false precision and two characters too
+         wide for the paint's small zones to hold without colliding. */
+      (pct == null ? '&#8212;' : Math.round(pct) + '%') + '</text>' +
+    '<text x="0" y="' + (ps * 0.62).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" ' +
+      'font-size="' + ss.toFixed(1) + '" font-weight="600" fill="' + ink + '" fill-opacity="0.75">' +
+      made + '/' + att + '</text>' +
+    '</g>';
+}
+
+function buildRegionFgSvg(shots, pool) {
+  const regions = State.regions || [];
+
+  /* This view draws REGIONS. It used to paint the zone layer underneath them and let it
+     show wherever a region did not reach, which put shapes on the court that were never
+     drawn as regions at all - Above the Break Threes and both Wing Threes run all the way
+     to the top of the floor, so they surfaced above everything as areas nobody had asked
+     for.
+
+     Zones stay the fallback only when there are NO regions, so the view still says
+     something before any exist. Anything a region does not cover is reported as a count
+     in the footer rather than quietly filled in by a different layer. */
+  const zones = regions.length ? [] : (State.zones || []);
+
+  if (!zones.length && !regions.length) {
+    return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+      COURT_SVG_LINES +
+      '<text x="250" y="240" text-anchor="middle" fill="#8b95b5" font-size="15" font-family="system-ui,sans-serif">No zones drawn yet</text>' +
+      '<text x="250" y="264" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">Use the Zones tab to draw them</text>' +
+      '</svg>';
+  }
+
+  const base = buildRegionBaseline(pool);
+  const tally = {};
+  zones.forEach(z => { tally[z.id] = { m: 0, a: 0, pts: 0 }; });
+  regions.forEach(r => { tally[r.id] = { m: 0, a: 0, pts: 0 }; });
+  let unzoned = 0, allPts = 0, totalAtt = 0;
+  for (const ev of shots) {
+    const k = scZoneKey(ev);
+    if (!k || !tally[k]) { unzoned++; continue; }
+    const worth = ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0;
+    tally[k].a++; tally[k].pts += worth;
+    allPts += worth; totalAtt++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[k].m++;
+  }
+  /* Frequency is a share of the shots that landed in a region, so the denominator is the
+     filed attempts - not shots.length, which includes anything outside every shape and
+     would make the shares quietly fail to add to 100. */
+  const midPps = totalAtt ? allPts / totalAtt : 1.0;
+
+  /* WHICH AVERAGE 'vs Avg' MEASURES AGAINST.
+
+     Comparing a selection to its own per-region average is right for one player - it asks
+     whether he shoots that spot better than the group does. But with All Players selected
+     the selection IS the group, every difference is exactly zero, and the whole map comes
+     out white. That is arithmetic rather than a bug, and it also made the team view
+     useless, which is what "the colours are not as vibrant" was.
+
+     So the yardstick moves up a level when the selection is the whole pool: each region is
+     measured against the team's OVERALL shooting across every region. That is the question
+     a team map should answer - is this spot better than we shoot generally - and it gives
+     the rim, the mid-range and the corners genuinely different colours. */
+  const isWholePool = shots.length === pool.length;
+  let poolMakes = 0, poolAtt = 0;
+  for (const ev of pool) {
+    if (!scZoneKey(ev)) continue;
+    poolAtt++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') poolMakes++;
+  }
+  const overallPct = poolAtt ? 100 * poolMakes / poolAtt : null;
+
+  const measure = item => {
+    const t = tally[item.id] || { m: 0, a: 0, pts: 0 };
+    const pct  = t.a ? 100 * t.m / t.a : null;
+    const freq = totalAtt ? 100 * t.a / totalAtt : null;      // share of every attempt
+    const pps  = t.a ? t.pts / t.a : null;
+    const b    = base[item.id];
+    const bPct = isWholePool ? overallPct : ((b && b.a) ? 100 * b.m / b.a : null);
+    const diff = (pct != null && bPct != null) ? pct - bPct : null;
+    const tip  = escHtml(item.name) +
+      (t.a ? ' — ' + t.m + '/' + t.a + ' (' + pct.toFixed(1) + '%)' +
+             ' · ' + (freq != null ? freq.toFixed(1) + '% of attempts' : '') +
+             ' · ' + pps.toFixed(2) + ' PPS' +
+             (bPct != null ? ' · vs ' + (isWholePool ? 'team overall ' : 'team here ') +
+               bPct.toFixed(1) + '% → ' + (diff >= 0 ? '+' : '') + diff.toFixed(1) + ' pts' : '')
+           : ' — no attempts');
+    /* One place decides how a region is painted and labelled, so the two modes cannot
+       drift into disagreeing about what a colour means. */
+    const rate = rfgMode === 'rate';
+    return {
+      t: t, pct: pct, freq: freq, pps: pps, diff: t.a ? diff : null, tip: tip,
+      fill: rate ? rfgPpsColor(pps, midPps) : rfgColor(t.a ? diff : null),
+      ink:  rate ? rfgPpsInk(pps, midPps)   : rfgInk(t.a ? diff : null),
+      big:  rate ? freq : pct,
+    };
+  };
+
+  /* FILL and OUTLINE are drawn in separate passes, with the court markings sandwiched
+     between them.
+
+     The markings used to be painted after the shapes, so the court's grey arc and lane
+     lines ran straight across every black region border and broke it into dashes. Putting
+     the markings under the shapes instead would have hidden them entirely, because the
+     fills are opaque - you would lose the arc and the lane, which are what makes the map
+     readable as a court at all.
+
+     So: fills, then the court, then the outlines on top. The markings still show inside
+     each region, and a region's border stays one unbroken line. */
+  const zoneParts = zones.map(z => {
+    const m = measure(z);
+    m.poly = znPolygon(z);
+    const d = znPathD(z.pts, z.closeC, true, z.closeC2);
+    m.body    = '<path d="' + d + '" fill="' + m.fill + '" stroke="none"><title>' + m.tip + '</title></path>';
+    m.outline = '<path d="' + d + '" fill="none" stroke="#ffffff" stroke-width="3" ' +
+                'stroke-opacity="0.9" stroke-linejoin="round" style="pointer-events:none"/>';
+    return m;
+  });
+
+  const rgMeasured = regions.map(r => {
+    const m = measure(r);
+    /* Heavier than the zone map's 2.5 and fully opaque: on this view a region outline IS
+       the structure of the chart rather than an overlay on top of one. */
+    m.body    = rgShapeSvg(r, { fill: m.fill, stroke: 'none' },
+                           '<title>' + m.tip + ' (region)</title>');
+    m.outline = rgShapeSvg(r, { fill: 'none', stroke: '#0d1117', 'stroke-width': 3.5,
+                                'stroke-opacity': 1, 'stroke-linejoin': 'round',
+                                'pointer-events': 'none' }, '');
+    return m;
+  });
+
+  const zoneLabels = zones.map((z, i) => {
+    const p = zoneParts[i];
+    const ctr = znLabelPos(z, p.poly);
+    if (rgRegionAtPoint(ctr.x, ctr.y)) return '';          // a region owns this spot
+    return _rfgLabel(ctr.x, ctr.y, _rfgAngle(p.poly), p.big, p.t.m, p.t.a,
+                     p.ink, znLabelScale(z));
+  }).join('');
+
+  const rgLabels = regions.map((r, i) => {
+    const p = rgMeasured[i];
+    return rgParts(r).map(part => {
+      if (rgLabelHidden(r, part)) return '';
+      const ctr = rgLabelPos(part);
+      /* A circle is as wide as it is tall, so only drawn shapes can ever need turning. */
+      const angle = rgIsPoly(part) ? _rfgAngle(znPolygon(part)) : 0;
+      return _rfgLabel(ctr.x, ctr.y, angle, p.big, p.t.m, p.t.a,
+                       p.ink, znLabelScale(r));
+    }).join('');
+  }).join('');
+
+  const made = shots.filter(e => e.stat === '2fg_make' || e.stat === '3fg_make').length;
+  const m3   = shots.filter(e => e.stat === '3fg_make').length;
+  const foot = shots.length
+    ? made + '/' + shots.length + ' FGM · ' + (100 * made / shots.length).toFixed(1) + '% FG · ' +
+      (100 * (made + 0.5 * m3) / shots.length).toFixed(1) + '% eFG · ' +
+      (rfgMode === 'rate'
+        ? 'share of attempts, coloured by PPS'
+        : 'FG% vs ' + (isWholePool ? 'team overall ' + (overallPct != null ? overallPct.toFixed(1) + '%' : '')
+                                   : 'team avg in each region') + ', \u00b115 pts') +
+      (unzoned ? ' · ' + unzoned + ' outside any ' + (regions.length ? 'region' : 'zone') : '')
+    : 'No shots charted';
+
+  return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
+    COURT_SVG_LINES +
+    zoneParts.map(p => p.body).join('') + rgMeasured.slice().reverse().map(p => p.body).join('') +
+    COURT_MARKINGS_ONLY +
+    zoneParts.map(p => p.outline).join('') + rgMeasured.slice().reverse().map(p => p.outline).join('') +
+    zoneLabels + rgLabels +
+    '<text x="250" y="478" text-anchor="middle" fill="#6b7496" font-size="12" font-family="system-ui,sans-serif">' + foot + '</text>' +
+    '</svg>';
+}
+
 /* ── Zone breakdown table ──
    Rows are built from the SAME zone assignment the Zones map draws — see scZoneKey().
    These two used to disagree on every single row: the table grouped by the stored
@@ -8646,7 +9010,8 @@ function buildHeatSvg(shots) {
    shot's coordinates against the drawn polygons. Same 352 attempts, two different sets of
    boundaries, so e.g. the left corner read 2-18 in the table and 3-23 on the chart. */
 function buildZoneTable(shots, selectedZones = []) {
-  const drawn = State.zones || [];
+  const drawn   = State.zones || [];
+  const regions = State.regions || [];
 
   /* Colour by POINTS PER SHOT, not FG%. FG% can't be compared across 2s and 3s: 38% from
      deep is 1.14 PPS — clearly good — while the old thresholds painted it orange because
@@ -8668,14 +9033,18 @@ function buildZoneTable(shots, selectedZones = []) {
     return `<tr class="${active ? 'active' : ''}" onclick="scToggleZone('${escHtml(key)}')" style="cursor:pointer;" title="${tip}"><td style="text-align:left;"${style}>${marker}${escHtml(label)}</td><td>${made}-${att}</td><td style="color:${ppsColor(pps)};font-weight:700;">${pct}%</td></tr>`;
   }
 
-  let rows2 = '', rows3 = '', unknown;
+  let rows2 = '', rows3 = '', rowsRg = '', unknown;
 
-  if (drawn.length) {
+  if (drawn.length || regions.length) {
     /* Tally against the drawn zones. Their 2PT/3PT split isn't stored on the shape, so
        it's inferred from the shots that landed in it — which is the honest read of what
        the zone actually covers, whatever it got named. */
     const tally = {};
     drawn.forEach(z => { tally[z.id] = { made: 0, att: 0, threes: 0, pts: 0 }; });
+    /* Regions need buckets for the same reason the heat map's tally does: scZoneKey()
+       hands their ids back now, and without a bucket every region's shots would fall
+       into the Unknown Zone row — which is exactly what they did on the first pass. */
+    regions.forEach(rg => { tally[rg.id] = { made: 0, att: 0, threes: 0, pts: 0 }; });
     unknown = [];
     for (const ev of shots) {
       const key = scZoneKey(ev);
@@ -8694,6 +9063,15 @@ function buildZoneTable(shots, selectedZones = []) {
       const row = renderRow(z.id, z.name, is3, t.made, t.att, t.pts);
       if (is3) rows3 += row; else rows2 += row;
     }
+    /* Regions ride in their own band rather than being sorted into 2PT/3PT. A region
+       can straddle the arc, and more to the point a reader needs to know which rows are
+       overriding others — a region printed among the zones would look like one of them
+       while quietly holding shots the zone above it no longer counts. */
+    for (const rg of regions) {
+      const t = tally[rg.id];
+      if (!t.att) continue;
+      rowsRg += renderRow(rg.id, rg.name, t.threes > t.att / 2, t.made, t.att, t.pts);
+    }
   } else {
     // No drawn zones yet — fall back to the fixed grid so the table still says something.
     const zoneRows = zoneKeys => zoneKeys.map(z => {
@@ -8710,12 +9088,15 @@ function buildZoneTable(shots, selectedZones = []) {
     unknown = shots.filter(ev => !ev.zone || !ZONE_DEFS[ev.zone]);
   }
 
-  if (!rows2 && !rows3 && !unknown.length) {
+  if (!rows2 && !rows3 && !rowsRg && !unknown.length) {
     return `<div style="font-size:12px;color:var(--text-dim);padding:12px 0;">No zone data recorded yet.</div>`;
   }
 
+  const secRg = rowsRg
+    ? `<tr><td colspan="3" style="padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#f5c542;">Regions &mdash; override the zones below</td></tr>${rowsRg}`
+    : '';
   const sec2 = rows2
-    ? `<tr><td colspan="3" style="padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">2-Point</td></tr>${rows2}`
+    ? `<tr><td colspan="3" style="padding-top:${rowsRg ? '8' : '0'}px;padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);${rowsRg ? 'border-top:1px solid var(--border);' : ''}">2-Point</td></tr>${rows2}`
     : '';
   const sec3 = rows3
     ? `<tr><td colspan="3" style="padding-top:${rows2 ? '8' : '0'}px;padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--warning);${rows2 ? 'border-top:1px solid var(--border);' : ''}">3-Point</td></tr>${rows3}`
@@ -8730,7 +9111,7 @@ function buildZoneTable(shots, selectedZones = []) {
 
   return `<div class="table-wrap"><table class="zone-table" style="font-size:12px;"><thead><tr>
     <th style="text-align:left;min-width:130px;">Zone</th><th>FGM-A</th><th>FG%</th>
-  </tr></thead><tbody>${sec2}${sec3}${unknownRow}</tbody></table></div>`;
+  </tr></thead><tbody>${secRg}${sec2}${sec3}${unknownRow}</tbody></table></div>`;
 }
 
 function buildShotMetaTable(shotTypeShots, contestShots, selectedTypes = [], selectedContests = []) {
@@ -9178,8 +9559,17 @@ function computeReboundSplits(sessions) {
    positional rather than the zone name: a name can carry an apostrophe, and these keys are
    written into the sort handler's inline onclick. */
 function rebZoneList() {
-  const drawn = State.zones || [];
-  if (drawn.length) return drawn.map(z => ({ key: z.id, label: z.name }));
+  const drawn   = State.zones || [];
+  const regions = State.regions || [];
+  /* Regions first, in precedence order, and marked with a ring so a column reads as a
+     region rather than as another zone. Both this tab's columns and the PPS grid's rows
+     come through here, so listing them once covers both — and leaving them out did not
+     produce an empty column, it silently dropped every rebound and every attempt that a
+     region had claimed. */
+  if (drawn.length || regions.length) {
+    return regions.map(rg => ({ key: rg.id, label: '\u25cb ' + rg.name, isRegion: true }))
+      .concat(drawn.map(z => ({ key: z.id, label: z.name, isRegion: false })));
+  }
   return Object.keys(ZONE_DEFS).map(k => ({ key: k, label: ZONE_DEFS[k].label }));
 }
 
@@ -9242,7 +9632,10 @@ function computeAssistCreation(sessions, filterTeam) {
 
   function atRim(ev) {
     if (ev.shotFt == null || ev.shotFt > RIM_ASSIST_MAX_FT) return false;
-    if (rimIds.size) { const z = znZoneForShot(ev); return !!z && rimIds.has(z.id); }
+    /* znZoneOnlyForShot, not znZoneForShot: a region drawn over the restricted area
+       would otherwise claim the shot and silently zero every player's rim-assist rate.
+       "At the rim" is geometry, not attribution, so regions do not get a vote here. */
+    if (rimIds.size) { const z = znZoneOnlyForShot(ev); return !!z && rimIds.has(z.id); }
     return RIM_ZONE_FALLBACK.includes(ev.zone);
   }
 
@@ -12654,17 +13047,21 @@ function znNextColor() {
 }
 
 /* SVG path for a zone/draft. `closed` adds the return segment to the first point. */
-function znPathD(pts, closeC, closed) {
+/* A segment carrying ONE control point is a quadratic, as it always was. A segment
+   carrying TWO is a cubic, which is what lets an edge hold an S-bend or track an arc
+   properly — a quadratic can only bow one way. `c2` and `closeC2` are optional and no
+   zone has ever had them, so every existing shape emits byte-identical output. */
+function znPathD(pts, closeC, closed, closeC2) {
   if (!pts || !pts.length) return '';
+  const seg = (c, c2, p) =>
+    (c && c2) ? ' C ' + c.x + ',' + c.y + ' ' + c2.x + ',' + c2.y + ' ' + p.x + ',' + p.y
+    : c       ? ' Q ' + c.x + ',' + c.y + ' ' + p.x + ',' + p.y
+              : ' L ' + p.x + ',' + p.y;
   let d = 'M ' + pts[0].x + ',' + pts[0].y;
-  for (let i = 1; i < pts.length; i++) {
-    const q = pts[i];
-    d += q.c ? ' Q ' + q.c.x + ',' + q.c.y + ' ' + q.x + ',' + q.y
-             : ' L ' + q.x + ',' + q.y;
-  }
+  for (let i = 1; i < pts.length; i++) d += seg(pts[i].c, pts[i].c2, pts[i]);
   if (closed && pts.length > 2) {
-    d += closeC ? ' Q ' + closeC.x + ',' + closeC.y + ' ' + pts[0].x + ',' + pts[0].y : ' Z';
-    if (closeC) d += ' Z';
+    if (closeC) d += seg(closeC, closeC2, pts[0]) + ' Z';
+    else d += ' Z';
   }
   return d;
 }
@@ -12680,13 +13077,26 @@ function znPolygon(z) {
                  y: m * m * p0.y + 2 * m * t * c.y + t * t * p1.y });
     }
   };
+  /* 16 samples rather than the quadratic's 10: a cubic can double back on itself, and
+     a coarse walk would cut the corner off an S-bend and mis-file the shots inside it.
+     The quadratic step is left exactly as it was — changing it would move the boundary
+     under every zone already drawn and silently re-file shots against them. */
+  const cubic = (p0, c1, c2, p1) => {
+    for (let t = 1 / 16; t <= 1.0001; t += 1 / 16) {
+      const m = 1 - t;
+      out.push({ x: m*m*m*p0.x + 3*m*m*t*c1.x + 3*m*t*t*c2.x + t*t*t*p1.x,
+                 y: m*m*m*p0.y + 3*m*m*t*c1.y + 3*m*t*t*c2.y + t*t*t*p1.y });
+    }
+  };
+  const span = (p0, c, c2, p1) => {
+    if (c && c2) cubic(p0, c, c2, p1);
+    else if (c)  quad(p0, c, p1);
+    else out.push({ x: p1.x, y: p1.y });
+  };
   if (!pts.length) return out;
   out.push({ x: pts[0].x, y: pts[0].y });
-  for (let i = 1; i < pts.length; i++) {
-    if (pts[i].c) quad(pts[i - 1], pts[i].c, pts[i]);
-    else out.push({ x: pts[i].x, y: pts[i].y });
-  }
-  if (z.closeC) quad(pts[pts.length - 1], z.closeC, pts[0]);
+  for (let i = 1; i < pts.length; i++) span(pts[i - 1], pts[i].c, pts[i].c2, pts[i]);
+  if (z.closeC) span(pts[pts.length - 1], z.closeC, z.closeC2, pts[0]);
   return out;
 }
 
@@ -12735,6 +13145,14 @@ function znContains(z, x, y) {
    wrapper around this — the live tracker needs the point version because while the coach
    is still picking the spot there is no event yet. */
 function znZoneAtPoint(x, y) {
+  /* Regions override the zone beneath them. Enforced HERE and nowhere else, because
+     every consumer in the app already funnels through this one function — scZoneKey(),
+     the zone map, the breakdown tables, the zone filter pills, the tendencies engine,
+     the player profile courts and the live tracker's tap readout. Putting the check in
+     any of them instead would have produced a second, disagreeing answer, which is the
+     exact thing this lookup was written to prevent. */
+  const rg = rgRegionAtPoint(x, y);
+  if (rg) return rg;
   for (const z of (State.zones || [])) if (znContains(z, x, y)) return z;
   return null;
 }
@@ -12742,6 +13160,22 @@ function znZoneAtPoint(x, y) {
 function znZoneForShot(ev) {
   if (ev.shotX == null || ev.shotY == null) return null;
   return znZoneAtPoint(ev.shotX * 500, ev.shotY * 485);
+}
+
+/* The drawn ZONE under a point, regions ignored.
+
+   Almost nothing should use this — the whole value of the lookup above is that one
+   answer serves the entire app. It exists for the handful of questions that are about
+   the FLOOR rather than about attribution: "was this shot at the rim" does not stop
+   being true because a region was drawn over the restricted area. See atRim(). */
+function znZoneOnlyAtPoint(x, y) {
+  for (const z of (State.zones || [])) if (znContains(z, x, y)) return z;
+  return null;
+}
+
+function znZoneOnlyForShot(ev) {
+  if (ev.shotX == null || ev.shotY == null) return null;
+  return znZoneOnlyAtPoint(ev.shotX * 500, ev.shotY * 485);
 }
 
 /* Zones as they should leave this browser: without the _poly cache.
@@ -12955,17 +13389,54 @@ function _znRedraw() {
 
 tabRenderers.zones = function () { renderZonesView(); };
 
+/* Which section of the Zones tab is showing. Zones tile the floor; Regions override it. */
+let znSection = 'zones';
+
+function znSetSection(sec) {
+  if (znSection === sec) return;
+  znSection = sec;
+  /* Drop any in-progress draft on the way out. A half-drawn zone left behind while you
+     work on regions would come back with stale handles and no way to see it. */
+  znDraft = null; znSelected = null; znDrag = null;
+  rgDraft = null; rgSelected = null; rgPartIdx = null; rgDrag = null;
+  renderZonesView();
+}
+
 function renderZonesView() {
   const root = document.getElementById('zones-root');
   if (!root) return;
-  State.zones = State.zones || [];
+  State.zones   = State.zones || [];
+  State.regions = State.regions || [];
 
+  const pills =
+    '<div class="zn-sections">' +
+      '<button class="zn-sec-btn' + (znSection === 'zones' ? ' active' : '') +
+        '" onclick="znSetSection(\'zones\')">Zones (' + State.zones.length + ')</button>' +
+      '<button class="zn-sec-btn' + (znSection === 'regions' ? ' active' : '') +
+        '" onclick="znSetSection(\'regions\')">Regions (' + State.regions.length + ')</button>' +
+    '</div>';
+
+  root.innerHTML = pills + (znSection === 'regions' ? _rgSectionHtml() : _znSectionHtml());
+}
+
+function _znSectionHtml() {
   // Shot counts per zone, so you can see coverage as you draw.
   const shots = getSessions().filter(x => x.completed && !x.excludeFromStats)
     .flatMap(x => (x.eventLog || []).filter(e =>
       ['2fg_make','2fg_miss','3fg_make','3fg_miss'].includes(e.stat) && e.shotX != null));
   const counts = {};
   for (const ev of shots) { const z = znZoneForShot(ev); if (z) counts[z.id] = (counts[z.id] || 0) + 1; }
+
+  /* What each zone LOST to a region sitting on top of it. znZoneForShot() already
+     answers with the region, so a zone's own count silently drops the moment a circle
+     is drawn over it — printing the difference beside it is the difference between a
+     number you can trust and one you cannot explain six months from now. */
+  const lostToRegions = {};
+  for (const ev of shots) {
+    if (!rgRegionForShot(ev)) continue;
+    const z = znZoneOnlyForShot(ev);
+    if (z) lostToRegions[z.id] = (lostToRegions[z.id] || 0) + 1;
+  }
 
   const saved = State.zones.map(z => {
     const editing = znSelected === z.id;
@@ -13045,16 +13516,21 @@ function renderZonesView() {
           '<span class="zn-swatch" style="background:' + z.color + '"></span>' +
           '<span class="zn-name">' + escHtml(z.name) + '</span>' +
           '<span class="zn-count">' + (counts[z.id] || 0) + ' shots</span>' +
+          (lostToRegions[z.id] ? '<span class="rg-ovr" title="Taken by a region drawn on top of this zone">&minus;' +
+             lostToRegions[z.id] + '</span>' : '') +
           '<button class="btn btn-ghost btn-sm" onclick="znEdit(\'' + z.id + '\')">Edit</button>' +
           '<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="znDelete(\'' + z.id + '\')">\u2715</button>' +
         '</div>').join('')
     : '<div class="zn-hint">No zones yet.</div>';
 
-  root.innerHTML =
-    '<div class="page-header"><div>' +
+  const totalLost = Object.keys(lostToRegions).reduce((t, k) => t + lostToRegions[k], 0);
+
+  return '<div class="page-header"><div>' +
       '<div class="page-title">Shot Zones</div>' +
       '<div class="page-subtitle">' + State.zones.length + ' zone' + (State.zones.length === 1 ? '' : 's') +
-      ' &middot; ' + shots.length + ' charted shots</div>' +
+      ' &middot; ' + shots.length + ' charted shots' +
+      (totalLost ? ' &middot; <span style="color:#f5c542;font-weight:700;">' + totalLost +
+        ' claimed by regions</span>' : '') + '</div>' +
     '</div></div>' +
     '<div class="zn-bar">' + bar + '</div>' +
     '<div class="zn-hint">' +
@@ -13068,6 +13544,1110 @@ function renderZonesView() {
     '<div class="zn-wrap">' +
       '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="znCourtClick(event)">' +
         COURT_SVG_LINES + saved + labels + draftSvg +
+      '</svg></div>' +
+      '<div class="zn-side"><div class="zn-list">' + list + '</div></div>' +
+    '</div>';
+}
+
+/* ─────────────────────────────────────────────────────────────
+   REGIONS — a circular override layer drawn on top of the zones
+
+   A region is a circle in the same 0 0 500 485 court coordinates the zones use:
+   { id, name, color, cx, cy, r, label, labelScale }. It exists to carve one spot OUT
+   of whatever zone lies beneath it — a shooting pocket, a spot drill, the area a
+   particular play generates — without having to redraw the tiling underneath.
+
+   PRECEDENCE IS THE POINT. A shot inside a region belongs to the region, and the zone
+   below never sees that attempt. That rule lives in znZoneAtPoint() and nowhere else,
+   because every consumer already funnels through it. The one deliberate exception is
+   atRim(), which asks a question about the floor rather than about attribution.
+
+   Regions may overlap each other and ties break by ARRAY ORDER, index 0 first. A newly
+   saved region goes to the FRONT — a circle you just drew is almost always the one you
+   meant to win — and the order is editable in the list, so precedence is something you
+   can see and change rather than a side effect of the order you happened to draw in.
+
+   Stored in localStorage under pt_regions, and travels with backups, publish and
+   restore alongside pt_zones. Like the zone polygons, these drawings exist nowhere
+   else, so a backup that dropped them would lose the work for good.
+───────────────────────────────────────────────────────────── */
+
+/* Warm-first, so a region reads as an overlay against the zones' blue-first palette. */
+const REGION_COLORS = ['#f5c542','#06b6d4','#ec4899','#84cc16','#f97316','#a855f7',
+                       '#14b8a6','#ef4444','#8b5cf6','#22c55e','#eab308','#4f6ef7'];
+
+let rgDraft = null;      // { cx, cy, r, label, labelScale } — cx/r null while still placing
+let rgDrag = null;       // { kind:'center'|'radius'|'label' }
+let rgSelected = null;   // id of the region being edited
+let rgPartIdx = null;    // index of the part being edited; -1 means "append a new part\"
+
+/* Same scale and origin svgDistFt() uses, so a region's radius in feet is the same foot
+   the shot distances are measured in. Hard-coding a second scale here is how the two
+   would drift apart. */
+const RG_PX_PER_FT = 9.36;
+const RG_HOOP  = { x: 250, y: 411 };
+/* Bounds live in FEET, not pixels, because the radius is always a whole number of them
+   and a pixel clamp would land between two. */
+/* Half-foot steps, not whole. The restricted-area circle is 4.5 ft in every direction
+   and whole-foot snapping could not express it at all — the radius could only ever land
+   on 4 or 5, and neither is the circle. */
+const RG_FT_STEP = 0.5;
+const RG_MIN_FT = 0.5;
+const RG_MAX_FT = 27;           // past this it swallows the whole half court
+const RG_MIN_R = RG_MIN_FT * RG_PX_PER_FT;
+/* Halved from 12. With 14 zones on the floor there are ~60 corners plus 11 landmarks
+   inside a 500x485 court, so a 12-unit magnet meant almost nowhere was free of one and a
+   dragged point kept being yanked back to where it started. */
+const RG_SNAP  = 6;
+
+/* Snapping is help while placing a point and interference while adjusting one, so it is
+   switchable and the switch is in the toolbar rather than hidden behind a modifier. */
+let rgSnapOn = true;
+function rgToggleSnap() { rgSnapOn = !rgSnapOn; renderZonesView(); }
+
+/* Court landmarks a region's centre snaps to, so "a circle on the left block" lands on
+   the block rather than four pixels off it. Coordinates read off COURT_SVG_LINES. */
+const RG_LANDMARKS = [
+  { x: 250, y: 411, name: 'the rim' },
+  { x: 250, y: 282, name: 'the free-throw line' },
+  { x: 194, y: 282, name: 'the left elbow' },
+  { x: 306, y: 282, name: 'the right elbow' },
+  { x: 194, y: 389, name: 'the left block' },
+  { x: 306, y: 389, name: 'the right block' },
+  { x: 250, y: 204, name: 'the top of the arc' },
+  { x: 104, y: 265, name: 'the left wing 3' },
+  { x: 396, y: 265, name: 'the right wing 3' },
+  { x:  44, y: 430, name: 'the left corner 3' },
+  { x: 456, y: 430, name: 'the right corner 3' },
+];
+
+function rgNextColor() {
+  const used = (State.regions || []).map(r => r.color);
+  return REGION_COLORS.find(c => !used.includes(c)) ||
+         REGION_COLORS[(State.regions || []).length % REGION_COLORS.length];
+}
+
+function rgRadiusFt(rg) { return (rg && rg.r ? rg.r : 0) / RG_PX_PER_FT; }
+
+/* A region is one of two shapes. A circle is centre + radius; a shape is the same
+   anchor-and-quadratic path a zone is, so the poly branch DELEGATES to the zone
+   helpers rather than growing a second copy of that geometry. znPolygon(), znContains(),
+   znCentroid() and znPathD() all read `.pts`/`.closeC` off whatever object they are
+   handed, so a region with those fields is already a valid input to every one of them.
+
+   Regions saved before shapes existed carry no `kind` and are circles. */
+/* True for any SHAPE object — a region, one of its parts, or the editor draft. They all
+   carry the same geometry fields, which is what lets the part logic below be the old
+   single-shape logic moved down one level rather than a second copy of it. */
+function rgIsPoly(sh) { return !!sh && sh.kind === 'poly'; }
+
+/* ── Parts ──
+   A region is one or more DISJOINT shapes sharing a name, a colour and one tally. The
+   two corner threes sit on opposite sides of the floor: they cannot be a single closed
+   outline, but they are one thing a coach wants one number for. So a region owns a LIST
+   of shapes rather than a shape.
+
+   A region saved before parts existed has its geometry on the region object itself, and
+   reads back as a single part — that is what the fallback is for, and it means no
+   migration and no dead branch. */
+function rgParts(rg) {
+  if (!rg) return [];
+  if (Array.isArray(rg.parts) && rg.parts.length) return rg.parts;
+  return [rg];
+}
+
+function _rgPartContains(sh, x, y) {
+  if (!sh) return false;
+  if (rgIsPoly(sh)) return (sh.pts || []).length > 2 && znContains(sh, x, y);
+  if (sh.r == null || sh.cx == null) return false;
+  const dx = x - sh.cx, dy = y - sh.cy;
+  return dx * dx + dy * dy <= sh.r * sh.r;
+}
+
+/* Inside the region if inside ANY of its parts. Circles stay analytic; shapes go through
+   znContains(), which memoises its flattened outline as `_poly` onto the PART — which is
+   why rgForExport() strips underscore keys at every depth and not just the top. */
+function rgContains(rg, x, y) {
+  const ps = rgParts(rg);
+  for (let i = 0; i < ps.length; i++) if (_rgPartContains(ps[i], x, y)) return true;
+  return false;
+}
+
+function _rgPartShapeSvg(sh, a, inner) {
+  return rgIsPoly(sh)
+    ? '<path d="' + znPathD(sh.pts, sh.closeC, true, sh.closeC2) + '" ' + a + '>' + (inner || '') + '</path>'
+    : '<circle cx="' + sh.cx + '" cy="' + sh.cy + '" r="' + sh.r + '" ' + a + '>' + (inner || '') + '</circle>';
+}
+
+/* ONE renderer, used by the editor and both court maps, so they cannot drift on how a
+   region is drawn. Every part gets the same fill — they are one region. */
+function rgShapeSvg(rg, attrs, inner) {
+  const a = Object.keys(attrs).map(k => k + '="' + attrs[k] + '"').join(' ');
+  return rgParts(rg).map(sh => _rgPartShapeSvg(sh, a, inner)).join('');
+}
+
+/* How big it is, in the terms its kind is actually described in. */
+function _rgPartSize(sh) {
+  if (rgIsPoly(sh)) {
+    const n = (sh.pts || []).length;
+    return n + ' point' + (n === 1 ? '' : 's');
+  }
+  return rgRadiusFt(sh).toFixed(1) + ' ft';
+}
+
+function rgSizeLabel(rg) {
+  const ps = rgParts(rg);
+  if (ps.length === 1) return _rgPartSize(ps[0]);
+  return ps.length + ' parts \u00b7 ' + ps.map(_rgPartSize).join(' + ');
+}
+
+/* DRAW ORDER IS THE REVERSE OF PRECEDENCE ORDER.
+
+   rgRegionAtPoint() walks the list from index 0 and takes the first hit, so index 0 has
+   the HIGHEST precedence. SVG paints in document order, so the last thing drawn sits on
+   top. Painting the list front-to-back therefore drew the winner FIRST and let every
+   lower-precedence region cover it: a rim circle that correctly owned 114 attempts was
+   buried under the paint rectangle drawn after it - and because labels are emitted after
+   all the bodies, its "64%" still showed. A number floating over a shape that was not
+   there.
+
+   Every render site reverses, so the region that owns a shot is the region you can see
+   owning it. */
+
+/* First match in array order wins. See the precedence note above. */
+function rgRegionAtPoint(x, y) {
+  const list = State.regions || [];
+  for (let i = 0; i < list.length; i++) if (rgContains(list[i], x, y)) return list[i];
+  return null;
+}
+
+function rgRegionForShot(ev) {
+  if (!ev || ev.shotX == null || ev.shotY == null) return null;
+  return rgRegionAtPoint(ev.shotX * 500, ev.shotY * 485);
+}
+
+/* A region can carry its own label position. The default is the centre for a circle and
+   the true area centroid for a shape — the same centroid the zones use, so a curved edge
+   does not drag the label toward it the way averaging vertices would. */
+function rgLabelPos(sh) {
+  if (sh && sh.label && sh.label.x != null) return { x: sh.label.x, y: sh.label.y };
+  if (rgIsPoly(sh)) return znCentroid(znPolygon(sh));
+  return { x: sh.cx, y: sh.cy };
+}
+
+/* Each part carries its own label anchor, so a two-corner region prints its combined
+   number in BOTH corners. That repetition is the point: seeing 8/19 in each corner is
+   what tells you the two are being counted as one. */
+function rgPartLabelPos(sh) { return rgLabelPos(sh); }
+
+/* True when a HIGHER-precedence region covers this one's label anchor.
+
+   Concentric circles put both labels on the same point by default, which printed as
+   overlapping nonsense ("ReRim 10ftift" for a 3ft inside a 10ft). Same rule the zone
+   labels follow, for the same reason: whatever wins the shots wins the label spot. The
+   hidden numbers are still on the shape's tooltip and in the breakdown table row, and
+   dragging a label off centre brings it back. */
+function rgLabelHidden(rg, part) {
+  const list = State.regions || [];
+  const i = list.indexOf(rg);
+  if (i <= 0) return false;
+  const p = rgLabelPos(part || rgParts(rg)[0]);
+  for (let j = 0; j < i; j++) if (rgContains(list[j], p.x, p.y)) return true;
+  return false;
+}
+
+/* Regions as they should leave this browser. Nothing caches onto a region today —
+   rgContains() is analytic, so there is no _poly equivalent — but the zones learned
+   this lesson the expensive way (133 cached points rode into every published file), so
+   anything underscore-prefixed is stripped here rather than trusted not to appear. */
+/* Strips at EVERY depth, not just the top. znContains() memoises `_poly` onto whatever
+   it hit-tests, and once a region owns parts that is a nested object — a top-level-only
+   strip would have let the cache ride into every backup and published file, which is
+   exactly the bug the zones hit with 133 stale points. */
+function _rgStrip(v) {
+  if (Array.isArray(v)) return v.map(_rgStrip);
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const k in v) if (k.charAt(0) !== '_') out[k] = _rgStrip(v[k]);
+    return out;
+  }
+  return v;
+}
+
+function rgForExport() {
+  return (State.regions || []).map(_rgStrip);
+}
+
+function rgPersist() {
+  return persistKey('pt_regions', JSON.stringify(rgForExport()));
+}
+
+/* Centre snapping: landmarks first, then the centre of any existing region, so a pair
+   of concentric circles is possible without pixel-hunting. */
+function _rgSnapCentre(pt) {
+  if (!rgSnapOn) return { x: pt.x, y: pt.y, name: null };
+  let best = null, bestD = RG_SNAP;
+  for (const lm of RG_LANDMARKS) {
+    const d = Math.hypot(lm.x - pt.x, lm.y - pt.y);
+    if (d <= bestD) { bestD = d; best = lm; }
+  }
+  for (const rg of (State.regions || [])) {
+    if (rg.id === rgSelected) continue;
+    for (const sh of rgParts(rg)) {
+      if (rgIsPoly(sh) || sh.cx == null) continue;
+      const d = Math.hypot(sh.cx - pt.x, sh.cy - pt.y);
+      if (d <= bestD) { bestD = d; best = { x: sh.cx, y: sh.cy, name: 'the centre of ' + rg.name }; }
+    }
+  }
+  return best ? { x: best.x, y: best.y, name: best.name } : { x: pt.x, y: pt.y, name: null };
+}
+
+/* Radius snapping: whole feet. A region is a spot on the floor a coach describes in
+   feet ("everything inside eight"), so the stored radius should be a round number of
+   them rather than whatever pixel the mouse stopped on. */
+function _rgSnapRadius(raw) {
+  return rgFtToPx(Math.round(raw / RG_PX_PER_FT / RG_FT_STEP) * RG_FT_STEP);
+}
+
+/* Point snapping for shapes: court landmarks first, then any corner of another region
+   or of a ZONE. Zone corners are in the list on purpose — a region that carves the top
+   half out of a zone usually wants to start exactly on that zone's corners, and eyeballing
+   it leaves slivers. Then the same axis-squaring the zone editor does. */
+function _rgSnapPoint(pt, prev, excludeId, allowAxis) {
+  if (!rgSnapOn) return pt;
+  let best = null, bestD = RG_SNAP;
+  const consider = q => {
+    const d = Math.hypot(q.x - pt.x, q.y - pt.y);
+    if (d <= bestD) { bestD = d; best = q; }
+  };
+  RG_LANDMARKS.forEach(consider);
+  for (const rg of (State.regions || [])) {
+    if (rg.id === excludeId) continue;
+    rgParts(rg).forEach(sh => { if (rgIsPoly(sh)) (sh.pts || []).forEach(consider); });
+  }
+  for (const z of (State.zones || [])) (z.pts || []).forEach(consider);
+  if (best) return { x: best.x, y: best.y };
+  /* Axis-squaring only while PLACING. It was the worst of the jumps: nudging an existing
+     point a couple of units sideways would fling it up to six units vertically to line up
+     with its neighbour, which is the opposite of fine adjustment. */
+  if (allowAxis && prev) {
+    const dx = Math.abs(pt.x - prev.x), dy = Math.abs(pt.y - prev.y);
+    if (dy <= RG_SNAP && dx > dy) return { x: pt.x, y: prev.y };   // horizontal
+    if (dx <= RG_SNAP && dy > dx) return { x: prev.x, y: pt.y };   // vertical
+  }
+  return pt;
+}
+
+/* Whole feet in, court units out. NOT rounded to whole pixels: 7 ft is 65.52 units, and
+   storing 66 made the label read 7.1 ft for a radius the coach had just set to 7. SVG
+   and the hit test both take decimals, so there was never a reason to round. */
+function rgFtToPx(ft) {
+  const stepped = Math.round(ft / RG_FT_STEP) * RG_FT_STEP;
+  const clamped = Math.max(RG_MIN_FT, Math.min(RG_MAX_FT, stepped));
+  return +(clamped * RG_PX_PER_FT).toFixed(2);
+}
+
+/* ── Adding a point without changing the shape ──
+   Appending to the end of the ring is what made the outline jump: the closing edge is
+   last -> first, so a new final point re-routes it across a different chord and the whole
+   bottom of the shape moves. Points are INSERTED into a chosen edge instead.
+
+   And the split is a real de Casteljau subdivision, not a midpoint drop. Cutting a Bezier
+   at t gives two Beziers that reproduce the original EXACTLY, so the outline does not move
+   by a pixel when a point is added to a curved edge — the new anchor lands on the curve
+   already there and the two halves inherit the controls that keep it. A midpoint drop
+   would flatten the edge and lose the shaping that had been done. */
+/* Quadratic -> cubic WITHOUT moving the curve.
+
+   Grabbing the second handle used to seed the first at a third along the chord, which
+   yanked the edge into a shape nobody asked for the instant you touched it — the "goes
+   way far away" jump. Degree elevation is exact instead: the quadratic (P0, C, P1) is
+   the identical cubic with controls P0 + 2/3(C - P0) and P1 + 2/3(C - P1). A straight
+   edge elevates just as cleanly, its controls landing on the chord.
+
+   So the second handle now starts exactly where the curve already is, and moves from
+   there. Nothing jumps. */
+function _rgPromote(holder, p0, p1, setC) {
+  const c = holder.c;
+  setC(c ? { x: +(p0.x + (2 / 3) * (c.x - p0.x)).toFixed(2),
+             y: +(p0.y + (2 / 3) * (c.y - p0.y)).toFixed(2) }
+         : _rgLerp(p0, p1, 1 / 3));
+}
+
+/* The cubic's SECOND control that reproduces the current quadratic — where handle two
+   should sit so grabbing it changes nothing. */
+function _rgPromoted2(c, p0, p1) {
+  return c ? { x: +(p1.x + (2 / 3) * (c.x - p1.x)).toFixed(2),
+               y: +(p1.y + (2 / 3) * (c.y - p1.y)).toFixed(2) }
+           : _rgLerp(p0, p1, 2 / 3);
+}
+
+function _rgLerp(a, b, t) {
+  return { x: +(a.x + (b.x - a.x) * t).toFixed(2), y: +(a.y + (b.y - a.y) * t).toFixed(2) };
+}
+
+/* The split of edge p0->p1 at t, as { mid, firstC, firstC2, secondC, secondC2 }. */
+function _rgSplit(p0, c, c2, p1, t) {
+  if (c && c2) {                                   // cubic -> two cubics
+    const A = _rgLerp(p0, c, t), B = _rgLerp(c, c2, t), C = _rgLerp(c2, p1, t);
+    const D = _rgLerp(A, B, t),  E = _rgLerp(B, C, t);
+    return { mid: _rgLerp(D, E, t), firstC: A, firstC2: D, secondC: E, secondC2: C };
+  }
+  if (c) {                                         // quadratic -> two quadratics
+    const A = _rgLerp(p0, c, t), B = _rgLerp(c, p1, t);
+    return { mid: _rgLerp(A, B, t), firstC: A, firstC2: null, secondC: B, secondC2: null };
+  }
+  return { mid: _rgLerp(p0, p1, t), firstC: null, firstC2: null, secondC: null, secondC2: null };
+}
+
+/* Edge e: 1..n-1 is pts[e-1]->pts[e]; e >= n is the closing edge pts[n-1]->pts[0]. */
+function _rgEdgeEnds(e) {
+  const pts = rgDraft.pts, n = pts.length, closing = e >= n;
+  return {
+    closing: closing,
+    p0: closing ? pts[n - 1] : pts[e - 1],
+    p1: closing ? pts[0]     : pts[e],
+    c:  closing ? rgDraft.closeC  : pts[e].c,
+    c2: closing ? rgDraft.closeC2 : pts[e].c2,
+  };
+}
+
+/* Where the insert handle sits along an edge, as a fraction of it.
+
+   NOT 0.5. The gold curve handle sits at the middle of the chord — that is the Zones
+   editor's placement and the whole reason the curve feels right — so a green dot at the
+   middle landed underneath it and could not be grabbed at all. They are separated along
+   the edge instead of one being shrunk, because both need a full-size target. */
+const RG_INSERT_T = 0.3;
+
+/* Where that point actually sits ON the curve, so the handle rides the outline instead of
+   floating out on the chord. */
+function _rgEdgeMid(e) {
+  const g = _rgEdgeEnds(e);
+  return _rgSplit(g.p0, g.c, g.c2, g.p1, RG_INSERT_T).mid;
+}
+
+/* Returns the index of the point it added, so the caller can hand straight over to a
+   drag of that point. */
+function rgInsertPoint(e) {
+  if (!rgDraft || !rgIsPoly(rgDraft)) return null;
+  const pts = rgDraft.pts;
+  const g = _rgEdgeEnds(e);
+  const sp = _rgSplit(g.p0, g.c, g.c2, g.p1, RG_INSERT_T);
+  const np = { x: sp.mid.x, y: sp.mid.y, c: sp.firstC, c2: sp.firstC2 };
+  let idx;
+  if (g.closing) {
+    pts.push(np);
+    rgDraft.closeC = sp.secondC; rgDraft.closeC2 = sp.secondC2;
+    idx = pts.length - 1;
+  } else {
+    g.p1.c = sp.secondC; g.p1.c2 = sp.secondC2;
+    pts.splice(e, 0, np);
+    idx = e;
+  }
+  delete rgDraft._poly;
+  renderZonesView();
+  return idx;
+}
+
+/* Grab the green dot and PULL. It used to only fire on click, so the gesture ended the
+   moment the point appeared and you were left holding nothing — the new anchor sat at the
+   midpoint and had to be found and dragged as a second action. Now the same press that
+   creates the point starts dragging it, which is what grabbing a dot is supposed to mean. */
+function rgInsertDrag(e, edge) {
+  const idx = rgInsertPoint(edge);
+  if (idx == null) return;
+  rgGrab(e, 'anchor', idx);
+}
+
+function rgDeletePoint(i) {
+  if (!rgDraft || !rgIsPoly(rgDraft)) return;
+  if (rgDraft.pts.length <= 3) { showToast('A shape needs at least 3 points', 'warning'); return; }
+  rgDraft.pts.splice(i, 1);
+  delete rgDraft._poly;
+  renderZonesView();
+}
+
+function rgStartCircle() {
+  rgDraft = { kind: 'circle', cx: null, cy: null, r: null, label: null, labelScale: 1, snapName: null };
+  rgSelected = null; rgPartIdx = null;
+  renderZonesView();
+}
+
+function rgStartPoly() {
+  rgDraft = { kind: 'poly', pts: [], closeC: null, closeC2: null, label: null, labelScale: 1, snapName: null };
+  rgSelected = null; rgPartIdx = null;
+  renderZonesView();
+}
+
+/* Drop every curve from the shape being edited, leaving straight edges through the same
+   points. This exists because the removed Tidy button had already written control points
+   into saved regions, and deleting the feature does not undo the data it wrote.
+
+   It works on the DRAFT, not on the stored region, so the result is on screen before it is
+   committed and Cancel walks away from it. That is the difference between this and the
+   thing it is cleaning up: the shape is never rewritten underneath you. */
+function rgStraightenDraft() {
+  if (!rgDraft || !rgIsPoly(rgDraft)) return;
+  let n = 0;
+  (rgDraft.pts || []).forEach(p => { if (p.c || p.c2) n++; p.c = null; p.c2 = null; });
+  if (rgDraft.closeC || rgDraft.closeC2) n++;
+  rgDraft.closeC = null; rgDraft.closeC2 = null;
+  delete rgDraft._poly;
+  showToast(n ? 'Straightened ' + n + ' edge' + (n === 1 ? '' : 's') + ' — Save to keep, Cancel to undo'
+              : 'No curved edges on this shape', n ? 'success' : 'warning', 4000);
+  renderZonesView();
+}
+
+function rgUndoPoint() {
+  if (rgDraft && rgIsPoly(rgDraft) && rgDraft.pts.length) { rgDraft.pts.pop(); renderZonesView(); }
+}
+
+function rgCancel() { rgDraft = null; rgSelected = null; rgPartIdx = null; rgDrag = null; renderZonesView(); }
+
+function rgScaleLabel(delta) {
+  if (!rgDraft) return;
+  const cur = rgDraft.labelScale || 1;
+  rgDraft.labelScale = Math.max(0.5, Math.min(2.5, +(cur + delta).toFixed(2)));
+  renderZonesView();
+}
+
+function rgResetLabel() { if (rgDraft) { rgDraft.label = null; renderZonesView(); } }
+
+/* Radius in half-foot steps, which is the granularity the marked circles on a court
+   actually use — 4.5 at the restricted area, 6 at the free-throw circle. */
+function rgNudgeRadius(deltaFt) {
+  if (!rgDraft || rgDraft.r == null) return;
+  const cur = Math.round(rgRadiusFt(rgDraft) / RG_FT_STEP) * RG_FT_STEP;
+  rgDraft.r = rgFtToPx(+(cur + deltaFt).toFixed(2));
+  renderZonesView();
+}
+
+function rgSave() {
+  if (!rgDraft) return;
+  if (rgIsPoly(rgDraft)) {
+    if (rgDraft.pts.length < 3) { showToast('A shape needs at least 3 points', 'warning'); return; }
+  } else {
+    if (rgDraft.cx == null) { showToast('Click the court to place the centre first', 'warning'); return; }
+    if (rgDraft.r == null)  { showToast('Click again to set the radius', 'warning'); return; }
+  }
+
+  const target = rgSelected ? (State.regions || []).find(x => x.id === rgSelected) : null;
+  const adding = rgSelected && rgPartIdx === -1;
+
+  /* Only ask for a name when there is not already one. Re-prompting on every part edit
+     would mean retyping "Corner Threes" each time you nudged the second corner. */
+  let name = target ? target.name : '';
+  if (!target) {
+    name = (prompt('Name this region:', 'Region ' + ((State.regions || []).length + 1)) || '').trim();
+    if (!name) return;
+  }
+
+  const shape = { kind: rgDraft.kind, label: rgDraft.label };
+  if (rgIsPoly(rgDraft)) { shape.pts = rgDraft.pts; shape.closeC = rgDraft.closeC; shape.closeC2 = rgDraft.closeC2; }
+  else { shape.cx = rgDraft.cx; shape.cy = rgDraft.cy; shape.r = rgDraft.r; }
+
+  State.regions = State.regions || [];
+  if (target) {
+    _rgNormalise(target);
+    if (adding) target.parts.push(shape);
+    else target.parts[rgPartIdx] = shape;
+    target.labelScale = rgDraft.labelScale || 1;
+    target.parts.forEach(p => { delete p._poly; });   // the outline moved under the cache
+  } else {
+    /* unshift, not push: a shape you just drew is almost always the one meant to win,
+       and precedence is array order. Reorderable in the list either way. */
+    State.regions.unshift({
+      id: 'region_' + Date.now(), name: name, color: rgNextColor(),
+      labelScale: rgDraft.labelScale || 1, parts: [shape],
+    });
+  }
+  rgPersist();
+  rgDraft = null; rgSelected = null; rgPartIdx = null;
+  showToast(adding ? 'Part added to ' + name : 'Region saved: ' + name, 'success');
+  renderZonesView();
+}
+
+/* Regions written before parts existed keep their geometry on the region object. Moving
+   it into parts[0] on the next write means there is exactly one shape in the file going
+   forward, and rgParts() keeps reading the old layout for anything imported from an
+   older backup. labelScale stays on the region — one scale for the whole thing. */
+const _RG_SHAPE_KEYS = ['kind', 'cx', 'cy', 'r', 'pts', 'closeC', 'closeC2', 'label'];
+function _rgNormalise(rg) {
+  if (Array.isArray(rg.parts) && rg.parts.length) return rg;
+  const sh = {};
+  for (const k of _RG_SHAPE_KEYS) if (rg[k] !== undefined) sh[k] = rg[k];
+  for (const k of _RG_SHAPE_KEYS) delete rg[k];
+  delete rg._poly;
+  rg.parts = [sh];
+  return rg;
+}
+
+/* Start a second (or third) area for an existing region. */
+function rgAddPart(id, kind) {
+  const rg = (State.regions || []).find(x => x.id === id);
+  if (!rg) return;
+  rgSelected = id; rgPartIdx = -1;
+  rgDraft = kind === 'poly'
+    ? { kind: 'poly', pts: [], closeC: null, closeC2: null, label: null, labelScale: znLabelScale(rg), snapName: null }
+    : { kind: 'circle', cx: null, cy: null, r: null, label: null, labelScale: znLabelScale(rg), snapName: null };
+  renderZonesView();
+}
+
+/* Rename in place. rgSave() stopped prompting once a region had a name — re-asking on
+   every part edit meant retyping it — so renaming needs its own way in. */
+function rgRename(id) {
+  const rg = (State.regions || []).find(x => x.id === id);
+  if (!rg) return;
+  const name = (prompt('Rename this region:', rg.name) || '').trim();
+  if (!name || name === rg.name) return;
+  rg.name = name;
+  rgPersist();
+  showToast('Renamed to ' + name, 'success');
+  renderZonesView();
+}
+
+/* Fold this region into the one above it, so two separately-drawn areas become one
+   region with one tally. Two corner threes drawn as separate regions report left and
+   right apart; merged, they report the corners as the single thing a coach thinks of
+   them as. The upper region's name, colour and precedence win, because it is the one
+   being merged INTO. */
+function rgMergeUp(id) {
+  const list = State.regions || [];
+  const i = list.findIndex(x => x.id === id);
+  if (i <= 0) return;
+  const into = list[i - 1], from = list[i];
+  if (!confirm('Merge "' + from.name + '" into "' + into.name + '"?\n\n' +
+               'They become one region with one combined percentage, keeping the name "' +
+               into.name + '". Both areas stay on the court.')) return;
+  _rgNormalise(into); _rgNormalise(from);
+  into.parts = into.parts.concat(from.parts);
+  into.parts.forEach(p => { delete p._poly; });
+  list.splice(i, 1);
+  rgPersist();
+  showToast('Merged into ' + into.name + ' — ' + into.parts.length + ' areas', 'success', 4000);
+  renderZonesView();
+}
+
+function rgDeletePart(id, idx) {
+  const rg = (State.regions || []).find(x => x.id === id);
+  if (!rg) return;
+  _rgNormalise(rg);
+  if (rg.parts.length <= 1) { showToast('A region needs at least one area — delete the region instead', 'warning'); return; }
+  if (!confirm('Delete area ' + (idx + 1) + ' of "' + rg.name + '"?')) return;
+  rg.parts.splice(idx, 1);
+  rgPersist();
+  rgDraft = null; rgSelected = null; rgPartIdx = null;
+  renderZonesView();
+}
+
+function rgEdit(id, partIdx) {
+  const rg = (State.regions || []).find(x => x.id === id);
+  if (!rg) return;
+  const idx = partIdx || 0;
+  const sh = rgParts(rg)[idx];
+  if (!sh) return;
+  rgSelected = id; rgPartIdx = idx;
+  rgDraft = { kind: rgIsPoly(sh) ? 'poly' : 'circle',
+              label: sh.label ? Object.assign({}, sh.label) : null,
+              labelScale: znLabelScale(rg), snapName: null };
+  const rgShape = sh;
+  if (rgIsPoly(sh)) {
+    /* Deep copy: the draft is edited in place and Cancel has to leave the saved region
+       untouched. A shallow copy of pts would let a dragged anchor mutate it anyway. */
+    rgDraft.pts = JSON.parse(JSON.stringify(rgShape.pts || []));
+    rgDraft.closeC  = rgShape.closeC  ? Object.assign({}, rgShape.closeC)  : null;
+    rgDraft.closeC2 = rgShape.closeC2 ? Object.assign({}, rgShape.closeC2) : null;
+  } else {
+    rgDraft.cx = rgShape.cx; rgDraft.cy = rgShape.cy; rgDraft.r = rgShape.r;
+  }
+  renderZonesView();
+}
+
+function rgDelete(id) {
+  const rg = (State.regions || []).find(x => x.id === id);
+  if (!rg || !confirm('Delete region "' + rg.name + '"?\n\nThe shots inside it go back to the zone underneath.')) return;
+  State.regions = State.regions.filter(x => x.id !== id);
+  rgPersist();
+  if (rgSelected === id) { rgSelected = null; rgDraft = null; }
+  renderZonesView();
+}
+
+/* Move a region up or down the precedence order. */
+function rgReorder(id, dir) {
+  const list = State.regions || [];
+  const i = list.findIndex(x => x.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+  rgPersist();
+  renderZonesView();
+}
+
+
+function rgCourtClick(e) {
+  if (!rgDraft || rgDrag) return;
+  const pt = _znPt(e);
+  if (rgIsPoly(rgDraft)) {
+    /* Editing a shape that already exists? Then a click does NOTHING, for exactly the
+       reason the circle branch below gives: the outline is already placed, and a stray
+       click appending a point to the END of the ring re-routes the closing edge and
+       wrecks it. That is the "it always places a new big white dot" — the shape's own
+       fill covers most of the court, so a press that misses a handle by a few pixels
+       lands on it, bubbles to here, and adds a point nobody asked for.
+
+       Adding a point to an existing shape is what the green dots are for, and they put it
+       on the edge you aimed at instead of on the end of the list.
+
+       Drawing a NEW shape still appends on click — that is how an outline gets built, and
+       there is nothing yet to ruin. Adding a fresh area to a region (rgPartIdx === -1)
+       counts as drawing new. */
+    if (rgSelected && rgPartIdx >= 0) {
+      showToast('Drag a green dot to add a point — clicking would put it at the end of the outline', 'warning', 3500);
+      return;
+    }
+    const prev = rgDraft.pts.length ? rgDraft.pts[rgDraft.pts.length - 1] : null;
+    const p = _rgSnapPoint(pt, prev, rgSelected, true);
+    rgDraft.pts.push({ x: p.x, y: p.y, c: null, c2: null });
+    renderZonesView();
+    return;
+  }
+  if (rgDraft.cx == null) {
+    const c = _rgSnapCentre(pt);
+    rgDraft.cx = c.x; rgDraft.cy = c.y; rgDraft.snapName = c.name;
+    renderZonesView();
+    return;
+  }
+  if (rgDraft.r == null) {
+    rgDraft.r = _rgSnapRadius(Math.hypot(pt.x - rgDraft.cx, pt.y - rgDraft.cy));
+    renderZonesView();
+    return;
+  }
+  /* Complete — further clicks are ignored on purpose. Once the circle exists the two
+     handles are the way to change it, and a stray click that silently moved the centre
+     would be the easiest way to ruin a placement you had already got right. */
+}
+
+function rgGrab(e, kind, i) {
+  e.preventDefault(); e.stopPropagation();
+  rgDrag = { kind: kind, i: i || 0 };
+  const move = ev => {
+    if (!rgDraft || !rgDrag) return;
+    const pt = _znPt(ev);
+    if (rgDrag.kind === 'anchor') {
+      const n = rgDraft.pts.length;
+      const nb = rgDraft.pts[(rgDrag.i - 1 + n) % n];
+      const sn = _rgSnapPoint(pt, n > 1 ? nb : null, rgSelected, false);
+      rgDraft.pts[rgDrag.i].x = sn.x; rgDraft.pts[rgDrag.i].y = sn.y;
+      delete rgDraft._poly;
+    } else if (rgDrag.kind === 'mid') {
+      rgDraft.pts[rgDrag.i].c = pt;                          // first control of that segment
+      delete rgDraft._poly;
+    } else if (rgDrag.kind === 'mid2') {
+      const q = rgDraft.pts[rgDrag.i], p0 = rgDraft.pts[rgDrag.i - 1];
+      _rgPromote(q, p0, q, c => { q.c = c; });
+      q.c2 = pt;
+      delete rgDraft._poly;
+    } else if (rgDrag.kind === 'close') {
+      rgDraft.closeC = pt;                                   // first control, closing segment
+      delete rgDraft._poly;
+    } else if (rgDrag.kind === 'close2') {
+      const pts = rgDraft.pts;
+      _rgPromote({ c: rgDraft.closeC }, pts[pts.length - 1], pts[0], c => { rgDraft.closeC = c; });
+      rgDraft.closeC2 = pt;
+      delete rgDraft._poly;
+    } else if (rgDrag.kind === 'centre') {
+      const c = _rgSnapCentre(pt);
+      /* The label rides with the centre when it has been placed by hand, otherwise it
+         would slide out of the circle the moment the circle moved. */
+      if (rgDraft.label) { rgDraft.label.x += c.x - rgDraft.cx; rgDraft.label.y += c.y - rgDraft.cy; }
+      rgDraft.cx = c.x; rgDraft.cy = c.y; rgDraft.snapName = c.name;
+    } else if (rgDrag.kind === 'radius') {
+      rgDraft.r = _rgSnapRadius(Math.hypot(pt.x - rgDraft.cx, pt.y - rgDraft.cy));
+    } else if (rgDrag.kind === 'label') {
+      rgDraft.label = { x: pt.x, y: pt.y };
+    }
+    _rgRedraw();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    rgDrag = null; renderZonesView();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+/* Live update while dragging, so a resize does not re-render the whole page per pixel. */
+function _rgRedraw() {
+  if (!rgDraft) return;
+  if (rgIsPoly(rgDraft)) {
+    const path = document.getElementById('rg-draft-path');
+    if (path) path.setAttribute('d', znPathD(rgDraft.pts, rgDraft.closeC, true, rgDraft.closeC2));
+    const mk = document.getElementById('rg-label-mark');
+    if (mk && rgDraft.label) mk.setAttribute('transform', 'translate(' + rgDraft.label.x + ',' + rgDraft.label.y + ')');
+    return;
+  }
+  const c = document.getElementById('rg-draft-circle');
+  if (c && rgDraft.cx != null) {
+    c.setAttribute('cx', rgDraft.cx); c.setAttribute('cy', rgDraft.cy);
+    if (rgDraft.r != null) c.setAttribute('r', rgDraft.r);
+  }
+  const ch = document.getElementById('rg-handle-centre');
+  if (ch) { ch.setAttribute('cx', rgDraft.cx); ch.setAttribute('cy', rgDraft.cy); }
+  const rh = document.getElementById('rg-handle-radius');
+  if (rh && rgDraft.r != null) { rh.setAttribute('cx', rgDraft.cx + rgDraft.r); rh.setAttribute('cy', rgDraft.cy); }
+  const ft = document.getElementById('rg-live-ft');
+  if (ft && rgDraft.r != null) ft.textContent = rgRadiusFt(rgDraft).toFixed(1) + ' ft';
+  const mark = document.getElementById('rg-label-mark');
+  if (mark) {
+    const lp = rgLabelPos(rgDraft);
+    mark.setAttribute('transform', 'translate(' + lp.x + ',' + lp.y + ')');
+  }
+}
+
+/* ── Regions section of the Zones tab ── */
+function _rgSectionHtml() {
+  const regions = State.regions = State.regions || [];
+
+  const shots = getSessions().filter(x => x.completed && !x.excludeFromStats)
+    .flatMap(x => (x.eventLog || []).filter(e =>
+      ['2fg_make','2fg_miss','3fg_make','3fg_miss'].includes(e.stat) && e.shotX != null));
+
+  /* Two counts per region, and they are different questions. `claimed` is what the
+     region actually gets — shots no higher-precedence region already took. `inside` is
+     everything within the circle regardless. When the two differ, a region is sitting
+     under another one and the gap is the only way to see it from here. */
+  const claimed = {}, inside = {};
+  const overlaid = {};                      // region id -> Set of zone names it is taking from
+  for (const ev of shots) {
+    const x = ev.shotX * 500, y = ev.shotY * 485;
+    for (const rg of regions) if (rgContains(rg, x, y)) inside[rg.id] = (inside[rg.id] || 0) + 1;
+    const own = rgRegionAtPoint(x, y);
+    if (!own) continue;
+    claimed[own.id] = (claimed[own.id] || 0) + 1;
+    const z = znZoneOnlyAtPoint(x, y);
+    if (z) { (overlaid[own.id] = overlaid[own.id] || new Set()).add(z.name); }
+  }
+
+  /* The zones underneath, drawn faint. You are placing a circle relative to the tiling
+     it overrides, so the tiling has to be visible while you do it. */
+  const zoneGhosts = (State.zones || []).map(z =>
+    '<path d="' + znPathD(z.pts, z.closeC, true) + '" fill="' + z.color +
+    '" fill-opacity="0.07" stroke="' + z.color + '" stroke-width="1" stroke-opacity="0.35">' +
+    '<title>' + escHtml(z.name) + '</title></path>').join('');
+  /* Ghost names are dropped where a region already covers the spot — the paint holds four
+     small zones whose labels all sit within a few units of each other, and a circle over
+     them turned that corner of the court into overlapping text. The shapes stay; hover a
+     ghost for its name. */
+  const zoneGhostLabels = (State.zones || []).map(z => {
+    const ctr = znLabelPos(z, znPolygon(z));
+    if (rgRegionAtPoint(ctr.x, ctr.y)) return '';
+    return '<text x="' + ctr.x.toFixed(1) + '" y="' + ctr.y.toFixed(1) + '" text-anchor="middle" ' +
+      'dominant-baseline="central" font-size="9" font-weight="600" fill="#6b7496" ' +
+      'style="pointer-events:none" font-family="system-ui,sans-serif">' + escHtml(z.name) + '</text>';
+  }).join('');
+
+  /* Editing one region hides every other one. Between the zone underlay, the saved
+     regions, their names, and this shape's own anchors and handles, the court was too
+     busy to work on - and the others cannot be acted on while a draft is open anyway,
+     so drawing them was clutter with nothing behind it.
+
+     Scoped to EDITING deliberately. While drawing a NEW region the others stay visible,
+     because placing one relative to what is already there is the normal reason to draw
+     it: a small circle inside a big one only makes sense if you can see the big one. */
+  const soloEdit = !!rgSelected;
+
+  const saved = regions.map((rg, i) => {
+    if (soloEdit && rg.id !== rgSelected) return '';
+    const editing = rgSelected === rg.id;
+    return rgShapeSvg(rg, {
+      fill: rg.color, 'fill-opacity': editing ? 0.10 : 0.26,
+      stroke: rg.color, 'stroke-width': 2, 'stroke-opacity': editing ? 0.35 : 0.95,
+    }, '<title>' + escHtml(rg.name) + ' — #' + (i + 1) + ' in precedence · ' +
+       rgSizeLabel(rg) + '</title>');
+  }).reverse().join('');
+
+  const savedLabels = regions.map(rg => rgParts(rg).map(part => {
+    if (soloEdit || rgLabelHidden(rg, part)) return '';
+    const ctr = rgLabelPos(part);
+    /* Held inside the floor. A corner area's centroid sits within a few units of the
+       sideline, and a centred name ran half off the court ("orner Threes"). Only this
+       context label moves; the shape and its hit test are untouched. */
+    const lx = Math.max(38, Math.min(462, ctr.x));
+    return '<text x="' + lx.toFixed(1) + '" y="' + ctr.y.toFixed(1) + '" text-anchor="middle" ' +
+      'dominant-baseline="central" font-size="12" font-weight="700" fill="#fff" ' +
+      'style="pointer-events:none;paint-order:stroke;stroke:#0d1117;stroke-width:3px;" ' +
+      'font-family="system-ui,sans-serif">' + escHtml(rg.name) + '</text>';
+  }).join('')).join('');
+
+  /* The printed-size label preview, identical for both kinds — the numbers a region will
+     carry are bigger than an empty shape looks, which is the whole reason it exists. */
+  const labelPreview = () => {
+    const lp = rgLabelPos(rgDraft);
+    const k = rgDraft.labelScale || 1;
+    const ps = ZN_PCT_SIZE * k, ss = ZN_SUB_SIZE * k;
+    const bw = Math.max(ps * 3.6, ss * 4.6), bh = (ps + ss) * 1.5;
+    return '<g id="rg-label-mark" class="zn-handle" onpointerdown="rgGrab(event,\'label\')" ' +
+      'transform="translate(' + lp.x + ',' + lp.y + ')">' +
+      '<title>Drag to place this region\'s label — sample shows the largest expected numbers</title>' +
+      '<rect x="' + (-bw / 2).toFixed(1) + '" y="' + (-bh / 2).toFixed(1) + '" width="' + bw.toFixed(1) +
+        '" height="' + bh.toFixed(1) + '" rx="4" fill="#06b6d4" fill-opacity="' + (rgDraft.label ? 0.30 : 0.16) +
+        '" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      '<text x="0" y="' + (-ss * 0.55).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" ' +
+        'font-size="' + ps.toFixed(1) + '" font-weight="800" fill="#000" style="pointer-events:none" font-family="system-ui,sans-serif">70%</text>' +
+      '<text x="0" y="' + (ps * 0.62).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" ' +
+        'font-size="' + ss.toFixed(1) + '" font-weight="600" fill="#333" style="pointer-events:none" font-family="system-ui,sans-serif">462-839</text>' +
+      '</g>';
+  };
+
+  let draftSvg = '';
+  if (rgDraft && rgIsPoly(rgDraft)) {
+    const pts = rgDraft.pts;
+
+    /* Every handle swallows the click as well as the pointerdown. The court's own onclick
+       appends a point, and it fires on anything inside the SVG — so grabbing an anchor
+       used to drop a stray point at the end of the ring at the same time. */
+    const STOP = ' onclick="event.stopPropagation()"';
+
+    draftSvg += '<path id="rg-draft-path" d="' + znPathD(pts, rgDraft.closeC, true, rgDraft.closeC2) +
+      '" fill="#fff" fill-opacity="0.10" stroke="#fff" stroke-width="2" stroke-dasharray="6 4"/>';
+
+    /* Two curve handles per edge, not one. One control point is a quadratic, which can
+       only bow a single direction — an S-bend or a long arc needs the second. Handles sit
+       a third and two thirds along the chord until they are moved. */
+    /* The CLOSING edge — last point back to the first — is the one edge whose curve
+       controls do not hang off a point. Every other edge stores them on its destination
+       (`pts[i].c` / `.c2`); the closing edge's destination is pts[0], whose slot is already
+       the path's start, so its pair lives on the shape as `closeC` / `closeC2`. That
+       asymmetry is inherited from the zone editor and kept so zone data stays readable by
+       the same helpers — but it is invisible unless the handles say so, and it is the edge
+       that moves when a point is appended, so it is the one worth pointing at. */
+    /* The Zones editor bends an edge with ONE handle sitting at the middle of the chord,
+       dragged straight to where you want the curve. It is direct and it is predictable,
+       and it is better than what this had — two handles a third and two thirds along, the
+       second of which rewrote the first the moment it was touched.
+
+       So the primary handle is the zone editor's, exactly: chord midpoint, quadratic,
+       follows the pointer 1:1. The second handle is an OPT-IN for an S-bend, drawn only
+       once the edge is actually curved, and it starts on the curve that is already there
+       (see _rgPromoted2) so picking it up changes nothing. */
+    const curveHandles = (e, cur, cur2, p0, p1, kind1, kind2) => {
+      const closing = e >= pts.length;
+      const ring = closing ? '#4f6ef7' : '#0d1117';        // blue rim marks the closing edge
+      const rw   = closing ? 2 : 1;
+      const what = closing ? 'the closing edge (last point back to the first)' : 'this edge';
+      const span = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      const h1 = cur || _rgLerp(p0, p1, 0.5);              // midpoint, as Zones does it
+      let out = '';
+      /* Guide line to the anchor it pulls from, so which handle owns which end is
+         visible instead of guessed. */
+      out += '<line x1="' + p0.x + '" y1="' + p0.y + '" x2="' + h1.x + '" y2="' + h1.y +
+        '" stroke="#f5c542" stroke-width="0.8" stroke-opacity="0.35" style="pointer-events:none"/>';
+      out += '<circle class="zn-handle" cx="' + h1.x + '" cy="' + h1.y + '" r="5.5" fill="#f5c542" ' +
+        'fill-opacity="' + (cur ? 1 : 0.4) + '" stroke="' + ring + '" stroke-width="' + rw + '" ' +
+        'onpointerdown="rgGrab(event,\'' + kind1 + '\',' + e + ')"' + STOP +
+        '><title>Drag to bend ' + what + '</title></circle>';
+
+      /* Second handle only once the edge is bent — on a straight edge it is clutter, and
+         it was crowding the midpoint on short edges. */
+      if (cur) {
+        const h2 = cur2 || _rgPromoted2(cur, p0, p1);
+        out += '<line x1="' + p1.x + '" y1="' + p1.y + '" x2="' + h2.x + '" y2="' + h2.y +
+          '" stroke="#f5c542" stroke-width="0.8" stroke-opacity="0.35" style="pointer-events:none"/>';
+        out += '<circle class="zn-handle" cx="' + h2.x + '" cy="' + h2.y + '" r="5" fill="#fbbf24" ' +
+          'fill-opacity="' + (cur2 ? 1 : 0.45) + '" stroke="' + ring + '" stroke-width="' + rw + '" ' +
+          'onpointerdown="rgGrab(event,\'' + kind2 + '\',' + e + ')"' + STOP +
+          '><title>Second handle \u2014 drag for an S-bend on ' + what + '</title></circle>';
+      }
+
+      /* Insert sits ON the curve, at the point the split would produce — but only where
+         there is room for it. On a short edge it sat under the curve handle. */
+      /* At RG_INSERT_T the two handles are 0.2 of the edge apart, so the gate is the span
+         that keeps them a comfortable target-width from each other. */
+      if (span >= 55) {
+        const m = _rgEdgeMid(e);
+        /* An invisible target twice the size of the dot underneath it. A 4-unit circle is
+           about 4.5 screen pixels on this court — too small to hit reliably, which is why
+           presses were landing on the court instead and appending points. The visible dot
+           stays small so it does not crowd the curve handle; only the grab area grows. */
+        out += '<circle cx="' + m.x + '" cy="' + m.y + '" r="10" fill="transparent" ' +
+          'pointer-events="all" style="cursor:grab" ' +
+          'onpointerdown="rgInsertDrag(event,' + e + ')"' + STOP +
+          '><title>Drag to add a point on ' + what + ' and place it \u2014 the rest of the outline does not move</title></circle>';
+        out += '<circle cx="' + m.x + '" cy="' + m.y + '" r="5" fill="#22c55e" ' +
+          'stroke="' + ring + '" stroke-width="1.5" style="pointer-events:none"/>';
+      }
+      return out;
+    };
+
+    for (let i = 1; i < pts.length; i++) {
+      draftSvg += curveHandles(i, pts[i].c, pts[i].c2, pts[i - 1], pts[i], 'mid', 'mid2');
+    }
+    if (pts.length > 2) {
+      draftSvg += curveHandles(pts.length, rgDraft.closeC, rgDraft.closeC2,
+                               pts[pts.length - 1], pts[0], 'close', 'close2');
+    }
+
+    /* Anchors last so they sit above the curve handles they share space with. */
+    pts.forEach((q, i) => {
+      draftSvg += '<circle class="zn-handle" cx="' + q.x + '" cy="' + q.y + '" r="7" fill="#fff" ' +
+        'stroke="#4f6ef7" stroke-width="2" onpointerdown="rgGrab(event,\'anchor\',' + i + ')"' + STOP +
+        ' oncontextmenu="event.preventDefault();event.stopPropagation();rgDeletePoint(' + i + ');return false;"' +
+        '><title>Point ' + (i + 1) + ' — drag to move, right-click to delete</title></circle>';
+    });
+
+    if (pts.length > 2) draftSvg += labelPreview();
+  } else if (rgDraft && rgDraft.cx != null) {
+    const r = rgDraft.r != null ? rgDraft.r : RG_MIN_R;
+    draftSvg += '<circle id="rg-draft-circle" cx="' + rgDraft.cx + '" cy="' + rgDraft.cy + '" r="' + r +
+      '" fill="#fff" fill-opacity="0.10" stroke="#fff" stroke-width="2" stroke-dasharray="6 4"/>';
+    draftSvg += '<circle id="rg-handle-centre" class="zn-handle" cx="' + rgDraft.cx + '" cy="' + rgDraft.cy +
+      '" r="7" fill="#fff" stroke="#4f6ef7" stroke-width="2" onpointerdown="rgGrab(event,\'centre\')">' +
+      '<title>Drag to move this region</title></circle>';
+    if (rgDraft.r != null) {
+      draftSvg += '<circle id="rg-handle-radius" class="zn-handle" cx="' + (rgDraft.cx + rgDraft.r) + '" cy="' + rgDraft.cy +
+        '" r="6" fill="#f5c542" stroke="#0d1117" stroke-width="1.5" onpointerdown="rgGrab(event,\'radius\')">' +
+        '<title>Drag to resize — snaps to whole feet</title></circle>';
+      draftSvg += labelPreview();
+    }
+  }
+
+  const ftLabel = rgDraft && rgDraft.r != null ? rgRadiusFt(rgDraft).toFixed(1) + ' ft' : '—';
+  const labelControls = () =>
+    '<span class="zn-count" style="margin-left:6px;">Label size</span>' +
+    '<button class="btn btn-ghost btn-sm" onclick="rgScaleLabel(-0.1)">\u2212</button>' +
+    '<span class="zn-count">' + Math.round((rgDraft.labelScale || 1) * 100) + '%</span>' +
+    '<button class="btn btn-ghost btn-sm" onclick="rgScaleLabel(0.1)">+</button>' +
+    (rgDraft.label ? '<button class="btn btn-ghost btn-sm" onclick="rgResetLabel()">Recentre Label</button>' : '');
+
+  const bar = !rgDraft
+    ? '<button class="btn btn-primary btn-sm" onclick="rgStartCircle()">+ Circle</button>' +
+      '<button class="btn btn-primary btn-sm" onclick="rgStartPoly()">+ Shape</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="rgToggleSnap()" title="Snapping helps a new point land on a landmark or a zone corner. Turn it off for free, 1:1 dragging.">Snap: ' +
+        (rgSnapOn ? 'On' : '<span style="color:#f5c542;">Off</span>') + '</button>'
+    : rgIsPoly(rgDraft)
+      ? '<button class="btn btn-primary btn-sm" onclick="rgSave()">\u2713 Save Region</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgUndoPoint()">\u21b6 Undo Point</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgStraightenDraft()" title="Remove every curve from this shape, leaving straight edges through the same points. Save to keep it, Cancel to undo.">Straighten</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgCancel()">Cancel</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgToggleSnap()" title="Turn snapping off for free, 1:1 dragging">Snap: ' +
+          (rgSnapOn ? 'On' : '<span style="color:#f5c542;">Off</span>') + '</button>' +
+        (rgDraft.pts.length > 2 ? labelControls() : '') +
+        '<span class="zn-count">' + rgDraft.pts.length + ' point' + (rgDraft.pts.length === 1 ? '' : 's') + '</span>'
+      : '<button class="btn btn-primary btn-sm" onclick="rgSave()">\u2713 Save Region</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgCancel()">Cancel</button>' +
+        '<span class="zn-count" style="margin-left:6px;">Radius</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgNudgeRadius(-RG_FT_STEP)">\u2212</button>' +
+        '<span class="zn-count" id="rg-live-ft" style="min-width:44px;display:inline-block;text-align:center;">' + ftLabel + '</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgNudgeRadius(RG_FT_STEP)">+</button>' +
+        (rgDraft.r != null ? labelControls() : '');
+
+  const step = !rgDraft ? ''
+    : rgIsPoly(rgDraft)
+      ? (rgDraft.pts.length < 3
+          ? '<strong style="color:#f5c542;">Drawing a shape:</strong> click the court to drop points \u2014 ' +
+            (3 - rgDraft.pts.length) + ' more before it can be saved.'
+          : '<strong style="color:#f5c542;">Drawing a shape:</strong> drag the ' +
+            '<strong style="color:#22c55e;">green dot</strong> to add a point and place it &middot; ' +
+            '<strong style="color:#fff;">white dot</strong> drags a point, right-click deletes it ' +
+            '&middot; the <strong style="color:#f5c542;">gold dot</strong> bends the edge. Then Save.' +
+            /* Said out loud, so a region that vanished does not read as one that got deleted. */
+            (rgSelected ? ' <span style="color:var(--text-dim);">Other regions are hidden while you edit this one.</span>' : ''))
+    : rgDraft.cx == null ? '<strong style="color:#f5c542;">Step 1 of 2:</strong> click the court to place the centre.'
+    : rgDraft.r  == null ? '<strong style="color:#f5c542;">Step 2 of 2:</strong> click again to set the radius' +
+        (rgDraft.snapName ? ' &mdash; centre snapped to <strong>' + escHtml(rgDraft.snapName) + '</strong>' : '') + '.'
+    : 'Drag the <strong style="color:#fff;">white dot</strong> to move it, the ' +
+      '<strong style="color:#f5c542;">gold dot</strong> to resize. Then Save.';
+
+  const list = regions.length
+    ? regions.map((rg, i) => {
+        const zs = overlaid[rg.id] ? Array.from(overlaid[rg.id]) : [];
+        const shadowed = (inside[rg.id] || 0) - (claimed[rg.id] || 0);
+        return '<div class="zn-item">' +
+          '<span class="rg-rank" title="Precedence order — lower wins">' + (i + 1) + '</span>' +
+          '<span class="' + (rgIsPoly(rgParts(rg)[0]) ? 'zn-swatch' : 'rg-swatch') +
+            '" style="background:' + rg.color + '" title="' + rgSizeLabel(rg) + '"></span>' +
+          '<span class="zn-name">' + escHtml(rg.name) +
+            '<span class="zn-count" style="display:block;font-weight:600;">' +
+              rgSizeLabel(rg) +
+              (zs.length ? ' &middot; over ' + escHtml(zs.slice(0, 2).join(', ')) +
+                 (zs.length > 2 ? ' +' + (zs.length - 2) : '') : '') +
+            '</span>' +
+          '</span>' +
+          '<span class="zn-count">' + (claimed[rg.id] || 0) + ' shots</span>' +
+          /* A region that claims NOTHING while shots sit inside it is buried under a
+             higher-precedence one, and "0 shots" reads as "nobody shoots there" rather
+             than "this is switched off". A rim circle placed under the paint reports
+             exactly that: 0, silently, with the paint quietly holding its 114 attempts.
+             So the fully-buried case gets its own louder line, not the same quiet badge
+             as a partial overlap. */
+          (shadowed > 0 && (claimed[rg.id] || 0) === 0
+            ? '<span class="rg-ovr" style="color:#ef4444;" title="Every shot inside this region is being taken by a region above it. Raise it with the up arrow.">&#9888; buried by #' +
+              ((State.regions.findIndex(x => rgContains(x, rgLabelPos(rgParts(rg)[0]).x, rgLabelPos(rgParts(rg)[0]).y)) + 1) || 1) +
+              ' \u2014 raise it</span>'
+            : shadowed > 0 ? '<span class="rg-ovr" title="Inside this region but claimed by a higher-precedence one">' +
+             shadowed + ' shadowed</span>' : '') +
+          '<button class="btn btn-ghost btn-sm" onclick="rgReorder(\'' + rg.id + '\',-1)" ' +
+            (i === 0 ? 'disabled ' : '') + 'title="Raise precedence">\u2191</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="rgReorder(\'' + rg.id + '\',1)" ' +
+            (i === regions.length - 1 ? 'disabled ' : '') + 'title="Lower precedence">\u2193</button>' +
+          (rgParts(rg).length > 1
+            ? rgParts(rg).map((p, pi) =>
+                '<button class="btn btn-ghost btn-sm" title="Edit area ' + (pi + 1) + ' \u2014 right-click to delete it" ' +
+                  'oncontextmenu="event.preventDefault();rgDeletePart(\'' + rg.id + '\',' + pi + ');return false;" ' +
+                  'onclick="rgEdit(\'' + rg.id + '\',' + pi + ')">' + (pi + 1) + '</button>').join('')
+            : '<button class="btn btn-ghost btn-sm" onclick="rgEdit(\'' + rg.id + '\')">Edit</button>') +
+          /* Worded, not glyphed: U+2B1F fell back to a placeholder box in this app's font
+             stack, and a two-character button is not worth a font gamble. */
+          '<button class="btn btn-ghost btn-sm" title="Rename this region" onclick="rgRename(\'' + rg.id + '\')">Name</button>' +
+          '<button class="btn btn-ghost btn-sm" title="Merge this region into the one above it, combining their shots into one percentage" onclick="rgMergeUp(\'' + rg.id + '\')" ' +
+            (i === 0 ? 'disabled ' : '') + '>Merge\u2191</button>' +
+          '<button class="btn btn-ghost btn-sm" title="Add a circle area to this region" onclick="rgAddPart(\'' + rg.id + '\',\'circle\')">+Circle</button>' +
+          '<button class="btn btn-ghost btn-sm" title="Add a drawn area to this region" onclick="rgAddPart(\'' + rg.id + '\',\'poly\')">+Shape</button>' +
+          '<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="rgDelete(\'' + rg.id + '\')">\u2715</button>' +
+        '</div>';
+      }).join('')
+    : '<div class="zn-hint">No regions yet. Every shot belongs to the zone it lands in.</div>';
+
+  const totalClaimed = Object.keys(claimed).reduce((t, k) => t + claimed[k], 0);
+
+  return '<div class="page-header"><div>' +
+      '<div class="page-title">Shot Regions</div>' +
+      '<div class="page-subtitle">' + regions.length + ' region' + (regions.length === 1 ? '' : 's') +
+      ' &middot; ' + totalClaimed + ' of ' + shots.length + ' charted shots claimed from the zones below</div>' +
+    '</div></div>' +
+    '<div class="zn-bar">' + bar + '</div>' +
+    '<div class="zn-hint">' +
+      (step ? step + '<br>' : '') +
+      'A region is a <strong>shape that overrides the zone underneath it</strong> \u2014 either a ' +
+      '<strong>circle</strong> or a free-drawn <strong>shape</strong> with straight or curved edges. Any shot ' +
+      'inside it is credited to the region, and the zone below never counts that attempt \u2014 on the map, in ' +
+      'the breakdown tables, in the filters and in the tendencies.<br>' +
+      'A circle\'s centre snaps to court landmarks (rim, elbows, blocks, wings, corners) and to other ' +
+      'regions\' centres; its radius snaps to <strong>half feet</strong> (4.5 ft at the restricted area). A shape\'s points snap to those ' +
+      'same landmarks and to the corners of the zones and regions already drawn, and square up to true ' +
+      'horizontal and vertical.<br>' +
+      'Bend an edge by dragging the <strong style="color:#f5c542;">gold dot</strong> at its middle, exactly as ' +
+      'the Zones editor does \u2014 it follows the pointer one to one. Once an edge is bent a <strong>second ' +
+      'gold dot</strong> appears on it for an S-bend; it starts on the curve already there, so picking it up ' +
+      'does not move anything. The thin gold lines show which anchor each handle pulls from.<br>' +
+      '<strong>Snap</strong> helps a new point land on a court landmark or a zone corner. It never squares up a ' +
+      'point you are dragging, and the toolbar switch turns it off entirely for free 1:1 movement.<br>' +
+      '<strong style="color:#22c55e;">Drag the green dot</strong> in the middle of an edge to <strong>add a ' +
+      'point and place it in one motion</strong>. The rest of the outline does not move \u2014 the curve is ' +
+      'split, not flattened \u2014 so refining one edge never warps the rest of the shape.<br>' +
+      'The edge from the <strong>last point back to the first</strong> closes the shape and carries its own ' +
+      'pair of handles \u2014 they are the ones rimmed in <strong style="color:#4f6ef7;">blue</strong>. It is ' +
+      'the edge that re-routes if you keep clicking to append points, so once the outline is roughly right, ' +
+      'refine it with the green dots instead of adding more points on the end.<br>' +
+      'Regions may overlap. The <strong>number on the left of each row is its precedence</strong> \u2014 ' +
+      'lowest wins \u2014 and \u2191\u2193 change it. Draw a small circle inside a big one and raise it above, ' +
+      'and the small one keeps its own shots.' +
+    '</div>' +
+    '<div class="zn-wrap">' +
+      '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="rgCourtClick(event)">' +
+        COURT_SVG_LINES + zoneGhosts + zoneGhostLabels + saved + savedLabels + draftSvg +
       '</svg></div>' +
       '<div class="zn-side"><div class="zn-list">' + list + '</div></div>' +
     '</div>';
@@ -18095,6 +19675,7 @@ async function loadPublishedData() {
     const data = await res.json();
     if (Array.isArray(data.sessions)) State.sessions = data.sessions;
     if (Array.isArray(data.zones)) State.zones = data.zones;
+    if (Array.isArray(data.regions)) State.regions = data.regions;
     if (Array.isArray(data.roster) && data.roster.length) State.roster = data.roster;
     mergeSettings(data.settings);
     _publishedMode = true;
