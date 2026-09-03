@@ -2753,6 +2753,41 @@
       font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em;
     }
 
+    /* Strengths & Weaknesses — sits directly under the Tendency Read and shares its shell,
+       so the two read as one column of findings about the same player. Colour is the whole
+       point here, so the chips carry it on the border and the figure rather than as a filled
+       block: a wall of solid green and red is harder to scan than the numbers themselves. */
+    .sw-card {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--surface); padding: 13px 16px 11px; margin-top: 14px;
+    }
+    .sw-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sw-group + .sw-group { margin-top: 12px; }
+    .sw-head {
+      font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em;
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .sw-head.is-good { color: var(--success); }
+    .sw-head.is-bad  { color: var(--danger); }
+    .sw-chip {
+      display: inline-flex; align-items: baseline; gap: 6px;
+      padding: 4px 9px; border-radius: 4px; font-size: 11.5px;
+      border: 1px solid var(--border); background: var(--card);
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .sw-chip.is-good { border-color: rgba(34,197,94,0.45);  background: rgba(34,197,94,0.10); }
+    .sw-chip.is-bad  { border-color: rgba(239,68,68,0.45);  background: rgba(239,68,68,0.10); }
+    .sw-lbl { font-weight: 700; color: var(--text); }
+    .sw-val { font-weight: 800; }
+    .sw-chip.is-good .sw-val { color: var(--success); }
+    .sw-chip.is-bad  .sw-val { color: var(--danger); }
+    .sw-med { font-size: 10px; color: var(--text-dim); }
+    .sw-none { font-size: 11.5px; color: var(--text-dim); padding: 2px 0 4px; }
+    .sw-foot {
+      margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
+      font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em;
+    }
+
     .oo-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     /* When the card IS the scroll container, its overflow:hidden would clip the wide
        table and make horizontal scrolling impossible. */
@@ -10572,6 +10607,160 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     </div>`;
 }
 
+/* -- Strengths & Weaknesses -------------------------------------------------
+   The Tendency Read describes what a player does; this says where he sits against the rest
+   of the roster while doing it. One chip per category: green above the team median, red
+   below it, with the median printed beside the figure so the chip carries its own evidence
+   rather than asking the reader to trust the colour.
+
+   It deliberately reuses the Tendency Read's baselines - the same minutes floor, the same
+   trWavg for the rate columns, the same hidden-player exclusion, the same "at least four
+   qualified players" and "median must be above zero" rules. Two panels an inch apart that
+   computed AST% differently would be a bug nobody could see, so they compute it the one way.
+
+   Two rules that are not obvious:
+
+   1. SHOOTING IS POOLED, RATE COLUMNS ARE MINUTE-WEIGHTED. 3P% over a season is total makes
+      over total attempts - averaging six per-practice percentages would let a 1-for-1 night
+      count as much as an 8-for-20 one. The % rate columns keep trWavg because that is what
+      the panel above them uses and what the ADV table shows.
+
+   2. A LOW-IS-BETTER STAT IS GATED ON MINUTES, NOT ON THE BAD EVENT. Requiring three
+      turnovers before TO% is eligible would disqualify precisely the players who are best
+      at it: a man with no turnovers in ninety minutes has the finding, not a sample too thin
+      to state. Everything in the 'high' direction still needs its counting events - one
+      rebound is not a rebounding profile. */
+const SW_MIN_MIN = 20;   // minutes before a player joins the median pool at all
+const SW_MIN_POOL = 4;   // qualified players a category needs before a median means anything
+
+const SW_CATS = [
+  { key:'pts40',  label:'PTS/40',  dir:'high', need:20, suffix:'',
+    sample: t => t.min,  val: t => t.min  ? 40 * t.pts / t.min : null },
+  { key:'fg3Pct', label:'3P%',     dir:'high', need:10, suffix:'%', poolGate:true,
+    sample: t => t.fg3a, val: t => t.fg3a ? 100 * t.fg3m / t.fg3a : null },
+  { key:'fg2Pct', label:'2P%',     dir:'high', need:10, suffix:'%', poolGate:true,
+    sample: t => t.fg2a, val: t => t.fg2a ? 100 * t.fg2m / t.fg2a : null },
+  { key:'efgPct', label:'eFG%',    dir:'high', need:15, suffix:'%', poolGate:true,
+    sample: t => t.fga,  val: t => t.fga  ? 100 * (t.fgm + 0.5 * t.fg3m) / t.fga : null },
+  { key:'orPct',  label:'OR%',     dir:'high', need:3,  suffix:'%',
+    sample: t => t.oreb, val: (t, r) => trWavg(r, 'orPct') },
+  { key:'drPct',  label:'DR%',     dir:'high', need:3,  suffix:'%',
+    sample: t => t.dreb, val: (t, r) => trWavg(r, 'drPct') },
+  { key:'astPct', label:'AST%',    dir:'high', need:3,  suffix:'%',
+    sample: t => t.ast,  val: (t, r) => trWavg(r, 'astPct') },
+  { key:'stlPct', label:'STL%',    dir:'high', need:3,  suffix:'%',
+    sample: t => t.stl,  val: (t, r) => trWavg(r, 'stlPct') },
+  { key:'blkPct', label:'BLK%',    dir:'high', need:3,  suffix:'%',
+    sample: t => t.blk,  val: (t, r) => trWavg(r, 'blkPct') },
+  { key:'defl40', label:'DEFL/40', dir:'high', need:3,  suffix:'',
+    sample: t => t.defl, val: t => t.min  ? 40 * t.defl / t.min : null },
+  { key:'toPct',  label:'TO%',     dir:'low',  need:0,  suffix:'%',
+    sample: t => t.min,  val: (t, r) => trWavg(r, 'toPct') },
+];
+
+const SW_TOTAL_KEYS = ['min','pts','fgm','fga','fg2m','fg2a','fg3m','fg3a','oreb','dreb','ast','tov','stl','blk','defl'];
+
+/* Pooled totals AND the per-practice rows, per visible player, in one pass - the two value
+   styles above each need one of them. */
+function _swCollect(allSessions) {
+  const out = {};
+  for (const sess of allSessions) {
+    for (const p of (sess.playerStats || [])) {
+      if (!p.name || p.name === 'TEAM' || isHiddenPlayer(p.name)) continue;
+      const e = out[p.name] || (out[p.name] = { rows: [], tot: {} });
+      e.rows.push(p);
+      for (const k of SW_TOTAL_KEYS) e.tot[k] = (e.tot[k] || 0) + (p[k] || 0);
+    }
+  }
+  return out;
+}
+
+function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
+  const by = _swCollect(allSessions);
+  const me = by[playerName];
+  if (!me) return '';
+  if ((me.tot.min || 0) < SW_MIN_MIN) {
+    return '<div class="sw-card">' +
+        '<div class="sw-head">Strengths &amp; Weaknesses</div>' +
+        '<div class="sw-none">Needs ' + SW_MIN_MIN + ' minutes before he is compared to the roster &mdash; he has ' +
+          Math.round(me.tot.min || 0) + '.</div>' +
+      '</div>';
+  }
+
+  /* The pool is every player over the minutes floor, not every player who has appeared. A
+     median dragged down by five men with a cameo apiece would make the whole rotation look
+     above average, which is the one thing a median is there to stop. */
+  const pool = Object.keys(by).filter(n => (by[n].tot.min || 0) >= SW_MIN_MIN);
+
+  const good = [], bad = [];
+  let skipped = 0;
+  for (const cat of SW_CATS) {
+    if (cat.sample(me.tot) < cat.need) { skipped++; continue; }
+    const mine = cat.val(me.tot, me.rows);
+    if (mine == null) { skipped++; continue; }
+
+    /* The SUBJECT clears cat.need before he can be labelled - one rebound is not a
+       rebounding profile. The BASELINE mostly does not, and the difference matters. Holding
+       the pool to the same gate drops everyone at the low end of a counting stat, which
+       lifts the median and quietly recolours the middle of the roster: OR% read a median of
+       6.5 that way against the Tendency Read's 2.4, on the same players, an inch apart on
+       the same page. A man who grabs no offensive rebounds in 90 minutes is a real
+       observation about this roster and belongs in its distribution.
+
+       Shooting percentages are the exception, and poolGate marks them: 0-for-1 from three
+       is not a 0% shooter, it is no data, and letting it into the median is not honesty
+       about the low end, it is noise. */
+    const vals = [];
+    for (const n of pool) {
+      const e = by[n];
+      if (cat.poolGate && cat.sample(e.tot) < cat.need) continue;
+      const v = cat.val(e.tot, e.rows);
+      if (v != null) vals.push(v);
+    }
+    if (vals.length < SW_MIN_POOL) { skipped++; continue; }
+    const med = trMedian(vals);
+    /* A median of zero means most of the roster has never done this, so "above the median"
+       is true of anyone non-zero and says nothing. Same rule the Tendency Read applies. */
+    if (!(med > 0)) { skipped++; continue; }
+    if (Math.abs(mine - med) < 0.05) { skipped++; continue; }   // level, to the printed digit
+
+    const isGood = cat.dir === 'high' ? mine > med : mine < med;
+    const cls = isGood ? 'is-good' : 'is-bad';
+    const shown = mine.toFixed(1) + cat.suffix;
+    const medTxt = med.toFixed(1) + cat.suffix;
+    (isGood ? good : bad).push(
+      '<span class="sw-chip ' + cls + '" title="' + escHtml(cat.label) + ' ' + shown +
+        ' vs a team median of ' + medTxt + ' across ' + vals.length + ' qualified players">' +
+        '<span class="sw-lbl">' + escHtml(cat.label) + '</span>' +
+        '<span class="sw-val">' + shown + '</span>' +
+        '<span class="sw-med">med ' + medTxt + '</span>' +
+      '</span>');
+  }
+
+  if (!good.length && !bad.length) {
+    return '<div class="sw-card">' +
+        '<div class="sw-head">Strengths &amp; Weaknesses</div>' +
+        '<div class="sw-none">Nothing clears its sample yet &mdash; this fills in as he plays.</div>' +
+      '</div>';
+  }
+
+  const block = (list, cls, head) => list.length
+    ? '<div class="sw-group"><div class="sw-head ' + cls + '">' + head + ' (' + list.length + ')</div>' +
+      '<div class="sw-row">' + list.join('') + '</div></div>'
+    : '';
+
+  const skipTxt = skipped
+    ? ' &middot; ' + skipped + ' categor' + (skipped === 1 ? 'y' : 'ies') + ' not compared (thin sample or level)'
+    : '';
+
+  return '<div class="sw-card">' +
+      block(good, 'is-good', 'Strengths') +
+      block(bad,  'is-bad',  'Weaknesses') +
+      '<div class="sw-foot">Season to date &middot; above / below the team median &middot; ' +
+        pool.length + ' players with ' + SW_MIN_MIN + '+ minutes' + skipTxt + '</div>' +
+    '</div>';
+}
+
 function buildShotTendencies(fgEvents) {
   const rows = {};
   for (const ev of fgEvents) {
@@ -11024,6 +11213,7 @@ function renderPlayerProfile(playerName) {
           <div class="card-title" style="margin-bottom:10px;">Tendency Read</div>
           ${buildTendencyRead(playerName, allSessionsForPlayer, sessions)
             || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">Nothing to read yet — this fills in once he has been tracked.</div>'}
+          ${buildStrengthsWeaknesses(playerName, allSessionsForPlayer, sessions)}
         </div>
       </div>
       ${shotTypeSection}
