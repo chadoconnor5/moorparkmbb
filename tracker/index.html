@@ -10650,12 +10650,45 @@ const SW_LEVEL_PCT = 0.05;
 const SW_CATS = [
   { key:'pts40',  label:'PTS/40',  dir:'high', need:20, suffix:'',
     sample: t => t.min,  val: t => t.min  ? 40 * t.pts / t.min : null },
+  /* SHOOTING IS JUDGED ON POINTS PER SHOT, NOT ON THE MEDIAN. A percentage is only a
+     weakness if the shot is not paying for itself, and the line where it starts paying is
+     one point per attempt - the same line for every kind of shot, which is the whole appeal
+     of PPS. Above it the shot is worth taking, below it the shot is losing possessions,
+     whatever the rest of the roster happens to be doing.
+
+     Judging these against the roster instead produced the finding that started this: Matthew
+     Wilson shooting 37.5% from three read as a WEAKNESS because the team median was 38.5%.
+     37.5% from three is 1.13 points a shot. It is a strength on any floor in the country,
+     and a median that says otherwise is describing this roster's hot streak, not his
+     shooting. ppsFloor is where PPS crosses 1.00 for that shot:
+       2P% and eFG% and TS%  x2 -> 50.0     (two points a make)
+       3P%                   x3 -> 33.3     (three points a make)
+       FT%                   x2 -> 50.0     (a trip to the line is two shots, so FT is
+                                             comparable to a two only per TRIP, not per
+                                             attempt - per attempt nothing but 100% would
+                                             ever clear 1.00 and every shooter alive would
+                                             read as a weakness)
+     The team median is still computed and still shown in the chip's tooltip, because "1.13
+     a shot" and "the rest of the roster gets 1.16" are both worth knowing. It just does not
+     get a vote on the verdict. */
   { key:'fg3Pct', label:'3P%',     dir:'high', need:10, suffix:'%', poolGate:true,
+    ppsFloor:100/3, pps: v => 3 * v / 100,
     sample: t => t.fg3a, val: t => t.fg3a ? 100 * t.fg3m / t.fg3a : null },
   { key:'fg2Pct', label:'2P%',     dir:'high', need:10, suffix:'%', poolGate:true,
+    ppsFloor:50, pps: v => 2 * v / 100,
     sample: t => t.fg2a, val: t => t.fg2a ? 100 * t.fg2m / t.fg2a : null },
   { key:'efgPct', label:'eFG%',    dir:'high', need:15, suffix:'%', poolGate:true,
+    ppsFloor:50, pps: v => 2 * v / 100,
     sample: t => t.fga,  val: t => t.fga  ? 100 * (t.fgm + 0.5 * t.fg3m) / t.fga : null },
+  /* TS% counts the free throws and the three-point bonus in one number, so its 1.00 line is
+     the same 50% - it is points per TRUE shooting attempt. */
+  { key:'tsPct',  label:'TS%',     dir:'high', need:15, suffix:'%', poolGate:true,
+    ppsFloor:50, pps: v => 2 * v / 100,
+    sample: t => t.fga,
+    val: t => (t.fga + t.fta) ? 100 * t.pts / (2 * (t.fga + 0.44 * t.fta)) : null },
+  { key:'ftPct',  label:'FT%',     dir:'high', need:4,  suffix:'%', poolGate:true,
+    ppsFloor:50, pps: v => 2 * v / 100,
+    sample: t => t.fta,  val: t => t.fta ? 100 * t.ftm / t.fta : null },
   { key:'orPct',  label:'OR%',     dir:'high', need:3,  suffix:'%',
     sample: t => t.oreb, val: (t, r) => trWavg(r, 'orPct') },
   { key:'drPct',  label:'DR%',     dir:'high', need:3,  suffix:'%',
@@ -10672,7 +10705,7 @@ const SW_CATS = [
     sample: t => t.min,  val: (t, r) => trWavg(r, 'toPct') },
 ];
 
-const SW_TOTAL_KEYS = ['min','pts','fgm','fga','fg2m','fg2a','fg3m','fg3a','oreb','dreb','ast','tov','stl','blk','defl'];
+const SW_TOTAL_KEYS = ['min','pts','fgm','fga','fg2m','fg2a','fg3m','fg3a','ftm','fta','oreb','dreb','ast','tov','stl','blk','defl'];
 
 /* Pooled totals AND the per-practice rows, per visible player, in one pass - the two value
    styles above each need one of them. */
@@ -10731,27 +10764,47 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
       const v = cat.val(e.tot, e.rows);
       if (v != null) vals.push(v);
     }
-    if (vals.length < SW_MIN_POOL) { skipped++; continue; }
-    const med = trMedian(vals);
-    /* A median of zero means most of the roster has never done this, so "above the median"
-       is true of anyone non-zero and says nothing. Same rule the Tendency Read applies. */
-    if (!(med > 0)) { skipped++; continue; }
+    /* The median is context for a shooting category and the verdict for everything else, so
+       a thin pool only disqualifies the ones it decides. */
+    const med = vals.length >= SW_MIN_POOL ? trMedian(vals) : null;
+    if (cat.ppsFloor == null && !(med > 0)) { skipped++; continue; }
 
-    /* Level first, before direction is even asked. Inside the band the question "is he above
-       or below" has an answer but not a meaningful one, and answering it anyway is what put
-       a red chip on a man 0.1 off the median. */
-    const level = Math.abs(mine - med) <= med * SW_LEVEL_PCT;
-    const isGood = cat.dir === 'high' ? mine > med : mine < med;
-    const cls = level ? 'is-even' : isGood ? 'is-good' : 'is-bad';
     const shown = mine.toFixed(1) + cat.suffix;
-    const medTxt = med.toFixed(1) + cat.suffix;
-    (level ? even : isGood ? good : bad).push(
-      '<span class="sw-chip ' + cls + '" title="' + escHtml(cat.label) + ' ' + shown +
-        ' vs a team median of ' + medTxt + ' across ' + vals.length + ' qualified players' +
-        (level ? ' \u2014 within ' + Math.round(SW_LEVEL_PCT * 100) + '% of it, so neither' : '') + '">' +
+    const medTxt = med != null ? med.toFixed(1) + cat.suffix : null;
+    let cls, bucket, tip, tail;
+
+    if (cat.ppsFloor != null) {
+      const pps = cat.pps(mine);
+      /* Exactly on the line is neither. A shot returning precisely a point is paying for
+         itself and no more, and calling that a strength or a weakness is a coin toss. */
+      const level = Math.abs(pps - 1) < 0.005;
+      cls    = level ? 'is-even' : pps > 1 ? 'is-good' : 'is-bad';
+      bucket = level ? even     : pps > 1 ? good      : bad;
+      tail   = '<span class="sw-med">' + pps.toFixed(2) + ' PPS</span>';
+      tip    = escHtml(cat.label) + ' ' + shown + ' is ' + pps.toFixed(2) +
+               ' points per shot' +
+               (level ? ' \u2014 exactly the break-even point, so neither'
+                      : pps > 1 ? ' \u2014 above the 1.00 break-even'
+                                : ' \u2014 below the 1.00 break-even') +
+               (medTxt ? '. Team median ' + medTxt + ' across ' + vals.length + ' qualified players.' : '.');
+    } else {
+      /* Level first, before direction is even asked. Inside the band the question "is he
+         above or below" has an answer but not a meaningful one, and answering it anyway is
+         what put a red chip on a man 0.1 off the median. */
+      const level  = Math.abs(mine - med) <= med * SW_LEVEL_PCT;
+      const isGood = cat.dir === 'high' ? mine > med : mine < med;
+      cls    = level ? 'is-even' : isGood ? 'is-good' : 'is-bad';
+      bucket = level ? even     : isGood ? good      : bad;
+      tail   = '<span class="sw-med">med ' + medTxt + '</span>';
+      tip    = escHtml(cat.label) + ' ' + shown + ' vs a team median of ' + medTxt +
+               ' across ' + vals.length + ' qualified players' +
+               (level ? ' \u2014 within ' + Math.round(SW_LEVEL_PCT * 100) + '% of it, so neither' : '');
+    }
+
+    bucket.push(
+      '<span class="sw-chip ' + cls + '" title="' + tip + '">' +
         '<span class="sw-lbl">' + escHtml(cat.label) + '</span>' +
-        '<span class="sw-val">' + shown + '</span>' +
-        '<span class="sw-med">med ' + medTxt + '</span>' +
+        '<span class="sw-val">' + shown + '</span>' + tail +
       '</span>');
   }
 
