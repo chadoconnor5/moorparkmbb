@@ -2769,6 +2769,7 @@
     }
     .sw-head.is-good { color: var(--success); }
     .sw-head.is-bad  { color: var(--danger); }
+    .sw-head.is-even { color: var(--text-dim); }
     .sw-chip {
       display: inline-flex; align-items: baseline; gap: 6px;
       padding: 4px 9px; border-radius: 4px; font-size: 11.5px;
@@ -2777,10 +2778,15 @@
     }
     .sw-chip.is-good { border-color: rgba(34,197,94,0.45);  background: rgba(34,197,94,0.10); }
     .sw-chip.is-bad  { border-color: rgba(239,68,68,0.45);  background: rgba(239,68,68,0.10); }
+    /* Level: deliberately the quietest of the three. It is still information - he is on the
+       roster's pace here - but it is not a finding, and colouring it would make the eye stop
+       on the one row that has nothing to say. */
+    .sw-chip.is-even { border-color: var(--border); background: var(--card); }
     .sw-lbl { font-weight: 700; color: var(--text); }
     .sw-val { font-weight: 800; }
     .sw-chip.is-good .sw-val { color: var(--success); }
     .sw-chip.is-bad  .sw-val { color: var(--danger); }
+    .sw-chip.is-even .sw-val { color: var(--text-secondary); }
     .sw-med { font-size: 10px; color: var(--text-dim); }
     .sw-none { font-size: 11.5px; color: var(--text-dim); padding: 2px 0 4px; }
     .sw-foot {
@@ -10632,6 +10638,14 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
       rebound is not a rebounding profile. */
 const SW_MIN_MIN = 20;   // minutes before a player joins the median pool at all
 const SW_MIN_POOL = 4;   // qualified players a category needs before a median means anything
+/* A dead band around the median, as a FRACTION of the median rather than a fixed number of
+   points, so it scales with the category: 5% of a 12.2 TO% is 0.6 points, 5% of a 1.9 STL%
+   is 0.1. Without it a strict above/below test hands out a colour for a rounding difference
+   - DR% 11.4 against a median of 11.5 was printing red, which reads as a weakness and is
+   really a man sitting exactly on the roster's pace. Anything inside the band is reported as
+   level and kept in its own quiet group: still worth seeing, not worth a verdict.
+   One number to tune - raise it to widen what counts as level. */
+const SW_LEVEL_PCT = 0.05;
 
 const SW_CATS = [
   { key:'pts40',  label:'PTS/40',  dir:'high', need:20, suffix:'',
@@ -10692,7 +10706,7 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
      above average, which is the one thing a median is there to stop. */
   const pool = Object.keys(by).filter(n => (by[n].tot.min || 0) >= SW_MIN_MIN);
 
-  const good = [], bad = [];
+  const good = [], bad = [], even = [];
   let skipped = 0;
   for (const cat of SW_CATS) {
     if (cat.sample(me.tot) < cat.need) { skipped++; continue; }
@@ -10722,22 +10736,26 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
     /* A median of zero means most of the roster has never done this, so "above the median"
        is true of anyone non-zero and says nothing. Same rule the Tendency Read applies. */
     if (!(med > 0)) { skipped++; continue; }
-    if (Math.abs(mine - med) < 0.05) { skipped++; continue; }   // level, to the printed digit
 
+    /* Level first, before direction is even asked. Inside the band the question "is he above
+       or below" has an answer but not a meaningful one, and answering it anyway is what put
+       a red chip on a man 0.1 off the median. */
+    const level = Math.abs(mine - med) <= med * SW_LEVEL_PCT;
     const isGood = cat.dir === 'high' ? mine > med : mine < med;
-    const cls = isGood ? 'is-good' : 'is-bad';
+    const cls = level ? 'is-even' : isGood ? 'is-good' : 'is-bad';
     const shown = mine.toFixed(1) + cat.suffix;
     const medTxt = med.toFixed(1) + cat.suffix;
-    (isGood ? good : bad).push(
+    (level ? even : isGood ? good : bad).push(
       '<span class="sw-chip ' + cls + '" title="' + escHtml(cat.label) + ' ' + shown +
-        ' vs a team median of ' + medTxt + ' across ' + vals.length + ' qualified players">' +
+        ' vs a team median of ' + medTxt + ' across ' + vals.length + ' qualified players' +
+        (level ? ' \u2014 within ' + Math.round(SW_LEVEL_PCT * 100) + '% of it, so neither' : '') + '">' +
         '<span class="sw-lbl">' + escHtml(cat.label) + '</span>' +
         '<span class="sw-val">' + shown + '</span>' +
         '<span class="sw-med">med ' + medTxt + '</span>' +
       '</span>');
   }
 
-  if (!good.length && !bad.length) {
+  if (!good.length && !bad.length && !even.length) {
     return '<div class="sw-card">' +
         '<div class="sw-head">Strengths &amp; Weaknesses</div>' +
         '<div class="sw-none">Nothing clears its sample yet &mdash; this fills in as he plays.</div>' +
@@ -10756,9 +10774,34 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
   return '<div class="sw-card">' +
       block(good, 'is-good', 'Strengths') +
       block(bad,  'is-bad',  'Weaknesses') +
+      block(even, 'is-even', 'Around the median') +
       '<div class="sw-foot">Season to date &middot; above / below the team median &middot; ' +
         pool.length + ' players with ' + SW_MIN_MIN + '+ minutes' + skipTxt + '</div>' +
     '</div>';
+}
+
+/* Which of the three courts the player profile is showing. Separate from scFilter.view on
+   purpose: the Shot Charts tab and a player's profile are two different questions and one
+   should not silently retune the other. Held outside the render so it survives a re-render,
+   the way scFilter.view and tendMin do. */
+let psChartView = 'dots';
+
+function _psCourtSvg(shots) {
+  return psChartView === 'zones' ? buildZoneHeatSvg(shots)
+       : psChartView === 'heat'  ? buildHeatSvg(shots)
+       : buildCourtSvg(shots);
+}
+
+/* Swaps the court in place rather than re-rendering the profile. renderPlayerProfile rebuilds
+   the tendency read, the medians, the game log and four tables, all of which are unchanged by
+   a court toggle - and it would throw away the reader's scroll position while they are looking
+   at the thing they just clicked. The shots are stashed at render time for exactly this. */
+function psSetChartView(view) {
+  psChartView = view;
+  const box = document.getElementById('ps-court');
+  if (box) box.innerHTML = _psCourtSvg(window._psShots || []);
+  document.querySelectorAll('#ps-court-pills .sc-pill').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === view));
 }
 
 function buildShotTendencies(fgEvents) {
@@ -11033,8 +11076,16 @@ function renderPlayerProfile(playerName) {
       ['2fg_make','2fg_miss','3fg_make','3fg_miss'].includes(ev.stat)
     )
   );
+  /* Stashed for psSetChartView, which redraws the court without a full profile re-render. */
+  window._psShots = allShots;
+  const PS_VIEWS = [['dots','Dots'], ['heat','Heat'], ['zones','Zones']];
   const courtHtml = allShots.length > 0
-    ? `<div style="max-width:340px;margin-top:4px;">${buildCourtSvg(allShots)}</div>`
+    ? `<div id="ps-court-pills" class="sc-filter-group" style="margin-bottom:8px;">
+         ${PS_VIEWS.map(([v, lbl]) =>
+           `<button class="sc-pill${psChartView === v ? ' active' : ''}" data-view="${v}"
+                    onclick="psSetChartView('${v}')">${lbl}</button>`).join('')}
+       </div>
+       <div id="ps-court" style="max-width:340px;margin-top:4px;">${_psCourtSvg(allShots)}</div>`
     : `<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No shots with location data yet.</div>`;
 
   // Game log rows per session
