@@ -8358,9 +8358,13 @@ function renderShotChartView() {
 
   /* zonedShots, not baseShots: the baseline follows the practice filter but ignores
      team, player and mode, so a player is always compared against everyone. */
-  const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots)
+  /* baseShots is the third argument on both maps: the colour scale is centred on the
+     SCOPE (practice, team, player, mode) and never on the SELECTION (zone, At Rim + 3s,
+     shot type, contest). Passing `shots` there is what made an isolated row paint itself
+     white — it was being measured against a scale it had just become the whole of. */
+  const courtSvg = scFilter.view === 'zones' ? buildZoneHeatSvg(shots, baseShots)
                  : scFilter.view === 'heat'  ? buildHeatSvg(shots)
-                 : scFilter.view === 'regions' ? buildRegionFgSvg(shots, zonedShots)
+                 : scFilter.view === 'regions' ? buildRegionFgSvg(shots, zonedShots, baseShots)
                  : buildCourtSvg(shots);
 
   /* Heat colours attempts by crowding, not by result — so the make/miss key would be
@@ -8516,7 +8520,10 @@ function scClearAllFilters() {
 /* ── Build SVG half-court with shot dots ── */
 /* Zone heat map: fills each drawn zone by its FG%, light (cold) to dark (hot),
    with the percentage and makes/attempts inside — mirrors the Hudl zone report. */
-function buildZoneHeatSvg(shots) {
+/* `scale` is the set the COLOUR SCALE is centred on, which is not the set being drawn.
+   See the note on `mid` below. Defaults to `shots` so a caller with nothing to isolate
+   from — the player profile court — keeps its old behaviour. */
+function buildZoneHeatSvg(shots, scale) {
   /* ZONES ONLY. This map used to paint the regions over the top with a dark ring, to show
      which shapes were taking shots from what lay under them. That made sense while a
      region overrode the zone beneath it; it does not now that the two are separate
@@ -8548,8 +8555,22 @@ function buildZoneHeatSvg(shots) {
 
   /* Diverging red -> white -> green driven by POINTS PER SHOT, which is not shown on
      the map. PPS credits a three properly: 40% from deep (1.20 PPS) outranks 50% from
-     two (1.00). Centred on this selection's overall PPS, saturating +/- 0.35. */
-  const mid = shots.length ? (allPts / shots.length) : 1.0;
+     two (1.00). Centred on the scope's overall PPS, saturating +/- 0.35.
+
+     THE CENTRE COMES FROM `scale`, NOT FROM `shots`. It used to come from `shots`, which
+     meant the yardstick was rebuilt out of whatever was left after clicking — so clicking
+     a row MOVED THE SCALE it was supposed to be read against. Isolating one zone was the
+     degenerate case: that zone then supplied every point and every attempt, its PPS WAS
+     the centre by construction, and it painted pure white. The colour did not fade, it
+     was measured against itself. Isolating At Rim + 3s did the milder version of the same
+     thing — a selection of high-value shots re-centred the ramp high and chilled the map.
+
+     `scale` is the scope before any of the clickable dimensions narrowed it, so the
+     centre holds still and a selection only ever subtracts shapes from the map. */
+  const scaleSet = (scale && scale.length) ? scale : shots;
+  const scalePts = scaleSet.reduce((s, ev) =>
+    s + (ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0), 0);
+  const mid = scaleSet.length ? (scalePts / scaleSet.length) : 1.0;
   const SPREAD = 0.35;
   const heat = pps => {
     if (pps == null) return '#f4f6f9';
@@ -8942,7 +8963,12 @@ function _rfgLabel(x, y, angle, pct, made, att, ink, scale) {
     '</g>';
 }
 
-function buildRegionFgSvg(shots, pool) {
+/* Three sets, three jobs, and they are deliberately different:
+     shots - what gets drawn and counted, every filter applied.
+     pool  - the 'vs avg' baseline: practice filter only, so a player is measured against
+             everyone rather than against himself.
+     scale - what the PPS colour ramp is centred on. See `midPps`. */
+function buildRegionFgSvg(shots, pool, scale) {
   const rfgMode = rfgModeNow();       // team -> rate, one player -> vs avg. Not a setting.
   const regions = State.regions || [];
 
@@ -8980,8 +9006,31 @@ function buildRegionFgSvg(shots, pool) {
   }
   /* Frequency is a share of the shots that landed in a region, so the denominator is the
      filed attempts - not shots.length, which includes anything outside every shape and
-     would make the shares quietly fail to add to 100. */
-  const midPps = totalAtt ? allPts / totalAtt : 1.0;
+     would make the shares quietly fail to add to 100. totalAtt stays on `shots` for that
+     reason; only the colour centre below moves off it. */
+
+  /* THE COLOUR CENTRE COMES FROM `scale`, NOT FROM THE SHOTS ON SCREEN.
+
+     Centring on `shots` made the ramp a function of the selection, so clicking a row
+     moved the very yardstick that row was being judged by. Isolate one region and it
+     supplies 100% of allPts and totalAtt, so pps === midPps exactly, t === 0, and
+     rfgPpsColor returns pure white - every other region is already '#eceff3' on a null
+     pps, so the map goes blank and reads as "the colouring disappeared". Isolating
+     At Rim + 3s was the same fault at lower contrast: a high-value subset dragged the
+     centre up and turned the rest of the floor cold.
+
+     `scale` is the scope with team/player/mode applied but none of the clickable
+     dimensions - zone, At Rim + 3s, shot type, contest. So a region keeps the colour it
+     had before you clicked it, which is the only way the click can be read as isolating
+     rather than as recolouring. */
+  const scaleSet = (scale && scale.length) ? scale : shots;
+  let scalePts = 0, scaleAtt = 0;
+  for (const ev of scaleSet) {
+    if (!scRowKey(ev)) continue;                  // outside every shape pays into nothing
+    scaleAtt++;
+    scalePts += ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0;
+  }
+  const midPps = scaleAtt ? scalePts / scaleAtt : 1.0;
 
   /* WHICH AVERAGE 'vs Avg' MEASURES AGAINST.
 
