@@ -7868,7 +7868,7 @@ const ZONE_DEFS = {
 const ZONES_2FG = ['ft', 'paint_ul', 'paint_ur', 'paint_ll', 'paint_lr', 'mr_left_high', 'mr_left_low', 'mr_right_high', 'mr_right_low'];
 const ZONES_3FG = ['c3_left', 'w3_left', 'ab3', 'w3_right', 'c3_right'];
 
-let scFilter = { sessionId: 'all', team: 'all', player: 'all', mode: 'all', view: 'dots', zones: [], shotTypes: [], contests: [] };
+let scFilter = { sessionId: 'all', team: 'all', player: 'all', mode: 'all', view: 'dots', zones: [], shotTypes: [], contests: [], rim3: false };
 
 /* ── Court SVG lines — shared between modal + shot chart ── */
 /* Court scale: ONE scale on both axes — 9.36px/ft — which is what svgDistFt() assumes.
@@ -8163,6 +8163,79 @@ function scZoneKey(ev) {
   return ev.zone || null;
 }
 
+/* WHICH SHAPE A SHOT BELONGS TO, FOR THE VIEW YOU ARE LOOKING AT.
+
+   REGIONS ARE REGIONS AND ZONES ARE ZONES. They are two independent carvings of the same
+   floor, not one layered over the other. The view decides which carving is in force, and
+   nothing on screen mixes them: the Regions view reads regions and only regions; Dots,
+   Heat and Zones read zones and only zones.
+
+   This replaces a single answer that always let a region win. That rule is what put a
+   region overlay on the Zones map, emptied every zone row the moment a region was drawn,
+   and left two stray zone rows under a list of regions - three faces of one decision.
+   scZoneKey() still exists for the Zones TAB, which genuinely does need to ask what a
+   region has taken from the zone beneath it; that is a question about the editor, and the
+   shot chart no longer asks it. */
+/* AT RIM + 3s - the shot-quality line.
+
+   The two places a possession is worth spending: right at the rim, where the shot goes in
+   more than half the time, and behind the arc, where it pays 1.5x when it does. Everything
+   between them is the long two. So the share of attempts that are rim-or-three says whether
+   the shot DIET was good, separately from whether the shots went in - and the pair's eFG%
+   says what that diet actually returned.
+
+   eFG%, NEVER raw FG%. This group mixes twos and threes by construction, and FG% marks
+   every three down by a third of its value: the same shots read 43.9% FG against 50.9% eFG
+   on this data. A metric that punishes you for taking the shots it exists to encourage is
+   worse than no metric.
+
+   'At rim' is the RIM REGION - whatever the circle on the hoop currently covers - so the
+   number moves when the region is redrawn and always agrees with the Rim row above it. The
+   name match is tolerant because the region is Chad's to rename; if no region answers to
+   it, the line reports threes alone rather than silently counting rim shots as ordinary
+   twos. */
+const RIM_REGION_NAMES = ['rim', 'at rim', 'at the rim', 'restricted area'];
+
+function rimRegion() {
+  return (State.regions || []).find(r =>
+    RIM_REGION_NAMES.includes(String(r.name || '').trim().toLowerCase())) || null;
+}
+
+function isRimPlus3(ev, rim) {
+  if (ev.stat === '3fg_make' || ev.stat === '3fg_miss') return true;
+  const r = rim === undefined ? rimRegion() : rim;
+  return !!r && ev.shotX != null && rgContains(r, ev.shotX * 500, ev.shotY * 485);
+}
+
+/* {att, made, made3, efg, share} for the rim-and-threes group inside a set of shots. */
+function rimPlus3Split(shots) {
+  const rim = rimRegion();
+  let att = 0, made = 0, made3 = 0;
+  for (const ev of shots) {
+    if (!isRimPlus3(ev, rim)) continue;
+    att++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') made++;
+    if (ev.stat === '3fg_make') made3++;
+  }
+  return {
+    att: att, made: made, made3: made3,
+    efg:   att ? 100 * (made + 0.5 * made3) / att : null,
+    share: shots.length ? 100 * att / shots.length : null,
+  };
+}
+
+function scRowKey(ev) {
+  if (scFilter.view === 'regions') {
+    const rg = rgRegionForShot(ev);
+    return rg ? rg.id : null;                  // outside every region -> counted as outside
+  }
+  if ((State.zones || []).length) {
+    const z = znZoneOnlyForShot(ev);           // the floor, regions ignored
+    return z ? z.id : null;
+  }
+  return ev.zone || null;                      // nothing drawn - the fixed grid still speaks
+}
+
 /* ── Shot Charts tab renderer ── */
 tabRenderers.shotcharts = function() {
   const root = document.getElementById('shotcharts-root');
@@ -8235,7 +8308,7 @@ function renderShotChartView() {
   const selectedContests = scFilter.contests || [];
 
   // Keep selected values valid for current base filter scope.
-  const availableZones = new Set(baseShots.map(scZoneKey).filter(Boolean));
+  const availableZones = new Set(baseShots.map(scRowKey).filter(Boolean));
   // Union of EVERY tag on every shot, not just each shot's first one.
   const availableTypes = new Set(baseShots.flatMap(shotTypesOf));
   const availableContests = new Set(baseShots.map(ev => ev.shotContest).filter(c => c === 'contested' || c === 'uncontested'));
@@ -8249,16 +8322,19 @@ function renderShotChartView() {
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
   const shotTypeTableShots = baseShots
-    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
+    .filter(ev => !scFilter.rim3 || isRimPlus3(ev))
+    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scRowKey(ev)))
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
   const contestTableShots = baseShots
-    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
+    .filter(ev => !scFilter.rim3 || isRimPlus3(ev))
+    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scRowKey(ev)))
     .filter(ev => !scFilter.shotTypes.length || shotTypesOf(ev).some(t => scFilter.shotTypes.includes(t)));
 
   // Final dots = intersection of all selected dimensions.
   const shots = baseShots
-    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scZoneKey(ev)))
+    .filter(ev => !scFilter.rim3 || isRimPlus3(ev))
+    .filter(ev => !scFilter.zones.length || scFilter.zones.includes(scRowKey(ev)))
     .filter(ev => !scFilter.shotTypes.length || shotTypesOf(ev).some(t => scFilter.shotTypes.includes(t)))
     .filter(ev => !scFilter.contests.length || scFilter.contests.includes(ev.shotContest));
 
@@ -8344,12 +8420,6 @@ function renderShotChartView() {
         <button class="sc-pill${scFilter.view === 'zones' ? ' active' : ''}" onclick="scSetFilter('view','zones')">Zones</button>
         <button class="sc-pill${scFilter.view === 'regions' ? ' active' : ''}" onclick="scSetFilter('view','regions')" title="Regions map — red above average, blue below">Regions</button>
       </div>
-      ${scFilter.view === 'regions' ? `
-      <div class="sc-filter-group">
-        <span class="sc-filter-label">Regions</span>
-        <button class="sc-pill${rfgMode === 'rate' ? ' active' : ''}" onclick="rfgSetMode('rate')" title="Label is that region's share of all attempts; colour is points per shot, centred on this selection's own PPS">Rate</button>
-        <button class="sc-pill${rfgMode === 'vsavg' ? ' active' : ''}" onclick="rfgSetMode('vsavg')" title="Colour is FG% against the team's average in that same region — bluest 15 points below, white at the average, reddest 15 points above">vs Avg</button>
-      </div>` : ''}
       <div class="sc-filter-group">
         <span class="sc-filter-label">Team</span>
         <button class="sc-pill${scFilter.team === 'all' ? ' active' : ''}" onclick="scSetFilter('team','all')">Both</button>
@@ -8388,9 +8458,13 @@ function scSetFilter(key, val) {
 }
 
 function scToggleZone(zone) {
-  // A key is either a drawn zone's id or, in fallback mode, a legacy ZONE_DEFS key.
-  const isDrawn = (State.zones || []).some(z => z.id === zone);
-  if (!isDrawn && !ZONE_DEFS[zone]) return;
+  /* A key is a drawn zone's id, a REGION's id, or in fallback mode a legacy ZONE_DEFS key.
+     Regions were missing from this guard, so every region row in the breakdown looked
+     clickable and silently did nothing - the row rendered with a pointer cursor and the
+     click fell straight through the early return. */
+  const isDrawn  = (State.zones || []).some(z => z.id === zone);
+  const isRegion = (State.regions || []).some(r => r.id === zone);
+  if (!isDrawn && !isRegion && !ZONE_DEFS[zone]) return;
   const zones = scFilter.zones || [];
   const idx = zones.indexOf(zone);
   if (idx >= 0) zones.splice(idx, 1);
@@ -8401,6 +8475,16 @@ function scToggleZone(zone) {
 
 function scClearZones() {
   scFilter.zones = [];
+  scFilter.rim3 = false;
+  renderShotChartView();
+}
+
+/* At Rim + 3s is a PREDICATE, not a shape, so it cannot ride in scFilter.zones the way a
+   zone or a region id does - there is no key on a shot that equals it. It gets its own
+   flag and its own filter line, and it composes with the others: rim-and-threes AND
+   uncontested AND catch-and-shoot all narrow together. */
+function scToggleRim3() {
+  scFilter.rim3 = !scFilter.rim3;
   renderShotChartView();
 }
 
@@ -8433,9 +8517,14 @@ function scClearAllFilters() {
 /* Zone heat map: fills each drawn zone by its FG%, light (cold) to dark (hot),
    with the percentage and makes/attempts inside — mirrors the Hudl zone report. */
 function buildZoneHeatSvg(shots) {
+  /* ZONES ONLY. This map used to paint the regions over the top with a dark ring, to show
+     which shapes were taking shots from what lay under them. That made sense while a
+     region overrode the zone beneath it; it does not now that the two are separate
+     carvings and the Regions view draws its own. A zone map showing regions was answering
+     a question this view is not asking. */
   const zones   = State.zones || [];
-  const regions = State.regions || [];
-  if (!zones.length && !regions.length) {
+  const regions = [];
+  if (!zones.length) {
     return '<svg viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" class="sc-court">' +
       COURT_SVG_LINES +
       '<text x="250" y="240" text-anchor="middle" fill="#8b95b5" font-size="15" font-family="system-ui,sans-serif">No zones drawn yet</text>' +
@@ -8445,13 +8534,12 @@ function buildZoneHeatSvg(shots) {
 
   const tally = {};
   zones.forEach(z => { tally[z.id] = { m: 0, a: 0, pts: 0 }; });
-  /* Regions get tally buckets for the same reason they get precedence: znZoneForShot()
-     now hands their ids back, and without a bucket the credit line below would throw. */
-  regions.forEach(rg => { tally[rg.id] = { m: 0, a: 0, pts: 0 }; });
   let unzoned = 0, allPts = 0;
   for (const ev of shots) {
-    const z = znZoneForShot(ev);
-    if (!z) { unzoned++; continue; }
+    /* znZoneOnlyForShot, not znZoneForShot: a region drawn over a zone must not take that
+       zone's shots away on the map that exists to show the zones. */
+    const z = znZoneOnlyForShot(ev);
+    if (!z || !tally[z.id]) { unzoned++; continue; }
     tally[z.id].a++;
     // Points per shot values a three correctly against a two.
     const worth = ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0;
@@ -8515,11 +8603,12 @@ function buildZoneHeatSvg(shots) {
     const poly = znPolygon(z);
     if (!poly.length) return '';
     const ctr = znLabelPos(z, poly);
-    /* A region covering this zone's label spot prints its own numbers there, and two
-       label blocks on one point are unreadable — the rim circle landed on top of two
-       zones reading "0-0" and the three overlapped into nonsense. The region has
-       precedence over the shots, so it takes the label position with them. */
-    if (rgRegionAtPoint(ctr.x, ctr.y)) return '';
+    /* No region check here any more. This used to blank a zone's label wherever a region
+       covered the spot, because the region painted its own numbers on top and two label
+       blocks on one point are unreadable. That was right while the regions were drawn over
+       this map; it is pure loss now that they are not. With regions covering most of the
+       floor it deleted eleven of the fourteen labels, leaving three wing threes with
+       numbers and every zone inside the arc blank. */
     const cx = ctr.x, cy = ctr.y;
     const pct = t.a > 0 ? Math.round(100 * t.m / t.a) : null;
     /* Two-line block centred on the centroid: dominant-baseline puts each line's middle
@@ -8750,10 +8839,11 @@ const RFG_SPREAD = 15;
 
 /* Two ways to read the same regions, because they answer different questions.
 
-   'rate'   - the label is that region's SHARE OF ALL ATTEMPTS, and the colour is points
-              per shot. Shot selection: where do the attempts go, and is what comes back
-              from there worth taking. PPS is the right axis for that because it values a
-              three properly against a two, which FG% cannot.
+   'rate'   - the label is the region's FG%, and the colour is points per shot. Shooting
+              and shot value read together: how often it goes in, shaded by what the spot
+              is actually worth. PPS is the right axis for the colour because it values a
+              three properly against a two, which FG% on its own cannot - a 35% region
+              behind the arc shades better than a 45% long two, which is the whole point.
 
    'vsavg'  - the colour is FG% measured against the same region's average, saturating at
               15 points either side. Shot making: better or worse than the group from this
@@ -8761,8 +8851,19 @@ const RFG_SPREAD = 15;
               the baseline there.
 
    Red is above in both. */
-let rfgMode = 'vsavg';
-function rfgSetMode(m) { rfgMode = m; renderShotChartView(); }
+/* WHICH OF THE TWO YOU GET IS NOT A CHOICE - IT FOLLOWS THE SELECTION.
+
+   The pill that used to switch them was a question with one right answer at any moment,
+   asked every time you opened the view. With the whole group selected there is no
+   'against average' to measure: the selection IS the average, every difference is zero by
+   construction and the map comes out flat white. And with one player selected, his share
+   of his OWN attempts is just his shot chart described twice - what a coach wants there is
+   how he shoots each spot next to how the group shoots it.
+
+   So the team reads 'rate' and a player reads 'vs avg', because that is the only pairing
+   where each half of the view says something. The footer names whichever is in force, so
+   the reading is still labelled - it just is not something you have to set. */
+function rfgModeNow() { return scFilter.player === 'all' ? 'rate' : 'vsavg'; }
 
 /* PPS -> blue/white/red, centred on the selection's own points per shot so the map reads
    as "which of these spots pay" rather than against an absolute nobody agreed on.
@@ -8815,7 +8916,7 @@ function _rfgAngle(poly) {
 function buildRegionBaseline(pool) {
   const out = {};
   for (const ev of pool) {
-    const k = scZoneKey(ev);
+    const k = scRowKey(ev);
     if (!k) continue;
     const t = out[k] || (out[k] = { m: 0, a: 0 });
     t.a++;
@@ -8842,6 +8943,7 @@ function _rfgLabel(x, y, angle, pct, made, att, ink, scale) {
 }
 
 function buildRegionFgSvg(shots, pool) {
+  const rfgMode = rfgModeNow();       // team -> rate, one player -> vs avg. Not a setting.
   const regions = State.regions || [];
 
   /* This view draws REGIONS. It used to paint the zone layer underneath them and let it
@@ -8869,7 +8971,7 @@ function buildRegionFgSvg(shots, pool) {
   regions.forEach(r => { tally[r.id] = { m: 0, a: 0, pts: 0 }; });
   let unzoned = 0, allPts = 0, totalAtt = 0;
   for (const ev of shots) {
-    const k = scZoneKey(ev);
+    const k = scRowKey(ev);
     if (!k || !tally[k]) { unzoned++; continue; }
     const worth = ev.stat === '3fg_make' ? 3 : ev.stat === '2fg_make' ? 2 : 0;
     tally[k].a++; tally[k].pts += worth;
@@ -8896,7 +8998,7 @@ function buildRegionFgSvg(shots, pool) {
   const isWholePool = shots.length === pool.length;
   let poolMakes = 0, poolAtt = 0;
   for (const ev of pool) {
-    if (!scZoneKey(ev)) continue;
+    if (!scRowKey(ev)) continue;
     poolAtt++;
     if (ev.stat === '2fg_make' || ev.stat === '3fg_make') poolMakes++;
   }
@@ -8924,7 +9026,19 @@ function buildRegionFgSvg(shots, pool) {
       t: t, pct: pct, freq: freq, pps: pps, diff: t.a ? diff : null, tip: tip,
       fill: rate ? rfgPpsColor(pps, midPps) : rfgColor(t.a ? diff : null),
       ink:  rate ? rfgPpsInk(pps, midPps)   : rfgInk(t.a ? diff : null),
-      big:  rate ? freq : pct,
+      /* ALWAYS the shooting percentage, in both modes.
+
+         'rate' used to print the region's SHARE OF ALL ATTEMPTS here, which put "33%"
+         directly above "95/155" - a fraction that works out to 61%. Two numbers, one
+         sitting on top of the other, and the big one did not describe the small one. The
+         zone table alongside says 61% for that same region, so the map disagreed with the
+         table on screen next to it.
+
+         The percentage is the figure the label is built to carry - _rfgLabel() names the
+         parameter pct and prints made/att underneath it - so the label and the fraction
+         now say the same thing, and the map and the table agree. Where the attempts went
+         is still on the region's tooltip, which is the right place for a second number. */
+      big:  pct,
     };
   };
 
@@ -8987,7 +9101,7 @@ function buildRegionFgSvg(shots, pool) {
     ? made + '/' + shots.length + ' FGM · ' + (100 * made / shots.length).toFixed(1) + '% FG · ' +
       (100 * (made + 0.5 * m3) / shots.length).toFixed(1) + '% eFG · ' +
       (rfgMode === 'rate'
-        ? 'share of attempts, coloured by PPS'
+        ? 'FG% in each region, shaded by points per shot'
         : 'FG% vs ' + (isWholePool ? 'team overall ' + (overallPct != null ? overallPct.toFixed(1) + '%' : '')
                                    : 'team avg in each region') + ', \u00b115 pts') +
       (unzoned ? ' · ' + unzoned + ' outside any ' + (regions.length ? 'region' : 'zone') : '')
@@ -9010,8 +9124,13 @@ function buildRegionFgSvg(shots, pool) {
    shot's coordinates against the drawn polygons. Same 352 attempts, two different sets of
    boundaries, so e.g. the left corner read 2-18 in the table and 3-23 on the chart. */
 function buildZoneTable(shots, selectedZones = []) {
-  const drawn   = State.zones || [];
-  const regions = State.regions || [];
+  /* The table shows the same carving the map beside it is drawing, and only that one.
+     Regions view lists regions; Dots, Heat and Zones list zones. Listing both at once is
+     what produced "Above the Break Threes 0-1" sitting under a region of the same name -
+     two shapes, one screen, no way to tell which the chart was about. */
+  const inRegionsView = scFilter.view === 'regions';
+  const drawn   = inRegionsView ? [] : (State.zones || []);
+  const regions = inRegionsView ? (State.regions || []) : [];
 
   /* Colour by POINTS PER SHOT, not FG%. FG% can't be compared across 2s and 3s: 38% from
      deep is 1.14 PPS — clearly good — while the old thresholds painted it orange because
@@ -9047,7 +9166,7 @@ function buildZoneTable(shots, selectedZones = []) {
     regions.forEach(rg => { tally[rg.id] = { made: 0, att: 0, threes: 0, pts: 0 }; });
     unknown = [];
     for (const ev of shots) {
-      const key = scZoneKey(ev);
+      const key = scRowKey(ev);
       if (!key || !tally[key]) { unknown.push(ev); continue; }
       tally[key].att++;
       if (ev.stat === '2fg_make' || ev.stat === '3fg_make') tally[key].made++;
@@ -9092,8 +9211,19 @@ function buildZoneTable(shots, selectedZones = []) {
     return `<div style="font-size:12px;color:var(--text-dim);padding:12px 0;">No zone data recorded yet.</div>`;
   }
 
+  /* Banded on its own above both carvings, because it is neither: it is a summary of the
+     shot diet, and a region row or a zone row sitting beside it would invite adding them
+     together. Its own heading says so. */
+  const r3 = rimPlus3Split(shots);
+  const r3On = !!scFilter.rim3;
+  const secR3 = r3.att
+    ? `<tr><td colspan="3" style="padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);">Shot quality</td></tr>` +
+      `<tr class="${r3On ? 'active' : ''}" onclick="scToggleRim3()" style="cursor:pointer;" title="Rim attempts plus every three \u2014 ${r3.share.toFixed(1)}% of all attempts. Click to show only these shots. eFG% because the group mixes twos and threes."><td style="text-align:left;font-weight:700;">${r3On ? '&#10003;&nbsp;' : ''}At Rim + 3s</td><td>${r3.made}-${r3.att}</td><td style="color:${ppsColor(r3.efg / 50)};font-weight:700;">${r3.efg.toFixed(1)}%</td></tr>` +
+      `<tr><td colspan="3" style="padding-bottom:6px;font-size:10px;color:var(--text-dim);">${r3.share.toFixed(1)}% of attempts &middot; eFG%</td></tr>`
+    : '';
+
   const secRg = rowsRg
-    ? `<tr><td colspan="3" style="padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#f5c542;">Regions &mdash; override the zones below</td></tr>${rowsRg}`
+    ? `<tr><td colspan="3" style="padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#f5c542;">Regions</td></tr>${rowsRg}`
     : '';
   const sec2 = rows2
     ? `<tr><td colspan="3" style="padding-top:${rowsRg ? '8' : '0'}px;padding-bottom:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);${rowsRg ? 'border-top:1px solid var(--border);' : ''}">2-Point</td></tr>${rows2}`
@@ -9106,12 +9236,15 @@ function buildZoneTable(shots, selectedZones = []) {
   if (unknown.length) {
     const uMade = unknown.filter(ev => ev.stat === '2fg_make' || ev.stat === '3fg_make').length;
     const uPct  = Math.round(100 * uMade / unknown.length);
-    unknownRow = `<tr class="bench-divider"><td colspan="3"></td></tr><tr style="color:var(--text-dim);"><td style="text-align:left;">Unknown Zone</td><td>${uMade}-${unknown.length}</td><td>${uPct}%</td></tr>`;
+    /* Named for the shape that actually failed to claim it. "Unknown Zone" under a list
+       of regions reads as a bug; "Outside any region" reads as the map's footer does. */
+    const uLabel = regions.length ? 'Outside any region' : 'Unknown Zone';
+    unknownRow = `<tr class="bench-divider"><td colspan="3"></td></tr><tr style="color:var(--text-dim);"><td style="text-align:left;">${uLabel}</td><td>${uMade}-${unknown.length}</td><td>${uPct}%</td></tr>`;
   }
 
   return `<div class="table-wrap"><table class="zone-table" style="font-size:12px;"><thead><tr>
     <th style="text-align:left;min-width:130px;">Zone</th><th>FGM-A</th><th>FG%</th>
-  </tr></thead><tbody>${secRg}${sec2}${sec3}${unknownRow}</tbody></table></div>`;
+  </tr></thead><tbody>${secR3}${secRg}${sec2}${sec3}${unknownRow}</tbody></table></div>`;
 }
 
 function buildShotMetaTable(shotTypeShots, contestShots, selectedTypes = [], selectedContests = []) {
@@ -9537,8 +9670,8 @@ function computeReboundSplits(sessions) {
 
       const cats = [MISS[shot.stat] || 'ft'];
       if (MISS[shot.stat]) {
-        const zk = scZoneKey(shot);
-        if (zk) cats.push('z:' + zk);
+        /* Its region AND its zone, so both bands of the table fill. */
+        for (const k of shapeKeysForShot(shot)) cats.push('z:' + k);
       }
 
       const ak = avail[shot.team] || (avail[shot.team] = {});
@@ -9558,16 +9691,60 @@ function computeReboundSplits(sessions) {
    scZoneKey(), so the tab's columns are the shot chart's zones and nothing else. Keys are
    positional rather than the zone name: a name can carry an apostrophe, and these keys are
    written into the sort handler's inline onclick. */
+/* BOTH shapes a shot belongs to: the region that CLAIMS it, and the drawn zone it
+   physically SITS IN.
+
+   These are different questions and the app has always had two lookups for them.
+   scZoneKey() answers with attribution - the region wins wherever one covers the shot,
+   which is what makes the map and the breakdown table read as regions. znZoneOnlyForShot()
+   ignores regions entirely and answers about the FLOOR, which is what "was this at the rim"
+   needs and why it exists.
+
+   Rebounding and shot value want both at once. A miss from the restricted area is a Rim
+   miss AND a Bottom Key Left miss, and a coach wants to ask either. Bucketing it under only
+   one meant the other list could not fill: keyed by attribution alone, 259 of 261 misses
+   landed on a region and all fourteen zone rows read as blanks.
+
+   SO A SHOT IS COUNTED IN BOTH, AND THE TWO BANDS DELIBERATELY OVERLAP. Region rows and
+   zone rows each total correctly on their own; added together they exceed the shot count,
+   because the same miss is in one of each. That is inherent to asking two questions of one
+   event, not a miscount - the same way the shot-type table already totals to more than the
+   attempts because a shot carries several tags. The ring on a region label is what says
+   which band a row is in.
+
+   Returns one key when the two agree: with no regions drawn, or for a shot that falls
+   outside every region, attribution and floor are the same shape and it is counted once. */
+function shapeKeysForShot(ev) {
+  const out = [];
+  const claimed = scZoneKey(ev);
+  if (claimed) out.push(claimed);
+  const floor = znZoneOnlyForShot(ev);
+  if (floor && floor.id !== claimed) out.push(floor.id);
+  return out;
+}
+
 function rebZoneList() {
   const drawn   = State.zones || [];
   const regions = State.regions || [];
-  /* Regions first, in precedence order, and marked with a ring so a column reads as a
-     region rather than as another zone. Both this tab's columns and the PPS grid's rows
-     come through here, so listing them once covers both — and leaving them out did not
-     produce an empty column, it silently dropped every rebound and every attempt that a
-     region had claimed. */
+  /* REGIONS REPLACE THE ZONES HERE, they do not sit above them.
+
+     Both lists used to be returned together, and once regions existed that printed 28
+     rebounding rows that could never hold a number: the buckets are keyed by scZoneKey(),
+     which answers with the REGION wherever one covers the shot, so on this data 259 of the
+     261 missed shots land on a region key and 2 on a zone. Every zone row was structurally
+     starved - "Top Key Right OReb%  -  -  -" all the way down - and a row that cannot fill
+     is worse than no row, because it reads as missing data rather than as a shape nothing
+     is measured against any more.
+
+     The map and the breakdown table already drop the zone layer the moment a region
+     exists; this is the same rule reaching the last place that had not got it. The couple
+     of shots outside every region go uncounted here, exactly as the map footer reports. */
+  /* Regions first, in precedence order and ringed, then the drawn zones. Both bands are
+     listed because shapeKeysForShot() now fills both - the version that listed them
+     together while bucketing by attribution alone is what produced 28 permanently blank
+     zone rows. */
   if (drawn.length || regions.length) {
-    return regions.map(rg => ({ key: rg.id, label: '\u25cb ' + rg.name, isRegion: true }))
+    return regions.map(rg => ({ key: rg.id, label: '○ ' + rg.name, isRegion: true }))
       .concat(drawn.map(z => ({ key: z.id, label: z.name, isRegion: false })));
   }
   return Object.keys(ZONE_DEFS).map(k => ({ key: k, label: ZONE_DEFS[k].label }));
@@ -10242,7 +10419,11 @@ function renderPlayerTable() {
     if (!isPps) return '';
     if (!ppsFilter.player) return '<div class="placeholder" style="margin-top:20px;"><div>No shots in scope.</div></div>';
     const mine = ppsGrid.byPlayer[ppsFilter.player] || {};
-    const zones = rebZoneList();
+    /* Prepended HERE rather than inside rebZoneList(), which also builds the REB tab's
+       rows - rim-and-threes is a shot-quality line and has no rebounding question behind
+       it, so it belongs to this grid only. */
+    const zones = [{ key: PPS_RIM3_KEY, label: 'At Rim + 3s', isRegion: false, isSummary: true }]
+      .concat(rebZoneList());
     /* Below this a PPS is a number, not a rate: shown, but never coloured and never carrying
        a diff. The attempt count beside it is the honest headline. */
     const MIN = 5;
@@ -12152,7 +12333,7 @@ function segStats(session, segments, team) {
       }
       if (!shot || !shot.team) return;
       const cats = [_RM[shot.stat] || 'ft'];
-      if (_RM[shot.stat]) { const zk = scZoneKey(shot); if (zk) cats.push('z:' + zk); }
+      if (_RM[shot.stat]) { for (const k of shapeKeysForShot(shot)) cats.push('z:' + k); }
       const shooterIsUs = shot.team === team;
       for (const c of cats) {
         _bump(shooterIsUs ? rebOrAv : rebDrAv, c);          // every board off that miss
@@ -13284,6 +13465,11 @@ function _znNeighbourPts(excludeId) {
 /* Snap a point: first to a neighbouring zone's corner, then square it up with the
    previous point in this zone. */
 function _znSnap(pt, prev, excludeId) {
+  /* Guarded HERE rather than at the two callers - znCourtClick() drops a new point and
+     znGrab() drags an existing one, and a toggle that only reached one of them would give
+     you free placement on the way in and a magnet on the way back. Everything that moves a
+     zone point comes through this function, so this is the only line that has to know. */
+  if (!znSnapOn) return { x: pt.x, y: pt.y };
   let best = null, bestD = ZN_SNAP;
   for (const q of _znNeighbourPts(excludeId)) {
     const d = Math.hypot(q.x - pt.x, q.y - pt.y);
@@ -13565,6 +13751,7 @@ function _znSectionHtml() {
     ? '<button class="btn btn-primary btn-sm" onclick="znSave()">\u2713 Save Zone</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znUndoPoint()">\u21b6 Undo Point</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="znCancel()">Cancel</button>' +
+      znSnapBtn() + cgBtn() +
       (znDraft.label ? '<button class="btn btn-ghost btn-sm" onclick="znResetLabel()">Recentre Label</button>' : '') +
       '<span class="zn-count" style="margin-left:6px;">Label size</span>' +
       '<button class="btn btn-ghost btn-sm" onclick="znScaleLabel(-0.1)">\u2212</button>' +
@@ -13572,7 +13759,7 @@ function _znSectionHtml() {
       '<button class="btn btn-ghost btn-sm" onclick="znScaleLabel(0.1)">+</button>' +
       '<span class="zn-count">' + znDraft.pts.length + ' point' + (znDraft.pts.length === 1 ? '' : 's') + '</span>'
     : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>' +
-      '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>' + cgBtn();
+      '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>' + znSnapBtn() + cgBtn();
 
   const list = State.zones.length
     ? State.zones.map(z =>
@@ -13601,7 +13788,8 @@ function _znSectionHtml() {
       '<strong>Click</strong> the court to drop points. <strong>Drag a white dot</strong> to move it, ' +
       '<strong>drag a gold dot</strong> to bend that edge into a curve. Three points minimum, then Save.<br>' +
       'Points snap to nearby corners of other zones and square up to true horizontal/vertical, ' +
-      'so borders meet exactly. <strong>Tidy Zones</strong> applies the same clean-up to everything already drawn.<br>' +
+      'so borders meet exactly \u2014 <strong>Snap: Off</strong> turns that magnet off for free placement. ' +
+      '<strong>Tidy Zones</strong> applies the same clean-up to everything already drawn.<br>' +
       'The <span style="color:#06b6d4;font-weight:700;">cyan box</span> previews this zone\'s numbers at printed size ' +
       '(sample: 70% / 462-839) \u2014 drag it anywhere, and use Label size to fit it.' +
     '</div>' +
@@ -13678,7 +13866,23 @@ function rgToggleSnap() { rgSnapOn = !rgSnapOn; renderZonesView(); }
 let rgGhostsOn = false;
 function rgToggleGhosts() { rgGhostsOn = !rgGhostsOn; renderZonesView(); }
 
+/* Zone snapping, off-switchable for the same reason the region editor's is: the magnet
+   is what makes shared borders meet exactly, and it is also what stops you putting a point
+   where you actually want it when a neighbouring corner is a few units away. ZN_SNAP is
+   halved from its original 12 precisely because ~60 corners and 11 landmarks left almost
+   nowhere on the floor free of one - turning it off is the rest of that fix.
+
+   Tidy Zones is unaffected: that is a deliberate press, not a magnet you did not ask for,
+   so it still squares and welds whatever it is pointed at. */
+let znSnapOn = true;
+function znToggleSnap() { znSnapOn = !znSnapOn; renderZonesView(); }
+
 const OFF_SPAN = '<span style="color:#f5c542;">Off</span>';
+const znSnapBtn = () =>
+  '<button class="btn btn-ghost btn-sm" onclick="znToggleSnap()" ' +
+  'title="Snapping pulls a point onto a nearby corner of another zone and squares edges to ' +
+  'true horizontal or vertical, so borders meet exactly. Turn it off for free, 1:1 placement.">' +
+  'Snap: ' + (znSnapOn ? 'On' : OFF_SPAN) + '</button>';
 const cgBtn = () =>
   '<button class="btn btn-ghost btn-sm" onclick="cgToggle()" ' +
   'title="Feet from the centre line across the top, feet from the baseline down the side. ' +
@@ -14168,6 +14372,168 @@ function rgSmoothDraft() {
   renderZonesView();
 }
 
+/* ---- ROUNDING A POINT ----
+
+   The gold handles bend the edge BETWEEN two white dots. Nothing bent the outline AT a
+   dot, so however smooth the two edges either side were, they still met at whatever angle
+   the dot happened to sit at - and that angle is the jaggedness. An arc built from five
+   segments has four of these, and no amount of dragging the gold handles removes them,
+   because each handle only ever controls one side of the join.
+
+   Marking a point ROUND makes both edges meeting there share one direction: the incoming
+   edge arrives along it and the outgoing edge leaves along it, so the outline passes
+   through the dot without turning a corner. Double-click a white dot to switch it, and
+   double-click again to get the corner back.
+
+   The direction is the line through the point before and the point after - it always
+   heads where the outline is going next, and it cannot fold the shape back on itself the
+   way aligning to a neighbouring edge could.
+
+   WHY A STRAIGHT EDGE DOES NOT BECOME A BANANA. Rounding a corner where a flat side ends
+   has to bend that side somewhat, or it is not a rounded corner. But only the end touching
+   the dot moves: _rgEdgeToCubic() first rewrites the edge as the cubic that draws exactly
+   what is on screen now - controls at a third and two thirds of the chord for a line, the
+   exact equivalent for a quadratic - and the round then overwrites ONLY the control next
+   to the dot. The far end stays where it was, so a flat side stays flat right up until it
+   curls into the corner you asked to round. */
+
+/* The same edge, rewritten as a cubic that draws precisely what it draws now. A line's
+   controls land on the chord at 1/3 and 2/3 (a cubic with evenly spaced collinear
+   controls IS the straight line), and a quadratic converts exactly. Nothing on screen
+   moves - it just gives the edge two independent ends to steer. */
+function _rgEdgeToCubic(sh, e, n) {
+  const o  = (e === n) ? sh : sh.pts[e];
+  const kc = (e === n) ? 'closeC'  : 'c';
+  const k2 = (e === n) ? 'closeC2' : 'c2';
+  if (!(o[kc] && o[k2])) {
+    const p0 = sh.pts[(e - 1) % n], p1 = sh.pts[e % n], c = o[kc];
+    o[k2] = _rgPromoted2(c, p0, p1);                 // must read the ORIGINAL c first
+    o[kc] = c ? { x: +(p0.x + (2 / 3) * (c.x - p0.x)).toFixed(2),
+                  y: +(p0.y + (2 / 3) * (c.y - p0.y)).toFixed(2) }
+              : _rgLerp(p0, p1, 1 / 3);
+  }
+  return { o: o, kc: kc, k2: k2 };
+}
+
+function _rgPointEdges(i, n) {
+  return { ie: (i === 0 ? n : i), oe: (i === n - 1 ? n : i + 1) };
+}
+
+/* Make the outline pass through pts[i] without a corner. */
+function _rgRoundPoint(sh, i) {
+  const pts = sh.pts, n = pts.length;
+  if (n < 3 || !pts[i]) return;
+  const prev = pts[(i - 1 + n) % n], cur = pts[i], next = pts[(i + 1) % n];
+  const vx = next.x - prev.x, vy = next.y - prev.y;
+  const m = Math.hypot(vx, vy);
+  if (m < 1e-9) return;                              // prev and next on top of each other
+  const ux = vx / m, uy = vy / m;
+  const { ie, oe } = _rgPointEdges(i, n);
+  const hIn  = Math.hypot(cur.x - prev.x, cur.y - prev.y) / 3;
+  const hOut = Math.hypot(next.x - cur.x, next.y - cur.y) / 3;
+  const A = _rgEdgeToCubic(sh, ie, n);               // arrives at cur -> its c2 is the near end
+  A.o[A.k2] = { x: +(cur.x - ux * hIn).toFixed(2),  y: +(cur.y - uy * hIn).toFixed(2) };
+  const B = _rgEdgeToCubic(sh, oe, n);               // leaves cur    -> its c is the near end
+  B.o[B.kc] = { x: +(cur.x + ux * hOut).toFixed(2), y: +(cur.y + uy * hOut).toFixed(2) };
+  delete sh._poly;
+}
+
+/* Put the corner back: both controls touching this point return to their chords. The far
+   ends keep whatever curve they had, so sharpening one dot does not flatten its edges. */
+function _rgSharpenPoint(sh, i) {
+  const pts = sh.pts, n = pts.length;
+  if (n < 3 || !pts[i]) return;
+  const prev = pts[(i - 1 + n) % n], cur = pts[i], next = pts[(i + 1) % n];
+  const { ie, oe } = _rgPointEdges(i, n);
+  const A = _rgEdgeToCubic(sh, ie, n);
+  A.o[A.k2] = _rgLerp(prev, cur, 2 / 3);
+  const B = _rgEdgeToCubic(sh, oe, n);
+  B.o[B.kc] = _rgLerp(cur, next, 1 / 3);
+  delete sh._poly;
+}
+
+/* Re-derive every rounded point. Moving one anchor changes the direction at itself AND at
+   both neighbours - their tangents are read off it - so the whole shape is redone rather
+   than the one dot that was dragged. At two dozen points that is free. */
+function _rgApplyRounded(sh) {
+  if (!sh || !Array.isArray(sh.pts)) return;
+  for (let i = 0; i < sh.pts.length; i++) if (sh.pts[i].sm) _rgRoundPoint(sh, i);
+}
+
+/* Double-click a white dot. Deliberately not a left click (that starts a drag) and not a
+   right click (that deletes the point). */
+function rgToggleRound(i) {
+  if (!rgDraft || !rgIsPoly(rgDraft)) return;
+  const p = rgDraft.pts[i];
+  if (!p) return;
+  if (rgDraft.pts.length < 3) { showToast('A shape needs at least 3 points to round a corner', 'warning'); return; }
+  p.sm = !p.sm;
+  if (p.sm) _rgRoundPoint(rgDraft, i); else _rgSharpenPoint(rgDraft, i);
+  showToast(p.sm ? 'Point ' + (i + 1) + ' rounded — it stays rounded as you drag it'
+                 : 'Point ' + (i + 1) + ' back to a corner', 'success', 2600);
+  renderZonesView();
+}
+
+/* How far the outline may turn at a point and still be treated as a bend in a curve
+   rather than a corner somebody meant. Above the Break turns 2-11 degrees at every point
+   along its arc and 50-90 at the four places the shape genuinely has corners, so anything
+   in between separates them cleanly. */
+const RG_ROUND_MAX_TURN = 30;
+
+/* The turn at pts[i], in degrees: how far the outline's direction changes passing through
+   it. Zero means it does not change direction there at all. */
+function _rgTurnAt(sh, i) {
+  const p = sh.pts, n = p.length;
+  const ctl = e => (e === n ? { c: sh.closeC, c2: sh.closeC2 } : { c: p[e].c, c2: p[e].c2 });
+  const At = e => p[(e - 1 + n) % n], Bt = e => p[e % n];
+  const { ie, oe } = _rgPointEdges(i, n);
+  const ta = ctl(ie), tb = ctl(oe);
+  const arrive = { x: Bt(ie).x - (ta.c2 || ta.c || At(ie)).x, y: Bt(ie).y - (ta.c2 || ta.c || At(ie)).y };
+  const leave  = { x: (tb.c || Bt(oe)).x - At(oe).x,          y: (tb.c || Bt(oe)).y - At(oe).y };
+  const ang = v => Math.atan2(v.y, v.x) * 180 / Math.PI;
+  let d = Math.abs(ang(leave) - ang(arrive));
+  if (d > 180) d = 360 - d;
+  return d;
+}
+
+/* Round every point that is ALREADY sitting on a bend, and leave the shape's real corners
+   alone.
+
+   Rounding all of them indiscriminately was the first cut, and on Above the Break it took
+   the four 90-degree corners where the sideline meets the baseline down to zero along with
+   the arc - the outline stopped being a region with a flat bottom and became a blob. A
+   corner is a thing you drew on purpose; only the shallow turns are the faceting.
+
+   Anything the threshold skips is still one double-click away, so a corner that genuinely
+   wants rounding is never locked out - it just is not the default. */
+function rgRoundAll() {
+  if (!rgDraft || !rgIsPoly(rgDraft)) return;
+  const pts = rgDraft.pts;
+  if (pts.length < 3) { showToast('A shape needs at least 3 points', 'warning'); return; }
+
+  /* Pressing it again with anything rounded is an undo, not a second pass. */
+  const rounded = pts.filter(p => p.sm).length;
+  if (rounded) {
+    pts.forEach((p, i) => { if (p.sm) { p.sm = false; _rgSharpenPoint(rgDraft, i); } });
+    showToast('Put ' + rounded + ' point' + (rounded === 1 ? '' : 's') + ' back to corners', 'success', 3000);
+    renderZonesView();
+    return;
+  }
+
+  const turns = pts.map((p, i) => _rgTurnAt(rgDraft, i));
+  let did = 0, kept = 0;
+  pts.forEach((p, i) => {
+    if (turns[i] > RG_ROUND_MAX_TURN) { kept++; return; }
+    p.sm = true; _rgRoundPoint(rgDraft, i); did++;
+  });
+  showToast(did ? 'Rounded ' + did + ' point' + (did === 1 ? '' : 's') +
+                  (kept ? ', kept ' + kept + ' corner' + (kept === 1 ? '' : 's') : '') +
+                  ' — Save to keep, Cancel to undo'
+                : 'Every point here is a corner — double-click one to round it anyway',
+            did ? 'success' : 'warning', 4500);
+  renderZonesView();
+}
+
 function rgUndoPoint() {
   if (rgDraft && rgIsPoly(rgDraft) && rgDraft.pts.length) { rgDraft.pts.pop(); renderZonesView(); }
 }
@@ -14409,6 +14775,9 @@ function rgGrab(e, kind, i) {
       const sn = _rgSnapPoint(pt, n > 1 ? nb : null, rgSelected, false);
       rgDraft.pts[rgDrag.i].x = sn.x; rgDraft.pts[rgDrag.i].y = sn.y;
       delete rgDraft._poly;
+      /* Only on ANCHOR drags. A gold handle dragged next to a rounded point is the user
+         steering that edge by hand, and re-deriving it would fight them for it. */
+      _rgApplyRounded(rgDraft);
     } else if (rgDrag.kind === 'mid') {
       rgDraft.pts[rgDrag.i].c = pt;                          // first control of that segment
       delete rgDraft._poly;
@@ -14660,10 +15029,20 @@ function _rgSectionHtml() {
 
     /* Anchors last so they sit above the curve handles they share space with. */
     pts.forEach((q, i) => {
-      draftSvg += '<circle class="zn-handle" cx="' + q.x + '" cy="' + q.y + '" r="7" fill="#fff" ' +
-        'stroke="#4f6ef7" stroke-width="2" onpointerdown="rgGrab(event,\'anchor\',' + i + ')"' + STOP +
+      /* A rounded point INVERTS the ordinary anchor - solid blue with a white ring rather
+         than white with a blue one - instead of introducing a colour of its own. The editor
+         already spends gold on curve handles, green on the insert dot and amber on the second
+         handle; a fifth hue for a two-state flag would be the one thing on the court that had
+         to be learned rather than read. Inverting says "same handle, other state" using what
+         is already there. */
+      draftSvg += '<circle class="zn-handle" cx="' + q.x + '" cy="' + q.y + '" r="7" fill="' +
+        (q.sm ? '#4f6ef7' : '#fff') + '" stroke="' + (q.sm ? '#ffffff' : '#4f6ef7') +
+        '" stroke-width="' + (q.sm ? 2.5 : 2) + '" onpointerdown="rgGrab(event,\'anchor\',' + i + ')"' + STOP +
+        ' ondblclick="event.preventDefault();event.stopPropagation();rgToggleRound(' + i + ');"' +
         ' oncontextmenu="event.preventDefault();event.stopPropagation();rgDeletePoint(' + i + ');return false;"' +
-        '><title>Point ' + (i + 1) + ' — drag to move, right-click to delete</title></circle>';
+        '><title>Point ' + (i + 1) + (q.sm ? ' — ROUNDED' : ' — corner') +
+        '. Drag to move, double-click to ' + (q.sm ? 'sharpen' : 'round') +
+        ', right-click to delete</title></circle>';
     });
 
     if (pts.length > 2) draftSvg += labelPreview();
@@ -14701,6 +15080,7 @@ function _rgSectionHtml() {
         '<button class="btn btn-ghost btn-sm" onclick="rgUndoPoint()">\u21b6 Undo Point</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgStraightenDraft()" title="Remove every curve from this shape, leaving straight edges through the same points. Save to keep it, Cancel to undo.">Straighten</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgSmoothDraft()" title="Re-fit every curve so the outline flows through its points instead of hinging at them. Straight edges are left exactly as they are. Save to keep it, Cancel to undo.">\u223f Smooth</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgRoundAll()" title="Round the outline through every white dot, so it stops turning a corner at each one. Double-click a single dot to round just that one. Press again to put the corners back.">\u25cf Round Points</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgCancel()">Cancel</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgToggleSnap()" title="Turn snapping off for free, 1:1 dragging">Snap: ' +
           (rgSnapOn ? 'On' : '<span style="color:#f5c542;">Off</span>') + '</button>' +
@@ -15515,8 +15895,11 @@ function _ppsSplitsFor(ev) {
 
 /* { byPlayer: {name: {zoneKey: {split: {pts, att}}}}, team: {zoneKey: {split: {pts, att}}} }
    Zones follow scZoneKey()'s precedence, so these rows are the shot chart's own zones. */
+const PPS_RIM3_KEY = '__rim3';
+
 function computePpsGrid(sessions, teamFilter) {
   const VAL = { '2fg_make': 2, '3fg_make': 3, '2fg_miss': 0, '3fg_miss': 0 };
+  const rimRg = rimRegion();          // resolved once, not per shot
   const all = teamFilter === 'all' || teamFilter === 'both';
   const byPlayer = {}, team = {};
   const bump = (bucket, zk, sp, pts) => {
@@ -15533,21 +15916,27 @@ function computePpsGrid(sessions, teamFilter) {
       if (VAL[ev.stat] == null || !ev.player) return;
       if (!all && ev.team !== teamFilter) return;
       if (isHiddenPlayer(ev.player)) return;
-      const zk = scZoneKey(ev);
-      if (!zk) return;                         // outside every drawn zone
+      /* Its region and its zone both, so the grid can be read either way, plus the
+         rim-and-threes bucket, which is a quality summary rather than a shape and so is
+         counted alongside whatever shape the shot also belongs to. */
+      const keys = shapeKeysForShot(ev);
+      if (isRimPlus3(ev, rimRg)) keys.push(PPS_RIM3_KEY);
+      if (!keys.length) return;                // outside every drawn shape
       const pts = VAL[ev.stat];
       const nxt = log[i + 1];
       const assisted = pts > 0 && !!nxt && nxt.stat === 'ast'
                        && nxt.team === ev.team && nxt.player !== ev.player;
       const splits = _ppsSplitsFor(ev);
       const mine = byPlayer[ev.player] || (byPlayer[ev.player] = {});
-      for (const sp of splits) { bump(mine, zk, sp, pts); bump(team, zk, sp, pts); }
-      /* Makes only, riding the same {pts, att} shape as everything else: att counts his
-         baskets from the spot, pts counts the ones that were set up, so pts/att is the
-         share. One accumulator type, one renderer. */
-      if (pts > 0) {
-        bump(mine, zk, 'astShare', assisted ? 1 : 0);
-        bump(team, zk, 'astShare', assisted ? 1 : 0);
+      for (const zk of keys) {
+        for (const sp of splits) { bump(mine, zk, sp, pts); bump(team, zk, sp, pts); }
+        /* Makes only, riding the same {pts, att} shape as everything else: att counts his
+           baskets from the spot, pts counts the ones that were set up, so pts/att is the
+           share. One accumulator type, one renderer. */
+        if (pts > 0) {
+          bump(mine, zk, 'astShare', assisted ? 1 : 0);
+          bump(team, zk, 'astShare', assisted ? 1 : 0);
+        }
       }
     });
   }
