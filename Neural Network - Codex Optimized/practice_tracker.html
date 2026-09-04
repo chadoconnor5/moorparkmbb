@@ -13041,6 +13041,70 @@ let znDraft = null;          // { pts:[{x,y,c:{x,y}|null}], closeC:{x,y}|null }
 let znDrag = null;           // { kind:'anchor'|'mid'|'close', i }
 let znSelected = null;       // id of the zone being edited
 
+/* -------------------------------------------------------------
+   COURT RULER - a longitude/latitude grid over the editors
+
+   Placing a point by eye is fine until the shape has to be SYMMETRICAL. The left corner
+   three and the right corner three are the same region drawn twice, and nothing on a bare
+   court says whether the two are actually mirrored - you are comparing a dot near one
+   sideline against a dot near the other with 468 units of floor in between.
+
+   So the horizontal ruler counts OUT FROM THE CENTRE LINE in both directions rather than
+   across from the left edge. A point at 15 on the left and its mirror at 15 on the right
+   read the same number, and symmetry becomes something you can see instead of arithmetic
+   you have to do (250-x against 250+x). The centre line itself is drawn in gold, dashed:
+   it is the axis every mirrored pair is measured against.
+
+   The vertical ruler counts UP FROM THE BASELINE, because "eighteen feet out" is already
+   how the distance gets said out loud. Neither ruler is in pixels - a coordinate a coach
+   cannot name is not much better than no coordinate at all.
+
+   Court geometry is read straight off COURT_SVG_LINES: the floor spans x 16-484 (50 ft at
+   9.36 px/ft) and y 20-460 (47 ft, baseline at the bottom). */
+const CG_LEFT = 16, CG_RIGHT = 484, CG_TOP = 20, CG_BASE = 460, CG_MID = 250;
+let cgOn = true;
+
+function cgToggle() { cgOn = !cgOn; renderZonesView(); }
+
+function courtGridSvg() {
+  if (!cgOn) return '';
+  const F = RG_PX_PER_FT;
+  const line = (x1, y1, x2, y2, stroke, w, op, dash) =>
+    '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
+    '" stroke="' + stroke + '" stroke-width="' + w + '" stroke-opacity="' + op + '"' +
+    (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+  const tick = (x, y, t, fill) =>
+    '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="8.5" ' +
+    'font-family="system-ui,sans-serif" font-weight="600" fill="' + fill + '">' + t + '</text>';
+
+  /* Everything in one non-interactive group: a ruler that swallowed clicks would stop the
+     court accepting points, which is the one thing the editor exists to do. */
+  let g = '<g class="zn-grid" style="pointer-events:none">';
+
+  // Verticals, every 5 ft either side of centre. 25 ft lands exactly on each sideline.
+  for (let ft = 0; ft <= 25; ft += 5) {
+    const sides = ft === 0 ? [0] : [-1, 1];
+    for (const s of sides) {
+      const x = +(CG_MID + s * ft * F).toFixed(1);
+      if (x < CG_LEFT - 0.5 || x > CG_RIGHT + 0.5) continue;
+      const axis = ft === 0;
+      g += line(x, CG_TOP, x, CG_BASE, axis ? '#f5c542' : '#5b6683',
+                axis ? 1 : 0.6, axis ? 0.5 : 0.28, axis ? '7 5' : null);
+      g += tick(x, 13, ft, axis ? '#f5c542' : '#8b95b5');
+    }
+  }
+
+  // Horizontals, every 5 ft up from the baseline.
+  for (let ft = 5; ft <= 45; ft += 5) {
+    const y = +(CG_BASE - ft * F).toFixed(1);
+    if (y < CG_TOP) break;
+    g += line(CG_LEFT, y, CG_RIGHT, y, '#5b6683', 0.6, 0.28, null);
+    g += tick(8, +(y + 3).toFixed(1), ft, '#8b95b5');
+  }
+
+  return g + '</g>';
+}
+
 function znNextColor() {
   const used = (State.zones || []).map(z => z.color);
   return ZONE_COLORS.find(c => !used.includes(c)) || ZONE_COLORS[(State.zones || []).length % ZONE_COLORS.length];
@@ -13508,7 +13572,7 @@ function _znSectionHtml() {
       '<button class="btn btn-ghost btn-sm" onclick="znScaleLabel(0.1)">+</button>' +
       '<span class="zn-count">' + znDraft.pts.length + ' point' + (znDraft.pts.length === 1 ? '' : 's') + '</span>'
     : '<button class="btn btn-primary btn-sm" onclick="znStart()">+ New Zone</button>' +
-      '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>';
+      '<button class="btn btn-ghost btn-sm" onclick="znTidy()" title="Square off near-straight edges and weld corners that nearly touch">\u2726 Tidy Zones</button>' + cgBtn();
 
   const list = State.zones.length
     ? State.zones.map(z =>
@@ -13543,7 +13607,7 @@ function _znSectionHtml() {
     '</div>' +
     '<div class="zn-wrap">' +
       '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="znCourtClick(event)">' +
-        COURT_SVG_LINES + saved + labels + draftSvg +
+        COURT_SVG_LINES + courtGridSvg() + saved + labels + draftSvg +
       '</svg></div>' +
       '<div class="zn-side"><div class="zn-list">' + list + '</div></div>' +
     '</div>';
@@ -13604,6 +13668,26 @@ const RG_SNAP  = 6;
    switchable and the switch is in the toolbar rather than hidden behind a modifier. */
 let rgSnapOn = true;
 function rgToggleSnap() { rgSnapOn = !rgSnapOn; renderZonesView(); }
+
+/* The zone underlay is OFF by default now. It was drawn so a region could be lined up
+   against the zones it overrides, which is worth having on tap - but the regions ARE the
+   map once they exist, and fourteen tinted zone shapes under six regions is a picture of
+   the thing being replaced. Kept as a toggle rather than deleted, because "where does the
+   old Bottom Key Left sit under this circle" is still a real question, just not the
+   default view. */
+let rgGhostsOn = false;
+function rgToggleGhosts() { rgGhostsOn = !rgGhostsOn; renderZonesView(); }
+
+const OFF_SPAN = '<span style="color:#f5c542;">Off</span>';
+const cgBtn = () =>
+  '<button class="btn btn-ghost btn-sm" onclick="cgToggle()" ' +
+  'title="Feet from the centre line across the top, feet from the baseline down the side. ' +
+  'The gold dashed line is the centre - a point at 15 on one side mirrors a point at 15 on the other.">' +
+  'Grid: ' + (cgOn ? 'On' : OFF_SPAN) + '</button>';
+const rgGhostBtn = () =>
+  '<button class="btn btn-ghost btn-sm" onclick="rgToggleGhosts()" ' +
+  'title="Show the zones underneath, tinted, for lining a region up against them.">' +
+  'Zones: ' + (rgGhostsOn ? 'On' : OFF_SPAN) + '</button>';
 
 /* Court landmarks a region's centre snaps to, so "a circle on the left block" lands on
    the block rather than four pixels off it. Coordinates read off COURT_SVG_LINES. */
@@ -13996,6 +14080,91 @@ function rgStraightenDraft() {
   delete rgDraft._poly;
   showToast(n ? 'Straightened ' + n + ' edge' + (n === 1 ? '' : 's') + ' — Save to keep, Cancel to undo'
               : 'No curved edges on this shape', n ? 'success' : 'warning', 4000);
+  renderZonesView();
+}
+
+/* Smooth: re-fit the curves so the outline changes direction continuously through each
+   point instead of hinging at it.
+
+   A curve drawn by hand is a row of INDEPENDENT quadratics - every one bent by dragging
+   its own gold handle, with nothing tying it to its neighbour. At the point where two of
+   them meet, one arrives travelling in one direction and the next leaves in another, and
+   that corner is the whole of the hand-drawn look. The arc is not in the wrong place; it
+   is faceted.
+
+   The cure is a tangent DIRECTION shared by both curves at every point they have in
+   common. Each curved edge is rebuilt as a cubic whose two handles lie along that shared
+   direction, a third of the chord out - the standard Hermite-to-Bezier construction. The
+   direction matches on both sides of every join, so the hinge goes; the anchors never
+   move, so the region still covers exactly the floor it was drawn to cover.
+
+   STRAIGHT EDGES ARE NOT TOUCHED. Only an edge that already carries a control point is
+   rebuilt, so flat sides stay flat - and where a curve meets one of them the straight
+   edge sets the direction, which is what makes the curve flow out of the line rather
+   than turn a corner into it. That is also why this is not "round off the shape": it
+   cannot invent a curve you did not draw.
+
+   Quadratics come out as cubics, because one control point cannot hold an independent
+   tangent at both ends of the same edge. The flattened outline is sampled a little finer
+   as a result (znPolygon walks a cubic in 16 steps against a quadratic's 10), so a shot
+   sitting within a unit of the boundary can change hands - unavoidable when the boundary
+   itself is being re-cut, and the reason this is a button rather than something that runs
+   on save.
+
+   Draft-only, exactly like Straighten: Save keeps it, Cancel walks away from it. */
+function rgSmoothDraft() {
+  if (!rgDraft || !rgIsPoly(rgDraft)) return;
+  const pts = rgDraft.pts, n = pts.length;
+  if (n < 3) { showToast('A shape needs at least 3 points', 'warning'); return; }
+
+  /* Edge numbering follows _rgEdgeEnds(): edge e runs pts[e-1] -> pts[e] and keeps its
+     control points on pts[e]; edge n is the closing edge pts[n-1] -> pts[0] and keeps
+     them on the draft as closeC/closeC2. */
+  const P        = i => pts[((i % n) + n) % n];
+  const ctrlOf   = e => (e === n ? rgDraft : pts[e]);
+  const keyC     = e => (e === n ? 'closeC'  : 'c');
+  const keyC2    = e => (e === n ? 'closeC2' : 'c2');
+  const isCurved = e => !!ctrlOf(e)[keyC(e)];
+  const unit = v => { const m = Math.hypot(v.x, v.y); return m < 1e-9 ? null : { x: v.x / m, y: v.y / m }; };
+
+  /* One direction per point, used by BOTH curves that touch it - that sharing is the
+     smoothness. The direction is the line through the point BEFORE and the point AFTER,
+     which is the plain Catmull-Rom tangent: it always heads toward where the outline is
+     going next.
+
+     An earlier cut let a straight neighbour set the direction instead, on the theory that
+     a curve should flow out of a line rather than corner off it. On a real 3pt line that
+     is right - the corner segment IS tangent to the arc. On this shape it was badly wrong:
+     the bottom edge of Above the Break runs flat along y=320, so the rule launched the arc
+     out horizontally and then made it climb 55 units to the next point, hooking the corner
+     into a fishtail. A shape is allowed to have a corner where a flat side ends, and
+     forcing tangency there invents a bulge nobody drew.
+
+     So neighbours only ever supply a DIRECTION, never a veto: a straight edge still frames
+     the curve that leaves it, but cannot bend it back on itself. */
+  const tang = [];
+  for (let i = 0; i < n; i++) {
+    const prev = P(i - 1), cur = P(i), next = P(i + 1);
+    const v = { x: next.x - prev.x, y: next.y - prev.y };
+    tang[i] = unit(v) || unit({ x: next.x - cur.x, y: next.y - cur.y }) || { x: 1, y: 0 };
+  }
+
+  let done = 0;
+  for (let e = 1; e <= n; e++) {
+    if (!isCurved(e)) continue;
+    const ai = (e - 1) % n, bi = e % n, a = pts[ai], b = pts[bi];
+    const h = Math.hypot(b.x - a.x, b.y - a.y) / 3;    // handles a third of the chord out
+    const o = ctrlOf(e);
+    o[keyC(e)]  = { x: +(a.x + tang[ai].x * h).toFixed(2), y: +(a.y + tang[ai].y * h).toFixed(2) };
+    o[keyC2(e)] = { x: +(b.x - tang[bi].x * h).toFixed(2), y: +(b.y - tang[bi].y * h).toFixed(2) };
+    done++;
+  }
+
+  delete rgDraft._poly;
+  showToast(done ? 'Smoothed ' + done + ' curved edge' + (done === 1 ? '' : 's') +
+                   ' - straight edges untouched. Save to keep, Cancel to undo'
+                 : 'No curved edges on this shape - nothing to smooth',
+            done ? 'success' : 'warning', 4500);
   renderZonesView();
 }
 
@@ -14525,14 +14694,17 @@ function _rgSectionHtml() {
     ? '<button class="btn btn-primary btn-sm" onclick="rgStartCircle()">+ Circle</button>' +
       '<button class="btn btn-primary btn-sm" onclick="rgStartPoly()">+ Shape</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="rgToggleSnap()" title="Snapping helps a new point land on a landmark or a zone corner. Turn it off for free, 1:1 dragging.">Snap: ' +
-        (rgSnapOn ? 'On' : '<span style="color:#f5c542;">Off</span>') + '</button>'
+        (rgSnapOn ? 'On' : '<span style="color:#f5c542;">Off</span>') + '</button>' +
+      cgBtn() + rgGhostBtn()
     : rgIsPoly(rgDraft)
       ? '<button class="btn btn-primary btn-sm" onclick="rgSave()">\u2713 Save Region</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgUndoPoint()">\u21b6 Undo Point</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgStraightenDraft()" title="Remove every curve from this shape, leaving straight edges through the same points. Save to keep it, Cancel to undo.">Straighten</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="rgSmoothDraft()" title="Re-fit every curve so the outline flows through its points instead of hinging at them. Straight edges are left exactly as they are. Save to keep it, Cancel to undo.">\u223f Smooth</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgCancel()">Cancel</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="rgToggleSnap()" title="Turn snapping off for free, 1:1 dragging">Snap: ' +
           (rgSnapOn ? 'On' : '<span style="color:#f5c542;">Off</span>') + '</button>' +
+        cgBtn() + rgGhostBtn() +
         (rgDraft.pts.length > 2 ? labelControls() : '') +
         '<span class="zn-count">' + rgDraft.pts.length + ' point' + (rgDraft.pts.length === 1 ? '' : 's') + '</span>'
       : '<button class="btn btn-primary btn-sm" onclick="rgSave()">\u2713 Save Region</button>' +
@@ -14596,7 +14768,7 @@ function _rgSectionHtml() {
             ? rgParts(rg).map((p, pi) =>
                 '<button class="btn btn-ghost btn-sm" title="Edit area ' + (pi + 1) + ' \u2014 right-click to delete it" ' +
                   'oncontextmenu="event.preventDefault();rgDeletePart(\'' + rg.id + '\',' + pi + ');return false;" ' +
-                  'onclick="rgEdit(\'' + rg.id + '\',' + pi + ')">' + (pi + 1) + '</button>').join('')
+                  'onclick="rgEdit(\'' + rg.id + '\',' + pi + ')">Edit ' + (pi + 1) + '</button>').join('')
             : '<button class="btn btn-ghost btn-sm" onclick="rgEdit(\'' + rg.id + '\')">Edit</button>') +
           /* Worded, not glyphed: U+2B1F fell back to a placeholder box in this app's font
              stack, and a two-character button is not worth a font gamble. */
@@ -14647,7 +14819,9 @@ function _rgSectionHtml() {
     '</div>' +
     '<div class="zn-wrap">' +
       '<div class="zn-court"><svg id="zn-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg" onclick="rgCourtClick(event)">' +
-        COURT_SVG_LINES + zoneGhosts + zoneGhostLabels + saved + savedLabels + draftSvg +
+        COURT_SVG_LINES + courtGridSvg() +
+        (rgGhostsOn ? zoneGhosts + zoneGhostLabels : '') +
+        saved + savedLabels + draftSvg +
       '</svg></div>' +
       '<div class="zn-side"><div class="zn-list">' + list + '</div></div>' +
     '</div>';
