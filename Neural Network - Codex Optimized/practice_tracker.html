@@ -1057,13 +1057,17 @@
       flex-shrink: 0;
     }
 
+    /* Clickable: it is the fastest route to "I typed the wrong end clock on the quarter
+       that just finished", which is a mistake you notice seconds after making it. */
     .scorebar-quarter {
       font-size: 18px;
       font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      cursor: pointer;
     }
+    .scorebar-quarter:hover { color: var(--text); }
 
     .scorebar-session-title {
       font-size: 10px;
@@ -2804,6 +2808,143 @@
     .sw-chip.is-even .sw-val { color: var(--text-secondary); }
     .sw-med { font-size: 10px; color: var(--text-dim); }
     .sw-none { font-size: 11.5px; color: var(--text-dim); padding: 2px 0 4px; }
+
+    /* -- Form trend: PER / ORTG / DRTG over the last five practices --------------
+       Sits above the tab bar, so it reads on both tabs and is the first thing under the
+       career averages. Deliberately three tiles and no more: the point is a direction, and
+       a wall of metrics is how a direction gets lost. */
+    .ft-card {
+      border: 1px solid var(--border); border-radius: var(--radius-lg);
+      background: var(--surface); padding: 12px 14px 10px; margin: 0 0 18px;
+    }
+    /* Three columns, and the verdict sits in the middle one so it is centred on the CARD
+       rather than merely pushed to the far end of it. space-between put it hard against the
+       right edge, as far from the three tiles it summarises as the card allows; the one
+       line a coach reads first belongs over the middle of what it is describing. The third
+       column is left empty on purpose - it is what balances the title's width. */
+    .ft-top {
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+      gap: 10px; margin-bottom: 10px;
+    }
+    .ft-title {
+      font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .ft-verdict {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12.5px; font-weight: 800; padding: 4px 13px; border-radius: 20px;
+      border: 1px solid var(--border); background: var(--card); color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .ft-verdict.is-up   { color: var(--success); border-color: rgba(34,197,94,0.45);  background: rgba(34,197,94,0.10); }
+    .ft-verdict.is-down { color: var(--danger);  border-color: rgba(239,68,68,0.45);  background: rgba(239,68,68,0.10); }
+    /* Up, sideways or down, in the colour that goes with it. The arrow carries the finding
+       from across the room, before the words are close enough to read - which is most of
+       what this line is for. Sideways is grey rather than a third bright colour because
+       "he is where he was" is not an alarm. */
+    /* Sized by the SVG itself now, so this only has to place it and set its colour. */
+    .ft-arrow { display: inline-flex; align-items: center; margin-left: 7px; color: var(--text-secondary); }
+    .ft-arrow-svg { display: block; }
+    .ft-verdict.is-up   .ft-arrow { color: var(--success); }
+    .ft-verdict.is-down .ft-arrow { color: var(--danger); }
+    /* Stacked and centred once the row cannot hold both - the title above, the verdict and
+       its arrow under it, still the widest thing in the header. */
+    @media (max-width: 720px) {
+      .ft-top { grid-template-columns: 1fr; justify-items: center; gap: 6px; }
+    }
+    .ft-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .ft-tile {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--card); padding: 9px 11px 7px;
+    }
+    /* Only a real move tints the border. Holding keeps the plain border on purpose - it is
+       still information, but colouring it would make the eye stop on the tile with the
+       least to say. Same reasoning as .sw-chip.is-even. */
+    .ft-tile.is-up   { border-color: rgba(34,197,94,0.40); }
+    .ft-tile.is-down { border-color: rgba(239,68,68,0.40); }
+    .ft-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ft-metric { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: var(--text); }
+    .ft-hint { font-size: 9.5px; font-weight: 600; color: var(--text-dim); margin-left: 5px; }
+    .ft-chip { display: inline-flex; align-items: center; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; color: var(--text-secondary); }
+    .ft-chip .ft-chip-arrow { display: inline-flex; align-items: center; margin-left: 5px; }
+    .ft-chip.is-up   { color: var(--success); }
+    .ft-chip.is-down { color: var(--danger); }
+    .ft-nums { display: flex; align-items: baseline; gap: 6px; margin-top: 5px; font-variant-numeric: tabular-nums; }
+    .ft-nums.ft-move { margin-top: 2px; }
+    .ft-now { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1; }
+    .ft-delta { font-size: 12px; font-weight: 800; color: var(--text-secondary); }
+    .ft-delta.is-up   { color: var(--success); }
+    .ft-delta.is-down { color: var(--danger); }
+    .ft-base { font-size: 10.5px; color: var(--text-dim); }
+    .ft-spark { display: block; width: 100%; height: 36px; margin-top: 6px; }
+    .ft-foot {
+      margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border);
+      font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em;
+    }
+    .ft-sum { font-weight: 800; color: var(--text); }
+    .ft-none { font-size: 11.5px; color: var(--text-dim); padding: 2px 0 4px; }
+
+    /* -- Shot breakdown, beside the profile court ------------------------------
+       Bars, not a grid of figures. The page already has a breakdown idiom - the Shot Type
+       Breakdown lower down is a label, a bar and its numbers on one line - and a location
+       breakdown is the same question asked of a different axis, so it reads as part of the
+       page rather than as a spreadsheet someone parked next to the court. Wrapped onto two
+       lines because this column is 250px, not the full width that section gets. */
+    .ps-court-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+    .ps-breakdown { flex: 1 1 210px; min-width: 195px; }
+    .ps-bd-cap {
+      font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 8px;
+    }
+    /* Capped to the court's own height so the two never disagree about how tall this row
+       is; a roster with more zones than fit scrolls rather than stretching the layout. */
+    .ps-bd-list { max-height: 300px; overflow-y: auto; padding-right: 2px; }
+    .ps-bd-item { padding: 0 0 9px; }
+    .ps-bd-top { display: flex; align-items: baseline; gap: 6px; }
+    .ps-bd-nm {
+      flex: 1; min-width: 0; font-size: 11px; font-weight: 700; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ps-bd-pct { font-size: 12px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+    .ps-bd-track {
+      position: relative; height: 8px; margin: 4px 0 3px;
+      background: var(--card); border-radius: 4px; overflow: hidden;
+    }
+    .ps-bd-fill { height: 100%; background: var(--primary); border-radius: 4px; }
+    /* The team's mark in the same spot, drawn ON his bar. A number column comparing the two
+       was the first attempt and it read as arithmetic homework; a tick answers "is he above
+       or below the rest of them here" at a glance, without a second figure to hold. */
+    .ps-bd-tick {
+      position: absolute; top: -1px; bottom: -1px; width: 2px;
+      background: var(--text); opacity: 0.85;
+    }
+    .ps-bd-sub {
+      font-size: 9.5px; color: var(--text-dim); font-variant-numeric: tabular-nums;
+      display: flex; justify-content: space-between; gap: 6px;
+    }
+    .ps-bd-foot {
+      margin-top: 4px; padding-top: 7px; border-top: 1px solid var(--border);
+      font-size: 9.5px; line-height: 1.5; color: var(--text-dim);
+    }
+    .ps-bd-none { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
+    /* The hover readout. One element for the whole card, moved to whichever point the
+       cursor is on - three tiles' worth of always-rendered tooltips would be twelve hidden
+       nodes rebuilt on every profile render for the one that gets looked at. */
+    .ft-card { position: relative; }
+    .ft-tip {
+      position: absolute; z-index: 30; pointer-events: none;
+      max-width: 300px; padding: 8px 10px;
+      border: 1px solid var(--border-light); border-radius: var(--radius);
+      background: #0f1220; box-shadow: var(--shadow);
+      font-size: 11px; line-height: 1.45; color: var(--text);
+    }
+    .ft-tip-when { font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+                   text-transform: uppercase; color: var(--text-dim); }
+    .ft-tip-val  { font-size: 15px; font-weight: 800; margin: 2px 0 3px; }
+    .ft-tip-line { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+    .ft-tip-note { margin-top: 4px; font-size: 10px; color: var(--text-dim); }
+    .ft-dot-hit  { fill: transparent; cursor: pointer; }
+    @media (max-width: 720px) { .ft-grid { grid-template-columns: 1fr; } }
     .sw-foot {
       margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);
       font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em;
@@ -3366,6 +3507,19 @@
     .vts-row.ghost:hover { background: rgba(245,158,11,0.12); }
     .vts-stat.ghost { color: var(--warning); font-style: italic; }
     .vts-ghost-mark { color: var(--warning); font-size: 10px; flex-shrink: 0; }
+
+    /* ── Quarter boundary rows ──
+       Structure, not basketball: slate rather than the purple subs use or the amber ghosts
+       use, and ruled off along the top so the eye reads it as the LINE between two quarters
+       rather than as one more thing that happened. */
+    .vts-row.qend {
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 4px 4px;
+      background: rgba(148,163,184,0.09);
+    }
+    .vts-row.qend:hover { background: rgba(148,163,184,0.18); }
+    .vts-stat.qend { color: #94a3b8; font-style: italic; }
+
     .vts-star-btn.ghost-on { color: var(--warning); border-color: var(--warning); }
 
     /* Review queue rows, shared by both entry points. */
@@ -3841,7 +3995,8 @@
               </div>
             </div>
             <div class="scorebar-center">
-              <div class="scorebar-quarter" id="live-quarter">Q1</div>
+              <div class="scorebar-quarter" id="live-quarter" onclick="qeOpen(null)"
+                title="Click to amend the end clock of a quarter you already ended">Q1</div>
               <div class="scorebar-session-title" id="live-title">Practice</div>
               <div class="scorebar-session-date" id="live-date"></div>
             </div>
@@ -4290,6 +4445,33 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="hideModal('modal-end-quarter')">Cancel</button>
       <button class="btn btn-warning" onclick="confirmEndQuarter()">End Quarter</button>
+    </div>
+  </div>
+</div>
+
+<!-- AMEND A QUARTER'S END CLOCK
+     The counterpart to the modal above: same one number, entered again after the fact.
+     Reached from the Q chip on the scorebar and from the quarter rows in Film Events. -->
+<div id="modal-quarter-end" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title">Amend Quarter End Clock</div>
+      <button class="btn btn-ghost btn-sm" onclick="hideModal('modal-quarter-end')">&#x2715;</button>
+    </div>
+    <div class="modal-body" style="margin-bottom:0;">
+      <label>Quarter</label>
+      <select id="qe-quarter-select" class="clock-input" onchange="qeRefresh(true)"></select>
+      <div class="clock-hint" id="qe-current" style="margin:6px 0 10px;text-align:left;"></div>
+      <label>Time Remaining at Buzzer (MM:SS)</label>
+      <input type="text" id="qe-time-input" class="clock-input" placeholder="0:59" oninput="qeRefresh(false)">
+      <!-- The preview is the point of this modal: the same number moves the quarter's
+           length AND the minutes of the five-on-five that was out there, and nothing else
+           in the app shows you that connection. -->
+      <div class="clock-hint" id="qe-preview" style="margin-top:8px;line-height:1.5;text-align:left;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="hideModal('modal-quarter-end')">Cancel</button>
+      <button class="btn btn-primary" id="qe-save-btn" onclick="qeSave()">Save End Clock</button>
     </div>
   </div>
 </div>
@@ -6153,6 +6335,23 @@ function ghostRowHtml(g) {
   </div>`;
 }
 
+/* One quarter boundary rendered as a log row. Slate and ruled off, so it reads as the line
+   between two quarters rather than as an event — which it is not: see the note in
+   updateVtsLog() about why quarters stay out of eventLog. */
+function qEndRowHtml(q) {
+  const end = fmtClockRemain(q.timeRemaining);
+  const tip = `Quarter ${q.number} ended with ${end} on the clock — ${fmtClockRemain(getQuarterPlayedSeconds(q))} played.\n\n` +
+    `Click to amend. That one number sets both the length of the quarter and where the ` +
+    `last lineup stint closed, so it moves ten players' minutes with it.`;
+  return `<div class="vts-row qend" onclick="qeOpen(${q.number})" title="${escHtml(tip)}">
+    <span class="vts-ts">&#9632;</span>
+    <span class="vts-player" style="color:#94a3b8">END Q${q.number}</span>
+    <span class="vts-stat qend">${escHtml(end)} left</span>
+    <button class="vts-edit-btn" title="Amend this quarter's end clock"
+      onclick="event.stopPropagation();qeOpen(${q.number})">&#9998;</button>
+  </div>`;
+}
+
 /* ── Update the film timestamp event log panel ── */
 function updateVtsLog() {
   const body = document.getElementById('vts-log-body');
@@ -6177,6 +6376,28 @@ function updateVtsLog() {
       ? filmInsertIndex(session.eventLog || [], g.videoTs) - 0.5
       : (session.eventLog || []).length;
     rows.push({ ghost: g, pos });
+  });
+  /* Quarter boundaries were the one part of a scrimmage this panel never showed, which is
+     also why a mistyped end clock had nowhere to be corrected. They live in
+     session.quarters — a SIBLING of eventLog, exactly like ghostSubs — and they stay there:
+     ~30 call sites partition the log with `ev.type !== 'sub'` and treat everything else as
+     a stat event, so a quarter marker inside eventLog would be swept into possession
+     counts, quarter scores and play-by-play by every one of them. The row is synthesised
+     for display and positioned by computation, the same way a ghost is.
+     Position = just after the last event tagged to that quarter, which is where the buzzer
+     went; a quarter with no events of its own falls back to just before the first event of
+     a later one, so it still lands in the right place in the scroll. */
+  (session.quarters || []).forEach(q => {
+    const log = session.eventLog || [];
+    let pos = null;
+    for (let i = log.length - 1; i >= 0; i--) {
+      if (log[i].quarter === q.number) { pos = i + 0.5; break; }
+    }
+    if (pos === null) {
+      const after = log.findIndex(e => e.quarter > q.number);
+      pos = after === -1 ? log.length : after - 0.5;
+    }
+    rows.push({ qend: q, pos });
   });
   rows.sort((x, y) => x.pos - y.pos);
   if (!rows.length) {
@@ -6215,7 +6436,9 @@ function updateVtsLog() {
 
   const q = (vtsFilter || '').trim().toLowerCase();
   const total = rows.length;
-  if (q) rows = rows.filter(r => (r.ghost ? ghostSearchText(r.ghost) : vtsSearchText(r.ev)).includes(q));
+  if (q) rows = rows.filter(r => (r.qend  ? `end q${r.qend.number} quarter ${r.qend.number} ${fmtClockRemain(r.qend.timeRemaining)}`
+                                : r.ghost ? ghostSearchText(r.ghost)
+                                : vtsSearchText(r.ev)).includes(q));
   if (!rows.length) {
     body.innerHTML = `<div class="vts-empty">No events match “${escHtml(vtsFilter)}”</div>`;
     return;
@@ -6224,6 +6447,7 @@ function updateVtsLog() {
   const capped = rows.length > CAP;
   const recent = rows.slice(-CAP).reverse();
   body.innerHTML = banner + ghostBanner + recent.map(r => {
+    if (r.qend)  return qEndRowHtml(r.qend);
     if (r.ghost) return ghostRowHtml(r.ghost);
     const { ev, idx } = r;
     const MAKES  = new Set(['2fg_make','3fg_make','ft_make']);
@@ -7312,10 +7536,15 @@ function renderBoxScoreView(sessionId) {
         const tA = sessionTrackedPts(session, 'a'), tB = sessionTrackedPts(session, 'b');
         const editBtn = _publishedMode ? '' :
           `<button class="btn btn-ghost btn-sm" style="padding:1px 7px;font-size:10px;margin-left:8px;" onclick="setSessionFinalScore('${escHtml(session.id)}')">${ov ? 'Edit' : 'Set final score'}</button>`;
-        if (!ov) return `<div style="font-size:10.5px;color:var(--text-dim);margin-top:8px;">Final is the sum of tracked events.${editBtn}</div>`;
+        /* Directly under the quarter columns, because that is what it corrects: the end
+           clock is what makes a quarter 7:00 long or 6:01, and it carries ten players'
+           minutes with it. Only offered once a quarter has actually been ended. */
+        const clockBtn = (_publishedMode || !(session.quarters || []).length) ? '' :
+          `<button class="btn btn-ghost btn-sm" style="padding:1px 7px;font-size:10px;margin-left:6px;" onclick="qeOpen(null,'${escHtml(session.id)}')" title="Fix a quarter that was ended on the wrong clock">Quarter end clocks</button>`;
+        if (!ov) return `<div style="font-size:10.5px;color:var(--text-dim);margin-top:8px;">Final is the sum of tracked events.${editBtn}${clockBtn}</div>`;
         return `<div style="font-size:10.5px;color:var(--warning);margin-top:8px;line-height:1.5;">
           Final recorded manually${ov.note ? ' — ' + escHtml(ov.note) : ''}.
-          Tracked events cover <b>${tA}\u2013${tB}</b>, so the quarter columns and every player line below add up to that, not to the final.${editBtn}
+          Tracked events cover <b>${tA}\u2013${tB}</b>, so the quarter columns and every player line below add up to that, not to the final.${editBtn}${clockBtn}
         </div>`;
       })()}
     </div>
@@ -7975,14 +8204,24 @@ function coordsToZone(svgX, svgY) {
   return svgY < 371 ? 'mr_right_high' : 'mr_right_low';
 }
 
-/* Zone NAME for a point, following the same precedence as scZoneKey(): the zones Chad drew
-   win, and the fixed ZONE_DEFS grid is only a fallback for when none have been drawn. If
-   zones exist but the tap lands outside all of them, say so plainly rather than quietly
-   falling back to a grid name the charts will never agree with. */
+/* Zone NAME for a point. ZONES ONLY - regions get no vote here.
+
+   The live tracker names the spot the coach just tapped, and the name it says has to be the
+   one he will go looking for afterwards: the Zones map, the breakdown table, the Shot
+   Tendencies table on a player's page. Regions are a separate carving of the same floor,
+   and letting one answer this made the tracker announce a region name for a tap that every
+   zone-shaped view downstream files under a zone. One tap, two names, and nothing on screen
+   to say they were the same shot.
+
+   The fixed ZONE_DEFS grid is the fallback for when no zones have been drawn. If zones
+   exist but the tap lands outside all of them, say so plainly rather than quietly falling
+   back to a grid name the charts will never agree with - and note the guard now asks only
+   about zones, so a floor carved into regions alone still gets a grid name rather than
+   'Outside zones' for every tap on it. */
 function zoneLabelAtPoint(x, y) {
-  const drawn = znZoneAtPoint(x, y);
+  const drawn = znZoneOnlyAtPoint(x, y);
   if (drawn) return drawn.name;
-  if ((State.zones || []).length || (State.regions || []).length) return 'Outside zones';
+  if ((State.zones || []).length) return 'Outside zones';
   const def = ZONE_DEFS[coordsToZone(x, y)];
   return def ? def.label : 'Unknown';
 }
@@ -8224,8 +8463,16 @@ function rimPlus3Split(shots) {
   };
 }
 
+/* Set for the duration of a region-map build, so the map can be drawn from somewhere that
+   is not the Shot Charts tab. scRowKey() used to read scFilter.view alone, which was fine
+   while the region map had exactly one caller: the tab sets the view before it draws. The
+   player profile does not, and calling the builder from there keyed every shot by ZONE
+   while the tally had been seeded with REGION ids - so nothing matched, and the whole
+   floor reported as "outside any region" on a chart made of regions. */
+let _rfgRegionKeys = false;
+
 function scRowKey(ev) {
-  if (scFilter.view === 'regions') {
+  if (_rfgRegionKeys || scFilter.view === 'regions') {
     const rg = rgRegionForShot(ev);
     return rg ? rg.id : null;                  // outside every region -> counted as outside
   }
@@ -8884,7 +9131,15 @@ const RFG_SPREAD = 15;
    So the team reads 'rate' and a player reads 'vs avg', because that is the only pairing
    where each half of the view says something. The footer names whichever is in force, so
    the reading is still labelled - it just is not something you have to set. */
-function rfgModeNow() { return scFilter.player === 'all' ? 'rate' : 'vsavg'; }
+/* 'rate' paints each region by points per shot; 'vsavg' paints it by how far the shooter
+   is from the team in that same region. The tab picks between them from its player filter.
+   A player profile is a single player by definition and has no such filter to read, so it
+   passes the mode in - without this it would inherit whatever the Shot Charts tab happened
+   to be left on, and a profile would paint itself in team-rate colours. */
+let _rfgModeOverride = null;
+function rfgModeNow() {
+  return _rfgModeOverride || (scFilter.player === 'all' ? 'rate' : 'vsavg');
+}
 
 /* PPS -> blue/white/red, centred on the selection's own points per shot so the map reads
    as "which of these spots pay" rather than against an absolute nobody agreed on.
@@ -8968,7 +9223,23 @@ function _rfgLabel(x, y, angle, pct, made, att, ink, scale) {
      pool  - the 'vs avg' baseline: practice filter only, so a player is measured against
              everyone rather than against himself.
      scale - what the PPS colour ramp is centred on. See `midPps`. */
-function buildRegionFgSvg(shots, pool, scale) {
+/* Public entry point. Sets the two pieces of context the body reads off module scope and
+   puts them back afterwards, so a caller outside the Shot Charts tab cannot leave that tab
+   in a state it did not choose. Region keys are only forced when regions actually exist -
+   with none drawn the body deliberately falls back to the zone layer, and forcing region
+   keys there would empty a map that has something to say. */
+function buildRegionFgSvg(shots, pool, scale, modeOverride) {
+  const prevKeys = _rfgRegionKeys, prevMode = _rfgModeOverride;
+  _rfgRegionKeys   = (State.regions || []).length > 0;
+  _rfgModeOverride = modeOverride || null;
+  try {
+    return _buildRegionFgSvgBody(shots, pool, scale);
+  } finally {
+    _rfgRegionKeys = prevKeys; _rfgModeOverride = prevMode;
+  }
+}
+
+function _buildRegionFgSvgBody(shots, pool, scale) {
   const rfgMode = rfgModeNow();       // team -> rate, one player -> vs avg. Not a setting.
   const regions = State.regions || [];
 
@@ -10627,16 +10898,69 @@ function psSetScope(sessionId) {
 /* ============================================================
    PLAYER TREND CHART — how a stat moves across practices
 ============================================================ */
+/* EVERY STAT THE GAME LOG HOLDS, IN ONE DROPDOWN.
+
+   This was seven pills across the top of the chart, which is all the room a pill row has
+   before it wraps into a second line and starts pushing the chart down the page. Seven was
+   never a judgement about which stats are worth trending - it was the number that fit. A
+   select has no such ceiling, so the list is now simply everything the row carries, grouped
+   so a coach can find one without reading all thirty-nine.
+
+   `val` is for stats the game log stores as makes and attempts rather than as a percentage.
+   They are computed here, per practice, and return NULL on zero attempts - never 0%. A
+   0-for-0 night is an absence of evidence, and plotting it at the bottom of the axis would
+   draw a collapse that did not happen. The chart already skips nulls, leaving a gap.
+
+   `dp` is decimals on the point labels; `neg` marks the one metric that can legitimately go
+   below zero, so the axis is not floored at 0 underneath it. */
 const TREND_METRICS = [
-  { key: 'pts',    label: 'PTS',  suffix: ''  },
-  { key: 'reb',    label: 'REB',  suffix: ''  },
-  { key: 'ast',    label: 'AST',  suffix: ''  },
-  { key: 'min',    label: 'MIN',  suffix: ''  },
-  { key: 'efgPct', label: 'EFG%', suffix: '%' },
-  { key: 'tsPct',  label: 'TS%',  suffix: '%' },
-  { key: 'usgPct', label: 'USG%', suffix: '%' },
+  { g:'Value',     key:'ortg',      label:'ORTG',  suffix:'',  dp:0 },
+  { g:'Value',     key:'drtg',      label:'DRTG',  suffix:'',  dp:0 },
+  { g:'Value',     key:'per',       label:'PER',   suffix:'',  dp:1, neg:true },
+  { g:'Value',     key:'usgPct',    label:'USG%',  suffix:'%', dp:1 },
+  { g:'Value',     key:'minPctVal', label:'MIN%',  suffix:'%', dp:1 },
+
+  { g:'Shooting',  key:'efgPct',    label:'EFG%',  suffix:'%', dp:1 },
+  { g:'Shooting',  key:'tsPct',     label:'TS%',   suffix:'%', dp:1 },
+  { g:'Shooting',  key:'fgPct',     label:'FG%',   suffix:'%', dp:1, val: r => r.fga  > 0 ? 100 * r.fgm  / r.fga  : null },
+  { g:'Shooting',  key:'fg2Pct',    label:'2P%',   suffix:'%', dp:1, val: r => r.fg2a > 0 ? 100 * r.fg2m / r.fg2a : null },
+  { g:'Shooting',  key:'fg3Pct',    label:'3P%',   suffix:'%', dp:1, val: r => r.fg3a > 0 ? 100 * r.fg3m / r.fg3a : null },
+  { g:'Shooting',  key:'ftPct',     label:'FT%',   suffix:'%', dp:1, val: r => r.fta  > 0 ? 100 * r.ftm  / r.fta  : null },
+  { g:'Shooting',  key:'shotPct',   label:'SHOT%', suffix:'%', dp:1 },
+  { g:'Shooting',  key:'ftRate',    label:'FTR',   suffix:'%', dp:1 },
+
+  { g:'Rates',     key:'orPct',     label:'OR%',   suffix:'%', dp:1 },
+  { g:'Rates',     key:'drPct',     label:'DR%',   suffix:'%', dp:1 },
+  { g:'Rates',     key:'astPct',    label:'AST%',  suffix:'%', dp:1 },
+  { g:'Rates',     key:'toPct',     label:'TO%',   suffix:'%', dp:1 },
+  { g:'Rates',     key:'stlPct',    label:'STL%',  suffix:'%', dp:1 },
+  { g:'Rates',     key:'blkPct',    label:'BLK%',  suffix:'%', dp:1 },
+
+  { g:'Box score', key:'pts',       label:'PTS',   suffix:'',  dp:0 },
+  { g:'Box score', key:'reb',       label:'REB',   suffix:'',  dp:0 },
+  { g:'Box score', key:'oreb',      label:'OREB',  suffix:'',  dp:0 },
+  { g:'Box score', key:'dreb',      label:'DREB',  suffix:'',  dp:0 },
+  { g:'Box score', key:'ast',       label:'AST',   suffix:'',  dp:0 },
+  { g:'Box score', key:'stl',       label:'STL',   suffix:'',  dp:0 },
+  { g:'Box score', key:'blk',       label:'BLK',   suffix:'',  dp:0 },
+  { g:'Box score', key:'tov',       label:'TOV',   suffix:'',  dp:0 },
+  { g:'Box score', key:'defl',      label:'DEFL',  suffix:'',  dp:0 },
+  { g:'Box score', key:'pf',        label:'PF',    suffix:'',  dp:0 },
+  { g:'Box score', key:'min',       label:'MIN',   suffix:'',  dp:1 },
+
+  { g:'Volume',    key:'fgm',       label:'FGM',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'fga',       label:'FGA',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'fg2m',      label:'2PM',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'fg2a',      label:'2PA',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'fg3m',      label:'3PM',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'fg3a',      label:'3PA',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'ftm',       label:'FTM',   suffix:'',  dp:0 },
+  { g:'Volume',    key:'fta',       label:'FTA',   suffix:'',  dp:0 },
 ];
-let psTrendMetric = 'pts';
+
+/* ORTG opens the chart. It is the stat the Trending card above it leads on, so a profile
+   reads as one argument from top to bottom rather than restarting on points. */
+let psTrendMetric = 'ortg';
 
 function psSetTrendMetric(key) {
   psTrendMetric = key;
@@ -10650,16 +10974,32 @@ function buildTrendChart(glRows) {
   if (chrono.length < 2) return '';
 
   const metric = TREND_METRICS.find(m => m.key === psTrendMetric) || TREND_METRICS[0];
+  const valOf = r => (metric.val ? metric.val(r) : r[metric.key]);
   const pts = chrono
-    .map((r, i) => ({ i, v: r[metric.key], date: r.date || '' }))
+    .map((r, i) => ({ i, v: valOf(r), date: r.date || '' }))
     .filter(p => p.v != null && isFinite(p.v));
 
-  const pills = TREND_METRICS.map(m =>
-    `<button class="sc-pill${m.key === psTrendMetric ? ' active' : ''}" onclick="psSetTrendMetric('${m.key}')">${m.label}</button>`
+  /* Grouped, in the order the list is written - so the headings come out Value, Shooting,
+     Rates, Box score, Volume without a second place stating that order. */
+  const groups = [];
+  for (const m of TREND_METRICS) {
+    let grp = groups.find(x => x.name === m.g);
+    if (!grp) groups.push(grp = { name: m.g, items: [] });
+    grp.items.push(m);
+  }
+  const options = groups.map(grp =>
+    `<optgroup label="${escHtml(grp.name)}">` +
+    grp.items.map(m =>
+      `<option value="${escHtml(m.key)}"${m.key === psTrendMetric ? ' selected' : ''}>${escHtml(m.label)}</option>`
+    ).join('') +
+    `</optgroup>`
   ).join('');
 
   const head = `<div class="card-title" style="margin:24px 0 8px;">Trend by Practice</div>
-    <div class="sc-filter-group" style="margin-bottom:10px;">${pills}</div>`;
+    <div class="profile-scope" style="margin-bottom:10px;">
+      <label for="ps-trend-select">Stat</label>
+      <select id="ps-trend-select" onchange="psSetTrendMetric(this.value)">${options}</select>
+    </div>`;
 
   if (pts.length < 2) {
     return head + `<div style="font-size:12px;color:var(--text-dim);padding:8px 0;">Not enough ${escHtml(metric.label)} data to chart yet.</div>`;
@@ -10671,7 +11011,16 @@ function buildTrendChart(glRows) {
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (lo === hi) { lo = lo - 1; hi = hi + 1; }          // flat line → give it room
   const pad = (hi - lo) * 0.15; lo -= pad; hi += pad;
-  if (metric.suffix === '' && lo < 0) lo = 0;            // counting stats never go below 0
+  /* Counting stats and percentages never go below zero, so the axis should not either -
+     but PER genuinely can, and flooring it at 0 would hide exactly the practices worth
+     seeing. `neg` is what tells the two apart. */
+  if (!metric.neg && lo < 0) lo = 0;
+  /* The 15% headroom above the top point is right for a rating and wrong for a percentage:
+     a 3P% chart with a perfect practice in it topped out at "115%", which is not a number
+     that exists. Capped only when nothing actually reaches past 100, so the metrics that CAN
+     - FTR is attempts over attempts, and eFG% clears it on an all-threes night - keep their
+     real ceiling rather than having a true reading clipped off the top. */
+  if (metric.suffix === '%' && Math.max(...vals) <= 100 && hi > 100) hi = 100;
 
   const n = chrono.length - 1 || 1;
   const x = i => L + (i / n) * (W - L - R);
@@ -10679,16 +11028,26 @@ function buildTrendChart(glRows) {
 
   const line = pts.map((p, k) => `${k ? 'L' : 'M'}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
   const dots = pts.map(p => `<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="#4f6ef7" stroke="#0f1220" stroke-width="1.5"/>`).join('');
-  const labels = pts.map(p =>
-    `<text x="${x(p.i).toFixed(1)}" y="${(y(p.v) - 9).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#e5e7eb">${(+p.v).toFixed(metric.suffix ? 1 : 0)}</text>`
-  ).join('');
+  /* Labels sit above their dot - unless that would put them off the top of the chart, in
+     which case they flip underneath it.
+
+     The percentage cap above made this routine rather than rare. Capping the axis at 100
+     means a 100% practice lands exactly ON the ceiling, so its label had nowhere to go: the
+     text baseline came out at y=7 with a 10px font, which puts the top of the digits above
+     the viewBox edge and shears them off. Anything that reaches the top of the axis has the
+     same problem, so the fix is positional rather than a special case for percentages. */
+  const labels = pts.map(p => {
+    const py = y(p.v);
+    const ly = (py - 9 < T + 2) ? py + 15 : py - 9;
+    return `<text x="${x(p.i).toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#e5e7eb">${(+p.v).toFixed(metric.dp)}</text>`;
+  }).join('');
 
   // Horizontal gridlines + y labels at min / mid / max
   const grid = [0, 0.5, 1].map(f => {
     const v = lo + f * (hi - lo);
     const yy = y(v).toFixed(1);
     return `<line x1="${L}" y1="${yy}" x2="${W - R}" y2="${yy}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-            <text x="${L - 6}" y="${(+yy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#94a3b8">${v.toFixed(metric.suffix ? 0 : 0)}${metric.suffix}</text>`;
+            <text x="${L - 6}" y="${(+yy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#94a3b8">${v.toFixed(hi - lo < 5 ? 1 : 0)}${metric.suffix}</text>`;
   }).join('');
 
   // X labels — thinned so they never collide
@@ -10705,6 +11064,655 @@ function buildTrendChart(glRows) {
         ${dots}${labels}${xlabels}
       </svg>
     </div>`;
+}
+
+/* ============================================================
+   FORM TREND - is he improving, holding, or sliding?
+   ============================================================
+   Three value metrics over his last five practices, each read against the practices that
+   came BEFORE that window, so the question answered is "compared to himself, is he going
+   up or down" rather than "is he good".
+
+   PER  - Hollinger, already normalised so 15 is average. The one number that folds scoring,
+          rebounding, passing and turnovers into a per-minute value.
+   ORTG - points produced per 100 possessions. Efficiency with the ball.
+   DRTG - points allowed per 100 possessions. INVERTED: a fall is an improvement, and every
+          arrow, colour and verdict below reflects QUALITY, not the raw direction of the
+          number. The delta keeps its true sign, so a defence tightening by four reads
+          "-4.0" in green with an up arrow, and the hint under DRTG says why.
+
+   WHY A NOISE BAND AND NOT A FIXED THRESHOLD. Five practices is a small sample and these
+   three metrics swing hard over short stints - the PER comment above records a seven-minute
+   night producing -12.8. A flat "up by 2 = improving" rule would label half the roster
+   every week. So a move has to clear BOTH:
+
+     1. an absolute floor, so a statistically real but trivial drift is not oversold, and
+     2. the standard error of the difference between the two means, built from the player's
+        OWN game-to-game spread. A man whose ORTG bounces 25 points a night needs a much
+        bigger move to earn a verdict than one who lives within five.
+
+   Everything else is Holding, which is a finding in its own right - it is the honest answer
+   to "is he staying put".
+
+   Averages are MINUTE-WEIGHTED, matching how the rest of the app treats rate stats (see the
+   season-PER note above, and the ORTG/DRTG minute weights). A six-minute cameo should not
+   pull a five-practice read as hard as a full shift. */
+const FT_WINDOW = 5;
+
+/* THE TREND ARROW, DRAWN RATHER THAN TYPED.
+
+   A font glyph could not do this. What it has to show is a course that climbs, levels off,
+   and climbs again - progress made in steps rather than one smooth takeoff. That is the
+   shape of the finding: he moved, held, and moved again. A single straight diagonal says he
+   has been climbing the whole time, which for most of these players is not what happened,
+   and no glyph in any typeface bends twice.
+
+   Drawing it also settles the size question for good. Glyph arrows are stuck at whatever
+   the typeface gives them and read thin next to bold text; this one is authored at 26x16
+   and rendered at whatever width the caller asks for, with the stroke scaling to match.
+
+   Flat gets a straight run and a plain head - nothing changed, so nothing turns. Down is
+   the up path mirrored, level first and then breaking away beneath it.
+
+   Colour comes from currentColor, so the existing .ft-arrow rules keep driving it and there
+   is no second place where green, grey and red are decided. */
+const FT_ARROW_PATHS = {
+  /* Three moves, in this order: a diagonal climb, a short level stretch, then a second climb
+     into the head. Rise, pause, rise - which is what "incremental" means here and what these
+     players' numbers actually do. The first version was flat-then-diagonal, a single bend,
+     and it read as one continuous takeoff rather than as progress made in steps.
+
+     The level stretch runs about a quarter of the width. It has been tuned in both
+     directions: at six units it read as a bracket rather than an arrow, at three and a half
+     the pause barely registered at the 20px the tile chips draw it. Five is where the step
+     is legible small and the shape still reads as one arrow. */
+  up:   'M2,13 L7.5,9 H12.5 L21,3  M15,3 H21 V9',
+  flat: 'M2,8 H20  M16,3.5 L21,8 L16,12.5',
+  down: 'M2,3 L7.5,7 H12.5 L21,13  M15,13 H21 V7',
+};
+
+function ftArrowSvg(dir, w) {
+  const d = FT_ARROW_PATHS[dir] || FT_ARROW_PATHS.flat;
+  const h = Math.round(w * 16 / 26);
+  return `<svg class="ft-arrow-svg" width="${w}" height="${h}" viewBox="0 0 26 16" ` +
+    `xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
+    `<path d="${d}" fill="none" stroke="currentColor" stroke-width="2.6" ` +
+    `stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+/* One place turns a verdict class into an arrow direction, so the headline and the tiles
+   cannot disagree about which way a finding points. */
+function ftArrowDir(cls) {
+  return cls === 'is-up' ? 'up' : cls === 'is-down' ? 'down' : 'flat';
+}
+
+/* WHAT THE HOVER SHOWS, PER METRIC.
+
+   Each rating is fed by a different half of the box score, and printing the same ten stats
+   under all three would be worse than printing none: it would suggest DRTG cares how he
+   shot. So each metric lists only what actually enters ITS formula, read off the code that
+   computes it a few thousand lines up.
+
+     PER  - Hollinger uPER: minutes, makes and attempts, threes, free throws, total
+            rebounds, assists, turnovers, steals, blocks, fouls. Nearly the whole line,
+            which is the point of PER.
+     ORTG - Oliver's individual offensive rating: what he scored and how, plus assists,
+            offensive boards and turnovers. No defence in it at all.
+     DRTG - Oliver's individual defensive rating: defensive boards, steals, blocks and
+            fouls, on top of the team's own defensive rating that night. His shooting has
+            no bearing on it, so it is not shown.
+
+   Team context (team FGM, team possessions, the opponent's line) enters all three and is
+   not listed - it is the same for everyone on the floor that night, so it explains nothing
+   about why HIS number moved. */
+const FT_METRICS = [
+  { key: 'per',  label: 'PER',  dir: 'high', dp: 1, floor: 1.0,
+    hint: '', blurb: 'value per minute, 15 is average',
+    inputs: r => [
+      `${r.fgm}-${r.fga} FG`, `${r.fg3m}-${r.fg3a} 3P`, `${r.ftm}-${r.fta} FT`,
+      `${r.reb} REB`, `${r.ast} AST`, `${r.tov} TOV`,
+      `${r.stl} STL`, `${r.blk} BLK`, `${r.pf} PF`,
+    ] },
+  { key: 'ortg', label: 'ORTG', dir: 'high', dp: 0, floor: 2.0,
+    hint: '', blurb: 'points produced per 100 possessions',
+    inputs: r => [
+      `${r.pts} PTS`, `${r.fgm}-${r.fga} FG`, `${r.fg3m}-${r.fg3a} 3P`,
+      `${r.ftm}-${r.fta} FT`, `${r.ast} AST`, `${r.oreb} OREB`, `${r.tov} TOV`,
+    ] },
+  { key: 'drtg', label: 'DRTG', dir: 'low',  dp: 0, floor: 2.0,
+    hint: 'lower is better', blurb: 'points allowed per 100 possessions',
+    inputs: r => [
+      `${r.dreb} DREB`, `${r.stl} STL`, `${r.blk} BLK`, `${r.pf} PF`,
+    ] },
+];
+
+/* One row per practice he appeared in, oldest first. Entries are merged the same way the
+   game log merges them, so a practice split across both squads is one row, not two. */
+function _ftRows(playerName, chronoSessions) {
+  const out = [];
+  /* chronoSessions is the player's own practices oldest-first, which is exactly the list
+     the profile numbers "Practice 1..N" from - so the index IS the practice number and no
+     second numbering can drift away from the dropdown's. */
+  chronoSessions.forEach((sess, i) => {
+    const p = mergePlayerEntries(playerEntriesForSession(sess, playerName));
+    if (!p) return;
+    const n = k => p[k] || 0;
+    out.push({
+      sid:  sess.id,
+      num:  i + 1,
+      title: sess.title || '',
+      date: sess.date || '',
+      min:  p.min || 0,
+      per:  perForGame(sess.id, playerName),
+      ortg: p.ortg ?? null,
+      drtg: p.drtg ?? null,
+      // The box line, carried so a hover can show what fed the rating.
+      pts: n('pts'), fgm: n('fgm'), fga: n('fga'),
+      fg3m: n('fg3m'), fg3a: n('fg3a'), ftm: n('ftm'), fta: n('fta'),
+      reb: n('reb'), oreb: n('oreb'), dreb: n('dreb'),
+      ast: n('ast'), tov: n('tov'), stl: n('stl'), blk: n('blk'), pf: n('pf'),
+    });
+  });
+  return out;
+}
+
+/* Minute-weighted mean plus the raw values, skipping practices where the metric is blank -
+   a no-free-throw scrimmage leaves gaps rather than zeros, exactly as the trend chart does.
+   Minutes of zero fall back to a weight of 1 so a logged row is never silently dropped.
+
+   nEff is Kish's effective sample size, (sum w)^2 / sum w^2. Five practices only count as
+   five independent looks when the minutes are even; five where one is a 38-minute shift and
+   the rest are cameos carries less information than that, and nEff is what says so. It is
+   what the standard error below divides by, not the raw count. */
+function _ftAgg(rows, key) {
+  let num = 0, sw = 0, sw2 = 0; const vals = [], wts = [], kept = [];
+  for (const r of rows) {
+    const v = r[key];
+    if (v == null || !isFinite(v)) continue;
+    const w = r.min > 0 ? r.min : 1;
+    num += v * w; sw += w; sw2 += w * w; vals.push(+v); wts.push(w); kept.push(r);
+  }
+  /* kept runs parallel to vals - the practices that actually carried a number for this
+     metric. The sparkline plots vals and the hover reads kept, so point k and practice k
+     cannot come apart when a blank practice is skipped in the middle of a window. */
+  return {
+    mean: sw > 0 ? num / sw : null,
+    n: vals.length,
+    nEff: sw2 > 0 ? (sw * sw) / sw2 : 0,
+    vals, wts, kept, sw, sw2,
+  };
+}
+
+/* Spread across every practice, not just the window: the window is what is being judged,
+   and the noise estimate wants all the evidence it can get.
+
+   MINUTE-WEIGHTED, like the means it is compared against. An unweighted version was tried
+   first and it inverted the card's whole purpose: one player's 275 ORTG on a seven-minute
+   night pushed his noise band to 61 points, which buried a real 30-point slide as "Holding".
+   The cameo that cannot move the average must not be allowed to set the bar the average has
+   to clear. Weighting drops that same band to 51.
+
+   The denominator is the reliability form, sum(w) - sum(w^2)/sum(w), which is the weighted
+   analogue of the n-1 in a sample variance. It goes to zero on a single practice, and null
+   there means "no noise estimate", which leaves the metric's absolute floor as the bar. */
+function _ftSdW(agg) {
+  if (!agg || agg.n < 2 || agg.mean == null) return null;
+  const denom = agg.sw - agg.sw2 / agg.sw;
+  if (!(denom > 0)) return null;
+  let acc = 0;
+  for (let i = 0; i < agg.vals.length; i++) {
+    const d = agg.vals[i] - agg.mean;
+    acc += agg.wts[i] * d * d;
+  }
+  return Math.sqrt(acc / denom);
+}
+
+/* Minute-weighted least-squares slope THROUGH the window, and how much of a move that
+   slope adds up to across it.
+
+   This is the half a mean-vs-mean test cannot see, and the reason it is here is a real
+   case: a player whose PER read 36.6, 34.5, 3.4, 5.6, 10.4 across his last five. He fell
+   off a cliff, and yet the window's average against the practices before it came back
+   "Holding" - because the collapse happened INSIDE the window, so both halves of the
+   comparison were contaminated by it, and because a series that bimodal has a spread wide
+   enough to swallow its own trend. The slope reads the same five practices as -34 and calls
+   it what it is.
+
+   FOUR PRACTICES MINIMUM, and the degrees of freedom are effective practices, not minutes.
+   Both of those are corrections to a version that got a real read badly wrong. A player's
+   DRTG ran 127, 110, 77, 53, 75, 84 - a defence transformed, then easing back a little. His
+   last three were 53, 75, 84, and a line through three points fits them almost exactly, so
+   the slope came back +30 with an error of 1.3 and the tile called that as confidently as
+   anything on the page. It then out-argued a 35-point improvement measured over twice the
+   evidence. Three points do not make a trend, and a fit that clean through three points is
+   a property of the arithmetic rather than a fact about the player.
+
+   The error also has to be honest about how little a five-practice window contains. Scaling
+   the residual by the sum of MINUTES treated a window as if it held thirty-odd independent
+   observations; nEff - 2 is the real count, small enough that a slope has to be steep to
+   clear it. */
+function _ftSlope(rows, key) {
+  const pts = [];
+  rows.forEach((r, i) => {
+    const v = r[key];
+    if (v == null || !isFinite(v)) return;
+    pts.push({ i, v: +v, w: r.min > 0 ? r.min : 1 });
+  });
+  if (pts.length < 4) return null;
+
+  let sw = 0, sw2 = 0, swi = 0, swx = 0;
+  for (const p of pts) { sw += p.w; sw2 += p.w * p.w; swi += p.w * p.i; swx += p.w * p.v; }
+  if (!(sw > 0)) return null;
+  const ib = swi / sw, xb = swx / sw;
+
+  let Sii = 0, Six = 0;
+  for (const p of pts) { const di = p.i - ib; Sii += p.w * di * di; Six += p.w * di * (p.v - xb); }
+  if (!(Sii > 0)) return null;
+  const b = Six / Sii;
+
+  let sse = 0;
+  for (const p of pts) { const e = p.v - (xb + b * (p.i - ib)); sse += p.w * e * e; }
+  /* Effective practices less the two the line itself costs - an intercept and a slope. */
+  const nEff  = (sw * sw) / sw2;
+  const denom = nEff - 2;
+  if (!(denom > 0)) return null;
+  /* The minute normalisation that would make sse and Sii comparable cancels between them,
+     so it is not written out: both carry the same factor. */
+  const seB = Math.sqrt((sse / denom) / Sii);
+
+  /* Reported as a total move across the window rather than a per-practice rate: "-34 across
+     these five" is a number a coach can weigh, "-8.6 a practice" is one he has to multiply
+     first. y0 and y1 are where the fitted line starts and ends, which is how the tooltip
+     says it out loud - "he went from about 34 to about 0" lands where "-34.4 end to end"
+     did not. */
+  const span = pts[pts.length - 1].i - pts[0].i;
+  const y0 = xb + b * (pts[0].i - ib);
+  const y1 = xb + b * (pts[pts.length - 1].i - ib);
+  return { b, total: b * span, se: seB * span, n: pts.length, y0, y1 };
+}
+
+/* Sparkline: the window's values with the baseline drawn through as a dashed line, so the
+   comparison the verdict is making is visible rather than asserted. viewBox is sized close
+   to the rendered width, which keeps the non-uniform scaling from bending the dots. */
+function _ftSpark(vals, base, color, kept, metric) {
+  if (vals.length < 2) return '';
+  const W = 320, H = 36, P = 5;
+  const all = (base != null && isFinite(base)) ? vals.concat([base]) : vals.slice();
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.18; lo -= pad; hi += pad;
+
+  const n = vals.length - 1 || 1;
+  const x = i => P + (i / n) * (W - P * 2);
+  const y = v => P + (1 - (v - lo) / (hi - lo)) * (H - P * 2);
+
+  const baseLine = (base != null && isFinite(base))
+    ? `<line x1="${P}" y1="${y(base).toFixed(1)}" x2="${W - P}" y2="${y(base).toFixed(1)}"
+             stroke="rgba(255,255,255,0.30)" stroke-width="1" stroke-dasharray="3 3"
+             vector-effect="non-scaling-stroke"/>`
+    : '';
+  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  /* DOTS ARE ZERO-LENGTH ROUND-CAPPED STROKES, NOT CIRCLES.
+
+     The chart is drawn with preserveAspectRatio="none" so it fills whatever width the tile
+     happens to be, which means the viewBox is stretched horizontally - about 1.2x on a
+     desktop tile, less on a phone. A <circle> is stretched with it. At r=2 nobody could
+     see that; at the size these needed to grow to, every dot would be a visible oval, and
+     a different oval at each breakpoint.
+
+     A zero-length path with a round linecap draws a dot whose diameter is the STROKE width,
+     and vector-effect="non-scaling-stroke" takes stroke width out of the coordinate system
+     entirely - so it is measured in screen pixels and comes out perfectly round at any tile
+     width. Same trick the line above already uses to keep its own weight constant.
+
+     Each dot gets a halo in the tile's background colour first. Without it, dots that land
+     close together merge into one blob and the line passing behind them cuts them in half -
+     both of which get worse, not better, as the dots grow. */
+  const dot = (cx, cy, w, col) =>
+    `<path d="M${cx},${cy}L${cx},${cy}" stroke="${col}" stroke-width="${w}"
+           stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+
+  const dots = vals.map((v, i) => {
+    const last = i === vals.length - 1;
+    const cx = x(i).toFixed(1), cy = y(v).toFixed(1);
+    const w  = last ? 11 : 8;                      // the newest practice reads a size up
+    return dot(cx, cy, w + 3, '#242938') +
+           dot(cx, cy, w, last ? color : 'rgba(255,255,255,0.72)');
+  }).join('');
+
+  /* A FULL-HEIGHT COLUMN PER POINT, not a bigger dot.
+
+     The dots are 2px and the chart is 36px tall; asking anyone to land a cursor on one is
+     asking them not to bother. A column spanning the chart's height means the pointer only
+     has to be somewhere above or below the point, which is how every chart tooltip worth
+     using behaves. They are transparent and sit last so they take the hover from the dots.
+
+     The readout itself is built here, at draw time, and parked in _ftHover under a key the
+     column carries - the row and the point are already lined up in this loop, and looking
+     them up again from a handler is where an off-by-one would come from. */
+  const hits = (kept && metric) ? vals.map((v, i) => {
+    const row = kept[i];
+    if (!row) return '';
+    const id = metric.key + '_' + i;
+    window._ftHover[id] = _ftTipHtml(row, metric);
+    const bw = (W - P * 2) / (vals.length - 1 || 1);
+    return `<rect class="ft-dot-hit" x="${(x(i) - bw / 2).toFixed(1)}" y="0"
+                  width="${bw.toFixed(1)}" height="${H}" data-ft="${id}"
+                  onmouseenter="ftTipShow(this)" onmouseleave="ftTipHide()"
+                  onclick="ftTipShow(this)"/>`;
+  }).join('') : '';
+
+  return `<svg class="ft-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+               xmlns="http://www.w3.org/2000/svg">
+    ${baseLine}
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    ${dots}${hits}
+  </svg>`;
+}
+
+/* One practice, one metric: when it was, what he rated, and the box-score line that
+   produced that rating. The line is metric-specific - see FT_METRICS.inputs - because the
+   whole point of opening it is to see WHY the number is what it is, and stats the formula
+   never reads cannot answer that. */
+function _ftTipHtml(row, metric) {
+  const v    = row[metric.key];
+  const when = `Practice ${row.num}` +
+    (row.title ? ' \u2014 ' + escHtml(row.title) : '') +
+    (row.date  ? ' \u00b7 ' + escHtml(row.date)  : '');
+  const mins = (row.min || 0).toFixed(1) + "'";
+  const line = metric.inputs(row).join(' \u00b7 ');
+  return `<div class="ft-tip-when">${when}</div>
+    <div class="ft-tip-val">${metric.label} ${v == null ? '&mdash;' : (+v).toFixed(metric.dp)}</div>
+    <div class="ft-tip-line">${mins} \u00b7 ${escHtml(line)}</div>
+    <div class="ft-tip-note">${escHtml(metric.blurb)}${metric.dir === 'low' ? ', lower is better' : ''}</div>`;
+}
+
+/* Built fresh by every card render, keyed metric_index. Module scope rather than passed
+   around because the handlers are inline attributes on nodes that do not exist yet. */
+window._ftHover = window._ftHover || {};
+
+function ftTipShow(el) {
+  const tip = document.getElementById('ft-tip');
+  const html = (window._ftHover || {})[el.getAttribute('data-ft')];
+  if (!tip || !html) return;
+  ftArmTapAway();
+  tip.innerHTML = html;
+  tip.hidden = false;
+
+  /* Positioned against the CARD, which is the offset parent, so the tooltip can cross a
+     tile's edge without being clipped by it - the third tile's readout would otherwise run
+     off the right of its own box. Clamped to the card, and flipped below the chart when
+     there is not room above. */
+  const card = tip.parentElement;
+  const cr = card.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+
+  let left = er.left - cr.left + er.width / 2 - tw / 2;
+  left = Math.max(6, Math.min(left, cr.width - tw - 6));
+  let top = er.top - cr.top - th - 8;
+  if (top < 4) top = er.bottom - cr.top + 8;
+
+  tip.style.left = left + 'px';
+  tip.style.top  = top + 'px';
+}
+
+function ftTipHide() {
+  const tip = document.getElementById('ft-tip');
+  if (tip) tip.hidden = true;
+}
+
+/* On a phone the onclick opens the readout and nothing ever closes it - there is no
+   mouseout to leave with, so it would sit there over the footer until the next render. One
+   delegated listener, registered once: a tap anywhere that is not a point dismisses it. The
+   opening tap is safe because the click bubbles from the column itself, which the closest()
+   test matches. */
+let _ftTapAway = false;
+function ftArmTapAway() {
+  if (_ftTapAway) return;
+  _ftTapAway = true;
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (!t || !t.closest || !t.closest('.ft-dot-hit')) ftTipHide();
+  });
+}
+
+/* The section itself. Always computed across EVERY practice the player has, regardless of
+   the View scope above it - form is form, and a five-practice read scoped to one practice
+   is not a read. When a scope is active the footer says so, so the card is not mistaken for
+   something the dropdown filtered. */
+function buildFormTrend(playerName, chronoSessions, scopeActive) {
+  const rows = _ftRows(playerName, chronoSessions);
+  /* The heading names the window that was ACTUALLY used, not FT_WINDOW. A player six
+     practices in gets a three-practice window (see the split below), and a card headed
+     "Last 5" over a three-practice read is the kind of small lie that costs trust in the
+     rest of the page. */
+  const ftHead = label => `<div class="ft-top">
+      <div class="ft-title">${label}</div>`;
+
+  if (rows.length < 2) {
+    return `<div class="ft-card">${ftHead('Trending')}</div>
+      <div class="ft-none">Needs at least two practices before a direction can be read &mdash; he has ${rows.length}.</div>
+    </div>`;
+  }
+
+  /* The window is the last five. The baseline is everything before it, and it needs two
+     practices of its own to be worth comparing against. Below that, split his whole history
+     down the middle instead: a second half against a first half is still a direction, and
+     it beats holding the card back until practice eight. */
+  const prior = rows.slice(0, -FT_WINDOW);
+  let baseRows, winRows, cmpNote;
+  if (prior.length >= 2) {
+    baseRows = prior;
+    winRows  = rows.slice(-FT_WINDOW);
+    cmpNote  = `Last ${winRows.length} practices vs. his previous ${baseRows.length}`;
+  } else if (rows.length >= 4) {
+    const half = Math.floor(rows.length / 2);
+    baseRows = rows.slice(0, half);
+    winRows  = rows.slice(half);
+    cmpNote  = `His last ${winRows.length} practices vs. his first ${baseRows.length}`;
+  } else {
+    baseRows = null;
+    winRows  = rows;
+    cmpNote  = `${rows.length} practices logged`;
+  }
+
+  let score = 0, judged = 0;
+  const ups = [], downs = [], mixed = [], evens = [];
+  /* Cleared, not appended to: a stale key from the previously viewed player would sit
+     behind a column that now belongs to someone else. */
+  window._ftHover = {};
+
+  const tiles = FT_METRICS.map(m => {
+    const win  = _ftAgg(winRows, m.key);
+    const base = baseRows ? _ftAgg(baseRows, m.key)
+                          : { mean: null, n: 0, nEff: 0, vals: [], wts: [], sw: 0, sw2: 0 };
+    const sd   = _ftSdW(_ftAgg(rows, m.key));
+
+    const nowTxt = win.mean != null ? win.mean.toFixed(m.dp) : '&mdash;';
+    const hint   = m.hint ? `<span class="ft-hint">${m.hint}</span>` : '';
+    const sgn    = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(m.dp);
+
+    /* TWO SIGNALS, because "trending" is two questions wearing one word.
+
+       LEVEL is where he sits now against where he sat before - the step down from one
+       stretch to the next. SLOPE is the direction inside the window itself. A man can hold
+       his average and still be falling through it, and he can be flat across five practices
+       that all sit well under what he used to do. Either one alone misses a real case. */
+    const sl = _ftSlope(winRows, m.key);
+    const haveLevel = win.mean != null && base.mean != null && win.n >= 2 && base.n >= 1;
+
+    if (win.mean == null || (!haveLevel && !sl)) {
+      return `<div class="ft-tile" title="${escHtml(m.label + ' \u2014 ' + m.blurb + '. Not enough practices with a logged ' + m.label + ' to call a direction yet.')}">
+        <div class="ft-head"><span class="ft-metric">${m.label}${hint}</span>
+          <span class="ft-chip">No read</span></div>
+        <div class="ft-nums"><span class="ft-now">${nowTxt}</span>
+          <span class="ft-base">not enough practices to compare</span></div>
+      </div>`;
+    }
+
+    /* Each signal gets its own bar, and each bar is the larger of the metric's absolute
+       floor and the signal's own standard error - so a move has to be both real and worth
+       mentioning. z is the move in units of that bar: 1.0 is the line. Signs are flipped
+       for DRTG so that on both signals, positive always means HE GOT BETTER. */
+    let zLevel = 0, rawLevel = null, seLevel = 0, bandLevel = 0;
+    if (haveLevel) {
+      rawLevel  = win.mean - base.mean;
+      seLevel   = (sd != null && sd > 0 && win.nEff > 0 && base.nEff > 0)
+        ? sd * Math.sqrt(1 / win.nEff + 1 / base.nEff) : 0;
+      bandLevel = Math.max(m.floor, seLevel);
+      zLevel    = (m.dir === 'low' ? -rawLevel : rawLevel) / bandLevel;
+    }
+    let zSlope = 0, bandSlope = 0;
+    if (sl) {
+      bandSlope = Math.max(m.floor, sl.se);
+      zSlope    = (m.dir === 'low' ? -sl.total : sl.total) / bandSlope;
+    }
+
+    /* Whichever signal speaks loudest carries the verdict - unless they contradict each
+       other AND are of comparable strength, in which case neither does.
+
+       The comparable-strength half was missing at first, and it turned a headline finding
+       into a shrug: a defence 35 points better than it had been, which is about as loud as
+       this page gets, was filed as Mixed because a mild drift the other way inside the
+       window also cleared its own bar. Two signals disagreeing only means the read is
+       genuinely ambiguous when they are ARGUING - when one is three times the other, that
+       is not an argument, it is a footnote, and the footnote does not get a veto. Half the
+       strength of the louder one is the bar for being in the conversation at all. */
+    const aS = Math.abs(zSlope), aL = Math.abs(zLevel);
+    const louder = Math.max(aS, aL), quieter = Math.min(aS, aL);
+    const clash = louder >= 1 && quieter >= 1 && quieter >= 0.5 * louder &&
+                  Math.sign(zSlope) !== Math.sign(zLevel);
+    const bySlope = !clash && aS >= aL;
+    const z = clash ? 0 : bySlope ? zSlope : zLevel;
+
+    const dirCls = z >= 1 ? 'is-up' : z <= -1 ? 'is-down' : '';
+    const word   = dirCls === 'is-up' ? 'Improving' : dirCls === 'is-down' ? 'Declining'
+                 : clash ? 'Mixed' : 'Holding';
+    /* The same drawn shape as the headline, smaller. The two sit an inch apart and describe
+       the same movement at different scales; a tile drawing something else would read as a
+       different kind of claim. */
+    const arrow  = ftArrowSvg(ftArrowDir(dirCls), 20);
+    const color  = dirCls === 'is-up' ? '#22c55e' : dirCls === 'is-down' ? '#ef4444' : '#94a3b8';
+
+    /* Mixed scores zero, like Holding, but it is not the same finding and the summary line
+       must not call it one: Holding means nothing moved, Mixed means two things moved
+       against each other. Collapsing them would report a contradiction as calm. */
+    judged++;
+    if (dirCls === 'is-up')        { score++; ups.push(m.label); }
+    else if (dirCls === 'is-down') { score--; downs.push(m.label); }
+    else if (clash)                { mixed.push(m.label); }
+    else                           { evens.push(m.label); }
+
+    /* The second line shows the number that actually earned the verdict, so the chip and
+       the figure beside it can never appear to disagree.
+
+       Spelled out in words, because the compact form was not readable. "149 +37 vs 112" is
+       three numbers and a preposition, and it does not say which is now, which is before,
+       or what the middle one is doing there - it needs the reader to already know the
+       layout. "up 37 from 112 before" says it once, in the order a person would say it out
+       loud. The up/down here describes the NUMBER moving, not whether he got better: DRTG
+       falling is "down 37" wearing a green Improving chip, and the "lower is better" tag
+       beside the metric name is what joins those two facts. */
+    const showSlope = bySlope && sl;
+    const moved     = showSlope ? sl.total : haveLevel ? rawLevel : null;
+    const moveWord  = moved == null ? '' : moved >= 0 ? 'up' : 'down';
+    const deltaTxt  = moved == null ? '&mdash;'
+                    : `${moveWord} ${Math.abs(moved).toFixed(m.dp)}`;
+    const underTxt  = showSlope ? `trend over these ${sl.n}`
+                    : haveLevel ? `from ${base.mean.toFixed(m.dp)} before`
+                    : 'no earlier practices';
+
+    /* PLAIN ENGLISH, no arithmetic on show.
+
+       The first version of this quoted the machinery - "a move of -13.6 against a bar of
+       13.9", "moved -34.4 end to end", "the larger of the 1.0 floor and that signal's own
+       minute-weighted error". Every one of those numbers is real and none of them is what a
+       coach wants at 6am. The threshold in particular is the wrong thing to print: nobody
+       needs to know the bar was 13.9, they need to know whether the move was bigger than
+       this player normally bounces around. So that is the sentence now, and the numbers
+       that stay are the ones he would say out loud anyway - what he averaged, what he
+       averaged before, and where the line starts and finishes. */
+    const about = v => 'about ' + Math.round(v);
+    const nP    = n => n + ' practice' + (n === 1 ? '' : 's');
+
+    const lines = [`${m.label} \u2014 ${m.blurb}${m.dir === 'low' ? ', lower is better' : ''}.`];
+    lines.push(haveLevel
+      ? `He averaged ${win.mean.toFixed(m.dp)} over his last ${nP(win.n)}, ` +
+        `${rawLevel >= 0 ? 'up' : 'down'} from ${base.mean.toFixed(m.dp)} before that.`
+      : `He averaged ${win.mean.toFixed(m.dp)} over his last ${nP(win.n)}. ` +
+        `No earlier practices to compare it against.`);
+    if (sl) lines.push(`Across those ${sl.n} he went from ${about(sl.y0)} to ${about(sl.y1)}.`);
+
+    lines.push(clash
+      ? `Those two point opposite ways \u2014 one says better, the other says worse \u2014 ` +
+        `so there is no call to make. Mixed.`
+      : dirCls
+        ? `${bySlope ? `That ${sl.total >= 0 ? 'climb' : 'slide'} across those ${sl.n}` : 'That step'} is bigger than he ` +
+          `normally bounces around from practice to practice, so it counts as a real ` +
+          `change. ${word}.`
+        : `Nothing here is bigger than he normally bounces around from practice to ` +
+          `practice, so it does not count as a change. Holding.`);
+
+    const tip = lines.join(' ');
+
+    return `<div class="ft-tile ${dirCls}" title="${escHtml(tip)}">
+      <div class="ft-head">
+        <span class="ft-metric">${m.label}${hint}</span>
+        <span class="ft-chip ${dirCls}">${word}<span class="ft-chip-arrow">${arrow}</span></span>
+      </div>
+      <div class="ft-nums">
+        <span class="ft-now">${nowTxt}</span>
+        <span class="ft-base">avg, last ${win.n}</span>
+      </div>
+      <div class="ft-nums ft-move">
+        <span class="ft-delta ${dirCls}">${deltaTxt}</span>
+        <span class="ft-base">${underTxt}</span>
+      </div>
+      ${_ftSpark(win.vals, haveLevel ? base.mean : null, color, win.kept, m)}
+    </div>`;
+  }).join('');
+
+  /* One headline for the three tiles. Two metrics moving the same way is a direction and
+     gets Trending; one on its own is real but thin, and gets Slightly; nothing moving is the
+     answer "he is where he was". The two strengths have to be tellable apart at a glance
+     from across a room, which is the whole job of this line. */
+  const vCls = score > 0 ? 'is-up' : score < 0 ? 'is-down' : '';
+  /* Big, because this is the one mark on the card that has to carry from across a gym. */
+  const vArrow = ftArrowSvg(ftArrowDir(vCls), 30);
+  const vTxt = !judged      ? 'Not enough data'
+             : score >=  2  ? 'Trending up'
+             : score ===  1 ? 'Slightly up'
+             : score === -1 ? 'Slightly down'
+             : score <= -2  ? 'Trending down'
+             : 'Holding steady';
+
+  const listOf = a => a.length === 1 ? a[0]
+                    : a.length === 2 ? a[0] + ' and ' + a[1]
+                    : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  const parts = [];
+  if (ups.length)   parts.push(listOf(ups)   + ' up');
+  if (downs.length) parts.push(listOf(downs) + ' down');
+  if (mixed.length) parts.push(listOf(mixed) + ' mixed');
+  if (evens.length) parts.push(listOf(evens) + ' holding');
+  const summary = parts.length ? parts.join(', ') + '.' : '';
+
+  return `<div class="ft-card">
+    <div id="ft-tip" class="ft-tip" hidden></div>
+    ${ftHead('Trending &mdash; Last ' + winRows.length)}<div class="ft-verdict ${vCls}">${vTxt}<span class="ft-arrow">${vArrow}</span></div></div>
+    <div class="ft-grid">${tiles}</div>
+    <div class="ft-foot">
+      ${summary ? `<span class="ft-sum">${escHtml(summary)}</span> ` : ''}${escHtml(cmpNote)},
+      with longer practices counting for more. Each metric is read two ways &mdash; where he
+      sits now against where he sat before, and which way he is going inside the window
+      itself &mdash; and a move only counts when it is bigger than he normally bounces around
+      from practice to practice. Anything smaller reads Holding. The dashed line on each
+      chart is his earlier average. Hover a tile for the verdict, or a point on a chart for
+      that practice and the line behind the number.${scopeActive
+        ? ' Always across every practice \u2014 the View filter above does not narrow it.' : ''}
+    </div>
+  </div>`;
 }
 
 /* Absolute PPS thresholds, shared by the zone table and the tendencies table:
@@ -10941,12 +11949,18 @@ function trWavg(rows, key) {
    whose Shot Tendencies table right below already speaks in the fourteen zones actually
    drawn on the court. One page, one set of names.
 
-   So the drawn zone wins, via the same znZoneForShot() the tendencies table uses, and the
-   gate drops to four attempts - a zone is the thing worth being specific about, and the
-   hedging ladder already marks a thin one as thin. The fixed fallback grid is only for a
-   shot that lands outside every drawn zone. */
+   So the drawn zone wins, via the same lookup the tendencies table uses, and the gate drops
+   to four attempts - a zone is the thing worth being specific about, and the hedging ladder
+   already marks a thin one as thin. The fixed fallback grid is only for a shot that lands
+   outside every drawn zone.
+
+   ZONES ONLY, tracking the table below it. This sentence and that table sit an inch apart
+   and are the same claim in two forms; if one named a region and the other the zone under
+   it, the page would contradict itself in the reader's peripheral vision and never say so.
+   "One page, one set of names" is the rule, and which carving it names is a decision the
+   two of them have to take together. */
 function trZoneName(e) {
-  const z = (typeof znZoneForShot === 'function') ? znZoneForShot(e) : null;
+  const z = (typeof znZoneOnlyForShot === 'function') ? znZoneOnlyForShot(e) : null;
   if (z && z.name) return z.name;
   return TR_ZONE[e.zone] ? TR_ZONE[e.zone].replace(/^the /, '') : null;
 }
@@ -11490,9 +12504,115 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
    the way scFilter.view and tendMin do. */
 let psChartView = 'dots';
 
+/* WHERE HIS SHOTS COME FROM, AND WHETHER THEY PAY.
+
+   Follows whichever court view is showing: the Regions map gets region bars, everything
+   else gets the drawn zones. That pairing is the point - a panel that stayed on one carving
+   while the court switched to the other would put two different answers about the same shot
+   side by side, which is the failure the zones/regions split exists to prevent.
+
+   The bar is his FG% in that spot, matching the Shot Type Breakdown's bar lower down the
+   page. The tick on it is the TEAM's FG% in that same spot, which is the only thing that
+   makes his number a judgement: 43% from the corner is good or bad depending entirely on
+   what everyone else gets there, and the gap between fill and tick says which without
+   printing a second figure.
+
+   Only spots he has actually shot from get a bar. Fourteen zones against fifty attempts
+   leaves most of them empty, and a stack of zero-length bars is not a breakdown - it is the
+   absence of one, taking the room the real ones need. The count goes in the footer. */
+function buildShotBreakdown(shots, pool) {
+  const useRegions = psChartView === 'regions' && (State.regions || []).length > 0;
+  const shapes = useRegions
+    ? (State.regions || []).map(r => ({ id: r.id, name: r.name }))
+    : (State.zones   || []).map(z => ({ id: z.id, name: z.name }));
+
+  const cap = `<div class="ps-bd-cap">By ${useRegions ? 'region' : 'zone'}</div>`;
+  if (!shapes.length) {
+    return cap + `<div class="ps-bd-none">No ${useRegions ? 'regions' : 'zones'} drawn yet.</div>`;
+  }
+
+  const keyOf = useRegions
+    ? ev => { const r = rgRegionForShot(ev); return r ? r.id : null; }
+    : ev => { const z = znZoneOnlyForShot(ev); return z ? z.id : null; };
+
+  const mine = {}, team = {};
+  shapes.forEach(s => { mine[s.id] = { m: 0, a: 0 }; team[s.id] = { m: 0, a: 0 }; });
+
+  let outside = 0, totA = 0;
+  for (const ev of (shots || [])) {
+    const k = keyOf(ev);
+    if (!k || !mine[k]) { outside++; continue; }
+    mine[k].a++; totA++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') mine[k].m++;
+  }
+  for (const ev of (pool || [])) {
+    const k = keyOf(ev);
+    if (!k || !team[k]) continue;
+    team[k].a++;
+    if (ev.stat === '2fg_make' || ev.stat === '3fg_make') team[k].m++;
+  }
+
+  /* Frequency first: on a player page the question is what his shot diet actually IS, so
+     the spot he goes to most leads and the rest fall in behind it. */
+  const rows = shapes
+    .map(s => {
+      const t = mine[s.id], b = team[s.id];
+      return {
+        name: s.name, m: t.m, a: t.a,
+        pct:   t.a ? 100 * t.m / t.a : null,
+        bPct:  b.a ? 100 * b.m / b.a : null,
+        share: totA ? 100 * t.a / totA : null,
+      };
+    })
+    .filter(r => r.a > 0)
+    .sort((x, y) => y.a - x.a || (y.pct ?? -1) - (x.pct ?? -1));
+
+  if (!rows.length) return cap + '<div class="ps-bd-none">No charted attempts in this scope.</div>';
+
+  const list = rows.map(r => {
+    const tick = r.bPct != null
+      ? `<div class="ps-bd-tick" style="left:calc(${r.bPct.toFixed(1)}% - 1px);"
+              title="Team ${r.bPct.toFixed(1)}% here"></div>`
+      : '';
+    const tip = `${r.name} \u2014 ${r.m}/${r.a}` +
+      (r.pct != null ? ` (${r.pct.toFixed(1)}%)` : '') +
+      (r.share != null ? `, ${r.share.toFixed(1)}% of his attempts` : '') +
+      (r.bPct != null
+        ? `. Team here ${r.bPct.toFixed(1)}% \u2014 he is ` +
+          `${r.pct >= r.bPct ? '+' : '\u2212'}${Math.abs(r.pct - r.bPct).toFixed(1)} on them.`
+        : '. No team attempts here to compare against.');
+    return `<div class="ps-bd-item" title="${escHtml(tip)}">
+      <div class="ps-bd-top">
+        <span class="ps-bd-nm">${escHtml(r.name)}</span>
+        <span class="ps-bd-pct">${r.pct != null ? Math.round(r.pct) + '%' : '&mdash;'}</span>
+      </div>
+      <div class="ps-bd-track">
+        <div class="ps-bd-fill" style="width:${Math.max(0, Math.min(100, r.pct || 0)).toFixed(1)}%;"></div>
+        ${tick}
+      </div>
+      <div class="ps-bd-sub"><span>${r.m}-${r.a}</span><span>${r.share != null ? Math.round(r.share) + '% of FGA' : ''}</span></div>
+    </div>`;
+  }).join('');
+
+  const emptied = shapes.length - rows.length;
+  const notes = [
+    emptied ? `${emptied} ${useRegions ? 'region' : 'zone'}${emptied === 1 ? '' : 's'} untouched` : '',
+    outside ? `${outside} outside every ${useRegions ? 'region' : 'zone'}` : '',
+  ].filter(Boolean).join(' \u00b7 ');
+
+  return cap +
+    `<div class="ps-bd-list">${list}</div>` +
+    `<div class="ps-bd-foot">Bar is his FG% here; the tick is the team\u2019s.` +
+    (notes ? ` ${escHtml(notes)}.` : '') + `</div>`;
+}
+
 function _psCourtSvg(shots) {
-  return psChartView === 'zones' ? buildZoneHeatSvg(shots)
-       : psChartView === 'heat'  ? buildHeatSvg(shots)
+  return psChartView === 'zones'   ? buildZoneHeatSvg(shots)
+       : psChartView === 'heat'    ? buildHeatSvg(shots)
+       /* pool is every player's shots over the same practices - the baseline this man is
+          measured against. scale is unused in 'vsavg', which colours by the gap to the team
+          rather than by a points-per-shot ramp, so it is not computed. */
+       : psChartView === 'regions' ? buildRegionFgSvg(shots, window._psPool || shots, null, 'vsavg')
        : buildCourtSvg(shots);
 }
 
@@ -11502,10 +12622,15 @@ function _psCourtSvg(shots) {
    at the thing they just clicked. The shots are stashed at render time for exactly this. */
 function psSetChartView(view) {
   psChartView = view;
+  if (view === 'regions' && !(State.regions || []).length) psChartView = 'dots';
   const box = document.getElementById('ps-court');
   if (box) box.innerHTML = _psCourtSvg(window._psShots || []);
+  /* Redrawn with the court: the panel follows the view, so a toggle that moved only the map
+     would leave zone bars under a region chart. */
+  const bd = document.getElementById('ps-breakdown');
+  if (bd) bd.innerHTML = buildShotBreakdown(window._psShots || [], window._psPool);
   document.querySelectorAll('#ps-court-pills .sc-pill').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === view));
+    b.classList.toggle('active', b.dataset.view === psChartView));
 }
 
 function buildShotTendencies(fgEvents) {
@@ -11514,7 +12639,12 @@ function buildShotTendencies(fgEvents) {
     const types = (Array.isArray(ev.shotTypes) && ev.shotTypes.length)
       ? ev.shotTypes.slice() : (ev.shotType ? [ev.shotType] : []);
     if (!types.length) continue;                       // untagged shots tell us nothing
-    const z = znZoneForShot(ev);
+    /* znZoneOnlyForShot, not znZoneForShot: this table is about the FLOOR. A region drawn
+       over the restricted area would otherwise rename every rim row after itself, and the
+       zone rows it covered would go quiet - the table would still add up, but it would stop
+       describing the fourteen shapes actually drawn on the court, which is the only reason
+       it is worth reading. */
+    const z = znZoneOnlyForShot(ev);
     const zoneName = z ? z.name
       : (ev.zone && ZONE_DEFS[ev.zone] ? ZONE_DEFS[ev.zone].label : 'Unzoned');
     /* Order-independent: sorting means Drive+Layup and Layup+Drive are the same
@@ -11782,14 +12912,33 @@ function renderPlayerProfile(playerName) {
   );
   /* Stashed for psSetChartView, which redraws the court without a full profile re-render. */
   window._psShots = allShots;
-  const PS_VIEWS = [['dots','Dots'], ['heat','Heat'], ['zones','Zones']];
+
+  /* The Regions map compares him to the team in each region, so it needs everyone's shots
+     over the SAME practices he is being shown for - not the whole season, or a man scoped
+     to one practice would be measured against games he was not in. Hidden players stay out
+     of the baseline for the same reason they stay out of every other one. */
+  window._psPool = sessionsWithPlayer.flatMap(s =>
+    (s.eventLog || []).filter(ev =>
+      ['2fg_make','2fg_miss','3fg_make','3fg_miss'].includes(ev.stat) &&
+      !isHiddenPlayer(ev.player)
+    )
+  );
+
+  /* Regions only earns a pill when regions exist. With none drawn the builder falls back to
+     the zone layer, which would put a second button on screen that draws the same map as
+     the one beside it. */
+  const PS_VIEWS = [['dots','Dots'], ['heat','Heat'], ['zones','Zones']]
+    .concat((State.regions || []).length ? [['regions','Regions']] : []);
   const courtHtml = allShots.length > 0
     ? `<div id="ps-court-pills" class="sc-filter-group" style="margin-bottom:8px;">
          ${PS_VIEWS.map(([v, lbl]) =>
            `<button class="sc-pill${psChartView === v ? ' active' : ''}" data-view="${v}"
                     onclick="psSetChartView('${v}')">${lbl}</button>`).join('')}
        </div>
-       <div id="ps-court" style="max-width:340px;margin-top:4px;">${_psCourtSvg(allShots)}</div>`
+       <div class="ps-court-row">
+         <div id="ps-court" style="flex:0 0 340px;max-width:340px;margin-top:4px;">${_psCourtSvg(allShots)}</div>
+         <div id="ps-breakdown" class="ps-breakdown">${buildShotBreakdown(allShots, window._psPool)}</div>
+       </div>`
     : `<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No shots with location data yet.</div>`;
 
   // Game log rows per session
@@ -11952,6 +13101,8 @@ function renderPlayerProfile(playerName) {
         ${topBar}
       </div>
     </div>
+
+    ${buildFormTrend(playerName, chronological, !!scopedSession)}
 
     <div class="profile-tab-bar">
       <button class="profile-tab active" id="ptab-overview" onclick="switchProfileTab('overview')">Overview</button>
@@ -18708,6 +19859,249 @@ function confirmEndQuarter() {
 
   // Prompt for next quarter after brief delay
   setTimeout(() => promptQuarterSetup(), 400);
+}
+
+/* ============================================================
+   AMEND A QUARTER'S END CLOCK  (the counterpart to confirmEndQuarter)
+
+   WHY THIS EXISTS: the End Quarter box defaults to 0:00, so the wrong number goes in
+   whenever a period is stopped early — and until now there was no way to take it back
+   short of the DevTools console.
+
+   WHY IT IS NOT A ONE-FIELD EDIT: confirmEndQuarter spends its single `rem` value in two
+   places that nothing downstream reconciles.
+     1. closeActiveSegment(rem) closes the open lineup stint. Minutes come from
+        lineupSegments and NOWHERE else (calcPlayerSeconds → stintSeconds), so a wrong
+        end hands or steals time from all ten players who were on the floor.
+     2. quarters[] stores timeRemaining and playedDuration. getSessionPlayedSeconds sums
+        that array, which is the MIN% denominator.
+   Fix one and you break the invariant that proves the other: every stint in a quarter must
+   sum EXACTLY to that quarter's playedDuration. So both move together, here, once.
+
+   Recompute All Stats cannot do this job — it rebuilds teamStats/playerStats from the
+   event logs and never touches quarters[] or lineupSegments, which is where both numbers
+   live. Same reason the inverted-stint repair had to be its own thing.
+============================================================ */
+
+/* Everything an amendment would do, worked out WITHOUT writing anything — the preview and
+   the save both read this, so what the coach is shown and what actually happens can never
+   drift apart. Returns {ok:false, error} for anything it refuses to guess at. */
+function qePlan(session, quarterNum, newRem) {
+  const fail = error => ({ ok: false, error });
+  if (!session) return fail('No live practice is open.');
+
+  const q = (session.quarters || [])[quarterNum - 1];
+  if (!q || q.number !== quarterNum) return fail(`Quarter ${quarterNum} has not been ended yet.`);
+
+  const duration = Math.max(0, Number(q.duration) || 0);
+  if (newRem == null || !isFinite(newRem)) return fail('Enter the clock as MM:SS — e.g. 0:59.');
+  if (newRem < 0 || newRem > duration) {
+    return fail(`The clock has to read between 0:00 and ${fmtClockRemain(duration)}.`);
+  }
+
+  /* closeActiveSegment() closes the LAST OPEN stint, and stints are pushed in play order,
+     so the one this quarter ended on is the last tagged with it. Found by shape, never by
+     index: a retroactive sub splices segments and any stored position drifts. */
+  const qSegs = (session.lineupSegments || []).filter(s => s.quarter === quarterNum);
+  const seg   = qSegs[qSegs.length - 1];
+  if (!seg) return fail(`No lineup stint is recorded for Q${quarterNum}, so nothing was closed at the buzzer.`);
+  if (seg.endTimeSecs === null) return fail(`Q${quarterNum} still has an open stint — end the quarter first.`);
+
+  /* The game clock counts DOWN, so a stint must end at a SMALLER number than it started.
+     A sub inside the last minute makes some end clocks impossible, and stintSeconds() would
+     score the result as zero rather than complain — so refuse here, where it can be said. */
+  if (seg.startTimeSecs != null && newRem >= seg.startTimeSecs) {
+    return fail(`The last substitution of Q${quarterNum} was at ${fmtClockRemain(seg.startTimeSecs)}, so the ` +
+                `quarter cannot end at ${fmtClockRemain(newRem)} — the clock would run backwards. ` +
+                `Correct that substitution first.`);
+  }
+
+  const oldRem = Math.max(0, Number(q.timeRemaining) || 0);
+  return {
+    ok: true, q, seg, quarterNum, duration, newRem, oldRem,
+    oldPlayed: getQuarterPlayedSeconds(q),
+    newPlayed: Math.max(0, duration - newRem),
+    delta:     newRem - oldRem,          // > 0 = quarter shortens, players lose that time
+    lineupA:   seg.lineupA || [],
+    lineupB:   seg.lineupB || [],
+  };
+}
+
+/* The invariant that proves an amendment landed: a quarter's stints must sum to exactly its
+   playedDuration. Inverted stints contribute nothing here for the same reason
+   stintSeconds() gives them nothing — a backwards stint measures no real basketball. */
+function qeStintSum(session, quarterNum) {
+  return (session.lineupSegments || [])
+    .filter(s => s.quarter === quarterNum)
+    .reduce((n, s) => {
+      if (s.endTimeSecs == null || s.startTimeSecs == null) return n;
+      if (s.endTimeSecs > s.startTimeSecs) return n;
+      return n + (s.startTimeSecs - s.endTimeSecs);
+    }, 0);
+}
+
+/* Which practice the open editor is amending. A completed practice lives in State.sessions
+   and an in-progress one in State.liveSession; they persist through different doors, so the
+   editor has to know which it is holding — the same split _persistScoreOverride handles. */
+let qeSessionId = null;
+
+function qeSession() {
+  const live = State.liveSession;
+  if (!qeSessionId) return live;
+  if (live && live.id === qeSessionId) return live;
+  return (State.sessions || []).find(s => s.id === qeSessionId) || null;
+}
+
+function qeIsLive(session) {
+  return !!(session && State.liveSession && State.liveSession.id === session.id);
+}
+
+/* Open the editor. quarterNum null = the most recent quarter, which is what the scorebar
+   chip means and is nearly always the one that was mistyped. sessionId null = the live
+   practice; the Box Score passes an id so a finished practice can be corrected too. */
+function qeOpen(quarterNum, sessionId) {
+  qeSessionId = sessionId || (State.liveSession ? State.liveSession.id : null);
+  const session = qeSession();
+  if (!session) { showToast('No live practice open', 'warning'); return; }
+  const recorded = session.quarters || [];
+  if (!recorded.length) { showToast('No quarter has been ended yet — nothing to amend', 'warning', 3000); return; }
+
+  const target = quarterNum || recorded[recorded.length - 1].number;
+  const sel = document.getElementById('qe-quarter-select');
+  sel.innerHTML = recorded.map(q =>
+    `<option value="${q.number}"${q.number === target ? ' selected' : ''}>Q${q.number} — ended ${fmtClockRemain(q.timeRemaining)}</option>`
+  ).join('');
+
+  qeRefresh(true);
+  showModal('modal-quarter-end');
+  /* Selected, not just focused: the coach is replacing this number, not appending to it. */
+  const input = document.getElementById('qe-time-input');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+/* Redraw the summary and the preview. fromSelect resets the input to the quarter's CURRENT
+   end clock — switching quarters with a half-typed time in the box would otherwise preview
+   an amendment to a quarter the coach never looked at. */
+function qeRefresh(fromSelect) {
+  const session = qeSession();
+  if (!session) return;
+  const qNum = Number(document.getElementById('qe-quarter-select').value) || 1;
+  const q    = (session.quarters || [])[qNum - 1];
+  const input = document.getElementById('qe-time-input');
+  if (fromSelect && q) input.value = fmtClockRemain(q.timeRemaining);
+
+  document.getElementById('qe-current').innerHTML = q
+    ? `Q${qNum} was a ${fmtClockRemain(q.duration)} quarter, recorded as ending with ` +
+      `<b>${fmtClockRemain(q.timeRemaining)}</b> left — ${fmtClockRemain(getQuarterPlayedSeconds(q))} played.`
+    : '';
+
+  const plan    = qePlan(session, qNum, parseTimeInput(input.value.trim()));
+  const preview = document.getElementById('qe-preview');
+  const saveBtn = document.getElementById('qe-save-btn');
+
+  if (!plan.ok) {
+    preview.innerHTML = `<span style="color:var(--danger)">${escHtml(plan.error)}</span>`;
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = 0.45;
+    return;
+  }
+  saveBtn.disabled = false;
+  saveBtn.style.opacity = 1;
+
+  if (plan.delta === 0) {
+    preview.innerHTML = 'No change — that is already the recorded end clock.';
+    return;
+  }
+
+  /* Spelling the minutes out is the whole point: the clock box looks like it sets the
+     length of a quarter, and it also silently sets ten players' minutes. */
+  const gained  = plan.delta < 0;
+  const swing   = fmtClockRemain(Math.abs(plan.delta));
+  const oldTot  = getSessionPlayedSeconds(session);
+  const newTot  = oldTot - plan.oldPlayed + plan.newPlayed;
+  const names   = t => (t.length ? t.join(', ') : '—');
+  preview.innerHTML =
+    `Q${qNum} played <b>${fmtClockRemain(plan.oldPlayed)} → ${fmtClockRemain(plan.newPlayed)}</b>, ` +
+    `practice ${fmtClockRemain(oldTot)} → ${fmtClockRemain(newTot)}.<br>` +
+    `On the floor at the buzzer — each ${gained ? 'gains' : 'loses'} <b>${swing}</b>:<br>` +
+    `<span style="color:#60a5fa">${escHtml(session.teamAName || 'White')}:</span> ${escHtml(names(plan.lineupA))}<br>` +
+    `<span style="color:#fb923c">${escHtml(session.teamBName || 'Black')}:</span> ${escHtml(names(plan.lineupB))}` +
+    (qeIsLive(session) ? ''
+      : `<br><span style="color:var(--warning)">This practice is finished, so its stat lines are rebuilt on save.</span>`);
+}
+
+function qeSave() {
+  const session = qeSession();
+  if (!session) { showToast('No practice to amend', 'warning'); return; }
+  const qNum = Number(document.getElementById('qe-quarter-select').value) || 1;
+  const plan = qePlan(session, qNum, parseTimeInput(document.getElementById('qe-time-input').value.trim()));
+  if (!plan.ok)    { showToast(plan.error, 'danger', 5000); return; }
+  if (!plan.delta) { hideModal('modal-quarter-end'); return; }
+
+  const live  = qeIsLive(session);
+  const label = `Q${qNum} end clock ${fmtClockRemain(plan.oldRem)} → ${fmtClockRemain(plan.newRem)}`;
+
+  /* A finished practice has no ↶ Revert behind it — that stack restores INTO liveSession,
+     which would resurrect a completed practice as the one in progress. So the confirm is
+     the safety step there. It is a fair trade: this edit is self-inverse (both fields are
+     derived from the one clock), so setting the old time back undoes it exactly. */
+  if (!live && !confirm(
+      `${label}\n\n` +
+      `Q${qNum} played ${fmtClockRemain(plan.oldPlayed)} → ${fmtClockRemain(plan.newPlayed)}, and the ten ` +
+      `players on the floor at the buzzer each ${plan.delta > 0 ? 'lose' : 'gain'} ` +
+      `${fmtClockRemain(Math.abs(plan.delta))}.\n\n` +
+      `This practice is finished, so every team and player stat for it is rebuilt from the ` +
+      `event log afterwards. Re-publish to update the site.`)) return;
+
+  /* Snapshotted before the first write and pushed after the last, so a refused amendment
+     never leaves a revert point behind — same rule fevAfterMutation follows. */
+  const snapshotBefore = live ? JSON.stringify(session) : null;
+
+  plan.q.timeRemaining  = plan.newRem;
+  plan.q.playedDuration = plan.newPlayed;
+  plan.seg.endTimeSecs  = plan.newRem;
+
+  if (live) {
+    fevPushUndo(snapshotBefore, label, session.id);
+    saveLiveSession(session);
+    /* Deliberately NOT the full fevAfterMutation: this edit moves a clock, not a position
+       in the event log, so undoGroups/redoGroups still mean exactly what they meant and the
+       live undo button keeps working mid-quarter. Lineups are replayed from the log, which
+       is untouched, so rebuildCurrentLineups() has nothing to do either. */
+    updateVtsLog();
+    renderLineupPlusMinus();
+    updateScorebar();
+  } else {
+    /* min and minPctVal are STORED at finalize, not derived on render, so nothing above
+       reaches a single displayed number until the stat blocks are rebuilt. minExact also
+       divides SHOT%, OR%, DR%, AST%, TO%, STL%, BLK%, USG% and the ORTG/DRTG minute
+       weights, so those move slightly for the ten players — that is the correction
+       arriving, not drift. */
+    session.teamStats   = computeTeamStats(session);
+    session.playerStats = computePlayerStats(session);
+    if (!persistSessions()) return;   // persistKey already warned
+    try { tabRenderers.log(); } catch (e) {}
+  }
+  /* Both paths, because the Box Score is one of the two places this editor opens FROM —
+     leaving the minutes that prompted the correction sitting there uncorrected would be
+     the one screen where the fix looks like it did nothing. */
+  try {
+    if (!document.getElementById('modal-boxscore').classList.contains('hidden')) renderBoxScoreView(session.id);
+  } catch (e) {}
+  hideModal('modal-quarter-end');
+
+  const sum = qeStintSum(session, qNum);
+  if (sum !== plan.newPlayed) {
+    /* Not a failure of this edit — an inverted or missing stint elsewhere in the quarter
+       would do it — but it is the one check that says the minutes now add up, so it is
+       never swallowed. */
+    showToast(`${label} — but Q${qNum} stints sum to ${fmtClockRemain(sum)} against ` +
+              `${fmtClockRemain(plan.newPlayed)} played. Check the stints before publishing.`, 'danger', 9000);
+    return;
+  }
+  showToast(`${label} — ${fmtClockRemain(Math.abs(plan.delta))} ` +
+            `${plan.delta > 0 ? 'off' : 'on to'} ten players' minutes` +
+            (live ? '' : '. Re-publish to update the site.'), 'success', live ? 5000 : 7000);
 }
 
 /* ── Substitution modal (multi-sub, both teams) ── */
