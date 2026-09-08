@@ -168,16 +168,15 @@ def classify(role):
     return "BIG" if lean >= 11 else "WING" if lean >= 5 else "GUARD"
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--exclude", default="", help="comma separated names to leave out")
-    ap.add_argument("--min-minutes", type=int, default=0,
-                    help="only consider players with at least this many practice minutes")
-    ap.add_argument("--options", type=int, default=2, help="how many splits to print")
-    args = ap.parse_args()
+def analyze(exclude=(), min_minutes=0, split_unknowns=False):
+    """Rate every available player and rank the splits from most to least even.
 
+    Returns a dict with the ratings, the per-player detail behind them, and the
+    candidate splits already ordered. `split_unknowns` forces thin-sample players
+    onto opposite teams so the uncertainty does not stack on one side.
+    """
     data, sessions, hidden = load_sessions()
-    excluded = hidden | {n.strip() for n in args.exclude.split(",") if n.strip()}
+    excluded = hidden | {n.strip() for n in exclude if n and n.strip()}
 
     stints, poss_on = build_stints(sessions)
     tot, games = box_totals(sessions)
@@ -186,7 +185,7 @@ def main():
     adj, lam = rapm(stints, everyone)
 
     pool = [p for p in everyone
-            if p not in excluded and tot[p]["min"] >= args.min_minutes]
+            if p not in excluded and tot[p]["min"] >= min_minutes]
     if len(pool) < 4:
         raise SystemExit("not enough players to build two teams")
 
@@ -242,6 +241,7 @@ def main():
 
     size = len(pool) // 2
     anchor, rest = pool[0], pool[1:]
+    unknown = {p for p in pool if p not in established}
     splits, seen = [], set()
     for combo in itertools.combinations(rest, size - 1):
         team_a = frozenset((anchor,) + combo)
@@ -249,6 +249,8 @@ def main():
             continue
         seen.add(team_a)
         team_b = frozenset(p for p in pool if p not in team_a)
+        if split_unknowns and len(unknown) == 2 and len(unknown & team_a) != 1:
+            continue
         fa, five_a = opening_five(team_a)
         fb, five_b = opening_five(team_b)
         if five_a is None or five_b is None:
@@ -265,24 +267,46 @@ def main():
     splits.sort(key=lambda s: s["obj"])
     tier = [s for s in splits if s["obj"] <= splits[0]["obj"] + 0.55]
     tier.sort(key=lambda s: role_gap(s["a"], s["b"]))
+    for s in tier:
+        s["role"] = role_gap(s["a"], s["b"])
+
+    return dict(sessions=sessions, stints=stints, pool=pool, rate=rate, pos=pos, role=role,
+                mins=mins, games=games, box=box, rapm=adj, lam=lam, excluded=excluded, hidden=hidden,
+                established=established, comps=comps, keys=keys,
+                pts_per_attempt=pts_per_attempt, splits=tier, rotation=rotation)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--exclude", default="", help="comma separated names to leave out")
+    ap.add_argument("--min-minutes", type=int, default=0,
+                    help="only consider players with at least this many practice minutes")
+    ap.add_argument("--options", type=int, default=2, help="how many splits to print")
+    ap.add_argument("--split-unknowns", action="store_true",
+                    help="keep the two thin-sample players on opposite teams")
+    args = ap.parse_args()
+
+    r = analyze(args.exclude.split(","), args.min_minutes, args.split_unknowns)
+    sessions, pool, rate, pos = r["sessions"], r["pool"], r["rate"], r["pos"]
+    established, comps, keys = r["established"], r["comps"], r["keys"]
 
     print(f"{len(sessions)} sessions ({sessions[0]['date']} to {sessions[-1]['date']}), "
-          f"{len(stints)} stints, {sum(s['poss'] for s in stints):.0f} possessions")
-    print(f"baseline {pts_per_attempt:.3f} pts per true-shooting attempt | RAPM lambda {lam}")
-    print(f"excluded: {', '.join(sorted(excluded)) or 'none'}")
+          f"{len(r['stints'])} stints, {sum(s['poss'] for s in r['stints']):.0f} possessions")
+    print(f"baseline {r['pts_per_attempt']:.3f} pts per true-shooting attempt | RAPM lambda {r['lam']}")
+    print(f"excluded: {', '.join(sorted(r['excluded'])) or 'none'}")
     print(f"\n{'Player':26}{'G':>3}{'MIN':>5}{'pos':>7}{'Box/100':>9}{'RAPM':>7}{'RATING':>8}")
     print("-" * 65)
     for p in sorted(pool, key=lambda x: -rate[x]):
         flag = " ~" if p not in established else ""
-        print(f"{p:26}{games[p]:>3}{mins[p]:>5.0f}{pos[p]:>7}"
-              f"{box[p]:>+9.1f}{adj[p]:>+7.1f}{rate[p]:>+8.2f}{flag}")
+        print(f"{p:26}{r['games'][p]:>3}{r['mins'][p]:>5.0f}{pos[p]:>7}"
+              f"{r['box'][p]:>+9.1f}{r['rapm'][p]:>+7.1f}{rate[p]:>+8.2f}{flag}")
     print("~ = thin sample, regressed hard toward the pool average")
 
-    for n, s in enumerate(tier[:args.options], 1):
+    for n, s in enumerate(r["splits"][:args.options], 1):
         a = sorted(s["a"], key=lambda p: (p not in s["five_a"], -rate[p]))
         b = sorted(s["b"], key=lambda p: (p not in s["five_b"], -rate[p]))
         print(f"\n{'=' * 78}\nOPTION {n}   rotation gap {s['rot']:.2f} | "
-              f"opening-five gap {s['start']:.2f} | role gap {role_gap(s['a'], s['b']):.2f}\n{'=' * 78}")
+              f"opening-five gap {s['start']:.2f} | role gap {s['role']:.2f}\n{'=' * 78}")
         print(f"  {'WHITE':<26}{'pos':<7}{'rtg':>6}   | {'BLACK':<26}{'pos':<7}{'rtg':>6}")
         for i in range(max(len(a), len(b))):
             def cell(team, i):
