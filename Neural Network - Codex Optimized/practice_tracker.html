@@ -2871,6 +2871,34 @@
        stay byte-identical - which the pre-commit hook requires. The code ships publicly;
        only the rendering is withheld, and the data never leaves localStorage either way. */
     .local-only { display: none; }
+    .rk-head { font-size: 12.5px; line-height: 1.6; color: var(--text-secondary);
+               background: var(--surface); border: 1px solid var(--border);
+               border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+    .rk-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rk-tbl th, .rk-tbl td { padding: 7px 9px; text-align: right;
+                             border-bottom: 1px solid var(--border); }
+    .rk-tbl th { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase;
+                 color: var(--text-dim); font-weight: 800; }
+    .rk-tbl td.nm, .rk-tbl th.nm { text-align: left; font-weight: 600; }
+    .rk-tbl td.rk { font-weight: 800; width: 34px; }
+    .rk-tbl tr.pick { cursor: pointer; }
+    .rk-tbl tr.pick:hover td { background: var(--surface); }
+    .rk-tbl tr.pick.on td { background: var(--surface); font-weight: 700; }
+    .rk-tbl tr.det td { padding: 0; background: var(--surface); }
+    .rk-up   { color: var(--success); font-weight: 800; }
+    .rk-down { color: var(--danger);  font-weight: 800; }
+    .rk-flat { color: var(--text-dim); }
+    .rk-excl { color: var(--text-dim); font-style: italic; }
+    .rk-det { padding: 14px 12px 18px; display: grid; gap: 12px; }
+    .rk-prose { font-size: 13px; line-height: 1.75; color: var(--text); max-width: 74ch; }
+    .rk-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .rk-chip { font-size: 11px; padding: 3px 8px; border-radius: 5px;
+               border: 1px solid var(--border); background: transparent; }
+    .rk-chip b { font-weight: 800; }
+    .rk-chip.hi { border-color: rgba(34,197,94,0.45); }
+    .rk-chip.lo { border-color: rgba(239,68,68,0.40); }
+    .rk-lab { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+              color: var(--text-dim); font-weight: 800; margin-bottom: 4px; }
     .bs-bar { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; flex-wrap: wrap; }
     .bs-div { width: 1px; height: 22px; background: var(--border); }
     .bs-sel { padding: 7px 10px; font-size: 13px; background: var(--surface); color: var(--text);
@@ -3908,6 +3936,7 @@
          records them, the player profile's Add Note button still adds them after the fact, and
          they still show in each player's Event Timeline. TO RE-ADD: uncomment the line below. -->
     <!-- <button class="nav-tab"        data-tab="notes"     onclick="switchTab('notes',this)">Notes</button> -->
+    <button class="nav-tab local-only" data-tab="rankings" onclick="switchTab('rankings',this)" title="Official player rankings, every edition. Local only - the data lives in this browser and is never published.">Rankings</button>
     <button class="nav-tab local-only" data-tab="bpmsheet" onclick="switchTab('bpmsheet',this)" title="Per-scrimmage BPM working. Local only - never rendered on the published site.">BPM Sheet</button>
     <button class="nav-tab editor-only" data-tab="zones" onclick="switchTab('zones',this)">Zones</button>
     <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
@@ -4314,6 +4343,10 @@
 
   <div id="tab-zones" class="tab-content">
     <div id="zones-root" class="page"></div>
+  </div>
+
+  <div id="tab-rankings" class="tab-content">
+    <div id="rankings-root" class="page"></div>
   </div>
 
   <div id="tab-bpmsheet" class="tab-content">
@@ -5275,6 +5308,7 @@ const tabRenderers = {
   lineups:    () => {},
   connections:() => {},
   bpmsheet:   () => {},
+  rankings:   () => {},
 };
 
 /* ============================================================
@@ -17030,6 +17064,154 @@ let notesFilter = { player: 'all', session: 'all', q: '' };
 
 function notesSetFilter(key, val) { notesFilter[key] = val; renderNotesView(); }
 
+/* ── Rankings (LOCAL ONLY) ──────────────────────────────────────────────────────
+   Every official edition, in a dropdown, with the board and each player's write-up.
+
+   The editions are NOT computed here and never will be. A ranking is a record of what was
+   known on a date - that is the whole reason the archive freezes them - so recomputing one
+   against today's larger sample would not update it, it would destroy it. They are exported
+   from the frozen archive (export_edition.py) and imported here as data.
+
+   The data lives in this browser's localStorage and nowhere else. It is not in the repo,
+   because the repo publishes to GitHub Pages and these are individual player evaluations.
+   The origin gate on the tab is a second line, not the only one. */
+const RK_KEY = 'pt_rankings';
+let _rkEd = null, _rkPlayer = null;
+
+function rkLoad() {
+  try {
+    const raw = localStorage.getItem(RK_KEY);
+    const a = raw ? JSON.parse(raw) : [];
+    return Array.isArray(a) ? a.sort((x, y) => y.number - x.number) : [];
+  } catch (e) { console.warn('rankings load failed:', e); return []; }
+}
+function rkSave(list) { return persistKey(RK_KEY, JSON.stringify(list)); }
+
+function rkPick(n)    { _rkEd = Number(n); _rkPlayer = null; renderRankingsView(); }
+function rkPlayer(n)  { _rkPlayer = (_rkPlayer === n ? null : n); renderRankingsView(); }
+
+function rkImportClick() { const el = document.getElementById('rk-file'); if (el) el.click(); }
+
+/* Merge by edition number, so re-importing after an erratum replaces that edition rather
+   than stacking a second copy of it beside the first. */
+function rkImportFile(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    let incoming;
+    try { incoming = JSON.parse(rd.result); }
+    catch (e) { showToast('That file is not valid JSON', 'danger'); return; }
+    const arr = Array.isArray(incoming) ? incoming : [incoming];
+    if (!arr.length || !arr[0] || typeof arr[0].number !== 'number' || !Array.isArray(arr[0].players)) {
+      showToast('That does not look like a rankings export', 'danger'); return;
+    }
+    const cur = rkLoad();
+    let added = 0, replaced = 0;
+    for (const e of arr) {
+      const i = cur.findIndex(x => x.number === e.number);
+      if (i >= 0) { cur[i] = e; replaced++; } else { cur.push(e); added++; }
+    }
+    if (rkSave(cur)) {
+      _rkEd = arr[0].number; _rkPlayer = null;
+      showToast('Imported ' + (added ? added + ' new' : '') + (added && replaced ? ', ' : '')
+                + (replaced ? replaced + ' replaced' : ''), 'success');
+      renderRankingsView();
+    }
+  };
+  rd.readAsText(f);
+  input.value = '';
+}
+
+function renderRankingsView() {
+  const root = document.getElementById('rankings-root');
+  if (!root) return;
+  if (!bpmSheetIsLocal()) {
+    root.innerHTML = '<div class="placeholder"><div>Rankings are local-only.</div></div>';
+    return;
+  }
+  const eds = rkLoad();
+  const bar = '<div class="bs-bar">'
+    + (eds.length
+        ? '<select class="bs-sel" onchange="rkPick(this.value)">'
+          + eds.map(e => '<option value="' + e.number + '"'
+              + (e.number === _rkEd ? ' selected' : '') + '>'
+              + escHtml(e.label + '  \u00b7  ' + (e.period || '')) + '</option>').join('')
+          + '</select>'
+        : '')
+    + '<button class="bs-tg" onclick="rkImportClick()">Import edition\u2026</button>'
+    + '<input type="file" id="rk-file" accept="application/json,.json" hidden '
+    + 'onchange="rkImportFile(this)">'
+    + '</div>';
+
+  if (!eds.length) {
+    root.innerHTML = bar + '<div class="placeholder"><div>No editions loaded yet.<br>'
+      + 'Run <code>python export_edition.py</code> in the rankings archive, then import '
+      + '<code>rankings_export.json</code>.</div></div>';
+    return;
+  }
+  if (_rkEd == null || !eds.some(e => e.number === _rkEd)) _rkEd = eds[0].number;
+  const ed   = eds.find(e => e.number === _rkEd);
+  const prev = eds.filter(e => e.number < ed.number).sort((a, b) => b.number - a.number)[0];
+  const prevRank = {};
+  if (prev) prev.players.forEach(p => { prevRank[p.name] = p.rank; });
+
+  const f = (v, d) => (v == null || !isFinite(v)) ? '&mdash;' : (+v).toFixed(d);
+  const o = [bar];
+  o.push('<div class="rk-head"><b>' + escHtml(ed.label) + '</b> &middot; '
+    + escHtml(ed.period || '') + (ed.filed ? ' &middot; filed ' + escHtml(ed.filed) : '')
+    + (ed.hasErrata ? ' &middot; <b>carries errata</b>' : '')
+    + '<br>' + ed.players.length + ' qualified players. SCORE is the mean rank across the '
+    + 'pillars that counted for him &mdash; lower is better. <i>excl.</i> in the on/off column '
+    + 'means his off-floor sample was too thin to score.'
+    + (prev ? ' The &#916; column is movement against ' + escHtml(prev.label) + '.' : '')
+    + '</div>');
+
+  o.push('<table class="rk-tbl"><thead><tr>'
+    + '<th class="rk">#</th>' + (prev ? '<th>&#916;</th>' : '')
+    + '<th class="nm">Player</th><th>Squad</th><th>W-L</th><th>Score</th>'
+    + '<th>PER</th><th>ORtg</th><th>DRtg</th><th>On/Off</th><th>OFF%</th>'
+    + '<th>Win%</th><th>Cast</th></tr></thead><tbody>');
+  for (const p of ed.players) {
+    const on = _rkPlayer === p.name;
+    let delta = '';
+    if (prev) {
+      const was = prevRank[p.name];
+      delta = was == null ? '<td class="rk-flat">new</td>'
+        : was === p.rank ? '<td class="rk-flat">&ndash;</td>'
+        : was > p.rank ? '<td class="rk-up">&#9650;' + (was - p.rank) + '</td>'
+        : '<td class="rk-down">&#9660;' + (p.rank - was) + '</td>';
+    }
+    o.push('<tr class="pick' + (on ? ' on' : '') + '" onclick="rkPlayer('
+      + JSON.stringify(p.name).replace(/"/g, '&quot;') + ')">'
+      + '<td class="rk">' + p.rank + '</td>' + delta
+      + '<td class="nm">' + (on ? '&#9662; ' : '&#9656; ') + escHtml(p.name) + '</td>'
+      + '<td>' + escHtml((p.squad || '').toUpperCase()) + '</td>'
+      + '<td>' + escHtml(p.record || '') + '</td>'
+      + '<td><b>' + f(p.score, 2) + '</b></td>'
+      + '<td>' + f(p.per, 1) + '</td><td>' + f(p.ortg, 1) + '</td><td>' + f(p.drtg, 1) + '</td>'
+      + '<td>' + (p.onoff == null ? '<span class="rk-excl">excl.</span>'
+                                  : (p.onoff >= 0 ? '+' : '\u2212') + Math.abs(p.onoff).toFixed(1)) + '</td>'
+      + '<td>' + f(p.offPct, 1) + '</td><td>' + f(p.winPct, 0) + '</td>'
+      + '<td>' + f(p.cast, 1) + '</td></tr>');
+    if (on) {
+      const chip = (c, cls) => '<span class="rk-chip ' + cls + '"><b>' + escHtml(c.stat)
+        + '</b> ' + escHtml(String(c.v)) + ' <span style="color:var(--text-dim)">vs '
+        + escHtml(String(c.med)) + '</span></span>';
+      o.push('<tr class="det"><td colspan="' + (prev ? 13 : 12) + '"><div class="rk-det">'
+        + (p.above.length ? '<div><div class="rk-lab">Above the roster median</div>'
+            + '<div class="rk-chips">' + p.above.map(c => chip(c, 'hi')).join('') + '</div></div>' : '')
+        + (p.below.length ? '<div><div class="rk-lab">Below the roster median</div>'
+            + '<div class="rk-chips">' + p.below.map(c => chip(c, 'lo')).join('') + '</div></div>' : '')
+        + '<div><div class="rk-lab">Write-up</div><div class="rk-prose">'
+        + escHtml(p.prose) + '</div></div>'
+        + '</div></td></tr>');
+    }
+  }
+  o.push('</tbody></table>');
+  root.innerHTML = o.join('');
+}
+
 /* ── BPM Sheet (LOCAL ONLY) ─────────────────────────────────────────────────────
    Myers' single-game calculator, one table per squad per practice, showing the whole
    chain rather than the answer: the box line, the true-shooting attempts behind it, the
@@ -17776,6 +17958,7 @@ function renderConnectionsView() {
 
 tabRenderers.connections = function() { renderConnectionsView(); };
 tabRenderers.bpmsheet    = function() { renderBpmSheet(); };
+tabRenderers.rankings    = function() { renderRankingsView(); };
 /* Hidden by default; only a local origin unhides the nav button. */
 revealLocalOnly();
 
