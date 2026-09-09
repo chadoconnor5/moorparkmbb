@@ -2871,18 +2871,46 @@
        stay byte-identical - which the pre-commit hook requires. The code ships publicly;
        only the rendering is withheld, and the data never leaves localStorage either way. */
     .local-only { display: none; }
-    .bpmx { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .bpmx th, .bpmx td { padding: 3px 6px; text-align: right; white-space: nowrap;
-                         border-bottom: 1px solid var(--border); }
-    .bpmx th { font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase;
-               color: var(--text-dim); font-weight: 800; }
-    .bpmx td.nm, .bpmx th.nm { text-align: left; font-weight: 600; }
-    .bpmx tr.sect td { background: var(--surface); font-weight: 800; text-align: left;
-                       text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.06em;
-                       color: var(--text-dim); }
-    .bpmx td.out { color: var(--text); font-weight: 800; }
-    .bpmx td.dnp { color: var(--text-dim); font-style: italic; }
-    .bpmx-ctx { font-size: 11px; color: var(--text-dim); margin: 2px 0 10px; }
+    .bs-bar { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; flex-wrap: wrap; }
+    .bs-div { width: 1px; height: 22px; background: var(--border); }
+    .bs-sel { padding: 7px 10px; font-size: 13px; background: var(--surface); color: var(--text);
+              border: 1px solid var(--border); border-radius: 6px; min-width: 290px; }
+    .bs-tg { padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+             background: transparent; color: var(--text-dim);
+             border: 1px solid var(--border); border-radius: 6px; }
+    .bs-tg.on { background: var(--text); color: var(--surface); border-color: var(--text); }
+    .bs-ctx { font-size: 12.5px; line-height: 1.6; color: var(--text-secondary);
+              background: var(--surface); border: 1px solid var(--border);
+              border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+    .bs-hint { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+    .bs-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .bs-tbl th, .bs-tbl td { padding: 7px 10px; text-align: right;
+                             border-bottom: 1px solid var(--border); }
+    .bs-tbl th { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+                 color: var(--text-dim); font-weight: 800; }
+    .bs-tbl td.nm, .bs-tbl th.nm { text-align: left; font-weight: 600; }
+    .bs-tbl td.out { font-weight: 800; }
+    .bs-tbl td.none { text-align: left; color: var(--text-dim); font-style: italic; }
+    .bs-tbl tr.sect td { background: var(--surface); text-align: left; font-weight: 800;
+                         font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+                         color: var(--text-dim); padding: 6px 10px; }
+    .bs-tbl tr.pick { cursor: pointer; }
+    .bs-tbl tr.pick:hover td { background: var(--surface); }
+    .bs-tbl tr.pick.on td { background: var(--surface); font-weight: 700; }
+    .bs-tbl tr.det td { padding: 0; }
+    .bs-der { display: grid; gap: 16px; padding: 14px 12px 20px; }
+    .bs-step { font-size: 13px; }
+    .bs-step > b { display: block; margin-bottom: 6px; font-size: 12px; letter-spacing: 0.04em;
+                   text-transform: uppercase; color: var(--text-dim); }
+    .bs-eq { font-variant-numeric: tabular-nums; line-height: 1.9; color: var(--text); }
+    .bs-terms { border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+    .bs-terms th, .bs-terms td { padding: 4px 14px 4px 0; text-align: right; }
+    .bs-terms th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em;
+                   color: var(--text-dim); }
+    .bs-terms td.nm, .bs-terms th.nm { text-align: left; }
+    .bs-terms td.on, .bs-terms th.on { text-align: left; color: var(--text-dim); font-size: 11px; }
+    .bs-terms td.pr { font-weight: 700; }
+    .bs-terms tr.tot td { border-top: 1px solid var(--border); font-weight: 800; }
     .ft-tg { display: inline-flex; gap: 3px; }
     .ft-tg-b { font: inherit; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
                padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border);
@@ -8104,7 +8132,7 @@ function bpmContext() {
     for (const t in a.byTeam) byPlayer[nm].byTeam[t] = mk(a.byTeam[t]);
   }
 
-  _bpmCache = { key, bySession, byPlayer, pos, role, baseline, lgORtg };
+  _bpmCache = { key, bySession, byPlayer, pos, role, baseline, lgORtg, centre };
   return _bpmCache;
 }
 
@@ -16958,6 +16986,65 @@ function bpmSheetIsLocal() {
   return h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
 }
 
+let _bsMode = 'daily', _bsSess = null, _bsTeam = 'a', _bsPlayer = null;
+function bsMode(m)   { _bsMode = m;   _bsPlayer = null; renderBpmSheet(); }
+function bsPick(id)  { _bsSess = id;  _bsPlayer = null; renderBpmSheet(); }
+function bsTeam(t)   { _bsTeam = t;   _bsPlayer = null; renderBpmSheet(); }
+function bsPlayer(n) { _bsPlayer = (_bsPlayer === n ? null : n); renderBpmSheet(); }
+
+/* THE DERIVATION, not a dump of it.
+
+   The first version printed all sixteen squad-practices at once in a twenty-seven column
+   table at 11px, which showed every number and explained none of them: inputs and outputs
+   sat side by side with the arithmetic between them left implicit. One view at a time now,
+   at a readable size, and picking a player opens the working - every coefficient, the
+   per-100 stat it multiplies, and the product - so the rating at the bottom can be added up
+   by hand from the rows above it.
+
+   DAILY is one practice for one squad, and shows the whole chain: TSA, adjusted points,
+   possessions, coefficients, constant, centring.
+
+   SEASON is that squad across every practice. It deliberately does NOT re-run the formula
+   on season totals, because that is not how the number is made: BPM is computed per
+   practice and then minute-weighted, so the season derivation is the list of practices and
+   their weights. Showing a season-totals recomputation here would print a figure the rest
+   of the app does not use.
+
+   Every value is read off the calculation itself (row.work, and the same _bpmCoefs the
+   engine calls), never recomputed alongside it. A sheet that exists to explain a number is
+   worse than useless if it can drift from it. */
+const BPM_TERMS = ['AdjPts','FGA','FTA','3PT','AST','TOV','ORB','DRB','TRB','STL','BLK','PF'];
+const BPM_TERM_ON = ['fixed','role','role','fixed','pos','pos','pos','pos','pos','pos','pos','fixed'];
+
+const _bsF  = (v, d) => (v == null || !isFinite(v)) ? '&mdash;' : (+v).toFixed(d);
+const _bsSg = (v, d) => (v == null || !isFinite(v)) ? '&mdash;'
+  : (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(d);
+
+function bsSeasonRows(ctx, sessions, team) {
+  const acc = {};
+  for (const sess of sessions) {
+    const map = ctx.bySession[sess.id] || {};
+    for (const x of (sess.playerStats || [])) {
+      if (x.team !== team || isHiddenPlayer(x.name) || !((x.min || 0) > 0)) continue;
+      const r = map[x.name], w = r && r.work;
+      if (!w) continue;
+      const a = acc[x.name] = acc[x.name] ||
+        { name: x.name, min: 0, pts: 0, TSA: 0, adjPts: 0, poss: 0, b: 0, o: 0, games: [] };
+      a.min += x.min; a.pts += (x.pts || 0);
+      a.TSA += w.TSA; a.adjPts += w.adjPts; a.poss += w.poss;
+      a.b += r.bpm * x.min; a.o += r.obpm * x.min;
+      a.games.push({ date: sess.date || '', title: sess.title || '', min: x.min,
+                     bpm: r.bpm, obpm: r.obpm, dbpm: r.dbpm });
+    }
+  }
+  return Object.keys(acc).map(k => {
+    const a = acc[k];
+    return Object.assign({}, a, {
+      bpm: a.b / a.min, obpm: a.o / a.min, dbpm: (a.b - a.o) / a.min,
+      pos: ctx.pos[a.name], role: ctx.role[a.name] });
+  }).sort((x, y) => y.bpm - x.bpm);
+}
+
 function renderBpmSheet() {
   const root = document.getElementById('bpmsheet-root');
   if (!root) return;
@@ -16972,77 +17059,189 @@ function renderBpmSheet() {
     root.innerHTML = '<div class="placeholder"><div>No completed practices yet.</div></div>';
     return;
   }
-  const f = (v, d) => (v == null || !isFinite(v)) ? '&mdash;' : (+v).toFixed(d);
-  const out = [];
-  out.push('<div class="bpmx-ctx">BPM 2.0 working, per scrimmage. Scoring is baselined on '
-    + 'this program\'s pooled Pts/TSA (' + f(ctx.baseline, 4) + ') across every practice and '
-    + 'both squads. Position and role are season-level and identical in every table below; '
-    + 'everything else is that practice only. BPM here is the centred figure the rest of the '
-    + 'app shows &mdash; RAW is before centring.</div>');
+  if (!_bsSess || !sessions.some(x => String(x.id) === String(_bsSess))) _bsSess = sessions[0].id;
+  const sess = sessions.find(x => String(x.id) === String(_bsSess));
+  const f = _bsF, sg = _bsSg;
+  const nameOf = t => t === 'a' ? (sess.teamAName || 'White') : (sess.teamBName || 'Black');
+  const o = [];
 
-  for (const sess of sessions) {
+  o.push('<div class="bs-bar">'
+    + ['daily', 'season'].map(m => '<button class="bs-tg' + (_bsMode === m ? ' on' : '') + '" '
+        + 'onclick="bsMode(\'' + m + '\')">' + (m === 'daily' ? 'Daily' : 'Season') + '</button>').join('')
+    + '<span class="bs-div"></span>'
+    + ['a', 'b'].map(t => '<button class="bs-tg' + (_bsTeam === t ? ' on' : '') + '" '
+        + 'onclick="bsTeam(\'' + t + '\')">' + escHtml(nameOf(t)) + '</button>').join('')
+    + (_bsMode === 'daily'
+        ? '<span class="bs-div"></span><select class="bs-sel" onchange="bsPick(this.value)">'
+          + sessions.map(x => '<option value="' + escHtml(String(x.id)) + '"'
+              + (String(x.id) === String(_bsSess) ? ' selected' : '') + '>'
+              + escHtml((x.date || '') + '  ' + (x.title || 'Untitled')) + '</option>').join('')
+          + '</select>'
+        : '')
+    + '</div>');
+
+  o.push('<table class="bs-tbl"><thead><tr><th class="nm">Player</th>'
+    + '<th>' + (_bsMode === 'season' ? 'GP' : 'MIN') + '</th>'
+    + (_bsMode === 'season' ? '<th>MIN</th>' : '')
+    + '<th>PTS</th><th>TSA</th><th>AdjPts</th><th>Poss</th>'
+    + '<th>Pos</th><th>Role</th><th>OBPM</th><th>DBPM</th><th>BPM</th></tr></thead><tbody>');
+  const cols = _bsMode === 'season' ? 12 : 11;
+
+  if (_bsMode === 'daily') {
     const map = ctx.bySession[sess.id] || {};
-    for (const tm of ['a', 'b']) {
-      const name = tm === 'a' ? (sess.teamAName || 'White') : (sess.teamBName || 'Black');
-      const starters = (tm === 'a' ? sess.startersA : sess.startersB) || [];
-      const rows = (sess.playerStats || []).filter(p => p.team === tm && !isHiddenPlayer(p.name));
-      if (!rows.length) continue;
-      const played = rows.filter(p => (p.min || 0) > 0);
-      const dnp    = rows.filter(p => !((p.min || 0) > 0));
-      const isSt   = p => starters.includes(p.name);
-      const order  = [
-        ['Starters', played.filter(isSt)],
-        ['Reserves', played.filter(p => !isSt(p))],
-        ['Did Not Play', dnp],
-      ];
-      const ts = (sess.teamStats || {})[tm] || {};
-      const anyWork = played.map(p => map[p.name]).find(r => r && r.work);
-      out.push('<h3 style="margin:16px 0 2px;font-size:13px;">' + escHtml(sess.date || '')
-        + ' &middot; ' + escHtml(sess.title || '') + ' &middot; ' + escHtml(name) + '</h3>');
-      out.push('<div class="bpmx-ctx">team Pts/TSA '
-        + f(anyWork ? anyWork.work.tmPtsTSA : null, 4)
-        + ' &middot; possessions ' + f(ts.possessions, 1)
-        + ' &middot; ORtg ' + f(ts.ortg, 1) + ' &middot; DRtg ' + f(ts.drtg, 1) + '</div>');
-      out.push('<table class="bpmx"><thead><tr>'
-        + '<th class="nm">Player</th><th>MIN</th><th>MIN%</th>'
-        + '<th>FG</th><th>FGA</th><th>3P</th><th>FT</th><th>FTA</th>'
-        + '<th>OR</th><th>DR</th><th>TRB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>PF</th><th>PTS</th>'
-        + '<th>TSA</th><th>Pts/TSA</th><th>AdjPts</th><th>Poss</th>'
-        + '<th>Pos</th><th>Role</th><th>RAW</th><th>OBPM</th><th>DBPM</th><th>BPM</th>'
-        + '</tr></thead><tbody>');
-      for (const [label, list] of order) {
-        if (!list.length) continue;
-        out.push('<tr class="sect"><td colspan="27">' + label + '</td></tr>');
-        for (const p of list.sort((x, y) => (y.min || 0) - (x.min || 0))) {
-          const r = map[p.name], w = r && r.work;
-          const n = k => p[k] || 0;
-          if (!w) {
-            out.push('<tr><td class="nm">' + escHtml(p.name) + '</td>'
-              + '<td class="dnp" colspan="26">no rating &mdash; '
-              + ((p.min || 0) > 0 ? 'no possessions recorded for this squad' : 'did not play')
-              + '</td></tr>');
-            continue;
-          }
-          out.push('<tr><td class="nm">' + escHtml(p.name) + '</td>'
-            + '<td>' + f(p.min, 1) + '</td><td>' + f(w.minShare * 100, 1) + '</td>'
-            + '<td>' + n('fgm') + '</td><td>' + n('fga') + '</td><td>' + n('fg3m') + '</td>'
-            + '<td>' + n('ftm') + '</td><td>' + n('fta') + '</td>'
-            + '<td>' + n('oreb') + '</td><td>' + n('dreb') + '</td><td>' + n('reb') + '</td>'
-            + '<td>' + n('ast') + '</td><td>' + n('stl') + '</td><td>' + n('blk') + '</td>'
-            + '<td>' + n('tov') + '</td><td>' + n('pf') + '</td><td>' + n('pts') + '</td>'
-            + '<td>' + f(w.TSA, 2) + '</td><td>' + f(w.ptsPerTSA, 3) + '</td>'
-            + '<td>' + f(w.adjPts, 2) + '</td><td>' + f(w.poss, 1) + '</td>'
-            + '<td>' + f(w.pos, 2) + '</td><td>' + f(w.role, 2) + '</td>'
-            + '<td>' + f(r.raw, 1) + '</td>'
-            + '<td class="out">' + f(r.obpm, 1) + '</td>'
-            + '<td class="out">' + f(r.dbpm, 1) + '</td>'
-            + '<td class="out">' + f(r.bpm, 1) + '</td></tr>');
+    const rows = (sess.playerStats || []).filter(x => x.team === _bsTeam && !isHiddenPlayer(x.name));
+    const ts = (sess.teamStats || {})[_bsTeam] || {};
+    const anyW = rows.map(x => map[x.name]).find(r => r && r.work);
+    o.splice(1, 0, '<div class="bs-ctx"><b>' + escHtml(nameOf(_bsTeam)) + ' &middot; '
+      + escHtml(sess.date || '') + '.</b> Possessions ' + f(ts.possessions, 1)
+      + ' &middot; ORtg ' + f(ts.ortg, 1) + ' &middot; DRtg ' + f(ts.drtg, 1)
+      + ' &middot; team Pts/TSA <b>' + f(anyW ? anyW.work.tmPtsTSA : null, 4) + '</b>'
+      + ' &middot; program baseline <b>' + f(ctx.baseline, 4) + '</b>'
+      + '<br>Scoring is measured against the squad\'s own efficiency that night, then re-based '
+      + 'on the program\'s. Position and role are season-level, not from this practice.</div>');
+
+    const starters = (_bsTeam === 'a' ? sess.startersA : sess.startersB) || [];
+    const played = rows.filter(x => (x.min || 0) > 0);
+    const isSt = x => starters.includes(x.name);
+    const groups = [['Starters', played.filter(isSt)],
+                    ['Bench', played.filter(x => !isSt(x))],
+                    ['Did not play', rows.filter(x => !((x.min || 0) > 0))]];
+    for (const [label, list] of groups) {
+      if (!list.length) continue;
+      o.push('<tr class="sect"><td colspan="' + cols + '">' + label + '</td></tr>');
+      for (const x of list.slice().sort((m, n) => (n.min || 0) - (m.min || 0))) {
+        const r = map[x.name], w = r && r.work;
+        if (!w) {
+          o.push('<tr><td class="nm">' + escHtml(x.name) + '</td><td colspan="' + (cols - 1)
+            + '" class="none">' + ((x.min || 0) > 0 ? 'no possessions recorded' : 'did not play')
+            + '</td></tr>');
+          continue;
         }
+        const on = _bsPlayer === x.name;
+        o.push('<tr class="pick' + (on ? ' on' : '') + '" onclick="bsPlayer('
+          + JSON.stringify(x.name).replace(/"/g, '&quot;') + ')">'
+          + '<td class="nm">' + (on ? '&#9662; ' : '&#9656; ') + escHtml(x.name) + '</td>'
+          + '<td>' + f(x.min, 1) + '</td><td>' + (x.pts || 0) + '</td>'
+          + '<td>' + f(w.TSA, 2) + '</td><td>' + f(w.adjPts, 2) + '</td><td>' + f(w.poss, 1) + '</td>'
+          + '<td>' + f(w.pos, 2) + '</td><td>' + f(w.role, 2) + '</td>'
+          + '<td>' + sg(r.obpm, 1) + '</td><td>' + sg(r.dbpm, 1) + '</td>'
+          + '<td class="out">' + sg(r.bpm, 1) + '</td></tr>');
+        if (on) o.push('<tr class="det"><td colspan="' + cols + '">'
+          + bsDaily(x, r, w, ctx) + '</td></tr>');
       }
-      out.push('</tbody></table>');
+    }
+  } else {
+    const rows = bsSeasonRows(ctx, sessions, _bsTeam);
+    o.splice(1, 0, '<div class="bs-ctx"><b>' + escHtml(nameOf(_bsTeam)) + ' &middot; '
+      + sessions.length + ' practices.</b> Minutes, points, TSA, adjusted points and '
+      + 'possessions are summed; the ratings are minute-weighted across the practices he '
+      + 'played for this squad.<br>BPM is not re-run on season totals &mdash; it is computed '
+      + 'per practice and then weighted, so the working below is the list of practices.</div>');
+    if (!rows.length) {
+      o.push('<tr><td colspan="' + cols + '" class="none">Nobody played for this squad.</td></tr>');
+    }
+    for (const a of rows) {
+      const on = _bsPlayer === a.name;
+      o.push('<tr class="pick' + (on ? ' on' : '') + '" onclick="bsPlayer('
+        + JSON.stringify(a.name).replace(/"/g, '&quot;') + ')">'
+        + '<td class="nm">' + (on ? '&#9662; ' : '&#9656; ') + escHtml(a.name) + '</td>'
+        + '<td>' + a.games.length + '</td><td>' + f(a.min, 1) + '</td><td>' + a.pts + '</td>'
+        + '<td>' + f(a.TSA, 1) + '</td><td>' + f(a.adjPts, 1) + '</td><td>' + f(a.poss, 1) + '</td>'
+        + '<td>' + f(a.pos, 2) + '</td><td>' + f(a.role, 2) + '</td>'
+        + '<td>' + sg(a.obpm, 1) + '</td><td>' + sg(a.dbpm, 1) + '</td>'
+        + '<td class="out">' + sg(a.bpm, 1) + '</td></tr>');
+      if (on) o.push('<tr class="det"><td colspan="' + cols + '">' + bsSeason(a) + '</td></tr>');
     }
   }
-  root.innerHTML = out.join('');
+  o.push('</tbody></table>');
+  if (!_bsPlayer) o.push('<div class="bs-hint">Click any player to see the calculation.</div>');
+  root.innerHTML = o.join('');
+}
+
+/* One man, one practice: the whole chain with the numbers substituted in. */
+function bsDaily(x, r, w, ctx) {
+  const f = _bsF, sg = _bsSg;
+  const n = k => x[k] || 0;
+  const cb = _bpmCoefs(BPM_COEF.bpm,  w.pos, w.role);
+  const co = _bpmCoefs(BPM_COEF.obpm, w.pos, w.role);
+  const kb = _bpmConst(w.pos, w.role, BPM_COEF.bpm.k);
+  const ko = _bpmConst(w.pos, w.role, BPM_COEF.obpm.k);
+  let sumB = 0, sumO = 0;
+  const trs = BPM_TERMS.map((t, i) => {
+    const v = w.per100[i], pb = cb[i] * v, po = co[i] * v;
+    sumB += pb; sumO += po;
+    return '<tr><td class="nm">' + t + '</td><td class="on">' + BPM_TERM_ON[i] + '</td>'
+      + '<td>' + f(v, 2) + '</td><td>' + f(cb[i], 4) + '</td><td class="pr">' + sg(pb, 2) + '</td>'
+      + '<td>' + f(co[i], 4) + '</td><td class="pr">' + sg(po, 2) + '</td></tr>';
+  }).join('');
+  return '<div class="bs-der">'
+    + '<div class="bs-step"><b>1 &nbsp;Scoring, against the squad\'s efficiency</b>'
+    + '<div class="bs-eq">TSA = FGA + 0.44 &times; FTA = ' + n('fga') + ' + 0.44 &times; '
+    + n('fta') + ' = <b>' + f(w.TSA, 2) + '</b></div>'
+    + '<div class="bs-eq">Pts/TSA = ' + n('pts') + ' &divide; ' + f(w.TSA, 2) + ' = <b>'
+    + f(w.ptsPerTSA, 4) + '</b></div>'
+    + '<div class="bs-eq">AdjPts = TSA &times; (Pts/TSA &minus; team Pts/TSA + baseline)<br>'
+    + '&nbsp;&nbsp;= ' + f(w.TSA, 2) + ' &times; (' + f(w.ptsPerTSA, 4) + ' &minus; '
+    + f(w.tmPtsTSA, 4) + ' + ' + f(w.baseline, 4) + ') = <b>' + f(w.adjPts, 2) + '</b></div></div>'
+    + '<div class="bs-step"><b>2 &nbsp;Possessions on the floor</b>'
+    + '<div class="bs-eq">MIN% = ' + f(x.min, 1) + ' &divide; (team minutes &divide; 5) = <b>'
+    + f(w.minShare * 100, 1) + '%</b></div>'
+    + '<div class="bs-eq">Poss = team possessions &times; MIN% = <b>' + f(w.poss, 1) + '</b>'
+    + ' &mdash; every stat below is &times;100 &divide; ' + f(w.poss, 1) + '</div></div>'
+    + '<div class="bs-step"><b>3 &nbsp;Coefficients &times; per-100 stats</b>'
+    + '<div class="bs-eq">Position <b>' + f(w.pos, 2) + '</b>, role <b>' + f(w.role, 2)
+    + '</b>. Each coefficient is interpolated between the Pos&nbsp;1 and Pos&nbsp;5 rows: '
+    + 'shot volume slides on ROLE, the defensive and rebounding terms on POSITION.</div>'
+    + '<table class="bs-terms"><thead><tr><th class="nm">Term</th><th class="on">slides on</th>'
+    + '<th>per 100</th><th>BPM coef</th><th class="pr">product</th><th>OBPM coef</th>'
+    + '<th class="pr">product</th></tr></thead><tbody>' + trs
+    + '<tr class="tot"><td class="nm" colspan="4">sum of products</td><td class="pr">'
+    + sg(sumB, 2) + '</td><td></td><td class="pr">' + sg(sumO, 2) + '</td></tr>'
+    + '<tr class="tot"><td class="nm" colspan="4">position / role constant</td><td class="pr">'
+    + sg(kb, 2) + '</td><td></td><td class="pr">' + sg(ko, 2) + '</td></tr>'
+    + '<tr class="tot"><td class="nm" colspan="4">raw rating</td><td class="pr">'
+    + sg(sumB + kb, 2) + '</td><td></td><td class="pr">' + sg(sumO + ko, 2) + '</td></tr>'
+    + '</tbody></table></div>'
+    + '<div class="bs-step"><b>4 &nbsp;Centred on the roster</b>'
+    + '<div class="bs-eq">Raw box-score BPM averages about ' + sg(ctx.centre ? ctx.centre.b : null, 1)
+    + ' across this program, so the pool mean comes off to make 0 an average player here.</div>'
+    + '<div class="bs-eq">BPM = ' + sg(r.raw, 2) + ' &minus; ' + sg(ctx.centre ? ctx.centre.b : 0, 2)
+    + ' = <b>' + sg(r.bpm, 2) + '</b></div>'
+    + '<div class="bs-eq">OBPM = ' + sg(r.rawO, 2) + ' &minus; ' + sg(ctx.centre ? ctx.centre.o : 0, 2)
+    + ' = <b>' + sg(r.obpm, 2) + '</b></div>'
+    + '<div class="bs-eq">DBPM = BPM &minus; OBPM = <b>' + sg(r.dbpm, 2) + '</b></div></div>'
+    + '</div>';
+}
+
+/* One man, one squad, the whole fall: which practices, and what each one weighs. */
+function bsSeason(a) {
+  const f = _bsF, sg = _bsSg;
+  const gs = a.games.slice().sort((x, y) => String(x.date).localeCompare(String(y.date)));
+  const rows = gs.map(g => '<tr><td class="nm">' + escHtml(g.date) + '</td>'
+    + '<td class="on">' + escHtml(g.title || '') + '</td>'
+    + '<td>' + f(g.min, 1) + '</td><td>' + sg(g.bpm, 2) + '</td>'
+    + '<td class="pr">' + sg(g.bpm * g.min, 1) + '</td>'
+    + '<td>' + sg(g.obpm, 2) + '</td><td class="pr">' + sg(g.obpm * g.min, 1) + '</td></tr>').join('');
+  return '<div class="bs-der">'
+    + '<div class="bs-step"><b>Minute-weighted across the practices he played for this squad</b>'
+    + '<div class="bs-eq">A seven-minute night should not weigh what a thirty-five-minute one '
+    + 'does, so each practice enters in proportion to its minutes.</div>'
+    + '<table class="bs-terms"><thead><tr><th class="nm">Date</th><th class="on">Practice</th>'
+    + '<th>MIN</th><th>BPM</th><th class="pr">BPM &times; MIN</th>'
+    + '<th>OBPM</th><th class="pr">OBPM &times; MIN</th></tr></thead><tbody>' + rows
+    + '<tr class="tot"><td class="nm" colspan="2">totals</td><td>' + f(a.min, 1) + '</td><td></td>'
+    + '<td class="pr">' + sg(a.b, 1) + '</td><td></td><td class="pr">' + sg(a.o, 1) + '</td></tr>'
+    + '</tbody></table>'
+    + '<div class="bs-eq" style="margin-top:8px">BPM = ' + sg(a.b, 1) + ' &divide; ' + f(a.min, 1)
+    + ' = <b>' + sg(a.bpm, 2) + '</b></div>'
+    + '<div class="bs-eq">OBPM = ' + sg(a.o, 1) + ' &divide; ' + f(a.min, 1) + ' = <b>'
+    + sg(a.obpm, 2) + '</b> &nbsp;&middot;&nbsp; DBPM = BPM &minus; OBPM = <b>'
+    + sg(a.dbpm, 2) + '</b></div></div>'
+    + '<div class="bs-step"><b>Season totals above the table</b>'
+    + '<div class="bs-eq">TSA ' + f(a.TSA, 1) + ' &middot; AdjPts ' + f(a.adjPts, 1)
+    + ' &middot; Poss ' + f(a.poss, 1) + ' are the sums of the per-practice figures, shown so '
+    + 'the volume behind the rating is visible. They are NOT re-fed through the formula.</div></div>'
+    + '</div>';
 }
 
 /* ── Connections: who sets up whom ──────────────────────────────────────────────
