@@ -2867,6 +2867,12 @@
     .ft-hint { font-size: 9.5px; font-weight: 600; color: var(--text-dim); margin-left: 5px; }
     .ft-chip { display: inline-flex; align-items: center; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; color: var(--text-secondary); }
     .ft-chip .ft-chip-arrow { display: inline-flex; align-items: center; margin-left: 5px; }
+    .ft-tg { display: inline-flex; gap: 3px; }
+    .ft-tg-b { font: inherit; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
+               padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border);
+               background: transparent; color: var(--text-dim); cursor: pointer; }
+    .ft-tg-b:hover { color: var(--text); }
+    .ft-tg-b.on { background: var(--text); color: var(--surface); border-color: var(--text); }
     .ft-chip.is-up   { color: var(--success); }
     .ft-chip.is-down { color: var(--danger); }
     .ft-nums { display: flex; align-items: baseline; gap: 6px; margin-top: 5px; font-variant-numeric: tabular-nums; }
@@ -4560,6 +4566,10 @@
       On/Off cards and shot-chart filters &mdash; useful for a high-schooler or returner who only appeared once.
       Their minutes and shots still count toward team totals and everyone else's on/off.</p>
       <p style="margin:0 0 10px;">Changes are saved in this browser. <strong>Edit a name to rename a player</strong> — all their past stats, events, and lineups move with them, so no history is lost. Removing a player (&#x2715;) only takes them off the starter-selection list; their recorded stats are kept.</p>
+      <p style="margin:0 0 10px;"><strong>Pos</strong> is the player's position on a 1&ndash;5 scale (1 = point guard, 5 = centre), used by BPM.
+      <strong>Decimals are the point</strong> &mdash; BPM interpolates between its guard and big-man weightings, so a combo guard entered as 1.5
+      is weighted more accurately than one forced to whichever of 1 or 2 is less wrong. Leave it blank if you are unsure and BPM will
+      estimate it from the box score instead.</p>
       <div id="roster-editor-rows" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;"></div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addRosterEditorRow('')">+ Add Player</button>
     </div>
@@ -5266,12 +5276,12 @@ function hideModal(id) {
 function openRosterEditor() {
   const rows = document.getElementById('roster-editor-rows');
   rows.innerHTML = '';
-  State.roster.forEach(p => addRosterEditorRow(p.name, p.hidden));
+  State.roster.forEach(p => addRosterEditorRow(p.name, p.hidden, p.pos));
   if (!State.roster.length) addRosterEditorRow('');
   showModal('modal-roster');
 }
 
-function addRosterEditorRow(name, hidden) {
+function addRosterEditorRow(name, hidden, posVal) {
   const rows = document.getElementById('roster-editor-rows');
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:6px;align-items:center;';
@@ -5310,12 +5320,28 @@ function addRosterEditorRow(name, hidden) {
   hide.addEventListener('change', markHidden);
   markHidden();
 
+  /* POSITION 1-5, for BPM. Decimals are the point rather than a concession: BPM interpolates
+     its coefficients between the Pos 1 and Pos 5 rows, so a combo guard entered as 1.5 is
+     weighted differently - and more accurately - than one forced to whichever of 1 or 2 is
+     less wrong. Blank means "not set", which BPM answers by estimating position from the box
+     score; that estimate is worse than a coach's eye, which is the whole reason for the field. */
+  const posInput = document.createElement('input');
+  posInput.type = 'number';
+  posInput.className = 'roster-pos';
+  posInput.min = '1'; posInput.max = '5'; posInput.step = '0.5';
+  posInput.value = (posVal == null || posVal === '') ? '' : posVal;
+  posInput.placeholder = 'Pos';
+  posInput.title = 'Position: 1 = point guard through 5 = centre. Decimals welcome — a combo '
+    + 'guard is 1.5. Leave blank to let BPM estimate it from the box score.';
+  posInput.style.cssText = 'width:58px;padding:6px 4px;font-size:13px;text-align:center;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;';
+
   const del = document.createElement('button');
   del.className = 'btn btn-ghost btn-sm';
   del.innerHTML = '&#x2715;';
   del.title = 'Remove player';
   del.onclick = () => row.remove();
   row.appendChild(input);
+  row.appendChild(posInput);
   row.appendChild(hideWrap);
   row.appendChild(del);
   rows.appendChild(row);
@@ -5431,7 +5457,22 @@ function saveRosterEdits() {
     if (seen.has(key)) { showToast('Duplicate name: ' + name, 'warning'); return; }
     seen.add(key);
     const hideBox = inp.parentElement.querySelector('.roster-hide');
-    roster.push({ name, hidden: !!(hideBox && hideBox.checked) });
+    const posBox  = inp.parentElement.querySelector('.roster-pos');
+    const posRaw  = posBox ? String(posBox.value).trim() : '';
+    let pos = null;
+    if (posRaw !== '') {
+      pos = Number(posRaw);
+      if (!isFinite(pos) || pos < 1 || pos > 5) {
+        showToast(`${name}: position must be a number from 1 to 5`, 'warning');
+        return;
+      }
+    }
+    /* Written only when set, so a roster nobody has given positions to keeps exactly the shape
+       it had before this field existed, and "not set" stays distinguishable from a deliberate
+       choice rather than collapsing into a silent 3. */
+    const rec = { name, hidden: !!(hideBox && hideBox.checked) };
+    if (pos != null) rec.pos = pos;
+    roster.push(rec);
     if (original && original !== name) renameMap.set(original, name);
   }
   if (roster.length < 2) { showToast('Roster needs at least 2 players', 'warning'); return; }
@@ -7728,6 +7769,358 @@ function perForTeam(session, team) {
     u += map[p.name] * p.min; mp += p.min;
   }
   return mp > 0 ? u / mp : null;
+}
+
+/* ── BPM 2.0 (Daniel Myers) ───────────────────────────────────────────────────────
+   Ported from Myers' own workbook rather than from a description of it, and validated
+   against the worked example inside it: the Christmas 2016 GSW/CLE box score reproduces
+   to 5.3e-15 on all twenty players, BPM and OBPM alike. Three faults that a looser port
+   would have shipped, all caught by that fixture:
+
+     - OBPM's coefficients do NOT interpolate the same way BPM's do. In BPM, TOV is a
+       constant and AST slides with position; in OBPM it is the reverse. Verifying the
+       split on BPM's table alone leaves OBPM quietly wrong for everyone.
+     - Team context is per SQUAD. Using one squad's Pts/TSA for both left every Golden
+       State player exact and every Cleveland player wrong - the failure mode a
+       single-team fixture cannot show, and precisely the shape of White vs Black.
+     - Offensive role is a SEASON-level quantity, looked up rather than recomputed per
+       game. One hot night would otherwise promote a spot-up shooter to a primary
+       creator and hand him a creator's coefficients for that night only.
+
+   WHAT THIS BUYS OVER PER, and what it costs. PER is a definition: hand it any population
+   and 15 is that population's average minute, which is why it needed no borrowed league.
+   BPM is a fitted model, and the fit was done on NBA possessions against long-run RAPM.
+   The ORDERING it produces here is informative; the absolute values are an extrapolation
+   and should not be read as NBA-equivalent. What it gives in exchange is a genuine
+   offence/defence split - OBPM and DBPM partition one number, where PER and ORTG on this
+   roster correlate at 0.93 and measure the same thing twice under different names.
+
+   The scoring baseline is this program's own pooled Pts/TSA across every completed
+   practice and both squads, never the NBA's. White and Black are a closed league: one
+   squad's offence is the other's defence, so the pool IS the population. */
+
+const BPM_COEF = {
+  //      AdjPts    FGA      FTA       3PT     AST     TOV     ORB     DRB    TRB  STL     BLK     PF
+  bpm: {
+    p1: [0.860,  -0.560,  -0.2464,  0.389,  0.580, -0.964,  0.613,  0.116, 0, 1.369,  1.327, -0.367],
+    p5: [0.860,  -0.780,  -0.3432,  0.389,  1.034, -0.964,  0.181,  0.181, 0, 1.008,  0.703, -0.367],
+    k:  [-0.818, 0, 0, 1.387],
+  },
+  obpm: {
+    p1: [0.605,  -0.330,  -0.1452,  0.477,  0.476, -0.579,  0.606, -0.112, 0, 0.177,  0.725, -0.439],
+    p5: [0.605,  -0.472,  -0.20768, 0.477,  0.476, -0.882,  0.422,  0.103, 0, 0.294,  0.097, -0.439],
+    k:  [-1.698, 0, 0, 0.43],
+  },
+};
+/* Which variable each term slides on. Terms identical in both rows are unaffected either
+   way, which is why one rule can serve BPM and OBPM despite their differing tables. */
+const BPM_ROLE_IDX = new Set([1, 2]);                    // FGA, FTA  -> offensive role
+const BPM_POS_IDX  = new Set([4, 5, 6, 7, 8, 9, 10]);    // AST..BLK  -> position
+
+const BPM_TSA_FT   = 0.44;   // free-throw weight in true-shooting attempts
+const BPM_ROLE_C   = [6, -6.6416, -8.5441];   // intercept, assist-share, scoring-share
+const BPM_ROLE_ADJ = 0.33;   // scoring-share baseline; NOT the BPM scoring baseline
+const BPM_PRIOR    = { role: 4.0, weight: 50 };   // shrink toward a low-usage role
+const BPM_POS_EST  = { k: 2.1296, c: [8.6676, -2.4861, 0.992, -3.5361, 1.6669] }; // TRB STL PF AST BLK
+
+function _bpmCoefs(tbl, pos, role) {
+  const fp = (pos - 1) / 4, fr = (role - 1) / 4;
+  return tbl.p1.map((c1, i) => {
+    const c5 = tbl.p5[i];
+    if (BPM_ROLE_IDX.has(i)) return c1 + (c5 - c1) * fr;
+    if (BPM_POS_IDX.has(i))  return c1 + (c5 - c1) * fp;
+    return c1;
+  });
+}
+/* Three anchors (1, 3, 5) rather than a straight line, plus a linear role term. */
+function _bpmConst(pos, role, k) {
+  const base = pos < 3
+    ? (pos - 1) / 2 * k[1] + (3 - pos) / 2 * k[0]
+    : (pos - 3) / 2 * k[2] + (5 - pos) / 2 * k[1];
+  return base + k[3] * (role - 3);
+}
+
+/* One player, one practice. `ctx` carries HIS squad's numbers for that practice. */
+function _bpmRow(e, ctx, pos, role) {
+  const TSA    = e.FGA + BPM_TSA_FT * e.FTA;
+  const adjPts = e.PTS + (ctx.baseline - ctx.tmPtsTSA) * TSA;
+  const poss   = ctx.poss * (e.MP / ctx.teamMin);
+  if (!(poss > 0)) return null;
+  const q = v => v / poss * 100;
+  const vec = [q(adjPts), q(e.FGA), q(e.FTA), q(e.TP), q(e.AST), q(e.TOV),
+               q(e.ORB), q(e.DRB), q(e.TRB), q(e.STL), q(e.BLK), q(e.PF)];
+  const dot = cf => cf.reduce((sum, c, i) => sum + c * vec[i], 0);
+  const bpm  = dot(_bpmCoefs(BPM_COEF.bpm,  pos, role)) + _bpmConst(pos, role, BPM_COEF.bpm.k);
+  const obpm = dot(_bpmCoefs(BPM_COEF.obpm, pos, role)) + _bpmConst(pos, role, BPM_COEF.obpm.k);
+  return { bpm, obpm, dbpm: bpm - obpm };
+}
+
+/* Centre so the minute-weighted mean is 3, then clamp, three times. Clamping is not
+   neutral - every clamped man is pushed toward 1 or 5, which drags the mean off 3 and
+   mis-centres everyone else - so the correction has to be reapplied after each clamp. */
+function _bpmCentre(raw, mins) {
+  const clamp = v => Math.max(1, Math.min(5, v));
+  const wmean = arr => {
+    let a = 0, b = 0;
+    for (const k in arr) { a += clamp(arr[k]) * (mins[k] || 0); b += mins[k] || 0; }
+    return b > 0 ? a / b : 3;
+  };
+  let cur = Object.assign({}, raw);
+  for (let pass = 0; pass < 3; pass++) {
+    const shift = wmean(cur) - 3;
+    for (const k in cur) cur[k] -= shift;
+  }
+  const out = {};
+  for (const k in cur) out[k] = clamp(cur[k]);
+  return out;
+}
+
+let _bpmCache = null;
+
+function bpmContext() {
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
+  const rosterKey = (State.roster || []).map(p => p.name + '#' + (p.pos == null ? '' : p.pos)).join(',');
+  const key = sessions.map(x => x.id + ':' + (x.completedAt || '')).join('|') + '||' + rosterKey;
+  if (_bpmCache && _bpmCache.key === key) return _bpmCache;
+
+  const entries = [];
+  const squad = {};          // sessionId|team -> that squad's totals for that practice
+  const L = { PTS: 0, FGA: 0, FTA: 0 };   // the pool, for the scoring baseline
+
+  for (const sess of sessions) {
+    const ts = sess.teamStats || {};
+    const byTeam = {};
+    for (const p of sess.playerStats || []) {
+      if (isHiddenPlayer(p.name) || !(p.min > 0)) continue;
+      const n = k => p[k] || 0;
+      const e = {
+        sid: sess.id, name: p.name, team: p.team, MP: n('min'),
+        FGA: n('fg2a') + n('fg3a'), FTA: n('fta'), TP: n('fg3m'),
+        AST: n('ast'), TOV: n('tov'), ORB: n('oreb'), DRB: n('dreb'),
+        TRB: n('reb'), STL: n('stl'), BLK: n('blk'), PF: n('pf'), PTS: n('pts'),
+      };
+      entries.push(e);
+      const t = byTeam[p.team] = byTeam[p.team] || { PTS: 0, FGA: 0, FTA: 0, AST: 0, MP: 0 };
+      t.PTS += e.PTS; t.FGA += e.FGA; t.FTA += e.FTA; t.AST += e.AST; t.MP += e.MP;
+      L.PTS += e.PTS; L.FGA += e.FGA; L.FTA += e.FTA;
+    }
+    for (const tm in byTeam) {
+      const t = byTeam[tm];
+      const tsa = t.FGA + BPM_TSA_FT * t.FTA;
+      squad[sess.id + '|' + tm] = {
+        teamMin: t.MP / 5,          // minutes of game time this squad played
+        poss: (ts[tm] && ts[tm].possessions) || null,
+        tmPtsTSA: tsa > 0 ? t.PTS / tsa : 0,
+        AST: t.AST, MP: t.MP,
+      };
+    }
+  }
+
+  const lgTSA = L.FGA + BPM_TSA_FT * L.FTA;
+  const baseline = lgTSA > 0 ? L.PTS / lgTSA : 1;
+  if (!entries.length || !(lgTSA > 0)) {
+    _bpmCache = { key, bySession: {}, byPlayer: {}, pos: {}, role: {} };
+    return _bpmCache;
+  }
+  for (const k in squad) squad[k].baseline = baseline;
+
+  /* ROLE and POSITION are pooled over every practice, never per night. Each squad total is
+     weighted by his share of that squad's minutes in that practice, which reduces exactly
+     to Myers' single-team formula when there is only one squad and one game. */
+  /* Squad totals first, so the accumulation below can be a single pass. Every denominator
+     a share is taken against lives here. */
+  const sqTot = {};
+  for (const e of entries) {
+    const c = squad[e.sid + '|' + e.team];
+    if (!c) continue;
+    const t = sqTot[e.sid + '|' + e.team] = sqTot[e.sid + '|' + e.team] ||
+      { TRB: 0, STL: 0, PF: 0, BLK: 0, adj: 0 };
+    t.TRB += e.TRB; t.STL += e.STL; t.PF += e.PF; t.BLK += e.BLK;
+    t.adj += e.PTS - (e.FGA + BPM_TSA_FT * e.FTA) * (c.tmPtsTSA - BPM_ROLE_ADJ);
+  }
+
+  const acc = {};
+  for (const e of entries) {
+    const c = squad[e.sid + '|' + e.team], t = sqTot[e.sid + '|' + e.team];
+    if (!c || !t || !(c.MP > 0)) continue;
+    const share = e.MP / (c.MP / 5);
+    const TSA = e.FGA + BPM_TSA_FT * e.FTA;
+    const a = acc[e.name] = acc[e.name] || { MP: 0, AST: 0, adj: 0, dAST: 0, dAdj: 0,
+                                             TRB: 0, STL: 0, PF: 0, BLK: 0,
+                                             dTRB: 0, dSTL: 0, dPF: 0, dBLK: 0 };
+    a.MP  += e.MP;
+    a.AST += e.AST;  a.TRB += e.TRB;  a.STL += e.STL;  a.PF += e.PF;  a.BLK += e.BLK;
+    a.adj += e.PTS - TSA * (c.tmPtsTSA - BPM_ROLE_ADJ);
+    a.dAST += c.AST * share;
+    a.dAdj += t.adj * share;
+    a.dTRB += t.TRB * share;
+    a.dSTL += t.STL * share;
+    a.dPF  += t.PF  * share;
+    a.dBLK += t.BLK * share;
+  }
+
+  const rawRole = {}, rawPos = {}, mins = {};
+  const posByName = {};
+  (State.roster || []).forEach(p => { if (p.pos != null && p.pos !== '') posByName[p.name] = Number(p.pos); });
+
+  for (const nm in acc) {
+    const a = acc[nm];
+    mins[nm] = a.MP;
+    const AW = a.dAST > 0 ? a.AST / a.dAST : 0;
+    const AY = a.dAdj !== 0 ? a.adj / a.dAdj : 0;
+    const raw = BPM_ROLE_C[0] + BPM_ROLE_C[1] * AW + BPM_ROLE_C[2] * AY;
+    /* Shrink toward a low-usage role on a 50-minute prior: a man with one cameo has not
+       shown you what his job is, and the coefficients he gets should not pretend he has. */
+    rawRole[nm] = (raw * a.MP + BPM_PRIOR.role * BPM_PRIOR.weight) / (a.MP + BPM_PRIOR.weight);
+
+    if (posByName[nm] != null) {
+      rawPos[nm] = posByName[nm];       // a coach's eye beats a regression on seven nights
+    } else {
+      const sh = (v, d) => (d > 0 ? v / d : 0);
+      const est = BPM_POS_EST.k
+        + BPM_POS_EST.c[0] * sh(a.TRB, a.dTRB)
+        + BPM_POS_EST.c[1] * sh(a.STL, a.dSTL)
+        + BPM_POS_EST.c[2] * sh(a.PF,  a.dPF)
+        + BPM_POS_EST.c[3] * sh(a.AST, a.dAST)
+        + BPM_POS_EST.c[4] * sh(a.BLK, a.dBLK);
+      rawPos[nm] = est;
+    }
+  }
+  const role = _bpmCentre(rawRole, mins);
+  const pos  = _bpmCentre(rawPos,  mins);
+
+  /* TEAM ADJUSTMENT. Box-score BPM overrates collectively - summed raw across this roster
+     it averages about +10, when the whole meaning of BPM is that an average player is 0.
+     Myers' single-game tab omits this step (it is a demonstration of the coefficients, not
+     a rating), so porting it literally inherits the miscalibration. The correction forces
+     each squad's minute-weighted BPM to equal what that squad actually did.
+
+     White vs Black is a closed league, and that makes the arithmetic exact rather than
+     approximate: one squad's offence IS the other's defence, so a squad's rating above
+     average is just its net rating, and the two adjustments come out equal and opposite.
+     No outside league has to be assumed. OBPM is centred on the pooled offensive rating
+     across every practice, so a night when both squads shot well shows both above average
+     - which is the truth about that night. */
+  let lgPts = 0, lgPoss = 0;
+  for (const sess of sessions) {
+    const ts = sess.teamStats || {};
+    for (const tm in ts) {
+      if (!squad[sess.id + '|' + tm]) continue;
+      lgPts += ts[tm].pts || 0; lgPoss += ts[tm].possessions || 0;
+    }
+  }
+  const lgORtg = lgPoss > 0 ? lgPts / lgPoss * 100 : 0;
+
+  const raws = [];                       // one entry per player-practice
+  for (const e of entries) {
+    const c = squad[e.sid + '|' + e.team];
+    if (!c || !c.poss || pos[e.name] == null) continue;
+    const r = _bpmRow(e, c, pos[e.name], role[e.name]);
+    if (r) raws.push({ e, r });
+  }
+  /* ONE ADJUSTMENT PER SQUAD, ACROSS THE SEASON - not one per practice.
+
+     Applying it per practice was wrong and produced nonsense. A scrimmage runs about 35
+     possessions, so a squad's net rating for one night swings enormously - one practice
+     here came out at +67.6 - and forcing the five men on the floor to absorb that hands
+     them ratings the play never earned. Worse, DBPM is BPM minus OBPM, so it inherits
+     everything the offensive box score cannot account for: on that +67.6 night one player
+     read a 51.3 DBPM, which is not a defensive rating, it is a scoreline wearing one.
+
+     The team adjustment is a season quantity in Myers' method for exactly this reason. A
+     squad's rating over every practice is a far steadier thing than its rating on a
+     Tuesday, and a player's individual practices are then allowed to differ from the team
+     result - which is the entire point of a box-score metric. */
+  const tmSeason = {};
+  sessions.forEach(sess => {
+    const ts = sess.teamStats || {};
+    ['a', 'b'].forEach(tm => {
+      const me = ts[tm], opp = ts[tm === 'a' ? 'b' : 'a'];
+      if (!me || !opp || !squad[sess.id + '|' + tm]) return;
+      const t = tmSeason[tm] = tmSeason[tm] ||
+        { pts: 0, oppPts: 0, poss: 0, oppPoss: 0, b: 0, o: 0, mp: 0 };
+      t.pts    += me.pts  || 0;  t.poss    += me.possessions  || 0;
+      t.oppPts += opp.pts || 0;  t.oppPoss += opp.possessions || 0;
+    });
+  });
+  raws.forEach(({ e, r }) => {
+    const t = tmSeason[e.team];
+    if (!t) return;
+    t.b += r.bpm * e.MP; t.o += r.obpm * e.MP; t.mp += e.MP;
+  });
+  const adj = {};
+  for (const tm in tmSeason) {
+    const t = tmSeason[tm];
+    const net = (t.poss > 0 && t.oppPoss > 0)
+      ? (t.pts / t.poss - t.oppPts / t.oppPoss) * 100 : 0;
+    const off = t.poss > 0 ? (t.pts / t.poss * 100 - lgORtg) : 0;
+    adj[tm] = { b: net - (t.mp > 0 ? t.b / t.mp : 0),
+                o: off - (t.mp > 0 ? t.o / t.mp : 0) };
+  }
+
+  const bySession = {}, agg = {};
+  raws.forEach(({ e, r }) => {
+    const d = adj[e.team] || { b: 0, o: 0 };
+    const bpm = r.bpm + d.b, obpm = r.obpm + d.o;
+    const row = { bpm, obpm, dbpm: bpm - obpm };
+    (bySession[e.sid] = bySession[e.sid] || {})[e.name] = row;
+    const a = agg[e.name] = agg[e.name] || { mp: 0, b: 0, o: 0, byTeam: {} };
+    a.mp += e.MP; a.b += bpm * e.MP; a.o += obpm * e.MP;
+    const t = a.byTeam[e.team] = a.byTeam[e.team] || { mp: 0, b: 0, o: 0 };
+    t.mp += e.MP; t.b += bpm * e.MP; t.o += obpm * e.MP;
+  });
+  /* Minute-weighted across practices, matching how season PER is formed here: a
+     seven-minute night should not weigh the same as a thirty-five-minute one. */
+  const byPlayer = {};
+  for (const nm in agg) {
+    const a = agg[nm];
+    const mk = x => x.mp > 0
+      ? { bpm: x.b / x.mp, obpm: x.o / x.mp, dbpm: (x.b - x.o) / x.mp, min: x.mp }
+      : { bpm: null, obpm: null, dbpm: null, min: 0 };
+    byPlayer[nm] = mk(a);
+    byPlayer[nm].byTeam = {};
+    for (const t in a.byTeam) byPlayer[nm].byTeam[t] = mk(a.byTeam[t]);
+  }
+
+  _bpmCache = { key, bySession, byPlayer, pos, role, baseline, lgORtg };
+  return _bpmCache;
+}
+
+/* One practice, one player. Mirrors perForGame's shape so callers swap cleanly. */
+function bpmForGame(sessionId, name, which) {
+  const v = bpmContext().bySession[sessionId];
+  const r = v && v[name];
+  return r ? r[which || 'bpm'] : null;
+}
+
+function bpmForPlayer(name, team, minFloor, which) {
+  const rec = bpmContext().byPlayer[name];
+  if (!rec) return null;
+  const src = (team && team !== 'all') ? rec.byTeam[team] : rec;
+  if (!src || src[which || 'bpm'] == null) return null;
+  if (minFloor != null && src.min < minFloor) return null;
+  return src[which || 'bpm'];
+}
+
+function bpmForTeam(session, team, which) {
+  const map = bpmContext().bySession[session.id];
+  if (!map) return null;
+  let v = 0, mp = 0;
+  for (const p of session.playerStats || []) {
+    if (p.team !== team || isHiddenPlayer(p.name) || !(p.min > 0)) continue;
+    const r = map[p.name];
+    if (!r || r[which || 'bpm'] == null) continue;
+    v += r[which || 'bpm'] * p.min; mp += p.min;
+  }
+  return mp > 0 ? v / mp : null;
+}
+
+/* Position and role are worth showing, not just consuming: a reader who sees a guard
+   carrying a 4.4 role should be able to tell that is why his shot volume is forgiven. */
+function bpmRoleOf(name) { const c = bpmContext(); return c.role[name] != null ? c.role[name] : null; }
+function bpmPosOf(name)  { const c = bpmContext(); return c.pos[name]  != null ? c.pos[name]  : null; }
+function bpmPosIsCoached(name) {
+  return (State.roster || []).some(p => p.name === name && p.pos != null && p.pos !== '');
 }
 
 const BS_COLS = [
@@ -11153,9 +11546,10 @@ function ftArrowDir(cls) {
    shot. So each metric lists only what actually enters ITS formula, read off the code that
    computes it a few thousand lines up.
 
-     PER  - Hollinger uPER: minutes, makes and attempts, threes, free throws, total
-            rebounds, assists, turnovers, steals, blocks, fouls. Nearly the whole line,
-            which is the point of PER.
+     BPM  - the whole line: scoring and the attempts it cost, threes, free throws, both
+            rebound columns, assists, turnovers, steals, blocks, fouls. OBPM and DBPM are
+            cut from the same box score, so the hover is identical for all three - what
+            differs is the weight each stat carries, not which stats are read.
      ORTG - Oliver's individual offensive rating: what he scored and how, plus assists,
             offensive boards and turnovers. No defence in it at all.
      DRTG - Oliver's individual defensive rating: defensive boards, steals, blocks and
@@ -11165,12 +11559,32 @@ function ftArrowDir(cls) {
    Team context (team FGM, team possessions, the opponent's line) enters all three and is
    not listed - it is the same for everyone on the floor that night, so it explains nothing
    about why HIS number moved. */
-const FT_METRICS = [
-  { key: 'per',  label: 'PER',  dir: 'high', dp: 1, floor: 1.0,
-    hint: '', blurb: 'value per minute, 15 is average',
+/* The value tile is one metric with three faces. DBPM is dir:'high' like the other two -
+   unlike DRTG, a bigger DBPM is a better defender, so the arrows and colours need no
+   special case here. */
+const FT_BPM_VARIANTS = [
+  { key: 'bpm',  label: 'BPM',  blurb: 'points per 100 above an average player, 0 is average' },
+  { key: 'obpm', label: 'OBPM', blurb: 'the offensive half of BPM' },
+  { key: 'dbpm', label: 'DBPM', blurb: 'the defensive half of BPM, higher is better' },
+];
+let ftBpmVariant = 'bpm';
+let _ftLast = null;   // last render's arguments, so the toggle can redraw in place
+
+function ftSetBpmVariant(v) {
+  if (v === ftBpmVariant || !FT_BPM_VARIANTS.some(x => x.key === v)) return;
+  ftBpmVariant = v;
+  const el = document.getElementById('ft-card');
+  if (el && _ftLast) el.outerHTML = buildFormTrend(_ftLast.name, _ftLast.sessions, _ftLast.scope);
+}
+
+function ftMetrics() {
+  const v = FT_BPM_VARIANTS.find(x => x.key === ftBpmVariant) || FT_BPM_VARIANTS[0];
+  return [
+  { key: v.key,  label: v.label,  dir: 'high', dp: 1, floor: 2.0, toggle: true,
+    hint: '', blurb: v.blurb,
     inputs: r => [
-      `${r.fgm}-${r.fga} FG`, `${r.fg3m}-${r.fg3a} 3P`, `${r.ftm}-${r.fta} FT`,
-      `${r.reb} REB`, `${r.ast} AST`, `${r.tov} TOV`,
+      `${r.pts} PTS`, `${r.fgm}-${r.fga} FG`, `${r.fg3m}-${r.fg3a} 3P`, `${r.ftm}-${r.fta} FT`,
+      `${r.oreb} OR`, `${r.dreb} DR`, `${r.ast} AST`, `${r.tov} TOV`,
       `${r.stl} STL`, `${r.blk} BLK`, `${r.pf} PF`,
     ] },
   { key: 'ortg', label: 'ORTG', dir: 'high', dp: 0, floor: 2.0,
@@ -11184,7 +11598,18 @@ const FT_METRICS = [
     inputs: r => [
       `${r.dreb} DREB`, `${r.stl} STL`, `${r.blk} BLK`, `${r.pf} PF`,
     ] },
-];
+  ];
+}
+
+/* The tile that carries the toggle shows the buttons INSTEAD of a label - they already
+   name the metric, and a label beside them would just repeat whichever one is lit. */
+function ftLabelHtml(m, hint) {
+  if (!m.toggle) return m.label + hint;
+  return '<span class="ft-tg">' + FT_BPM_VARIANTS.map(v =>
+    `<button type="button" class="ft-tg-b${v.key === ftBpmVariant ? ' on' : ''}" ` +
+    `title="${escHtml(v.label + ' \u2014 ' + v.blurb)}" ` +
+    `onclick="event.stopPropagation();ftSetBpmVariant('${v.key}')">${v.label}</button>`).join('') + '</span>';
+}
 
 /* One row per practice he appeared in, oldest first. Entries are merged the same way the
    game log merges them, so a practice split across both squads is one row, not two. */
@@ -11203,7 +11628,9 @@ function _ftRows(playerName, chronoSessions) {
       title: sess.title || '',
       date: sess.date || '',
       min:  p.min || 0,
-      per:  perForGame(sess.id, playerName),
+      bpm:  bpmForGame(sess.id, playerName, 'bpm'),
+      obpm: bpmForGame(sess.id, playerName, 'obpm'),
+      dbpm: bpmForGame(sess.id, playerName, 'dbpm'),
       ortg: p.ortg ?? null,
       drtg: p.drtg ?? null,
       // The box line, carried so a hover can show what fed the rating.
@@ -11483,6 +11910,7 @@ function ftArmTapAway() {
    is not a read. When a scope is active the footer says so, so the card is not mistaken for
    something the dropdown filtered. */
 function buildFormTrend(playerName, chronoSessions, scopeActive) {
+  _ftLast = { name: playerName, sessions: chronoSessions, scope: scopeActive };
   const rows = _ftRows(playerName, chronoSessions);
   /* The heading names the window that was ACTUALLY used, not FT_WINDOW. A player six
      practices in gets a three-practice window (see the split below), and a card headed
@@ -11492,7 +11920,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
       <div class="ft-title">${label}</div>`;
 
   if (rows.length < 2) {
-    return `<div class="ft-card">${ftHead('Trending')}</div>
+    return `<div id="ft-card" class="ft-card">${ftHead('Trending')}</div>
       <div class="ft-none">Needs at least two practices before a direction can be read &mdash; he has ${rows.length}.</div>
     </div>`;
   }
@@ -11524,7 +11952,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
      behind a column that now belongs to someone else. */
   window._ftHover = {};
 
-  const tiles = FT_METRICS.map(m => {
+  const tiles = ftMetrics().map(m => {
     const win  = _ftAgg(winRows, m.key);
     const base = baseRows ? _ftAgg(baseRows, m.key)
                           : { mean: null, n: 0, nEff: 0, vals: [], wts: [], sw: 0, sw2: 0 };
@@ -11545,7 +11973,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
 
     if (win.mean == null || (!haveLevel && !sl)) {
       return `<div class="ft-tile" title="${escHtml(m.label + ' \u2014 ' + m.blurb + '. Not enough practices with a logged ' + m.label + ' to call a direction yet.')}">
-        <div class="ft-head"><span class="ft-metric">${m.label}${hint}</span>
+        <div class="ft-head"><span class="ft-metric">${ftLabelHtml(m, hint)}</span>
           <span class="ft-chip">No read</span></div>
         <div class="ft-nums"><span class="ft-now">${nowTxt}</span>
           <span class="ft-base">not enough practices to compare</span></div>
@@ -11659,7 +12087,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
 
     return `<div class="ft-tile ${dirCls}" title="${escHtml(tip)}">
       <div class="ft-head">
-        <span class="ft-metric">${m.label}${hint}</span>
+        <span class="ft-metric">${ftLabelHtml(m, hint)}</span>
         <span class="ft-chip ${dirCls}">${word}<span class="ft-chip-arrow">${arrow}</span></span>
       </div>
       <div class="ft-nums">
@@ -11698,7 +12126,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
   if (evens.length) parts.push(listOf(evens) + ' holding');
   const summary = parts.length ? parts.join(', ') + '.' : '';
 
-  return `<div class="ft-card">
+  return `<div id="ft-card" class="ft-card">
     <div id="ft-tip" class="ft-tip" hidden></div>
     ${ftHead('Trending &mdash; Last ' + winRows.length)}<div class="ft-verdict ${vCls}">${vTxt}<span class="ft-arrow">${vArrow}</span></div></div>
     <div class="ft-grid">${tiles}</div>
@@ -20658,6 +21086,7 @@ function openFilmEventModal(idx) {
   fevForm = ev
     ? {
         filmTime: ev.videoTs != null ? fmtVideoTs(ev.videoTs) : '',
+        player:   ev.player || '',
         quarter:  ev.quarter || currentQuarterNum(),
         clock:    ev.timeSecs != null ? fmtClockRemain(ev.timeSecs) : '',
         // EVERY pair, not just the first — a two-player sub must show as two rows.
@@ -20770,13 +21199,14 @@ function renderFilmEventModal() {
        so resequencing a shot would break that pairing for a cosmetic gain. */
     body.innerHTML = `
       <div class="fev-hint" style="margin-bottom:12px;">
-        <b>${escHtml(ev.player || '')}</b> — ${escHtml(ev.stat === 'note' ? ('★ ' + (ev.note || 'Note')) : (statLabel(ev.stat) || ev.stat))}
+        Editing a <b>${escHtml(ev.stat === 'note' ? ('★ ' + (ev.note || 'Note')) : (statLabel(ev.stat) || ev.stat))}</b> tag.
       </div>
+      ${fevPlayerField(session, ev)}
       ${timeField}
       <div class="fev-hint" style="margin-bottom:14px;">Retiming changes where this row seeks to and where it sits in the Event Timeline. Its position in the log is left as-is, because the possession and kill counters read event adjacency.</div>
       <div style="display:flex;gap:8px;justify-content:space-between;">
         <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.35);" onclick="fevDeleteEvent()">Delete event</button>
-        <button class="btn btn-primary btn-sm" onclick="fevSaveRetime()">Save film time</button>
+        <button class="btn btn-primary btn-sm" onclick="fevSaveEvent()">Save changes</button>
       </div>`;
     return;
   }
@@ -21032,17 +21462,93 @@ function fevSaveSub() {
     snapshotBefore, `${n} sub${n === 1 ? '' : 's'} ${verb} ${where}${ghostTail}`);
 }
 
-function fevSaveRetime() {
+/* WHO WAS ON THIS SQUAD, IN THIS SESSION - starters plus everyone a sub brought on.
+   Deliberately not _teamOfPlayer(): that reads clockState's CURRENT lineups, which answers
+   "who is on the floor now". For an event tagged an hour ago that is the wrong question, and
+   its last resort is a bare return 'a' - harmless while tagging live, but silently wrong the
+   moment a rebound is re-credited to someone from the other squad. */
+function fevSquadRosters(session) {
+  const A = new Set(session.startersA || []);
+  const B = new Set(session.startersB || []);
+  (session.eventLog || []).forEach(e => {
+    if (e.type !== 'sub') return;
+    subPairs(e).forEach(sp => {
+      const set = (sp.team || e.team) === 'b' ? B : A;
+      if (sp.playerIn)  set.add(sp.playerIn);
+      if (sp.playerOut) set.add(sp.playerOut);
+    });
+  });
+  return { a: [...A].sort(byLastName), b: [...B].sort(byLastName) };
+}
+
+/* "I tagged the wrong man" is at least as common as "I tagged the wrong second", and until
+   now the only cure was to delete the event and re-add it - which loses its place in the log,
+   and with it the miss/rebound adjacency the possession counter reads. */
+function fevPlayerField(session, ev) {
+  const squads = fevSquadRosters(session);
+  const cur    = fevForm.player || '';
+  const opt    = n => `<option value="${escHtml(n)}"${n === cur ? ' selected' : ''}>${escHtml(n)}</option>`;
+  const group  = (label, names) => names.length
+    ? `<optgroup label="${escHtml(label)}">${names.map(opt).join('')}</optgroup>` : '';
+  /* A player the session's own roster does not contain still has to appear, or the select
+     would quietly show someone else as selected and a save would reassign a stat nobody
+     asked to move. */
+  const known  = squads.a.includes(cur) || squads.b.includes(cur);
+  const orphan = (cur && !known) ? opt(cur) : '';
+  const none   = ev.stat === 'note' ? `<option value=""${cur ? '' : ' selected'}>&mdash; no player &mdash;</option>` : '';
+  return `
+    <div class="fev-field">
+      <div class="fev-label">Credited to</div>
+      <select class="fev-select" onchange="fevSet('player', this.value)">
+        ${none}${orphan}
+        ${group(session.teamAName || 'White', squads.a)}
+        ${group(session.teamBName || 'Black', squads.b)}
+      </select>
+      <div class="fev-hint">Takes the stat off one player's totals and puts it on another's. The squad follows the name you pick, so a tag credited to the wrong team is fixed by this control too.</div>
+    </div>`;
+}
+
+function fevSaveEvent() {
   const session = State.liveSession;
   const ev = session && fevEditIndex >= 0 ? session.eventLog[fevEditIndex] : null;
   if (!ev) return;
-  const filmSecs = parseFilmTime(fevForm.filmTime);
-  if (filmSecs == null) { showToast('Enter a valid film time (e.g. 41:20)', 'danger', 3000); return; }
+
+  /* Blank film time means "leave it where it is" - which the label has always promised and
+     the old save path did not honour: it ran the blank through parseFilmTime, got null, and
+     refused. Harmless while retiming was the only thing on offer, since you had to type a
+     time to have any reason to press the button; a blocker the moment the player can change. */
+  const raw = String(fevForm.filmTime || '').trim();
+  let filmSecs = null;
+  if (raw) {
+    filmSecs = parseFilmTime(raw);
+    if (filmSecs == null) { showToast('Enter a valid film time (e.g. 41:20)', 'danger', 3000); return; }
+  }
+
+  const oldPlayer = ev.player || '';
+  const newPlayer = fevForm.player == null ? oldPlayer : fevForm.player;
+  const playerChanged = newPlayer !== oldPlayer;
+  const timeChanged   = filmSecs != null && filmSecs !== ev.videoTs;
+  if (!playerChanged && !timeChanged) { showToast('Nothing changed', 'warning'); return; }
+
   const snapshotBefore = JSON.stringify(session);
-  ev.videoTs = filmSecs;
-  delete ev._vtsSearch;
-  fevAfterMutation(session, `Retimed to ${fmtVideoTs(filmSecs)}`, snapshotBefore,
-    `Retimed ${fevDescribe(ev)} to ${fmtVideoTs(filmSecs)}`);
+  const bits = [];
+  if (playerChanged) {
+    const squads = fevSquadRosters(session);
+    ev.player = newPlayer;
+    // a-first is arbitrary but deterministic; a name in both squads means a mid-session swap
+    if (squads.a.includes(newPlayer))      ev.team = 'a';
+    else if (squads.b.includes(newPlayer)) ev.team = 'b';
+    bits.push(`credited to ${newPlayer || 'no player'}`);
+  }
+  if (timeChanged) {
+    ev.videoTs = filmSecs;
+    delete ev._vtsSearch;
+    bits.push(`retimed to ${fmtVideoTs(filmSecs)}`);
+  }
+  const what = statLabel(ev.stat) || ev.stat;
+  const msg  = bits.join(', ');
+  fevAfterMutation(session, msg.charAt(0).toUpperCase() + msg.slice(1), snapshotBefore,
+    `${what}${oldPlayer ? ' (' + oldPlayer + ')' : ''}: ${msg}`);
 }
 
 function fevDeleteEvent() {
