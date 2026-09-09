@@ -10886,6 +10886,29 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          rebounds by type, deflections and fouls fell through as season TOTALS — so a
          2-practice season showed 32.0 "average" 2FGA when the real figure was 16.0. */
       pm: r.pm, pmPG: p1(r.pm / g),
+      /* PER 40 MINUTES. Divided by the minutes he actually played, not by games, so it
+         answers "what does he do while he is out there" rather than "what does he do on a
+         night". The two diverge most for exactly the players a rotation decision is about:
+         a man averaging 12 minutes and one averaging 30 look nothing alike per game and
+         can look identical per 40.
+
+         Percentages are NOT converted - a rate is already per-attempt, and dividing it by
+         minutes would be meaningless. Only the counting columns are scaled. Blank rather
+         than zero when he has no minutes: 40 minutes of nothing is not a measurement. */
+      ...(function () {
+        const m = r.min || 0;
+        const k = m > 0 ? 40 / m : null;
+        const per = v => k == null ? null : p1(v * k);
+        return {
+          ptsP40: per(r.pts),   rebP40: per(r.reb),   orebP40: per(r.oreb),
+          drebP40: per(r.dreb), astP40: per(r.ast),   tovP40: per(r.tov),
+          stlP40: per(r.stl),   blkP40: per(r.blk),   deflP40: per(r.defl),
+          pfP40:  per(r.pf),    pmP40:  per(r.pm),
+          fg2mP40: per(r.fg2m), fg2aP40: per(r.fg2a),
+          fg3mP40: per(r.fg3m), fg3aP40: per(r.fg3a),
+          ftmP40:  per(r.ftm),  ftaP40:  per(r.fta),
+        };
+      })(),
       /* xPPS = value of the shots taken; PPS = value produced; SHOT+/- = the gap, i.e.
          shot-making with selection held constant. Null below a handful of attempts —
          the difference of two small-sample rates is mostly noise. */
@@ -11003,6 +11026,7 @@ function renderPlayerTable() {
   const isAdv     = psFilter.view === 'adv';
   const isReb     = psFilter.view === 'reb';
   const isPps     = psFilter.view === 'pps';
+  const isP40     = psFilter.view === 'p40';
 
   // ── Advanced columns (computed from season-aggregated totals) ──
   const PS_COLS_ADV = [
@@ -11039,7 +11063,40 @@ function renderPlayerTable() {
     { key: 'shotDiff',  label: 'SHOT+/-' }, // the gap = shot-making
   ];
 
-  const PS_COLS = isAdv ? PS_COLS_ADV : isTotals ? [
+  /* The AVG view's exact shape, with every counting column swapped for its per-40 twin.
+     The percentage columns are shared with AVG deliberately: they are the same numbers in
+     both views, and giving them a second key would invite the two copies to drift. */
+  const PS_COLS_P40 = [
+    { key: 'record',  label: 'W-L'  },
+    { key: 'gp',      label: 'GP'   },
+    { key: 'min',     label: 'MIN'  },     // total minutes: the denominator, so show it
+    { key: 'minPG',   label: 'MIN/G' },
+    { key: 'ptsP40',  label: 'PTS'  },
+    { key: 'fg2mP40', label: '2FGM' },
+    { key: 'fg2aP40', label: '2FGA' },
+    { key: 'fg2Pct',  label: '2FG%' },
+    { key: 'fg3mP40', label: '3PM'  },
+    { key: 'fg3aP40', label: '3PA'  },
+    { key: 'fg3Pct',  label: '3P%'  },
+    { key: 'ftmP40',  label: 'FTM'  },
+    { key: 'ftaP40',  label: 'FTA'  },
+    { key: 'ftPct',   label: 'FT%'  },
+    { key: 'fgPct',   label: 'FG%'  },
+    { key: 'efgPct',  label: 'EFG%' },
+    { key: 'tsPct',   label: 'TS%'  },
+    { key: 'rebP40',  label: 'REB'  },
+    { key: 'orebP40', label: 'OREB' },
+    { key: 'drebP40', label: 'DREB' },
+    { key: 'astP40',  label: 'AST'  },
+    { key: 'tovP40',  label: 'TOV'  },
+    { key: 'stlP40',  label: 'STL'  },
+    { key: 'blkP40',  label: 'BLK'  },
+    { key: 'deflP40', label: 'DEFL' },
+    { key: 'pfP40',   label: 'PF'   },
+    { key: 'pmP40',   label: '+/-'  },
+  ];
+
+  const PS_COLS = isAdv ? PS_COLS_ADV : isP40 ? PS_COLS_P40 : isTotals ? [
     { key: 'record', label: 'W-L'    },
     { key: 'gp',     label: 'GP'     },
     { key: 'min',    label: 'MIN'    },
@@ -11113,7 +11170,7 @@ function renderPlayerTable() {
       if (key === 'gp') return `<td>${v}</td>`;
       /* Signed, and never run through the generic branches below: the total must stay a
          whole number while the per-game figure keeps a decimal. */
-      if (key === 'pm' || key === 'pmPG') {
+      if (key === 'pm' || key === 'pmPG' || key === 'pmP40') {
         const n = +v;
         const txt = key === 'pm' ? String(n) : n.toFixed(1);
         const col = n > 0 ? 'var(--success)' : n < 0 ? 'var(--danger)' : 'var(--text-dim)';
@@ -11327,11 +11384,12 @@ function renderPlayerTable() {
           ${teamOpts('b','Black')}
         </select>
         <div class="btn-group" style="display:flex;gap:2px;">
-          <button class="btn btn-sm${!isTotals && !isAdv && !isReb && !isPps ? ' btn-primary' : ''}" onclick="psSetFilter('view','avg')">AVG</button>
+          <button class="btn btn-sm${!isTotals && !isAdv && !isReb && !isPps && !isP40 ? ' btn-primary' : ''}" onclick="psSetFilter('view','avg')">AVG</button>
           <button class="btn btn-sm${isTotals ? ' btn-primary' : ''}" onclick="psSetFilter('view','tot')">TOT</button>
           <button class="btn btn-sm${isAdv ? ' btn-primary' : ''}" onclick="psSetFilter('view','adv')">ADV</button>
           <button class="btn btn-sm${isReb ? ' btn-primary' : ''}" onclick="psSetFilter('view','reb')">REB</button>
           <button class="btn btn-sm${isPps ? ' btn-primary' : ''}" onclick="psSetFilter('view','pps')">PPS</button>
+          <button class="btn btn-sm${isP40 ? ' btn-primary' : ''}" onclick="psSetFilter('view','p40')" title="Every counting stat per 40 minutes played. Percentages are unchanged.">PER/40</button>
         </div>
         ${isReb ? rebPickerHtml : isPps ? ppsPickerHtml : ''}
       </div>
@@ -11361,9 +11419,10 @@ function psSort(col) {
 function psSetFilter(key, val) {
   psFilter[key] = val;
   if (key === 'view') {
-    if (val === 'tot')      { psFilter.sortCol = 'pts';   psFilter.sortDir = -1; }
-    else if (val === 'adv') { psFilter.sortCol = 'ortg';  psFilter.sortDir = -1; }
-    else                    { psFilter.sortCol = 'ptsPG'; psFilter.sortDir = -1; }
+    if (val === 'tot')      { psFilter.sortCol = 'pts';    psFilter.sortDir = -1; }
+    else if (val === 'adv') { psFilter.sortCol = 'ortg';   psFilter.sortDir = -1; }
+    else if (val === 'p40') { psFilter.sortCol = 'ptsP40'; psFilter.sortDir = -1; }
+    else                    { psFilter.sortCol = 'ptsPG';  psFilter.sortDir = -1; }
   }
   renderPlayerTable();
 }
