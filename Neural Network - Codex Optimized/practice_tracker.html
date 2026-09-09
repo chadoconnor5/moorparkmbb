@@ -8009,6 +8009,7 @@ function bpmContext() {
       lgPts += ts[tm].pts || 0; lgPoss += ts[tm].possessions || 0;
     }
   }
+  // Kept as a fact about the pool (and shown alongside), no longer an input to the centring.
   const lgORtg = lgPoss > 0 ? lgPts / lgPoss * 100 : 0;
 
   const raws = [];                       // one entry per player-practice
@@ -8018,50 +8019,33 @@ function bpmContext() {
     const r = _bpmRow(e, c, pos[e.name], role[e.name]);
     if (r) raws.push({ e, r });
   }
-  /* ONE ADJUSTMENT PER SQUAD, ACROSS THE SEASON - not one per practice.
+  /* CENTRED ON THE ROSTER, NOT RECONCILED TO TEAM RATINGS.
 
-     Applying it per practice was wrong and produced nonsense. A scrimmage runs about 35
-     possessions, so a squad's net rating for one night swings enormously - one practice
-     here came out at +67.6 - and forcing the five men on the floor to absorb that hands
-     them ratings the play never earned. Worse, DBPM is BPM minus OBPM, so it inherits
-     everything the offensive box score cannot account for: on that +67.6 night one player
-     read a 51.3 DBPM, which is not a defensive rating, it is a scoreline wearing one.
+     Raw box-score BPM averages about +10 on this roster - the coefficients were fitted on
+     NBA possessions and over-credit in this environment - so something has to bring the
+     average back to 0, since an average player reading 0 is the entire meaning of BPM.
 
-     The team adjustment is a season quantity in Myers' method for exactly this reason. A
-     squad's rating over every practice is a far steadier thing than its rating on a
-     Tuesday, and a player's individual practices are then allowed to differ from the team
-     result - which is the entire point of a box-score metric. */
-  const tmSeason = {};
-  sessions.forEach(sess => {
-    const ts = sess.teamStats || {};
-    ['a', 'b'].forEach(tm => {
-      const me = ts[tm], opp = ts[tm === 'a' ? 'b' : 'a'];
-      if (!me || !opp || !squad[sess.id + '|' + tm]) return;
-      const t = tmSeason[tm] = tmSeason[tm] ||
-        { pts: 0, oppPts: 0, poss: 0, oppPoss: 0, b: 0, o: 0, mp: 0 };
-      t.pts    += me.pts  || 0;  t.poss    += me.possessions  || 0;
-      t.oppPts += opp.pts || 0;  t.oppPoss += opp.possessions || 0;
-    });
-  });
-  raws.forEach(({ e, r }) => {
-    const t = tmSeason[e.team];
-    if (!t) return;
-    t.b += r.bpm * e.MP; t.o += r.obpm * e.MP; t.mp += e.MP;
-  });
-  const adj = {};
-  for (const tm in tmSeason) {
-    const t = tmSeason[tm];
-    const net = (t.poss > 0 && t.oppPoss > 0)
-      ? (t.pts / t.poss - t.oppPts / t.oppPoss) * 100 : 0;
-    const off = t.poss > 0 ? (t.pts / t.poss * 100 - lgORtg) : 0;
-    adj[tm] = { b: net - (t.mp > 0 ? t.b / t.mp : 0),
-                o: off - (t.mp > 0 ? t.o / t.mp : 0) };
-  }
+     The textbook answer is the team adjustment: force each squad's minute-weighted BPM to
+     equal what that squad actually did. That was tried and it is wrong HERE, for a reason
+     specific to this data. White has outscored Black by about 25 points per 100 across the
+     fall, and reconciling to team ratings hands every player his squad's result. Claiborne
+     came out at +11.3 raw - an above-average box score - and -22.5 adjusted, because he
+     plays for Black. Castro went the other way, +2.9 to -20.5. The squad gap is larger than
+     anything the box score says, so the adjustment stops being a correction and becomes the
+     dominant term: the metric ends up reporting which bib a man was handed.
+
+     So the centring is the pool's own minute-weighted mean instead. Zero means an average
+     player in THIS program, which is the same thing PER's 15 meant and rests on the same
+     argument - normalise against the population you actually have. What is given up is that
+     squad BPM no longer sums to squad net rating. That identity was exactly what produced
+     the -27.9, so it is a trade worth making. */
+  let _cb = 0, _co = 0, _cm = 0;
+  raws.forEach(({ e, r }) => { _cb += r.bpm * e.MP; _co += r.obpm * e.MP; _cm += e.MP; });
+  const centre = { b: _cm > 0 ? _cb / _cm : 0, o: _cm > 0 ? _co / _cm : 0 };
 
   const bySession = {}, agg = {};
   raws.forEach(({ e, r }) => {
-    const d = adj[e.team] || { b: 0, o: 0 };
-    const bpm = r.bpm + d.b, obpm = r.obpm + d.o;
+    const bpm = r.bpm - centre.b, obpm = r.obpm - centre.o;
     const row = { bpm, obpm, dbpm: bpm - obpm };
     (bySession[e.sid] = bySession[e.sid] || {})[e.name] = row;
     const a = agg[e.name] = agg[e.name] || { mp: 0, b: 0, o: 0, byTeam: {} };
