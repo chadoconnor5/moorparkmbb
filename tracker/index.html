@@ -2867,6 +2867,22 @@
     .ft-hint { font-size: 9.5px; font-weight: 600; color: var(--text-dim); margin-left: 5px; }
     .ft-chip { display: inline-flex; align-items: center; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; color: var(--text-secondary); }
     .ft-chip .ft-chip-arrow { display: inline-flex; align-items: center; margin-left: 5px; }
+    /* LOCAL ONLY. The gate is the ORIGIN, not a build flag, so both copies of this file
+       stay byte-identical - which the pre-commit hook requires. The code ships publicly;
+       only the rendering is withheld, and the data never leaves localStorage either way. */
+    .local-only { display: none; }
+    .bpmx { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .bpmx th, .bpmx td { padding: 3px 6px; text-align: right; white-space: nowrap;
+                         border-bottom: 1px solid var(--border); }
+    .bpmx th { font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase;
+               color: var(--text-dim); font-weight: 800; }
+    .bpmx td.nm, .bpmx th.nm { text-align: left; font-weight: 600; }
+    .bpmx tr.sect td { background: var(--surface); font-weight: 800; text-align: left;
+                       text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.06em;
+                       color: var(--text-dim); }
+    .bpmx td.out { color: var(--text); font-weight: 800; }
+    .bpmx td.dnp { color: var(--text-dim); font-style: italic; }
+    .bpmx-ctx { font-size: 11px; color: var(--text-dim); margin: 2px 0 10px; }
     .ft-tg { display: inline-flex; gap: 3px; }
     .ft-tg-b { font: inherit; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
                padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border);
@@ -3864,6 +3880,7 @@
          records them, the player profile's Add Note button still adds them after the fact, and
          they still show in each player's Event Timeline. TO RE-ADD: uncomment the line below. -->
     <!-- <button class="nav-tab"        data-tab="notes"     onclick="switchTab('notes',this)">Notes</button> -->
+    <button class="nav-tab local-only" data-tab="bpmsheet" onclick="switchTab('bpmsheet',this)" title="Per-scrimmage BPM working. Local only - never rendered on the published site.">BPM Sheet</button>
     <button class="nav-tab editor-only" data-tab="zones" onclick="switchTab('zones',this)">Zones</button>
     <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
     <button class="nav-tab editor-only" id="nav-roster" style="margin-left:auto;" onclick="openRosterEditor()" title="Edit roster: rename players or hide them from analysis">&#9881; Roster</button>
@@ -4269,6 +4286,10 @@
 
   <div id="tab-zones" class="tab-content">
     <div id="zones-root" class="page"></div>
+  </div>
+
+  <div id="tab-bpmsheet" class="tab-content">
+    <div id="bpmsheet-root" class="page"></div>
   </div>
 
   <div id="tab-connections" class="tab-content">
@@ -5192,6 +5213,16 @@ async function publishData() {
 /* ============================================================
    TAB ROUTING
 ============================================================ */
+/* Shown only from file:// or localhost. Done at runtime rather than at build time because
+   practice_tracker.html and tracker/index.html must stay byte-identical. */
+function revealLocalOnly() {
+  if (typeof bpmSheetIsLocal !== 'function' || !bpmSheetIsLocal()) return;
+  /* Drop the class rather than setting an inline display: style.display = '' only clears the
+     inline value, which hands the element straight back to `.local-only { display:none }`
+     and leaves the tab invisible on the very origin that is meant to see it. */
+  document.querySelectorAll('.local-only').forEach(el => el.classList.remove('local-only'));
+}
+
 function switchTab(tabName, btnEl) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
@@ -5215,6 +5246,7 @@ const tabRenderers = {
   onoff:      () => {},
   lineups:    () => {},
   connections:() => {},
+  bpmsheet:   () => {},
 };
 
 /* ============================================================
@@ -7817,6 +7849,7 @@ const BPM_COEF = {
 const BPM_ROLE_IDX = new Set([1, 2]);                    // FGA, FTA  -> offensive role
 const BPM_POS_IDX  = new Set([4, 5, 6, 7, 8, 9, 10]);    // AST..BLK  -> position
 
+const BPM_MIN_MIN  = 20;     // season floor: below this a rate is noise, and a blank says so
 const BPM_TSA_FT   = 0.44;   // free-throw weight in true-shooting attempts
 const BPM_ROLE_C   = [6, -6.6416, -8.5441];   // intercept, assist-share, scoring-share
 const BPM_ROLE_ADJ = 0.33;   // scoring-share baseline; NOT the BPM scoring baseline
@@ -7852,7 +7885,12 @@ function _bpmRow(e, ctx, pos, role) {
   const dot = cf => cf.reduce((sum, c, i) => sum + c * vec[i], 0);
   const bpm  = dot(_bpmCoefs(BPM_COEF.bpm,  pos, role)) + _bpmConst(pos, role, BPM_COEF.bpm.k);
   const obpm = dot(_bpmCoefs(BPM_COEF.obpm, pos, role)) + _bpmConst(pos, role, BPM_COEF.obpm.k);
-  return { bpm, obpm, dbpm: bpm - obpm };
+  /* `work` is the intermediate chain, kept so the local BPM sheet can print what the
+     calculation actually used rather than recomputing it beside itself and drifting. */
+  return { bpm, obpm, dbpm: bpm - obpm,
+           work: { TSA, adjPts, poss, ptsPerTSA: TSA > 0 ? e.PTS / TSA : 0,
+                   minShare: e.MP / ctx.teamMin, pos, role,
+                   tmPtsTSA: ctx.tmPtsTSA, baseline: ctx.baseline, per100: vec } };
 }
 
 /* Centre so the minute-weighted mean is 3, then clamp, three times. Clamping is not
@@ -8046,7 +8084,7 @@ function bpmContext() {
   const bySession = {}, agg = {};
   raws.forEach(({ e, r }) => {
     const bpm = r.bpm - centre.b, obpm = r.obpm - centre.o;
-    const row = { bpm, obpm, dbpm: bpm - obpm };
+    const row = { bpm, obpm, dbpm: bpm - obpm, raw: r.bpm, rawO: r.obpm, work: r.work };
     (bySession[e.sid] = bySession[e.sid] || {})[e.name] = row;
     const a = agg[e.name] = agg[e.name] || { mp: 0, b: 0, o: 0, byTeam: {} };
     a.mp += e.MP; a.b += bpm * e.MP; a.o += obpm * e.MP;
@@ -8133,7 +8171,7 @@ const BS_COLS = [
   { key: 'dreb',   label: 'DR'    },
   { key: 'pf',     label: 'PF'    },
   { key: 'pts',    label: 'PTS'   },
-  { key: 'per',    label: 'PER'   },   // value, read against a league average of 15
+  { key: 'bpm',    label: 'BPM'   },   // value, read against a roster average of 0
   { key: 'pm',     label: '+/-'   },   // far right, mirroring a standard box score
 ];
 
@@ -8199,7 +8237,7 @@ function buildBoxTableHtml(session, team) {
       /* This practice only, on the season-wide scale - so a good night reads as a good night
          rather than being flattened to 15 by its own game. Ungated on purpose: a box score
          is the record of what happened, however few minutes it took. */
-      case 'per': { const v = perForGame(session.id, row.name);
+      case 'bpm': { const v = bpmForGame(session.id, row.name, 'bpm');
                     return v == null ? '—' : v.toFixed(1); }
       case 'pm':     return (row.pm > 0 ? '+' : '') + row.pm;   // explicit + reads as a margin
       case 'fg2mfa': return `${row.fg2m}-${row.fg2a}`;
@@ -8258,9 +8296,9 @@ function buildBoxTableHtml(session, team) {
         return totalSecs > 0 ? (totalSecs / 60).toFixed(1) + '\'' : '—';
       }
       case 'pts':    return ts.pts ?? '—';
-      /* The squad's PER for this practice: minutes-weighted across the men who played it,
-         so it reads against 15 exactly the way a player's does. */
-      case 'per': { const v = perForTeam(session, team);
+      /* The squad's BPM for this practice: minutes-weighted across the men who played it,
+         so it reads against 0 exactly the way a player's does. */
+      case 'bpm': { const v = bpmForTeam(session, team, 'bpm');
                     return v == null ? '—' : v.toFixed(1); }
       case 'pm': {
         /* The team figure is the score margin, NOT the sum of the column above it — every
@@ -10562,6 +10600,57 @@ function sessionInScope(sess, scope) {
   return sess.period === scope;
 }
 
+/* EVERY RATE'S NUMERATOR AND DENOMINATOR, for one player in one practice.
+
+   A rate is a ratio, and the season figure is the ratio of the sums - never the mean of
+   the per-practice ratios. Averaging finished rates gave the same stat two different
+   values on two screens: Khawaja's AST% read 11.4 on the ADV tab (plain mean of eight
+   practices) and 10.4 in the Tendency Read (minute-weighted), because one 26.8% night in
+   9.8 minutes counted as heavily as a 37.8-minute shift. Neither was the rate: pooled, it
+   is different again. Carraway's FTR differed by 21 points between the two surfaces.
+
+   The denominators here are exactly the ones computePlayerStats divides by, so a single
+   practice pools to the number that practice already shows. Per ENTRY rather than per
+   merged player, so a man who switched squads mid-practice is charged each squad's own
+   context - the same split the possession estimate beside it makes. */
+function rateParts(sess, en, gameMin) {
+  const tS = (sess.teamStats || {})[en.team] || {};
+  const oS = (sess.teamStats || {})[en.team === 'a' ? 'b' : 'a'] || {};
+  const mp = gameMin > 0 ? (en.min || 0) / gameMin : 0;
+  const n  = k => en[k] || 0;
+  const tsa = n('fga') + 0.475 * n('fta');
+  return {
+    efg:  [n('fgm') + 0.5 * n('fg3m'), n('fga')],
+    ts:   [0.5 * n('pts'), tsa],
+    shot: [n('fga'), mp * (tS.fga || 0)],
+    usg:  [n('fga') + 0.475 * n('fta') + n('tov'),
+           mp * ((tS.fga || 0) + 0.475 * (tS.fta || 0) + (tS.tov || 0))],
+    or:   [n('oreb'), mp * ((tS.oreb || 0) + (oS.dreb || 0))],
+    dr:   [n('dreb'), mp * ((tS.dreb || 0) + (oS.oreb || 0))],
+    ast:  [n('ast'),  mp * ((tS.fgm || 0) - n('fgm'))],
+    to:   [n('tov'),  n('fga') + 0.475 * n('fta') + n('ast') + n('tov')],
+    stl:  [n('stl'),  mp * (tS.possessions || 0)],
+    blk:  [n('blk'),  mp * Math.max(1, oS.fg2a || 0)],
+  };
+}
+/* ADV column key -> the parts above. */
+const RATE_KEY = { efgPct:'efg', tsPct:'ts', shotPct:'shot', usgPct:'usg', orPct:'or',
+                   drPct:'dr', astPct:'ast', toPct:'to', stlPct:'stl', blkPct:'blk' };
+
+/* Sum numerators, sum denominators, divide once. A practice whose denominator is zero or
+   negative contributes nothing, which is the same thing computePlayerStats does when it
+   returns null for that night rather than a zero. */
+function poolRate(partsList, key) {
+  const k = RATE_KEY[key];
+  if (!k) return null;
+  let num = 0, den = 0;
+  for (const parts of partsList) {
+    const [a, b] = parts[k];
+    if (b > 0) { num += a; den += b; }
+  }
+  return den > 0 ? 100 * num / den : null;
+}
+
 function aggregatePlayerStats(filterPeriod, filterTeam) {
   const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats);
   const byPlayer = {};
@@ -10614,10 +10703,12 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
           min: 0, pts: 0, fgm: 0, fga: 0, fg2m: 0, fg2a: 0, fg3m: 0, fg3a: 0,
           ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
           ast: 0, tov: 0, stl: 0, blk: 0, defl: 0, pf: 0,
-          // Per-game ADV accumulators for averaging
-          _ortg: [], _drtg: [], _usgPct: [], _shotPct: [],
-          _efgPct: [], _tsPct: [], _tsNoPb: [],
-          _orPct: [], _drPct: [], _astPct: [], _toPct: [], _stlPct: [], _blkPct: [],
+          /* ORTG and DRTG stay per-game averages: they are Oliver's ratings, not simple
+             ratios, so pooling them means re-deriving the whole formula on season totals
+             rather than summing two columns. Every other rate below is pooled. */
+          _ortg: [], _drtg: [],
+          _parts: [],                       // rateParts() per entry, pooled at the end
+          _pbN: 0, _pbD: 0,                 // TS% with putbacks stripped, pooled the same way
         };
       }
       const row = byPlayer[key];
@@ -10679,10 +10770,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       // Accumulate per-game ADV for averaging
       if (p.ortg      != null) row._ortg.push(p.ortg);
       if (p.drtg      != null) row._drtg.push(p.drtg);
-      if (p.usgPct    != null) row._usgPct.push(p.usgPct);
-      if (p.shotPct   != null) row._shotPct.push(p.shotPct);
-      if (p.efgPct    != null) row._efgPct.push(p.efgPct);
-      if (p.tsPct     != null) row._tsPct.push(p.tsPct);
+      for (const en of entries) row._parts.push(rateParts(sess, en, _gameMin));
       /* Built per session and averaged, exactly as tsPct above is — not from season totals.
          The whole use of this column is the gap between it and TS%, and a gap between two
          figures assembled different ways would measure the assembly as much as the shooting.
@@ -10694,14 +10782,8 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
         const _pb  = (putbacks[sess.id] || {})[nm] || { att: 0, pts: 0 };
         const _fga = (p.fga || 0) - _pb.att;
         const _den = _fga + 0.475 * (p.fta || 0);
-        if (_den > 0) row._tsNoPb.push(100 * 0.5 * ((p.pts || 0) - _pb.pts) / _den);
+        if (_den > 0) { row._pbN += 0.5 * ((p.pts || 0) - _pb.pts); row._pbD += _den; }
       }
-      if (p.orPct     != null) row._orPct.push(p.orPct);
-      if (p.drPct     != null) row._drPct.push(p.drPct);
-      if (p.astPct    != null) row._astPct.push(p.astPct);
-      if (p.toPct     != null) row._toPct.push(p.toPct);
-      if (p.stlPct    != null) row._stlPct.push(p.stlPct);
-      if (p.blkPct    != null) row._blkPct.push(p.blkPct);
     }
   }
 
@@ -10810,7 +10892,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       // ADV (averages of per-game values)
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
-      usgPct:   avg(r._usgPct),
+      usgPct:   p1(poolRate(r._parts, 'usgPct')),
       /* Capped, the way the On/Off impact card caps it. playerStats stores each practice's
          minutes already rounded to 0.1, so a man who played every second of every scrimmage
          sums to a hair over the exact floor time and reads 100.1% - noise from the rounding,
@@ -10818,23 +10900,26 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          ceiling, and nothing below it is touched. */
       minPctVal:availableMin > 0 ? p1(Math.min(100, 100 * r.min / availableMin)) : null,
       /* Season PER, narrowed to the squad in view so it agrees with the minutes beside it.
-         Gated at twenty minutes: below that PER is mostly noise - a seven-minute night
-         produced -12.8 in testing - and a blank says that more honestly than a number. */
-      per:      p1(perForPlayer(r.name, filterTeam, 20)),
-      shotPct:  avg(r._shotPct),
-      efgPct:   avg(r._efgPct),
-      tsPct:    avg(r._tsPct),
+         Gated at twenty minutes: below that the rate is mostly noise - a five-minute night
+         read +7.8 DBPM in testing, which is a scoreline not a defender - and a blank says
+         that more honestly than a number would. */
+      bpm:      p1(bpmForPlayer(r.name, filterTeam, BPM_MIN_MIN, 'bpm')),
+      obpm:     p1(bpmForPlayer(r.name, filterTeam, BPM_MIN_MIN, 'obpm')),
+      dbpm:     p1(bpmForPlayer(r.name, filterTeam, BPM_MIN_MIN, 'dbpm')),
+      shotPct:  p1(poolRate(r._parts, 'shotPct')),
+      efgPct:   p1(poolRate(r._parts, 'efgPct')),
+      tsPct:    p1(poolRate(r._parts, 'tsPct')),
       /* Blank, not zero, when nothing survives the exclusion — a man whose only attempt of
          the night was a tip-in has no non-putback shooting to report, which is a different
          statement from having shot 0%. */
-      tsNoPbPct:avg(r._tsNoPb),
+      tsNoPbPct:r._pbD > 0 ? p1(100 * r._pbN / r._pbD) : null,
       ftRate,
-      orPct:    avg(r._orPct),
-      drPct:    avg(r._drPct),
-      astPct:   avg(r._astPct),
-      toPct:    avg(r._toPct),
-      stlPct:   avg(r._stlPct),
-      blkPct:   avg(r._blkPct),
+      orPct:    p1(poolRate(r._parts, 'orPct')),
+      drPct:    p1(poolRate(r._parts, 'drPct')),
+      astPct:   p1(poolRate(r._parts, 'astPct')),
+      toPct:    p1(poolRate(r._parts, 'toPct')),
+      stlPct:   p1(poolRate(r._parts, 'stlPct')),
+      blkPct:   p1(poolRate(r._parts, 'blkPct')),
       record: `${r.wins}-${r.losses}`,
     };
   });
@@ -10918,7 +11003,9 @@ function renderPlayerTable() {
     { key: 'toPct',     label: 'TO%'   },
     { key: 'stlPct',    label: 'STL%'  },
     { key: 'blkPct',    label: 'BLK%'  },
-    { key: 'per',       label: 'PER'   },   // value, read against a league average of 15
+    { key: 'bpm',       label: 'BPM'   },   // value, read against a roster average of 0
+    { key: 'obpm',      label: 'OBPM'  },   // the offensive half
+    { key: 'dbpm',      label: 'DBPM'  },   // the defensive half; BPM minus OBPM
     { key: 'xpps',      label: 'xPPS'  },   // value of the shots taken (selection)
     { key: 'pps',       label: 'PPS'   },   // value actually produced
     { key: 'shotDiff',  label: 'SHOT+/-' }, // the gap = shot-making
@@ -11293,7 +11380,9 @@ function psSetScope(sessionId) {
 const TREND_METRICS = [
   { g:'Value',     key:'ortg',      label:'ORTG',  suffix:'',  dp:0 },
   { g:'Value',     key:'drtg',      label:'DRTG',  suffix:'',  dp:0 },
-  { g:'Value',     key:'per',       label:'PER',   suffix:'',  dp:1, neg:true },
+  { g:'Value',     key:'bpm',       label:'BPM',   suffix:'',  dp:1, neg:true },
+  { g:'Value',     key:'obpm',      label:'OBPM',  suffix:'',  dp:1, neg:true },
+  { g:'Value',     key:'dbpm',      label:'DBPM',  suffix:'',  dp:1, neg:true },
   { g:'Value',     key:'usgPct',    label:'USG%',  suffix:'%', dp:1 },
   { g:'Value',     key:'minPctVal', label:'MIN%',  suffix:'%', dp:1 },
 
@@ -12342,6 +12431,21 @@ function trMedian(arr) {
 }
 /* Minute-weighted, because a rate from a 30-minute practice should not count the same as
    one from a 6-minute cameo. */
+/* THE SEASON RATE for these panels, pooled the way the ADV table pools it.
+
+   trWavg below minute-weights the finished per-practice rates, which is a better
+   approximation than a plain mean but still not the rate: averaging ratios is not the
+   ratio of the sums. Rows carry the numerators and denominators as _rp (see rateParts),
+   so this divides once at the end and the Tendency Read, the trend chips and the ADV
+   table cannot disagree about what AST% is. Falls back to trWavg for a row that has no
+   parts attached, and for keys that are not simple ratios. */
+function trRate(rows, key) {
+  if (!RATE_KEY[key]) return trWavg(rows, key);
+  const parts = rows.map(r => r && r._rp).filter(Boolean);
+  if (!parts.length) return trWavg(rows, key);
+  return poolRate(parts, key);
+}
+
 function trWavg(rows, key) {
   let num = 0, den = 0;
   for (const r of rows) {
@@ -12407,13 +12511,19 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
   const chron = playerSessions.slice().sort((a, b) =>
     String(a.date || '').localeCompare(String(b.date || '')));
   const shots = chron.flatMap(s => shotsOf(s, playerName));
-  const advRows = chron.map(s => (s.playerStats || []).find(p => p.name === playerName)).filter(Boolean);
+  /* Each row carries the practice's own numerators and denominators, so the rate panels
+     below can pool rather than average finished percentages. */
+  const advRows = chron.map(s => {
+    const row = (s.playerStats || []).find(p => p.name === playerName);
+    if (!row) return null;
+    return Object.assign({}, row, { _rp: rateParts(s, row, getSessionPlayedSeconds(s) / 60) });
+  }).filter(Boolean);
   if (!advRows.length) return '';
 
   const totalMin = advRows.reduce((t, r) => t + (r.min || 0), 0);
   const gp = advRows.length;
   const mp = trWavg(advRows, 'minPctVal') || 0;
-  const usg = trWavg(advRows, 'usgPct') || 0;
+  const usg = trRate(advRows, 'usgPct') || 0;
 
   // Team baselines, over visible players only.
   const teamShots = [];
@@ -12422,9 +12532,11 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     for (const e of (s.eventLog || [])) {
       if (TR_SHOT_STATS.includes(e.stat) && e.player && !isHiddenPlayer(e.player)) teamShots.push(e);
     }
+    const _gm = getSessionPlayedSeconds(s) / 60;
     for (const p of (s.playerStats || [])) {
       if (isHiddenPlayer(p.name)) continue;
-      (perPlayerAdv[p.name] = perPlayerAdv[p.name] || []).push(p);
+      (perPlayerAdv[p.name] = perPlayerAdv[p.name] || [])
+        .push(Object.assign({}, p, { _rp: rateParts(s, p, _gm) }));
     }
   }
   const teamPPS = trPPS(teamShots);
@@ -12436,7 +12548,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
   for (const [key] of TR_RATES) {
     const vals = {};
     for (const n of qualified) {
-      const v = trWavg(perPlayerAdv[n], key);
+      const v = trRate(perPlayerAdv[n], key);
       if (v != null) vals[n] = v;
     }
     const names = Object.keys(vals);
@@ -12555,7 +12667,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     const cand = [];
     for (const [key, label, dir, countKey] of TR_RATES) {
       if (med[key] == null) continue;
-      const v = trWavg(advRows, key);
+      const v = trRate(advRows, key);
       if (v == null) continue;
       // The rate needs real events behind it, not just minutes on the floor.
       const events = advRows.reduce((t, r) => t + (r[countKey] || 0), 0);
@@ -12669,16 +12781,17 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
    rather than asking the reader to trust the colour.
 
    It deliberately reuses the Tendency Read's baselines - the same minutes floor, the same
-   trWavg for the rate columns, the same hidden-player exclusion, the same "at least four
+   pooling for the rate columns, the same hidden-player exclusion, the same "at least four
    qualified players" and "median must be above zero" rules. Two panels an inch apart that
    computed AST% differently would be a bug nobody could see, so they compute it the one way.
 
    Two rules that are not obvious:
 
-   1. SHOOTING IS POOLED, RATE COLUMNS ARE MINUTE-WEIGHTED. 3P% over a season is total makes
-      over total attempts - averaging six per-practice percentages would let a 1-for-1 night
-      count as much as an 8-for-20 one. The % rate columns keep trWavg because that is what
-      the panel above them uses and what the ADV table shows.
+   1. EVERYTHING IS POOLED. 3P% over a season is total makes over total attempts - averaging
+      six per-practice percentages would let a 1-for-1 night count as much as an 8-for-20 one.
+      The % rate columns used to be minute-weighted instead, on the grounds that it matched
+      the ADV table; the ADV table now pools too, and the old arrangement was how one stat
+      came to print two values an inch apart (AST% 11.4 on one panel, 10.4 on the other).
 
    2. A LOW-IS-BETTER STAT IS GATED ON MINUTES, NOT ON THE BAD EVENT. Requiring three
       turnovers before TO% is eligible would disqualify precisely the players who are best
@@ -12758,19 +12871,19 @@ const SW_CATS = [
     ppsFloor:50, pps: v => 2 * v / 100,
     sample: t => t.fta,  val: t => t.fta ? 100 * t.ftm / t.fta : null },
   { key:'orPct',  label:'OR%',     dir:'high', need:3,  suffix:'%',
-    sample: t => t.oreb, val: (t, r) => trWavg(r, 'orPct') },
+    sample: t => t.oreb, val: (t, r) => trRate(r, 'orPct') },
   { key:'drPct',  label:'DR%',     dir:'high', need:3,  suffix:'%',
-    sample: t => t.dreb, val: (t, r) => trWavg(r, 'drPct') },
+    sample: t => t.dreb, val: (t, r) => trRate(r, 'drPct') },
   { key:'astPct', label:'AST%',    dir:'high', need:3,  suffix:'%',
-    sample: t => t.ast,  val: (t, r) => trWavg(r, 'astPct') },
+    sample: t => t.ast,  val: (t, r) => trRate(r, 'astPct') },
   { key:'stlPct', label:'STL%',    dir:'high', need:3,  suffix:'%',
-    sample: t => t.stl,  val: (t, r) => trWavg(r, 'stlPct') },
+    sample: t => t.stl,  val: (t, r) => trRate(r, 'stlPct') },
   { key:'blkPct', label:'BLK%',    dir:'high', need:3,  suffix:'%',
-    sample: t => t.blk,  val: (t, r) => trWavg(r, 'blkPct') },
+    sample: t => t.blk,  val: (t, r) => trRate(r, 'blkPct') },
   { key:'defl40', label:'DEFL/40', dir:'high', need:3,  suffix:'',
     sample: t => t.defl, val: t => t.min  ? 40 * t.defl / t.min : null },
   { key:'toPct',  label:'TO%',     dir:'low',  need:0,  suffix:'%',
-    sample: t => t.min,  val: (t, r) => trWavg(r, 'toPct') },
+    sample: t => t.min,  val: (t, r) => trRate(r, 'toPct') },
 ];
 
 const SW_TOTAL_KEYS = ['min','pts','fgm','fga','fg2m','fg2a','fg3m','fg3a','ftm','fta','oreb','dreb','ast','tov','stl','blk','defl'];
@@ -13134,13 +13247,13 @@ function buildShotTendencies(fgEvents) {
    formatting pass had to be applied to both by hand: 28 identical edits, twice, with
    nothing to catch it if one had been missed. One definition means a change to how a
    stat prints lands everywhere the stat appears. */
-const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts','per'];
+const glColOrder = ['date','title','result','min','minPctVal','ortg','usgPct','drtg','shotPct','efgPct','tsPct','ftRate','orPct','drPct','astPct','toPct','stlPct','blkPct','fg2','fg3','ft','ast','tov','stl','blk','oreb','dreb','pf','pts','bpm','obpm','dbpm'];
 const glColLabel = { date:'DATE', title:'OPPONENT', result:'RESULT', min:'MINS',
   minPctVal:'MIN%', ortg:'ORtg', usgPct:'USAGE', drtg:'DRtg', shotPct:'SHOT%',
   efgPct:'EFG', tsPct:'TS%', ftRate:'FTR',
   orPct:'OR%', drPct:'DR%', astPct:'AST%', toPct:'TO%', stlPct:'STL%', blkPct:'BLK%',
   fg2:'2PT', fg3:'3PT', ft:'FT', ast:'AST', tov:'TO', stl:'STL', blk:'BLK',
-  oreb:'OR', dreb:'DR', pf:'PF', pts:'PTS', per:'PER' };
+  oreb:'OR', dreb:'DR', pf:'PF', pts:'PTS', bpm:'BPM', obpm:'OBPM', dbpm:'DBPM' };
 
 function glCell(row, key) {
   switch (key) {
@@ -13176,7 +13289,9 @@ function glCell(row, key) {
     case 'dreb':   return `<td>${row.dreb}</td>`;
     case 'pf':     return `<td>${row.pf}</td>`;
     case 'pts':    return `<td style="font-weight:700;">${row.pts}</td>`;
-    case 'per':    return `<td>${row.per != null ? (+row.per).toFixed(1) : '—'}</td>`;
+    case 'bpm':    return `<td>${row.bpm  != null ? (+row.bpm ).toFixed(1) : '—'}</td>`;
+    case 'obpm':   return `<td>${row.obpm != null ? (+row.obpm).toFixed(1) : '—'}</td>`;
+    case 'dbpm':   return `<td>${row.dbpm != null ? (+row.dbpm).toFixed(1) : '—'}</td>`;
     default: return '<td>—</td>';
   }
 }
@@ -13386,7 +13501,9 @@ function renderPlayerProfile(playerName) {
       ftm:    p.ftm    ?? 0, fta:  p.fta  ?? 0,
       fgm:    p.fgm    ?? 0, fga:  p.fga  ?? 0,
       minPctVal: p.minPctVal ?? null,
-      per:    perForGame(sess.id, playerName),
+      bpm:    bpmForGame(sess.id, playerName, 'bpm'),
+      obpm:   bpmForGame(sess.id, playerName, 'obpm'),
+      dbpm:   bpmForGame(sess.id, playerName, 'dbpm'),
       shotPct:   p.shotPct   ?? null,
       ftRate:    p.ftRate    ?? null,
       efgPct: p.efgPct ?? null,
@@ -16826,6 +16943,108 @@ let notesFilter = { player: 'all', session: 'all', q: '' };
 
 function notesSetFilter(key, val) { notesFilter[key] = val; renderNotesView(); }
 
+/* ── BPM Sheet (LOCAL ONLY) ─────────────────────────────────────────────────────
+   Myers' single-game calculator, one table per squad per practice, showing the whole
+   chain rather than the answer: the box line, the true-shooting attempts behind it, the
+   points-per-TSA that scoring is measured against, the adjusted points that come out, the
+   possessions it is divided by, the position and role that pick the coefficients, and only
+   then BPM/OBPM/DBPM. Every intermediate is read off the calculation itself (row.work),
+   never recomputed here, so this sheet cannot quietly disagree with the numbers it explains.
+
+   Starters, reserves and did-not-plays are sectioned the way a box score is - and the way
+   Myers' own sheet is. Withheld on the published site by the .local-only class above. */
+function bpmSheetIsLocal() {
+  const h = location.hostname;
+  return h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+}
+
+function renderBpmSheet() {
+  const root = document.getElementById('bpmsheet-root');
+  if (!root) return;
+  if (!bpmSheetIsLocal()) {
+    root.innerHTML = '<div class="placeholder"><div>This sheet is local-only.</div></div>';
+    return;
+  }
+  const ctx = bpmContext();
+  const sessions = getSessions().filter(s => s.completed && !s.excludeFromStats)
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  if (!sessions.length) {
+    root.innerHTML = '<div class="placeholder"><div>No completed practices yet.</div></div>';
+    return;
+  }
+  const f = (v, d) => (v == null || !isFinite(v)) ? '&mdash;' : (+v).toFixed(d);
+  const out = [];
+  out.push('<div class="bpmx-ctx">BPM 2.0 working, per scrimmage. Scoring is baselined on '
+    + 'this program\'s pooled Pts/TSA (' + f(ctx.baseline, 4) + ') across every practice and '
+    + 'both squads. Position and role are season-level and identical in every table below; '
+    + 'everything else is that practice only. BPM here is the centred figure the rest of the '
+    + 'app shows &mdash; RAW is before centring.</div>');
+
+  for (const sess of sessions) {
+    const map = ctx.bySession[sess.id] || {};
+    for (const tm of ['a', 'b']) {
+      const name = tm === 'a' ? (sess.teamAName || 'White') : (sess.teamBName || 'Black');
+      const starters = (tm === 'a' ? sess.startersA : sess.startersB) || [];
+      const rows = (sess.playerStats || []).filter(p => p.team === tm && !isHiddenPlayer(p.name));
+      if (!rows.length) continue;
+      const played = rows.filter(p => (p.min || 0) > 0);
+      const dnp    = rows.filter(p => !((p.min || 0) > 0));
+      const isSt   = p => starters.includes(p.name);
+      const order  = [
+        ['Starters', played.filter(isSt)],
+        ['Reserves', played.filter(p => !isSt(p))],
+        ['Did Not Play', dnp],
+      ];
+      const ts = (sess.teamStats || {})[tm] || {};
+      const anyWork = played.map(p => map[p.name]).find(r => r && r.work);
+      out.push('<h3 style="margin:16px 0 2px;font-size:13px;">' + escHtml(sess.date || '')
+        + ' &middot; ' + escHtml(sess.title || '') + ' &middot; ' + escHtml(name) + '</h3>');
+      out.push('<div class="bpmx-ctx">team Pts/TSA '
+        + f(anyWork ? anyWork.work.tmPtsTSA : null, 4)
+        + ' &middot; possessions ' + f(ts.possessions, 1)
+        + ' &middot; ORtg ' + f(ts.ortg, 1) + ' &middot; DRtg ' + f(ts.drtg, 1) + '</div>');
+      out.push('<table class="bpmx"><thead><tr>'
+        + '<th class="nm">Player</th><th>MIN</th><th>MIN%</th>'
+        + '<th>FG</th><th>FGA</th><th>3P</th><th>FT</th><th>FTA</th>'
+        + '<th>OR</th><th>DR</th><th>TRB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>PF</th><th>PTS</th>'
+        + '<th>TSA</th><th>Pts/TSA</th><th>AdjPts</th><th>Poss</th>'
+        + '<th>Pos</th><th>Role</th><th>RAW</th><th>OBPM</th><th>DBPM</th><th>BPM</th>'
+        + '</tr></thead><tbody>');
+      for (const [label, list] of order) {
+        if (!list.length) continue;
+        out.push('<tr class="sect"><td colspan="27">' + label + '</td></tr>');
+        for (const p of list.sort((x, y) => (y.min || 0) - (x.min || 0))) {
+          const r = map[p.name], w = r && r.work;
+          const n = k => p[k] || 0;
+          if (!w) {
+            out.push('<tr><td class="nm">' + escHtml(p.name) + '</td>'
+              + '<td class="dnp" colspan="26">no rating &mdash; '
+              + ((p.min || 0) > 0 ? 'no possessions recorded for this squad' : 'did not play')
+              + '</td></tr>');
+            continue;
+          }
+          out.push('<tr><td class="nm">' + escHtml(p.name) + '</td>'
+            + '<td>' + f(p.min, 1) + '</td><td>' + f(w.minShare * 100, 1) + '</td>'
+            + '<td>' + n('fgm') + '</td><td>' + n('fga') + '</td><td>' + n('fg3m') + '</td>'
+            + '<td>' + n('ftm') + '</td><td>' + n('fta') + '</td>'
+            + '<td>' + n('oreb') + '</td><td>' + n('dreb') + '</td><td>' + n('reb') + '</td>'
+            + '<td>' + n('ast') + '</td><td>' + n('stl') + '</td><td>' + n('blk') + '</td>'
+            + '<td>' + n('tov') + '</td><td>' + n('pf') + '</td><td>' + n('pts') + '</td>'
+            + '<td>' + f(w.TSA, 2) + '</td><td>' + f(w.ptsPerTSA, 3) + '</td>'
+            + '<td>' + f(w.adjPts, 2) + '</td><td>' + f(w.poss, 1) + '</td>'
+            + '<td>' + f(w.pos, 2) + '</td><td>' + f(w.role, 2) + '</td>'
+            + '<td>' + f(r.raw, 1) + '</td>'
+            + '<td class="out">' + f(r.obpm, 1) + '</td>'
+            + '<td class="out">' + f(r.dbpm, 1) + '</td>'
+            + '<td class="out">' + f(r.bpm, 1) + '</td></tr>');
+        }
+      }
+      out.push('</tbody></table>');
+    }
+  }
+  root.innerHTML = out.join('');
+}
+
 /* ── Connections: who sets up whom ──────────────────────────────────────────────
    The passer-to-scorer link is not stored on the make. Every event carries an `assister`
    field and it has never once been filled - the Live Tracker writes the assist as its own
@@ -17298,6 +17517,9 @@ function renderConnectionsView() {
 }
 
 tabRenderers.connections = function() { renderConnectionsView(); };
+tabRenderers.bpmsheet    = function() { renderBpmSheet(); };
+/* Hidden by default; only a local origin unhides the nav button. */
+revealLocalOnly();
 
 tabRenderers.notes = function() { renderNotesView(); };
 
