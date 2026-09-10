@@ -21734,6 +21734,15 @@ function openFilmEventModal(idx) {
     ? {
         filmTime: ev.videoTs != null ? fmtVideoTs(ev.videoTs) : '',
         player:   ev.player || '',
+        /* Shot descriptors are carried into the form so they can be corrected. Tagging
+           live means picking type and contest in about a second, which is exactly when
+           they get picked wrong, and until now the only cure was delete-and-retag. */
+        shotTypes:   shotTypesOf(ev),
+        shotContest: ev.shotContest || '',
+        zone:        ev.zone || null,
+        shotX:       ev.shotX != null ? ev.shotX : null,
+        shotY:       ev.shotY != null ? ev.shotY : null,
+        shotFt:      ev.shotFt != null ? ev.shotFt : null,
         quarter:  ev.quarter || currentQuarterNum(),
         clock:    ev.timeSecs != null ? fmtClockRemain(ev.timeSecs) : '',
         // EVERY pair, not just the first — a two-player sub must show as two rows.
@@ -21849,6 +21858,7 @@ function renderFilmEventModal() {
         Editing a <b>${escHtml(ev.stat === 'note' ? ('★ ' + (ev.note || 'Note')) : (statLabel(ev.stat) || ev.stat))}</b> tag.
       </div>
       ${fevPlayerField(session, ev)}
+      ${fevShotFields(ev)}
       ${timeField}
       <div class="fev-hint" style="margin-bottom:14px;">Retiming changes where this row seeks to and where it sits in the Event Timeline. Its position in the log is left as-is, because the possession and kill counters read event adjacency.</div>
       <div style="display:flex;gap:8px;justify-content:space-between;">
@@ -22155,6 +22165,110 @@ function fevPlayerField(session, ev) {
     </div>`;
 }
 
+const FEV_SHOT_STATS = ['2fg_make', '2fg_miss', '3fg_make', '3fg_miss'];
+function fevIsShot(ev) { return !!ev && FEV_SHOT_STATS.indexOf(ev.stat) >= 0; }
+
+function fevToggleShotType(t) {
+  if (!fevForm) return;
+  const cur = Array.isArray(fevForm.shotTypes) ? fevForm.shotTypes.slice() : [];
+  const i = cur.indexOf(t);
+  if (i >= 0) cur.splice(i, 1); else cur.push(t);
+  fevForm.shotTypes = cur;
+  renderFilmEventModal();
+}
+
+/* Blank is a real answer, not a missing one: plenty of tags were entered before the
+   contest buttons existed, and forcing one of two values would invent data. */
+function fevSetContest(c) {
+  if (!fevForm) return;
+  fevForm.shotContest = (fevForm.shotContest === c) ? '' : c;
+  renderFilmEventModal();
+}
+
+function fevClearLocation() {
+  if (!fevForm) return;
+  fevForm.zone = null; fevForm.shotX = null; fevForm.shotY = null; fevForm.shotFt = null;
+  renderFilmEventModal();
+}
+
+/* Same viewBox maths as the live tagging court, so a shot moved here lands in the zone
+   the charts would have given it had you tapped that spot during the practice. */
+function fevCourtClick(evt) {
+  if (!fevForm) return;
+  const svg = document.getElementById('fev-court-svg');
+  if (!svg) return;
+  const pt = (evt.changedTouches && evt.changedTouches[0]) || evt;
+  const rect = svg.getBoundingClientRect();
+  const svgX = (pt.clientX - rect.left) * (500 / rect.width);
+  const svgY = (pt.clientY - rect.top)  * (485 / rect.height);
+  if (svgY < 15 || svgY > 472 || svgX < 14 || svgX > 486) return;
+  fevForm.zone   = coordsToZone(svgX, svgY);
+  fevForm.shotX  = +(svgX / 500).toFixed(4);
+  fevForm.shotY  = +(svgY / 485).toFixed(4);
+  fevForm.shotFt = svgDistFt(svgX, svgY);
+  renderFilmEventModal();
+}
+function fevCourtTouch(evt) { evt.preventDefault(); fevCourtClick(evt); }
+
+function fevShotFields(ev) {
+  if (!fevIsShot(ev)) return '';
+  const is3  = ev.stat.charAt(0) === '3';
+  const sel  = Array.isArray(fevForm.shotTypes) ? fevForm.shotTypes : [];
+  // post_up is an alias of post_moves; offering both would let one shot carry it twice.
+  const types = Object.keys(SHOT_TYPE_LABELS)
+    .filter(t => t !== 'post_up' && !(is3 && t === 'dunk'));
+  const typeBtns = types.map(t =>
+    '<button type="button" class="shot-type-btn' + (sel.indexOf(t) >= 0 ? ' selected' : '') +
+    '" onclick="fevToggleShotType(' + JSON.stringify(t) + ')">' +
+    escHtml(SHOT_TYPE_LABELS[t]) + '</button>').join('');
+
+  const contestBtn = (c, label) =>
+    '<button type="button" class="shot-contest-btn' + (fevForm.shotContest === c ? ' selected' : '') +
+    '" onclick="fevSetContest(' + JSON.stringify(c) + ')">' + label + '</button>';
+
+  const hasLoc = fevForm.shotX != null && fevForm.shotY != null;
+  const cx = hasLoc ? (fevForm.shotX * 500) : 0;
+  const cy = hasLoc ? (fevForm.shotY * 485) : 0;
+  const locText = hasLoc
+    ? escHtml(fevForm.shotFt + ' ft &middot; ' + zoneLabelAtPoint(cx, cy)).replace('&amp;middot;', '&middot;')
+    : 'No location recorded';
+  const marker = hasLoc
+    ? '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="9" fill="#f59e0b" stroke="#fff" stroke-width="2.5"></circle>'
+    : '';
+
+  return `
+    <div class="fev-field">
+      <div class="fev-label">Shot type</div>
+      <div id="fev-type-grid" class="shot-type-grid">${typeBtns}</div>
+      <div class="fev-hint">Tap to toggle. More than one can apply &mdash; a driving layup carries both.</div>
+    </div>
+    <div class="fev-field">
+      <div class="fev-label">Contest</div>
+      <div class="shot-contest-row">
+        ${contestBtn('contested', 'Contested')}
+        ${contestBtn('uncontested', 'Uncontested')}
+      </div>
+      <div class="fev-hint">Tap the selected one again to clear it back to unrecorded.</div>
+    </div>
+    <div class="fev-field">
+      <div class="fev-label">Location
+        <span style="text-transform:none;font-weight:600;color:var(--text-dim)">&mdash; ${locText}</span>
+      </div>
+      <div style="max-width:300px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <svg id="fev-court-svg" viewBox="0 0 500 485" xmlns="http://www.w3.org/2000/svg"
+             style="width:100%;height:auto;display:block;cursor:crosshair;"
+             onclick="fevCourtClick(event)" ontouchend="fevCourtTouch(event)">
+          ${COURT_SVG_LINES}
+          ${marker}
+        </svg>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="fevClearLocation()">Clear location</button>
+      </div>
+      <div class="fev-hint">Tap the court to move the shot. Distance and zone are recomputed from the new spot, so the shot chart and every zone split follow it.</div>
+    </div>`;
+}
+
 function fevSaveEvent() {
   const session = State.liveSession;
   const ev = session && fevEditIndex >= 0 ? session.eventLog[fevEditIndex] : null;
@@ -22175,7 +22289,25 @@ function fevSaveEvent() {
   const newPlayer = fevForm.player == null ? oldPlayer : fevForm.player;
   const playerChanged = newPlayer !== oldPlayer;
   const timeChanged   = filmSecs != null && filmSecs !== ev.videoTs;
-  if (!playerChanged && !timeChanged) { showToast('Nothing changed', 'warning'); return; }
+
+  /* Shot descriptors. Compared against the SAME normalised view the form was seeded
+     from (shotTypesOf folds the post_up alias and drops duplicates), or a shot tagged
+     before that normalisation existed would read as "changed" every time you opened it. */
+  const isShot = fevIsShot(ev);
+  const oldTypes = shotTypesOf(ev);
+  const newTypes = isShot && Array.isArray(fevForm.shotTypes) ? fevForm.shotTypes : oldTypes;
+  const typesChanged = isShot &&
+    (newTypes.length !== oldTypes.length || newTypes.some(t => oldTypes.indexOf(t) < 0));
+  const oldContest = ev.shotContest || '';
+  const newContest = isShot ? (fevForm.shotContest || '') : oldContest;
+  const contestChanged = isShot && newContest !== oldContest;
+  const oldLoc = [ev.zone || null, ev.shotX != null ? ev.shotX : null, ev.shotY != null ? ev.shotY : null];
+  const newLoc = isShot ? [fevForm.zone || null, fevForm.shotX, fevForm.shotY] : oldLoc;
+  const locChanged = isShot && (newLoc[0] !== oldLoc[0] || newLoc[1] !== oldLoc[1] || newLoc[2] !== oldLoc[2]);
+
+  if (!playerChanged && !timeChanged && !typesChanged && !contestChanged && !locChanged) {
+    showToast('Nothing changed', 'warning'); return;
+  }
 
   const snapshotBefore = JSON.stringify(session);
   const bits = [];
@@ -22191,6 +22323,31 @@ function fevSaveEvent() {
     ev.videoTs = filmSecs;
     delete ev._vtsSearch;
     bits.push(`retimed to ${fmtVideoTs(filmSecs)}`);
+  }
+  if (typesChanged) {
+    /* shotTypes is the authoritative list; shotType is kept in step as the legacy
+       single-value field that older reports still read. */
+    ev.shotTypes = newTypes.slice();
+    if (newTypes.length) ev.shotType = newTypes[0]; else delete ev.shotType;
+    bits.push(newTypes.length
+      ? `type set to ${newTypes.map(t => SHOT_TYPE_LABELS[t] || t).join(' + ')}`
+      : 'shot type cleared');
+  }
+  if (contestChanged) {
+    if (newContest) ev.shotContest = newContest; else delete ev.shotContest;
+    bits.push(newContest ? `marked ${newContest}` : 'contest cleared');
+  }
+  if (locChanged) {
+    if (newLoc[1] == null || newLoc[2] == null) {
+      delete ev.zone; delete ev.shotX; delete ev.shotY; delete ev.shotFt;
+      bits.push('location cleared');
+    } else {
+      ev.zone   = fevForm.zone;
+      ev.shotX  = fevForm.shotX;
+      ev.shotY  = fevForm.shotY;
+      ev.shotFt = fevForm.shotFt;
+      bits.push(`moved to ${ev.shotFt} ft (${zoneLabelAtPoint(ev.shotX * 500, ev.shotY * 485)})`);
+    }
   }
   const what = statLabel(ev.stat) || ev.stat;
   const msg  = bits.join(', ');
