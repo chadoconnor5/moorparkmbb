@@ -18242,18 +18242,20 @@ function computePpsGrid(sessions, teamFilter) {
    Shared by On/Off and by the REB tab, because the two must partition the floor the same
    way or they will quietly answer different questions with the same words.
 
-   ON is every possession he was on the floor for; OFF is every possession a squad played
-   without him. The squad he happened to be listed on that day does NOT gate this, and that
-   is the whole point: men rotate between White and Black, and a night he spent on Black is
-   a night White played without him. Resolving his squad per session and then skipping the
-   practices he spent on the other side threw those possessions away entirely — they counted
-   as neither on nor off. Matthew Wilson read 15.6 minutes off White across eight practices
-   when the true figure was 69.6; two whole scrimmages he spent on Black were invisible.
+   The two scopes answer two different questions, deliberately.
 
-   Picking a squad now measures THAT squad's floor across every practice he attended.
-   "Both Teams" classifies both squads' stints: on the floor for one is off the floor for
-   the other, so a stint contributes to ON once and OFF once, and sitting contributes OFF
-   twice. Practices he missed are neither — he was not there to be on or off. */
+   BOTH TEAMS is about him: his floor time on whichever squad he turned out for, against
+   that same squad's floor time while he sat. Combine his White on with his Black on, and
+   his White off with his Black off. The opponent never enters it.
+
+   A NAMED SQUAD is about that squad: its floor with him against its floor without him,
+   across every practice he attended. A night he spent on Black is a night White played
+   without him and belongs in White's OFF. Resolving his squad per session and skipping
+   the practices he spent on the other side threw those possessions away entirely — they
+   counted as neither on nor off, and Matthew Wilson read 15.6 minutes off White across
+   eight practices when the true figure is 69.6.
+
+   Practices he missed are neither — he was not there to be on or off. */
 function ooSplitStints(filtered, playerName, team) {
   const teamIsAll = team === 'all' || team === 'both';
   const onL = [], offL = [];
@@ -18276,21 +18278,40 @@ function ooSplitStints(filtered, playerName, team) {
   const availableMin = filtered.reduce(function (t, x) {
     return t + (getSessionPlayedSeconds(x) || 0) / 60;
   }, 0);
-  /* Attendance only — which squad the roster row says he was on no longer decides
-     anything, so a man carrying two rows for a practice he split across squads is no
-     longer at the mercy of which one .find() happens to return. */
-  const squads = teamIsAll ? ['a', 'b'] : [team];
   for (const sess of filtered) {
-    const played = (sess.playerStats || []).some(function (x) { return x.name === playerName; });
-    if (!played) continue;                    // didn't play in this practice
+    /* EVERY row for this name, not the first: a man who split a practice across squads
+       carries one row per squad, and .find() used to pick whichever came back first. */
+    const recs = (sess.playerStats || []).filter(function (x) { return x.name === playerName; });
+    if (!recs.length) continue;               // didn't play in this practice
     sessCount++;
+    const his = [];                           // the squad(s) he actually turned out for
+    recs.forEach(function (r) { if (his.indexOf(r.team) < 0) his.push(r.team); });
+
     for (const seg of (sess.lineupSegments || [])) {
       if (seg.endTimeSecs === null) continue;
-      for (const sq of squads) {
-        const lineup = sq === 'a' ? seg.lineupA : seg.lineupB;
-        if (!lineup) continue;
-        (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: sq });
+
+      if (teamIsAll) {
+        /* HIS team, whichever it was that night. On the floor for a squad is ON for that
+           squad; sat down is OFF for the squad he belonged to. The opponent's possessions
+           are never an off-court sample — while he is out there guarding them they are
+           not playing without him, and counting them dragged his OFF rating down to a
+           number that described the other team. */
+        const inA = (seg.lineupA || []).indexOf(playerName) >= 0;
+        const inB = (seg.lineupB || []).indexOf(playerName) >= 0;
+        if (inA || inB) {
+          onL.push({ seg: seg, sess: sess, team: inA ? 'a' : 'b' });
+        } else {
+          his.forEach(function (sq) { offL.push({ seg: seg, sess: sess, team: sq }); });
+        }
+        continue;
       }
+
+      /* A named squad measures THAT squad's floor across every practice he attended —
+         including the nights he spent on the other side, which are nights this squad
+         played without him. */
+      const lineup = team === 'a' ? seg.lineupA : seg.lineupB;
+      if (!lineup) continue;
+      (lineup.indexOf(playerName) >= 0 ? onL : offL).push({ seg: seg, sess: sess, team: team });
     }
   }
   return { onL: onL, offL: offL, sessCount: sessCount, availableMin: availableMin };
