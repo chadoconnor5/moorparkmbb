@@ -2831,6 +2831,9 @@
       text-transform: uppercase; color: var(--text-dim);
     }
     .ft-top > .ft-tg-win { justify-self: end; }
+    .ft-ctx {
+      font-size: 10px; color: var(--text-dim); margin-top: 2px; letter-spacing: 0.01em;
+    }
     .ft-verdict {
       display: flex; align-items: center; justify-content: center;
       font-size: 12.5px; font-weight: 800; padding: 4px 13px; border-radius: 20px;
@@ -11849,6 +11852,13 @@ function _ftRows(playerName, chronoSessions) {
       dbpm: bpmForGame(sess.id, playerName, 'dbpm'),
       ortg: p.ortg ?? null,
       drtg: p.drtg ?? null,
+      /* A rating only means something next to the load that produced it. Kept as the
+         raw [numerator, denominator] so a window pools the way poolRate does — summing
+         each practice's finished possessions, not averaging five percentages. */
+      usg:  (function () {
+        try { return rateParts(sess, p, getSessionPlayedSeconds(sess) / 60).usg; }
+        catch (e) { return null; }
+      })(),
       // The box line, carried so a hover can show what fed the rating.
       pts: n('pts'), fgm: n('fgm'), fga: n('fga'),
       fg3m: n('fg3m'), fg3a: n('fg3a'), ftm: n('ftm'), fta: n('fta'),
@@ -12125,6 +12135,18 @@ function ftArmTapAway() {
    the View scope above it - form is form, and a five-practice read scoped to one practice
    is not a read. When a scope is active the footer says so, so the card is not mistaken for
    something the dropdown filtered. */
+/* Usage across a set of practices, pooled the way the ADV column pools it. */
+function _ftUsg(rowsList) {
+  let num = 0, den = 0;
+  (rowsList || []).forEach(function (r) {
+    if (!r.usg) return;
+    const n = r.usg[0], d = r.usg[1];
+    if (!(d > 0)) return;
+    num += n; den += d;
+  });
+  return den > 0 ? (100 * num / den) : null;
+}
+
 function buildFormTrend(playerName, chronoSessions, scopeActive) {
   _ftLast = { name: playerName, sessions: chronoSessions, scope: scopeActive };
   const rows = _ftRows(playerName, chronoSessions);
@@ -12299,6 +12321,24 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
 
     const tip = lines.join(' ');
 
+    /* A rating read without the load behind it is half the story: 119 on a quarter of the
+       possessions and 119 on a third of them are different players. ORTG only — usage is
+       what a man is asked to carry on offence, and it explains nothing about DRTG. */
+    let ctxTxt = '';
+    if (m.key === 'ortg') {
+      const uW = _ftUsg(winRows), uB = baseRows ? _ftUsg(baseRows) : null;
+      if (uW != null) {
+        let tail = '';
+        if (uB != null) {
+          const d = uW - uB;
+          tail = Math.abs(d) < 0.75
+            ? ', level with before'
+            : (d > 0 ? ', up from ' : ', down from ') + uB.toFixed(1) + '%';
+        }
+        ctxTxt = '<div class="ft-ctx">on ' + uW.toFixed(1) + '% usage' + tail + '</div>';
+      }
+    }
+
     return `<div class="ft-tile ${dirCls}" title="${escHtml(tip)}">
       <div class="ft-head">
         <span class="ft-metric">${ftLabelHtml(m, hint)}</span>
@@ -12312,6 +12352,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
         <span class="ft-delta ${dirCls}">${deltaTxt}</span>
         <span class="ft-base">${underTxt}</span>
       </div>
+      ${ctxTxt}
       ${_ftSpark(win.vals, haveLevel ? base.mean : null, color, win.kept, m)}
     </div>`;
   }).join('');
