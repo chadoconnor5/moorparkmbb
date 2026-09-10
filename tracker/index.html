@@ -2830,6 +2830,7 @@
       font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em;
       text-transform: uppercase; color: var(--text-dim);
     }
+    .ft-top > .ft-tg-win { justify-self: end; }
     .ft-verdict {
       display: flex; align-items: center; justify-content: center;
       font-size: 12.5px; font-weight: 800; padding: 4px 13px; border-radius: 20px;
@@ -2851,6 +2852,7 @@
        its arrow under it, still the widest thing in the header. */
     @media (max-width: 720px) {
       .ft-top { grid-template-columns: 1fr; justify-items: center; gap: 6px; }
+      .ft-top > .ft-tg-win { justify-self: center; }
     }
     .ft-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .ft-tile {
@@ -11762,7 +11764,27 @@ const FT_BPM_VARIANTS = [
   { key: 'dbpm', label: 'DBPM', blurb: 'the defensive half of BPM, higher is better' },
 ];
 let ftBpmVariant = 'bpm';
+/* The form window is a preference now, not a constant. FT_WINDOW stays the default so
+   nothing else that reads it changes meaning. */
+let ftWindow = FT_WINDOW;
+const FT_WINDOWS = [5, 10];
 let _ftLast = null;   // last render's arguments, so the toggle can redraw in place
+
+function ftSetWindow(n) {
+  n = +n;
+  if (n === ftWindow || FT_WINDOWS.indexOf(n) < 0) return;
+  ftWindow = n;
+  const el = document.getElementById('ft-card');
+  if (el && _ftLast) el.outerHTML = buildFormTrend(_ftLast.name, _ftLast.sessions, _ftLast.scope);
+}
+
+/* Sits in the header's third column, which the title/verdict grid already leaves empty. */
+function ftWinToggle() {
+  return '<span class="ft-tg ft-tg-win">' + FT_WINDOWS.map(n =>
+    '<button type="button" class="ft-tg-b' + (n === ftWindow ? ' on' : '') + '" ' +
+    'onclick="event.stopPropagation();ftSetWindow(' + n + ')">Last ' + n + '</button>').join('') +
+    '</span>';
+}
 
 function ftSetBpmVariant(v) {
   if (v === ftBpmVariant || !FT_BPM_VARIANTS.some(x => x.key === v)) return;
@@ -12114,7 +12136,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
       <div class="ft-title">${label}</div>`;
 
   if (rows.length < 2) {
-    return `<div id="ft-card" class="ft-card">${ftHead('Trending')}</div>
+    return `<div id="ft-card" class="ft-card">${ftHead('Trending')}<div></div>${ftWinToggle()}</div>
       <div class="ft-none">Needs at least two practices before a direction can be read &mdash; he has ${rows.length}.</div>
     </div>`;
   }
@@ -12123,11 +12145,11 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
      practices of its own to be worth comparing against. Below that, split his whole history
      down the middle instead: a second half against a first half is still a direction, and
      it beats holding the card back until practice eight. */
-  const prior = rows.slice(0, -FT_WINDOW);
+  const prior = rows.slice(0, -ftWindow);
   let baseRows, winRows, cmpNote;
   if (prior.length >= 2) {
     baseRows = prior;
-    winRows  = rows.slice(-FT_WINDOW);
+    winRows  = rows.slice(-ftWindow);
     cmpNote  = `Last ${winRows.length} practices vs. his previous ${baseRows.length}`;
   } else if (rows.length >= 4) {
     const half = Math.floor(rows.length / 2);
@@ -12322,7 +12344,7 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
 
   return `<div id="ft-card" class="ft-card">
     <div id="ft-tip" class="ft-tip" hidden></div>
-    ${ftHead('Trending &mdash; Last ' + winRows.length)}<div class="ft-verdict ${vCls}">${vTxt}<span class="ft-arrow">${vArrow}</span></div></div>
+    ${ftHead('Trending &mdash; Last ' + winRows.length)}<div class="ft-verdict ${vCls}">${vTxt}<span class="ft-arrow">${vArrow}</span></div>${ftWinToggle()}</div>
     <div class="ft-grid">${tiles}</div>
     <div class="ft-foot">
       ${summary ? `<span class="ft-sum">${escHtml(summary)}</span> ` : ''}${escHtml(cmpNote)},
