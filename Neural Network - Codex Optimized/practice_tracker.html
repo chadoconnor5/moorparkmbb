@@ -12141,25 +12141,23 @@ function buildFormTrend(playerName, chronoSessions, scopeActive) {
     </div>`;
   }
 
-  /* The window is the last five. The baseline is everything before it, and it needs two
-     practices of its own to be worth comparing against. Below that, split his whole history
-     down the middle instead: a second half against a first half is still a direction, and
-     it beats holding the card back until practice eight. */
-  const prior = rows.slice(0, -ftWindow);
+  /* The window is the last N he actually has: ask for ten with nine logged and you get
+     nine, not a card that quietly shrinks to five. The baseline is whatever sits before
+     it, and it needs two practices of its own to be worth comparing against - below that
+     there is no honest comparison to draw, so the card shows the window on its own and
+     leans on the direction inside it. */
+  const winSize = Math.min(ftWindow, rows.length);
+  const prior   = rows.slice(0, rows.length - winSize);
   let baseRows, winRows, cmpNote;
+  winRows = rows.slice(-winSize);
   if (prior.length >= 2) {
     baseRows = prior;
-    winRows  = rows.slice(-ftWindow);
     cmpNote  = `Last ${winRows.length} practices vs. his previous ${baseRows.length}`;
-  } else if (rows.length >= 4) {
-    const half = Math.floor(rows.length / 2);
-    baseRows = rows.slice(0, half);
-    winRows  = rows.slice(half);
-    cmpNote  = `His last ${winRows.length} practices vs. his first ${baseRows.length}`;
   } else {
     baseRows = null;
-    winRows  = rows;
-    cmpNote  = `${rows.length} practices logged`;
+    cmpNote  = prior.length
+      ? `His last ${winRows.length} practices — only ${prior.length} before them, too few to read against`
+      : `All ${rows.length} practices logged — no earlier stretch to compare against`;
   }
 
   let score = 0, judged = 0;
@@ -18242,10 +18240,20 @@ function computePpsGrid(sessions, teamFilter) {
 
 /* ── One player's stints, split into on-floor and off-floor ─────────────────────
    Shared by On/Off and by the REB tab, because the two must partition the floor the same
-   way or they will quietly answer different questions with the same words. A player's squad
-   is resolved PER SESSION — they rotate between White and Black across practices — so
-   "Both Teams" counts every practice using whichever squad he was on that day, while
-   picking a squad keeps only the practices he played for it. */
+   way or they will quietly answer different questions with the same words.
+
+   ON is every possession he was on the floor for; OFF is every possession a squad played
+   without him. The squad he happened to be listed on that day does NOT gate this, and that
+   is the whole point: men rotate between White and Black, and a night he spent on Black is
+   a night White played without him. Resolving his squad per session and then skipping the
+   practices he spent on the other side threw those possessions away entirely — they counted
+   as neither on nor off. Matthew Wilson read 15.6 minutes off White across eight practices
+   when the true figure was 69.6; two whole scrimmages he spent on Black were invisible.
+
+   Picking a squad now measures THAT squad's floor across every practice he attended.
+   "Both Teams" classifies both squads' stints: on the floor for one is off the floor for
+   the other, so a stint contributes to ON once and OFF once, and sitting contributes OFF
+   twice. Practices he missed are neither — he was not there to be on or off. */
 function ooSplitStints(filtered, playerName, team) {
   const teamIsAll = team === 'all' || team === 'both';
   const onL = [], offL = [];
@@ -18268,17 +18276,21 @@ function ooSplitStints(filtered, playerName, team) {
   const availableMin = filtered.reduce(function (t, x) {
     return t + (getSessionPlayedSeconds(x) || 0) / 60;
   }, 0);
+  /* Attendance only — which squad the roster row says he was on no longer decides
+     anything, so a man carrying two rows for a practice he split across squads is no
+     longer at the mercy of which one .find() happens to return. */
+  const squads = teamIsAll ? ['a', 'b'] : [team];
   for (const sess of filtered) {
-    const rec = (sess.playerStats || []).find(function (x) { return x.name === playerName; });
-    if (!rec) continue;                       // didn't play in this practice
-    const pt = rec.team;                      // their squad in THIS practice
-    if (!teamIsAll && pt !== team) continue;  // isolate the selected squad
+    const played = (sess.playerStats || []).some(function (x) { return x.name === playerName; });
+    if (!played) continue;                    // didn't play in this practice
     sessCount++;
     for (const seg of (sess.lineupSegments || [])) {
       if (seg.endTimeSecs === null) continue;
-      const lineup = pt === 'a' ? seg.lineupA : seg.lineupB;
-      if (!lineup) continue;
-      (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: pt });
+      for (const sq of squads) {
+        const lineup = sq === 'a' ? seg.lineupA : seg.lineupB;
+        if (!lineup) continue;
+        (lineup.includes(playerName) ? onL : offL).push({ seg: seg, sess: sess, team: sq });
+      }
     }
   }
   return { onL: onL, offL: offL, sessCount: sessCount, availableMin: availableMin };
