@@ -19436,11 +19436,31 @@ function renderOnOffView() {
        no possessions behind it is not a number, it is a blank, and ooPanel already renders
        null as an em dash. */
     const poss = T.poss, oppPoss = T.oppPoss;
+    /* A per-100 rating needs at least ONE possession under it.
+
+       `poss` is the FORMULA ESTIMATE — (fga - oreb) + tov + 0.475 * fta — not a count, so it
+       is fractional. A bench sample of a single made free throw comes to 0.475 of a
+       possession, and `poss > 0` let that through as a confident ORtg of 210.5 off one point,
+       on a card whose own header rounded the same 0.475 down to "0 off". Both numbers were
+       right and together they were nonsense.
+
+       That is the fiction the Math.max(1, ...) note above describes, arriving by the other
+       door: not a manufactured possession, a fractional one. Below a whole possession the
+       rate is not merely small-sample, it is UNDEFINED — it extrapolates a single event to a
+       hundred trips — so it renders as the em dash ooPanel already draws for null.
+
+       This is a DEFINEDNESS floor, not a sample-size opinion. One possession is the unit the
+       statistic is quoted in. Whether three possessions is too few to READ is a different
+       question, and is deliberately left to whoever is looking at the card. */
+    const RATE_MIN_POSS = 1;
     const per40 = function (v) { return min > 0 ? +(v / min * 40).toFixed(2) : null; };
     const pct = function (num, den) { return den > 0 ? +(num / den * 100).toFixed(2) : null; };
-    const ortg = poss > 0 ? +(100 * T.pts / poss).toFixed(2) : null;
-    const drtg = oppPoss > 0 ? +(100 * T.oppPts / oppPoss).toFixed(2) : null;
-    const stlPct = pct(T.stl, oppPoss);
+    const rate100 = function (num, den) {
+      return den >= RATE_MIN_POSS ? +(100 * num / den).toFixed(2) : null;
+    };
+    const ortg = rate100(T.pts, poss);
+    const drtg = rate100(T.oppPts, oppPoss);
+    const stlPct = oppPoss >= RATE_MIN_POSS ? pct(T.stl, oppPoss) : null;
     const blkPct = pct(T.blk, Math.max(0, T.oppFga - T.oppFg3a));
     return {
       min: min,
@@ -19457,7 +19477,7 @@ function renderOnOffView() {
       off_ff: {
         efg:  pct(T.fgm + 0.5 * T.fg3m, T.fga),
         oreb: pct(T.oreb, T.oreb + T.oppDreb),
-        tov:  pct(T.tov, poss),
+        tov:  poss >= RATE_MIN_POSS ? pct(T.tov, poss) : null,
         ftr:  pct(T.fta, T.fga)
       },
       box: { pts: per40(T.pts), ast: per40(T.ast), oreb: per40(T.oreb), dreb: per40(T.dreb),
@@ -19470,6 +19490,10 @@ function renderOnOffView() {
       stl_pf: T.pf > 0 ? +(T.stl / T.pf).toFixed(2) : null,
       blk_pf: T.pf > 0 ? +(T.blk / T.pf).toFixed(2) : null,
       offPoss: Math.round(T.poss),
+      /* Unrounded, so the card can say "<1" instead of "0" for a sample that exists but does
+         not reach a whole possession. Rounding it to 0 while printing stats beside it was the
+         contradiction that exposed all of this. */
+      offPossRaw: T.poss,
       games: Object.keys(bySess).length
     };
   }
@@ -19563,6 +19587,14 @@ function renderOnOffView() {
            '</th><th>On</th><th>Off</th><th>Diff</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
+  /* "0" is a claim that nothing was played; "<1" is a claim that something was, and that it
+     is too little to divide by. The difference is the whole of the bug above. */
+  const _ooPoss = function (side) {
+    if (!side) return '0';
+    const r = side.offPossRaw;
+    return (r > 0 && Math.round(r) === 0) ? '&lt;1' : String(side.offPoss);
+  };
+
   const cards = shown.map(function (p) {
     return '<div class="oo-imp-card">' +
       '<div class="oo-imp-head">' +
@@ -19577,8 +19609,8 @@ function renderOnOffView() {
            checking a diff needs. Spelled out now so neither half can be misread. */
         '<span class="oo-imp-sub">' + p.minPct.toFixed(0) + '% min &middot; ' + p.practices +
         ' practice' + (p.practices === 1 ? '' : 's') + ' &middot; ' +
-        p.on.offPoss + ' poss on &middot; ' +
-        (p.off ? p.off.offPoss + ' off' : 'never off the floor') + '</span>' +
+        _ooPoss(p.on) + ' poss on &middot; ' +
+        (p.off ? _ooPoss(p.off) + ' off' : 'never off the floor') + '</span>' +
       '</div>' +
       '<div class="oo-imp-grid">' +
         ooPanel('Core Stats', OO_CORE, p) +
