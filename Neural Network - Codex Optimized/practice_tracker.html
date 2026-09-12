@@ -14372,6 +14372,39 @@ let seg5Filter = { period: 'all', team: 'both', lineupSize: 5, minPoss: 1, mode:
    The clock enters where it actually decides something — the LOW boundary above, where eight
    points with a minute left is garbage time and a margin rule alone cannot see it.
 
+   CLUTCH IS THE CLOCK TEST, KEPT SEPARATE. High refusing a clock does not mean the clock has
+   nothing to say — it means it cannot be the thing that DEFINES High without emptying it. So
+   the late-and-tight possessions get their own label instead of their own band: CLUTCH, the
+   binary the NBA uses (final five minutes, within five points), translated to a practice.
+
+   It is an OVERLAY, not a fourth band. HIGH, MEDIUM and LOW still partition the 714 trips
+   exactly; a clutch possession is also a High or a Medium one and is counted in both places.
+   That is the whole distinction — leverage grades how much a trip mattered, clutch asks the
+   narrower question of whether it came late with the game still live, and a trip can be high
+   leverage without being clutch. Tied with eight minutes to play is the textbook case.
+
+   The window is measured in the TRAILING TEAM'S OWN REMAINING TRIPS, which is the unit the
+   out-of-reach test already speaks, rather than in minutes the log does not carry: stat
+   events store a quarter and no clock, so there is no game time here to threshold. Ten of its
+   own trips is about five minutes at the ~17.5s a possession runs in this data.
+
+   CLUTCH CANNOT BE LOW. Eight trips sit inside five points but past the out-of-reach line —
+   down 5 with one trip to go. The NBA would call those clutch; the arithmetic says the game
+   is already over, and the arithmetic wins, so clutch is a subset of HIGH + MEDIUM.
+
+   WHAT IT COSTS, MEASURED. 70 possessions, 9.8% of the 714. Forty-five of them come out of
+   MEDIUM, which is the point — a four-point game in the last two minutes currently sits in
+   the same bucket as a twelve-point one in Q2, and this is the only thing here that separates
+   them. The price is coverage: FOUR OF THE NINE PRACTICES END DECIDED and contribute zero
+   clutch trips (8/26, 8/27, 9/08, 9/09), so this is a five-session sample. Ten of the sixteen
+   players who appear in it clear twenty on-court possessions and only five clear thirty, the
+   median being 24. Read it as a deliberately small sample, and do not rank a rotation on it.
+
+   Anchoring the window to the END OF EACH QUARTER instead was measured and rejected: it
+   reaches seven of the nine sessions and 70 trips, but 46 of those are already HIGH, so it
+   mostly re-sorts possessions the existing bands already flag. The session is also the only
+   thing in a practice with a real ending — the score runs straight through quarter breaks.
+
    Worth knowing when reading the split: 60% of HIGH possessions fall in Q1. That is these
    scrimmages, not a flaw in the rule — sessions start level and one side usually pulls away,
    so tight basketball genuinely happens early. It does mean HIGH carries an early-practice
@@ -14398,6 +14431,13 @@ let seg5Filter = { period: 'all', team: 'both', lineupSize: 5, minPoss: 1, mode:
    counts sit in the dropdown so the sample is never hidden. */
 const LEV_CUT = { high: 3, low: 13, ppp: 3 };
 
+/* Clutch, on the same principle: both numbers are the NBA's, re-expressed in trips. `margin`
+   is its five points as-is. `trips` is its final five minutes converted at the ~17.5 seconds
+   a possession takes here (5 x 60 / 17.5 = 17 trips between the two teams, so about ten of
+   them belonging to the side that is chasing). Widening either only relabels possessions;
+   the count sits in the dropdown so the sample can never hide. */
+const CLUTCH_CUT = { margin: 5, trips: 10 };
+
 /* What the dropdown offers, widest scope first. The SELECTED one on a fresh load is
    HIGH + MEDIUM — see the note on seg5Filter — but ALL stays on the list, because a filtered
    rating you cannot check against the unfiltered one is a number nobody can audit.
@@ -14410,7 +14450,13 @@ const LEV_MODES = [
   ['high', 'High — 1 poss (≤3)'],
   ['med',  'Medium — 2-4 poss, still reachable'],
   ['low',  'Low — 13+ or out of reach'],
+  ['clutch', 'Clutch — last 10 trips, within 5'],
 ];
+
+/* CLUTCH overlaps HIGH and MEDIUM instead of partitioning with them, so its count is the one
+   entry in the dropdown that does not add up with the rest. Named here so the modes that
+   behave this way stay listed in one place rather than being spotted case by case. */
+const LEV_OVERLAY_MODES = new Set(['clutch']);
 
 /* trailTripsLeft = how many more possessions the team that is BEHIND still owns, this one
    included. Pass Infinity when the game is level — nobody is chasing, so the out-of-reach
@@ -14421,6 +14467,19 @@ function levTier(margin, trailTripsLeft) {
   if (d > LEV_CUT.ppp * trailTripsLeft) return 'low';       // out of reach on the trips left
   if (d <= LEV_CUT.high) return 'high';
   return 'med';
+}
+
+/* windowTrips = the remaining trips the clock is read off. For the team that is BEHIND that
+   is its own remaining possessions, exactly as levTier() reads them. LEVEL is the case worth
+   spelling out: nobody is chasing, so trailTripsLeft arrives as Infinity, and a window
+   written on that alone would throw away every tied possession — the single most clutch
+   state in basketball. levClassify() passes the shorter of the two sides' remaining trips.
+
+   A LOW possession is never clutch: it is inside five points only because the 13+ rule did
+   not catch it and the out-of-reach test did. See the note above. */
+function isClutch(margin, windowTrips, tier) {
+  if (tier === 'low') return false;
+  return Math.abs(margin) <= CLUTCH_CUT.margin && windowTrips <= CLUTCH_CUT.trips;
 }
 
 /* Cache, keyed on a signature of the sessions and their log lengths, so editing or adding a
@@ -14444,8 +14503,14 @@ function levClassify(sessions) {
      its POSSESSIONS that survived the filter, which is a real count, rather than by its share
      of events, which would let a scrappy trip outweigh a quiet one. */
   const eventPoss = new Map();
+  /* Kept apart from eventTier because clutch is an overlay: a possession has a tier AND a
+     clutch flag, and folding the flag into the tier would pull those trips out of HIGH and
+     MEDIUM, which is the one thing that must not happen. */
+  const eventClutch = new Map();
   const perSession = new Map();
-  const counts = { low: 0, med: 0, high: 0, total: 0 };
+  /* `clutch` is counted alongside the three bands and deliberately NOT added into `total`:
+     low + med + high === total is the invariant the dropdown reconciles against. */
+  const counts = { low: 0, med: 0, high: 0, clutch: 0, total: 0 };
 
   for (const s of sessions) {
     /* Film order, and the trailing trip kept: the last possession of a scrimmage is the one
@@ -14466,16 +14531,23 @@ function levClassify(sessions) {
       const margin = scoreA - scoreB;
       const trailLeft = margin === 0 ? Infinity : (margin > 0 ? remB[i] : remA[i]);
       const tier = levTier(margin, trailLeft);
+      /* Level: nobody trails, so trailLeft is Infinity — read the window off whichever side
+         has fewer trips left rather than letting every tie fall out of it. */
+      const winTrips = margin === 0 ? Math.min(remA[i], remB[i]) : trailLeft;
+      const clutch = isClutch(margin, winTrips, tier);
       rows.push({ i, N, team: p.team, quarter: p.quarter, pts: p.pts,
-                  scoreA, scoreB, margin, deficit: Math.abs(margin), trailLeft, tier });
-      for (const e of p.events) { eventTier.set(e, tier); eventPoss.set(e, p); }
+                  scoreA, scoreB, margin, deficit: Math.abs(margin), trailLeft, tier,
+                  winTrips, clutch });
+      for (const e of p.events) { eventTier.set(e, tier); eventPoss.set(e, p);
+                                  eventClutch.set(e, clutch); }
       counts[tier]++; counts.total++;
+      if (clutch) counts.clutch++;
       if (p.team === 'a') scoreA += p.pts; else scoreB += p.pts;
     }
     perSession.set(s.id, rows);
   }
 
-  _levCache = { sig, eventTier, eventPoss, perSession, counts };
+  _levCache = { sig, eventTier, eventPoss, eventClutch, perSession, counts };
   return _levCache;
 }
 
@@ -14494,8 +14566,12 @@ function levEventPass(mode) {
   if (m === 'all') return null;
   const sess = levScopeSessions();
   if (!sess.length) return null;
-  const T = levClassify(sess).eventTier;
+  const L = levClassify(sess);
+  const T = L.eventTier;
   if (m === 'comp') return e => T.get(e) !== 'low';
+  /* Overlay, so it reads its own map — an event is clutch or it is not, whatever band it
+     also sits in. An untagged event fails this exactly as it fails a single-tier mode. */
+  if (m === 'clutch') return e => L.eventClutch.get(e) === true;
   return e => T.get(e) === m;
 }
 
@@ -14510,9 +14586,9 @@ function levDistinctPoss(events, map) {
 /* Counts for the filter bar, so the dropdown can say what it is about to do. */
 function levSummary() {
   const sess = levScopeSessions();
-  if (!sess.length) return { low: 0, med: 0, high: 0, comp: 0, all: 0, total: 0 };
+  if (!sess.length) return { low: 0, med: 0, high: 0, comp: 0, clutch: 0, all: 0, total: 0 };
   const c = levClassify(sess).counts;
-  return { low: c.low, med: c.med, high: c.high,
+  return { low: c.low, med: c.med, high: c.high, clutch: c.clutch,
            comp: c.med + c.high, all: c.total, total: c.total };
 }
 
@@ -18926,7 +19002,8 @@ tabRenderers.onoff = function() {
    honest question about any filtered rating is how much of the sample is left. */
 function _leverageSelectHtml() {
   const s = levSummary();
-  const n = { all: s.all, comp: s.comp, high: s.high, med: s.med, low: s.low };
+  const n = { all: s.all, comp: s.comp, high: s.high, med: s.med, low: s.low,
+              clutch: s.clutch };
   const pct = k => (k === 'all' || !s.total) ? '' : ' \u2014 ' + Math.round(100 * n[k] / s.total) + '%';
   const opts = LEV_MODES.map(function (m) {
     const k = m[0];
@@ -18941,8 +19018,14 @@ function _leverageSelectHtml() {
             + 'the trailing team still able to get there. LOW = ' + LEV_CUT.low + '+ at any '
             + 'point, OR a smaller gap it can no longer close with the possessions it has '
             + 'left (needs more than ' + LEV_CUT.ppp + ' a trip) \u2014 so an 8-point game in the '
-            + 'last minute counts as garbage time too. Every stat here is counted from the '
-            + 'possessions that survive the filter; MIN is shared out in proportion to them.';
+            + 'last minute counts as garbage time too. CLUTCH is a separate label laid over '
+            + 'the top rather than a fourth band: within ' + CLUTCH_CUT.margin + ' points '
+            + 'with the side that is behind down to its last ' + CLUTCH_CUT.trips + ' '
+            + 'possessions of the practice \u2014 about five minutes. It overlaps HIGH and '
+            + 'MEDIUM, so it is the one count here that does not add up with the others, and '
+            + 'practices that finish decided contribute none of it. Every stat here is '
+            + 'counted from the possessions that survive the filter; MIN is shared out in '
+            + 'proportion to them.';
   return '<label class="lev-field" title="' + escHtml(tip) + '">'
        + '<span>Leverage</span>'
        + '<select onchange="seg5SetFilter(\'leverage\',this.value)">' + opts + '</select>'
