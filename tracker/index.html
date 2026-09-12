@@ -2291,6 +2291,14 @@
       margin-bottom: 2px;
     }
     .profile-meta { font-size: 12px; color: var(--text-dim); }
+    /* Only ever rendered when a Player Stats filter is on and this page is ignoring it, so
+       it is allowed to be loud - a quiet version of this note is the bug it exists to stop. */
+    .profile-scope-note {
+      margin-top: 6px; padding: 5px 9px; display: inline-block;
+      border: 1px solid rgba(245,197,66,0.35); border-radius: 6px;
+      background: rgba(245,197,66,0.08);
+      font-size: 11px; color: #f5c542; letter-spacing: 0.01em;
+    }
     .profile-name-row {
       display: flex;
       align-items: center;
@@ -10679,12 +10687,30 @@ function sessionInScope(sess, scope) {
    The denominators here are exactly the ones computePlayerStats divides by, so a single
    practice pools to the number that practice already shows. Per ENTRY rather than per
    merged player, so a man who switched squads mid-practice is charged each squad's own
-   context - the same split the possession estimate beside it makes. */
-function rateParts(sess, en, gameMin) {
+   context - the same split the possession estimate beside it makes.
+
+   SHARE is what makes that split safe. Per-entry was only ever half a plan: the DENOMINATOR
+   of every minute-scaled rate here is genuinely per-squad and sums to the right total, but
+   the NUMERATOR is a counting stat, and computePlayerStats writes a player's WHOLE-SESSION
+   counting totals into EVERY squad entry. Feeding both entries in unchanged therefore added
+   his whole night's rebounds twice over a denominator that summed to one night - which
+   doubled OR%, DR%, AST%, STL%, BLK%, USG% and SHOT% for anyone who changed shirts, while
+   leaving the ratios built from counting stats alone (eFG%, TS%, TO%) untouched and correct.
+   Splitting the numerator by minutes makes the two halves agree again: the parts still carry
+   each squad's own context, and they still sum to exactly one practice. A single entry gets
+   share 1 and is bit-for-bit what it was, which is every entry in the data today. */
+function rateParts(sess, en, gameMin, share = 1) {
   const tS = (sess.teamStats || {})[en.team] || {};
   const oS = (sess.teamStats || {})[en.team === 'a' ? 'b' : 'a'] || {};
   const mp = gameMin > 0 ? (en.min || 0) / gameMin : 0;
-  const n  = k => en[k] || 0;
+  const n  = k => (en[k] || 0) * share;
+  /* SHARE APPLIES TO A BARE COUNTING STAT, NEVER TO ONE ALREADY INSIDE `mp *`. The ast
+     denominator is the only term that mixes the two - mp already splits the whole bracket
+     across the stints, so splitting his FGM a second time inside it charges him share^2 and
+     leaves a wider denominator than the unsplit practice had. It read AST% 14.3 against the
+     15.0 the same night produces in one entry. Everything else here is either bare on both
+     sides or bare over an mp-scaled team figure, where share is exactly right. */
+  const raw = k => en[k] || 0;
   const tsa = n('fga') + 0.475 * n('fta');
   return {
     efg:  [n('fgm') + 0.5 * n('fg3m'), n('fga')],
@@ -10694,12 +10720,38 @@ function rateParts(sess, en, gameMin) {
            mp * ((tS.fga || 0) + 0.475 * (tS.fta || 0) + (tS.tov || 0))],
     or:   [n('oreb'), mp * ((tS.oreb || 0) + (oS.dreb || 0))],
     dr:   [n('dreb'), mp * ((tS.dreb || 0) + (oS.oreb || 0))],
-    ast:  [n('ast'),  mp * ((tS.fgm || 0) - n('fgm'))],
+    ast:  [n('ast'),  mp * ((tS.fgm || 0) - raw('fgm'))],
     to:   [n('tov'),  n('fga') + 0.475 * n('fta') + n('ast') + n('tov')],
     stl:  [n('stl'),  mp * (tS.possessions || 0)],
     blk:  [n('blk'),  mp * Math.max(1, oS.fg2a || 0)],
   };
 }
+/* ONE PLAYER, ONE PRACTICE, ONE SET OF PARTS - his stints already added together. Every
+   surface that pools rates goes through here rather than calling rateParts itself, because
+   the share above is only correct when the whole practice is in front of you: an entry
+   cannot know what fraction of the night it was. Summing here rather than pushing each
+   entry separately also keeps a row-per-practice contract for the callers that count rows
+   (gp) or weight by minutes - a split practice was two rows in some of them, which is one
+   game played and one man's minutes counted twice.
+
+   poolRate reads parts[k] without a guard, so every key rateParts emits gets an entry here
+   even when nothing valid landed in it. A [0, 0] pair is skipped by poolRate exactly the
+   way an absent practice was. */
+function sessionRateParts(sess, entries, gameMin) {
+  const tot = entries.reduce((t, e) => t + (e.min || 0), 0);
+  const out = {};
+  for (const en of entries) {
+    const parts = rateParts(sess, en, gameMin,
+      tot > 0 ? (en.min || 0) / tot : 1 / entries.length);
+    for (const k in parts) {
+      const [a, b] = parts[k];
+      const cur = out[k] || (out[k] = [0, 0]);
+      if (b > 0) { cur[0] += a; cur[1] += b; }
+    }
+  }
+  return out;
+}
+
 /* ADV column key -> the parts above. */
 const RATE_KEY = { efgPct:'efg', tsPct:'ts', shotPct:'shot', usgPct:'usg', orPct:'or',
                    drPct:'dr', astPct:'ast', toPct:'to', stlPct:'stl', blkPct:'blk' };
@@ -10774,7 +10826,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
              ratios, so pooling them means re-deriving the whole formula on season totals
              rather than summing two columns. Every other rate below is pooled. */
           _ortg: [], _drtg: [],
-          _parts: [],                       // rateParts() per entry, pooled at the end
+          _parts: [],                       // one practice's pooled parts per row, pooled again at the end
           _pbN: 0, _pbD: 0,                 // TS% with putbacks stripped, pooled the same way
         };
       }
@@ -10837,7 +10889,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       // Accumulate per-game ADV for averaging
       if (p.ortg      != null) row._ortg.push(p.ortg);
       if (p.drtg      != null) row._drtg.push(p.drtg);
-      for (const en of entries) row._parts.push(rateParts(sess, en, _gameMin));
+      row._parts.push(sessionRateParts(sess, entries, _gameMin));
       /* Built per session and averaged, exactly as tsPct above is — not from season totals.
          The whole use of this column is the gap between it and TS%, and a gap between two
          figures assembled different ways would measure the assembly as much as the shooting.
@@ -12694,11 +12746,15 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     String(a.date || '').localeCompare(String(b.date || '')));
   const shots = chron.flatMap(s => shotsOf(s, playerName));
   /* Each row carries the practice's own numerators and denominators, so the rate panels
-     below can pool rather than average finished percentages. */
+     below can pool rather than average finished percentages. Merged, not found: .find() took
+     whichever squad's entry happened to be stored first, and since only `min` is per-squad
+     that read a split practice as the shorter of his two stints - understating the minutes
+     that gp, the minute floor and every weighted average below are built on. */
   const advRows = chron.map(s => {
-    const row = (s.playerStats || []).find(p => p.name === playerName);
-    if (!row) return null;
-    return Object.assign({}, row, { _rp: rateParts(s, row, getSessionPlayedSeconds(s) / 60) });
+    const entries = playerEntriesForSession(s, playerName);
+    if (!entries.length) return null;
+    return Object.assign({}, mergePlayerEntries(entries),
+      { _rp: sessionRateParts(s, entries, getSessionPlayedSeconds(s) / 60) });
   }).filter(Boolean);
   if (!advRows.length) return '';
 
@@ -12714,11 +12770,17 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
     for (const e of (s.eventLog || [])) {
       if (TR_SHOT_STATS.includes(e.stat) && e.player && !isHiddenPlayer(e.player)) teamShots.push(e);
     }
+    /* Walk NAMES and merge, the same shape the player's own rows above are built in - a
+       baseline assembled differently from the value measured against it is a comparison of
+       the two assemblies. Row per practice, so the minute floor below counts a split night
+       once. */
     const _gm = getSessionPlayedSeconds(s) / 60;
-    for (const p of (s.playerStats || [])) {
-      if (isHiddenPlayer(p.name)) continue;
-      (perPlayerAdv[p.name] = perPlayerAdv[p.name] || [])
-        .push(Object.assign({}, p, { _rp: rateParts(s, p, _gm) }));
+    for (const nm of [...new Set((s.playerStats || []).map(x => x.name))]) {
+      if (!nm || nm === 'TEAM' || isHiddenPlayer(nm)) continue;
+      const entries = playerEntriesForSession(s, nm);
+      if (!entries.length) continue;
+      (perPlayerAdv[nm] = perPlayerAdv[nm] || [])
+        .push(Object.assign({}, mergePlayerEntries(entries), { _rp: sessionRateParts(s, entries, _gm) }));
     }
   }
   const teamPPS = trPPS(teamShots);
@@ -12952,7 +13014,7 @@ function buildTendencyRead(playerName, playerSessions, allSessions) {
   const span = gp === 1 ? '1 practice' : gp + ' practices';
   return `<div class="tr-read">
       <p class="tr-body">${body}</p>
-      <div class="tr-foot">Season to date &middot; ${span} &middot; rebuilt from the data after every scrimmage</div>
+      <div class="tr-foot">Season to date, both squads &middot; ${span} &middot; rebuilt from the data after every scrimmage</div>
     </div>`;
 }
 
@@ -13071,14 +13133,39 @@ const SW_CATS = [
 const SW_TOTAL_KEYS = ['min','pts','fgm','fga','fg2m','fg2a','fg3m','fg3a','ftm','fta','oreb','dreb','ast','tov','stl','blk','defl'];
 
 /* Pooled totals AND the per-practice rows, per visible player, in one pass - the two value
-   styles above each need one of them. */
+   styles above each need one of them.
+
+   Two things here are not decoration, and rule 1 above was a lie without them:
+
+   MERGED, NOT SUMMED. computePlayerStats writes a player's WHOLE-SESSION counting totals
+   into EVERY squad entry (the storage contract mergePlayerEntries documents), so a man who
+   switched teams mid-practice has two rows carrying the same pts/fga/ast. Adding them
+   charged him twice for one night's scoring while `min` - the one figure that genuinely is
+   per-squad - summed correctly, which doubled every /40 rate he had. Take the counting
+   stats, sum only the minutes; mergePlayerEntries already does exactly that.
+
+   _rp ON EVERY ROW. trRate pools when the rows carry rateParts and falls back to a
+   MINUTE-WEIGHTED average when they do not. These rows did not carry them, so the panel
+   headed "everything is pooled" was quietly minute-weighting all six rate categories while
+   the ADV table pooled - the same two-values-an-inch-apart failure the comment above was
+   written about, still live in the code that describes it. Finn Ortiz read TO% 23.4 here
+   against 15.0 on ADV; Carraway's AST% 15.3 against 11.3. Per ENTRY, like the ADV table
+   builds its own _parts, so a split practice is charged each squad's own context. */
 function _swCollect(allSessions) {
   const out = {};
   for (const sess of allSessions) {
-    for (const p of (sess.playerStats || [])) {
-      if (!p.name || p.name === 'TEAM' || isHiddenPlayer(p.name)) continue;
-      const e = out[p.name] || (out[p.name] = { rows: [], tot: {} });
-      e.rows.push(p);
+    const gameMin = getSessionPlayedSeconds(sess) / 60;
+    const names = [...new Set((sess.playerStats || []).map(x => x.name))];
+    for (const nm of names) {
+      if (!nm || nm === 'TEAM' || isHiddenPlayer(nm)) continue;
+      const entries = playerEntriesForSession(sess, nm);
+      const p = mergePlayerEntries(entries);
+      if (!p) continue;
+      const e = out[nm] || (out[nm] = { rows: [], tot: {} });
+      /* Copied, never the merged object itself: mergePlayerEntries hands back the STORED
+         entry when there is only one, and hanging _rp on that would write a derived field
+         into State and out into the next backup. */
+      e.rows.push(Object.assign({}, p, { _rp: sessionRateParts(sess, entries, gameMin) }));
       for (const k of SW_TOTAL_KEYS) e.tot[k] = (e.tot[k] || 0) + (p[k] || 0);
     }
   }
@@ -13200,7 +13287,7 @@ function buildStrengthsWeaknesses(playerName, playerSessions, allSessions) {
       block(good, 'is-good', 'Strengths') +
       block(bad,  'is-bad',  'Weaknesses') +
       block(even, 'is-even', 'Around the median') +
-      '<div class="sw-foot">Season to date &middot; above / below the team median &middot; ' +
+      '<div class="sw-foot">Season to date, both squads &middot; above / below the team median &middot; ' +
         pool.length + ' players with ' + SW_MIN_MIN + '+ minutes' + skipTxt + '</div>' +
     '</div>';
 }
@@ -13483,6 +13570,29 @@ function glCell(row, key) {
 
 
 /* ── Player Profile page ── */
+/* THE PROFILE IS ALWAYS BOTH SQUADS. The Player Stats table honours the squad and period
+   dropdowns sitting above it; this page deliberately does not - a season read of a player is
+   the whole season, which is the same reason psOpenProfile clears psScopeSessionId on the
+   way in. Both positions are defensible. Holding them silently is not: Matthew Wilson read
+   32.0% from three in Strengths & Weaknesses and 22.2% on the AVG tab one click away, and
+   BOTH were right - 8-for-25 across the season against 2-for-9 in Black. Nothing on either
+   screen said which question it was answering, so the disagreement read as a broken stat.
+   When a filter is on and this page is ignoring it, the page now says so. */
+function psProfileScopeNote(scoped) {
+  const perLabel = p =>
+    p === 'pre'  ? 'Pre-Jamboree'  :
+    p === 'post' ? 'Post-Jamboree' :
+    String(p).startsWith('s:') ? 'a single practice' : String(p);
+  const bits = [];
+  if (psFilter.team === 'a') bits.push('White only');
+  if (psFilter.team === 'b') bits.push('Black only');
+  if (psFilter.period && psFilter.period !== 'all') bits.push(perLabel(psFilter.period));
+  if (!bits.length) return '';
+  return '<div class="profile-scope-note">Player Stats is filtered to ' +
+    escHtml(bits.join(' + ')) + ' — this page is not. Everything below is ' +
+    (scoped ? 'both squads.' : 'the full season, both squads.') + '</div>';
+}
+
 function renderPlayerProfile(playerName) {
   const root = document.getElementById('players-root');
   if (!root) return;
@@ -13806,9 +13916,10 @@ function renderPlayerProfile(playerName) {
         </div>
         <div class="profile-meta">${
           scopedSession
-            ? `${escHtml(scopeNoun)}${scopedSession.title ? ' · ' + escHtml(scopedSession.title) : ''}${scopedSession.date ? ' · ' + escHtml(scopedSession.date) : ''}`
-            : `${totalGP} session${totalGP !== 1 ? 's' : ''} · ${Math.round(totalMin / gp)}' avg`
+            ? `${escHtml(scopeNoun)} · both squads${scopedSession.title ? ' · ' + escHtml(scopedSession.title) : ''}${scopedSession.date ? ' · ' + escHtml(scopedSession.date) : ''}`
+            : `${totalGP} session${totalGP !== 1 ? 's' : ''} · both squads · ${Math.round(totalMin / gp)}' avg`
         }</div>
+        ${psProfileScopeNote(!!scopedSession)}
         ${topBar}
       </div>
     </div>
@@ -18289,14 +18400,25 @@ function computePpsGrid(sessions, teamFilter) {
    that same squad's floor time while he sat. Combine his White on with his Black on, and
    his White off with his Black off. The opponent never enters it.
 
-   A NAMED SQUAD is about that squad: its floor with him against its floor without him,
-   across every practice he attended. A night he spent on Black is a night White played
-   without him and belongs in White's OFF. Resolving his squad per session and skipping
-   the practices he spent on the other side threw those possessions away entirely — they
-   counted as neither on nor off, and Matthew Wilson read 15.6 minutes off White across
-   eight practices when the true figure is 69.6.
+   A NAMED SQUAD is about him AS A PLAYER OF THAT SQUAD: pick White and you get his White
+   nights and nothing else - his White on against White's floor while he sat, on the same
+   nights. Pick Black and the same, in Black.
 
-   Practices he missed are neither — he was not there to be on or off. */
+   This is a REVERSAL, and the reasoning it replaces is worth keeping because it is not
+   stupid. That version said a named squad was about the squad, so it measured White's floor
+   with him against White's floor without him across every practice he ATTENDED, and a night
+   he spent on Black counted as a night White played without him - Wilson's White OFF went
+   from 15.6 minutes to 69.6 on that argument. It is defensible as a statement about White.
+   It is not the question a coach is asking here. "How does White play with him and without
+   him" means with him and without him ON A WHITE NIGHT; folding in the nights he was a Black
+   player conflates "he sat down" with "he was never in this group", and the second one is a
+   different roster, not a substitution. So those nights are out of the split again - not
+   because the possessions do not exist, but because they are not evidence about him.
+
+   Both Teams is untouched and remains the fuller view: nothing is dropped there.
+
+   Practices he missed are neither — he was not there to be on or off. A named squad now
+   treats a night on the other squad the same way, for the same reason. */
 function ooSplitStints(filtered, playerName, team) {
   const teamIsAll = team === 'all' || team === 'both';
   const onL = [], offL = [];
@@ -18324,9 +18446,14 @@ function ooSplitStints(filtered, playerName, team) {
        carries one row per squad, and .find() used to pick whichever came back first. */
     const recs = (sess.playerStats || []).filter(function (x) { return x.name === playerName; });
     if (!recs.length) continue;               // didn't play in this practice
-    sessCount++;
     const his = [];                           // the squad(s) he actually turned out for
     recs.forEach(function (r) { if (his.indexOf(r.team) < 0) his.push(r.team); });
+    /* A named squad only sees the nights he wore that shirt. Ahead of sessCount++ on
+       purpose: the card's "N practices" then counts HIS White nights, which is the sample
+       the two columns beside it are actually drawn from. A man who split one practice
+       across both squads qualifies for either filter - he really did turn out for both. */
+    if (!teamIsAll && his.indexOf(team) < 0) continue;
+    sessCount++;
 
     for (const seg of (sess.lineupSegments || [])) {
       if (seg.endTimeSecs === null) continue;
@@ -18347,9 +18474,10 @@ function ooSplitStints(filtered, playerName, team) {
         continue;
       }
 
-      /* A named squad measures THAT squad's floor across every practice he attended —
-         including the nights he spent on the other side, which are nights this squad
-         played without him. */
+      /* This squad's floor on one of his nights with it: in its lineup is ON, out of it is
+         OFF. On a practice he split across squads, a stretch spent over on the other side
+         still counts as OFF here - this squad was on the floor without him, which is what
+         the column measures. */
       const lineup = team === 'a' ? seg.lineupA : seg.lineupB;
       if (!lineup) continue;
       (lineup.indexOf(playerName) >= 0 ? onL : offL).push({ seg: seg, sess: sess, team: team });
