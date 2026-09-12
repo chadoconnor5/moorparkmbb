@@ -2203,6 +2203,34 @@
     .wowy-never .wowy-chip { opacity:1; }
     .wowy-off  { background:#f87171; border:1px solid #ef4444; }
 
+    /* Stat Line Shift — "without → with" cells.
+       Two lines per cell: the pair of rates on top, the signed change under it. The change
+       is the only coloured thing, because it is the only thing being claimed; the two rates
+       it came from stay neutral so a big number never reads as a good number. */
+    .sls-c { white-space:nowrap; text-align:center; }
+    .sls-v { display:block; font-size:12px; }
+    .sls-v i { font-style:normal; opacity:0.45; padding:0 2px; }
+    .sls-d { display:block; font-size:11px; font-weight:700; margin-top:1px; }
+    /* The on-light tokens, not the bright shell ones. This table is a .lu-table, and a
+       .lu-table body is LIGHT — #d9d9d9 and #ffffff rows with black text — so the greens and
+       reds the WOWY chips use two rules up, which sit on a dark chip, all but vanish here.
+       Same trap the +/- columns hit: see the measurements on --success-onlight. */
+    .sls-dup { color:var(--success-onlight); }
+    .sls-ddn { color:var(--danger-onlight); }
+    .sls-d0  { color:var(--text-dim); }
+    .sls-name { text-align:left; font-weight:600; }
+    .sls-poss { display:block; font-size:10px; font-weight:400; color:var(--text-dim); }
+    /* Rows under the possession floor are kept and dimmed rather than dropped — a teammate
+       with eleven trips beside him is a fact about the rotation, and hiding him makes the
+       table look like he was never there. */
+    /* Same trick .wowy-never uses, for the same reason: fade the row, but leave the one
+       coloured element alone. Fading the delta too just re-creates the problem the
+       on-light tokens were chosen to solve — measured, #076524 at 0.62 opacity over the
+       grey row band comes back to 2.63:1, worse than the bright token it replaced was on
+       white. A thin sample should look provisional, not unreadable. */
+    .sls-thin td { opacity:0.55; }
+    .sls-thin .sls-d { opacity:1; }
+
     /* Zone breakdown table — always dark */
     .zone-table { border-collapse: collapse; width: 100%; }
     .zone-table thead th { background: var(--card); color: #f8fafc; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
@@ -15009,6 +15037,385 @@ function renderWowyInto(root, filtered, teamsToShow) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   STAT LINE SHIFT — one anchor, every teammate's own box score with and without him
+   ─────────────────────────────────────────────────────────────
+   WOWY answers "how did the TEAM score and defend with these men on the floor". This answers
+   the other half of the same question: pick ONE man, and read what every teammate
+   PERSONALLY produced in the trips he played beside him against the trips he played without
+   him. WOWY is about the unit; this is about what the anchor does to the men around him.
+
+   THE HONESTY RULE IS WOWY'S, FOR WOWY'S REASON. In a practice scrimmage "without" can mean
+   the other squad, which is not absence but opposition, and pooling the two would make most
+   of this table White against Black wearing a different label. So a practice-squad only
+   contributes if BOTH the anchor and the teammate dressed for that squad that day. WITH is
+   then the stints where both were in the five; WITHOUT is the stints where the teammate was
+   in the five and the anchor SAT. Squads the anchor never dressed for are counted and
+   reported under the table rather than silently dropped.
+
+   RATES, NOT TOTALS, and per the side of the ball the stat happens on: scoring, shooting,
+   assists, turnovers and offensive boards over offensive trips; defensive boards, steals and
+   deflections over defensive trips. Stint lengths here are wildly uneven, so a raw total
+   mostly measures who was left on the floor. The raw counts behind every rate are in the
+   cell's tooltip and both possession samples are printed on every row, because at this
+   sample size a split is often a handful of trips and that has to be visible, not implied.
+
+   Stint arithmetic is segStats() — the same function the Lineups and WOWY tables run on,
+   called one stint at a time and summed — so the team-side numbers here (NET, and the
+   denominators everything else is divided by) cannot disagree with those tables. What is new
+   is only the per-player attribution, which reads the same events segStats reads, through the
+   same leverage filter, split by e.player.
+*/
+
+let shiftAnchor = '';
+let shiftMinPoss = 0;
+let shiftSort = { key: 'net', dir: -1 };
+
+/* Which stint each event belongs to, for the whole session at once.
+
+   segStats() works this out per stint by re-walking the quarter, which is fine when it is
+   answering about one lineup but is quadratic when every stint needs it. Same walk, same
+   rule — the log is chronological and a sub whose clock matches the NEXT stint's start
+   closes the current one, so a multi-player swap advances the pointer exactly once — just
+   done in a single pass and cached. Kept deliberately identical to eventsForThisStint(): if
+   that rule ever changes, this has to change with it or the two views will disagree. */
+function _shiftSegEvents(sess) {
+  const ev = sess.eventLog || [];
+  const byQ = {};
+  for (const seg of (sess.lineupSegments || [])) {
+    (byQ[seg.quarter] = byQ[seg.quarter] || []).push(seg);
+  }
+  const out = new Map();
+  for (const q of Object.keys(byQ)) {
+    const qSegs = byQ[q];
+    for (const s of qSegs) out.set(s, []);
+    let p = 0;
+    for (const e of ev) {
+      if (+e.quarter !== +q) continue;
+      if (e.type === 'sub') {
+        const next = qSegs[p + 1];
+        if (next && next.startTimeSecs != null && e.timeSecs != null
+            && next.startTimeSecs === e.timeSecs) p++;
+        continue;
+      }
+      const cur = qSegs[p];
+      if (cur) out.get(cur).push(e);
+    }
+  }
+  return out;
+}
+
+function _shiftBlank() {
+  return { stints: 0, secs: 0, poss: 0, oppPoss: 0,
+           pts: 0, fga: 0, fg3a: 0, fg3m: 0, ftm: 0, fta: 0,
+           ast: 0, tov: 0, oreb: 0, dreb: 0, stl: 0, blk: 0, defl: 0,
+           /* Team-side totals for the same stints — USG needs a team denominator and NET is
+              a team rating. Carried in the same bucket so they are always over exactly the
+              possessions the player's own counts came from. */
+           tPts: 0, tOppPts: 0, tFga: 0, tFta: 0, tTov: 0 };
+}
+
+function _shiftAdd(b, stat) {
+  if (stat === '2fg_make')      { b.pts += 2; b.fga++; }
+  else if (stat === '2fg_miss') { b.fga++; }
+  else if (stat === '3fg_make') { b.pts += 3; b.fga++; b.fg3a++; b.fg3m++; }
+  else if (stat === '3fg_miss') { b.fga++; b.fg3a++; }
+  else if (stat === 'ft_make')  { b.pts++; b.ftm++; b.fta++; }
+  else if (stat === 'ft_miss')  { b.fta++; }
+  else if (stat === 'ast')  b.ast++;
+  else if (stat === 'tov')  b.tov++;
+  else if (stat === 'oreb') b.oreb++;
+  else if (stat === 'dreb') b.dreb++;
+  else if (stat === 'stl')  b.stl++;
+  else if (stat === 'blk')  b.blk++;
+  else if (stat === 'defl') b.defl++;
+}
+
+/* 0.475 on the free-throw term, matching segStats() and computeTeamStats() rather than the
+   0.44 the NBA uses — the tracker settled on 0.475 everywhere, and changing it in one place
+   only would put this table quietly out of step with every other one. */
+function _shiftRate(b, key) {
+  const off = Math.max(1, b.poss), def = Math.max(1, b.oppPoss);
+  if (key === 'pts')  return b.poss    > 0 ? 100 * b.pts / off : null;
+  if (key === 'ast')  return b.poss    > 0 ? 100 * b.ast / off : null;
+  if (key === 'tov')  return b.poss    > 0 ? 100 * b.tov / off : null;
+  if (key === 'oreb') return b.poss    > 0 ? 100 * b.oreb / off : null;
+  if (key === 'dreb') return b.oppPoss > 0 ? 100 * b.dreb / def : null;
+  if (key === 'stl')  return b.oppPoss > 0 ? 100 * (b.stl + b.defl) / def : null;
+  if (key === 'ts')   { const tsa = b.fga + 0.475 * b.fta;
+                        return tsa > 0 ? 100 * 0.5 * b.pts / tsa : null; }
+  if (key === 'usg')  { const t = b.tFga + 0.475 * b.tFta + b.tTov;
+                        return t > 0 ? 100 * (b.fga + 0.475 * b.fta + b.tov) / t : null; }
+  if (key === 'net')  return (b.poss > 0 || b.oppPoss > 0)
+                        ? 100 * b.tPts / off - 100 * b.tOppPts / def : null;
+  return null;
+}
+
+/* The numerator and denominator behind a rate, as text, for the cell tooltip. These tables
+   get read by checking the arithmetic, and a rate with no visible sample is a number nobody
+   can argue with — which is the problem, not the feature. */
+function _shiftRaw(b, key) {
+  const off = b.poss.toFixed(1), def = b.oppPoss.toFixed(1);
+  if (key === 'pts')  return b.pts + ' pts / ' + off + ' off poss';
+  if (key === 'ast')  return b.ast + ' ast / ' + off + ' off poss';
+  if (key === 'tov')  return b.tov + ' tov / ' + off + ' off poss';
+  if (key === 'oreb') return b.oreb + ' oreb / ' + off + ' off poss';
+  if (key === 'dreb') return b.dreb + ' dreb / ' + def + ' def poss';
+  if (key === 'stl')  return (b.stl + b.defl) + ' stl+defl (' + b.stl + '+' + b.defl + ') / ' + def + ' def poss';
+  if (key === 'ts')   return b.pts + ' pts / ' + (b.fga + 0.475 * b.fta).toFixed(1) +
+                             ' TSA (' + b.fga + ' FGA, ' + b.fta + ' FTA)';
+  if (key === 'usg')  return (b.fga + 0.475 * b.fta + b.tov).toFixed(1) + ' of ' +
+                             (b.tFga + 0.475 * b.tFta + b.tTov).toFixed(1) + ' team plays used';
+  if (key === 'net')  return b.tPts + ' scored / ' + b.tOppPts + ' allowed over ' +
+                             off + ' poss (team, while he was out there)';
+  return '';
+}
+
+/* key, label, column group, direction that is good (0 = neither), decimals, suffix */
+const _SHIFT_HEAD = [
+  ['pts',  'PTS',     'off', +1, 1, ''],
+  ['ts',   'TS%',     'off', +1, 1, '%'],
+  ['usg',  'USG%',    'off',  0, 1, '%'],
+  ['ast',  'AST',     'off', +1, 1, ''],
+  ['tov',  'TOV',     'off', -1, 1, ''],
+  ['oreb', 'OREB',    'off', +1, 1, ''],
+  ['dreb', 'DREB',    'sep', +1, 1, ''],
+  ['stl',  'STL+DEF', 'def', +1, 1, ''],
+  ['net',  'NET',     'net', +1, 1, ''],
+];
+
+function computeShiftRows(sessions, anchor, teamsToShow) {
+  if (!anchor) return null;
+  const _levPass = levEventPass(seg5Filter.leverage);
+  const acc = {};                       // name -> { on, off }
+  let unitsUsed = 0, unitsSplit = 0;
+
+  const bucket = (name, anchorOn) => {
+    const e = acc[name] || (acc[name] = { on: _shiftBlank(), off: _shiftBlank() });
+    return anchorOn ? e.on : e.off;
+  };
+
+  for (const sess of sessions) {
+    const evMap = _shiftSegEvents(sess);
+    for (const t of teamsToShow) {
+      const listKey = t === 'a' ? 'lineupA' : 'lineupB';
+      const segs = (sess.lineupSegments || [])
+        .filter(g => g.endTimeSecs !== null && (g[listKey] || []).length);
+      if (!segs.length) continue;
+
+      // This squad's roster for this practice — everyone who took the floor for it.
+      const roster = new Set();
+      for (const g of segs) for (const n of (g[listKey] || [])) roster.add(n);
+      /* No anchor on this squad means every "without" it could offer is really "against",
+         so the whole squad is out. Counted, not hidden — see the note under the table. */
+      if (!roster.has(anchor)) { unitsSplit++; continue; }
+      unitsUsed++;
+
+      for (const g of segs) {
+        const st = segStats(sess, [g], t, { leverage: seg5Filter.leverage });
+        if (st.poss <= 0 && st.oppPoss <= 0) continue;
+        const anchorOn = (g[listKey] || []).indexOf(anchor) !== -1;
+
+        let evs = (evMap.get(g) || []).filter(e => e.team === t && e.player);
+        if (_levPass) evs = evs.filter(_levPass);
+        const byPlayer = {};
+        for (const e of evs) (byPlayer[e.player] = byPlayer[e.player] || []).push(e);
+
+        for (const name of (g[listKey] || [])) {
+          if (name === anchor || isHiddenPlayer(name)) continue;
+          const b = bucket(name, anchorOn);
+          b.stints++;
+          b.secs    += st.secs;
+          b.poss    += st.poss;      b.oppPoss += st.oppPoss;
+          b.tPts    += st.pts;       b.tOppPts += st.oppPts;
+          b.tFga    += st.fga;       b.tFta    += st.fta;    b.tTov += st.tov;
+          for (const e of (byPlayer[name] || [])) _shiftAdd(b, e.stat);
+        }
+      }
+    }
+  }
+
+  const rows = Object.keys(acc).map(name => {
+    const on = acc[name].on, off = acc[name].off;
+    const r = { name, on, off,
+                onPoss: +on.poss.toFixed(1), offPoss: +off.poss.toFixed(1),
+                onMin: on.secs / 60, offMin: off.secs / 60,
+                /* The sort key for everything that is not a stat column, and the floor the
+                   possession filter tests: a split is only as strong as its thinner side. */
+                sample: Math.min(on.poss, off.poss) };
+    for (const h of _SHIFT_HEAD) {
+      const k = h[0];
+      const w = _shiftRate(on, k), o = _shiftRate(off, k);
+      r[k] = { w, o, d: (w == null || o == null) ? null : w - o };
+    }
+    return r;
+  });
+  return { rows, unitsUsed, unitsSplit };
+}
+
+function shiftSetAnchor(name) { shiftAnchor = name || ''; renderLineupsView(); }
+function shiftSetMin(v)       { shiftMinPoss = Number(v) || 0; renderLineupsView(); }
+function shiftSortBy(key) {
+  if (shiftSort.key === key) shiftSort.dir = -shiftSort.dir;
+  else { shiftSort.key = key; shiftSort.dir = (key === 'name') ? 1 : -1; }
+  renderLineupsView();
+}
+
+/* Stat columns sort by the CHANGE, not by either half of it. The question this table is
+   asked is "who does he lift and who does he cost", and that is one number per row; sorting
+   by the with-column would just rebuild a leaderboard that already exists two tabs over. */
+function _shiftSortRows(rows) {
+  const k = shiftSort.key, dir = shiftSort.dir;
+  return rows.slice().sort((a, b) => {
+    if (k === 'name') return dir * a.name.localeCompare(b.name);
+    if (k === 'poss') return dir * (a.sample - b.sample);
+    const av = a[k] ? a[k].d : null, bv = b[k] ? b[k].d : null;
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;         // rows with only one side of the split sort last
+    if (bv == null) return -1;
+    return dir * (av - bv);
+  });
+}
+
+function _shiftCell(c, good, dec, suf, onRaw, offRaw) {
+  if (!c || (c.w == null && c.o == null)) return '<td class="sls-c">—</td>';
+  const f = v => v == null ? '—' : (+v).toFixed(dec) + suf;
+  let d;
+  if (c.d == null) {
+    d = '<span class="sls-d sls-d0">—</span>';
+  } else {
+    const cls = (good === 0 || c.d === 0) ? 'sls-d0'
+              : ((c.d * good) > 0 ? 'sls-dup' : 'sls-ddn');
+    d = '<span class="sls-d ' + cls + '">' + (c.d > 0 ? '+' : '') + c.d.toFixed(dec) + suf + '</span>';
+  }
+  return '<td class="sls-c" title="' + escHtml('without: ' + offRaw + ' — with: ' + onRaw) + '">' +
+         '<span class="sls-v">' + f(c.o) + ' <i>&rarr;</i> ' + f(c.w) + '</span>' + d + '</td>';
+}
+
+function _shiftRowHtml(r) {
+  const thin = r.sample < shiftMinPoss;
+  const cells = _SHIFT_HEAD.map(h =>
+    _shiftCell(r[h[0]], h[3], h[4], h[5], _shiftRaw(r.on, h[0]), _shiftRaw(r.off, h[0]))
+  ).join('');
+  return '<tr' + (thin ? ' class="sls-thin"' : '') + '>' +
+    '<td class="lineup-key sls-name">' + escHtml(r.name) +
+      '<span class="sls-poss">' + r.on.stints + ' stints with &middot; ' + r.off.stints + ' without</span>' +
+    '</td>' +
+    '<td class="sls-c" title="offensive possessions either side of the split">' +
+      '<span class="sls-v">' + Math.round(r.offPoss) + ' <i>&rarr;</i> ' + Math.round(r.onPoss) + '</span>' +
+      '<span class="sls-d sls-d0">' + r.offMin.toFixed(0) + "' / " + r.onMin.toFixed(0) + "'</span>" +
+    '</td>' + cells + '</tr>';
+}
+
+function _shiftPickerHtml(units) {
+  const known = [...new Set(units.flat())].sort((a, b) => a.localeCompare(b));
+  if (shiftAnchor && known.indexOf(shiftAnchor) === -1) shiftAnchor = '';
+
+  const opts = known.map(n =>
+    `<option value="${escHtml(n)}"${n === shiftAnchor ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+  const minOpts = [0, 10, 20, 30, 50].map(v =>
+    `<option value="${v}"${shiftMinPoss === v ? ' selected' : ''}>${v ? 'Dim under ' + v + ' poss' : 'Dim nothing'}</option>`).join('');
+
+  const body = shiftAnchor
+    ? `<div class="lu-b-note">Every teammate's own production, <strong>without ${escHtml(shiftAnchor)}</strong> &rarr; <strong>with ${escHtml(shiftAnchor)}</strong>, and the change. Only practices where ${escHtml(shiftAnchor)} dressed for that squad are counted, so <em>without</em> means he sat &mdash; not that he was guarding them. Hover any cell for the raw counts.</div>`
+    : `<div class="lu-b-note">Choose an anchor. Everyone who shared a practice-squad with him gets a row showing what they did on the trips beside him against the trips without him.</div>`;
+
+  return `<div class="lu-builder">
+      <div class="lu-b-head">
+        <span class="lu-b-title">Anchor</span>
+        <div class="lu-b-slots">
+          <select class="lu-b-slot${shiftAnchor ? ' is-set' : ''}" onchange="shiftSetAnchor(this.value)">
+            <option value=""${shiftAnchor ? '' : ' selected'}>Pick a player</option>
+            ${opts}
+          </select>
+          <select class="lu-b-slot" onchange="shiftSetMin(this.value)">${minOpts}</select>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="shiftSetAnchor('')" ${shiftAnchor ? '' : 'disabled style="opacity:.45;"'}>Clear</button>
+      </div>
+      ${body}
+    </div>`;
+}
+
+function _shiftUpdateArrows() {
+  ['name', 'poss'].concat(_SHIFT_HEAD.map(h => h[0])).forEach(k => {
+    const el = document.getElementById('sls-arrow-' + k);
+    if (el) el.textContent = (shiftSort.key === k) ? (shiftSort.dir === 1 ? ' ▲' : ' ▼') : '';
+  });
+}
+
+function renderShiftInto(root, filtered, teamsToShow) {
+  /* Same unit list WOWY cascades against — a man is only comparable with men he actually
+     dressed alongside, and that is exactly the set that can produce a row here. */
+  const units = _wowyUnits(filtered, teamsToShow);
+  const pickerHtml = _shiftPickerHtml(units);
+
+  const header =
+    '<div class="page-header"><div>' +
+      '<div class="page-title">Stat Line Shift</div>' +
+      '<div class="page-subtitle">' +
+        (shiftAnchor
+          ? 'Teammate production without and with ' + escHtml(shiftAnchor)
+          : 'One anchor, every teammate&rsquo;s box score on both sides of the split') +
+      '</div>' +
+    '</div>' + _lineupsFilterBar(filtered) + '</div>' + pickerHtml;
+
+  if (!shiftAnchor) {
+    root.innerHTML = header +
+      '<div class="placeholder" style="margin-top:20px;"><div>' +
+      'Pick an anchor to split every teammate&rsquo;s stat line by whether he was on the floor.</div></div>';
+    return;
+  }
+
+  const res = computeShiftRows(filtered, shiftAnchor, teamsToShow);
+  const rows = _shiftSortRows(res.rows);
+
+  if (!rows.length) {
+    root.innerHTML = header +
+      '<div class="placeholder" style="margin-top:20px;"><div>' + escHtml(shiftAnchor) +
+      ' has no teammates in the practices in scope &mdash; try a wider period or Both Teams.</div></div>';
+    return;
+  }
+
+  const arrow = k => '<span id="sls-arrow-' + k + '"></span>';
+  const heads = _SHIFT_HEAD.map(h => {
+    const cls = h[2] === 'off' ? ' class="lu-th-off"'
+              : h[2] === 'sep' ? ' class="lu-th-def lu-def-sep"'
+              : h[2] === 'def' ? ' class="lu-th-def"' : '';
+    return '<th' + cls + ' style="cursor:pointer;" onclick="shiftSortBy(\'' + h[0] + '\')">' +
+           h[1] + arrow(h[0]) + '</th>';
+  }).join('');
+
+  /* Split-squad practices are named, not swallowed. "He was never on their side" is the
+     honest answer to some of the rows above and must not look like missing data. */
+  const splitNote = res.unitsSplit
+    ? ' ' + res.unitsSplit + ' practice-squad' + (res.unitsSplit === 1 ? '' : 's') +
+      ' excluded, where ' + escHtml(shiftAnchor) + ' was not on that side.'
+    : '';
+  const oneSided = rows.filter(r => r.on.poss <= 0 || r.off.poss <= 0).length;
+  const thinNote = oneSided
+    ? ' ' + oneSided + ' teammate' + (oneSided === 1 ? '' : 's') +
+      ' only ever played one side of this split, so there is no change to report for them.'
+    : '';
+
+  root.innerHTML = header +
+    '<div class="table-wrap" style="margin-top:12px;"><table class="lu-table"><thead><tr>' +
+      '<th style="text-align:left;min-width:170px;cursor:pointer;" onclick="shiftSortBy(\'name\')">TEAMMATE' + arrow('name') + '</th>' +
+      '<th style="cursor:pointer;" onclick="shiftSortBy(\'poss\')">POSS' + arrow('poss') + '</th>' +
+      heads +
+    '</tr></thead><tbody>' + rows.map(_shiftRowHtml).join('') + '</tbody></table></div>' +
+    '<div style="margin-top:10px;font-size:11px;color:var(--text-dim);">' +
+      'Each cell reads <strong>without &rarr; with</strong>, with the change under it. ' +
+      'Counting stats are per 100 possessions of the side of the ball they happen on; NET is the ' +
+      'team&rsquo;s rating while that teammate was on the floor. Columns sort by the change. ' +
+      'Hover a cell for the raw counts behind it. ' +
+      res.unitsUsed + ' practice-squad' + (res.unitsUsed === 1 ? '' : 's') + ' counted.' +
+      splitNote + thinNote +
+      ' Blue = offense, orange = defense.' +
+    '</div>';
+
+  _shiftUpdateArrows();
+}
+
+/* ─────────────────────────────────────────────────────────────
    LINEUPS TAB
 ───────────────────────────────────────────────────────────── */
 tabRenderers.lineups = function() {
@@ -15034,8 +15441,9 @@ function _lineupsFilterBar(filtered) {
           <option value="b" ${seg5Filter.team==='b'?'selected':''}>${escHtml(filtered[0]?.teamBName||'Black')}</option>
         </select>
         <div class="btn-group" style="display:flex;gap:2px;">
-          <button class="btn btn-sm${seg5Filter.mode !== 'wowy' ? ' btn-primary' : ''}" onclick="seg5SetFilter('mode','lineups')">LINEUPS</button>
+          <button class="btn btn-sm${seg5Filter.mode !== 'wowy' && seg5Filter.mode !== 'shift' ? ' btn-primary' : ''}" onclick="seg5SetFilter('mode','lineups')">LINEUPS</button>
           <button class="btn btn-sm${seg5Filter.mode === 'wowy' ? ' btn-primary' : ''}" onclick="seg5SetFilter('mode','wowy')">WOWY</button>
+          <button class="btn btn-sm${seg5Filter.mode === 'shift' ? ' btn-primary' : ''}" onclick="seg5SetFilter('mode','shift')">STAT LINE SHIFT</button>
         </div>
         <select onchange="seg5SetFilter('lineupSize',this.value)">
           <option value="2" ${size===2?'selected':''}>2-Man</option>
@@ -15071,6 +15479,9 @@ function renderLineupsView() {
   /* WOWY reuses everything above — the same scoped sessions, the same squad selection and
      the same size selector — and then splits by on/off instead of by exact personnel. */
   if (seg5Filter.mode === 'wowy') { renderWowyInto(root, filtered, teamsToShow); return; }
+  /* Stat Line Shift is the same split read the other way round — WOWY reports the unit,
+     this reports the men in it — so it rides the identical scoping and squad rules. */
+  if (seg5Filter.mode === 'shift') { renderShiftInto(root, filtered, teamsToShow); return; }
 
   // Helper: all k-size combinations from an array
   function combinations(arr, k) {
