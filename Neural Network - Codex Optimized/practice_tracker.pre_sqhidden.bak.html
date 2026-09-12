@@ -19885,13 +19885,6 @@ function computeShotQuality(sessions, opts) {
       const m = QSQ_SHOT_STATS[e.stat];
       if (!m) continue;
       if (e.team !== 'a' && e.team !== 'b') continue;
-      /* Hidden players are out of the POOL, not merely off the tables. This walk used to be
-         the one event-log walk in the file that did not check - every other one does - so a
-         man who has left the team still had rows on the Shot Quality tab AND sat inside the
-         cells pricing everyone else's looks. Both are wrong for the same reason: the
-         baseline is meant to be "what THIS group shoots on a look like that", and the group
-         is the visible roster. Costs 20 of 729 attempts and moves the group eFG% 51.5 -> 51.0. */
-      if (isHiddenPlayer(e.player)) continue;
       if (teamF && e.team !== teamF) continue;
       if (levPass && !levPass(e)) continue;
       const made = m[0], is3 = m[1];
@@ -19957,14 +19950,10 @@ function computeShotQuality(sessions, opts) {
    lone 1-for-1 reads +60.7 and squashed the fifteen men who actually shoot into a band along
    the bottom of the panel.
 
-   Ten used to sit in a GAP IN THE DATA — the counts ran ...20, 16, 16, 15, 12, then 3, 1.
-   That gap was made of HIDDEN PLAYERS: the 16, the 3 and the 1 were Galloway, O'Daniel and
-   Temme, and once the pool stopped counting them the counts run ...20, 16, 15, 12 with
-   nothing underneath. So at full scope the line now excludes nobody, and it is kept for the
-   filtered views, where a period or leverage selection can cut a man down to a handful of
-   attempts and one of them can still drag the scale off the rotation. Drag the slider and
-   watch it move; no number on the page changes, only which players the scale is drawn
-   around. */
+   Ten sits in a GAP IN THE DATA rather than being imposed on it — the attempt counts run
+   ...20, 16, 16, 15, 12, then 3, 1 — so it separates the rotation from the cameos without
+   cutting through anybody. Drag the slider and watch it move; no number on the page changes,
+   only which players the scale is drawn around. */
 let sqMinFga = 10;
 function sqSetMinFga(v) {
   sqMinFga = Math.max(1, Number(v) || 1);

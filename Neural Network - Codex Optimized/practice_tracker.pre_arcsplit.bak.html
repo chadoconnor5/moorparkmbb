@@ -19757,13 +19757,8 @@ function seg5SetFilter(key, val) {
        4 bands x contest x catch-and-shoot ........ 0.33130
        4 bands x contest x pre-shot movement ...... 0.33510
        6 bands x contest x off-balance ............ 0.32833
-       4 bands x contest x off-balance (16 cells) . 0.32195   min cell = 1
-       4 bands x contest, OFF-BALANCE ITS OWN CELL  0.32178   min cell = 8
-       5 bands, arc split at 24ft, same coverage ... 0.32100   min cell = 3
-       5 bands, arc split at 23.75ft, same coverage  0.31829   <- chosen, min cell = 3
-       ...that + the long two split at 16ft ........ 0.32262   min cell = 3
-       ...that + pull-up on the jump bands ......... 0.31964   min cell = 1
-       ...that + catch-and-shoot on the jump bands . 0.32056   min cell = 1
+       4 bands x contest x off-balance (16 cells) . 0.32195   <- best MSE, but min cell = 1
+       4 bands x contest, OFF-BALANCE ITS OWN CELL  0.32178   <- chosen, min cell = 8
 
    Two findings worth keeping:
 
@@ -19771,27 +19766,6 @@ function seg5SetFilter(key, val) {
    jackknife WORSE (0.331 and 0.335 against 0.329 without it). In the NBA model dribbles
    matter; in this data whether the shot was contested already absorbs that signal, and
    splitting on it only thins the cells. Do not spend tagging effort on it for this purpose.
-
-   RETESTED on top of the five-band structure and it still loses: pull-up on the three jump
-   bands 0.31964, catch-and-shoot 0.32056, both against 0.31829 without either. The tag does
-   have one visible edge - among deep OPEN threes, pull-ups shot 28.6% eFG on 21 attempts
-   against catch-and-shoot's 52.4% on 106 - and splitting that single cell alone scores
-   0.31801. That is a 0.00028 gain on a cell chosen AFTER seeing the answer, against the arc
-   split's 0.00349 on a boundary chosen from the geometry, so it is not taken. The reason the
-   tag fails overall is the other direction it points: short open threes read 100% eFG on 15
-   pull-ups, which no one believes and the jackknife duly charges.
-
-   THE ARC IS TWO BANDS, NOT ONE. Threes were one band on the reasoning below - a corner
-   three and a long two sit at the same distance and are not the same shot, so the three is
-   defined by its value and not by feet. That still holds for separating threes from twos,
-   but it left a 23-footer and a 26-footer sharing a cell, and they are not the same shot
-   either: OPEN threes in front of 23.75ft go 72.0% eFG on 100 attempts, behind it 48.4% on
-   127. The boundary is the arc radius at the top of the key rather than a round number,
-   because that is what the split physically IS - 65% of the short side sits in the outer
-   15% of the floor's width against 46% of the deep side, so short is mostly corner and wing
-   and deep is mostly above the break. It also measures better: 24ft scores 0.32100 and
-   23.75ft 0.31829. The two new cells cost nothing in coverage - nobody falls back to the
-   group mean - though off-balance threes, already thin at 8, split into 3 and 5.
 
    OFF-BALANCE IS A BAND, NOT A MODIFIER. It is the strongest single difficulty marker in the
    file — 93 attempts at 18.3% eFG against a 51.5% baseline, and still only 22% of them when
@@ -19826,17 +19800,14 @@ function seg5SetFilter(key, val) {
 
 /* Distance bands. The middle of the floor is nearly empty in this data — 205 attempts inside
    4ft and 274 from 22-26ft, but only 44 between 10 and 16ft — so even-width bands would give
-   well-fed rim and arc cells beside empty ones. Threes are separated from TWOS by the SHOT'S
-   OWN value rather than by feet, because a corner three and a long two sit at the same
-   distance and are not the same shot; they are then split BETWEEN THEMSELVES at 23.75ft, the
-   arc radius, because a 23-footer and a 26-footer are not the same shot either. See the
-   jackknife table above for why 23.75 and not 24. */
+   well-fed rim and arc cells beside empty ones. Threes are their own band by the SHOT'S OWN
+   value rather than by feet, because a corner three and a long two sit at the same distance
+   and are not the same shot. */
 const QSQ_BANDS = [
   ['rim',   'Rim',   'inside 4ft'],
   ['close', 'Close', '4–10ft'],
   ['jump',  'Jump',  '10ft to the arc'],
-  ['3short','Three',      'in front of 23.75ft'],
-  ['3deep', 'Deep three', '23.75ft and out'],
+  ['3pt',   'Three', 'behind the line'],
 ];
 const QSQ_COVERAGES = [
   ['open',        'Open'],
@@ -19847,13 +19818,7 @@ const QSQ_SHOT_STATS = { '2fg_make': [1, 0], '2fg_miss': [0, 0],
                          '3fg_make': [1, 1], '3fg_miss': [0, 1] };
 
 function qsqBand(ev, is3) {
-  /* A three with no distance lands SHORT, where 57% of them are, for the same reason a two
-     with no distance lands in `jump`: dropping the shot would shrink the eFG% it also
-     belongs to. Neither case occurs in the current file - all 729 carry a distance. */
-  if (is3) {
-    const ft3 = Number(ev.shotFt);
-    return (isFinite(ft3) && ft3 >= 23.75) ? '3deep' : '3short';
-  }
+  if (is3) return '3pt';
   const ft = Number(ev.shotFt);
   /* shotFt is present on every attempt in the current file; a missing one lands in `jump`
      rather than being dropped, because losing the shot would silently shrink the eFG% it
@@ -19885,13 +19850,6 @@ function computeShotQuality(sessions, opts) {
       const m = QSQ_SHOT_STATS[e.stat];
       if (!m) continue;
       if (e.team !== 'a' && e.team !== 'b') continue;
-      /* Hidden players are out of the POOL, not merely off the tables. This walk used to be
-         the one event-log walk in the file that did not check - every other one does - so a
-         man who has left the team still had rows on the Shot Quality tab AND sat inside the
-         cells pricing everyone else's looks. Both are wrong for the same reason: the
-         baseline is meant to be "what THIS group shoots on a look like that", and the group
-         is the visible roster. Costs 20 of 729 attempts and moves the group eFG% 51.5 -> 51.0. */
-      if (isHiddenPlayer(e.player)) continue;
       if (teamF && e.team !== teamF) continue;
       if (levPass && !levPass(e)) continue;
       const made = m[0], is3 = m[1];
@@ -19957,14 +19915,10 @@ function computeShotQuality(sessions, opts) {
    lone 1-for-1 reads +60.7 and squashed the fifteen men who actually shoot into a band along
    the bottom of the panel.
 
-   Ten used to sit in a GAP IN THE DATA — the counts ran ...20, 16, 16, 15, 12, then 3, 1.
-   That gap was made of HIDDEN PLAYERS: the 16, the 3 and the 1 were Galloway, O'Daniel and
-   Temme, and once the pool stopped counting them the counts run ...20, 16, 15, 12 with
-   nothing underneath. So at full scope the line now excludes nobody, and it is kept for the
-   filtered views, where a period or leverage selection can cut a man down to a handful of
-   attempts and one of them can still drag the scale off the rotation. Drag the slider and
-   watch it move; no number on the page changes, only which players the scale is drawn
-   around. */
+   Ten sits in a GAP IN THE DATA rather than being imposed on it — the attempt counts run
+   ...20, 16, 16, 15, 12, then 3, 1 — so it separates the rotation from the cameos without
+   cutting through anybody. Drag the slider and watch it move; no number on the page changes,
+   only which players the scale is drawn around. */
 let sqMinFga = 10;
 function sqSetMinFga(v) {
   sqMinFga = Math.max(1, Number(v) || 1);
@@ -20079,7 +20033,7 @@ function renderShotQualityView() {
   const cls = v => v >= 0 ? 'sq-pos' : 'sq-neg';
 
   /* The baseline table. Printed with its numerator and denominator because every qSI on the
-     page is a subtraction against these fifteen numbers, and a reader who cannot see the
+     page is a subtraction against these twelve numbers, and a reader who cannot see the
      denominator cannot tell a rate from a rumour. */
   let cellRows = '';
   for (const b of QSQ_BANDS) {
