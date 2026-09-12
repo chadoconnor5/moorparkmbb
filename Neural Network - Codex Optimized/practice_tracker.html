@@ -2231,6 +2231,27 @@
     .sls-thin td { opacity:0.55; }
     .sls-thin .sls-d { opacity:1; }
 
+    /* Shot Quality — qSQ / qSI.
+       The quadrant panel sits on --surface like the form-trend chart, and the two tables
+       under it are plain dark tables rather than .lu-table: there is no sticky first column
+       to earn here and .lu-table's light body would fight the chart directly above it. */
+    .sq-panel { background:var(--surface); border:1px solid var(--border);
+                border-radius:var(--radius-lg); padding:12px; margin-bottom:18px; }
+    .sq-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+    .sq-tbl th, .sq-tbl td { padding:5px 8px; text-align:right; white-space:nowrap;
+                             border-bottom:1px solid var(--border); }
+    .sq-tbl th { color:var(--text-secondary); font-weight:700; font-size:11px;
+                 text-transform:uppercase; letter-spacing:0.03em; }
+    .sq-tbl td:first-child, .sq-tbl th:first-child { text-align:left; font-weight:600; }
+    .sq-tbl tbody tr:hover { background:var(--card-hover); }
+    /* Thin samples are dimmed, never dropped — the same rule the Shift table follows, for
+       the same reason: a man with nine attempts is a fact about the roster. */
+    .sq-thin td { opacity:0.5; }
+    .sq-pos { color:var(--success); font-weight:700; }
+    .sq-neg { color:var(--danger);  font-weight:700; }
+    .sq-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+    .sq-note { font-size:11px; color:var(--text-muted); line-height:1.5; margin-top:8px; }
+
     /* Zone breakdown table — always dark */
     .zone-table { border-collapse: collapse; width: 100%; }
     .zone-table thead th { background: var(--card); color: #f8fafc; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
@@ -2730,7 +2751,8 @@
        the green effectively invisible. Same hues, carried down to 5.14:1 and 4.87:1. */
     .oo-imp-tbl tbody td.oo-imp-good { color: var(--success-onlight); }
     .oo-imp-tbl tbody td.oo-imp-bad  { color: var(--danger-onlight); }
-    /* Player Stats carries 30 columns in ADV, which at the shared table padding measured
+    /* Player Stats carries 31 columns in ADV, which at thirty of them and the shared
+       table padding measured
        1827px against a 1390px viewport — 437px of horizontal scroll for the widest view in
        the app. Tightened to fit: intrinsic width comes down to 1291px, inside a 1366 screen
        and with 95px to spare at 1440.
@@ -3984,6 +4006,7 @@
     <button class="nav-tab active" data-tab="players"   onclick="switchTab('players',this)">Player Stats</button>
     <button class="nav-tab"        data-tab="log"       onclick="switchTab('log',this)">Practice Log</button>
     <button class="nav-tab"        data-tab="shotcharts"onclick="switchTab('shotcharts',this)">Shot Charts</button>
+    <button class="nav-tab"        data-tab="shotquality" onclick="switchTab('shotquality',this)" title="qSQ and qSI — how hard each man's looks were, and how much better or worse he finished them than this group's average.">Shot Quality</button>
     <button class="nav-tab"        data-tab="onoff"     onclick="switchTab('onoff',this)">On/Off</button>
     <button class="nav-tab"        data-tab="lineups"   onclick="switchTab('lineups',this)">Lineups</button>
     <button class="nav-tab"        data-tab="connections" onclick="switchTab('connections',this)">Connections</button>
@@ -4375,6 +4398,16 @@
       <div class="placeholder">
         <div class="placeholder-icon">🎯</div>
         <div>No sessions yet &mdash; complete a practice to see shot charts.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SHOT QUALITY (qSQ / qSI) ── -->
+  <div id="tab-shotquality" class="tab-content">
+    <div id="shotquality-root" class="page">
+      <div class="placeholder">
+        <div class="placeholder-icon">🎯</div>
+        <div>No shots recorded yet &mdash; tag a practice to see shot quality.</div>
       </div>
     </div>
   </div>
@@ -5362,6 +5395,7 @@ const tabRenderers = {
   boxscores:  () => {},
   players:    () => {},
   shotcharts: () => {},
+  shotquality:() => {},
   onoff:      () => {},
   lineups:    () => {},
   connections:() => {},
@@ -11080,6 +11114,11 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       ortg:     avg(r._ortg),
       drtg:     avg(r._drtg),
       usgPct:   p1(poolRate(r._parts, 'usgPct')),
+      /* Straight off season totals divided by games played - no pooling to do, because
+         every term is a plain count rather than a rate needing a denominator of its own.
+         Zero prints as 0.0 rather than the em-dash: a man who never missed and never
+         turned it over has a real answer of nothing, not an unmeasurable one. */
+      nsp:      p1(((r.fga - r.fgm) + 0.475 * r.fta + r.tov) / g),
       /* Capped, the way the On/Off impact card caps it. playerStats stores each practice's
          minutes already rounded to 0.1, so a man who played every second of every scrimmage
          sums to a hair over the exact floor time and reads 100.1% - noise from the rounding,
@@ -11172,6 +11211,15 @@ function renderPlayerTable() {
     { key: 'minPctVal', label: 'MIN%'  },
     { key: 'ortg',      label: 'ORtg'  },
     { key: 'usgPct',    label: 'USG%'  },
+    /* NSP = Non-Scoring Possessions: (FGA - FGM) + 0.475 x FTA + TOV. The trips he used
+       that ended with nothing on the board - a miss, a trip to the line, a giveaway.
+       0.475 on the free throws, the same coefficient USG% one column to the left divides
+       by and the same one computePlayerStats uses for TS% and the possession estimate, so
+       the two columns are counting free-throw trips the same way.
+       PER GAME, like MIN and PTS CR in this row, so a man who has been to nine practices
+       is comparable with one who has been to three. Hover the cell for the season total
+       and the three terms behind it. */
+    { key: 'nsp',       label: 'NSP'   },
     { key: 'drtg',      label: 'DRtg'  },
     { key: 'shotPct',   label: 'SHOT%' },
     { key: 'efgPct',    label: 'EFG%'  },
@@ -11311,6 +11359,16 @@ function renderPlayerTable() {
         const txt = key === 'pm' ? String(n) : n.toFixed(1);
         const col = n > 0 ? 'var(--success)' : n < 0 ? 'var(--danger)' : 'var(--text-dim)';
         return `<td style="font-variant-numeric:tabular-nums;color:${col};font-weight:700;">${n > 0 ? '+' : ''}${txt}</td>`;
+      }
+      /* The cell shows the per-game figure; the season total and its three terms ride in
+         the tooltip, because the average alone hides how much of it is misses and how much
+         is turnovers - two very different things to coach. */
+      if (key === 'nsp') {
+        const miss = (r.fga || 0) - (r.fgm || 0), fta = r.fta || 0, tov = r.tov || 0;
+        const tot  = miss + 0.475 * fta + tov;
+        const tip  = `${tot.toFixed(1)} over ${r.gp} game${r.gp === 1 ? '' : 's'}`
+                   + ` — ${miss} missed FG + 0.475×${fta} FTA (${(0.475 * fta).toFixed(1)}) + ${tov} TOV`;
+        return `<td title="${tip}">${(+v).toFixed(1)}</td>`;
       }
       // PPS figures carry two decimals — at ~1.00 a single decimal hides real differences.
       if (key === 'xpps' || key === 'pps') return `<td>${(+v).toFixed(2)}</td>`;
@@ -19649,6 +19707,7 @@ const SEG5_VIEWS = [
   ['lineups-root',     () => renderLineupsView()],
   ['onoff-root',       () => renderOnOffView()],
   ['connections-root', () => renderConnectionsView()],
+  ['shotquality-root', () => renderShotQualityView()],
 ];
 
 function seg5SetFilter(key, val) {
@@ -19661,6 +19720,391 @@ function seg5SetFilter(key, val) {
     if (el && el.closest('.tab-content.active')) render();
   }
 }
+
+/* ============================================================
+   SHOT QUALITY — qSQ and qSI
+   ============================================================
+   Second Spectrum's pair, as described by Seth Partnow (The Athletic, 29 Jan 2021) and
+   nbastuffer:
+
+     qSQ  — Quantified Shot Quality. The eFG% a hypothetical AVERAGE player would manage on
+            this exact attempt. Their model weighs shot location and distance, the shooter's
+            pre-shot movement, the position, closing speed and approach angle of contesting
+            defenders, and dribbles taken.
+     qSI  — Quantified Shot Impact, i.e. SHOTMAKING. Partnow: "simply the eFG% on all or a
+            portion of a player's shots minus the 'expected' or average qSQ value of those
+            shots". So qSI = eFG% − qSQ, in eFG points.
+
+   WHY THIS IS A TALLY AND NOT A MODEL. Their qSQ is a proprietary fit over hundreds of
+   thousands of attempts. Nine practices give 729. A regression on that would be mostly
+   coefficients invented to fill cells, so qSQ here is the OBSERVED eFG% of comparable
+   attempts in this group's own film — every baseline below is a numerator over a
+   denominator you can read off the table, and nothing is smoothed, shrunk or weighted.
+
+   THE CONSEQUENCE, STATED PLAINLY: this measures a man against THIS PRACTICE GROUP, not
+   against the NBA or any outside standard. qSI sums to roughly zero across the roster by
+   construction. A player is not "an above-average shotmaker"; he is above average FOR HERE.
+
+   WHICH BUCKETS, AND WHY THESE. Candidate schemes were scored by JACKKNIFE — predict each
+   shot from its cell's eFG% computed WITHOUT that shot, then mean squared error. That
+   punishes thin cells instead of flattering them the way in-sample fit does. Measured on
+   the 729 (lower is better):
+
+       no buckets at all .......................... 0.35465
+       contest only ............................... 0.33602
+       2pt/3pt x contest .......................... 0.33567
+       4 distance bands x contest ................. 0.32908
+       4 bands x contest x catch-and-shoot ........ 0.33130
+       4 bands x contest x pre-shot movement ...... 0.33510
+       6 bands x contest x off-balance ............ 0.32833
+       4 bands x contest x off-balance (16 cells) . 0.32195   <- best MSE, but min cell = 1
+       4 bands x contest, OFF-BALANCE ITS OWN CELL  0.32178   <- chosen, min cell = 8
+
+   Two findings worth keeping:
+
+   PRE-SHOT MOVEMENT ADDS NOTHING HERE. Splitting on catch-and-shoot versus pull-up made the
+   jackknife WORSE (0.331 and 0.335 against 0.329 without it). In the NBA model dribbles
+   matter; in this data whether the shot was contested already absorbs that signal, and
+   splitting on it only thins the cells. Do not spend tagging effort on it for this purpose.
+
+   OFF-BALANCE IS A BAND, NOT A MODIFIER. It is the strongest single difficulty marker in the
+   file — 93 attempts at 18.3% eFG against a 51.5% baseline, and still only 22% of them when
+   UNCONTESTED. But crossing it with contest leaves cells of one and three shots, whose
+   "baseline" is then 0% off a single miss. Off-balance attempts therefore form their own
+   cell per distance band, which costs nothing in jackknife (0.32178 vs 0.32195) and leaves
+   no cell under eight attempts. It rests on the tag being made from the shooter's body and
+   not from whether the ball dropped; if that ever stops being true the tag starts absorbing
+   the outcome, and anyone who takes scrappy shots gets a flattering qSI out of it.
+
+   BASELINES ARE LEAVE-ONE-PLAYER-OUT. The cells are built from the same shots being graded,
+   so a high-volume shooter was partly setting his own expectation — Wilson's 94 attempts are
+   13% of the file. Each man's qSQ is therefore computed from cells with HIS OWN attempts
+   removed. It moved Bello +3.7 eFG points and Wilson −3.2. Because each player gets a
+   slightly different baseline the roster's qSI no longer sums to exactly zero (it comes to
+   about +5 points of offence over 729 shots), which is the honest price of the correction.
+
+   FREE THROWS ARE OUT, deliberately: eFG% does not count them. Note that Second Spectrum
+   assigns a qSQ even to shooting fouls that never become an FGA, which this cannot — the
+   foul events here are not tied to the shot that drew them.
+
+   READ IT AS TWO NUMBERS, NOT ONE. Partnow is explicit that "a single number descriptor of
+   shot quality is one too few", and prefers the pair. Hence the quadrant: qSQ across, qSI
+   up, crosshairs on the group average of each. Top-left is the shot creator who turns bad
+   looks into decent ones; bottom-right is the man getting the easy looks and not converting.
+   The team needs both a supply of open shots and someone able to make the hard ones.
+
+   SAMPLE. qSI is volatile — Partnow notes a single 4-for-5 night can read as +30 points.
+   Forty attempts is a description of forty attempts, nothing more. Dot area is proportional
+   to attempts so volume is never invisible, and thin rows are dimmed rather than hidden.
+*/
+
+/* Distance bands. The middle of the floor is nearly empty in this data — 205 attempts inside
+   4ft and 274 from 22-26ft, but only 44 between 10 and 16ft — so even-width bands would give
+   well-fed rim and arc cells beside empty ones. Threes are their own band by the SHOT'S OWN
+   value rather than by feet, because a corner three and a long two sit at the same distance
+   and are not the same shot. */
+const QSQ_BANDS = [
+  ['rim',   'Rim',   'inside 4ft'],
+  ['close', 'Close', '4–10ft'],
+  ['jump',  'Jump',  '10ft to the arc'],
+  ['3pt',   'Three', 'behind the line'],
+];
+const QSQ_COVERAGES = [
+  ['open',        'Open'],
+  ['contested',   'Contested'],
+  ['off-balance', 'Off balance'],
+];
+const QSQ_SHOT_STATS = { '2fg_make': [1, 0], '2fg_miss': [0, 0],
+                         '3fg_make': [1, 1], '3fg_miss': [0, 1] };
+
+function qsqBand(ev, is3) {
+  if (is3) return '3pt';
+  const ft = Number(ev.shotFt);
+  /* shotFt is present on every attempt in the current file; a missing one lands in `jump`
+     rather than being dropped, because losing the shot would silently shrink the eFG% it
+     also belongs to. */
+  if (!isFinite(ft)) return 'jump';
+  return ft < 4 ? 'rim' : ft < 10 ? 'close' : 'jump';
+}
+
+/* Coverage, most-difficult-wins: an off-balance attempt is filed as off-balance whether or
+   not a defender was also on it. An unrecorded contest reads as open (two attempts in the
+   current file), which is the majority state and is the assumption the caption names. */
+function qsqCoverage(ev) {
+  const ty = ev.shotTypes || (ev.shotType ? [ev.shotType] : []);
+  if (ty && ty.indexOf('off_balance') !== -1) return 'off-balance';
+  return ev.shotContest === 'contested' ? 'contested' : 'open';
+}
+
+/* opts: { leverage, team } — both optional. Passing a leverage mode narrows which attempts
+   are counted AND which build the baselines, so "who makes tough shots when it is tight"
+   is asked of clutch possessions only, against a clutch-only expectation. */
+function computeShotQuality(sessions, opts) {
+  const o = opts || {};
+  const levPass = (o.leverage && o.leverage !== 'all') ? levEventPass(o.leverage) : null;
+  const teamF = (o.team && o.team !== 'all' && o.team !== 'both') ? o.team : null;
+
+  const shots = [];
+  for (const s of sessions) {
+    for (const e of (s.eventLog || [])) {
+      const m = QSQ_SHOT_STATS[e.stat];
+      if (!m) continue;
+      if (e.team !== 'a' && e.team !== 'b') continue;
+      if (teamF && e.team !== teamF) continue;
+      if (levPass && !levPass(e)) continue;
+      const made = m[0], is3 = m[1];
+      shots.push({ player: e.player || '—', made: made, is3: is3,
+                   /* The eFG VALUE of one attempt: a three is worth 1.5 makes, which is what
+                      makes eFG% a mean and lets a cell average mix twos and threes. */
+                   v: made ? (is3 ? 1.5 : 1) : 0,
+                   key: qsqBand(e, is3) + '|' + qsqCoverage(e) });
+    }
+  }
+  const N = shots.length;
+  const base = N ? shots.reduce((a, x) => a + x.v, 0) / N : 0;
+
+  /* Cell totals, and each player's slice of each cell — the second is what makes the
+     leave-one-player-out subtraction a lookup rather than a re-scan per player. */
+  const cell = new Map();          // key -> { n, v, fgm, fg3m }
+  const own  = new Map();          // player -> Map(key -> { n, v })
+  for (const x of shots) {
+    let c = cell.get(x.key);
+    if (!c) cell.set(x.key, c = { n: 0, v: 0, fgm: 0, fg3m: 0 });
+    c.n++; c.v += x.v; c.fgm += x.made; c.fg3m += x.made && x.is3 ? 1 : 0;
+    let po = own.get(x.player);
+    if (!po) own.set(x.player, po = new Map());
+    let p = po.get(x.key);
+    if (!p) po.set(x.key, p = { n: 0, v: 0 });
+    p.n++; p.v += x.v;
+  }
+
+  const players = [];
+  for (const [name, po] of own) {
+    let fga = 0, val = 0, fgm = 0, fg3m = 0, qsq = 0, qsqSelf = 0, lonely = 0;
+    for (const x of shots) if (x.player === name) { fgm += x.made; fg3m += (x.made && x.is3) ? 1 : 0; }
+    for (const [key, p] of po) {
+      const c = cell.get(key);
+      fga += p.n; val += p.v;
+      const nEx = c.n - p.n, vEx = c.v - p.v;
+      /* Every attempt in this cell is his own: there is no one left to compare him to, so
+         the group mean stands in and the row reports how often that happened. */
+      if (nEx > 0) qsq += p.n * (vEx / nEx);
+      else { qsq += p.n * base; lonely += p.n; }
+      qsqSelf += p.n * (c.v / c.n);
+    }
+    const efg = fga ? val / fga : 0;
+    qsq = fga ? qsq / fga : 0;
+    qsqSelf = fga ? qsqSelf / fga : 0;
+    players.push({ name: name, fga: fga, fgm: fgm, fg3m: fg3m, efg: efg,
+                   qsq: qsq, qsqSelf: qsqSelf, qsi: efg - qsq,
+                   /* eFG% x 2 = points per attempt, so this is the points of offence he
+                      added or cost against an average finisher on the same looks. */
+                   pts: 2 * (efg - qsq) * fga, lonely: lonely });
+  }
+  players.sort((a, b) => b.fga - a.fga);
+  return { shots: shots, n: N, base: base, cell: cell, players: players };
+}
+
+/* The quadrant. qSQ across (right = easier looks), qSI up (higher = made more of them), and
+   the crosshairs sit on the GROUP AVERAGE of each rather than on a round number — the mean
+   qSQ is the group's own eFG%, so the vertical line is "the average look here" and the
+   horizontal one is "an average finisher", both facts rather than choices. */
+/* How many attempts a man needs before he SETS THE AXES. Not part of the metric and not a
+   filter — every player is still plotted and every player is still in the tables. It exists
+   because one attempt can produce an enormous qSI and drag the scale off the rotation: a
+   lone 1-for-1 reads +60.7 and squashed the fifteen men who actually shoot into a band along
+   the bottom of the panel.
+
+   Ten sits in a GAP IN THE DATA rather than being imposed on it — the attempt counts run
+   ...20, 16, 16, 15, 12, then 3, 1 — so it separates the rotation from the cameos without
+   cutting through anybody. Drag the slider and watch it move; no number on the page changes,
+   only which players the scale is drawn around. */
+let sqMinFga = 10;
+function sqSetMinFga(v) {
+  sqMinFga = Math.max(1, Number(v) || 1);
+  renderShotQualityView();
+}
+
+function _sqQuadrantSvg(sq) {
+  const rows = sq.players.filter(p => p.fga > 0);
+  if (!rows.length) return '';
+  const W = 780, H = 470, L = 54, R = 18, T = 26, B = 46;
+  /* The axes are read off the men above the volume line; everyone else is still drawn, but
+     CLAMPED to the edge and marked as off-scale rather than left to stretch the panel. A dot
+     that has been moved must never look like a measurement, so a clamped one is drawn hollow
+     and dashed and carries its true numbers in its tooltip. */
+  const scaleRows = rows.filter(p => p.fga >= sqMinFga);
+  const ref = scaleRows.length ? scaleRows : rows;
+  const xs = ref.map(p => p.qsq), ys = ref.map(p => p.qsi);
+  const pad = v => (v < 0.02 ? 0.02 : v);
+  let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+  let y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+  /* Keep the crosshairs on the panel: they are the reference the quadrants are named for,
+     and a chart whose origin has scrolled off the edge cannot be read. */
+  x0 = Math.min(x0, sq.base); x1 = Math.max(x1, sq.base);
+  y0 = Math.min(y0, 0);       y1 = Math.max(y1, 0);
+  const xm = pad((x1 - x0) * 0.12), ym = pad((y1 - y0) * 0.12);
+  x0 -= xm; x1 += xm; y0 -= ym; y1 += ym;
+  const Xr = v => L + (v - x0) / (x1 - x0 || 1) * (W - L - R);
+  const Yr = v => T + (y1 - v) / (y1 - y0 || 1) * (H - T - B);
+  const X = v => Math.max(L + 6, Math.min(W - R - 6, Xr(v)));
+  const Y = v => Math.max(T + 6, Math.min(H - B - 6, Yr(v)));
+  const isOff = p => Xr(p.qsq) !== X(p.qsq) || Yr(p.qsi) !== Y(p.qsi);
+  const cx = X(sq.base), cy = Y(0);
+
+  /* Labels are nudged off each other in a single downward pass: dots keep their true
+     position, only the text moves, so nothing is drawn where it did not happen. */
+  const placed = [];
+  const labels = rows.slice().filter(p => p.fga >= sqMinFga || rows.length <= 8)
+                    .sort((a, b) => Y(a.qsi) - Y(b.qsi)).map(p => {
+    const px = X(p.qsq), py = Y(p.qsi);
+    let ly = py - 9;
+    for (const q of placed) if (Math.abs(q.x - px) < 68 && Math.abs(q.y - ly) < 11) ly = q.y + 11;
+    placed.push({ x: px, y: ly });
+    const last = (p.name || '').split(' ').slice(-1)[0];
+    return '<text x="' + px.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" '
+         + 'font-size="10" font-weight="700" fill="#e5e7eb">' + escHtml(last) + '</text>';
+  }).join('');
+
+  const dots = rows.map(p => {
+    const r = 3.5 + Math.sqrt(p.fga) * 0.9;
+    const col = p.qsi >= 0 ? '#22c55e' : '#ef4444';
+    const o = isOff(p);
+    return '<circle cx="' + X(p.qsq).toFixed(1) + '" cy="' + Y(p.qsi).toFixed(1) + '" r="'
+         + r.toFixed(1) + '" fill="' + col + '" fill-opacity="' + (o ? '0' : '0.55')
+         + '" stroke="' + col + '" stroke-width="1.5"'
+         + (o ? ' stroke-dasharray="3 2"' : '') + '><title>' + escHtml(p.name) + ' — ' + p.fga
+         + ' FGA, eFG% ' + (100 * p.efg).toFixed(1) + ', qSQ ' + (100 * p.qsq).toFixed(1)
+         + ', qSI ' + (p.qsi >= 0 ? '+' : '') + (100 * p.qsi).toFixed(1)
+         + (o ? ' — OFF SCALE, dot moved to the edge' : '')
+         + '</title></circle>';
+  }).join('');
+
+  const tick = (v, horiz) => horiz
+    ? '<text x="' + X(v).toFixed(1) + '" y="' + (H - 26) + '" text-anchor="middle" font-size="9" '
+      + 'fill="#94a3b8">' + (100 * v).toFixed(0) + '%</text>'
+    : '<text x="' + (L - 7) + '" y="' + (Y(v) + 3).toFixed(1) + '" text-anchor="end" font-size="9" '
+      + 'fill="#94a3b8">' + (v > 0 ? '+' : '') + (100 * v).toFixed(0) + '</text>';
+  const xt = [x0 + (x1 - x0) * 0.08, sq.base, x1 - (x1 - x0) * 0.08].map(v => tick(v, true)).join('');
+  const yt = [y0 + (y1 - y0) * 0.08, 0, y1 - (y1 - y0) * 0.08].map(v => tick(v, false)).join('');
+
+  const quad = (tx, ty, anchor, txt) =>
+    '<text x="' + tx + '" y="' + ty + '" text-anchor="' + anchor + '" font-size="9.5" '
+    + 'fill="#64748b" font-style="italic">' + txt + '</text>';
+
+  return '<div class="sq-panel"><svg viewBox="0 0 ' + W + ' ' + H + '" '
+    + 'style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">'
+    + '<rect x="' + L + '" y="' + T + '" width="' + (W - L - R) + '" height="' + (H - T - B)
+    + '" fill="rgba(255,255,255,0.02)"/>'
+    + '<line x1="' + cx.toFixed(1) + '" y1="' + T + '" x2="' + cx.toFixed(1) + '" y2="' + (H - B)
+    + '" stroke="rgba(255,255,255,0.22)" stroke-width="1" stroke-dasharray="4 3"/>'
+    + '<line x1="' + L + '" y1="' + cy.toFixed(1) + '" x2="' + (W - R) + '" y2="' + cy.toFixed(1)
+    + '" stroke="rgba(255,255,255,0.22)" stroke-width="1" stroke-dasharray="4 3"/>'
+    + quad(L + 8, T + 14, 'start', 'hard looks, made them')
+    + quad(W - R - 8, T + 14, 'end', 'easy looks, made them')
+    + quad(L + 8, H - B - 8, 'start', 'hard looks, missed them')
+    + quad(W - R - 8, H - B - 8, 'end', 'easy looks, missed them')
+    + xt + yt + dots + labels
+    + '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" '
+    + 'fill="#94a3b8" font-weight="700">qSQ — shot quality (expected eFG%, harder ← → easier)</text>'
+    + '<text x="13" y="' + ((T + H - B) / 2) + '" text-anchor="middle" font-size="10" fill="#94a3b8" '
+    + 'font-weight="700" transform="rotate(-90 13 ' + ((T + H - B) / 2) + ')">'
+    + 'qSI — shotmaking (eFG% − qSQ)</text>'
+    + '</svg></div>';
+}
+
+function renderShotQualityView() {
+  const root = document.getElementById('shotquality-root');
+  if (!root) return;
+  const all = getSessions().filter(x => x.completed && !x.excludeFromStats);
+  const scoped = all.filter(x => sessionInScope(x, seg5Filter.period));
+  const sq = computeShotQuality(scoped, { leverage: seg5Filter.leverage, team: seg5Filter.team });
+  const bar = _onoffFilterBar(scoped);
+
+  if (!sq.n) {
+    root.innerHTML = '<div class="page-header"><div><div class="page-title">Shot Quality</div>'
+      + '<div class="page-subtitle">no attempts in this selection</div></div>' + bar + '</div>'
+      + '<div class="placeholder"><div>No field-goal attempts survive this filter.</div></div>';
+    return;
+  }
+
+  const pct = v => (100 * v).toFixed(1) + '%';
+  const sgn = v => (v >= 0 ? '+' : '') + (100 * v).toFixed(1);
+  const cls = v => v >= 0 ? 'sq-pos' : 'sq-neg';
+
+  /* The baseline table. Printed with its numerator and denominator because every qSI on the
+     page is a subtraction against these twelve numbers, and a reader who cannot see the
+     denominator cannot tell a rate from a rumour. */
+  let cellRows = '';
+  for (const b of QSQ_BANDS) {
+    for (const c of QSQ_COVERAGES) {
+      const k = b[0] + '|' + c[0];
+      const d = sq.cell.get(k);
+      if (!d) continue;
+      cellRows += '<tr' + (d.n < 8 ? ' class="sq-thin"' : '') + '><td>' + escHtml(b[1])
+        + ' <span style="color:var(--text-muted);font-weight:400">' + escHtml(b[2]) + '</span></td>'
+        + '<td style="text-align:left">' + escHtml(c[1]) + '</td><td>' + d.n + '</td><td>'
+        + d.fgm + '</td><td>' + d.fg3m + '</td><td><b>' + pct(d.v / d.n) + '</b></td></tr>';
+    }
+  }
+
+  const playerRows = sq.players.map(p =>
+    '<tr' + (p.fga < 10 ? ' class="sq-thin"' : '') + '><td>' + escHtml(p.name) + '</td><td>'
+    + p.fga + '</td><td>' + p.fgm + '</td><td>' + p.fg3m + '</td><td>' + pct(p.efg) + '</td><td>'
+    + pct(p.qsq) + '</td><td class="' + cls(p.qsi) + '">' + sgn(p.qsi) + '</td><td class="'
+    + cls(p.pts) + '">' + (p.pts >= 0 ? '+' : '') + p.pts.toFixed(1) + '</td><td>'
+    + (p.lonely ? p.lonely : '—') + '</td></tr>').join('');
+
+  root.innerHTML =
+    '<div class="page-header"><div><div class="page-title">Shot Quality</div>'
+    + '<div class="page-subtitle">' + sq.n + ' attempts &middot; group eFG% ' + pct(sq.base)
+    + ' &middot; qSQ &amp; qSI after Second Spectrum</div></div>' + bar + '</div>'
+    + _sqQuadrantSvg(sq)
+    + (function () {
+        const maxF = sq.players.reduce((a, p) => Math.max(a, p.fga), 1);
+        const below = sq.players.filter(p => p.fga > 0 && p.fga < sqMinFga);
+        return '<div class="sq-panel" style="display:flex;align-items:center;gap:12px;'
+          + 'flex-wrap:wrap;margin-top:-8px;">'
+          + '<span style="font-size:11px;font-weight:700;color:var(--text-secondary);'
+          + 'text-transform:uppercase;letter-spacing:0.03em;">Attempts needed to set the axes</span>'
+          + '<input type="range" min="1" max="' + maxF + '" value="' + Math.min(sqMinFga, maxF)
+          + '" onchange="sqSetMinFga(this.value)" style="flex:1;min-width:140px;">'
+          + '<span style="font-size:13px;font-weight:800;color:var(--text);min-width:28px;">'
+          + sqMinFga + '</span>'
+          + '<span class="sq-note" style="margin:0;flex-basis:100%;">Dot area is attempts. '
+          + 'Everyone is plotted and everyone is in the tables — this only decides who the '
+          + 'scale is drawn around, because a single attempt can read as a huge qSI and '
+          + 'flatten the rotation. '
+          + (below.length
+              ? below.length + ' below the line, drawn hollow and dashed at the edge when off '
+                + 'scale: ' + below.map(p => escHtml(p.name) + ' (' + p.fga + ')').join(', ') + '.'
+              : 'Nobody is currently below it.')
+          + '</span></div>';
+      })()
+    + '<div class="sq-grid">'
+      + '<div><table class="sq-tbl"><thead><tr><th colspan="6">qSQ baseline &mdash; this group\u2019s own film</th></tr>'
+      + '<tr><th>Band</th><th style="text-align:left">Coverage</th><th>FGA</th><th>FGM</th>'
+      + '<th>3PM</th><th>eFG%</th></tr></thead><tbody>' + cellRows + '</tbody></table>'
+      + '<div class="sq-note">Each cell is the expected eFG% for an attempt like it. '
+      + 'Off-balance attempts form their own cell per band rather than crossing with '
+      + 'coverage, which keeps every cell above eight attempts. An unrecorded contest '
+      + 'counts as open.</div></div>'
+      + '<div><table class="sq-tbl"><thead><tr><th colspan="9">Shotmaking</th></tr>'
+      + '<tr><th>Player</th><th>FGA</th><th>FGM</th><th>3PM</th><th>eFG%</th><th>qSQ</th>'
+      + '<th>qSI</th><th>pts</th><th title="Attempts in a cell containing nobody else, '
+      + 'where the group mean stood in for the baseline.">solo</th></tr></thead><tbody>'
+      + playerRows + '</tbody></table>'
+      + '<div class="sq-note"><b>qSQ</b> is what this group averaged on his mix of looks, '
+      + 'with his own attempts removed from the baselines so nobody sets his own '
+      + 'expectation. <b>qSI = eFG% − qSQ</b> is shotmaking. <b>pts</b> is 2 × qSI × FGA — '
+      + 'the points of offence he added or cost against an average finisher on the same '
+      + 'shots. Rows under ten attempts are dimmed, not hidden. qSI is volatile: forty '
+      + 'attempts describes forty attempts. It is measured against this practice group, '
+      + 'not against any outside standard.</div></div>'
+    + '</div>';
+}
+
+tabRenderers.shotquality = function() { renderShotQualityView(); };
 
 /* ============================================================
    END SEGMENT 5
