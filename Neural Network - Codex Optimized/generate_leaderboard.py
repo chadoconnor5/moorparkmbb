@@ -668,6 +668,38 @@ def _get_coach(team_name: str, stats_dir) -> str:
         return ""
     return _COACHES_DATA.get(team_name, {}).get(season) or ""
 
+# ---------------------------------------------------------------------------
+# First-year coaches at new programs
+#
+# A coach in year one somewhere new inherits none of that program's history, so
+# the Keys to Victory 5-year window would describe the previous staff's teams,
+# not theirs. Teams listed here drop to the current season only ("cur") once
+# their first season tips off — Oct 31 of the season's opening year. Before that
+# date the entry is inert and the team keeps whatever windows KEYS_TEAMS gives
+# it, since the old staff's five years are still the only basketball on file.
+#
+# Each entry is {"team": ..., "coach": ..., "season": "YYYY-YY"}, where season is
+# the coach's first season at that program. A team listed here that has no
+# KEYS_TEAMS entry gets one built for it (current season only).
+#
+# Drop the entry once the coach has enough tenure to carry a multi-season window
+# and give them a "seasons" override in KEYS_TEAMS spanning exactly that tenure.
+FIRST_YEAR_COACHES = [
+    # {"team": "Ventura", "coach": "Coach Name", "season": "2026-27"},
+]
+
+
+def _first_year_cutover(season: str) -> datetime:
+    """Date a first season's window takes over: '2026-27' -> Oct 31, 2026."""
+    return datetime(int(season.split("-")[0]), 10, 31)
+
+
+def _first_year_coach_overrides(today=None) -> dict:
+    """{team: coach} for first-year coaches whose cutover date has passed."""
+    now = today or datetime.now()
+    return {e["team"]: e["coach"] for e in FIRST_YEAR_COACHES
+            if now >= _first_year_cutover(e["season"])}
+
 CONFERENCES = {
     "WSC North": {
         "region": "South",
@@ -13451,8 +13483,19 @@ def main():
         pool5 = load_all_games_keys(LAST_5_KEYS, with_bench=True)
         poolc = load_all_games_keys(["2025-26"], with_bench=True)
         out = {}
-        for cfg in KEYS_TEAMS:
+        # Past their Oct 31 cutover, first-year coaches replace the inherited
+        # 5-year window with the current season alone. Teams on that list with no
+        # KEYS_TEAMS entry get a current-season-only one appended here.
+        first_year = _first_year_coach_overrides()
+        keys_teams = list(KEYS_TEAMS)
+        listed = {cfg["team"] for cfg in keys_teams}
+        keys_teams += [{"team": t, "coach": c, "windows": ["cur"]}
+                       for t, c in first_year.items() if t not in listed]
+        for cfg in keys_teams:
             tname, coach = cfg["team"], cfg["coach"]
+            if tname in first_year:
+                coach = first_year[tname]
+                cfg = {**cfg, "windows": ["cur"]}
             windows = {}
             if "5yr" in cfg["windows"]:
                 seasons5 = cfg.get("seasons", LAST_5_KEYS)
@@ -13470,11 +13513,21 @@ def main():
             if windows:
                 out[tname] = {"coach": coach, "windows": windows}
         return out
-    team_keys = dataset("team_keys", _build_team_keys)
+    # The first-year cutover is a date change, not a file change, so nothing
+    # would invalidate a cache built before Oct 31. Fold the active override set
+    # into the cache name instead: crossing the cutover lands on a fresh entry
+    # rather than re-serving the previous staff's 5-year windows.
+    _fy_active = sorted(_first_year_coach_overrides())
+    _keys_cache = "team_keys"
+    if _fy_active:
+        _fy_slug = re.sub(r"[^a-z0-9]+", "-", "-".join(_fy_active).lower()).strip("-")
+        _keys_cache = f"team_keys_fy{len(_fy_active)}_{_fy_slug}"[:80]
+    team_keys = dataset(_keys_cache, _build_team_keys)
     if team_keys:
         for tname, entry in team_keys.items():
             o = entry["windows"].get("5yr") or entry["windows"].get("cur")
-            print(f"  Keys [{tname} / {entry['coach'] or 'no coach'}]: "
+            tag = " · first year" if tname in _fy_active else ""
+            print(f"  Keys [{tname} / {entry['coach'] or 'no coach'}{tag}]: "
                   f"{[k['label'] for k in o['keys']]} ({o['window']}, {o['n_games']} games)")
 
     empty = []

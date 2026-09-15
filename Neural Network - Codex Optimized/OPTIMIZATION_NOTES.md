@@ -96,6 +96,18 @@ This copy keeps the original project intact and starts consolidating the working
   regenerated. Conference-only data for 2018-19 is sparse (~7 teams): most
   rescraped schedules lack is_conference flags — backfill needed if
   conference splits matter for that season.
+- Keys to Victory — first-year coaches: `FIRST_YEAR_COACHES` in
+  generate_leaderboard.py lists coaches in year one at a new program
+  (`{"team", "coach", "season"}`, season = their first season there). The entry
+  is inert until Oct 31 of that season's opening year, then the team's keys are
+  rebuilt from the current season alone instead of the inherited 5-year window,
+  and the new coach's name replaces the old one. A listed team with no
+  KEYS_TEAMS entry gets a current-season-only one built for it. Because the
+  cutover is a date change with no file behind it, the `team_keys` cache name
+  carries the active override set (`team_keys_fy<N>_<teams>`), so crossing Oct 31
+  lands on a fresh cache entry rather than re-serving the previous staff's
+  windows. Once a coach has real tenure, drop them from the list and give them a
+  `"seasons"` override in KEYS_TEAMS spanning exactly those years.
 - generate_scouting_report_v2.py: candidate replacement for the report forks.
   Imports generate_scouting_report (no code fork), repoints its BASE to THIS
   repo (the original scripts read the old copy's data), and adds a "What
