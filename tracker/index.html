@@ -19998,22 +19998,69 @@ function _sqQuadrantSvg(sq) {
   const isOff = p => Xr(p.qsq) !== X(p.qsq) || Yr(p.qsi) !== Y(p.qsi);
   const cx = X(sq.base), cy = Y(0);
 
-  /* Labels are nudged off each other in a single downward pass: dots keep their true
-     position, only the text moves, so nothing is drawn where it did not happen. */
+  /* EVERY dot gets its name. The labels used to be gated on the volume line, which left the
+     bubbles that most need identifying - the small ones, and the hollow ones clamped to the
+     edge - as the anonymous ones, readable only by hovering each in turn. Dots still keep
+     their true position; only the text moves, so nothing is drawn where it did not happen.
+
+     Placement goes in order of attempts, so the biggest samples get first pick of the spot
+     directly above their dot and the crowded small ones are the ones pushed out to a second
+     row - with a hairline back to the dot whenever the text has been moved far enough that
+     the pairing stops being obvious. Names below the volume line are dimmed the way a
+     .sq-thin table row is: printed, but visibly provisional. */
+  const dotR = p => 3.5 + Math.sqrt(p.fga) * 0.9;
+  const dotAt = rows.map(p => ({ x: X(p.qsq), y: Y(p.qsi), r: dotR(p) }));
   const placed = [];
-  const labels = rows.slice().filter(p => p.fga >= sqMinFga || rows.length <= 8)
-                    .sort((a, b) => Y(a.qsi) - Y(b.qsi)).map(p => {
-    const px = X(p.qsq), py = Y(p.qsi);
-    let ly = py - 9;
-    for (const q of placed) if (Math.abs(q.x - px) < 68 && Math.abs(q.y - ly) < 11) ly = q.y + 11;
-    placed.push({ x: px, y: ly });
-    const last = (p.name || '').split(' ').slice(-1)[0];
-    return '<text x="' + px.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" '
-         + 'font-size="10" font-weight="700" fill="#e5e7eb">' + escHtml(last) + '</text>';
-  }).join('');
+  /* Two things a name can land on: another name, which makes both unreadable, and somebody
+     else's bubble, which is survivable but ugly. So a slot is tested for both, and the dot
+     test is dropped on the second sweep - a name sitting on a bubble beats no name. */
+  const free = (x, y, half, clearDots) => {
+    if (y < T + 9 || y > H - B - 4) return false;
+    if (placed.some(q => Math.abs(q.x - x) < q.half + half + 5 && Math.abs(q.y - y) < 11))
+      return false;
+    return !clearDots || !dotAt.some(d =>
+      Math.abs(d.x - x) < d.r + half + 2 && Math.abs(d.y - (y - 3.5)) < d.r + 5.5);
+  };
+  const labels = rows.slice()
+    .sort((a, b) => b.fga - a.fga || Y(a.qsi) - Y(b.qsi))
+    .map(p => {
+      const px = X(p.qsq), py = Y(p.qsi), r = dotR(p);
+      const last = (p.name || '').split(' ').slice(-1)[0];
+      /* Bold 10px runs about 5.8px a character, and it is the HALF-width that has to clear a
+         neighbour's half-width, because both are centred on their own x. */
+      const half = Math.max(9, last.length * 2.9);
+      const lx = Math.max(L + 3 + half, Math.min(W - R - 3 - half, px));
+      let ly = null;
+      for (const clearDots of [true, false]) {
+        for (let step = 0; step < 10 && ly === null; step++) {
+          const up = py - r - 5 - step * 11, down = py + r + 11 + step * 11;
+          if (free(lx, up, half, clearDots)) ly = up;
+          else if (free(lx, down, half, clearDots)) ly = down;
+        }
+        if (ly !== null) break;
+      }
+      /* Both sweeps boxed in: sit it on the dot rather than drop the name. That is the whole
+         point of this - an unlabelled bubble is the failure being fixed. */
+      if (ly === null) ly = Math.max(T + 9, Math.min(H - B - 4, py - r - 5));
+      placed.push({ x: lx, y: ly, half });
+      const above = ly <= py;
+      const edgeY = above ? ly + 2 : ly - 8;
+      const lead = (Math.abs(lx - px) > 2 || Math.abs(edgeY - py) > r + 5)
+        ? '<line x1="' + px.toFixed(1) + '" y1="' + (py + (above ? -r : r)).toFixed(1)
+          + '" x2="' + lx.toFixed(1) + '" y2="' + edgeY.toFixed(1)
+          + '" stroke="rgba(255,255,255,0.3)" stroke-width="0.75"/>'
+        : '';
+      /* A halo in the panel colour, painted under the glyphs, so a name that has to sit over
+         a bubble stays a name instead of dissolving into it. */
+      return lead + '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" '
+        + 'text-anchor="middle" font-size="10" font-weight="700" fill="#e5e7eb" fill-opacity="'
+        + (p.fga >= sqMinFga ? '1' : '0.65') + '" stroke="#1a1f2e" stroke-width="2.6" '
+        + 'stroke-opacity="0.85" stroke-linejoin="round" paint-order="stroke">'
+        + escHtml(last) + '</text>';
+    }).join('');
 
   const dots = rows.map(p => {
-    const r = 3.5 + Math.sqrt(p.fga) * 0.9;
+    const r = dotR(p);
     const col = p.qsi >= 0 ? '#22c55e' : '#ef4444';
     const o = isOff(p);
     return '<circle cx="' + X(p.qsq).toFixed(1) + '" cy="' + Y(p.qsi).toFixed(1) + '" r="'
@@ -20118,7 +20165,7 @@ function renderShotQualityView() {
           + '<span style="font-size:13px;font-weight:800;color:var(--text);min-width:28px;">'
           + sqMinFga + '</span>'
           + '<span class="sq-note" style="margin:0;flex-basis:100%;">Dot area is attempts. '
-          + 'Everyone is plotted and everyone is in the tables — this only decides who the '
+          + 'Everyone is plotted, named, and in the tables — the line only decides who the '
           + 'scale is drawn around, because a single attempt can read as a huge qSI and '
           + 'flatten the rotation. '
           + (below.length
