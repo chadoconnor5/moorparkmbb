@@ -107,7 +107,18 @@ This copy keeps the original project intact and starts consolidating the working
   carries the active override set (`team_keys_fy<N>_<teams>`), so crossing Oct 31
   lands on a fresh cache entry rather than re-serving the previous staff's
   windows. Once a coach has real tenure, drop them from the list and give them a
-  `"seasons"` override in KEYS_TEAMS spanning exactly those years.
+  `"seasons"` override in KEYS_TEAMS spanning exactly those years. An entry with
+  an empty coach is a vacancy: the window still drops to one season, the section
+  just runs unnamed until a successor is known.
+- Discontinued programs: `DISCONTINUED_PROGRAMS` in generate_leaderboard.py maps
+  a team to the first season it no longer fields a team. Enforced in
+  `_find_team_stats_dir()`, which returns a deliberately non-existent path for
+  those team/season pairs so all ~10 per-season loops drop the team through the
+  missing-data check they already have — no call-site changes, and a stale
+  directory on disk cannot resurrect the team. Earlier seasons are untouched, so
+  the program keeps its history. Note the team stays in `CONFERENCES` (and so in
+  the page's `TEAMS_BY_CONF` filter panel, which is a cross-season union) —
+  removing it there would erase it from the seasons it did play.
 - generate_scouting_report_v2.py: candidate replacement for the report forks.
   Imports generate_scouting_report (no code fork), repoints its BASE to THIS
   repo (the original scripts read the old copy's data), and adds a "What

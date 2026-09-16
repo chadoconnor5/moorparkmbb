@@ -680,12 +680,21 @@ def _get_coach(team_name: str, stats_dir) -> str:
 #
 # Each entry is {"team": ..., "coach": ..., "season": "YYYY-YY"}, where season is
 # the coach's first season at that program. A team listed here that has no
-# KEYS_TEAMS entry gets one built for it (current season only).
+# KEYS_TEAMS entry gets one built for it (current season only). An empty coach
+# means the job is open or the successor isn't known yet — the window still
+# drops to one season, the section just runs without a name on it.
 #
 # Drop the entry once the coach has enough tenure to carry a multi-season window
 # and give them a "seasons" override in KEYS_TEAMS spanning exactly that tenure.
 FIRST_YEAR_COACHES = [
-    # {"team": "Ventura", "coach": "Coach Name", "season": "2026-27"},
+    {"team": "Shasta", "coach": "Taylor Angley", "season": "2026-27"},
+    {"team": "Pasadena City", "coach": "Marshall Johnson", "season": "2026-27"},
+    {"team": "Ventura", "coach": "Jordan Fleck", "season": "2026-27"},
+    {"team": "Saddleback", "coach": "Jordan Hamamoto", "season": "2026-27"},
+    {"team": "West Valley", "coach": "Mykel Morse", "season": "2026-27"},
+    # Jovan Joe left; successor not announced. The five years on file are his,
+    # so they retire with him at the cutover.
+    {"team": "Lemoore", "coach": "", "season": "2026-27"},
 ]
 
 
@@ -699,6 +708,37 @@ def _first_year_coach_overrides(today=None) -> dict:
     now = today or datetime.now()
     return {e["team"]: e["coach"] for e in FIRST_YEAR_COACHES
             if now >= _first_year_cutover(e["season"])}
+
+
+# ---------------------------------------------------------------------------
+# Discontinued programs: {team: first season the program no longer fields a team}.
+# The team keeps every season before that one — those games were played and still
+# belong in the historical leaderboard — and drops out of that season onward.
+# Enforced in _find_team_stats_dir(), so every per-season loop skips them through
+# the same "no stats directory" path it already handles.
+DISCONTINUED_PROGRAMS = {
+    "Alameda": "2026-27",  # basketball program shut down
+}
+
+
+def _season_of(stats_dir) -> str:
+    """Season key for a stats directory: '2025-26 Team Statistics' -> '2025-26'."""
+    season = _STATS_DIR_TO_SEASON.get(str(stats_dir))
+    if season:
+        return season
+    # Fall back to the directory name so a season added without updating
+    # _STATS_DIR_TO_SEASON still resolves.
+    return str(Path(stats_dir).name).split(" Team Statistics")[0]
+
+
+def _program_discontinued(team_name: str, stats_dir) -> bool:
+    """True if team_name's program was already shut down by this season."""
+    gone_from = DISCONTINUED_PROGRAMS.get(team_name)
+    if not gone_from:
+        return False
+    season = _season_of(stats_dir)
+    # Seasons are zero-padded 'YYYY-YY', so string order is chronological order.
+    return bool(season) and season >= gone_from
 
 CONFERENCES = {
     "WSC North": {
@@ -787,6 +827,11 @@ _SEASON_DIR_ALIASES = {
 
 def _find_team_stats_dir(stats_dir, conf_name, team_name):
     """Locate the stats directory for a team, with fallback for renamed/moved teams."""
+    # 0. Program shut down by this season: hand back a path that cannot exist, so
+    #    every caller drops the team through its usual missing-data check even if
+    #    a stale directory is still sitting on disk.
+    if _program_discontinued(team_name, stats_dir):
+        return stats_dir / conf_name / f"{team_name} (discontinued)"
     # 1. Exact expected path
     p = stats_dir / conf_name / team_name
     if p.exists():
