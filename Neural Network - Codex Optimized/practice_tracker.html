@@ -6943,6 +6943,10 @@ function reportEventSummary(ev) {
   const types = (Array.isArray(ev.shotTypes) && ev.shotTypes.length) ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
   types.forEach(t => parts.push(SHOT_TYPE_LABELS[t] || t));
   if (ev.shotContest) parts.push(ev.shotContest === 'contested' ? 'Contested' : 'Uncontested');
+  /* Derived, not tagged — the shot clock reading is what says this. Off-turnover is not
+     here beside it on purpose: that one is a property of the possession and needs the
+     session's whole log, which a single event cannot hand over. */
+  if (isTransitionShot(ev)) parts.push('Transition');
   if (ev.assister) parts.push(`Ast: ${ev.assister}`);
   return parts.map(escHtml).join(' &middot; ');
 }
@@ -8696,6 +8700,101 @@ const ZONE_DEFS = {
 
 const ZONES_2FG = ['ft', 'paint_ul', 'paint_ur', 'paint_ll', 'paint_lr', 'mr_left_high', 'mr_left_low', 'mr_right_high', 'mr_right_low'];
 const ZONES_3FG = ['c3_left', 'w3_left', 'ab3', 'w3_right', 'c3_right'];
+
+/* ── Play context: transition, paint, points off turnovers ───────────────────────────
+   Three descriptions of an attempt that nobody has to tap, because the tracker already
+   records what they are made of: the shot clock reading from the Shot Type modal, the
+   spot on the floor, and the order of the event log.
+
+   They are DERIVED, never stored. That is the point — a shot logged last November gets
+   read the same way as one logged tonight, with no recompute and no migration, and the
+   day a definition changes it changes here rather than in every session file.
+
+   A shot can be any combination of the three. Transition and Off Turnover in particular
+   are the common pair — the turnover IS what made it transition — so they are counted
+   independently and a bucket that mixed them would double-count nothing. */
+
+/* The shot clock counts DOWN, so "the first 7 seconds" is a reading at the TOP of it.
+   30-second clock (NCAA/CCCAA men's). A displayed 24 means between 6 and 7 seconds have
+   run off; a displayed 23 means at least 7 already have, so 24 is the last reading that
+   is still inside the window — hence the +1, which is the whole reason this is not
+   30 - 7. */
+const SHOT_CLOCK_SECS       = 30;
+const TRANSITION_WINDOW_SECS = 7;
+const TRANSITION_CLOCK_MIN   = SHOT_CLOCK_SECS - TRANSITION_WINDOW_SECS + 1;   // 24
+
+const FG_STATS = new Set(['2fg_make', '2fg_miss', '3fg_make', '3fg_miss']);
+const MAKE_PTS = { '2fg_make': 2, '3fg_make': 3, 'ft_make': 1 };
+
+/* Blank shot clock means NOT READ, which is not 24 and not 0 — an untagged attempt is
+   simply not transition, and never guessed into the bucket. */
+function isTransitionShot(ev) {
+  return !!ev && FG_STATS.has(ev.stat) &&
+         ev.shotClock != null && ev.shotClock >= TRANSITION_CLOCK_MIN;
+}
+
+/* The lane, in the court SVG's own units: 12ft wide (x 194..306) from the baseline
+   (y 472) up to the free-throw line (y 282). Coordinates are used when the shot carries
+   them, because the fixed zone grid files the strip between the FT line and y=338 under
+   'FT Circle' even though it is inside the lane — a post shot from the elbow area is a
+   paint shot and should count as one. The zone is the fallback for an attempt logged
+   without a tap. A three is never a paint shot whatever the coordinates say. */
+const PAINT_ZONES = new Set(['paint_ul', 'paint_ur', 'paint_ll', 'paint_lr']);
+
+function isPaintShot(ev) {
+  if (!ev || !FG_STATS.has(ev.stat) || ev.stat.startsWith('3')) return false;
+  if (ev.shotX != null && ev.shotY != null) {
+    const x = ev.shotX * 500, y = ev.shotY * 485;
+    return x >= 194 && x <= 306 && y >= 282;
+  }
+  return PAINT_ZONES.has(ev.zone);
+}
+
+/* Which scores came off a turnover.
+   ─────────────────────────────────
+   Points off turnovers is a POSSESSION property, not a shot property: every point scored
+   on the trip that began with the other team's giveaway counts, the putback off an
+   offensive rebound included. So this walks the log once and carries a flag naming the
+   team that got the ball off a turnover, until something ends that possession.
+
+   What ends it: a made field goal (by anyone), a defensive rebound, the next turnover,
+   the end of the quarter. What does NOT: an offensive rebound (same trip), a free throw
+   (a 1-of-2 is still the same trip), a block, a foul, a deflection.
+
+   A steal is ignored on purpose. The tracker logs one as a stl/tov PAIR — the steal flow
+   asks for the turnover next — so counting the steal too would set the flag twice for one
+   giveaway, and reading it alone would credit a possession the opponent never lost.
+
+   Returns a Set of the scoring EVENT OBJECTS themselves rather than indices, so a caller
+   holding a filtered slice of the log can still ask about a shot it is looking at. */
+const _offTovCache = new WeakMap();
+
+function offTurnoverScores(session) {
+  if (!session || !Array.isArray(session.eventLog)) return new Set();
+  const log = session.eventLog;
+  const hit = _offTovCache.get(session);
+  /* The live session grows an event at a time, so the cache is keyed on the log itself
+     plus its length — the same array, one entry longer, is a different answer. */
+  if (hit && hit.log === log && hit.len === log.length) return hit.set;
+
+  const set = new Set();
+  let offTovTeam = null, quarter = null;
+  for (const e of log) {
+    if (!e || e.type === 'sub') continue;
+    if (e.quarter !== quarter) { quarter = e.quarter; offTovTeam = null; }
+    const st = e.stat;
+    if (st === 'tov') {
+      // The team that did NOT commit it now has the ball, and has it off a turnover.
+      offTovTeam = e.team === 'a' ? 'b' : 'a';
+      continue;
+    }
+    if (MAKE_PTS[st] != null && offTovTeam && e.team === offTovTeam) set.add(e);
+    if (st === '2fg_make' || st === '3fg_make' || st === 'dreb') offTovTeam = null;
+  }
+
+  _offTovCache.set(session, { log, len: log.length, set });
+  return set;
+}
 
 let scFilter = { sessionId: 'all', team: 'all', player: 'all', mode: 'all', view: 'dots', zones: [], shotTypes: [], contests: [], rim3: false };
 
@@ -14711,6 +14810,12 @@ function segStats(session, segments, team, opts) {
      A rate is rebOr[c] / rebOrAv[c]. Team-level on purpose: On/Off asks what the team did
      while a man was out there, not what he personally grabbed. */
   const rebOr = {}, rebDr = {}, rebOrAv = {}, rebDrAv = {};
+  /* Derived play context. Read from the WHOLE session log, never from the stint slice:
+     the turnover that started a possession can sit on the far side of a substitution,
+     and a stint that could not see it would quietly call the basket it produced an
+     ordinary one. */
+  const _offTov = offTurnoverScores(session);
+  let paintPts=0, transPts=0, offTovPts=0;
   let pts=0, fgm=0, fga=0, fg3m=0, fg3a=0, ftm=0, fta=0,
       oreb=0, dreb=0, tov=0, stl=0, blk=0, ast=0, pf=0, defl=0,
       oppPts=0, oppFgm=0, oppFga=0, oppFg3m=0, oppFg3a=0,
@@ -14823,6 +14928,12 @@ function segStats(session, segments, team, opts) {
 
     for (const e of segEvents) {
       if (e.team === team) {
+        if (e.stat && e.stat.endsWith('_make')) {
+          const val = MAKE_PTS[e.stat] || 0;
+          if (isPaintShot(e))      paintPts += val;
+          if (isTransitionShot(e)) transPts += val;
+          if (_offTov.has(e))      offTovPts += val;
+        }
         if (e.stat === '2fg_make') { pts += 2; fgm++; fga++; }
         else if (e.stat === '2fg_miss')  { fga++; }
         else if (e.stat === '3fg_make')  { pts += 3; fgm++; fga++; fg3m++; fg3a++; }
@@ -14874,6 +14985,7 @@ function segStats(session, segments, team, opts) {
               practice they were both taken from. */
            secs: totalSecs,
            rebOr, rebDr, rebOrAv, rebDrAv,
+           paintPts, transPts, offTovPts,
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
            oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss };
@@ -19502,7 +19614,8 @@ function renderOnOffView() {
       bySess[k].segs.push(item.seg);
     }
     const keys = ['pts','fgm','fga','fg3m','fg3a','ftm','fta','oreb','dreb','tov','stl','blk',
-                  'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss'];
+                  'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss',
+                  'paintPts','transPts','offTovPts'];
     const T = {};
     keys.forEach(function (k) { T[k] = 0; });
     const R = { rebOr: {}, rebDr: {}, rebOrAv: {}, rebDrAv: {} };
@@ -19578,14 +19691,14 @@ function renderOnOffView() {
         ftr:  pct(T.fta, T.fga)
       },
       box: { pts: per40(T.pts), ast: per40(T.ast), oreb: per40(T.oreb), dreb: per40(T.dreb),
-             stl: per40(T.stl), blk: per40(T.blk), to: per40(T.tov), foul: per40(T.pf) },
+             stl: per40(T.stl), blk: per40(T.blk), to: per40(T.tov), foul: per40(T.pf),
+             /* His squad's own — what it scored from these three sources while he was out
+                there, per 40 minutes, on the same clock every other /40 row uses. */
+             paint: per40(T.paintPts), pto: per40(T.offTovPts), trans: per40(T.transPts) },
       ts: (T.fga + 0.475 * T.fta) > 0 ? +(0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100).toFixed(2) : null,
       defl40: per40(T.defl),
       def_reb: pct(T.dreb, T.dreb + T.oppOreb),
       hakeem: (stlPct != null && blkPct != null) ? +(stlPct + blkPct).toFixed(2) : null,
-      pf_eff: T.pf > 0 ? +((T.stl + T.blk) / T.pf).toFixed(2) : null,
-      stl_pf: T.pf > 0 ? +(T.stl / T.pf).toFixed(2) : null,
-      blk_pf: T.pf > 0 ? +(T.blk / T.pf).toFixed(2) : null,
       offPoss: Math.round(T.poss),
       /* Unrounded, so the card can say "<1" instead of "0" for a sample that exists but does
          not reach a whole possession. Rounding it to 0 while printing stats beside it was the
@@ -19651,8 +19764,14 @@ function renderOnOffView() {
     ['Ast/Tov Ratio','rate.ato',2,true,''],['Deflections / 40','defl40',1,true,'']];
   const OO_DEF = [['Defensive Rating','eff.drtg',1,false,''],['Def Rebound %','def_reb',1,true,'%'],
     ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
-    ['Hakeem %','hakeem',1,true,'%'],['PF Efficiency','pf_eff',2,true,''],
-    ['Steals / PF','stl_pf',2,true,''],['Blocks / PF','blk_pf',2,true,'']];
+    ['Hakeem %','hakeem',1,true,'%'],
+    /* His squad's OFFENSE, sitting in the Defense panel where the three PF ratios used to
+       be — asked for there because these are the three the staff reads, and the PF ratios
+       were the three it did not. Read them as what the team generated with him on, not as
+       what it gave up: higher is better, the same as every other /40 row on the card. */
+    ['Paint Pts / 40','box.paint',1,true,''],
+    ['Pts off TO / 40','box.pto',1,true,''],
+    ['Transition Pts / 40','box.trans',1,true,'']];
 
   const ooGet = function (o, path) {
     if (!o || !path) return null;
@@ -21716,9 +21835,10 @@ function finalizeSession(timeSecs = 0) {
    since with no FTs they're either degenerate (FTR=0) or misleading (TS% ≡ eFG%). */
 function computeTeamStats(session) {
   const stats = {};
+  const offTov = offTurnoverScores(session);
   const line = {
-    a: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'a')),
-    b: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'b')),
+    a: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'a'), offTov),
+    b: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'b'), offTov),
   };
 
   /* ONE possession count, shared by both teams. Two teams in the same scrimmage alternate
@@ -21766,10 +21886,14 @@ function computePlayerStats(session) {
   // Total game minutes (quarter durations are stored in seconds)
   const gameMin = getSessionPlayedSeconds(session) / 60;
 
+  /* Walked once for the whole session, not once per player — the flag it carries runs
+     along the log, so it cannot be rebuilt from one man's events. */
+  const offTovScores = offTurnoverScores(session);
+
   const result = [];
   for (const { name, team } of allPlayers) {
     const evs = session.eventLog.filter(e => e.type !== 'sub' && e.player === name);
-    const s   = buildStatLine(evs);
+    const s   = buildStatLine(evs, offTovScores);
     /* minExact drives every ratio below; s.min is the rounded copy that gets displayed.
        Keeping them separate is the whole fix — MIN%, SHOT%, OR%, DR%, AST%, STL%, BLK%,
        USG% and the ORTG/DRTG minute weights all divide by this, so a numerator rounded up
@@ -21941,13 +22065,27 @@ function computePlayerStats(session) {
 }
 
 /* ── Build a basic stat-line object from a list of events ── */
-function buildStatLine(evs) {
+/* `offTov` is the Set from offTurnoverScores() for the session these events came from.
+   Without it the off-turnover column simply reads 0 — it is a possession property and
+   cannot be recovered from a filtered slice of the log on its own. Paint and transition
+   need no context and are always counted. */
+function buildStatLine(evs, offTov) {
   const s = {
     pts:0, fgm:0, fga:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0,
     ftm:0, fta:0, oreb:0, dreb:0, reb:0,
     ast:0, tov:0, blk:0, stl:0, defl:0, pf:0,
+    paintPts:0, paintFgm:0, paintFga:0,
+    transPts:0, transFgm:0, transFga:0,
+    offTovPts:0,
   };
   for (const e of evs) {
+    if (FG_STATS.has(e.stat)) {
+      const made = e.stat.endsWith('make');
+      const val  = e.stat.startsWith('3') ? 3 : 2;
+      if (isPaintShot(e))      { s.paintFga++; if (made) { s.paintFgm++; s.paintPts += val; } }
+      if (isTransitionShot(e)) { s.transFga++; if (made) { s.transFgm++; s.transPts += val; } }
+    }
+    if (offTov && offTov.has(e)) s.offTovPts += (MAKE_PTS[e.stat] || 0);
     switch (e.stat) {
       case '2fg_make': s.pts+=2; s.fgm++; s.fga++; s.fg2m++; s.fg2a++; break;
       case '2fg_miss':           s.fga++;            s.fg2a++; break;
