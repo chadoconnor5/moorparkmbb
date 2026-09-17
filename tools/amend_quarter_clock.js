@@ -247,15 +247,19 @@ window.amendQuarterClock = function amendQuarterClock(opts) {
   }
 
   /* ── 8. Store it, and keep the in-memory copy in step so a later save cannot undo this ── */
+  /* `State` is a script-scope const, so it is NOT window.State — reaching for it there
+     finds nothing on a page that has it, and the tracker's stale in-memory copy would be
+     written back over this by its next save. */
+  const APP = (typeof State !== 'undefined' && State) ? State : null;
   if (where === 'live') {
     localStorage.setItem('pt_live_session', JSON.stringify(s));
-    if (window.State && State.liveSession && State.liveSession.id === s.id) State.liveSession = s;
+    if (APP && APP.liveSession && APP.liveSession.id === s.id) APP.liveSession = s;
   } else {
     saved[index] = s;
     localStorage.setItem('pt_sessions', JSON.stringify(saved));
-    if (window.State && Array.isArray(State.sessions)) {
-      const i = State.sessions.findIndex(x => x.id === s.id);
-      if (i !== -1) State.sessions[i] = s;
+    if (APP && Array.isArray(APP.sessions)) {
+      const i = APP.sessions.findIndex(x => x.id === s.id);
+      if (i !== -1) APP.sessions[i] = s;
     }
   }
   console.log('%csaved — reloading so every view recomputes from it', 'color:#22c55e;font-weight:700');
