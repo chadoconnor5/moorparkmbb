@@ -645,6 +645,28 @@
       margin-bottom: 6px;
     }
 
+    /* Shot clock: a number, not a time — the box is narrow on purpose so it reads as
+       "seconds left" and never as MM:SS like the quarter clock boxes elsewhere. */
+    .shot-clock-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 6px 0 2px;
+    }
+    .shot-clock-input {
+      width: 92px !important;
+      flex: 0 0 92px;
+      font-size: 20px !important;
+      font-weight: 800 !important;
+      text-align: center !important;
+      padding: 8px !important;
+    }
+    /* The spinners are useless at this size and steal half the box on WebKit. */
+    .shot-clock-input::-webkit-outer-spin-button,
+    .shot-clock-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .shot-clock-input { -moz-appearance: textfield; }
+    .shot-clock-note { font-size: 10.5px; color: var(--text-dim); line-height: 1.45; }
+
     /* ============================================================
        CARD
     ============================================================ */
@@ -4598,6 +4620,15 @@
       <div class="shot-contest-row" id="shot-contest-row">
         <button class="shot-contest-btn" data-contest="contested"   onclick="toggleShotContest(this,'contested')">Contested</button>
         <button class="shot-contest-btn" data-contest="uncontested" onclick="toggleShotContest(this,'uncontested')">Uncontested</button>
+      </div>
+      <div class="shot-type-section-label" style="margin-top:12px;">Shot Clock</div>
+      <div class="shot-clock-row">
+        <input type="number" id="shot-clock-input" class="shot-clock-input" min="0" max="35" step="1"
+               inputmode="numeric" placeholder="&#8212;" autocomplete="off"
+               oninput="setShotClock(this.value)"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();confirmShotType();}">
+        <div class="shot-clock-note">Seconds left when it went up. Leave it blank if the film
+          doesn&rsquo;t show it &mdash; blank means <i>not read</i>, which is not the same as zero.</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -20281,6 +20312,7 @@ const trackerState = {
   shotType: null,             // primary (first-selected) type — kept for charts/filters/breakdowns
   shotTypes: [],              // all selected types (multi-select); shotType mirrors shotTypes[0]
   shotContest: null,          // 'contested' | 'uncontested'
+  shotClock: null,            // seconds left on the shot clock, or null for "not read"
   videoTsAtStart: null,       // film time frozen when the stat button was first clicked
   _pendingStat: null,         // stat waiting for shot-type modal to close
 };
@@ -20326,6 +20358,7 @@ function saveLiveFlow() {
       shotType:           trackerState.shotType,
       shotTypes:          trackerState.shotTypes,
       shotContest:        trackerState.shotContest,
+      shotClock:          trackerState.shotClock,
       videoTsAtStart:     trackerState.videoTsAtStart,
       _pendingStat:       trackerState._pendingStat,
       activeStat,
@@ -20353,6 +20386,7 @@ function restoreLiveFlow() {
   trackerState.shotType           = saved.shotType;
   trackerState.shotTypes          = saved.shotTypes || [];
   trackerState.shotContest        = saved.shotContest;
+  trackerState.shotClock          = saved.shotClock != null ? saved.shotClock : null;
   trackerState.videoTsAtStart     = saved.videoTsAtStart;
   trackerState._pendingStat       = saved._pendingStat;
   pendingShotX = saved.pendingShotX != null ? saved.pendingShotX : null;
@@ -20500,7 +20534,8 @@ function _snapFlow() {
     blockerInfo: trackerState.blockerInfo ? Object.assign({}, trackerState.blockerInfo) : null,
     nextPhaseAfterZone: trackerState.nextPhaseAfterZone,
     shotType: trackerState.shotType, shotTypes: [...(trackerState.shotTypes || [])],
-    shotContest: trackerState.shotContest, videoTsAtStart: trackerState.videoTsAtStart,
+    shotContest: trackerState.shotContest, shotClock: trackerState.shotClock,
+    videoTsAtStart: trackerState.videoTsAtStart,
     _pendingStat: trackerState._pendingStat,
     activeStat, pendingShotX, pendingShotY,
   };
@@ -20518,6 +20553,7 @@ function _restoreFlow(s) {
   trackerState.shotType = s.shotType;
   trackerState.shotTypes = [...(s.shotTypes || [])];
   trackerState.shotContest = s.shotContest;
+  trackerState.shotClock = s.shotClock != null ? s.shotClock : null;
   trackerState.videoTsAtStart = s.videoTsAtStart;
   trackerState._pendingStat = s._pendingStat;
   pendingShotX = s.pendingShotX;
@@ -20542,14 +20578,17 @@ function _rearmPhaseSurfaces() {
   }
 }
 
-function _applyShotTypeSelections(types, contest) {
+function _applyShotTypeSelections(types, contest, clock) {
   trackerState.shotTypes  = [...(types || [])];
   trackerState.shotType   = trackerState.shotTypes[0] || null;
   trackerState.shotContest = contest || null;
+  trackerState.shotClock   = clock != null ? clock : null;
   document.querySelectorAll('#shot-type-grid .shot-type-btn').forEach(b =>
     b.classList.toggle('selected', trackerState.shotTypes.includes(b.dataset.type)));
   document.querySelectorAll('#shot-contest-row .shot-contest-btn').forEach(b =>
     b.classList.toggle('selected', b.dataset.contest === trackerState.shotContest));
+  const sc = document.getElementById('shot-clock-input');
+  if (sc) sc.value = trackerState.shotClock != null ? trackerState.shotClock : '';
 }
 
 function trackerBack() {
@@ -20567,7 +20606,7 @@ function trackerBack() {
     activeStatEl = document.querySelector('.tracker-stat-col .stat-btn[data-stat="' + prev.stat + '"]');
     if (activeStatEl) activeStatEl.classList.add('stat-active');
     showShotTypeModal(prev.stat);
-    _applyShotTypeSelections(prev.shotTypes, prev.shotContest);
+    _applyShotTypeSelections(prev.shotTypes, prev.shotContest, prev.shotClock);
     return;
   }
 
@@ -20846,6 +20885,13 @@ function showShotTypeModal(stat) {
   trackerState.shotType    = null;
   trackerState.shotTypes   = [];
   trackerState.shotContest = null;
+  /* The shot clock is a typed value, not a toggle, so nothing clears it by being tapped
+     again — it has to be blanked HERE, on the way in. Leaving the last attempt's number in
+     the box is worse than leaving it empty: the next shot inherits a reading that was never
+     taken, and it commits silently if the coach doesn't notice and delete it. */
+  trackerState.shotClock   = null;
+  const scInput = document.getElementById('shot-clock-input');
+  if (scInput) scInput.value = '';
   const isMake = stat.endsWith('make');
   const is3    = stat.startsWith('3');
   document.getElementById('shot-type-title').textContent =
@@ -20881,6 +20927,13 @@ function toggleShotContest(btn, contest) {
   }
 }
 
+/* Blank, a stray minus sign or anything non-numeric all mean the same thing: no reading.
+   Kept as a whole number of seconds, matching the shotClock values already in the data. */
+function setShotClock(raw) {
+  const n = parseInt(String(raw).trim(), 10);
+  trackerState.shotClock = (isFinite(n) && n >= 0 && n <= 35) ? n : null;
+}
+
 function confirmShotType() {
   hideModal('modal-shot-type');
   _launchFgFlow();
@@ -20890,6 +20943,7 @@ function skipShotType() {
   trackerState.shotType    = null;
   trackerState.shotTypes   = [];
   trackerState.shotContest = null;
+  trackerState.shotClock   = null;
   hideModal('modal-shot-type');
   _launchFgFlow();
 }
@@ -20904,7 +20958,8 @@ function _launchFgFlow() {
   _flowHistory.push({ __modal: 'shotType', stat,
                       videoTsAtStart: trackerState.videoTsAtStart,
                       shotTypes: [...(trackerState.shotTypes || [])],
-                      shotContest: trackerState.shotContest });
+                      shotContest: trackerState.shotContest,
+                      shotClock: trackerState.shotClock });
   if (stat === '2fg_miss' || stat === '3fg_miss') enterPhase('await_shooter_miss');
   else                                             enterPhase('await_scorer');
 }
@@ -21207,6 +21262,13 @@ function flushPendingEvents() {
                                        ? [...trackerState.shotTypes] : null,
                         shotContest: isShotEvent ? (trackerState.shotContest || null) : null,
                         quarter: q, ts: Date.now(), videoTs };
+    /* Only on a field-goal attempt, and only when a number was actually read: a free throw
+       has no shot clock, and an absent key is how every consumer — the worklist script
+       included — tells "not read" from a reading. Writing null on every event would make
+       all 600-odd untagged shots look tagged. */
+    if (isShotEvent && ev.stat.includes('fg') && trackerState.shotClock != null) {
+      committed.shotClock = trackerState.shotClock;
+    }
     session.eventLog.push(committed);
     added.push(committed);
   }
@@ -21233,6 +21295,7 @@ function resetTrackerState() {
   trackerState.shotType           = null;
   trackerState.shotTypes          = [];
   trackerState.shotContest        = null;
+  trackerState.shotClock          = null;
   trackerState.videoTsAtStart     = null;
   trackerState._pendingStat       = null;
   pendingShotX = null;
