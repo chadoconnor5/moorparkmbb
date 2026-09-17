@@ -401,5 +401,44 @@ window.dropEmptyQuarter = function dropEmptyQuarter(opts) {
   return { session: s.title, dropped: `Q${qNum}`, applied: true, statsRecomputed: recomputed };
 };
 
-console.log('%camendQuarterClock() / dropEmptyQuarter() ready — dry run first, then { apply: true }.',
+/* ── Both repairs for Fall Workout #27, in one command ────────────────────────
+     fixWorkout27()                 // dry run — every table from both repairs
+     fixWorkout27({ apply: true })  // writes both, reloads once
+
+   Q2's clock was stopped from film 105:53 to 108:38 and the sub at 108:17.1 divides
+   that stretch; Q8 was opened by ending Q7 instead of ending the practice. Both are
+   dry-run first and NEITHER is written unless both come back clean, so a session
+   cannot end up half-repaired by a guard that only trips on the second one. */
+window.fixWorkout27 = function fixWorkout27(opts) {
+  const o = Object.assign({ session: /#\s*27\b/i, dropQuarter: 8, apply: false }, opts || {});
+  const pins = { session: o.session, quarter: 2,
+                 pausedFilmTs: 105 * 60 + 53, subFilmTs: 108 * 60 + 17.1, restartFilmTs: 108 * 60 + 38 };
+
+  console.log('%c1 of 2 — Q2, the stretch the clock sat out', 'font-weight:700;font-size:13px;color:#6366f1');
+  if (!amendQuarterClock(Object.assign({}, pins, { apply: false }))) return null;
+  console.log('%c2 of 2 — the quarter that opened itself', 'font-weight:700;font-size:13px;color:#6366f1');
+  if (!dropEmptyQuarter({ session: o.session, quarter: o.dropQuarter, apply: false })) return null;
+
+  if (!o.apply) {
+    console.log('%cdry run — nothing written. Run fixWorkout27({ apply: true }) to commit both.',
+                'color:#f59e0b;font-weight:700');
+    return { applied: false };
+  }
+
+  const a = amendQuarterClock(Object.assign({}, pins, { apply: true, reload: false }));
+  if (!a) { console.error('%cthe Q2 amendment did not go through — nothing was written, Q8 left alone.',
+                          'color:#ef4444;font-weight:700'); return null; }
+  const d = dropEmptyQuarter({ session: o.session, quarter: o.dropQuarter, apply: true, reload: false });
+  if (!d) { console.error('%cQ2 IS AMENDED AND SAVED, but Q8 was not dropped — read the reason above, ' +
+                          'then run dropEmptyQuarter({ quarter: ' + o.dropQuarter + ', apply: true }) on its own.',
+                          'color:#ef4444;font-weight:700'); return null; }
+
+  console.log('%cboth done — reloading, then re-publish (↑ Publish) to update the site',
+              'color:#22c55e;font-weight:700;font-size:13px');
+  setTimeout(() => location.reload(), 600);
+  return { applied: true, amended: a, dropped: d };
+};
+
+console.log('%cfixWorkout27() ready — dry run first, then { apply: true }. ' +
+            'amendQuarterClock() and dropEmptyQuarter() are here too, for anything else.',
             'color:#6366f1;font-weight:700');
