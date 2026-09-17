@@ -10887,6 +10887,10 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   // Shot quality shares the row scope, so the baseline reflects the same practices shown.
   const scoped = sessions.filter(s => sessionInScope(s, filterPeriod));
   const shotQual = computeShotQuality(scoped);
+  /* computeShotQuality() answers with a LIST of players, not a map of them, so indexing it
+     by name found nothing and every xPPS, PPS and SHOT+/- on this table read as a dash.
+     Indexed here, once, rather than scanned per row. */
+  const shotQualByName = new Map((shotQual.players || []).map(q => [q.name, q]));
   /* Same scope again, but team-aware: unlike shot quality — which needs a baseline common
      to everyone — points created is this man's own production and is filtered like the
      counting stats beside it. */
@@ -11114,9 +11118,13 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          shot-making with selection held constant. Null below a handful of attempts —
          the difference of two small-sample rates is mostly noise. */
       ...(() => {
-        const q = shotQual[r.name];
-        if (!q || q.att < 5) return { xpps: null, pps: null, shotDiff: null };
-        const xpps = q.xpts / q.att, pps = q.pts / q.att;
+        const q = shotQualByName.get(r.name);
+        if (!q || q.fga < 5) return { xpps: null, pps: null, shotDiff: null };
+        /* eFG% x 2 IS points per shot — a three counts 1.5 makes, so doubling the mean
+           turns it back into points. Taking q.pts over q.fga would not: that field is the
+           points he ADDED over an average finisher, not the points he scored, and dividing
+           it by attempts would have printed a plausible-looking number that is not PPS. */
+        const xpps = 2 * q.qsq, pps = 2 * q.efg;
         return { xpps: p1(xpps, 2), pps: p1(pps, 2), shotDiff: p1(pps - xpps, 2) };
       })(),
       /* PTS CR = his own scoring plus the points his passing produced, per game. Both
