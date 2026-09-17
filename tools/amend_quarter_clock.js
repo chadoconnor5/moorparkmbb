@@ -51,6 +51,7 @@ window.amendQuarterClock = function amendQuarterClock(opts) {
     after:       null,
     apply:       false,
     force:       false,                 // re-run over an amendment already applied
+    reload:      true,                  // false to keep the page up and chain another repair
   }, opts || {});
 
   /* The split is the film's, not a guess: each five is credited with the untimed seconds it
@@ -262,10 +263,143 @@ window.amendQuarterClock = function amendQuarterClock(opts) {
       if (i !== -1) APP.sessions[i] = s;
     }
   }
-  console.log('%csaved — reloading so every view recomputes from it', 'color:#22c55e;font-weight:700');
+  console.log('%csaved', 'color:#22c55e;font-weight:700');
   if (isCompleted) console.log('%cre-publish (↑ Publish) to push this to the live site', 'color:#6366f1;font-weight:700');
-  setTimeout(() => location.reload(), 400);
+  if (o.reload) setTimeout(() => location.reload(), 400);
+  else console.log('page left up — run the next repair, then reload when you are done');
   return { session: s.title, quarter: o.quarter, sub: fmt(B), added: fmt(total), applied: true, statsRecomputed: recomputed };
 };
 
-console.log('%camendQuarterClock() ready — dry run first, then { apply: true }.', 'color:#6366f1;font-weight:700');
+/* ── Drop a quarter that was started by accident ───────────────────────────────
+   Ending the last quarter instead of ending the practice opens the next one, and it is
+   recorded the moment it opens: a quarters[] entry with nothing played and a lineup stint
+   that starts and ends on the same tick. Nobody was on the floor, so no minutes are wrong
+   — but the session reads as one quarter longer than it was, and the phantom five turns up
+   wherever stints are counted.
+
+     dropEmptyQuarter({ quarter: 8 })                 // dry run
+     dropEmptyQuarter({ quarter: 8, apply: true })    // writes it
+
+   Only ever the LAST quarter, and only when it is provably empty: renumbering a middle one
+   would move every event and stint after it. */
+window.dropEmptyQuarter = function dropEmptyQuarter(opts) {
+  const o = Object.assign({
+    session: /#\s*27\b/i,
+    quarter: null,          // defaults to the last recorded quarter
+    apply:   false,
+    reload:  true,
+  }, opts || {});
+
+  const fmt = s => {
+    if (s == null || !isFinite(s)) return '—';
+    const t = Math.round(s), a = Math.abs(t);
+    return (t < 0 ? '-' : '') + Math.floor(a / 60) + ':' + String(a % 60).padStart(2, '0');
+  };
+  const fail = msg => { console.error('%cdropEmptyQuarter: ' + msg, 'color:#ef4444;font-weight:700'); return null; };
+
+  let live = null;
+  try { live = JSON.parse(localStorage.getItem('pt_live_session') || 'null'); } catch (e) {}
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem('pt_sessions') || '[]') || []; } catch (e) {}
+  const matches = x => {
+    if (!x) return false;
+    if (o.session instanceof RegExp) return o.session.test(x.title || '');
+    return x.id === o.session || String(x.title || '').includes(o.session);
+  };
+  const pool = [];
+  if (matches(live)) pool.push({ where: 'live', session: live });
+  saved.forEach((x, i) => { if (matches(x)) pool.push({ where: 'saved', index: i, session: x }); });
+  if (!pool.length) {
+    const names = [live, ...saved].filter(Boolean).map(x => `${x.title} (${x.date})`);
+    return fail('no session matched ' + o.session + '. Sessions in this browser:\n  ' + names.join('\n  '));
+  }
+  if (pool.length > 1) {
+    return fail('matched ' + pool.length + ' copies: ' + pool.map(x => `${x.session.title} [${x.where}]`).join(', ') +
+                '. Pass session: "<exact id>" for the one you mean.');
+  }
+  const { where, index } = pool[0];
+  const before = pool[0].session;
+  const s = JSON.parse(JSON.stringify(before));
+
+  const qs = s.quarters || [];
+  if (!qs.length) return fail('this session has no recorded quarters.');
+  const qNum = o.quarter == null ? (qs[qs.length - 1].number || qs.length) : o.quarter;
+  const at = qs.findIndex(x => (x.number || 0) === qNum);
+  if (at === -1) return fail(`Q${qNum} is not recorded. Quarters: ${qs.map(x => x.number).join(', ')}`);
+  if (at !== qs.length - 1) {
+    return fail(`Q${qNum} is not the last quarter — dropping it would renumber everything after it. ` +
+                'A quarter in the middle has to be dealt with by hand.');
+  }
+
+  /* Three separate proofs that nothing happened in it. Any one of them failing means real
+     basketball is in there, and this is not the tool for it. */
+  const evs  = (s.eventLog || []).filter(e => e.quarter === qNum);
+  const segs = (s.lineupSegments || []).filter(g => g.quarter === qNum);
+  const q    = qs[at];
+  const played = q.playedDuration != null ? q.playedDuration
+               : Math.max(0, (q.duration || 0) - (q.timeRemaining != null ? q.timeRemaining : q.duration || 0));
+  const alive = segs.filter(g => g.endTimeSecs != null && g.endTimeSecs !== g.startTimeSecs);
+  if (evs.length) return fail(`Q${qNum} holds ${evs.length} event${evs.length === 1 ? '' : 's'} — it was played, not opened by mistake.`);
+  if (played > 0) return fail(`Q${qNum} has ${fmt(played)} played on the clock — not an empty quarter.`);
+  if (alive.length) return fail(`Q${qNum} has a stint with elapsed time (${alive.map(g => `${fmt(g.startTimeSecs)} → ${fmt(g.endTimeSecs)}`).join(', ')}).`);
+
+  console.log(`%c${s.title} — dropping Q${qNum}  (${where === 'live' ? 'in progress' : 'saved'})`,
+              'font-weight:700;font-size:13px');
+  console.table([{
+    'quarter':  `Q${qNum}`,
+    'length':   fmt(q.duration),
+    'played':   fmt(played),
+    'events':   evs.length,
+    'stints':   segs.length,
+    'the five': segs.length ? (segs[0].lineupA || []).join(', ') + ' / ' + (segs[0].lineupB || []).join(', ') : '—',
+  }]);
+
+  s.quarters = qs.filter((_, i) => i !== at);
+  s.lineupSegments = (s.lineupSegments || []).filter(g => g.quarter !== qNum);
+
+  let recomputed = false;
+  const isCompleted = !!(s.completed || (s.playerStats && s.playerStats.length));
+  if (isCompleted) {
+    if (typeof computeTeamStats === 'function' && typeof computePlayerStats === 'function') {
+      s.teamStats   = computeTeamStats(s);      // must precede playerStats — it divides by it
+      s.playerStats = computePlayerStats(s);
+      recomputed = true;
+    } else {
+      return fail('this session is finalised and needs its stat lines recomputed, but ' +
+                  'computeTeamStats/computePlayerStats are not on this page. Run this ON THE TRACKER.');
+    }
+  }
+
+  const totalOf = sess => (sess.quarters || []).reduce((n, x) => n + (x.playedDuration != null
+    ? x.playedDuration : Math.max(0, (x.duration || 0) - (x.timeRemaining || 0))), 0);
+  console.table([
+    { what: 'quarters', before: (before.quarters || []).length, after: s.quarters.length },
+    { what: 'lineup stints', before: (before.lineupSegments || []).length, after: s.lineupSegments.length },
+    { what: 'scrimmage total', before: fmt(totalOf(before)), after: fmt(totalOf(s)) },
+  ]);
+
+  if (!o.apply) {
+    console.log('%cdry run — nothing written. Add apply: true to commit it.', 'color:#f59e0b;font-weight:700');
+    return { session: s.title, dropped: `Q${qNum}`, applied: false };
+  }
+
+  const APP = (typeof State !== 'undefined' && State) ? State : null;
+  if (where === 'live') {
+    localStorage.setItem('pt_live_session', JSON.stringify(s));
+    if (APP && APP.liveSession && APP.liveSession.id === s.id) APP.liveSession = s;
+  } else {
+    saved[index] = s;
+    localStorage.setItem('pt_sessions', JSON.stringify(saved));
+    if (APP && Array.isArray(APP.sessions)) {
+      const i = APP.sessions.findIndex(x => x.id === s.id);
+      if (i !== -1) APP.sessions[i] = s;
+    }
+  }
+  console.log('%csaved', 'color:#22c55e;font-weight:700');
+  if (isCompleted) console.log('%cre-publish (↑ Publish) to push this to the live site', 'color:#6366f1;font-weight:700');
+  if (o.reload) setTimeout(() => location.reload(), 400);
+  return { session: s.title, dropped: `Q${qNum}`, applied: true, statsRecomputed: recomputed };
+};
+
+console.log('%camendQuarterClock() / dropEmptyQuarter() ready — dry run first, then { apply: true }.',
+            'color:#6366f1;font-weight:700');
