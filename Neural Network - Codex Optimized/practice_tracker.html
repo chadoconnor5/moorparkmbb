@@ -636,6 +636,101 @@
       transition: background 0.12s, border-color 0.12s;
     }
     .shot-contest-btn.selected { border-color: var(--primary); background: rgba(99,102,241,0.15); color: var(--primary); }
+
+    /* Shot clock — TYPED, never inferred. Chad's call: the gym has no shot clock, so any
+       value here is a human judgement and the app must not quietly invent one. Left blank it
+       stays null, and the derived possession clock (which is computed, and labelled as such)
+       is what the Shot Quality tab reads instead. */
+    .shot-clock-row { display:flex; align-items:center; gap:10px; }
+    /* Same trap as input.scl-in below — tag + class so the global input[type="number"]
+       width:100% cannot stretch it. */
+    input.shot-clock-input {
+      width:92px; max-width:92px; flex:0 0 auto;
+      padding:9px 10px; font-size:16px; font-weight:700; text-align:center;
+      background:var(--card); color:var(--text); border:1px solid var(--border-light);
+      border-radius:var(--radius-sm);
+    }
+    input.shot-clock-input::-webkit-outer-spin-button,
+    input.shot-clock-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+    .shot-clock-row input:focus { outline:none; border-color:var(--primary); }
+    .shot-clock-row .sc-hint { font-size:11px; color:var(--text-muted); line-height:1.4; }
+
+    /* Shot Clock logging tab. Its own <video>, deliberately: the Live Tracker's player is
+       wired to live-session state and driving it from a review screen would entangle the
+       two. This one only needs seek, play and nudge. */
+    /* The card is a fixed 320px and the film takes everything else. It was 1.55fr to 1fr,
+       which handed the info panel 600px on a 1600px screen to display two short lines and a
+       number box, and left the film at 60% of the row. Reading a possession is the whole job
+       here; the card just has to be legible. */
+    /* THE FILM IS THE WHOLE JOB ON THIS SCREEN, so the tab gives it everything it can.
+       Measured at 1920x1080 before this: the video was 1216x684 because (a) .page caps content
+       at 1600px, leaving ~160px dead on each side, (b) a title + subtitle row cost 85px above
+       it, and (c) a fixed height guess left 122px empty below the controls. Now the page runs
+       full width, the title row is gone (the nav already says Shot Clock — the practice picker
+       and Load buttons moved into the side panel), the playback controls share one row, and
+       the left column is sized to the real viewport by _sclFit() rather than a calc() guess. */
+    #shotclock-root.page { max-width:none; padding:10px 14px; }
+    .scl-wrap { display:grid; grid-template-columns:minmax(0,1fr) 290px;
+                gap:12px; align-items:start; }
+    @media (max-width: 1100px) { .scl-wrap { grid-template-columns:1fr; } }
+    /* Column flex: the controls row takes its natural height and the video takes the rest.
+       flex-basis 0 with a floor means an EMPTY <video> — which has no intrinsic size and used
+       to collapse to ~150px — fills the space just the same as a loaded one. object-fit:contain
+       draws the picture as large as that box allows without distorting the floor; the spare
+       direction shows as black bars. */
+    .scl-left { display:flex; flex-direction:column; gap:8px; min-width:0; }
+    .scl-video { flex:1 1 0; min-height:220px; width:100%; object-fit:contain;
+                 background:#000; border-radius:var(--radius);
+                 border:1px solid var(--border); display:block; }
+    .scl-ctrls { display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:0 0 auto; }
+    .scl-ctrls #scl-rates { margin-left:6px; }
+    .scl-card { background:var(--surface); border:1px solid var(--border);
+                border-radius:var(--radius-lg); padding:12px; overflow:auto; }
+    .scl-top { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; padding-bottom:12px;
+               border-bottom:1px solid var(--border); }
+    .scl-keys summary { cursor:pointer; font-weight:700; color:var(--text-secondary); }
+    input.scl-jump { width:58px; max-width:58px; flex:0 0 auto; padding:3px 6px; font-size:12px;
+                     text-align:center; background:var(--card); color:var(--text);
+                     border:1px solid var(--border-light); border-radius:var(--radius-sm); }
+    .scl-hdr { font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+               color:var(--text-secondary); margin-bottom:8px; }
+    .scl-shot { font-size:17px; font-weight:800; color:var(--text); line-height:1.35; }
+    .scl-meta { font-size:12px; color:var(--text-secondary); margin-top:4px; line-height:1.6; }
+    .scl-derived { margin-top:10px; padding:9px 10px; background:var(--card);
+                   border:1px dashed var(--border-light); border-radius:var(--radius-sm);
+                   font-size:11.5px; color:var(--text-secondary); line-height:1.6; }
+    .scl-derived b { color:var(--text); }
+    /* input.scl-in, not .scl-in: the global `input[type="number"]` rule near the top of this
+       sheet sets width:100% and specificity (0,1,1) beats a bare class at (0,1,0), so the box
+       stretched to fill the card and ignored the font size set here. Matching the tag as well
+       ties the specificity, and this rule is later in the sheet, so it wins. Anything styling
+       a number input in this file has to clear that same bar. */
+    input.scl-in { width:84px; max-width:84px; flex:0 0 auto;
+              padding:10px 8px; font-size:26px; font-weight:800; text-align:center;
+              background:var(--card); color:var(--text); border:2px solid var(--border-light);
+              border-radius:var(--radius); }
+    input.scl-in:focus { outline:none; border-color:var(--primary); }
+    /* The spinners cost real width on a two-digit field and are useless when the value is
+       typed and committed with Enter. */
+    input.scl-in::-webkit-outer-spin-button,
+    input.scl-in::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+    input.scl-in { -moz-appearance:textfield; appearance:textfield; }
+    .scl-btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .scl-prog { font-size:12px; color:var(--text-secondary); margin-top:10px; }
+    .scl-bar { height:6px; background:var(--card); border-radius:3px; overflow:hidden; margin-top:5px; }
+    .scl-bar > div { height:100%; background:var(--primary); }
+    .scl-keys { font-size:11px; color:var(--text-muted); margin-top:10px; line-height:1.7; }
+    .scl-keys kbd { background:var(--card); border:1px solid var(--border-light);
+                    border-radius:3px; padding:1px 5px; font-size:10px; font-weight:700; }
+    .scl-done { color:var(--success); font-weight:700; }
+    .scl-rate { padding:5px 9px; font-size:11px; font-weight:800; cursor:pointer;
+                background:var(--card); color:var(--text-secondary);
+                border:1px solid var(--border-light); border-radius:var(--radius-sm); }
+    .scl-rate.sel { border-color:var(--primary); background:rgba(99,102,241,0.16); color:var(--primary); }
+    .scl-rate:hover { color:var(--text); }
+    #scl-rates { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+    #scl-rates .lbl { font-size:10.5px; font-weight:800; letter-spacing:.04em;
+                      text-transform:uppercase; color:var(--text-muted); margin-right:2px; }
     .shot-type-section-label {
       font-size: 10.5px;
       font-weight: 700;
@@ -644,28 +739,6 @@
       color: var(--text-dim);
       margin-bottom: 6px;
     }
-
-    /* Shot clock: a number, not a time — the box is narrow on purpose so it reads as
-       "seconds left" and never as MM:SS like the quarter clock boxes elsewhere. */
-    .shot-clock-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 6px 0 2px;
-    }
-    .shot-clock-input {
-      width: 92px !important;
-      flex: 0 0 92px;
-      font-size: 20px !important;
-      font-weight: 800 !important;
-      text-align: center !important;
-      padding: 8px !important;
-    }
-    /* The spinners are useless at this size and steal half the box on WebKit. */
-    .shot-clock-input::-webkit-outer-spin-button,
-    .shot-clock-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .shot-clock-input { -moz-appearance: textfield; }
-    .shot-clock-note { font-size: 10.5px; color: var(--text-dim); line-height: 1.45; }
 
     /* ============================================================
        CARD
@@ -2271,6 +2344,10 @@
     .sq-thin td { opacity:0.5; }
     .sq-pos { color:var(--success); font-weight:700; }
     .sq-neg { color:var(--danger);  font-weight:700; }
+    /* Table rows are the light grey/white bands, where the bright tokens measured 1.61:1 (green on
+       grey) and 2.67:1 (red on grey). Same fix as the On/Off impact cells. */
+    .sq-tbl tbody td.sq-pos { color:var(--success-onlight); }
+    .sq-tbl tbody td.sq-neg { color:var(--danger-onlight); }
     .sq-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
     .sq-note { font-size:11px; color:var(--text-muted); line-height:1.5; margin-top:8px; }
 
@@ -4041,6 +4118,7 @@
     <!-- <button class="nav-tab"        data-tab="notes"     onclick="switchTab('notes',this)">Notes</button> -->
     <button class="nav-tab local-only" data-tab="rankings" onclick="switchTab('rankings',this)" title="Official player rankings, every edition. Local only - the data lives in this browser and is never published.">Rankings</button>
     <button class="nav-tab local-only" data-tab="bpmsheet" onclick="switchTab('bpmsheet',this)" title="Per-scrimmage BPM working. Local only - never rendered on the published site.">BPM Sheet</button>
+    <button class="nav-tab editor-only" data-tab="shotclock" onclick="switchTab('shotclock',this)" title="Step through every shot with the film and log the shot clock yourself.">Shot Clock</button>
     <button class="nav-tab editor-only" data-tab="zones" onclick="switchTab('zones',this)">Zones</button>
     <button class="nav-tab editor-only" id="nav-tracker" data-tab="tracker" onclick="switchTab('tracker',this)">Live Tracker</button>
     <button class="nav-tab editor-only" id="nav-roster" style="margin-left:auto;" onclick="openRosterEditor()" title="Edit roster: rename players or hide them from analysis">&#9881; Roster</button>
@@ -4454,6 +4532,10 @@
     </div>
   </div>
 
+  <div id="tab-shotclock" class="tab-content">
+    <div id="shotclock-root" class="page"></div>
+  </div>
+
   <div id="tab-zones" class="tab-content">
     <div id="zones-root" class="page"></div>
   </div>
@@ -4623,12 +4705,12 @@
       </div>
       <div class="shot-type-section-label" style="margin-top:12px;">Shot Clock</div>
       <div class="shot-clock-row">
-        <input type="number" id="shot-clock-input" class="shot-clock-input" min="0" max="35" step="1"
-               inputmode="numeric" placeholder="&#8212;" autocomplete="off"
-               oninput="setShotClock(this.value)"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();confirmShotType();}">
-        <div class="shot-clock-note">Seconds left when it went up. Leave it blank if the film
-          doesn&rsquo;t show it &mdash; blank means <i>not read</i>, which is not the same as zero.</div>
+        <input type="number" id="shot-clock-input" class="shot-clock-input"
+               min="0" max="35" step="1"
+               inputmode="numeric" placeholder="--"
+               oninput="setShotClock(this.value)">
+        <span class="sc-hint">Seconds remaining when the shot went up.<br>
+          Leave blank if you did not read it &mdash; nothing is guessed.</span>
       </div>
     </div>
     <div class="modal-footer">
@@ -5407,6 +5489,11 @@ function revealLocalOnly() {
 }
 
 function switchTab(tabName, btnEl) {
+  /* Drop focus if it is sitting in the tab being left, so no hidden field keeps receiving
+     keystrokes. _vcIsTyping() no longer trusts invisible inputs either — belt and braces,
+     because a stranded focus also swallows Enter and the arrow keys. */
+  const _af = document.activeElement;
+  if (_af && _af !== document.body && _af.closest && _af.closest('.tab-content') && _af.blur) _af.blur();
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
   const tabEl = document.getElementById('tab-' + tabName);
@@ -5427,6 +5514,7 @@ const tabRenderers = {
   players:    () => {},
   shotcharts: () => {},
   shotquality:() => {},
+  shotclock:  () => {},
   onoff:      () => {},
   lineups:    () => {},
   connections:() => {},
@@ -6397,7 +6485,21 @@ function _vcHotkeysActive() {
 
 function _vcIsTyping(t) {
   if (!t) return false;
-  return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
+  const typey = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+             || t.tagName === 'SELECT' || t.isContentEditable;
+  if (!typey) return false;
+  /* An input on a TAB THAT IS NOT ON SCREEN still holds focus, and the browser keeps it there
+     when you switch tabs. Treating that as typing killed the film hotkeys outright: open the
+     Shot Clock tab (which focuses its number box), come back to the Live Tracker, and Space no
+     longer paused and A/S/D no longer scrubbed, because every keystroke was being handed to an
+     invisible field. Nobody is typing into something they cannot see, so it does not count.
+
+     offsetParent is null for anything display:none or inside it — which is exactly how
+     .tab-content hides a tab — and the position:fixed case is covered by the rect check,
+     since a hidden element has no box at all. */
+  if (t.offsetParent === null &&
+      !(t.getClientRects && t.getClientRects().length)) return false;
+  return true;
 }
 
 // Capture phase so the shortcut always fires first, regardless of what has focus
@@ -6931,10 +7033,7 @@ function fmtClockRemain(secs) {
   return `${mins}:${String(rem).padStart(2, '0')}`;
 }
 
-/* `ctx` is the session's playContext(), when the caller has it. Without one this still
-   reads a typed shot clock — it just cannot say anything about an attempt that was logged
-   without one. */
-function reportEventSummary(ev, ctx) {
+function reportEventSummary(ev) {
   if (!ev) return '—';
   if (ev.type === 'sub') {
     return 'Sub: ' + subPairs(ev).map(sp =>
@@ -6946,18 +7045,12 @@ function reportEventSummary(ev, ctx) {
   const types = (Array.isArray(ev.shotTypes) && ev.shotTypes.length) ? ev.shotTypes : (ev.shotType ? [ev.shotType] : []);
   types.forEach(t => parts.push(SHOT_TYPE_LABELS[t] || t));
   if (ev.shotContest) parts.push(ev.shotContest === 'contested' ? 'Contested' : 'Uncontested');
-  /* Derived, not tagged — the shot clock is what says this. An attempt logged without a
-     reading is marked from the film-time estimate and SAYS SO, because a number worked
-     out from when the possession started is not the number somebody read off the screen.
-     Off-turnover is not here beside it on purpose: that one is a property of the
-     possession, which a single event cannot hand over. */
-  const _est = ctx && ctx.clock ? ctx.clock.get(ev) : null;
-  if (isTransitionShot(ev, _est)) parts.push(ev.shotClock != null ? 'Transition' : 'Transition (est)');
+  if (ev.shotClock != null) parts.push('SC ' + ev.shotClock);
   if (ev.assister) parts.push(`Ast: ${ev.assister}`);
   return parts.map(escHtml).join(' &middot; ');
 }
 
-function reportEventRows(events, showPlayer = false, ctx = null) {
+function reportEventRows(events, showPlayer = false) {
   if (!events.length) {
     return '<tr><td colspan="5" style="color:var(--text-dim);text-align:center;padding:14px;">No events recorded.</td></tr>';
   }
@@ -6973,7 +7066,7 @@ function reportEventRows(events, showPlayer = false, ctx = null) {
       <td style="text-align:left;white-space:nowrap;">${video}</td>
       ${playerCell}
       <td style="text-align:left;font-weight:700;color:${teamColor};">${escHtml(ev.type === 'sub' ? 'Sub' : statLabel(ev.stat) || ev.stat)}</td>
-      <td style="text-align:left;">${reportEventSummary(ev, ctx)}</td>
+      <td style="text-align:left;">${reportEventSummary(ev)}</td>
     </tr>`;
   }).join('');
 }
@@ -7041,7 +7134,7 @@ function buildPostGameReportPack(session) {
     const teamName = team === 'a' ? session.teamAName : session.teamBName;
     const stats = session.teamStats?.[team] || {};
     const teamEvents = (session.eventLog || []).filter(e => e.team === team);
-    const actionRows = reportEventRows(teamEvents, true, playContext(session));
+    const actionRows = reportEventRows(teamEvents, true);
     const lineupRows = buildLineupReportRows(session, team);
     const lineupCount = (session.lineupSegments || []).filter(seg => seg.endTimeSecs !== null && (team === 'a' ? seg.lineupA : seg.lineupB)).length;
     return `
@@ -7140,7 +7233,7 @@ function buildPostGameReportPack(session) {
           <div class="report-table-wrap">
             <table class="report-table report-table-wide">
               <thead><tr><th>Q</th><th>Video</th><th>Type</th><th>Details</th></tr></thead>
-              <tbody>${reportEventRows(actionEvents, false, playContext(session))}</tbody>
+              <tbody>${reportEventRows(actionEvents, false)}</tbody>
             </table>
           </div>
         </div>
@@ -8706,206 +8799,6 @@ const ZONE_DEFS = {
 
 const ZONES_2FG = ['ft', 'paint_ul', 'paint_ur', 'paint_ll', 'paint_lr', 'mr_left_high', 'mr_left_low', 'mr_right_high', 'mr_right_low'];
 const ZONES_3FG = ['c3_left', 'w3_left', 'ab3', 'w3_right', 'c3_right'];
-
-/* ── Play context: transition, paint, points off turnovers ───────────────────────────
-   Three descriptions of an attempt that nobody has to tap, because the tracker already
-   records what they are made of: the shot clock reading from the Shot Type modal, the
-   spot on the floor, and the order of the event log.
-
-   They are DERIVED, never stored. That is the point — a shot logged last November gets
-   read the same way as one logged tonight, with no recompute and no migration, and the
-   day a definition changes it changes here rather than in every session file.
-
-   A shot can be any combination of the three. Transition and Off Turnover in particular
-   are the common pair — the turnover IS what made it transition — so they are counted
-   independently and a bucket that mixed them would double-count nothing. */
-
-/* The shot clock counts DOWN, so "the first 7 seconds" is a reading at the TOP of it.
-   30-second clock (NCAA/CCCAA men's). Readings are whole seconds — typed into the Shot
-   Type modal, or rounded off film time by shotClockEstimates() — so a reading of c has
-   30 - c seconds elapsed behind it: 30 is 0s and 23 is 7s.
-
-   The window is 0 to 7 elapsed INCLUSIVE, which makes 23 the lowest reading still inside
-   it. This used to cut at 24 by carrying a +1, which is 0 to 6 and throws away the 7s
-   mark itself — an attempt sitting exactly on 7 is transition, and is counted as one. */
-const SHOT_CLOCK_SECS       = 30;
-const TRANSITION_WINDOW_SECS = 7;
-const TRANSITION_CLOCK_MIN   = SHOT_CLOCK_SECS - TRANSITION_WINDOW_SECS;   // 23
-
-const FG_STATS = new Set(['2fg_make', '2fg_miss', '3fg_make', '3fg_miss']);
-const MAKE_PTS = { '2fg_make': 2, '3fg_make': 3, 'ft_make': 1 };
-
-/* A reading that was TYPED beats one that was worked out, always. `est` is the film-time
-   estimate from shotClockEstimates() for this same attempt, and it is consulted only when
-   the modal was left blank. Pass nothing and this is read-only, which is what a caller
-   holding an event but not its session gets. Neither number present means the attempt is
-   simply not transition — never guessed into the bucket on no evidence at all. */
-function shotClockOf(ev, est) {
-  if (!ev) return null;
-  if (ev.shotClock != null) return ev.shotClock;
-  return est != null ? est : null;
-}
-
-function isTransitionShot(ev, est) {
-  if (!ev || !FG_STATS.has(ev.stat)) return false;
-  const c = shotClockOf(ev, est);
-  return c != null && c >= TRANSITION_CLOCK_MIN;
-}
-
-/* The lane, in the court SVG's own units: 12ft wide (x 194..306) from the baseline
-   (y 472) up to the free-throw line (y 282). Coordinates are used when the shot carries
-   them, because the fixed zone grid files the strip between the FT line and y=338 under
-   'FT Circle' even though it is inside the lane — a post shot from the elbow area is a
-   paint shot and should count as one. The zone is the fallback for an attempt logged
-   without a tap. A three is never a paint shot whatever the coordinates say. */
-const PAINT_ZONES = new Set(['paint_ul', 'paint_ur', 'paint_ll', 'paint_lr']);
-
-function isPaintShot(ev) {
-  if (!ev || !FG_STATS.has(ev.stat) || ev.stat.startsWith('3')) return false;
-  if (ev.shotX != null && ev.shotY != null) {
-    const x = ev.shotX * 500, y = ev.shotY * 485;
-    return x >= 194 && x <= 306 && y >= 282;
-  }
-  return PAINT_ZONES.has(ev.zone);
-}
-
-/* Which scores came off a turnover.
-   ─────────────────────────────────
-   Points off turnovers is a POSSESSION property, not a shot property: every point scored
-   on the trip that began with the other team's giveaway counts, the putback off an
-   offensive rebound included. So this walks the log once and carries a flag naming the
-   team that got the ball off a turnover, until something ends that possession.
-
-   What ends it: a made field goal (by anyone), a defensive rebound, the next turnover,
-   the end of the quarter. What does NOT: an offensive rebound (same trip), a free throw
-   (a 1-of-2 is still the same trip), a block, a foul, a deflection.
-
-   A steal is ignored on purpose. The tracker logs one as a stl/tov PAIR — the steal flow
-   asks for the turnover next — so counting the steal too would set the flag twice for one
-   giveaway, and reading it alone would credit a possession the opponent never lost.
-
-   Returns a Set of the scoring EVENT OBJECTS themselves rather than indices, so a caller
-   holding a filtered slice of the log can still ask about a shot it is looking at. */
-const _offTovCache = new WeakMap();
-
-function offTurnoverScores(session) {
-  if (!session || !Array.isArray(session.eventLog)) return new Set();
-  const log = session.eventLog;
-  const hit = _offTovCache.get(session);
-  /* The live session grows an event at a time, so the cache is keyed on the log itself
-     plus its length — the same array, one entry longer, is a different answer. */
-  if (hit && hit.log === log && hit.len === log.length) return hit.set;
-
-  const set = new Set();
-  let offTovTeam = null, quarter = null;
-  for (const e of log) {
-    if (!e || e.type === 'sub') continue;
-    if (e.quarter !== quarter) { quarter = e.quarter; offTovTeam = null; }
-    const st = e.stat;
-    if (st === 'tov') {
-      // The team that did NOT commit it now has the ball, and has it off a turnover.
-      offTovTeam = e.team === 'a' ? 'b' : 'a';
-      continue;
-    }
-    if (MAKE_PTS[st] != null && offTovTeam && e.team === offTovTeam) set.add(e);
-    if (st === '2fg_make' || st === '3fg_make' || st === 'dreb') offTovTeam = null;
-  }
-
-  _offTovCache.set(session, { log, len: log.length, set });
-  return set;
-}
-
-/* Estimating the shot clock from film time.
-   ─────────────────────────────────────────
-   Only about a quarter of the attempts on file carry a reading typed into the Shot Type
-   modal, and the three practices that have them are the three most recent — so a
-   transition split read off typed values alone describes September and calls August
-   nothing at all. Every event, though, carries the film time it was logged at, and the
-   log says what started each possession. That is enough to work out roughly where the
-   clock was.
-
-   Walk back from the attempt to the event that gave this team the ball — its own
-   defensive rebound, the other team's turnover, the other team's made basket, or its own
-   offensive rebound, which under NCAA men's rules resets to 20 rather than 30 — and
-   subtract the film seconds since. What is left is the estimate.
-
-   THE CONSTANTS BELOW ARE NOT THE RESET VALUES. Film time is not clock time: it runs
-   through the inbound after a made basket, through the whistle on a turnover, and it
-   includes however long the coach took to reach for the button. So each anchor carries
-   its own figure for what the clock reads at the moment that event is LOGGED, fitted on
-   the 212 attempts that have both a typed reading and a film time:
-
-     opponent's make   35   ≈ 30 plus the ~5s inbound that the shot clock sits out
-     turnover          32   ≈ 30 plus the dead ball on most whistles
-     defensive rebound 31   ≈ 30, live ball, just the logging lag
-     offensive rebound 22   ≈ the 20-second reset plus the same lag
-
-   Checked by holding one practice out, fitting on the other nine and estimating the held
-   out one: median error 1s, mean absolute error about 2s, and the call this is actually
-   for — transition or not — comes out right 90% of the time (93% of the shots it calls
-   transition are, and it finds 83% of the ones that were). Good enough to describe a
-   practice; not good enough to argue about one shot, which is why a typed reading always
-   wins and every surface says when a number was estimated.
-
-   ANYTHING LANDING OUTSIDE 0..30 IS THROWN AWAY RATHER THAN CLAMPED. An estimate over 30
-   means more film ran than a shot clock holds, so something the log cannot see happened
-   in between — a timeout, a foul, an out-of-bounds, an untracked possession — and the
-   anchor is not the possession this shot belongs to. Clamping it to 30 would turn exactly
-   those broken cases into confident transition calls, which is the opposite of the truth:
-   a long dead ball is the least likely thing to be a fast break. ~10% of attempts are
-   dropped this way and simply have no estimate, which is an honest answer. */
-const SHOT_CLOCK_AT_ANCHOR = { oppScore: 35, tov: 32, dreb: 31, oreb: 22 };
-
-const _clockEstCache = new WeakMap();
-
-function shotClockEstimates(session) {
-  if (!session || !Array.isArray(session.eventLog)) return new Map();
-  const log = session.eventLog;
-  const hit = _clockEstCache.get(session);
-  if (hit && hit.log === log && hit.len === log.length) return hit.map;
-
-  const map = new Map();
-  /* The possession's opening event, carried forward per team: what the clock read when it
-     was logged, and the film time it was logged at. Cleared at the quarter break, because
-     an anchor from the previous quarter describes a possession that ended with it. */
-  const open = { a: null, b: null };
-  let quarter = null;
-
-  for (const e of log) {
-    if (!e || e.type === 'sub') continue;
-    if (e.quarter !== quarter) { quarter = e.quarter; open.a = null; open.b = null; }
-    const st = e.stat, vt = e.videoTs;
-    const opp = e.team === 'a' ? 'b' : 'a';
-
-    if (FG_STATS.has(st) && vt != null) {
-      const a = open[e.team];
-      if (a) {
-        const v = a.clock - (vt - a.at);
-        if (v >= 0 && v <= SHOT_CLOCK_SECS) map.set(e, Math.round(v));
-      }
-    }
-
-    if (vt == null) continue;
-    /* Who has the ball now, and on what clock. A made free throw is the opponent's
-       possession starting the same way a made basket is; a missed one is not, since the
-       rebound that follows is the event that decides. */
-    if (st === 'dreb')                         open[e.team] = { clock: SHOT_CLOCK_AT_ANCHOR.dreb,     at: vt };
-    else if (st === 'oreb')                    open[e.team] = { clock: SHOT_CLOCK_AT_ANCHOR.oreb,     at: vt };
-    else if (st === 'tov')                     open[opp]    = { clock: SHOT_CLOCK_AT_ANCHOR.tov,      at: vt };
-    else if (st === '2fg_make' || st === '3fg_make' || st === 'ft_make')
-                                               open[opp]    = { clock: SHOT_CLOCK_AT_ANCHOR.oppScore, at: vt };
-  }
-
-  _clockEstCache.set(session, { log, len: log.length, map });
-  return map;
-}
-
-/* Everything a session's events need read off the log at once, so a caller threads one
-   object instead of three and cannot accidentally hand a stat line the turnover set
-   without the clock estimates. */
-function playContext(session) {
-  return { offTov: offTurnoverScores(session), clock: shotClockEstimates(session) };
-}
 
 let scFilter = { sessionId: 'all', team: 'all', player: 'all', mode: 'all', view: 'dots', zones: [], shotTypes: [], contests: [], rim3: false };
 
@@ -13945,6 +13838,138 @@ function psProfileScopeNote(scoped) {
     (scoped ? 'both squads.' : 'the full season, both squads.') + '</div>';
 }
 
+/* ── SHOT QUALITY ON THE PLAYER PAGE: High / Medium / Low ────────────────────
+   Tiers are defined by WHAT THE SHOT IS — distance band crossed with open / contested /
+   off-balance, the same twelve looks the Shot Quality tab prices — not by a numeric cut, so a
+   man's tier split never moves because somebody else's shooting changed. Chad chose this
+   (2026-09-14) over a points-per-shot cut and a stricter "only the best looks" version. On the
+   693 attempts at the time the tiers shot 67.6 / 45.9 / 25.3 eFG and held 49 / 25 / 26% of shots.
+
+     HIGH    open at the rim (84% eFG), open close (71%), open three (60%)
+     MEDIUM  open jumper (50%), contested at the rim (49%), contested close (38%)
+     LOW     contested jumper (35%), contested three (31%), anything off-balance (0-30%)
+
+   EXPECTED eFG is the leave-one-player-out cell value, exactly as on the Shot Quality tab, and it
+   always comes from the whole group over every practice: one scoped practice is far too thin to
+   price a look. The shots being GRADED follow the page's scope. */
+const PQ_TIERS = [
+  { key: 'high', label: 'High',   color: 'var(--success)', looks: ['rim|open', 'close|open', '3pt|open'],
+    desc: 'open at the rim, open close, open three' },
+  { key: 'med',  label: 'Medium', color: 'var(--warning)', looks: ['jump|open', 'rim|contested', 'close|contested'],
+    desc: 'open jumper, contested at the rim, contested close' },
+  { key: 'low',  label: 'Low',    color: 'var(--danger)',
+    looks: ['jump|contested', '3pt|contested', 'rim|off-balance', 'close|off-balance', 'jump|off-balance', '3pt|off-balance'],
+    desc: 'contested jumper or three, anything off-balance' },
+];
+/* Any three-point band counts as a three. The Shot Quality model splits threes by the arc
+   (3short / 3deep, at 23.75ft) and may split them again; the tier is about open vs contested,
+   not which side of that line, so the lookup folds every band starting with "3" into "3pt".
+   Written this way after the first version matched only "3pt|..." and silently dropped every
+   three once the arc split landed. */
+function pqTierOf(key) {
+  const i = String(key).indexOf('|');
+  if (i < 0) return null;
+  const band = key.slice(0, i), cov = key.slice(i + 1);
+  const norm = (band.charAt(0) === '3' ? '3pt' : band) + '|' + cov;
+  for (const t of PQ_TIERS) if (t.looks.indexOf(norm) !== -1) return t.key;
+  return null;
+}
+
+function buildShotQualitySection(playerName, playerSessions, poolSessions) {
+  const title = '<div class="card-title" style="margin:24px 0 8px;">Shot Quality</div>';
+  const pool = computeShotQuality(poolSessions, {});
+  if (!pool.n) return '';
+  // His attempts in each look across the whole pool, removed from the baseline he is priced against.
+  const own = new Map();
+  for (const x of pool.shots) {
+    if (x.player !== playerName) continue;
+    let o = own.get(x.key);
+    if (!o) own.set(x.key, o = { n: 0, v: 0 });
+    o.n++; o.v += x.v;
+  }
+  const expOf = function (key) {
+    const c = pool.cell.get(key);
+    if (!c) return pool.base;
+    const o = own.get(key) || { n: 0, v: 0 };
+    return (c.n - o.n) > 0 ? (c.v - o.v) / (c.n - o.n) : pool.base;
+  };
+  /* Read straight from his events rather than from pool.shots, so a hidden player's page still
+     shows his own shots — he is only kept out of the baseline everyone else is priced by. */
+  const mine = [];
+  for (const s of playerSessions) {
+    for (const e of (s.eventLog || [])) {
+      const m = QSQ_SHOT_STATS[e.stat];
+      if (!m || e.player !== playerName || (e.team !== 'a' && e.team !== 'b')) continue;
+      const key = qsqBand(e, m[1]) + '|' + qsqCoverage(e);
+      const tier = pqTierOf(key);
+      if (!tier) continue;
+      mine.push({ tier: tier, made: m[0], is3: m[1], v: m[0] ? (m[1] ? 1.5 : 1) : 0, exp: expOf(key) });
+    }
+  }
+  if (!mine.length) {
+    return title + '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No field-goal attempts in this view.</div>';
+  }
+  const team = { high: 0, med: 0, low: 0 };
+  for (const x of pool.shots) { const t = pqTierOf(x.key); if (t) team[t]++; }
+
+  const pct = v => (100 * v).toFixed(1) + '%';
+  const sgn = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+  const agg = function (L) {
+    const n = L.length;
+    if (!n) return null;
+    const efg = L.reduce((a, x) => a + x.v, 0) / n, exp = L.reduce((a, x) => a + x.exp, 0) / n;
+    return { n: n, fgm: L.reduce((a, x) => a + x.made, 0), tpm: L.reduce((a, x) => a + (x.made && x.is3 ? 1 : 0), 0),
+             efg: efg, exp: exp, diff: efg - exp, pts: 2 * (efg - exp) * n };
+  };
+  const N = mine.length;
+  let rows = '';
+  const shares = {};
+  for (const t of PQ_TIERS) {
+    const a = agg(mine.filter(x => x.tier === t.key));
+    shares[t.key] = a ? a.n / N : 0;
+    const teamShare = team[t.key] / pool.n;
+    rows += '<tr' + (a && a.n < 5 ? ' class="sq-thin"' : '') + '><td><span style="display:inline-block;width:9px;height:9px;'
+      + 'border-radius:2px;margin-right:6px;background:' + t.color + ';"></span>' + t.label
+      + '<div style="font-size:10.5px;font-weight:400;color:var(--text-dim);">' + escHtml(t.desc) + '</div></td>'
+      + (a
+        ? '<td>' + a.n + '</td><td>' + (100 * a.n / N).toFixed(0) + '%</td><td>' + (100 * teamShare).toFixed(0) + '%</td>'
+          + '<td>' + a.fgm + '-' + a.tpm + '</td><td>' + pct(a.efg) + '</td><td>' + pct(a.exp) + '</td>'
+          + '<td class="' + (a.diff >= 0 ? 'sq-pos' : 'sq-neg') + '">' + sgn(100 * a.diff) + '</td>'
+          + '<td class="' + (a.pts >= 0 ? 'sq-pos' : 'sq-neg') + '">' + sgn(a.pts) + '</td>'
+        : '<td>0</td><td>0%</td><td>' + (100 * teamShare).toFixed(0) + '%</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>')
+      + '</tr>';
+  }
+  const all = agg(mine);
+  rows += '<tr style="font-weight:700;"><td>All</td><td>' + all.n + '</td><td>100%</td><td>100%</td><td>' + all.fgm + '-' + all.tpm
+    + '</td><td>' + pct(all.efg) + '</td><td>' + pct(all.exp) + '</td><td class="' + (all.diff >= 0 ? 'sq-pos' : 'sq-neg') + '">'
+    + sgn(100 * all.diff) + '</td><td class="' + (all.pts >= 0 ? 'sq-pos' : 'sq-neg') + '">' + sgn(all.pts) + '</td></tr>';
+
+  const bar = function (label, share) {
+    return '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">'
+      + '<div style="width:74px;font-size:11px;color:var(--text-secondary);">' + label + '</div>'
+      + '<div style="flex:1;display:flex;height:14px;border-radius:3px;overflow:hidden;background:var(--card);">'
+      + PQ_TIERS.map(t => share[t.key] > 0
+          ? '<div title="' + t.label + ' ' + (100 * share[t.key]).toFixed(0) + '%" style="width:' + (100 * share[t.key]).toFixed(2)
+            + '%;background:' + t.color + ';opacity:0.85;"></div>' : '').join('')
+      + '</div></div>';
+  };
+  const teamShare = { high: team.high / pool.n, med: team.med / pool.n, low: team.low / pool.n };
+
+  return title
+    + '<div class="sq-panel" style="margin-bottom:10px;">'
+      + bar('His shots', shares) + bar('Team', teamShare)
+      + '<div class="sq-note" style="margin-top:6px;">' + Math.round(shares.high * N) + ' of his ' + N + ' attempts ('
+      + (100 * shares.high).toFixed(0) + '%) are High quality, against ' + (100 * teamShare.high).toFixed(0) + '% for the team; '
+      + (100 * shares.low).toFixed(0) + '% are Low, against ' + (100 * teamShare.low).toFixed(0) + '%.'
+      + (N < 20 ? ' Small sample &mdash; ' + N + ' attempts.' : '') + '</div>'
+    + '</div>'
+    + '<div class="table-wrap"><table class="sq-tbl"><thead><tr><th>Quality</th><th>FGA</th><th>Of his</th><th>Team</th>'
+    + '<th>FGM-3PM</th><th>eFG%</th><th>Expected</th><th>vs exp</th><th>pts</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + '<div class="sq-note">Quality is what the look is &mdash; distance crossed with open, contested or off-balance. '
+    + '<b>Expected</b> is what the rest of the group shoots on the same looks over every practice; <b>vs exp</b> is eFG minus '
+    + 'expected, and <b>pts</b> is 2 &times; that &times; attempts. <b>Team</b> is the share of all attempts in each tier.</div>';
+}
+
 function renderPlayerProfile(playerName) {
   const root = document.getElementById('players-root');
   if (!root) return;
@@ -14297,6 +14322,7 @@ function renderPlayerProfile(playerName) {
         </div>
       </div>
       ${shotTypeSection}
+      ${buildShotQualitySection(playerName, sessionsWithPlayer, sessions)}
       <div class="card-title" style="margin:24px 0 8px;">Shot Distance</div>
       ${distSection || '<div style="font-size:12px;color:var(--text-dim);padding:10px 0;">No distance data recorded yet.</div>'}
       ${buildShotTendencies(allFgEvents)}
@@ -14803,7 +14829,17 @@ function _levSig(sessions) {
    only unique within a session and some older sub events carry none at all. */
 function levClassify(sessions) {
   const sig = _levSig(sessions);
-  if (_levCache && _levCache.sig === sig) return _levCache;
+  /* The signature (id + event count) alone is not enough: the maps below are keyed on EVENT
+     OBJECTS, so if the practices are reloaded as fresh objects with the same counts, a matching
+     signature hands back maps full of the old objects and every High / Medium / Low / Clutch
+     lookup misses — the filters silently return nothing. Found while testing the shot clock:
+     swapping in a newer export turned High from 216 attempts to 0. Checking that each session's
+     eventLog is still the same array (and still starts with the same event) catches that. */
+  const refs = sessions.map(s => s.eventLog || null);
+  const heads = sessions.map(s => (s.eventLog && s.eventLog[0]) || null);
+  if (_levCache && _levCache.sig === sig
+      && _levCache.refs && _levCache.refs.length === refs.length
+      && refs.every((r, i) => r === _levCache.refs[i] && heads[i] === _levCache.heads[i])) return _levCache;
 
   const eventTier = new Map();
   /* event object → the trip it belongs to. Lets a stint prorate its minutes by the share of
@@ -14854,7 +14890,7 @@ function levClassify(sessions) {
     perSession.set(s.id, rows);
   }
 
-  _levCache = { sig, eventTier, eventPoss, eventClutch, perSession, counts };
+  _levCache = { sig, refs, heads, eventTier, eventPoss, eventClutch, perSession, counts };
   return _levCache;
 }
 
@@ -14899,6 +14935,75 @@ function levSummary() {
            comp: c.med + c.high, all: c.total, total: c.total };
 }
 
+/* ── Transition points and points off turnovers ─────────────────────────────────
+   Both are SEQUENCE statistics: a basket does not say how its possession began, only what
+   happened just before it does. So every made basket in a practice is traced back to the
+   event that handed the scorer the ball, and tagged.
+
+   ORDER. This is the one place event order is load-bearing, and the log's array order is
+   not quite chronological - 45 of 1735 events over the fall sit out of film order. The walk
+   runs over a copy sorted by videoTs. Stint attribution in segStats() is untouched; it keys
+   off substitutions in log order and must stay that way.
+
+   WHOLE PRACTICE, NOT PER STINT. Tagging is done once over the full log, and each stint then
+   sums the tags of the baskets scored while it was on the floor. A run-out whose rebound came
+   just before a substitution and whose layup came just after still counts - for the five on
+   the floor when it went in, which is the NBA's convention too.
+
+   TRANSITION is measured, not tagged: there is no shot clock in the gym and no game clock on
+   a shot, so the only elapsed time is the film clock, which is real time. A made field goal
+   counts when its possession began with a LIVE ball - a defensive rebound or a steal - and
+   the shot went in inside SEQ_TRANS_SECS film seconds of it. The film supports the cut rather
+   than the other way round: median seconds from possession start to basket are 5.0 off a
+   steal, 8.7 off a defensive board, 17.5 after taking the ball out from a made basket.
+     - Offensive rebounds are NOT a live start. A putback lands 0.8s after the board and would
+       swamp the number, but it is second-chance offence, not transition.
+     - A turnover with no steal beside it is dead-ball (travel, out of bounds, charge): the
+       ball is inbounded, so it counts toward points off turnovers but never transition.
+     - Free throws never count as transition - the clock has stopped, so the film gap after a
+       foul measures the stoppage, not the break.
+
+   POINTS OFF TURNOVERS counts every point, free throws included, on a possession that began
+   with the other side's turnover - live or dead. No time limit: it is a property of the trip.
+
+   An unbroken thread is required. If the walk meets something that says the ball changed
+   hands without the event that did it being logged (the scorer's own earlier basket, the
+   other side's board), the basket is left unclassified rather than guessed - 6 of 355 over
+   the fall. Paint points need no walk at all and are counted in segStats() from the zone. */
+const SEQ_TRANS_SECS = 7;
+const SEQ_PTS = { '2fg_make': 2, '3fg_make': 3, 'ft_make': 1 };
+function seqTags(events) {
+  const seq = events.filter(e => e.videoTs != null && e.type !== 'sub' && (e.team === 'a' || e.team === 'b'))
+                    .slice().sort((a, b) => a.videoTs - b.videoTs);
+  const tags = new Map();
+  for (let i = 0; i < seq.length; i++) {
+    const e = seq[i];
+    if (!SEQ_PTS[e.stat]) continue;
+    const sc = e.team, isFt = e.stat === 'ft_make';
+    let start = null;
+    for (let j = i - 1; j >= 0 && !start; j--) {
+      const p = seq[j], st = p.stat, mine = p.team === sc;
+      if (mine && st === 'dreb')      start = { at: p, live: true, to: false };
+      else if (mine && st === 'stl')  start = { at: p, live: true, to: true };
+      else if (!mine && st === 'tov') {
+        // The steal and the turnover are logged side by side; either one can come first.
+        const stolen = [seq[j - 1], seq[j + 1]].some(x => x && x !== e && x.team === sc && x.stat === 'stl');
+        start = { at: p, live: stolen, to: true };
+      }
+      else if (mine && st === 'oreb')  start = { at: p, live: false, to: false };
+      else if (!mine && SEQ_PTS[st])   start = { at: p, live: false, to: false };
+      else if (mine && isFt && (SEQ_PTS[st] || st === 'ft_miss')) continue;   // and-one, second FT: same trip
+      else if (mine && (SEQ_PTS[st] || st === 'tov')) break;                  // thread broken
+      else if (!mine && (st === 'dreb' || st === 'oreb' || st === 'stl')) break;
+    }
+    if (!start) continue;
+    const dt = e.videoTs - start.at.videoTs;
+    if (dt < 0) continue;
+    tags.set(e, { trans: start.live && !isFt && dt <= SEQ_TRANS_SECS, poto: start.to });
+  }
+  return tags;
+}
+
 /* ─────────────────────────────────────────────────────────────
    SHARED HELPERS — compute stats for a set of lineup segments
    Returns { pts, opp, fgm, fga, fg3m, fg3a, ftm, fta,
@@ -14921,17 +15026,13 @@ function segStats(session, segments, team, opts) {
      A rate is rebOr[c] / rebOrAv[c]. Team-level on purpose: On/Off asks what the team did
      while a man was out there, not what he personally grabbed. */
   const rebOr = {}, rebDr = {}, rebOrAv = {}, rebDrAv = {};
-  /* Derived play context. Read from the WHOLE session log, never from the stint slice:
-     the turnover that started a possession can sit on the far side of a substitution,
-     and a stint that could not see it would quietly call the basket it produced an
-     ordinary one. */
-  const _ctx = playContext(session);
-  let paintPts=0, transPts=0, offTovPts=0;
   let pts=0, fgm=0, fga=0, fg3m=0, fg3a=0, ftm=0, fta=0,
       oreb=0, dreb=0, tov=0, stl=0, blk=0, ast=0, pf=0, defl=0,
       oppPts=0, oppFgm=0, oppFga=0, oppFg3m=0, oppFg3a=0,
       oppFtm=0, oppFta=0, oppOreb=0, oppDreb=0, oppTov=0,
+      paintPts=0, transPts=0, potoPts=0,
       totalSecs=0;
+  const _seqTags = seqTags(ev);   // whole practice, once - see the note on seqTags()
 
   // Build a lookup of which segment index each event falls into.
   // Events store `quarter` but not a clock time, so we assign each event
@@ -15039,12 +15140,6 @@ function segStats(session, segments, team, opts) {
 
     for (const e of segEvents) {
       if (e.team === team) {
-        if (e.stat && e.stat.endsWith('_make')) {
-          const val = MAKE_PTS[e.stat] || 0;
-          if (isPaintShot(e))                        paintPts  += val;
-          if (isTransitionShot(e, _ctx.clock.get(e))) transPts += val;
-          if (_ctx.offTov.has(e))                    offTovPts += val;
-        }
         if (e.stat === '2fg_make') { pts += 2; fgm++; fga++; }
         else if (e.stat === '2fg_miss')  { fga++; }
         else if (e.stat === '3fg_make')  { pts += 3; fgm++; fga++; fg3m++; fg3a++; }
@@ -15071,6 +15166,21 @@ function segStats(session, segments, team, opts) {
         else if (e.stat === 'tov')       { oppTov++; }
       }
     }
+
+    /* Paint, transition, off-turnover - our own scoring only. Every made two carries a zone
+       (224 of 224 over the fall), so paint is a straight tally. The other two read the tags
+       seqTags() put on the whole practice, so a stint gets the baskets scored while it was
+       out there. The opponent's version of these three was dropped on request; restoring it
+       means tallying the other side here again, not just adding a row to the card. */
+    for (const e of segEvents) {
+      const v = SEQ_PTS[e.stat];
+      if (!v || e.team !== team) continue;
+      if (e.stat === '2fg_make' && TR_PAINT.indexOf(e.zone) >= 0) paintPts += 2;
+      const t = _seqTags.get(e);
+      if (!t) continue;
+      if (t.trans) transPts += v;
+      if (t.poto)  potoPts  += v;
+    }
   }
 
   const estPoss    = Math.max(0, (fga - oreb) + tov + 0.475 * fta);
@@ -15096,10 +15206,10 @@ function segStats(session, segments, team, opts) {
               practice they were both taken from. */
            secs: totalSecs,
            rebOr, rebDr, rebOrAv, rebDrAv,
-           paintPts, transPts, offTovPts,
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
-           oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss };
+           oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss,
+           paintPts, transPts, potoPts };
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -19726,7 +19836,7 @@ function renderOnOffView() {
     }
     const keys = ['pts','fgm','fga','fg3m','fg3a','ftm','fta','oreb','dreb','tov','stl','blk',
                   'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss',
-                  'paintPts','transPts','offTovPts'];
+                  'paintPts','transPts','potoPts'];
     const T = {};
     keys.forEach(function (k) { T[k] = 0; });
     const R = { rebOr: {}, rebDr: {}, rebOrAv: {}, rebDrAv: {} };
@@ -19802,14 +19912,17 @@ function renderOnOffView() {
         ftr:  pct(T.fta, T.fga)
       },
       box: { pts: per40(T.pts), ast: per40(T.ast), oreb: per40(T.oreb), dreb: per40(T.dreb),
-             stl: per40(T.stl), blk: per40(T.blk), to: per40(T.tov), foul: per40(T.pf),
-             /* His squad's own — what it scored from these three sources while he was out
-                there, per 40 minutes, on the same clock every other /40 row uses. */
-             paint: per40(T.paintPts), pto: per40(T.offTovPts), trans: per40(T.transPts) },
+             stl: per40(T.stl), blk: per40(T.blk), to: per40(T.tov), foul: per40(T.pf) },
       ts: (T.fga + 0.475 * T.fta) > 0 ? +(0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100).toFixed(2) : null,
       defl40: per40(T.defl),
       def_reb: pct(T.dreb, T.dreb + T.oppOreb),
       hakeem: (stlPct != null && blkPct != null) ? +(stlPct + blkPct).toFixed(2) : null,
+      /* Points by where they came from, per 40 of floor time - see seqTags(). Our side
+         only: what the squad GENERATED with him on the floor, which is Offensive Rating
+         broken into the three places it usually comes from. The opponent's version of
+         these three was dropped on request - segStats() no longer walks for it, so
+         bringing it back means restoring the accumulator there, not just a row here. */
+      paint40: per40(T.paintPts), trans40: per40(T.transPts), poto40: per40(T.potoPts),
       offPoss: Math.round(T.poss),
       /* Unrounded, so the card can say "<1" instead of "0" for a sample that exists but does
          not reach a whole possession. Rounding it to 0 while printing stats beside it was the
@@ -19872,17 +19985,22 @@ function renderOnOffView() {
   const OO_OFF = [['Offensive Rating','eff.ortg',1,true,''],['True Shooting %','ts',1,true,'%'],
     ['3-Point Att Rate','rate.tpar',1,null,'%'],['FT Attempt Rate','off_ff.ftr',1,true,'%'],
     ['Assist %','rate.asp',1,true,'%'],['Turnover %','off_ff.tov',1,false,'%'],
-    ['Ast/Tov Ratio','rate.ato',2,true,''],['Deflections / 40','defl40',1,true,'']];
+    ['Ast/Tov Ratio','rate.ato',2,true,''],['Deflections / 40','defl40',1,true,''],
+    /* Our own paint, transition and off-turnover scoring, which used to sit on the Defense
+       card as the opponent's version of the same three. These describe what the squad
+       GENERATED with him on the floor, so they read higher-is-better like every other
+       offensive row. The opponent's three were removed outright rather than hidden. */
+    ['Paint Pts / 40','paint40',1,true,''],
+    ['Transition Pts / 40','trans40',1,true,''],
+    ['Pts off TO / 40','poto40',1,true,'']];
+  /* The panel is titled "Offense & Activity" rather than "Offense" because of that last
+     row: deflections are a defensive event, and a panel that says Offense while listing
+     one is quietly wrong every time it is read. The stat stays here - it is the only
+     hustle column on the card and it reads naturally beside turnovers forced - so the
+     title moves instead. */
   const OO_DEF = [['Defensive Rating','eff.drtg',1,false,''],['Def Rebound %','def_reb',1,true,'%'],
     ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
-    ['Hakeem %','hakeem',1,true,'%'],
-    /* His squad's OFFENSE, sitting in the Defense panel where the three PF ratios used to
-       be — asked for there because these are the three the staff reads, and the PF ratios
-       were the three it did not. Read them as what the team generated with him on, not as
-       what it gave up: higher is better, the same as every other /40 row on the card. */
-    ['Paint Pts / 40','box.paint',1,true,''],
-    ['Pts off TO / 40','box.pto',1,true,''],
-    ['Transition Pts / 40','box.trans',1,true,'']];
+    ['Hakeem %','hakeem',1,true,'%']];
 
   const ooGet = function (o, path) {
     if (!o || !path) return null;
@@ -19942,7 +20060,7 @@ function renderOnOffView() {
       '<div class="oo-imp-grid">' +
         ooPanel('Core Stats', OO_CORE, p) +
         ooPanel('Box Stats', OO_BOX, p) +
-        ooPanel('Offense', OO_OFF, p) +
+        ooPanel('Offense & Activity', OO_OFF, p) +
         ooPanel('Defense', OO_DEF, p) +
       '</div></div>';
   }).join('');
@@ -20140,6 +20258,150 @@ function qsqCoverage(ev) {
   return ev.shotContest === 'contested' ? 'contested' : 'open';
 }
 
+/* ── DERIVED CLOCKS ──────────────────────────────────────────────────────────
+   Three elapsed times per attempt, all read off videoTs and NONE of them the typed
+   `shotClock`. They are kept strictly apart: `shotClock` is what a human read, these are
+   what the film says, and conflating them would make it impossible to audit either.
+
+   sincePoss — seconds since the ball changed hands. The anchor is the LAST TAGGED EVENT OF
+               THE PREVIOUS POSSESSION, not the first event of this one. Using this
+               possession's own first event looks obvious and is wrong: a trip that opens
+               with the shot itself then measures zero, which put 57% of all attempts in the
+               0-5s bucket and a median of 4.0s. Anchoring on the hand-over gives a median of
+               14.7s over 658 of 729 attempts, with no negative values at all.
+   sinceOreb — seconds since the last offensive rebound INSIDE this possession, or null.
+               Chad's addition, and it matters: on the 106 second-chance attempts the
+               possession clock overstates the live clock by a median of SEVENTEEN seconds,
+               because a putback 1.3s after the board sits inside a 20s possession. NCAA
+               resets to 20 on an offensive board for exactly this reason.
+   sinceShot — seconds since the previous attempt, within the quarter. Tempo, not clock.
+
+   `live` is the one to grade shots by: seconds since the most recent RESET, which is the
+   offensive board when there was one and the hand-over otherwise.
+
+   All of it is film time, so it includes dead ball. That is why nothing here is presented as
+   a shot clock countdown — it counts UP, and cannot go negative or pretend to a precision
+   the tagging does not have. */
+const SC_SHOT_STATS = { '2fg_make': 1, '2fg_miss': 1, '3fg_make': 1, '3fg_miss': 1 };
+
+function computeShotClocks(sessions) {
+  const out = new Map();
+  for (const s of sessions) {
+    const chain = computePossessionChain(s, { film: true, closeLast: true });
+    let prevEnd = null, prevQ = null, prevShotTs = null;
+    for (const p of chain) {
+      const evs = p.events.filter(e => e.videoTs != null)
+                          .slice().sort((a, b) => a.videoTs - b.videoTs);
+      if (!evs.length) continue;
+      const sameQ = (p.quarter === prevQ);
+      /* A quarter break is not elapsed play, so every clock restarts at one. */
+      if (!sameQ) prevShotTs = null;
+      const anchor = (prevEnd != null && sameQ) ? prevEnd : null;
+      let lastOreb = null;
+      for (const e of evs) {
+        if (SC_SHOT_STATS[e.stat]) {
+          const sincePoss = anchor != null ? e.videoTs - anchor : null;
+          const sinceOreb = lastOreb != null ? e.videoTs - lastOreb : null;
+          out.set(e, {
+            sincePoss: sincePoss,
+            sinceOreb: sinceOreb,
+            sinceShot: prevShotTs != null ? e.videoTs - prevShotTs : null,
+            live: sinceOreb != null ? sinceOreb : sincePoss,
+            reset: sinceOreb != null ? 'oreb' : 'possession'
+          });
+          prevShotTs = e.videoTs;
+        }
+        if (e.stat === 'oreb') lastOreb = e.videoTs;
+      }
+      prevEnd = evs[evs.length - 1].videoTs;
+      prevQ = p.quarter;
+    }
+  }
+  return out;
+}
+
+/* ── SHOT CLOCK REMAINING, UNDER CHAD'S RULES ────────────────────────────────
+   Seconds LEFT on a 30-second clock when each field-goal attempt went up, rebuilt from the
+   tags. Validated against the 44 values Chad logged by hand on Sept 9 before it went in:
+   mean error 1.6s, 85% within 3s, and 39 of 41 in the same early / mid / late third.
+
+   The rules, as Chad stated them (2026-09-14) and as his logs follow:
+     * A possession starts at 30. After a DEFENSIVE REBOUND or a STEAL the clock runs from the
+       moment the ball is gained. After a make, a turnover with no steal, a miss nobody
+       rebounded, or a rebound credited to TEAM (the ball went out), it runs from the hand-over
+       PLUS a 3-second inbound — Chad's "two to three seconds"; his logs put it at 3.1.
+     * An OFFENSIVE REBOUND or a DEFENSIVE FOUL resets it: a fresh 30 if 20 or more were left,
+       otherwise back to 20. A board is a live ball, so the clock restarts at the board; a foul
+       is a whistle, so it restarts at the inbound.
+     * A SUBSTITUTION means the ball was dead. The clock PAUSES — it does not reset — from the
+       last live tag before the sub until the inbound 3s after it. Retrieval after a deflection
+       out of bounds varies, so these possessions are the least certain ones.
+
+   A value outside 0-30 is not a slightly-wrong clock, it is a missing tag (a turnover, a
+   timeout, a dead ball nobody logged), so shotClockFor() treats it as unknown rather than
+   clamping it into range. A hand-logged `shotClock` always wins over this. */
+const SCR_INBOUND = 3.0;
+
+function _scrTeamReb(e) {
+  return !!e && e.stat === 'dreb' && String(e.player || '').trim().toUpperCase() === 'TEAM';
+}
+
+function computeShotClockRemaining(sessions) {
+  const out = new Map();
+  for (const s of sessions) {
+    const chainArr = computePossessionChain(s, { film: true, closeLast: true });
+    const subs = (s.eventLog || []).filter(e => e.type === 'sub' && e.videoTs != null)
+                                   .map(e => e.videoTs).sort((a, b) => a - b);
+    let prevLast = null, prevQ = null;
+    for (const p of chainArr) {
+      const evs = p.events.filter(e => e.videoTs != null).slice().sort((a, b) => a.videoTs - b.videoTs);
+      if (!evs.length) continue;
+      const anchor = (prevLast && p.quarter === prevQ) ? prevLast : null;
+      const first = evs.find(e => (e.team === 'a' || e.team === 'b') && e.stat) || null;
+      let run;
+      if (!anchor) run = null;                                   // quarter start: nothing to measure from
+      else if (first && (first.stat === 'dreb' || first.stat === 'stl') && !_scrTeamReb(first)) run = first.videoTs;
+      else run = ((first && _scrTeamReb(first)) ? first.videoTs : anchor.videoTs) + SCR_INBOUND;
+      let limit = 30, banked = 0, lastLive = run, paused = false, si = 0;
+      const remaining = t => limit - (banked + Math.max(0, t - run));
+      for (const e of evs) {
+        const t = e.videoTs;
+        while (si < subs.length && subs[si] <= t) {
+          const sTs = subs[si++];
+          if (run == null) continue;
+          if (sTs <= run) { run = Math.max(run, sTs + SCR_INBOUND); continue; }   // sub during the dead ball already running
+          paused = true;
+          banked += Math.max(0, (lastLive != null ? lastLive : run) - run);
+          run = sTs + SCR_INBOUND;
+        }
+        if (SC_SHOT_STATS[e.stat]) out.set(e, { rem: run == null ? null : remaining(t), paused: paused });
+        if (run != null) {
+          const isOreb = e.stat === 'oreb';
+          const isDefFoul = e.stat === 'foul' && e.team !== p.team;
+          if (isOreb || isDefFoul) {
+            const restart = isOreb ? t : t + SCR_INBOUND;
+            limit = remaining(t) >= 20 ? 30 : 20;
+            banked = 0;
+            run = restart;
+          }
+        }
+        if ((e.team === 'a' || e.team === 'b') && e.stat) lastLive = t;
+      }
+      prevLast = evs[evs.length - 1]; prevQ = p.quarter;
+    }
+  }
+  return out;
+}
+
+/* The clock one attempt is graded by: Chad's logged value if there is one, otherwise the film
+   clock above if it lands inside 0-30, otherwise nothing — never a guess. */
+function shotClockFor(e, film) {
+  if (e && e.shotClock != null && isFinite(Number(e.shotClock))) return { rem: Number(e.shotClock), source: 'hand' };
+  const f = film && film.get(e);
+  if (f && f.rem != null && f.rem >= 0 && f.rem <= 30) return { rem: f.rem, source: 'film' };
+  return { rem: null, source: 'none' };
+}
+
 /* opts: { leverage, team } — both optional. Passing a leverage mode narrows which attempts
    are counted AND which build the baselines, so "who makes tough shots when it is tight"
    is asked of clutch possessions only, against a clutch-only expectation. */
@@ -20164,7 +20426,7 @@ function computeShotQuality(sessions, opts) {
       if (teamF && e.team !== teamF) continue;
       if (levPass && !levPass(e)) continue;
       const made = m[0], is3 = m[1];
-      shots.push({ player: e.player || '—', made: made, is3: is3,
+      shots.push({ player: e.player || '—', made: made, is3: is3, ev: e,
                    /* The eFG VALUE of one attempt: a three is worth 1.5 makes, which is what
                       makes eFG% a mean and lets a cell average mix twos and threes. */
                    v: made ? (is3 ? 1.5 : 1) : 0,
@@ -20267,69 +20529,22 @@ function _sqQuadrantSvg(sq) {
   const isOff = p => Xr(p.qsq) !== X(p.qsq) || Yr(p.qsi) !== Y(p.qsi);
   const cx = X(sq.base), cy = Y(0);
 
-  /* EVERY dot gets its name. The labels used to be gated on the volume line, which left the
-     bubbles that most need identifying - the small ones, and the hollow ones clamped to the
-     edge - as the anonymous ones, readable only by hovering each in turn. Dots still keep
-     their true position; only the text moves, so nothing is drawn where it did not happen.
-
-     Placement goes in order of attempts, so the biggest samples get first pick of the spot
-     directly above their dot and the crowded small ones are the ones pushed out to a second
-     row - with a hairline back to the dot whenever the text has been moved far enough that
-     the pairing stops being obvious. Names below the volume line are dimmed the way a
-     .sq-thin table row is: printed, but visibly provisional. */
-  const dotR = p => 3.5 + Math.sqrt(p.fga) * 0.9;
-  const dotAt = rows.map(p => ({ x: X(p.qsq), y: Y(p.qsi), r: dotR(p) }));
+  /* Labels are nudged off each other in a single downward pass: dots keep their true
+     position, only the text moves, so nothing is drawn where it did not happen. */
   const placed = [];
-  /* Two things a name can land on: another name, which makes both unreadable, and somebody
-     else's bubble, which is survivable but ugly. So a slot is tested for both, and the dot
-     test is dropped on the second sweep - a name sitting on a bubble beats no name. */
-  const free = (x, y, half, clearDots) => {
-    if (y < T + 9 || y > H - B - 4) return false;
-    if (placed.some(q => Math.abs(q.x - x) < q.half + half + 5 && Math.abs(q.y - y) < 11))
-      return false;
-    return !clearDots || !dotAt.some(d =>
-      Math.abs(d.x - x) < d.r + half + 2 && Math.abs(d.y - (y - 3.5)) < d.r + 5.5);
-  };
-  const labels = rows.slice()
-    .sort((a, b) => b.fga - a.fga || Y(a.qsi) - Y(b.qsi))
-    .map(p => {
-      const px = X(p.qsq), py = Y(p.qsi), r = dotR(p);
-      const last = (p.name || '').split(' ').slice(-1)[0];
-      /* Bold 10px runs about 5.8px a character, and it is the HALF-width that has to clear a
-         neighbour's half-width, because both are centred on their own x. */
-      const half = Math.max(9, last.length * 2.9);
-      const lx = Math.max(L + 3 + half, Math.min(W - R - 3 - half, px));
-      let ly = null;
-      for (const clearDots of [true, false]) {
-        for (let step = 0; step < 10 && ly === null; step++) {
-          const up = py - r - 5 - step * 11, down = py + r + 11 + step * 11;
-          if (free(lx, up, half, clearDots)) ly = up;
-          else if (free(lx, down, half, clearDots)) ly = down;
-        }
-        if (ly !== null) break;
-      }
-      /* Both sweeps boxed in: sit it on the dot rather than drop the name. That is the whole
-         point of this - an unlabelled bubble is the failure being fixed. */
-      if (ly === null) ly = Math.max(T + 9, Math.min(H - B - 4, py - r - 5));
-      placed.push({ x: lx, y: ly, half });
-      const above = ly <= py;
-      const edgeY = above ? ly + 2 : ly - 8;
-      const lead = (Math.abs(lx - px) > 2 || Math.abs(edgeY - py) > r + 5)
-        ? '<line x1="' + px.toFixed(1) + '" y1="' + (py + (above ? -r : r)).toFixed(1)
-          + '" x2="' + lx.toFixed(1) + '" y2="' + edgeY.toFixed(1)
-          + '" stroke="rgba(255,255,255,0.3)" stroke-width="0.75"/>'
-        : '';
-      /* A halo in the panel colour, painted under the glyphs, so a name that has to sit over
-         a bubble stays a name instead of dissolving into it. */
-      return lead + '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" '
-        + 'text-anchor="middle" font-size="10" font-weight="700" fill="#e5e7eb" fill-opacity="'
-        + (p.fga >= sqMinFga ? '1' : '0.65') + '" stroke="#1a1f2e" stroke-width="2.6" '
-        + 'stroke-opacity="0.85" stroke-linejoin="round" paint-order="stroke">'
-        + escHtml(last) + '</text>';
-    }).join('');
+  const labels = rows.slice().filter(p => p.fga >= sqMinFga || rows.length <= 8)
+                    .sort((a, b) => Y(a.qsi) - Y(b.qsi)).map(p => {
+    const px = X(p.qsq), py = Y(p.qsi);
+    let ly = py - 9;
+    for (const q of placed) if (Math.abs(q.x - px) < 68 && Math.abs(q.y - ly) < 11) ly = q.y + 11;
+    placed.push({ x: px, y: ly });
+    const last = (p.name || '').split(' ').slice(-1)[0];
+    return '<text x="' + px.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" '
+         + 'font-size="10" font-weight="700" fill="#e5e7eb">' + escHtml(last) + '</text>';
+  }).join('');
 
   const dots = rows.map(p => {
-    const r = dotR(p);
+    const r = 3.5 + Math.sqrt(p.fga) * 0.9;
     const col = p.qsi >= 0 ? '#22c55e' : '#ef4444';
     const o = isOff(p);
     return '<circle cx="' + X(p.qsq).toFixed(1) + '" cy="' + Y(p.qsi).toFixed(1) + '" r="'
@@ -20373,6 +20588,41 @@ function _sqQuadrantSvg(sq) {
     + 'font-weight="700" transform="rotate(-90 13 ' + ((T + H - B) / 2) + ')">'
     + 'qSI — shotmaking (eFG% − qSQ)</text>'
     + '</svg></div>';
+}
+
+/* eFG%, qSQ and qSI inside each band of a derived clock. `pick` says which clock, so the
+   same code serves "seconds into the possession" and "seconds since the offensive board". */
+function _sqPaceTable(sq, clocks, pick, bands, heading, note) {
+  const cellEfg = {};
+  for (const [k, c] of sq.cell) cellEfg[k] = c.v / c.n;
+  const rows = [];
+  for (const x of sq.shots) {
+    const c = clocks.get(x.ev);
+    if (!c) continue;
+    const t = pick(c);
+    if (t == null || t < 0) continue;
+    rows.push({ t: t, v: x.v, q: cellEfg[x.key] });
+  }
+  if (!rows.length) return '';
+  let body = '';
+  for (const b of bands) {
+    const L = rows.filter(r => r.t >= b[0] && r.t < b[1]);
+    if (!L.length) continue;
+    const efg = L.reduce((a, r) => a + r.v, 0) / L.length;
+    const qsq = L.reduce((a, r) => a + r.q, 0) / L.length;
+    const qsi = efg - qsq;
+    body += '<tr' + (L.length < 8 ? ' class="sq-thin"' : '') + '><td>' + escHtml(b[2])
+          + '</td><td>' + L.length + '</td><td>' + (100 * efg).toFixed(1) + '%</td><td>'
+          + (100 * qsq).toFixed(1) + '%</td><td class="' + (qsi >= 0 ? 'sq-pos' : 'sq-neg')
+          + '">' + (qsi >= 0 ? '+' : '') + (100 * qsi).toFixed(1) + '</td></tr>';
+  }
+  const ts = rows.map(r => r.t).sort((a, b) => a - b);
+  const med = ts[Math.floor(ts.length / 2)];
+  return '<div><table class="sq-tbl"><thead><tr><th colspan="5">' + escHtml(heading)
+       + '</th></tr><tr><th>Elapsed</th><th>n</th><th>eFG%</th><th>qSQ</th><th>qSI</th></tr>'
+       + '</thead><tbody>' + body + '</tbody></table><div class="sq-note">' + note
+       + ' Median ' + med.toFixed(1) + 's over ' + rows.length + ' attempts. Rows under '
+       + 'eight attempts are dimmed.</div></div>';
 }
 
 function renderShotQualityView() {
@@ -20434,7 +20684,7 @@ function renderShotQualityView() {
           + '<span style="font-size:13px;font-weight:800;color:var(--text);min-width:28px;">'
           + sqMinFga + '</span>'
           + '<span class="sq-note" style="margin:0;flex-basis:100%;">Dot area is attempts. '
-          + 'Everyone is plotted, named, and in the tables — the line only decides who the '
+          + 'Everyone is plotted and everyone is in the tables — this only decides who the '
           + 'scale is drawn around, because a single attempt can read as a huge qSI and '
           + 'flatten the rotation. '
           + (below.length
@@ -20463,10 +20713,573 @@ function renderShotQualityView() {
       + 'shots. Rows under ten attempts are dimmed, not hidden. qSI is volatile: forty '
       + 'attempts describes forty attempts. It is measured against this practice group, '
       + 'not against any outside standard.</div></div>'
-    + '</div>';
+    + '</div>'
+    + (function () {
+        const clocks = computeShotClocks(scoped);
+        /* Graded by the SHOT CLOCK, not by raw film time: Chad's logged value where he has one,
+           otherwise the film clock under his rules. Film time since the hand-over was the old
+           measure and it counted dead ball as possession time — 101 attempts came out "30s+". */
+        const film = computeShotClockRemaining(scoped);
+        const byShot = new Map();
+        const src = { hand: 0, film: 0, none: 0 };
+        for (const x of sq.shots) { const c = shotClockFor(x.ev, film); byShot.set(x.ev, c); src[c.source]++; }
+        const a = _sqPaceTable(sq, byShot, c => c.rem,
+          [[26,30.001,'30-26 left'],[21,26,'25-21 left'],[16,21,'20-16 left'],
+           [11,16,'15-11 left'],[6,11,'10-6 left'],[0,6,'5-0 left']],
+          'Shot clock — seconds left when the shot went up',
+          'Your logged value where there is one (' + src.hand + ' attempts), otherwise the film '
+          + 'clock under your rules (' + src.film + '): a board or a foul gives a fresh 30 with 20+ '
+          + 'left and resets to 20 below that; a sub pauses it until the inbound, 3s after the '
+          + 'whistle. ' + src.none + ' attempt' + (src.none === 1 ? ' has' : 's have') + ' neither '
+          + '(quarter starts, or a film clock outside 0-30 from a missing tag) and ' + (src.none === 1 ? 'is' : 'are')
+          + ' left out, not guessed. Seconds shown are seconds LEFT.');
+        const b = _sqPaceTable(sq, clocks, c => c.sinceOreb,
+          [[0,2,'0-2s'],[2,4,'2-4s'],[4,8,'4-8s'],[8,14,'8-14s'],[14,1e9,'14s+']],
+          'Second chances — seconds since the offensive board',
+          'Only attempts that follow an offensive rebound in the same possession. The '
+          + 'possession clock overstates these badly \u2014 a putback sits inside a long trip \u2014 '
+          + 'which is why NCAA resets to 20 on the board.');
+        if (!a && !b) return '';
+        return '<div class="sq-grid" style="margin-top:16px;">' + a + b + '</div>';
+      })();
 }
 
 tabRenderers.shotquality = function() { renderShotQualityView(); };
+
+/* ============================================================
+   SHOT CLOCK LOGGER
+   ============================================================
+   Chad logs the clock himself, one shot at a time, against the film. Not derived, not
+   suggested, not pre-filled: there is no shot clock in this gym, so the number is his
+   judgement and the app's only job is to put the right two seconds of film in front of him
+   and take what he types.
+
+   The derived clocks ARE shown, clearly fenced off in a dashed box and labelled as film
+   arithmetic. They are there so an obviously wrong entry is visible (typing 28 when the ball
+   changed hands four seconds ago), not to be copied. Nothing writes them into the field.
+
+   FREE THROWS ARE NOT IN THE QUEUE. The shot clock is off during a free throw, so there is
+   no value to log. Field-goal attempts only — the same 709 the Shot Quality tab prices.
+
+   It carries its own <video>. The Live Tracker's player is bound to live-session state and
+   driving it from a review screen would tangle the two; this one only needs seek and play.
+   The film never leaves the browser: it is an object URL over a local file, same as the
+   tracker's, and nothing about it is stored. */
+
+let sclState = { sessionId: null, idx: 0, url: null, shots: [], clocks: null, clips: {}, rate: 1 };
+/* A/S/D/F hold-to-scrub state for this tab. Separate from the Live Tracker's _vcScrubTimer and
+   _vcResumeAfterScrub on purpose: that engine is wired to #film-video, and sharing its state
+   would let a scrub started on one screen resume playback on the other. */
+let _sclScrubTimer = null, _sclScrubKey = null, _sclResumeAfterScrub = false;
+
+/* CLIPS ARE THE INTENDED PATH. Scrubbing a two-and-a-half-hour, 5.7GB film 114 times is the
+   slow way to do this; one short clip per attempt, cut to start before the ball changed hands
+   and run a few seconds past the shot, means every judgement is a play button.
+
+   Clips are matched to shots by the NUMBER THAT STARTS THE FILENAME (001_..., 002_...),
+   which is the order the extractor wrote them in and the same film order this queue uses.
+   Loading the whole film still works and is kept as the fallback. */
+function sclLoadClips(input) {
+  const files = input && input.files ? Array.from(input.files) : [];
+  if (!files.length) return;
+  for (const k in sclState.clips) { try { URL.revokeObjectURL(sclState.clips[k]); } catch (e) {} }
+  sclState.clips = {};
+  let matched = 0;
+  for (const f of files) {
+    if (!/\.(mp4|m4v|mov|webm)$/i.test(f.name)) continue;
+    const m = f.name.match(/^(\d+)/);
+    if (!m) continue;
+    sclState.clips[String(parseInt(m[1], 10))] = URL.createObjectURL(f);
+    matched++;
+  }
+  showToast(matched + ' clip' + (matched === 1 ? '' : 's') + ' loaded', 'success', 2400);
+  renderShotClockView();
+}
+
+/* The clip for the shot on screen, or null when only the full film is loaded. */
+function _sclClip() {
+  return sclState.clips[String(sclState.idx + 1)] || null;
+}
+
+function _sclShotsFor(sess) {
+  if (!sess) return [];
+  const evs = (sess.eventLog || []).filter(e => SC_SHOT_STATS[e.stat]);
+  const hasFilm = evs.some(e => e.videoTs != null);
+  return evs.slice().sort((a, b) => hasFilm
+    ? ((a.videoTs == null ? Infinity : a.videoTs) - (b.videoTs == null ? Infinity : b.videoTs))
+    : ((a.ts || 0) - (b.ts || 0)));
+}
+
+function sclPickSession(id) {
+  sclState.sessionId = id || null;
+  sclState.idx = 0;
+  const sess = getSessions().find(s => s.id === id);
+  sclState.shots = _sclShotsFor(sess);
+  sclState.clocks = sess ? computeShotClocks([sess]) : null;
+  /* Land on the first shot still missing a value, so picking the practice back up does not
+     mean scrolling past everything already done. */
+  const i = sclState.shots.findIndex(e => e.shotClock == null);
+  if (i > 0) sclState.idx = i;
+  renderShotClockView();
+  sclSeekToShot();
+}
+
+function sclLoadFilm(input) {
+  const f = input && input.files && input.files[0];
+  if (!f) return;
+  if (sclState.url) { try { URL.revokeObjectURL(sclState.url); } catch (e) {} }
+  sclState.url = URL.createObjectURL(f);
+  const v = document.getElementById('scl-video');
+  if (v) { v.src = sclState.url; v.load(); }
+  showToast('Film loaded: ' + f.name, 'success', 2200);
+  setTimeout(sclSeekToShot, 350);
+}
+
+function _sclCur() { return sclState.shots[sclState.idx] || null; }
+
+/* With a clip loaded there is nothing to seek to — the clip IS the possession, so it starts
+   from the top. Only the full-film fallback needs to hunt for the timestamp. */
+function sclSeekToShot(lead) {
+  const v = document.getElementById('scl-video');
+  if (!v) return;
+  if (_sclClip()) { v.currentTime = 0; return; }
+  const e = _sclCur();
+  if (!sclState.url || !e || e.videoTs == null) return;
+  v.currentTime = Math.max(0, e.videoTs - (lead == null ? 3 : lead));
+}
+
+/* Watch the possession from the top — the only way to judge a clock that is not on the wall.
+   On a clip that means replaying it; on the full film it means jumping back to the hand-over. */
+function sclReplayPossession() {
+  const v = document.getElementById('scl-video');
+  const e = _sclCur(); if (!e || !v) return;
+  if (_sclClip()) { v.currentTime = 0; v.play(); return; }
+  const c = sclState.clocks && sclState.clocks.get(e);
+  const back = (c && c.live != null) ? c.live + 1.5 : 8;
+  sclSeekToShot(back);
+  if (v.paused) v.play();
+}
+
+function _sclHasVideo() { return !!(_sclClip() || sclState.url); }
+
+/* Playback rate persists across shots — set it once to quarter speed and every clip stays
+   there, which is the whole point when you are reading a possession for its clock. Stored on
+   sclState because the <video> is rebuilt on every render. */
+function sclSetRate(r) {
+  sclState.rate = r;
+  const v = document.getElementById('scl-video');
+  if (v) v.playbackRate = r;
+  document.querySelectorAll('#scl-rates .scl-rate').forEach(b =>
+    b.classList.toggle('sel', Number(b.dataset.rate) === r));
+}
+
+/* One frame at 30fps. Paused first, or the video simply plays on through the step. */
+function sclFrame(dir) {
+  const v = document.getElementById('scl-video');
+  if (!v || !_sclHasVideo()) return;
+  v.pause();
+  v.currentTime = Math.max(0, v.currentTime + dir / 30);
+  _sclSyncPlayBtn();
+}
+
+function _sclSyncPlayBtn() {
+  const v = document.getElementById('scl-video');
+  const b = document.getElementById('scl-play');
+  if (!v || !b) return;
+  /* Mid-scrub the film is always paused, so show what will happen on RELEASE instead —
+     otherwise tapping Space during a scrub would change nothing visible. */
+  const willPlay = _sclScrubTimer ? _sclResumeAfterScrub : !v.paused;
+  b.textContent = willPlay ? '\u23F8 Pause' : '\u25B6 Play';
+}
+function sclNudge(secs) {
+  const v = document.getElementById('scl-video');
+  if (v && _sclHasVideo()) v.currentTime = Math.max(0, v.currentTime + secs);
+}
+function sclTogglePlay() {
+  const v = document.getElementById('scl-video');
+  if (!v || !_sclHasVideo()) return;
+  if (v.paused) v.play(); else v.pause();
+}
+
+function sclGo(delta) {
+  if (!sclState.shots.length) return;
+  sclState.idx = Math.max(0, Math.min(sclState.shots.length - 1, sclState.idx + delta));
+  renderShotClockView();
+  sclSeekToShot();
+}
+
+function sclJumpUnlogged() {
+  const i = sclState.shots.findIndex(e => e.shotClock == null);
+  if (i < 0) { showToast('Every shot in this practice has a clock.', 'success', 2500); return; }
+  sclState.idx = i; renderShotClockView(); sclSeekToShot();
+}
+
+/* Write it onto the event and persist. Blank clears the value back to null rather than
+   storing a zero, exactly as the live modal does. */
+function sclSave(advance) {
+  const e = _sclCur(); if (!e) return;
+  const box = document.getElementById('scl-input');
+  const raw = box ? String(box.value).trim() : '';
+  if (raw === '') e.shotClock = null;
+  else {
+    const n = Number(raw);
+    if (!isFinite(n) || n < 0 || n > 60) { showToast('Enter 0-60 seconds, or leave it blank.', 'danger', 2600); return; }
+    e.shotClock = n;
+  }
+  const sess = getSessions().find(s => s.id === sclState.sessionId);
+  if (sess) saveSession(sess);
+  if (advance) sclGo(1); else renderShotClockView();
+}
+
+/* ── Import a shot clock log ──
+   Values Chad reads out while watching are recorded in Downloads\shot_clock_log.csv. This puts
+   them on the right shots. A row lands ONLY if the practice date, the shot number in this tab,
+   the player AND the film time (within 0.3s) all agree — so a log built against a different
+   version of the tags skips a shot rather than writing onto the wrong one. Empty shots are
+   filled; a shot that already holds a different value is listed and replaced only on confirm. */
+function _sclParseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = String(text || '').replace(/^\uFEFF/, '');
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(c => c !== '')) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some(c => c !== '')) rows.push(row);
+  return rows;
+}
+
+function sclImportLog(input) {
+  const f = input && input.files && input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = function () { sclImportText(String(reader.result || '')); input.value = ''; };
+  reader.readAsText(f);
+}
+
+function sclImportText(text) {
+  const rows = _sclParseCsv(text);
+  if (rows.length < 2) { showToast('That file has no rows.', 'danger', 3000); return null; }
+  const H = rows[0].map(h => String(h).trim().toLowerCase());
+  const col = function () { const names = Array.from(arguments); return H.findIndex(h => names.some(n => h.indexOf(n) === 0)); };
+  const cDate = col('practice'), cNum = col('shot #'), cPlayer = col('player'),
+        cFilm = col('film time'), cVal = col('seconds remaining', 'already logged');
+  if ([cDate, cNum, cPlayer, cFilm, cVal].some(i => i < 0)) {
+    showToast('Not a shot clock log — expected practice, shot #, player, film time and seconds remaining columns.', 'danger', 5000);
+    return null;
+  }
+  const sessions = getSessions().filter(s => s.completed);
+  const res = { applied: [], same: [], conflicts: [], skipped: [], blank: 0 };
+  const touched = new Set();
+  for (const r of rows.slice(1)) {
+    const raw = String(r[cVal] || '').trim();
+    if (raw === '') { res.blank++; continue; }
+    const label = String(r[cDate] || '?') + ' #' + String(r[cNum] || '?');
+    const val = Number(raw);
+    if (!isFinite(val) || val < 0 || val > 30) { res.skipped.push(label + ': value ' + raw + ' is not 0-30'); continue; }
+    const day = sessions.filter(s => s.date === String(r[cDate]).trim());
+    if (day.length !== 1) { res.skipped.push(label + (day.length ? ': more than one practice that day' : ': no practice on that date')); continue; }
+    const sess = day[0];
+    const ev = _sclShotsFor(sess)[parseInt(r[cNum], 10) - 1];
+    const ft = String(r[cFilm] || '').split(':');
+    const filmSec = ft.length === 2 ? Number(ft[0]) * 60 + Number(ft[1]) : NaN;
+    const player = String(r[cPlayer] || '').trim();
+    if (!ev || ev.player !== player || !isFinite(filmSec) || Math.abs((ev.videoTs == null ? -1e9 : ev.videoTs) - filmSec) > 0.3) {
+      res.skipped.push(label + ': ' + player + ' at ' + (r[cFilm] || '?') + ' is not that shot in this tracker');
+      continue;
+    }
+    if (ev.shotClock == null) { ev.shotClock = val; res.applied.push(label); touched.add(sess); }
+    else if (Number(ev.shotClock) === val) res.same.push(label);
+    else res.conflicts.push({ label: label, ev: ev, sess: sess, from: ev.shotClock, to: val });
+  }
+  if (res.conflicts.length) {
+    const list = res.conflicts.map(c => c.label + ': ' + c.from + ' -> ' + c.to).join('\n');
+    if (confirm(res.conflicts.length + ' shot(s) already have a different clock:\n\n' + list + '\n\nReplace them with the values in the file?')) {
+      for (const c of res.conflicts) { c.ev.shotClock = c.to; touched.add(c.sess); res.applied.push(c.label + ' (was ' + c.from + ')'); }
+      res.conflicts = [];
+    }
+  }
+  touched.forEach(s => saveSession(s));
+  const parts = [res.applied.length + ' added'];
+  if (res.same.length) parts.push(res.same.length + ' already there');
+  if (res.conflicts.length) parts.push(res.conflicts.length + ' kept (you declined to replace)');
+  if (res.skipped.length) parts.push(res.skipped.length + ' skipped');
+  sclState.importNote = 'Import: ' + parts.join(', ') + '.'
+    + (res.skipped.length ? '<br>Skipped — ' + res.skipped.map(escHtml).join('<br>') : '');
+  showToast('Shot clock log: ' + parts.join(', '), res.skipped.length ? 'danger' : 'success', 5000);
+  if (sclState.sessionId) {
+    const cur = getSessions().find(s => s.id === sclState.sessionId);
+    sclState.shots = _sclShotsFor(cur);
+  }
+  renderShotClockView();
+  return res;
+}
+
+/* Straight to a shot number, instead of pressing -> thirty times. */
+function sclJump(v) {
+  const n = parseInt(v, 10);
+  if (!isFinite(n) || n < 1 || n > sclState.shots.length) {
+    showToast('Shot numbers run 1 to ' + sclState.shots.length + ' in this practice.', 'danger', 2500);
+    return;
+  }
+  sclState.idx = n - 1;
+  renderShotClockView();
+  sclSeekToShot();
+}
+
+/* ── A / S / D / F — hold to scrub, exactly as on the Live Tracker ──
+   Same VC_SCRUB_RATES constant, so a held key moves the film at the same speed on both
+   screens: a = fast back, s = slow back, d = slow forward, f = fast forward. While held the
+   film is paused and stepped every 50ms; on release it resumes ONLY if it was playing when
+   the key went down. Space during a scrub flips that, so you can choose to land paused on the
+   frame you stopped at. */
+function sclScrubbing() { return _sclScrubTimer !== null; }
+
+function sclScrubStart(k, e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const rate = VC_SCRUB_RATES[k];
+  const v = document.getElementById('scl-video');
+  if (rate == null || !v || !_sclHasVideo() || _sclScrubTimer) return;
+  _sclScrubKey = k;
+  _sclResumeAfterScrub = !v.paused;
+  _sclScrubTimer = setInterval(function () {
+    /* Looked up every tick rather than captured: a render replaces the <video> element. */
+    const vid = document.getElementById('scl-video');
+    if (!vid) return;
+    const dur = vid.duration || 0;
+    vid.currentTime = Math.max(0, Math.min(dur, vid.currentTime + rate));
+  }, 50);
+  if (!v.paused) v.pause();
+  _sclSyncPlayBtn();
+}
+
+function sclScrubStop() {
+  if (!_sclScrubTimer) return;
+  clearInterval(_sclScrubTimer);
+  _sclScrubTimer = null;
+  _sclScrubKey = null;
+  const resume = _sclResumeAfterScrub;
+  _sclResumeAfterScrub = false;
+  const v = document.getElementById('scl-video');
+  if (v && resume) v.play();
+  _sclSyncPlayBtn();
+}
+
+/* Hold buttons, same engine. Wrappers rather than inline arguments so the markup needs no
+   quote escaping inside the render string. */
+function sclRwStart(e) { sclScrubStart('a', e); }
+function sclFfStart(e) { sclScrubStart('f', e); }
+
+function sclKey(ev) {
+  const tab = document.getElementById('tab-shotclock');
+  if (!tab || !tab.classList.contains('active')) return;
+  if (ev.target && ev.target.id === 'scl-jump') {                 // typing a shot number, not a clock
+    if (ev.key === 'Enter') { ev.preventDefault(); sclJump(ev.target.value); }
+    return;
+  }
+  const inBox = ev.target && ev.target.id === 'scl-input';
+  if (ev.key === 'Enter') { ev.preventDefault(); sclSave(true); return; }
+  const lk = (ev.key || '').toLowerCase();
+  /* Checked BEFORE the digit pass-through, and it works with the number box focused — which it
+     always is after a render. preventDefault so the letter is never typed into the box. */
+  if (lk in VC_SCRUB_RATES && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    if (ev.repeat || _sclScrubTimer) return;   // ignore OS auto-repeat: one scrub per hold
+    sclScrubStart(lk);
+    return;
+  }
+  if (inBox && (ev.key >= '0' && ev.key <= '9')) return;       // let digits through
+  if (ev.key === 'ArrowRight') { ev.preventDefault(); sclGo(1); }
+  else if (ev.key === 'ArrowLeft') { ev.preventDefault(); sclGo(-1); }
+  else if (ev.key === 'ArrowUp') { ev.preventDefault(); sclNudge(1); }
+  else if (ev.key === 'ArrowDown') { ev.preventDefault(); sclNudge(-1); }
+  else if (ev.key === 'r' || ev.key === 'R') { ev.preventDefault(); sclReplayPossession(); }
+  else if (ev.key === ' ') {
+    ev.preventDefault();
+    if (_sclScrubTimer) { _sclResumeAfterScrub = !_sclResumeAfterScrub; _sclSyncPlayBtn(); }
+    else sclTogglePlay();
+  }
+  else if (ev.key === ',' || ev.key === '<') { ev.preventDefault(); sclFrame(-1); }
+  else if (ev.key === '.' || ev.key === '>') { ev.preventDefault(); sclFrame(1); }
+  else if (ev.key === '[') {
+    ev.preventDefault();
+    const R = [0.25, 0.5, 1, 1.5, 2, 4];
+    sclSetRate(R[Math.max(0, R.indexOf(sclState.rate || 1) - 1)]);
+  } else if (ev.key === ']') {
+    ev.preventDefault();
+    const R = [0.25, 0.5, 1, 1.5, 2, 4];
+    sclSetRate(R[Math.min(R.length - 1, R.indexOf(sclState.rate || 1) + 1)]);
+  }
+}
+document.addEventListener('keydown', sclKey);
+document.addEventListener('keyup', function (e) {
+  const k = (e.key || '').toLowerCase();
+  if (_sclScrubTimer && k === _sclScrubKey) sclScrubStop();
+});
+// A keyup never arrives if focus leaves the window mid-hold (alt-tab), so stop there too.
+window.addEventListener('blur', function () { if (_sclScrubTimer) sclScrubStop(); });
+
+function renderShotClockView() {
+  const root = document.getElementById('shotclock-root');
+  if (!root) return;
+  if (_sclScrubTimer) {
+    clearInterval(_sclScrubTimer);
+    _sclScrubTimer = null; _sclScrubKey = null; _sclResumeAfterScrub = false;
+  }
+  const sessions = getSessions().filter(s => s.completed);
+  if (!sessions.length) {
+    root.innerHTML = '<div class="placeholder"><div>No completed practices yet.</div></div>';
+    return;
+  }
+  if (!sclState.sessionId || !sessions.some(s => s.id === sclState.sessionId)) {
+    sclState.sessionId = sessions[0].id;
+    sclState.shots = _sclShotsFor(sessions[0]);
+    sclState.clocks = computeShotClocks([sessions[0]]);
+    const i0 = sclState.shots.findIndex(e => e.shotClock == null);
+    sclState.idx = i0 > 0 ? i0 : 0;
+  }
+  const sess = sessions.find(s => s.id === sclState.sessionId);
+  const shots = sclState.shots;
+  const done = shots.filter(e => e.shotClock != null).length;
+  const e = _sclCur();
+  const c = (e && sclState.clocks) ? sclState.clocks.get(e) : null;
+  const names = { a: sess.teamAName || 'White', b: sess.teamBName || 'Black' };
+  const kind = e ? (e.stat.startsWith('3') ? '3PT' : '2PT') : '';
+  const res = e ? (e.stat.endsWith('make') ? 'MAKE' : 'MISS') : '';
+  const opts = sessions.map(s => '<option value="' + escHtml(s.id) + '"'
+      + (s.id === sclState.sessionId ? ' selected' : '') + '>' + escHtml(s.date || '')
+      + ' — ' + escHtml(s.title || 'Practice') + '</option>').join('');
+  const sec = v => (v == null ? '—' : v.toFixed(1) + 's');
+
+  root.innerHTML =
+    '<div class="scl-wrap">'
+      /* NO onclick on this element. It has native `controls`, and the browser already toggles
+         playback on a click anywhere on the picture AND on its own play/pause button — both
+         arrive here as a click on the <video>. A handler that toggled again undid every click:
+         measured with real clicks, the picture fired play->pause and the native pause button
+         fired pause->play, so the film could not be stopped. The Play button and Space still go
+         through sclTogglePlay(), which is the single toggle for those paths. */
+      + '<div class="scl-left" id="scl-left"><video id="scl-video" class="scl-video" preload="auto" controls autoplay '
+        + (_sclClip() ? ' src="' + _sclClip() + '"' : (sclState.url ? ' src="' + sclState.url + '"' : ''))
+        + '></video>'
+        + (_sclHasVideo() ? '' : '<div class="scl-derived" style="margin-top:0;">Nothing loaded. '
+            + '<b>Load Clips</b> points at a folder of one-clip-per-shot — the fast way, no scrubbing. '
+            + '<b>Full Film</b> loads the whole practice and seeks instead. Either way the files stay '
+            + 'in this browser and nothing about them is saved.</div>')
+        + ((!_sclClip() && Object.keys(sclState.clips).length)
+            ? '<div class="scl-derived" style="margin-top:0;">No clip numbered ' + (sclState.idx + 1)
+              + ' in that folder' + (sclState.url ? ' — using the full film instead.' : '.') + '</div>' : '')
+        + '<div class="scl-ctrls">'
+          + '<button class="btn btn-primary btn-sm" id="scl-play" onclick="sclTogglePlay()">⏸ Pause</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclReplayPossession()">↺ Watch possession (R)</button>'
+          + '<button class="btn btn-ghost btn-sm" title="Hold to rewind fast (key A; S is slow)" '
+          + 'onpointerdown="sclRwStart(event)" onpointerup="sclScrubStop()" onpointerleave="sclScrubStop()" '
+          + 'oncontextmenu="return false;">◀◀ hold</button>'
+          + '<button class="btn btn-ghost btn-sm" title="Hold to fast forward (key F; D is slow)" '
+          + 'onpointerdown="sclFfStart(event)" onpointerup="sclScrubStop()" onpointerleave="sclScrubStop()" '
+          + 'oncontextmenu="return false;">hold ▶▶</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclFrame(-1)" title="Previous frame">◀| frame</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclFrame(1)" title="Next frame">frame |▶</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclNudge(-1)">−1s</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclNudge(1)">+1s</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclSeekToShot()">Back to shot</button>'
+        + '<div id="scl-rates"><span class="lbl">Speed</span>'
+          + [0.25, 0.5, 1, 1.5, 2, 4].map(function (r) {
+              return '<button class="scl-rate' + (sclState.rate === r ? ' sel' : '')
+                   + '" data-rate="' + r + '" onclick="sclSetRate(' + r + ')">'
+                   + (r === 1 ? '1× normal' : r + '×') + '</button>';
+            }).join('')
+        + '</div></div></div>'
+      + '<div class="scl-card">'
+        + '<div class="scl-top"><select onchange="sclPickSession(this.value)">' + opts + '</select>'
+        + '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'scl-clips\').click()">Load Clips</button>'
+        + '<input type="file" id="scl-clips" accept="video/*" multiple webkitdirectory directory style="display:none;" onchange="sclLoadClips(this)">'
+        + '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'scl-film\').click()">Full Film</button>'
+        + '<input type="file" id="scl-film" accept="video/*" style="display:none;" onchange="sclLoadFilm(this)">'
+        + '<button class="btn btn-ghost btn-sm" title="Put values from shot_clock_log.csv onto their shots" '
+        + 'onclick="document.getElementById(\'scl-log\').click()">Import Log</button>'
+        + '<input type="file" id="scl-log" accept=".csv,text/csv" style="display:none;" onchange="sclImportLog(this)"></div>'
+        + (sclState.importNote ? '<div class="scl-derived" style="margin:-4px 0 10px;">' + sclState.importNote + '</div>' : '')
+        + (!e ? '<div class="scl-shot">No field-goal attempts in this practice.</div>' :
+            '<div class="scl-hdr" style="display:flex;align-items:center;gap:6px;">Shot ' + (sclState.idx + 1) + ' of ' + shots.length
+          + '<span style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600;">go to</span>'
+          + '<input id="scl-jump" class="scl-jump" type="number" min="1" max="' + shots.length + '" placeholder="#"></div>'
+          + '<div class="scl-shot">' + escHtml(e.player || 'Unknown') + ' — ' + kind + ' '
+          + res + '</div>'
+          + '<div class="scl-meta">Q' + (e.quarter == null ? '?' : e.quarter) + ' · '
+          + escHtml(names[e.team] || '?') + (e.shotFt != null ? ' · ' + Math.round(e.shotFt) + 'ft' : '')
+          + (e.shotContest ? ' · ' + (e.shotContest === 'contested' ? 'Contested' : 'Open') : '')
+          + (e.videoTs != null ? ' · film ' + fmtVideoTs(e.videoTs) : '') + '</div>'
+          + '<div class="scl-derived">Film arithmetic, <b>not</b> a shot clock — for sanity only, '
+          + 'nothing is copied into the box.<br>Since the ball changed hands: <b>' + sec(c && c.sincePoss)
+          + '</b><br>Since the offensive board: <b>' + sec(c && c.sinceOreb)
+          + '</b><br>Since the previous shot: <b>' + sec(c && c.sinceShot) + '</b></div>'
+          + '<div style="margin-top:12px;display:flex;align-items:center;gap:10px;">'
+          + '<input id="scl-input" class="scl-in" type="number" min="0" max="60" step="1" '
+          + 'inputmode="numeric" placeholder="--" value="'
+          + (e.shotClock != null ? e.shotClock : '') + '">'
+          + '<div style="font-size:11.5px;color:var(--text-muted);line-height:1.5;">seconds<br>remaining'
+          + (e.shotClock != null ? '<br><span class="scl-done">logged</span>' : '') + '</div></div>'
+          + '<div class="scl-btns">'
+          + '<button class="btn btn-primary btn-sm" onclick="sclSave(true)">Save &amp; next (Enter)</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclGo(-1)">← Prev</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclGo(1)">Next →</button>'
+          + '<button class="btn btn-ghost btn-sm" onclick="sclJumpUnlogged()">Next unlogged</button>'
+          + '</div>')
+        + '<div class="scl-prog">' + done + ' of ' + shots.length + ' logged'
+        + '<div class="scl-bar"><div style="width:' + (shots.length ? (100 * done / shots.length) : 0) + '%"></div></div></div>'
+        + '<details class="scl-keys"><summary>Keyboard shortcuts</summary><kbd>Enter</kbd> save &amp; next · <kbd>←</kbd><kbd>→</kbd> shot '
+        + '· <kbd>↑</kbd><kbd>↓</kbd> nudge film 1s · <kbd>R</kbd> watch possession '
+        + '· <kbd>Space</kbd> play/pause · <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> hold to scrub (fast back / slow back / slow fwd / fast fwd) · <kbd>,</kbd><kbd>.</kbd> frame step '
+        + '· <kbd>[</kbd><kbd>]</kbd> slower / faster<br>'
+        + 'Leave the box empty and save to clear a value back to blank.</details>'
+      + '</div>'
+    + '</div>';
+  /* The <video> is new on every render, so the chosen speed has to be put back on it, and
+     the play button re-bound to the element that now exists. */
+  const v = document.getElementById('scl-video');
+  if (v) {
+    v.playbackRate = sclState.rate || 1;
+    v.onplay = _sclSyncPlayBtn;
+    v.onpause = _sclSyncPlayBtn;
+    _sclSyncPlayBtn();
+  }
+  _sclFit();
+  const box = document.getElementById('scl-input');
+  if (box) box.focus();
+}
+
+/* Give the film column every pixel from its top edge to the bottom of the window, so the
+   video grows with the screen instead of with a hard-coded allowance for the chrome around
+   it. The side panel is capped to the same height and scrolls if a narrow window makes it
+   taller. When the layout stacks (≤1100px wide) the panel sits BELOW the film, so the film
+   takes 62% of the window instead and the entry box stays one short scroll away. */
+function _sclFit() {
+  const tab = document.getElementById('tab-shotclock');
+  const left = document.getElementById('scl-left');
+  if (!tab || !left || !tab.classList.contains('active')) return;
+  const card = document.querySelector('#shotclock-root .scl-card');
+  const lr = left.getBoundingClientRect();
+  const stacked = !!card && card.getBoundingClientRect().top > lr.top + 20;
+  const h = stacked
+    ? Math.max(300, Math.round(window.innerHeight * 0.62))
+    : Math.max(340, Math.floor(window.innerHeight - lr.top - 12));
+  left.style.height = h + 'px';
+  if (card) card.style.maxHeight = stacked ? '' : h + 'px';
+}
+window.addEventListener('resize', _sclFit);
+
+tabRenderers.shotclock = function() { renderShotClockView(); };
 
 /* ============================================================
    END SEGMENT 5
@@ -20550,7 +21363,11 @@ const trackerState = {
   shotType: null,             // primary (first-selected) type — kept for charts/filters/breakdowns
   shotTypes: [],              // all selected types (multi-select); shotType mirrors shotTypes[0]
   shotContest: null,          // 'contested' | 'uncontested'
-  shotClock: null,            // seconds left on the shot clock, or null for "not read"
+  /* Typed by the tagger or left null. Deliberately NOT pre-filled from the derived
+     possession clock: there is no shot clock in this gym, so a pre-filled number would be
+     the app's guess wearing the tagger's clothes, and it would be impossible afterwards to
+     tell an observed value from an inferred one. */
+  shotClock: null,            // seconds remaining, or null
   videoTsAtStart: null,       // film time frozen when the stat button was first clicked
   _pendingStat: null,         // stat waiting for shot-type modal to close
 };
@@ -20820,13 +21637,13 @@ function _applyShotTypeSelections(types, contest, clock) {
   trackerState.shotTypes  = [...(types || [])];
   trackerState.shotType   = trackerState.shotTypes[0] || null;
   trackerState.shotContest = contest || null;
-  trackerState.shotClock   = clock != null ? clock : null;
+  trackerState.shotClock  = (clock === undefined) ? trackerState.shotClock : (clock != null ? clock : null);
+  const _sc = document.getElementById('shot-clock-input');
+  if (_sc) _sc.value = trackerState.shotClock != null ? trackerState.shotClock : '';
   document.querySelectorAll('#shot-type-grid .shot-type-btn').forEach(b =>
     b.classList.toggle('selected', trackerState.shotTypes.includes(b.dataset.type)));
   document.querySelectorAll('#shot-contest-row .shot-contest-btn').forEach(b =>
     b.classList.toggle('selected', b.dataset.contest === trackerState.shotContest));
-  const sc = document.getElementById('shot-clock-input');
-  if (sc) sc.value = trackerState.shotClock != null ? trackerState.shotClock : '';
 }
 
 function trackerBack() {
@@ -20844,7 +21661,7 @@ function trackerBack() {
     activeStatEl = document.querySelector('.tracker-stat-col .stat-btn[data-stat="' + prev.stat + '"]');
     if (activeStatEl) activeStatEl.classList.add('stat-active');
     showShotTypeModal(prev.stat);
-    _applyShotTypeSelections(prev.shotTypes, prev.shotContest, prev.shotClock);
+    _applyShotTypeSelections(prev.shotTypes, prev.shotContest);
     return;
   }
 
@@ -21123,13 +21940,6 @@ function showShotTypeModal(stat) {
   trackerState.shotType    = null;
   trackerState.shotTypes   = [];
   trackerState.shotContest = null;
-  /* The shot clock is a typed value, not a toggle, so nothing clears it by being tapped
-     again — it has to be blanked HERE, on the way in. Leaving the last attempt's number in
-     the box is worse than leaving it empty: the next shot inherits a reading that was never
-     taken, and it commits silently if the coach doesn't notice and delete it. */
-  trackerState.shotClock   = null;
-  const scInput = document.getElementById('shot-clock-input');
-  if (scInput) scInput.value = '';
   const isMake = stat.endsWith('make');
   const is3    = stat.startsWith('3');
   document.getElementById('shot-type-title').textContent =
@@ -21165,11 +21975,13 @@ function toggleShotContest(btn, contest) {
   }
 }
 
-/* Blank, a stray minus sign or anything non-numeric all mean the same thing: no reading.
-   Kept as a whole number of seconds, matching the shotClock values already in the data. */
-function setShotClock(raw) {
-  const n = parseInt(String(raw).trim(), 10);
-  trackerState.shotClock = (isFinite(n) && n >= 0 && n <= 35) ? n : null;
+/* Empty string clears it back to null rather than storing 0 — "not read" and "zero on the
+   clock" are different claims and only one of them is ever true here. */
+function setShotClock(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (s === '') { trackerState.shotClock = null; return; }
+  const n = Number(s);
+  trackerState.shotClock = isFinite(n) ? n : null;
 }
 
 function confirmShotType() {
@@ -21182,6 +21994,8 @@ function skipShotType() {
   trackerState.shotTypes   = [];
   trackerState.shotContest = null;
   trackerState.shotClock   = null;
+  const _sc = document.getElementById('shot-clock-input');
+  if (_sc) _sc.value = '';
   hideModal('modal-shot-type');
   _launchFgFlow();
 }
@@ -21499,14 +22313,10 @@ function flushPendingEvents() {
                         shotTypes:   isShotEvent && trackerState.shotTypes && trackerState.shotTypes.length
                                        ? [...trackerState.shotTypes] : null,
                         shotContest: isShotEvent ? (trackerState.shotContest || null) : null,
+                        /* null unless a human typed it. Nothing downstream may fill this in. */
+                        shotClock:   isShotEvent && trackerState.shotClock != null
+                                       ? trackerState.shotClock : null,
                         quarter: q, ts: Date.now(), videoTs };
-    /* Only on a field-goal attempt, and only when a number was actually read: a free throw
-       has no shot clock, and an absent key is how every consumer — the worklist script
-       included — tells "not read" from a reading. Writing null on every event would make
-       all 600-odd untagged shots look tagged. */
-    if (isShotEvent && ev.stat.includes('fg') && trackerState.shotClock != null) {
-      committed.shotClock = trackerState.shotClock;
-    }
     session.eventLog.push(committed);
     added.push(committed);
   }
@@ -21533,7 +22343,6 @@ function resetTrackerState() {
   trackerState.shotType           = null;
   trackerState.shotTypes          = [];
   trackerState.shotContest        = null;
-  trackerState.shotClock          = null;
   trackerState.videoTsAtStart     = null;
   trackerState._pendingStat       = null;
   pendingShotX = null;
@@ -21946,10 +22755,9 @@ function finalizeSession(timeSecs = 0) {
    since with no FTs they're either degenerate (FTR=0) or misleading (TS% ≡ eFG%). */
 function computeTeamStats(session) {
   const stats = {};
-  const ctx = playContext(session);
   const line = {
-    a: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'a'), ctx),
-    b: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'b'), ctx),
+    a: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'a')),
+    b: buildStatLine(session.eventLog.filter(e => e.type !== 'sub' && e.team === 'b')),
   };
 
   /* ONE possession count, shared by both teams. Two teams in the same scrimmage alternate
@@ -21997,14 +22805,10 @@ function computePlayerStats(session) {
   // Total game minutes (quarter durations are stored in seconds)
   const gameMin = getSessionPlayedSeconds(session) / 60;
 
-  /* Walked once for the whole session, not once per player — both halves of it run along
-     the log, so neither can be rebuilt from one man's events. */
-  const ctx = playContext(session);
-
   const result = [];
   for (const { name, team } of allPlayers) {
     const evs = session.eventLog.filter(e => e.type !== 'sub' && e.player === name);
-    const s   = buildStatLine(evs, ctx);
+    const s   = buildStatLine(evs);
     /* minExact drives every ratio below; s.min is the rounded copy that gets displayed.
        Keeping them separate is the whole fix — MIN%, SHOT%, OR%, DR%, AST%, STL%, BLK%,
        USG% and the ORTG/DRTG minute weights all divide by this, so a numerator rounded up
@@ -22176,30 +22980,13 @@ function computePlayerStats(session) {
 }
 
 /* ── Build a basic stat-line object from a list of events ── */
-/* `ctx` is playContext() for the session these events came from: the off-turnover set and
-   the film-time clock estimates. Without it the off-turnover column reads 0 and transition
-   falls back to typed readings alone — both are properties of the LOG, and neither can be
-   recovered from a filtered slice of it. Paint needs no context and is always counted. */
-function buildStatLine(evs, ctx) {
-  const offTov = ctx && ctx.offTov;
-  const clock  = ctx && ctx.clock;
+function buildStatLine(evs) {
   const s = {
     pts:0, fgm:0, fga:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0,
     ftm:0, fta:0, oreb:0, dreb:0, reb:0,
     ast:0, tov:0, blk:0, stl:0, defl:0, pf:0,
-    paintPts:0, paintFgm:0, paintFga:0,
-    transPts:0, transFgm:0, transFga:0,
-    offTovPts:0,
   };
   for (const e of evs) {
-    if (FG_STATS.has(e.stat)) {
-      const made = e.stat.endsWith('make');
-      const val  = e.stat.startsWith('3') ? 3 : 2;
-      const est = clock ? clock.get(e) : null;
-      if (isPaintShot(e))           { s.paintFga++; if (made) { s.paintFgm++; s.paintPts += val; } }
-      if (isTransitionShot(e, est)) { s.transFga++; if (made) { s.transFgm++; s.transPts += val; } }
-    }
-    if (offTov && offTov.has(e)) s.offTovPts += (MAKE_PTS[e.stat] || 0);
     switch (e.stat) {
       case '2fg_make': s.pts+=2; s.fgm++; s.fga++; s.fg2m++; s.fg2a++; break;
       case '2fg_miss':           s.fga++;            s.fg2a++; break;
