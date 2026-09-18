@@ -10990,6 +10990,10 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
   // Shot quality shares the row scope, so the baseline reflects the same practices shown.
   const scoped = sessions.filter(s => sessionInScope(s, filterPeriod));
   const shotQual = computeShotQuality(scoped);
+  /* computeShotQuality() answers with a LIST of players, not a map of them, so indexing it
+     by name found nothing and every xPPS, PPS and SHOT+/- on this table read as a dash.
+     Indexed here, once, rather than scanned per row. */
+  const shotQualByName = new Map((shotQual.players || []).map(q => [q.name, q]));
   /* Same scope again, but team-aware: unlike shot quality — which needs a baseline common
      to everyone — points created is this man's own production and is filtered like the
      counting stats beside it. */
@@ -11217,9 +11221,13 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          shot-making with selection held constant. Null below a handful of attempts —
          the difference of two small-sample rates is mostly noise. */
       ...(() => {
-        const q = shotQual[r.name];
-        if (!q || q.att < 5) return { xpps: null, pps: null, shotDiff: null };
-        const xpps = q.xpts / q.att, pps = q.pts / q.att;
+        const q = shotQualByName.get(r.name);
+        if (!q || q.fga < 5) return { xpps: null, pps: null, shotDiff: null };
+        /* eFG% x 2 IS points per shot — a three counts 1.5 makes, so doubling the mean
+           turns it back into points. Taking q.pts over q.fga would not: that field is the
+           points he ADDED over an average finisher, not the points he scored, and dividing
+           it by attempts would have printed a plausible-looking number that is not PPS. */
+        const xpps = 2 * q.qsq, pps = 2 * q.efg;
         return { xpps: p1(xpps, 2), pps: p1(pps, 2), shotDiff: p1(pps - xpps, 2) };
       })(),
       /* PTS CR = his own scoring plus the points his passing produced, per game. Both
@@ -14927,6 +14935,75 @@ function levSummary() {
            comp: c.med + c.high, all: c.total, total: c.total };
 }
 
+/* ── Transition points and points off turnovers ─────────────────────────────────
+   Both are SEQUENCE statistics: a basket does not say how its possession began, only what
+   happened just before it does. So every made basket in a practice is traced back to the
+   event that handed the scorer the ball, and tagged.
+
+   ORDER. This is the one place event order is load-bearing, and the log's array order is
+   not quite chronological - 45 of 1735 events over the fall sit out of film order. The walk
+   runs over a copy sorted by videoTs. Stint attribution in segStats() is untouched; it keys
+   off substitutions in log order and must stay that way.
+
+   WHOLE PRACTICE, NOT PER STINT. Tagging is done once over the full log, and each stint then
+   sums the tags of the baskets scored while it was on the floor. A run-out whose rebound came
+   just before a substitution and whose layup came just after still counts - for the five on
+   the floor when it went in, which is the NBA's convention too.
+
+   TRANSITION is measured, not tagged: there is no shot clock in the gym and no game clock on
+   a shot, so the only elapsed time is the film clock, which is real time. A made field goal
+   counts when its possession began with a LIVE ball - a defensive rebound or a steal - and
+   the shot went in inside SEQ_TRANS_SECS film seconds of it. The film supports the cut rather
+   than the other way round: median seconds from possession start to basket are 5.0 off a
+   steal, 8.7 off a defensive board, 17.5 after taking the ball out from a made basket.
+     - Offensive rebounds are NOT a live start. A putback lands 0.8s after the board and would
+       swamp the number, but it is second-chance offence, not transition.
+     - A turnover with no steal beside it is dead-ball (travel, out of bounds, charge): the
+       ball is inbounded, so it counts toward points off turnovers but never transition.
+     - Free throws never count as transition - the clock has stopped, so the film gap after a
+       foul measures the stoppage, not the break.
+
+   POINTS OFF TURNOVERS counts every point, free throws included, on a possession that began
+   with the other side's turnover - live or dead. No time limit: it is a property of the trip.
+
+   An unbroken thread is required. If the walk meets something that says the ball changed
+   hands without the event that did it being logged (the scorer's own earlier basket, the
+   other side's board), the basket is left unclassified rather than guessed - 6 of 355 over
+   the fall. Paint points need no walk at all and are counted in segStats() from the zone. */
+const SEQ_TRANS_SECS = 7;
+const SEQ_PTS = { '2fg_make': 2, '3fg_make': 3, 'ft_make': 1 };
+function seqTags(events) {
+  const seq = events.filter(e => e.videoTs != null && e.type !== 'sub' && (e.team === 'a' || e.team === 'b'))
+                    .slice().sort((a, b) => a.videoTs - b.videoTs);
+  const tags = new Map();
+  for (let i = 0; i < seq.length; i++) {
+    const e = seq[i];
+    if (!SEQ_PTS[e.stat]) continue;
+    const sc = e.team, isFt = e.stat === 'ft_make';
+    let start = null;
+    for (let j = i - 1; j >= 0 && !start; j--) {
+      const p = seq[j], st = p.stat, mine = p.team === sc;
+      if (mine && st === 'dreb')      start = { at: p, live: true, to: false };
+      else if (mine && st === 'stl')  start = { at: p, live: true, to: true };
+      else if (!mine && st === 'tov') {
+        // The steal and the turnover are logged side by side; either one can come first.
+        const stolen = [seq[j - 1], seq[j + 1]].some(x => x && x !== e && x.team === sc && x.stat === 'stl');
+        start = { at: p, live: stolen, to: true };
+      }
+      else if (mine && st === 'oreb')  start = { at: p, live: false, to: false };
+      else if (!mine && SEQ_PTS[st])   start = { at: p, live: false, to: false };
+      else if (mine && isFt && (SEQ_PTS[st] || st === 'ft_miss')) continue;   // and-one, second FT: same trip
+      else if (mine && (SEQ_PTS[st] || st === 'tov')) break;                  // thread broken
+      else if (!mine && (st === 'dreb' || st === 'oreb' || st === 'stl')) break;
+    }
+    if (!start) continue;
+    const dt = e.videoTs - start.at.videoTs;
+    if (dt < 0) continue;
+    tags.set(e, { trans: start.live && !isFt && dt <= SEQ_TRANS_SECS, poto: start.to });
+  }
+  return tags;
+}
+
 /* ─────────────────────────────────────────────────────────────
    SHARED HELPERS — compute stats for a set of lineup segments
    Returns { pts, opp, fgm, fga, fg3m, fg3a, ftm, fta,
@@ -14953,7 +15030,9 @@ function segStats(session, segments, team, opts) {
       oreb=0, dreb=0, tov=0, stl=0, blk=0, ast=0, pf=0, defl=0,
       oppPts=0, oppFgm=0, oppFga=0, oppFg3m=0, oppFg3a=0,
       oppFtm=0, oppFta=0, oppOreb=0, oppDreb=0, oppTov=0,
+      paintPts=0, transPts=0, potoPts=0, oppPaintPts=0, oppTransPts=0, oppPotoPts=0,
       totalSecs=0;
+  const _seqTags = seqTags(ev);   // whole practice, once - see the note on seqTags()
 
   // Build a lookup of which segment index each event falls into.
   // Events store `quarter` but not a clock time, so we assign each event
@@ -15087,6 +15166,22 @@ function segStats(session, segments, team, opts) {
         else if (e.stat === 'tov')       { oppTov++; }
       }
     }
+
+    /* Paint, transition, off-turnover - both sides. Every made two carries a zone (224 of 224
+       over the fall), so paint is a straight tally. The other two read the tags seqTags()
+       put on the whole practice, so a stint gets the baskets scored while it was out there. */
+    for (const e of segEvents) {
+      const v = SEQ_PTS[e.stat];
+      if (!v) continue;
+      const us = e.team === team;
+      if (e.stat === '2fg_make' && TR_PAINT.indexOf(e.zone) >= 0) {
+        if (us) paintPts += 2; else oppPaintPts += 2;
+      }
+      const t = _seqTags.get(e);
+      if (!t) continue;
+      if (t.trans) { if (us) transPts += v; else oppTransPts += v; }
+      if (t.poto)  { if (us) potoPts  += v; else oppPotoPts  += v; }
+    }
   }
 
   const estPoss    = Math.max(0, (fga - oreb) + tov + 0.475 * fta);
@@ -15114,7 +15209,8 @@ function segStats(session, segments, team, opts) {
            rebOr, rebDr, rebOrAv, rebDrAv,
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
-           oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss };
+           oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss,
+           paintPts, transPts, potoPts, oppPaintPts, oppTransPts, oppPotoPts };
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -19740,7 +19836,8 @@ function renderOnOffView() {
       bySess[k].segs.push(item.seg);
     }
     const keys = ['pts','fgm','fga','fg3m','fg3a','ftm','fta','oreb','dreb','tov','stl','blk',
-                  'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss'];
+                  'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss',
+                  'paintPts','transPts','potoPts','oppPaintPts','oppTransPts','oppPotoPts'];
     const T = {};
     keys.forEach(function (k) { T[k] = 0; });
     const R = { rebOr: {}, rebDr: {}, rebOrAv: {}, rebDrAv: {} };
@@ -19821,9 +19918,13 @@ function renderOnOffView() {
       defl40: per40(T.defl),
       def_reb: pct(T.dreb, T.dreb + T.oppOreb),
       hakeem: (stlPct != null && blkPct != null) ? +(stlPct + blkPct).toFixed(2) : null,
-      pf_eff: T.pf > 0 ? +((T.stl + T.blk) / T.pf).toFixed(2) : null,
-      stl_pf: T.pf > 0 ? +(T.stl / T.pf).toFixed(2) : null,
-      blk_pf: T.pf > 0 ? +(T.blk / T.pf).toFixed(2) : null,
+      /* Points by where they came from, per 40 of floor time - see seqTags(). The Defense
+         card reads the opponent's side: what got given up while he was out there, which is
+         Defensive Rating broken into the three places it usually leaks. Our side is carried
+         too, so the Offense card can use the same numbers without another walk. */
+      paint40: per40(T.paintPts), trans40: per40(T.transPts), poto40: per40(T.potoPts),
+      oppPaint40: per40(T.oppPaintPts), oppTrans40: per40(T.oppTransPts),
+      oppPoto40: per40(T.oppPotoPts),
       offPoss: Math.round(T.poss),
       /* Unrounded, so the card can say "<1" instead of "0" for a sample that exists but does
          not reach a whole possession. Rounding it to 0 while printing stats beside it was the
@@ -19894,8 +19995,8 @@ function renderOnOffView() {
      title moves instead. */
   const OO_DEF = [['Defensive Rating','eff.drtg',1,false,''],['Def Rebound %','def_reb',1,true,'%'],
     ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
-    ['Hakeem %','hakeem',1,true,'%'],['PF Efficiency','pf_eff',2,true,''],
-    ['Steals / PF','stl_pf',2,true,''],['Blocks / PF','blk_pf',2,true,'']];
+    ['Hakeem %','hakeem',1,true,'%'],['Opp Paint Pts / 40','oppPaint40',1,false,''],
+    ['Opp Transition Pts / 40','oppTrans40',1,false,''],['Opp Pts off TO / 40','oppPoto40',1,false,'']];
 
   const ooGet = function (o, path) {
     if (!o || !path) return null;
