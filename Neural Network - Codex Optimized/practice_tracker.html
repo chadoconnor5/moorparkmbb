@@ -8721,13 +8721,16 @@ const ZONES_3FG = ['c3_left', 'w3_left', 'ab3', 'w3_right', 'c3_right'];
    independently and a bucket that mixed them would double-count nothing. */
 
 /* The shot clock counts DOWN, so "the first 7 seconds" is a reading at the TOP of it.
-   30-second clock (NCAA/CCCAA men's). A displayed 24 means between 6 and 7 seconds have
-   run off; a displayed 23 means at least 7 already have, so 24 is the last reading that
-   is still inside the window — hence the +1, which is the whole reason this is not
-   30 - 7. */
+   30-second clock (NCAA/CCCAA men's). Readings are whole seconds — typed into the Shot
+   Type modal, or rounded off film time by shotClockEstimates() — so a reading of c has
+   30 - c seconds elapsed behind it: 30 is 0s and 23 is 7s.
+
+   The window is 0 to 7 elapsed INCLUSIVE, which makes 23 the lowest reading still inside
+   it. This used to cut at 24 by carrying a +1, which is 0 to 6 and throws away the 7s
+   mark itself — an attempt sitting exactly on 7 is transition, and is counted as one. */
 const SHOT_CLOCK_SECS       = 30;
 const TRANSITION_WINDOW_SECS = 7;
-const TRANSITION_CLOCK_MIN   = SHOT_CLOCK_SECS - TRANSITION_WINDOW_SECS + 1;   // 24
+const TRANSITION_CLOCK_MIN   = SHOT_CLOCK_SECS - TRANSITION_WINDOW_SECS;   // 23
 
 const FG_STATS = new Set(['2fg_make', '2fg_miss', '3fg_make', '3fg_miss']);
 const MAKE_PTS = { '2fg_make': 2, '3fg_make': 3, 'ft_make': 1 };
