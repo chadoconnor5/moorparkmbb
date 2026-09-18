@@ -4914,7 +4914,7 @@
   {"name": "Eric Kubel"},
   {"name": "Quian Khawaja"},
   {"name": "KaLeke Singletary-Jinks"},
-  {"name": "Brendan Banks-Speed"},
+  {"name": "Brenden Banks-Speed"},
   {"name": "George Hees"},
   {"name": "Jonathan Galloway", "hidden": true},
   {"name": "Emmitt Claiborne"},
@@ -15030,7 +15030,7 @@ function segStats(session, segments, team, opts) {
       oreb=0, dreb=0, tov=0, stl=0, blk=0, ast=0, pf=0, defl=0,
       oppPts=0, oppFgm=0, oppFga=0, oppFg3m=0, oppFg3a=0,
       oppFtm=0, oppFta=0, oppOreb=0, oppDreb=0, oppTov=0,
-      paintPts=0, transPts=0, potoPts=0, oppPaintPts=0, oppTransPts=0, oppPotoPts=0,
+      paintPts=0, transPts=0, potoPts=0,
       totalSecs=0;
   const _seqTags = seqTags(ev);   // whole practice, once - see the note on seqTags()
 
@@ -15167,20 +15167,19 @@ function segStats(session, segments, team, opts) {
       }
     }
 
-    /* Paint, transition, off-turnover - both sides. Every made two carries a zone (224 of 224
-       over the fall), so paint is a straight tally. The other two read the tags seqTags()
-       put on the whole practice, so a stint gets the baskets scored while it was out there. */
+    /* Paint, transition, off-turnover - our own scoring only. Every made two carries a zone
+       (224 of 224 over the fall), so paint is a straight tally. The other two read the tags
+       seqTags() put on the whole practice, so a stint gets the baskets scored while it was
+       out there. The opponent's version of these three was dropped on request; restoring it
+       means tallying the other side here again, not just adding a row to the card. */
     for (const e of segEvents) {
       const v = SEQ_PTS[e.stat];
-      if (!v) continue;
-      const us = e.team === team;
-      if (e.stat === '2fg_make' && TR_PAINT.indexOf(e.zone) >= 0) {
-        if (us) paintPts += 2; else oppPaintPts += 2;
-      }
+      if (!v || e.team !== team) continue;
+      if (e.stat === '2fg_make' && TR_PAINT.indexOf(e.zone) >= 0) paintPts += 2;
       const t = _seqTags.get(e);
       if (!t) continue;
-      if (t.trans) { if (us) transPts += v; else oppTransPts += v; }
-      if (t.poto)  { if (us) potoPts  += v; else oppPotoPts  += v; }
+      if (t.trans) transPts += v;
+      if (t.poto)  potoPts  += v;
     }
   }
 
@@ -15210,7 +15209,7 @@ function segStats(session, segments, team, opts) {
            poss: rawPoss, ortg, drtg, net, efg, ts, min,
            oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta,
            oppOreb, oppDreb, oppTov, oppPoss: rawOppPoss,
-           paintPts, transPts, potoPts, oppPaintPts, oppTransPts, oppPotoPts };
+           paintPts, transPts, potoPts };
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -19137,7 +19136,7 @@ function hkGraphSvg(rows, given, got, vis) {
   const nodes = names.map(n => {
     const p = pos[n];
     /* A hyphenated surname is ONE name made of parts, and every part earns a letter:
-       Brendan Banks-Speed is BBS, not BB, and Singletary-Jinks is KSJ. Splitting only on
+       Brenden Banks-Speed is BBS, not BB, and Singletary-Jinks is KSJ. Splitting only on
        whitespace gave the whole surname a single initial, which put Banks-Speed and a
        hypothetical B. Brown on identical bubbles.
 
@@ -19837,7 +19836,7 @@ function renderOnOffView() {
     }
     const keys = ['pts','fgm','fga','fg3m','fg3a','ftm','fta','oreb','dreb','tov','stl','blk',
                   'ast','pf','defl','poss','oppPts','oppFga','oppFg3a','oppOreb','oppDreb','oppPoss',
-                  'paintPts','transPts','potoPts','oppPaintPts','oppTransPts','oppPotoPts'];
+                  'paintPts','transPts','potoPts'];
     const T = {};
     keys.forEach(function (k) { T[k] = 0; });
     const R = { rebOr: {}, rebDr: {}, rebOrAv: {}, rebDrAv: {} };
@@ -19918,13 +19917,12 @@ function renderOnOffView() {
       defl40: per40(T.defl),
       def_reb: pct(T.dreb, T.dreb + T.oppOreb),
       hakeem: (stlPct != null && blkPct != null) ? +(stlPct + blkPct).toFixed(2) : null,
-      /* Points by where they came from, per 40 of floor time - see seqTags(). The Defense
-         card reads the opponent's side: what got given up while he was out there, which is
-         Defensive Rating broken into the three places it usually leaks. Our side is carried
-         too, so the Offense card can use the same numbers without another walk. */
+      /* Points by where they came from, per 40 of floor time - see seqTags(). Our side
+         only: what the squad GENERATED with him on the floor, which is Offensive Rating
+         broken into the three places it usually comes from. The opponent's version of
+         these three was dropped on request - segStats() no longer walks for it, so
+         bringing it back means restoring the accumulator there, not just a row here. */
       paint40: per40(T.paintPts), trans40: per40(T.transPts), poto40: per40(T.potoPts),
-      oppPaint40: per40(T.oppPaintPts), oppTrans40: per40(T.oppTransPts),
-      oppPoto40: per40(T.oppPotoPts),
       offPoss: Math.round(T.poss),
       /* Unrounded, so the card can say "<1" instead of "0" for a sample that exists but does
          not reach a whole possession. Rounding it to 0 while printing stats beside it was the
@@ -19987,7 +19985,14 @@ function renderOnOffView() {
   const OO_OFF = [['Offensive Rating','eff.ortg',1,true,''],['True Shooting %','ts',1,true,'%'],
     ['3-Point Att Rate','rate.tpar',1,null,'%'],['FT Attempt Rate','off_ff.ftr',1,true,'%'],
     ['Assist %','rate.asp',1,true,'%'],['Turnover %','off_ff.tov',1,false,'%'],
-    ['Ast/Tov Ratio','rate.ato',2,true,''],['Deflections / 40','defl40',1,true,'']];
+    ['Ast/Tov Ratio','rate.ato',2,true,''],['Deflections / 40','defl40',1,true,''],
+    /* Our own paint, transition and off-turnover scoring, which used to sit on the Defense
+       card as the opponent's version of the same three. These describe what the squad
+       GENERATED with him on the floor, so they read higher-is-better like every other
+       offensive row. The opponent's three were removed outright rather than hidden. */
+    ['Paint Pts / 40','paint40',1,true,''],
+    ['Transition Pts / 40','trans40',1,true,''],
+    ['Pts off TO / 40','poto40',1,true,'']];
   /* The panel is titled "Offense & Activity" rather than "Offense" because of that last
      row: deflections are a defensive event, and a panel that says Offense while listing
      one is quietly wrong every time it is read. The stat stays here - it is the only
@@ -19995,8 +20000,7 @@ function renderOnOffView() {
      title moves instead. */
   const OO_DEF = [['Defensive Rating','eff.drtg',1,false,''],['Def Rebound %','def_reb',1,true,'%'],
     ['Steal %','rate.stl',1,true,'%'],['Block %','rate.blk',1,true,'%'],
-    ['Hakeem %','hakeem',1,true,'%'],['Opp Paint Pts / 40','oppPaint40',1,false,''],
-    ['Opp Transition Pts / 40','oppTrans40',1,false,''],['Opp Pts off TO / 40','oppPoto40',1,false,'']];
+    ['Hakeem %','hakeem',1,true,'%']];
 
   const ooGet = function (o, path) {
     if (!o || !path) return null;
