@@ -33,7 +33,7 @@ INK, GLYPH, RULE = 0, 0.42, 0.62   # black structure, mid-grey options to circle
 ROW = 20                      # tall enough to write a number in at speed
 
 ROSTER = ['Josh Castaniero', 'Matthew Wilson', 'Alex Bello', 'SoulJah Niles',
-          'Mikey Duran-Morales', 'Eric Kubel', 'Quian Khawaja', 'Brendan Banks-Speed',
+          'Mikey Duran-Morales', 'Eric Kubel', 'Quian Khawaja', 'Brenden Banks-Speed',
           'George Hees', 'Emmitt Claiborne', 'Sean Castro', 'CJ Temme', 'Axel Ostergard',
           'Jaylen Smith', 'Finn Ortiz', 'Jack Johnson', 'Ashton Carraway', 'Reese Widerburg']
 
