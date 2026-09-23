@@ -2275,7 +2275,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     z-index: 2;
   }}
   th {{
-    background: #1a1a2e;
+    background: #444;
     color: #fff;
     padding: 10px 12px;
     text-align: right;
@@ -2284,7 +2284,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     border-bottom: 2px solid #333;
     transition: background 0.15s;
   }}
-  th:hover {{ background: #252545; }}
+  th:hover {{ background: #555; }}
   th.active {{ color: #4fc3f7; }}
   th.active.asc::after {{ content: ' ▲'; font-size: 0.7rem; }}
   th.active.desc::after {{ content: ' ▼'; font-size: 0.7rem; }}
