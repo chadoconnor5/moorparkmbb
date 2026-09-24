@@ -2,7 +2,7 @@
    ─────────────────────────────────────────────────────────────────────
    Fall Workout, 24 September 2026. At film 1:31:20 the clock was knocked from 4:28 back
    to 6:00 and play carried on. The five on the floor at that moment went in on the sub at
-   film 1:31:08.4, and they are owed 1:30 that the clock never showed.
+   film 1:31:08.4, and they are owed 1:32 that the clock never showed.
 
    Two ways to run it:
 
@@ -33,9 +33,8 @@
    open, in lockstep, because segEventCounts() advances a stint only where
    sub.timeSecs === nextSeg.startTimeSecs.
 
-   The clock itself says the gap was 6:00 - 4:28 = 1:32; ADD is 1:30 because that is the
-   figure asked for. Either value leaves the quarter consistent — change ADD to 92 if the
-   full clock gap is wanted.
+   ADD is the full clock gap, 6:00 - 4:28 = 1:32, so the pre-reset readings land exactly
+   on the post-reset clock: 4:28 + 1:32 = 6:00, and no stint is left short.
 
    Nothing touches the event log's order, film times or shot clocks. Plus/minus and
    possessions read event adjacency, not the clock, so they are unchanged by construction. */
@@ -44,7 +43,7 @@ var CLOCK_RESET_FIX = {   // var, not const: a second console paste must not die
   date:        '2026-09-24',
   subFilmTs:   91 * 60 + 8.4,   // 1:31:08.4 — the sub whose five was on the floor for the reset
   resetFilmTs: 91 * 60 + 20,    // 1:31:20   — the clock went 4:28 → 6:00 here
-  ADD:         90,              // 1:30, as asked (the clock gap itself is 1:32)
+  ADD:         92,              // 1:32 — 6:00 - 4:28, the full clock gap
 };
 
 /* Pure: takes a session, returns { session, report } on a deep copy, or throws with the
