@@ -20,9 +20,9 @@
                 to film 2:06:53 - but it was entered filed under Q2. Q1 therefore never split
                 at 1:39, and Q2's stints were spliced around a 1:39 that belongs to Q1.
      2:08:11.1  Castaniero → Widerburg at 7:00: the sub at the start of Q2.
-     2:11:08.4  Temme → Smith, Kubel → Bello at 4:28 (the sub quoted as 1:31:08.4).
+     2:11:08.4  Temme → Smith, Kubel → Bello at 4:28.
      2:11:20    the clock was knocked from 4:28 back to 6:00 in the dead ball, and play went
-                on from 6:00 (quoted as 1:31:20).
+                on from 6:00.
      2:14:59.6  Carraway → Castaniero at 2:35. Q2 ended at 0:00.
 
    As stored, Q2's chain ran 7:00 → 4:28 → 2:35 → 1:39 → 7:00 → 0:00: a stint running
