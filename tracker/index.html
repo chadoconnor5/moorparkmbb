@@ -11098,9 +11098,16 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       const _ovWL = sessionFinalOverride(sess);
       const ptsA = _ovWL ? _ovWL.a : (sess.teamStats?.a?.pts ?? 0);
       const ptsB = _ovWL ? _ovWL.b : (sess.teamStats?.b?.pts ?? 0);
-      if (ptsA !== ptsB) {
+      /* ONE RESULT PER PRACTICE, whatever the squad filter. A man who switched shirts is
+         credited with the squad he gave the most minutes to - read off ALL his entries, not
+         the filtered ones, or the White view handed him White's result and the Black view
+         Black's, and he read as both winning and losing the same night. In the other
+         squad's view the practice still counts (gp, minutes, stats) with no W/L. */
+      const _owner = filterTeam === 'all' ? p.team
+                   : (mergePlayerEntries(playerEntriesForSession(sess, nm)) || p).team;
+      if (ptsA !== ptsB && (filterTeam === 'all' || _owner === filterTeam)) {
         const winTeam = ptsA > ptsB ? 'a' : 'b';
-        if (p.team === winTeam) row.wins++; else row.losses++;
+        if (_owner === winTeam) row.wins++; else row.losses++;
       }
       row.min  += p.min  || 0;  row.pts  += p.pts  || 0;
       row.fgm  += p.fgm  || 0;  row.fga  += p.fga  || 0;
