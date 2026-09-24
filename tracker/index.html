@@ -10549,7 +10549,12 @@ function mergePlayerEntries(entries) {
   const out = { name: entries[0].name };
   // The squad he gave the most minutes to owns the practice — and therefore the result.
   out.team = dominant.team;
-  for (const k of _PS_COUNTING) out[k] = dominant[k] ?? 0;
+  /* Rows computed since computePlayerStats split events by squad carry teamSplit and hold
+     only that squad's production, so those DO add up. The take-don't-sum rule above is
+     kept for older stored rows, until Recompute Stats brings them onto the new contract. */
+  const split = entries.every(e => e.teamSplit);
+  for (const k of _PS_COUNTING) out[k] = split ? entries.reduce((n, e) => n + (e[k] || 0), 0) : (dominant[k] ?? 0);
+  if (split) out.teamSplit = true;
   // Rounded: adding decimal minutes in binary floating point yields 29.700000000000003.
   out.min = +entries.reduce((sum, e) => sum + (e.min || 0), 0).toFixed(1);
   for (const k of _PS_RATES) {
@@ -10798,7 +10803,7 @@ function rebZoneList() {
    came from without guessing — and across the current data exactly one putback was
    followed by a foul at all. Leaving FTA whole is the smaller error than inventing a link
    the log does not carry. */
-function computeSelfObPutbacks(sessions) {
+function computeSelfObPutbacks(sessions, filterTeam) {
   const SHOT = { '2fg_make': 2, '2fg_miss': 0, '3fg_make': 3, '3fg_miss': 0 };
   const out = {};
   for (const sess of sessions) {
@@ -10806,6 +10811,8 @@ function computeSelfObPutbacks(sessions) {
     const bySess = out[sess.id] = {};
     ev.forEach((e, i) => {
       if (SHOT[e.stat] == null || !e.player) return;
+      /* Scoped by the shot's own team, like the per-squad counting stats it is taken out of. */
+      if (filterTeam && filterTeam !== 'all' && e.team !== filterTeam) return;
       const prev = i > 0 ? ev[i - 1] : null;
       if (!prev || prev.stat !== 'oreb' || prev.player !== e.player) return;
       const b = bySess[e.player] || (bySess[e.player] = { att: 0, pts: 0 });
@@ -10954,8 +10961,10 @@ function sessionRateParts(sess, entries, gameMin) {
   const tot = entries.reduce((t, e) => t + (e.min || 0), 0);
   const out = {};
   for (const en of entries) {
+    /* A teamSplit row already holds only its own squad's counting stats, so it takes them
+       whole; the minutes share below is only for older rows that carry the whole night. */
     const parts = rateParts(sess, en, gameMin,
-      tot > 0 ? (en.min || 0) / tot : 1 / entries.length);
+      en.teamSplit ? 1 : tot > 0 ? (en.min || 0) / tot : 1 / entries.length);
     for (const k in parts) {
       const [a, b] = parts[k];
       const cur = out[k] || (out[k] = [0, 0]);
@@ -10998,7 +11007,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
      to everyone — points created is this man's own production and is filtered like the
      counting stats beside it. */
   const created  = computeAssistCreation(scoped, filterTeam);
-  const putbacks = computeSelfObPutbacks(scoped);
+  const putbacks = computeSelfObPutbacks(scoped, filterTeam);
   const rebSplit = computeReboundSplits(scoped);
 
   /* MIN% denominator: every minute the team was on the floor across the practices in scope,
@@ -11080,7 +11089,7 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
       }
       /* +/- accrues while a player is ON THE FLOOR, and the two team maps cover disjoint
          stints — so a player who switched squads mid-practice has his White and Black
-         stretches added together, unlike the counting stats which are duplicated. When a
+         stretches added together, the same as his per-squad counting stats. When a
          squad filter is on, only that squad's stints count. */
       if (filterTeam === 'all' || filterTeam === 'a') row.pm += pmAll.pmA[nm] || 0;
       if (filterTeam === 'all' || filterTeam === 'b') row.pm += pmAll.pmB[nm] || 0;
@@ -11111,9 +11120,9 @@ function aggregatePlayerStats(filterPeriod, filterTeam) {
          The whole use of this column is the gap between it and TS%, and a gap between two
          figures assembled different ways would measure the assembly as much as the shooting.
          The base is playerStats, the same source TS% divides, so the only difference between
-         the two numbers is the exclusion itself. Counting stats are whole-session by the
-         storage contract, and the putback count is read off the same whole session, so the
-         two agree even when a squad filter is on. */
+         the two numbers is the exclusion itself. Counting stats are per squad, and the
+         putback count is scoped to the same squad, so the two agree even when a squad
+         filter is on. */
       {
         const _pb  = (putbacks[sess.id] || {})[nm] || { att: 0, pts: 0 };
         const _fga = (p.fga || 0) - _pb.att;
@@ -22815,8 +22824,16 @@ function computePlayerStats(session) {
 
   const result = [];
   for (const { name, team } of allPlayers) {
-    const evs = session.eventLog.filter(e => e.type !== 'sub' && e.player === name);
+    /* HIS EVENTS FOR THIS SQUAD ONLY. Matching on name alone handed a man who changed
+       shirts mid-scrimmage his whole night on BOTH rows - the live box score showed his
+       White points under Black and his Black points under White. Every stat event records
+       the team it was logged for, so the row is exactly what he did in that shirt, which
+       is what the per-squad minutes beside it already measured. teamSplit marks the new
+       contract for mergePlayerEntries() and sessionRateParts(): rows stored before it
+       carry the whole night on each entry and must still be TAKEN, not summed. */
+    const evs = session.eventLog.filter(e => e.type !== 'sub' && e.player === name && e.team === team);
     const s   = buildStatLine(evs);
+    s.teamSplit = true;
     /* minExact drives every ratio below; s.min is the rounded copy that gets displayed.
        Keeping them separate is the whole fix — MIN%, SHOT%, OR%, DR%, AST%, STL%, BLK%,
        USG% and the ORTG/DRTG minute weights all divide by this, so a numerator rounded up
