@@ -44,6 +44,7 @@ var CLOCK_RESET_FIX = {   // var, not const: a second console paste must not die
   subFilmTs:   91 * 60 + 8.4,   // 1:31:08.4 — the sub whose five was on the floor for the reset
   resetFilmTs: 91 * 60 + 20,    // 1:31:20   — the clock went 4:28 → 6:00 here
   ADD:         92,              // 1:32 — 6:00 - 4:28, the full clock gap
+  quarterLength: 512,          // 8:32 — the 7:00 quarter plus the 1:32; refuses to save anything else
 };
 
 /* Pure: takes a session, returns { session, report } on a deep copy, or throws with the
@@ -121,6 +122,9 @@ function repairClockReset(original, opts) {
 
   /* ── Invariants before anyone stores it ── */
   const bad = [];
+  if (o.quarterLength != null && q.duration !== o.quarterLength) {
+    bad.push(`Q${Q} would be ${f(q.duration)} long, expected ${f(o.quarterLength)} (it was ${f(qWas.duration)} before the ${f(o.ADD)})`);
+  }
   if (segs[0].startTimeSecs !== q.duration) bad.push(`first stint starts ${f(segs[0].startTimeSecs)}, quarter is ${f(q.duration)}`);
   segs.forEach((g, i) => {
     if (g.endTimeSecs != null && g.endTimeSecs > g.startTimeSecs) bad.push(`stint ${i + 1} ${f(g.startTimeSecs)} → ${f(g.endTimeSecs)} runs backwards`);
