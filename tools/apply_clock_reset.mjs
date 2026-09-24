@@ -1,4 +1,5 @@
-/* Apply clock_reset_fix.js to a pt_data.json export, in place.
+/* Apply clock_reset_fix.js (the 1:32 clock repair, and dropping the quarter opened by
+   accident) to a pt_data.json export, in place.
 
      node tools/apply_clock_reset.mjs tracker/pt_data.json            # dry run: prints, writes nothing
      node tools/apply_clock_reset.mjs tracker/pt_data.json --apply    # writes the repaired file
@@ -27,7 +28,7 @@ const data = JSON.parse(raw);
 const tool = readFileSync(path.join(here, 'clock_reset_fix.js'), 'utf8');
 const { CLOCK_RESET_FIX } = require(path.join(here, 'clock_reset_fix.js'));
 
-const hits = (data.sessions || []).map((s, i) => [s, i]).filter(([s]) => s.date === CLOCK_RESET_FIX.date);
+const hits = (data.sessions || []).map((s, i) => [s, i]).filter(([s]) => s.date === CLOCK_RESET_FIX.date && CLOCK_RESET_FIX.title.test(s.title || ''));
 if (hits.length !== 1) {
   console.error(`expected exactly one session dated ${CLOCK_RESET_FIX.date}, found ${hits.length}.`);
   console.error('sessions:\n  ' + (data.sessions || []).map(s => `${s.title} (${s.date})`).join('\n  '));
@@ -45,15 +46,22 @@ try {
   await page.addScriptTag({ content: tool });
   result = await page.evaluate((sess) => {
     try {
-      const out = repairClockReset(sess);
-      const s = out.session, f = out.report.fmt;
+      const out = repairTonight(sess);
+      const s = out.session, r = out.clock;
       s.teamStats   = computeTeamStats(s);
       s.playerStats = computePlayerStats(s);
-      const minutes = clockResetMinutes(sess, s).map(x => ({ player: x.player, team: x.team,
-                                                              was: f(x.was), now: f(x.now), gained: f(x.now - x.was) }));
-      const r = out.report;
-      return { ok: true, session: s, minutes, stints: r.stints, title: r.title, quarter: r.quarter, add: f(r.add),
-               q: { was: [f(r.quarterWas.duration), f(r.quarterWas.played)], now: [f(r.quarterNow.duration), f(r.quarterNow.played)] } };
+      const res = { ok: true, session: s, title: s.title, dropped: out.dropped,
+                    counts: { quarters: [(sess.quarters || []).length, s.quarters.length],
+                              stints: [(sess.lineupSegments || []).length, s.lineupSegments.length] } };
+      if (r) {
+        const f = r.fmt;
+        Object.assign(res, {
+          clock: true, stints: r.stints, quarter: r.quarter, add: f(r.add),
+          minutes: clockResetMinutes(sess, s).map(x => ({ player: x.player, team: x.team,
+                                                          was: f(x.was), now: f(x.now), gained: f(x.now - x.was) })),
+          q: { was: [f(r.quarterWas.duration), f(r.quarterWas.played)], now: [f(r.quarterNow.duration), f(r.quarterNow.played)] } });
+      }
+      return res;
     } catch (e) { return { ok: false, error: e.message }; }
   }, orig);
 } finally {
@@ -62,11 +70,23 @@ try {
 
 if (!result.ok) { console.error('NOT APPLIED — ' + result.error); process.exit(1); }
 
-console.log(`${result.title} — Q${result.quarter}: +${result.add} to the five on the floor across the reset`);
-console.table(result.stints);
-console.log('player minutes that moved:');
-console.table(result.minutes);
-console.log(`Q${result.quarter} length ${result.q.was[0]} → ${result.q.now[0]}, played ${result.q.was[1]} → ${result.q.now[1]}`);
+console.log(result.title);
+if (result.clock) {
+  console.log(`Q${result.quarter}: +${result.add} to the five on the floor across the reset`);
+  console.table(result.stints);
+  console.log('player minutes that moved:');
+  console.table(result.minutes);
+  console.log(`Q${result.quarter} length ${result.q.was[0]} → ${result.q.now[0]}, played ${result.q.was[1]} → ${result.q.now[1]}`);
+} else {
+  console.log('clock reset already repaired — left as it is');
+}
+if (result.dropped) {
+  console.log(`dropped Q${result.dropped.quarter}, the quarter opened by accident (nothing logged in it):`);
+  console.table([result.dropped]);
+} else {
+  console.log('no empty quarter at the end — nothing dropped');
+}
+console.log(`quarters ${result.counts.quarters[0]} → ${result.counts.quarters[1]}, stints ${result.counts.stints[0]} → ${result.counts.stints[1]}`);
 
 if (!apply) { console.log('\ndry run — nothing written. Add --apply to write it.'); process.exit(0); }
 data.sessions[at] = result.session;
