@@ -92,6 +92,14 @@ This copy keeps the original project intact and starts consolidating the working
   team_min semantics = total player minutes / 5). Advanced splits for
   18-clean-game teams, basic splits otherwise. Single-season only: no
   reliable cross-season player identity.
+- Best / Worst tab (top nav, between Universe and Miscellaneous): computed
+  entirely in the page from the season's existing player rows, so it adds no
+  build step or shipped data. `slRenderBaw()` ranks qualified players
+  (MIN_PCT_QUAL %Min, at least `BAW_MIN_STATS` of the 24 `BAW_STATS`) 0-100
+  within the chosen scope (state / region / conference) and shows the top 10
+  Best, Most Average and Worst. PIR is derived per game by `bawPir()` (no
+  blocks-against in the data). Uses full-season rows regardless of the
+  Conference Only toggle.
 - 2018-19 was rescraped (old data was mislabeled 2019-20 content) and stats
   regenerated. Conference-only data for 2018-19 is sparse (~7 teams): most
   rescraped schedules lack is_conference flags — backfill needed if

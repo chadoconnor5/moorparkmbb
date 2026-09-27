@@ -5453,6 +5453,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <button id="btn-keys" onclick="showView('keys')">Keys</button>
       <button id="btn-fanmatch" onclick="showView('fanmatch')">FanMatch</button>
       <button id="btn-universe" onclick="showView('universe')">Universe</button>
+      <button id="btn-bestworst" onclick="showView('bestworst')">Best / Worst</button>
       <button id="btn-storylines" onclick="showView('storylines')">Miscellaneous</button>
     </div>
     <label class="conf-toggle-label" id="conf-toggle-wrap">
@@ -5917,6 +5918,17 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 <div id="player-view" style="display:none;">
   <span class="td-back" onclick="closePlayerProfile()">← Back</span>
   <div id="player-content" style="margin-top:12px"></div>
+</div>
+
+<div id="bestworst-view" style="display:none;padding:8px 0 24px">
+  <div class="sl-page-title" id="baw-title" style="font-size:1.6rem;margin-top:4px">Best, Most Average &amp; Worst Players</div>
+  <div class="sl-wab-filter" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0 6px;flex-wrap:wrap">
+    <span style="font-size:13px;color:#aaa;font-weight:600">Compare within:</span>
+    <select id="baw-scope" onchange="slRenderBaw()" style="font-size:13px;padding:4px 8px;border-radius:5px;border:1px solid #888;background:#1a1a2e;color:#fff"></select>
+    <span style="font-size:12px;color:#888">(season set by the year selector above)</span>
+  </div>
+  <div id="baw-note" style="padding:0 10px 10px;color:#aaa;font-size:0.75rem;text-align:center;max-width:900px;margin:0 auto"></div>
+  <div id="baw-tables"></div>
 </div>
 
 <div id="storylines-view" style="display:none;">
@@ -7714,6 +7726,8 @@ function __switchSeasonNow(season) {{
     renderCharts();
   }}
   if (slInitialized) slReinit();
+  const bawDiv2 = document.getElementById('bestworst-view');
+  if (bawDiv2 && bawDiv2.style.display !== 'none') slRenderBaw();
 }}
 
 function getFilterLabel() {{
@@ -9123,6 +9137,7 @@ function showTeamDetail_inner(t, teamName) {{
   ) prevView = 'team';
   else if (document.getElementById('universe-view').style.display !== 'none') prevView = 'universe';
   else if (document.getElementById('storylines-view').style.display !== 'none') prevView = 'storylines';
+  else if (document.getElementById('bestworst-view').style.display !== 'none') prevView = 'bestworst';
   else if (document.getElementById('fanmatch-view').style.display !== 'none') prevView = 'fanmatch';
 
   // Hide everything
@@ -9133,6 +9148,7 @@ function showTeamDetail_inner(t, teamName) {{
   document.getElementById('team-adv-defense-view').style.display = 'none';
   document.getElementById('universe-view').style.display = 'none';
   document.getElementById('storylines-view').style.display = 'none';
+  document.getElementById('bestworst-view').style.display = 'none';
   document.getElementById('fanmatch-view').style.display = 'none';
   document.getElementById('sub-toggle').style.display = 'none';
   document.querySelector('.filter-bar').style.display = 'none';
@@ -10282,7 +10298,7 @@ let playerReturnViewId = null;
 let playerProfileCtx = null;
 let playerTrendN = 5;
 const __PP_VIEWS = ['individual-view', 'team-view', 'charts-view', 'universe-view',
-  'team-detail-view', 'storylines-view', 'fanmatch-view', 'gameplan-view',
+  'team-detail-view', 'storylines-view', 'bestworst-view', 'fanmatch-view', 'gameplan-view',
   'minmatrix-view', 'teamstats-view', 'lineups-view', 'keys-view', 'team-defense-view', 'team-basic-view',
   'team-basic-defense-view', 'team-adv-offense-view', 'team-adv-defense-view'];
 
@@ -10312,7 +10328,7 @@ function closePlayerProfile() {{
   if (el) el.style.display = 'block';
   // One player, one season: the season toggle returns with the main views
   document.getElementById('season-toggle').style.display =
-    (back === 'individual-view' || back === 'team-view') ? 'flex' : 'none';
+    (back === 'individual-view' || back === 'team-view' || back === 'bestworst-view') ? 'flex' : 'none';
 }}
 
 function ppSetTrend(n) {{
@@ -11432,6 +11448,8 @@ function showView(view) {{
   const btnSl = document.getElementById('btn-storylines');
   const btnFm = document.getElementById('btn-fanmatch');
   const btnKeys = document.getElementById('btn-keys');
+  const bawDiv = document.getElementById('bestworst-view');
+  const btnBaw = document.getElementById('btn-bestworst');
   const title = document.getElementById('page-title');
   const subtitle = document.getElementById('page-subtitle');
   const info = document.getElementById('page-info');
@@ -11445,6 +11463,7 @@ function showView(view) {{
   tdDiv.style.display = 'none';
   slDiv.style.display = 'none';
   fmDiv.style.display = 'none';
+  bawDiv.style.display = 'none';
   document.getElementById('keys-view').style.display = 'none';
   document.getElementById('lineups-view').style.display = 'none';
   document.getElementById('gameplan-view').style.display = 'none';
@@ -11465,6 +11484,7 @@ function showView(view) {{
   btnSl.classList.remove('active');
   btnFm.classList.remove('active');
   if (btnKeys) btnKeys.classList.remove('active');
+  btnBaw.classList.remove('active');
 
   document.getElementById('conf-toggle-wrap').style.display = '';
   document.querySelector('.team-search-wrap').style.display = '';
@@ -11518,6 +11538,17 @@ function showView(view) {{
     document.querySelector('.team-search-wrap').style.display = 'none';
     document.getElementById('season-toggle').style.display = 'flex';
     slInitFanmatch();
+  }} else if (view === 'bestworst') {{
+    bawDiv.style.display = 'block';
+    btnBaw.classList.add('active');
+    filterBar.style.display = 'none';
+    document.getElementById('page-title').style.display = 'none';
+    document.getElementById('page-subtitle').style.display = 'none';
+    document.getElementById('page-info').style.display = 'none';
+    document.getElementById('conf-toggle-wrap').style.display = 'none';
+    document.querySelector('.team-search-wrap').style.display = 'none';
+    document.getElementById('season-toggle').style.display = 'flex';
+    slRenderBaw();
   }} else if (view === 'storylines') {{
     slDiv.style.display = 'block';
     btnSl.classList.add('active');
@@ -12495,6 +12526,190 @@ function slRenderConf() {{
       + td('d_ftr', fmt(r.d_ftr, 1))
       + '</tr>';
   }}).join('');
+}}
+
+// ─── Best / Average / Worst ────────────────────────────────────────
+// Ranks every qualified player 0-100 on each stat within the chosen scope
+// (state, region or conference). Best/Worst = mean "goodness" percentile over
+// the quality stats (DRtg, TO%, FC/40 flipped so higher is better; %Min, %Poss
+// and %Shots left out because they measure role, not quality). Most Average =
+// root-mean-square distance from the 50th percentile over all 24 stats.
+const BAW_STATS = [
+  {{ k: 'ind_ortg',  l: 'ORtg' }},
+  {{ k: 'ind_drtg',  l: 'DRtg',   low: true }},
+  {{ k: 'efg_pct',   l: 'eFG%' }},
+  {{ k: 'ts_pct',    l: 'TS%' }},
+  {{ k: 'min_pct',   l: '%Min',   role: true }},
+  {{ k: 'usage_pct', l: '%Poss',  role: true }},
+  {{ k: 'shot_pct',  l: '%Shots', role: true }},
+  {{ k: 'oreb_pct',  l: 'OREB%' }},
+  {{ k: 'dreb_pct',  l: 'DREB%' }},
+  {{ k: 'tov_pct',   l: 'TO%',    low: true }},
+  {{ k: 'ast_rate',  l: 'ARate' }},
+  {{ k: 'blk_pct',   l: 'Blk%' }},
+  {{ k: 'stl_pct',   l: 'Stl%' }},
+  {{ k: 'ft_rate',   l: 'FTRate' }},
+  {{ k: 'fc_per_40', l: 'FC/40',  low: true }},
+  {{ k: 'fd_per_40', l: 'FD/40' }},
+  {{ k: 'twop',      l: '2P%' }},
+  {{ k: 'tpp',       l: '3P%' }},
+  {{ k: 'ftp',       l: 'FT%' }},
+  {{ k: 'bpm',       l: 'BPM' }},
+  {{ k: 'porp',      l: 'PRPG!' }},
+  {{ k: '_pir',      l: 'PIR' }},
+  {{ k: 'per',       l: 'PER' }},
+  {{ k: 'ws',        l: 'WS' }},
+];
+const BAW_MIN_STATS = 20;   // a player may miss a few stats (e.g. BPM not computed for his conference)
+const BAW_ROWS = 10;
+
+function bawSeasonPlayers() {{
+  // Full-season rows regardless of the Conference Only toggle.
+  return activeSeason === '1718' ? DATA_1718
+    : activeSeason === '1819' ? DATA_1819
+    : activeSeason === '1920' ? DATA_1920
+    : activeSeason === '2122' ? DATA_2021
+    : activeSeason === '2223' ? DATA_2022
+    : activeSeason === '2324' ? DATA_2023
+    : activeSeason === '2425' ? DATA_2024
+    : DATA;
+}}
+
+// Performance Index Rating per game (EuroLeague): PTS+REB+AST+STL+BLK+FD
+// - missed FG - missed FT - TOV - FC. Shots blocked against is not tracked.
+function bawPir(p) {{
+  if (!p.gp || p.fd_per_40 == null || p.fc_per_40 == null || p.mpg == null) return null;
+  const g = p.gp, f = p.mpg / 40;
+  return (p.ppg || 0) + (p.rpg || 0) + (p.apg || 0) + (p.spg || 0) + (p.bpg || 0)
+    + p.fd_per_40 * f
+    - ((p.fga || 0) - (p.fgm || 0)) / g - ((p.fta || 0) - (p.ftm || 0)) / g
+    - (p.topg || 0) - p.fc_per_40 * f;
+}}
+
+function bawBuildScopes() {{
+  const sel = document.getElementById('baw-scope');
+  if (!sel) return;
+  const prev = sel.value || 'all';
+  const players = bawSeasonPlayers() || [];
+  const confs = {{ North: new Set(), South: new Set() }};
+  players.forEach(p => {{ if (p.conference && confs[p.region]) confs[p.region].add(p.conference); }});
+  let html = '<option value="all">State (all CCCAA)</option>'
+    + '<option value="region:North">North region</option>'
+    + '<option value="region:South">South region</option>';
+  ['North', 'South'].forEach(r => {{
+    const list = [...confs[r]].sort();
+    if (!list.length) return;
+    html += '<optgroup label="' + r + ' conferences">'
+      + list.map(c => '<option value="conf:' + c + '">' + c + '</option>').join('')
+      + '</optgroup>';
+  }});
+  sel.innerHTML = html;
+  sel.value = [...sel.options].some(o => o.value === prev) ? prev : 'all';
+}}
+
+function slRenderBaw() {{
+  const wrap = document.getElementById('baw-tables');
+  const note = document.getElementById('baw-note');
+  const sel = document.getElementById('baw-scope');
+  if (!wrap || !sel) return;
+  bawBuildScopes();
+  const bawTitle = document.getElementById('baw-title');
+  if (bawTitle) bawTitle.textContent = chartSeasonLabel() + ' Best, Most Average & Worst Players';
+  const scope = sel.value;
+  const scopeLabel = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : 'State';
+  const all = bawSeasonPlayers() || [];
+
+  let pool = all.filter(p => (p.min_pct || 0) >= MIN_PCT_QUAL);
+  if (scope.startsWith('region:')) pool = pool.filter(p => p.region === scope.slice(7));
+  else if (scope.startsWith('conf:')) pool = pool.filter(p => p.conference === scope.slice(5));
+  pool = pool.map(p => Object.assign({{}}, p, {{ _pir: bawPir(p) }}))
+    .filter(p => BAW_STATS.filter(s => p[s.k] != null && !isNaN(p[s.k])).length >= BAW_MIN_STATS);
+
+  if (pool.length < 3) {{
+    note.textContent = '';
+    wrap.innerHTML = '<div style="text-align:center;color:#888;padding:24px">Not enough qualified players in ' + scopeLabel + ' this season.</div>';
+    return;
+  }}
+
+  // Mid-rank percentile of each value within the pool, per stat.
+  BAW_STATS.forEach(s => {{
+    const vals = pool.map(p => p[s.k]).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
+    const n = vals.length;
+    const lowerBound = v => {{ let lo = 0, hi = n; while (lo < hi) {{ const m = (lo + hi) >> 1; if (vals[m] < v) lo = m + 1; else hi = m; }} return lo; }};
+    const upperBound = v => {{ let lo = 0, hi = n; while (lo < hi) {{ const m = (lo + hi) >> 1; if (vals[m] <= v) lo = m + 1; else hi = m; }} return lo; }};
+    pool.forEach(p => {{
+      const v = p[s.k];
+      p['_pc_' + s.k] = (v == null || isNaN(v) || !n) ? null : 100 * ((lowerBound(v) + upperBound(v)) / 2) / n;
+    }});
+  }});
+
+  pool.forEach(p => {{
+    let gSum = 0, gN = 0, dSq = 0, dN = 0, best = null, worst = null, far = null;
+    BAW_STATS.forEach(s => {{
+      const pc = p['_pc_' + s.k];
+      if (pc == null) return;
+      const dev = Math.abs(pc - 50);
+      dSq += dev * dev; dN++;
+      if (!far || dev > far.dev) far = {{ s, dev, pc }};
+      if (s.role) return;
+      const g = s.low ? 100 - pc : pc;
+      gSum += g; gN++;
+      if (!best || g > best.g) best = {{ s, g }};
+      if (!worst || g < worst.g) worst = {{ s, g }};
+    }});
+    p._score = gN ? gSum / gN : null;
+    p._avgDist = dN ? Math.sqrt(dSq / dN) : null;
+    p._best = best; p._worst = worst; p._far = far;
+  }});
+
+  const rows = Math.max(1, Math.min(BAW_ROWS, Math.floor(pool.length / 3)));
+  const byScore = pool.slice().sort((a, b) => b._score - a._score);
+  const best = byScore.slice(0, rows);
+  const worst = byScore.slice(-rows).reverse();
+  const average = pool.slice().sort((a, b) => a._avgDist - b._avgDist).slice(0, rows);
+  const rankOf = new Map(byScore.map((p, i) => [p, i + 1]));
+
+  const fmt = (v, d) => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(d);
+  const ord = n => {{ const r = Math.round(n); const t = r % 100; const s = (t >= 11 && t <= 13) ? 'th' : ({{ 1: 'st', 2: 'nd', 3: 'rd' }}[r % 10] || 'th'); return r + s; }};
+  // Shown percentile is "goodness" for flipped stats, so 99th is always the good end.
+  const statTxt = (p, s) => {{
+    const pc = p['_pc_' + s.k];
+    return s.l + ' ' + fmt(p[s.k], 1) + ' <span style="color:#777">(' + ord(s.low ? 100 - pc : pc) + ')</span>';
+  }};
+
+  const table = (title, color, list, mode) => {{
+    const lastHead = mode === 'avg'
+      ? '<th class="sl-th-r" title="Root-mean-square distance from the 50th percentile across all stats. Lower = more average.">Dist.</th><th>Least average stat</th>'
+      : '<th class="sl-th-r" title="Mean percentile across the quality stats (50 = middle of this group).">Score</th><th>Strongest</th><th>Weakest</th>';
+    const body = list.map((p, i) => {{
+      const rk = mode === 'worst' ? rankOf.get(p) : i + 1;
+      const tail = mode === 'avg'
+        ? '<td class="sl-th-r" style="font-weight:700 !important">' + fmt(p._avgDist, 1) + '</td><td style="text-align:left">' + (p._far ? statTxt(p, p._far.s) : '—') + '</td>'
+        : '<td class="sl-th-r" style="font-weight:700 !important">' + fmt(p._score, 1) + '</td><td style="text-align:left">' + (p._best ? statTxt(p, p._best.s) : '—') + '</td><td style="text-align:left">' + (p._worst ? statTxt(p, p._worst.s) : '—') + '</td>';
+      return '<tr><td class="sl-th-r">' + rk + '</td>'
+        + '<td style="font-weight:600 !important">' + playerLink(p.name, p.school) + '</td>'
+        + '<td>' + p.school + '</td>'
+        + '<td style="text-align:left;color:#555 !important;font-size:12px">' + (p.conference || '') + '</td>'
+        + '<td class="sl-th-r">' + fmt(p.bpm, 1) + '</td>'
+        + '<td class="sl-th-r">' + fmt(p.per, 1) + '</td>'
+        + '<td class="sl-th-r">' + fmt(p.ws, 1) + '</td>'
+        + '<td class="sl-th-r">' + fmt(p.porp, 1) + '</td>'
+        + tail + '</tr>';
+    }}).join('');
+    return '<div class="sl-page-title" style="color:' + color + '">' + title + '</div>'
+      + '<div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>'
+      + '<th class="sl-th-r">#</th><th>Player</th><th>School</th><th>Conference</th>'
+      + '<th class="sl-th-r">BPM</th><th class="sl-th-r">PER</th><th class="sl-th-r">WS</th><th class="sl-th-r">PRPG!</th>'
+      + lastHead + '</tr></thead><tbody>' + body + '</tbody></table></div></div>';
+  }};
+
+  note.innerHTML = pool.length + ' qualified players in ' + scopeLabel
+    + ' (' + MIN_PCT_QUAL + '%+ of team minutes, at least ' + BAW_MIN_STATS + ' of ' + BAW_STATS.length + ' stats available). '
+    + 'Each stat is ranked 0–100 within this group. <b>Best/Worst</b>: average rank over the quality stats, with DRtg, TO% and FC/40 flipped and %Min, %Poss and %Shots left out as role stats. '
+    + '<b>Most Average</b>: closest to the 50th percentile across all ' + BAW_STATS.length + '. PIR is per game and does not subtract shots blocked. Percentiles in parentheses; for DRtg, TO% and FC/40 a high percentile means low (good).';
+  wrap.innerHTML = table('Best', '#4caf50', best, 'best')
+    + table('Most Average', '#4fc3f7', average, 'avg')
+    + table('Worst', '#ef5350', worst, 'worst');
 }}
 
 function slRenderRpi() {{
