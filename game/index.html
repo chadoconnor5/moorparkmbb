@@ -238,6 +238,27 @@ table{border-collapse:collapse}
 .ff .k .lbl{font-size:10.5px;color:#fff;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .ff .k .v{font-size:18px;font-weight:600;display:flex;justify-content:space-between;gap:8px;margin-top:3px;font-variant-numeric:tabular-nums}
 .ff .k .v .a{color:var(--us)} .ff .k .v .b{color:var(--them)}
+.ff4-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:900px){.ff4-grid{grid-template-columns:1fr 1fr}}
+.ff4{background:var(--card);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.ff4-head{display:flex;flex-direction:column}
+.ff4-head b{font-size:14px} .ff4-head span{font-size:11px;color:var(--text2)}
+.ff4-row{display:grid;grid-template-columns:72px 1fr;align-items:center;gap:8px;font-size:12px}
+.ff4-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.ff4-team.a{color:var(--us)} .ff4-team.b{color:var(--them)}
+.ffbar{position:relative;height:22px;background:var(--card2);border-radius:6px;overflow:hidden}
+.ffbar-fill{height:100%;border-radius:6px}
+.ffbar-fill.a{background:var(--us)} .ffbar-fill.b{background:var(--them)}
+.ffbar span{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.ff4-edge{font-size:11.5px;font-weight:700;color:var(--text2)}
+.ff4-edge.a{color:var(--us)} .ff4-edge.b{color:var(--them)}
+.ks-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ks{background:var(--card);border-radius:12px;padding:12px 14px;border-left:4px solid var(--us)}
+.ks.b{border-left-color:var(--them)}
+.ks-lbl{font-size:12px;font-weight:700;margin-bottom:6px}
+.ks-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.ks-nums b{display:block;font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.ks-nums span{font-size:11px;color:var(--text2);font-weight:600}
 .insights{display:flex;flex-direction:column;gap:6px}
 .ins{padding:9px 12px;border-radius:10px;background:var(--card);font-weight:500;display:flex;align-items:center;gap:10px;color:var(--text2)}
 .ins::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
@@ -371,6 +392,13 @@ const TEAM = 'TEAM';
    and carry into OT; 7th = one-and-one, 10th = two shots. */
 const FORMAT = { periods: 2, periodLen: 1200, otLen: 300, to30: 2, toFull: 4, bonus: 7, dbonus: 10 };
 /* Seed roster for a first open with no data at all (offline, nothing in this browser yet). */
+/* 2026-27 dates known so far. Site defaults to home - change it on the Schedule tab. */
+const SEED_SCHEDULE = [
+  { id: 'sch_seed_1015', date: '2026-10-15', time: '', opp: 'Mack Attack Prep', site: 'home', conf: false, scrim: true },
+  { id: 'sch_seed_1022', date: '2026-10-22', time: '', opp: 'Santa Monica', site: 'home', conf: false, scrim: true },
+  { id: 'sch_seed_1102', date: '2026-11-02', time: '', opp: 'Antelope Valley', site: 'home', conf: false, scrim: false },
+  { id: 'sch_seed_1103', date: '2026-11-03', time: '', opp: 'San Bernardino Valley', site: 'home', conf: false, scrim: false },
+];
 const SEED_ROSTER = ["Josh Castaniero","Matthew Wilson","Alex Bello","SoulJah Niles","Mikey Duran-Morales",
   "Eric Kubel","Quian Khawaja","Brenden Banks-Speed","George Hees","Emmitt Claiborne","Sean Castro","CJ Temme",
   "Axel Ostergard","Jaylen Smith","Finn Ortiz","Jack Johnson","Ashton Carraway","Reese Widerburg"]
@@ -1274,6 +1302,33 @@ function scoringFlow(g) {
   }
   return { pts, leadA, leadB, changes, ties, run, bestRun };
 }
+/* KILLSHOTS — unanswered runs, tracked silently (no live alert). A run is every point one
+   side scores before the other side scores again; it carries across the half like kills
+   do. A run that reaches 10 is a killshot; 15 and 20 are counted on top of it, so a 22-0
+   run is one killshot, one 15-0 and one 20-0. */
+const RUN_MARKS = [10, 15, 20];
+function scoringRuns(g, qf) {
+  const runs = []; let cur = null; let a = 0, b = 0;
+  const L = lineupAtEach(g);
+  g.eventLog.forEach((e, i) => {
+    if (!isStat(e)) return;
+    const v = evPts(e); if (!v) return;
+    if (!cur || cur.team !== e.team) {
+      cur = { team: e.team, pts: 0, startA: a, startB: b, startIdx: i, startQ: e.quarter, lineup: L[i] };
+      runs.push(cur);
+    }
+    cur.pts += v; cur.endIdx = i; cur.endQ = e.quarter;
+    if (e.team === 'a') a += v; else b += v;
+    cur.endA = a; cur.endB = b;
+  });
+  return runs.filter(r => r.pts >= RUN_MARKS[0] && (qf == null || r.startQ === qf || r.endQ === qf));
+}
+function killshotCounts(g, qf) {
+  const c = { a: { 10: 0, 15: 0, 20: 0 }, b: { 10: 0, 15: 0, 20: 0 } };
+  for (const r of scoringRuns(g, qf)) for (const m of RUN_MARKS) if (r.pts >= m) c[r.team][m]++;
+  return c;
+}
+
 /* Empty trips in a row for a team, most recent first. */
 function drought(g, t) {
   const A = analyzeTrips(g); let n = 0;
@@ -1576,7 +1631,7 @@ async function paintSetupScout() {
 }
 function applySchedToSetup(r) {
   const o = ensureOpp(r.opp);
-  Object.assign(setupDraft, { opponent: r.opp, date: r.date, site: r.site || 'home', conf: !!r.conf, scheduleId: r.id,
+  Object.assign(setupDraft, { opponent: r.opp, date: r.date, site: r.site || 'home', conf: !!r.conf, scrim: !!r.scrim, scheduleId: r.id,
                               oppId: o ? o.id : null, scoutKey: (o && o.scoutKey) || setupDraft.scoutKey });
 }
 function applyOppToSetup(id) {
@@ -1595,7 +1650,7 @@ function createGame() {
   const { labels: opp, info: oppInfo } = buildOppLabels(savedOpp ? savedOpp.players : []);
   const g = {
     id: 'game_' + Date.now(), kind: 'game', app: 'moorpark-game-tracker',
-    title: (d.site === 'away' ? '@ ' : 'vs ') + d.opponent, date: d.date, opponent: d.opponent, site: d.site, conference: d.conf,
+    title: (d.site === 'away' ? '@ ' : 'vs ') + d.opponent + (d.scrim ? ' (scrimmage)' : ''), date: d.date, opponent: d.opponent, site: d.site, conference: d.conf, scrimmage: !!d.scrim,
     teamAName: 'Moorpark', teamBName: d.opponent, format: Object.assign({}, FORMAT),
     dressedA: d.dressed.slice(), startersA: d.starters.slice(), startersB: [], oppRoster: opp, oppInfo,
     quarters: [], eventLog: [], lineupSegments: [], nextId: 0,
@@ -2057,6 +2112,8 @@ function renderAnalytics() {
     <span style="margin-left:auto;font-size:20px;font-weight:900"><span style="color:var(--us)">${esc(g.teamAName)} ${finalScore(g).a}</span> – <span style="color:var(--them)">${finalScore(g).b} ${esc(g.teamBName)}</span>
     <span class="small muted">${g.completed ? 'Final' : 'LIVE · ' + (g.between ? 'break' : periodName(g, curPeriod(g), true) + ' ' + fmtClock(clockNow(g)))}</span></span></div>
   ${g.completed ? '' : `<div class="card"><h3>Right now</h3><div class="insights">${insights(g).map(i => `<div class="ins ${i.c}">${esc(i.t)}</div>`).join('') || '<div class="muted">Nothing flagged.</div>'}</div></div>`}
+  <div class="card"><h3>Four Factors <span class="muted"><span style="color:var(--us)">${esc(g.teamAName)}</span> vs <span style="color:var(--them)">${esc(g.teamBName)}</span>${qf ? ' · ' + periodName(g, qf) : ''}</span></h3>${fourFactorsHtml(g, T, qf)}</div>
+  <div class="card"><h3>Killshots <span class="muted">unanswered runs — 10-0 is a killshot</span></h3>${killshotsHtml(g, qf)}</div>
   <div class="card"><h3>Team comparison <span class="muted"><span style="color:var(--us)">${esc(g.teamAName)}</span> left · <span style="color:var(--them)">${esc(g.teamBName)}</span> right</span></h3>${factors}</div>
   <div class="card chart"><h3>Score margin <span class="muted">Moorpark lead above the line · game clock read from subs/timeouts · shaded: clutch (gold), garbage time (grey)</span></h3>${marginChart(g, flow, A)}</div>
   <div class="grid2">
@@ -2073,6 +2130,57 @@ function renderAnalytics() {
 }
 function killsFor(A, qf, t, f) {
   return A.trips.filter(tr => tr.kill === t && (qf == null || tr.period === qf) && (!f || tripPass(tr, f))).length;
+}
+/* Dean Oliver's four factors, ours against theirs. Each is the side's own number: shooting
+   (eFG%), ball security (TOV% per possession, lower is better), offensive rebounding
+   (OREB% of available boards) and getting to the line (FTA per FGA). */
+const FF_DEFS = [
+  { k: 'efgPct', label: 'Shooting', sub: 'eFG%', hi: true, max: 80 },
+  { k: 'tovPct', label: 'Turnovers', sub: 'TOV% — lower is better', hi: false, max: 35 },
+  { k: 'orebPct', label: 'Off. rebounding', sub: 'OREB%', hi: true, max: 60 },
+  { k: 'ftr', label: 'Free throws', sub: 'FT rate — FTA per FGA', hi: true, max: 60 },
+];
+function fourFactorsHtml(g, T, qf) {
+  const a = T.a, b = T.b;
+  const tiles = FF_DEFS.map(d => {
+    const va = a[d.k] || 0, vb = b[d.k] || 0;
+    const edge = va === vb ? null : ((va > vb) === d.hi ? 'a' : 'b');
+    const bar = (v, t) => `<div class="ffbar"><div class="ffbar-fill ${t}" style="width:${Math.min(100, 100 * v / d.max)}%"></div><span>${v.toFixed(1)}</span></div>`;
+    return `<div class="ff4">
+      <div class="ff4-head"><b>${d.label}</b><span>${d.sub}</span></div>
+      <div class="ff4-row"><span class="ff4-team a">${esc(g.teamAName)}</span>${bar(va, 'a')}</div>
+      <div class="ff4-row"><span class="ff4-team b">${esc(g.teamBName)}</span>${bar(vb, 'b')}</div>
+      <div class="ff4-edge ${edge || ''}">${edge ? (edge === 'a' ? esc(g.teamAName) : esc(g.teamBName)) + ' +' + Math.abs(va - vb).toFixed(1) : 'Even'}</div></div>`;
+  }).join('');
+  const won = FF_DEFS.filter(d => { const va = a[d.k] || 0, vb = b[d.k] || 0; return va !== vb && ((va > vb) === d.hi); }).length;
+  const lost = FF_DEFS.filter(d => { const va = a[d.k] || 0, vb = b[d.k] || 0; return va !== vb && ((va > vb) !== d.hi); }).length;
+  // By period, unless one period is already selected.
+  let byP = '';
+  const n = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  if (!qf && n > 1) {
+    const cell = (x, y, hi) => { const w = x === y ? '' : ((x > y) === hi ? 'pos' : 'neg'); return `<td class="${w}">${f1(x)}</td><td>${f1(y)}</td>`; };
+    let rows = '';
+    for (let q = 1; q <= n; q++) {
+      const P = teamStats(g, e => e.quarter === q);
+      rows += `<tr><td class="l">${periodName(g, q)}</td>${FF_DEFS.map(d => cell(P.a[d.k] || 0, P.b[d.k] || 0, d.hi)).join('')}</tr>`;
+    }
+    byP = `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><tr><th>Period</th>${FF_DEFS.map(d => `<th colspan="2" style="text-align:center">${d.sub.split(' ')[0]} us / them</th>`).join('')}</tr>${rows}</table></div>`;
+  }
+  return `<div class="ff4-grid">${tiles}</div>
+    <div class="small" style="margin-top:10px;color:var(--text2)">${esc(g.teamAName)} winning <b>${won}</b> of 4${lost ? `, losing <b>${lost}</b>` : ''} · ${f1(a.possessions)} possessions each · ORtg ${f1(a.ortg)} – ${f1(b.ortg)}</div>${byP}`;
+}
+function killshotsHtml(g, qf) {
+  const c = killshotCounts(g, qf);
+  const A = analyzeTrips(g);
+  const tile = (t, lbl) => `<div class="ks ${t}"><div class="ks-lbl">${lbl}</div><div class="ks-nums">${RUN_MARKS.map(m => `<div><b>${c[t][m]}</b><span>${m}-0</span></div>`).join('')}</div></div>`;
+  const runs = scoringRuns(g, qf);
+  const clk = i => A.clocks[i] != null ? fmtClock(A.clocks[i]) : '';
+  const list = runs.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><tr><th>Run</th><th>By</th><th>From</th><th>To</th><th>Score</th><th>Moorpark five at the start</th></tr>
+    ${runs.map(r => `<tr><td class="l"><b>${r.pts}-0</b>${r.pts >= 20 ? ' <span class="tag lev-high">20+</span>' : r.pts >= 15 ? ' <span class="tag lev-med">15+</span>' : ''}</td>
+      <td class="l" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them)'}">${esc(teamName(g, r.team))}</td>
+      <td>${periodName(g, r.startQ, true)} ${clk(r.startIdx)}</td><td>${periodName(g, r.endQ, true)} ${clk(r.endIdx)}</td>
+      <td>${r.startA}–${r.startB} → ${r.endA}–${r.endB}</td><td class="l small">${r.lineup.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td></tr>`).join('')}</table></div>` : '<div class="small" style="margin-top:10px;color:var(--text2)">No 10-0 runs yet.</div>';
+  return `<div class="ks-grid">${tile('a', esc(g.teamAName) + ' — for')}${tile('b', 'Against — by ' + esc(g.teamBName))}</div>${list}`;
 }
 function levSelect() {
   return `<select data-act="pick-lev" style="font-size:12px;padding:3px 6px;text-transform:none;letter-spacing:0">${LEV_FILTERS.map(([k, l]) => `<option value="${k}" ${App.lev === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
@@ -2225,8 +2333,16 @@ function gtSummary(g, A) {
 }
 
 /* ── PLAY BY PLAY ── */
+let KS_TAGS = new Map();
 function renderPbp(embedded) {
   const g = viewGame(); if (!g) return noGame();
+  // The basket that takes a run to 10, 15 or 20 gets the tag.
+  KS_TAGS = new Map();
+  { let team = null, run = 0;
+    g.eventLog.forEach((e, i) => { if (!isStat(e)) return; const v = evPts(e); if (!v) return;
+      if (e.team !== team) { team = e.team; run = 0; }
+      const before = run; run += v;
+      for (const m of RUN_MARKS) if (before < m && run >= m) KS_TAGS.set(i, { team, mark: m }); }); }
   const A = analyzeTrips(g);
   let sA = 0, sB = 0;
   const rows = g.eventLog.map((e, i) => { if (isStat(e)) { if (e.team === 'a') sA += evPts(e); else sB += evPts(e); } return { e, i, sA, sB }; });
@@ -2234,7 +2350,8 @@ function renderPbp(embedded) {
   const playersFor = t => t === 'a' ? [...teamPlayers(g, 'a').sort(byLast), TEAM] : (oppHasRoster(g) ? [...g.oppRoster, TEAM] : [TEAM]);
   const html = rows.slice().reverse().map(({ e, i, sA, sB }) => {
     const tr = A.evTrip[i];
-    const tags = tr ? `${e.kill ? `<span class="tag" style="background:var(--gold);color:#000">KILL ${e.kill === 'a' ? 'MC' : 'OPP'}</span>` : ''}${tr.ftEnd && i === tr.events[tr.events.length - 1] ? '<span class="tag lev-low" title="Ended on a free-throw rebound: not a stop">FT reb</span>' : ''}${tr.gt ? '<span class="tag lev-gt">GT</span>' : ''}${tr.clutch ? '<span class="tag lev-clutch">CL</span>' : ''}<span class="tag lev-${tr.tier}">${tr.tier[0].toUpperCase()}</span>` : '';
+    const ks = KS_TAGS.get(i);
+    const tags = (ks ? `<span class="tag" style="background:${ks.team === 'a' ? 'var(--us)' : 'var(--them)'};color:#000">${ks.mark}-0 ${ks.mark === 10 ? 'KILLSHOT' : 'RUN'}</span>` : '') + (tr ? `${e.kill ? `<span class="tag" style="background:var(--gold);color:#000">KILL ${e.kill === 'a' ? 'MC' : 'OPP'}</span>` : ''}${tr.ftEnd && i === tr.events[tr.events.length - 1] ? '<span class="tag lev-low" title="Ended on a free-throw rebound: not a stop">FT reb</span>' : ''}${tr.gt ? '<span class="tag lev-gt">GT</span>' : ''}${tr.clutch ? '<span class="tag lev-clutch">CL</span>' : ''}<span class="tag lev-${tr.tier}">${tr.tier[0].toUpperCase()}</span>` : '');
     const clk = e.type ? fmtClock(e.timeSecs) : (A.clocks[i] != null ? (e.gc != null ? '' : '~') + fmtClock(A.clocks[i]) : '');
     const edit = canEdit && isStat(e) ? `<select data-act="pbp-player" data-i="${i}" style="font-size:12px;padding:2px 4px">${playersFor(e.team).map(p => `<option value="${esc(p)}" ${p === e.player ? 'selected' : ''}>${esc(p === TEAM ? 'Team' : p)}</option>`).join('')}</select>` : '';
     const del = canEdit && (isStat(e) || e.type === 'timeout' || e.type === 'clock') ? `<button class="btn btn-sm" data-act="pbp-del" data-i="${i}" title="Delete">🗑</button>` : '';
@@ -2265,7 +2382,7 @@ function renderGames() {
   const rows = games.map(g => {
     const s = finalScore(g); const w = s.a > s.b;
     const res = g.completed ? `<b class="${w ? 'good' : 'bad'}">${w ? 'W' : 'L'}</b> ${s.a}–${s.b}` : `<span class="warn">LIVE</span> ${s.a}–${s.b}`;
-    return `<tr><td class="l">${esc(g.date)}</td><td class="l">${esc(g.title)}${g.conference ? ' <span class="tiny muted">conf</span>' : ''}</td><td>${res}</td>
+    return `<tr><td class="l">${esc(g.date)}</td><td class="l">${esc(g.title)}${g.conference ? ' <span class="tiny muted">conf</span>' : ''}${g.scrimmage ? ' <span class="tiny muted">scrimmage — not in season totals</span>' : ''}</td><td>${res}</td>
       <td style="text-align:right"><button class="btn btn-sm" data-act="view-game" data-id="${g.id}">Box</button> <button class="btn btn-sm" data-act="view-an" data-id="${g.id}">Analytics</button>
       ${!App.viewer && !g.completed ? `<button class="btn btn-sm btn-good" data-act="resume" data-id="${g.id}">Resume</button>` : ''}
       ${!App.viewer && g.completed ? `<button class="btn btn-sm" data-act="reopen" data-id="${g.id}" title="Unlock to fix the end of the game">Reopen</button>` : ''}
@@ -2282,12 +2399,14 @@ function renderGames() {
 
 /* ── SEASON ── */
 function renderSeason() {
-  const games = App.games.filter(g => g.completed);
-  if (!games.length) return '<div class="card"><h3>Season</h3><div class="muted">Finished games show up here.</div></div>';
+  // Scrimmages are tracked in full but kept out of the record and the season numbers.
+  const games = App.games.filter(g => g.completed && !g.scrimmage);
+  const nScrim = App.games.filter(g => g.completed && g.scrimmage).length;
+  if (!games.length) return `<div class="card"><h3>Season</h3><div class="muted">Finished games show up here${nScrim ? ` (${nScrim} scrimmage${nScrim === 1 ? '' : 's'} played — not counted)` : ''}.</div></div>`;
   const agg = new Map();
   let W = 0, Lw = 0; const team = { a: statLine([]), b: statLine([]), poss: 0 };
   const sumInto = (dst, src) => { for (const k of Object.keys(dst)) if (typeof src[k] === 'number') dst[k] += src[k]; };
-  const lev = { aT: 0, aP: 0, bT: 0, bP: 0 }, kl = { a: 0, b: 0 };
+  const lev = { aT: 0, aP: 0, bT: 0, bP: 0 }, kl = { a: 0, b: 0 }, ksF = { 10: 0, 15: 0, 20: 0 }, ksA = { 10: 0, 15: 0, 20: 0 };
   for (const g of games) {
     const s = finalScore(g); if (s.a > s.b) W++; else Lw++;
     const T = teamStats(g); sumInto(team.a, T.a); sumInto(team.b, T.b); team.poss += T.a.possessions;
@@ -2296,7 +2415,8 @@ function renderSeason() {
       if (!agg.has(r.name)) agg.set(r.name, Object.assign(statLine([]), { gp: 0, min: 0, pm: 0 }));
       const x = agg.get(r.name); sumInto(x, r); x.gp++;
     }
-    { const AK = analyzeTrips(g); kl.a += AK.kills.a; kl.b += AK.kills.b; }
+    { const AK = analyzeTrips(g); kl.a += AK.kills.a; kl.b += AK.kills.b;
+      const kc = killshotCounts(g); for (const m of RUN_MARKS) { ksF[m] += kc.a[m]; ksA[m] += kc.b[m]; } }
     for (const tr of analyzeTrips(g).trips) if (!tr.gt) { if (tr.team === 'a') { lev.aT++; lev.aP += tr.pts; } else { lev.bT++; lev.bP += tr.pts; } }
   }
   const n = games.length;
@@ -2316,6 +2436,8 @@ function renderSeason() {
       <div class="k"><div class="lbl">OREB%</div><div class="v"><span class="a">${pct(a.oreb, a.oreb + b.dreb)}</span><span class="b">${pct(b.oreb, b.oreb + a.dreb)}</span></div></div>
       <div class="k"><div class="lbl">FT rate</div><div class="v"><span class="a">${pct(a.fta, a.fga)}</span><span class="b">${pct(b.fta, b.fga)}</span></div></div>
       <div class="k"><div class="lbl">Kills per game</div><div class="v"><span class="a">${(kl.a / n).toFixed(1)}</span><span class="b">${(kl.b / n).toFixed(1)}</span></div></div>
+      <div class="k"><div class="lbl">Killshots (10-0) for / against</div><div class="v"><span class="a">${ksF[10]}</span><span class="b">${ksA[10]}</span></div></div>
+      <div class="k"><div class="lbl">15-0 · 20-0 for / against</div><div class="v"><span class="a">${ksF[15]} · ${ksF[20]}</span><span class="b">${ksA[15]} · ${ksA[20]}</span></div></div>
       <div class="k"><div class="lbl">Pace (poss/g)</div><div class="v"><span>${(P / n).toFixed(1)}</span></div></div>
     </div></div>
   <div class="card"><h3>Players — per game</h3><div class="tbl-wrap"><table class="tbl">
@@ -2584,6 +2706,8 @@ function parseScheduleText(text) {
     if (/(^|\s)(@|at)\s/i.test(' ' + line + ' ')) site = 'away';
     if (/\(n\)|neutral/i.test(line)) site = 'neutral';
     const conf = /\*|\bconf(erence)?\b/i.test(line);
+    const scrim = /scrimmage|\bscrim\b|exhibition/i.test(line);
+    line = line.replace(/\(?\s*(scrimmage|scrim|exhibition)\s*\)?/gi, ' ');
     let opp = line
       .replace(/\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|sday|nesday|rsday|urday)?\b\.?,?/gi, ' ')
       .replace(/\b[WLT]\s*,?\s*\d{2,3}\s*[-–]\s*\d{2,3}\b/g, ' ')                  // a result already played
@@ -2592,7 +2716,7 @@ function parseScheduleText(text) {
       .replace(/[|,;\t]+/g, ' ').replace(/\s+/g, ' ').trim()
       .replace(/^[-–:]+|[-–:]+$/g, '').trim();
     if (!opp) continue;
-    out.push({ id: 'sch_' + Date.now() + '_' + out.length, date, time, opp, site, conf });
+    out.push({ id: 'sch_' + Date.now() + '_' + out.length, date, time, opp, site, conf, scrim });
   }
   return out;
 }
@@ -2613,7 +2737,7 @@ function renderSchedule() {
   const body = rows.map((r, i) => {
     const g = gameForRow(r);
     let status;
-    if (g && g.completed) { const fs = finalScore(g); const w = fs.a > fs.b; w ? W++ : L++;
+    if (g && g.completed) { const fs = finalScore(g); const w = fs.a > fs.b; if (!r.scrim && !g.scrimmage) { w ? W++ : L++; }
       status = `<span class="res ${w ? 'w' : 'l'}">${w ? 'W' : 'L'} ${fs.a}–${fs.b}</span> <button class="btn btn-sm" data-act="view-game" data-id="${g.id}">Box</button>`; }
     else if (g) status = `<button class="btn btn-sm btn-good" data-act="resume" data-id="${g.id}">Resume</button>`;
     else status = `<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
@@ -2623,6 +2747,7 @@ function renderSchedule() {
       <td><input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}"></td>
       <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}" placeholder="${i === 0 ? '7:00 PM' : ''}"></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
+      <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="scrim" ${r.scrim ? 'checked' : ''}></td>
       <td style="white-space:nowrap">${status}</td>
       <td style="width:36px"><button class="prow-x" data-act="sch-del" data-i="${i}" title="Remove">✕</button></td></tr>`;
   }).join('');
@@ -2638,8 +2763,8 @@ function renderSchedule() {
       <textarea id="sch-paste-text" rows="8" style="width:100%"></textarea>
       <div class="row" style="margin-top:8px"><button class="btn btn-primary btn-sm" data-act="sch-paste-read">Add these games</button><button class="btn btn-sm" data-act="sch-paste">Close</button></div></div>` : ''}
     <div class="card" style="padding:0">
-      <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th>Time</th><th style="text-align:center!important">Conf</th><th>Result</th><th></th></tr>
-        ${body || '<tr><td class="l muted" colspan="7" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
+      <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th>Time</th><th style="text-align:center!important">Conf</th><th style="text-align:center!important">Scrim</th><th>Result</th><th></th></tr>
+        ${body || '<tr><td class="l muted" colspan="8" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
       <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Changes save when you tap Save.</span>
         <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
     </div>
@@ -2725,7 +2850,7 @@ function schStart(i) {
   App.liveId = null; lsSet(LS_LIVE, null);
   const o = ensureOpp(row.opp);
   const visible = App.roster.filter(x => !x.hidden).map(x => x.name);
-  setupDraft = { opponent: row.opp, date: row.date, site: row.site || 'home', conf: !!row.conf, oppId: o ? o.id : null,
+  setupDraft = { opponent: row.opp, date: row.date, site: row.site || 'home', conf: !!row.conf, scrim: !!row.scrim, oppId: o ? o.id : null,
                  scoutKey: o && o.scoutKey || null, scheduleId: row.id, dressed: visible.slice(), starters: [] };
   setTab('track');
 }
@@ -3037,6 +3162,13 @@ async function boot() {
   App.games = lsGet(LS_GAMES, []) || [];
   App.opps = lsGet(LS_OPPS, []) || [];
   App.schedule = lsGet(LS_SCHED, []) || [];
+  // Once per device: add the 2026-27 games we know that aren't on the schedule yet. Never
+  // again after that, so a game deleted on purpose stays deleted.
+  if (!App.viewer && !lsGet('gt_sched_seeded_v1', false)) {
+    for (const r of SEED_SCHEDULE) if (!App.schedule.some(x => x.date === r.date)) App.schedule.push(Object.assign({}, r));
+    App.schedule.sort((x, y) => (x.date || '').localeCompare(y.date || ''));
+    saveSched(); lsSet('gt_sched_seeded_v1', true);
+  }
   App.liveId = lsGet(LS_LIVE, null);
   if (App.liveId && !App.games.some(g => g.id === App.liveId && !g.completed)) App.liveId = null;
   const ui = lsGet(LS_UI, {}) || {};
