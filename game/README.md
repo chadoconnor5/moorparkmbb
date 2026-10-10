@@ -46,7 +46,7 @@ number, so stats already logged stay with the player.
 - **Sub**: tap the player on the floor (no stat selected) → tap his replacement → type the
   clock → Enter. The clock is required at every sub.
 - **Timeout**: team, 30s or full, clock.
-- No running clock: the time entered at each sub, timeout and period end is the clock. S flips to the scouting report and back.
+- No running clock: the time entered at each sub, timeout and period end is the clock. **Set time** under the scoreboard clock updates it any time (e.g. to check garbage time during a long stretch with no sub). S flips to the scouting report and back.
 
 ## Garbage time and leverage (live)
 

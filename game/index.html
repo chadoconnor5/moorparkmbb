@@ -117,6 +117,7 @@ table{border-collapse:collapse}
 .sb-period{font-weight:600;color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.12em}
 .sb-clock{font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.01em}
 .sb-cap{font-size:10.5px;color:var(--muted)}
+.sb-settime{margin-top:4px;padding:4px 10px;font-size:12px}
 .to-dots{display:inline-flex;gap:3px;align-items:center}
 .to-dot{width:7px;height:7px;border-radius:50%;background:var(--text2)}
 .to-dot.full{border-radius:2px;width:9px}
@@ -1351,7 +1352,7 @@ function paintScorebar() {
     <div class="sb-mid">
       <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
       <div class="sb-clock">${fmtClock(clockNow(g))}</div>
-      <div class="sb-cap">${g.between ? '&nbsp;' : 'clock at last sub / timeout'}</div>
+      ${g.between ? '<div class="sb-cap">&nbsp;</div>' : `<button class="btn btn-sm sb-settime" data-act="set-clock">⏱ Set time</button>`}
     </div>
     <div class="sb-team b">
       <div class="sb-score">${score(g, 'b')}</div>
@@ -1776,21 +1777,31 @@ function confirmTimeout() {
 function openSetClock() {
   const g = liveGame(); if (!g || g.between) return;
   $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:420px">
-    <h2>Set game clock</h2>
-    <div class="clockin"><div><input id="sc-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div></div>${keypadHtml('sc-clock')}</div>
+    <h2>Set time — ${periodName(g, curPeriod(g))}</h2>
+    <div class="small muted" style="margin-bottom:10px">Time left on the clock now. Updates minutes, leverage and the garbage-time check without waiting for a sub or timeout. Last entered: ${fmtClock(g.clock.rem)}.</div>
+    <div class="clockin"><div><input id="sc-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
   const ci = $('#sc-clock');
-  ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t); });
+  ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t) + ' left'; $('#sc-err').textContent = t == null ? '' : (setClockError(g, t) || ''); });
   ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSetClock(); } });
   ci.focus();
 }
+function setClockError(g, t) {
+  if (t > periodDur(g, curPeriod(g))) return 'More than the period length';
+  if (t > g.clock.rem) return 'The clock was last at ' + fmtClock(g.clock.rem) + ' — it can\'t go back up (Undo that entry if it was wrong)';
+  return subClockError(g, t);
+}
 function confirmSetClock() {
   const g = liveGame(); const t = parseClock($('#sc-clock').value);
-  if (t == null || t > periodDur(g, curPeriod(g))) { toast('Not a valid time', 'bad'); return; }
+  if (t == null) { toast('Not a valid time', 'bad'); return; }
+  const err = setClockError(g, t); if (err) { toast(err, 'bad', 3500); return; }
   snapshot();
   // Recorded as an anchor so the analytics' game clock benefits from it too.
   g.eventLog.push({ id: nextId(g), type: 'clock', timeSecs: t, quarter: curPeriod(g), ts: Date.now() });
   clockSet(g, t); saveGames(); closeModal(); render();
+  // Answer the question it was opened for.
+  const L = liveLeverage(g);
+  toast(L.gt ? `${fmtClock(t)} — GARBAGE TIME (up ${L.lead})` : `${fmtClock(t)} — not garbage time: lead ${L.lead}, needs ${L.req}`, L.gt ? 'warn' : 'good', 4000);
 }
 
 /* ── END PERIOD / FINISH ── */
@@ -2769,6 +2780,7 @@ document.addEventListener('click', e => {
     case 'to-type': TO.type = t.dataset.type; paintTO(); break;
     case 'to-confirm': confirmTimeout(); break;
     case 'sc-confirm': confirmSetClock(); break;
+    case 'set-clock': openSetClock(); break;
     case 'end-period': openEndPeriod(); break;
     case 'ep-confirm': confirmEndPeriod(); break;
     case 'start-period': openPeriodStart(); break;
