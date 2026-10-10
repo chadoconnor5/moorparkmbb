@@ -28,7 +28,7 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
 Schedule tab: **+ Add game** (date, home/away/neutral, opponent, time, conference) or
 **Paste schedule** — one game per line as it reads on the athletics site
 (`Fri, Nov 7 vs Ventura 7:00 PM`, `11/12 at Oxnard*`, `Nov 22 Santa Barbara (N)`; `*` =
-conference). Save schedule. Each game has **Start game** (fills in the setup screen) and
+conference; `scrimmage` marks a scrimmage, which is tracked but kept out of the record and season totals). Save schedule. Each game has **Start game** (fills in the setup screen) and
 shows the result once played; on game day today's game fills setup in by itself.
 
 The **Opponent** dropdown under the schedule opens that team's page: roster (**+ Add
@@ -47,6 +47,12 @@ number, so stats already logged stay with the player.
   clock → Enter. The clock is required at every sub.
 - **Timeout**: team, 30s or full, clock.
 - No running clock: the time entered at each sub, timeout and period end is the clock. **Set time** under the scoreboard clock updates it any time (e.g. to check garbage time during a long stretch with no sub). S flips to the scouting report and back.
+
+## Killshots
+
+Tracked silently (no live alert): every unanswered run. 10-0 is a killshot; 15-0 and 20-0
+are counted on top of it, for and against, and runs carry across the half. Analytics lists
+each one with when it happened and the Moorpark five on the floor; Season totals them.
 
 ## Garbage time and leverage (live)
 
