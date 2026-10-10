@@ -324,7 +324,7 @@ table{border-collapse:collapse}
 .box-team-header .tlogo{margin-right:-4px}
 .sch-opp{display:flex;align-items:center;gap:8px}
 .sch-opp input{flex:1;min-width:0}
-.sch-box{order:3;padding:3px 10px}
+.sch-box{padding:3px 10px}
 .sch-event{padding-left:38px!important;font-size:11px;color:var(--text2);padding-left:8px;text-align:left}
 .res.w{color:var(--good)} .res.l{color:var(--bad)}
 .opp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -3038,7 +3038,8 @@ function renderSchedule() {
     return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
       <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
       <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
-      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logoHtml(r.opp, 22) : '<span class="tlogo" style="--lg:22px"></span>'}${g && g.completed ? `<button class="btn btn-sm sch-box" data-act="view-game" data-id="${g.id}">Box</button>` : ''}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
+      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logoHtml(r.opp, 22) : '<span class="tlogo" style="--lg:22px"></span>'}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
+      <td style="width:64px;text-align:center">${g && g.completed ? `<button class="btn btn-sm sch-box" data-act="view-game" data-id="${g.id}">Box</button>` : ''}</td>
       <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}" placeholder="${i === 0 ? '7:00 PM' : ''}"></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="scrim" ${r.scrim ? 'checked' : ''}></td>
@@ -3057,8 +3058,8 @@ function renderSchedule() {
       <textarea id="sch-paste-text" rows="8" style="width:100%"></textarea>
       <div class="row" style="margin-top:8px"><button class="btn btn-primary btn-sm" data-act="sch-paste-read">Add these games</button><button class="btn btn-sm" data-act="sch-paste">Close</button></div></div>` : ''}
     <div class="card" style="padding:0">
-      <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th>Time</th><th style="text-align:center!important">Conf</th><th style="text-align:center!important">Scrim</th><th>Result</th><th></th></tr>
-        ${body || '<tr><td class="l muted" colspan="8" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
+      <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th style="text-align:center!important">Box</th><th>Time</th><th style="text-align:center!important">Conf</th><th style="text-align:center!important">Scrim</th><th>Result</th><th></th></tr>
+        ${body || '<tr><td class="l muted" colspan="9" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
       <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Changes save when you tap Save.</span>
         <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
     </div>
