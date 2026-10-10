@@ -88,7 +88,7 @@ table{border-collapse:collapse}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
 
 /* toast */
-#toasts{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:300;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+#toasts{position:fixed;bottom:16px;right:16px;z-index:300;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none}
 .toast{background:rgba(34,39,49,.96);border:1px solid var(--border2);padding:7px 14px;border-radius:99px;font-weight:500;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;backdrop-filter:blur(8px)}
 .toast.good::before,.toast.bad::before,.toast.warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:8px;vertical-align:1px}
 .toast.good::before{background:var(--good)} .toast.bad::before{background:var(--bad)} .toast.warn::before{background:var(--warn)}
@@ -170,14 +170,19 @@ table{border-collapse:collapse}
 .lpm-bench{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted);margin-top:5px;padding-top:6px;border-top:1px solid var(--border)}
 
 .stat-col .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.sbtn{padding:11px 8px;border-radius:11px;font-weight:600;font-size:14.5px;background:var(--card);border:1px solid var(--border);color:var(--text);transition:background .1s,opacity .12s;display:flex;align-items:center;justify-content:center;gap:8px}
-.sbtn::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--muted)}
-.sbtn:hover{background:var(--hover)}
-.sbtn.make::before{background:var(--good)} .sbtn.miss::before{background:var(--bad)}
-.sbtn.reb::before{background:var(--info)} .sbtn.def::before{background:var(--purple)}
-.sbtn.badb::before{background:var(--them)} .sbtn.foul::before{background:var(--warn)}
-.sbtn.dim{opacity:.22;pointer-events:none}
-.sbtn.on{background:var(--primary-bg);border-color:var(--primary);color:var(--text);opacity:1}
+.sbtn{padding:12px 6px;border-radius:10px;font-weight:700;font-size:14.5px;color:#fff;border:none;transition:filter .1s,opacity .12s;text-align:center}
+.sbtn:hover{filter:brightness(1.15)}
+/* The practice tracker's swatches, button for button: every stat its own solid colour so the
+   grid reads at a glance from arm's length. Off Foul (game-only) gets a colour of its own. */
+.sb-2fg_make{background:#1e40af} .sb-2fg_miss{background:#9f1239}
+.sb-3fg_make{background:#b45309} .sb-3fg_miss{background:#5b21b6}
+.sb-ft_make{background:#155e75}  .sb-ft_miss{background:#701a75}
+.sb-dreb{background:#134e4a}     .sb-oreb{background:#431407}
+.sb-ast{background:#3b0764}      .sb-tov{background:#450a0a}
+.sb-blk{background:#172554}      .sb-stl{background:#422006}
+.sb-foul{background:#1e3a5f}     .sb-offf{background:#3f6212}
+.sbtn.dim{opacity:.2;pointer-events:none}
+.sbtn.on{outline:2px solid #fff;outline-offset:1px;opacity:1}
 .status{min-height:44px;padding:8px 12px;border-radius:11px;background:var(--card);font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text2);text-align:center;justify-content:center}
 .status.wait{background:var(--primary-bg);color:var(--text);justify-content:space-between;text-align:left}
 .ctrls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
@@ -335,9 +340,9 @@ const STAT_BTNS = [
   ['2fg_make', '2PT Make', 'make'], ['2fg_miss', '2PT Miss', 'miss'],
   ['3fg_make', '3PT Make', 'make'], ['3fg_miss', '3PT Miss', 'miss'],
   ['ft_make', 'FT Make', 'make'],   ['ft_miss', 'FT Miss', 'miss'],
-  ['oreb', 'Off Reb', 'reb'],       ['dreb', 'Def Reb', 'reb'],
-  ['stl', 'Steal', 'def'],          ['blk', 'Block', 'def'],
-  ['tov', 'Turnover', 'badb'],      ['ast', 'Assist', 'neutral'],
+  ['dreb', 'Def Reb', 'reb'],       ['oreb', 'Off Reb', 'reb'],
+  ['ast', 'Assist', 'neutral'],     ['tov', 'Turnover', 'badb'],
+  ['blk', 'Block', 'def'],          ['stl', 'Steal', 'def'],
   ['foul', 'Foul', 'foul'],         ['offf', 'Off Foul', 'foul'],
 ];
 const STAT_LABEL = {
@@ -1420,7 +1425,7 @@ function paintTracker() {
     if (!dis && F.phase !== 'idle') dim = !liveStats().includes(k);
     const on = F.stat === k || (F.phase === 'await_tov_after_stl' && k === 'tov') || (F.phase === 'await_assister' && k === 'ast')
             || (F.phase === 'await_blocker' && k === 'blk') || (F.phase === 'await_rebounder' && k === F.rebType);
-    return `<button class="sbtn ${c} ${dim ? 'dim' : ''} ${on ? 'on' : ''}" data-act="stat" data-stat="${k}">${l}</button>`;
+    return `<button class="sbtn sb-${k} ${dim ? 'dim' : ''} ${on ? 'on' : ''}" data-act="stat" data-stat="${k}">${l}</button>`;
   };
   const busy = F.phase !== 'idle';   // a play is half-entered: finish it (or Cancel) first
   const statusTxt = F.phase === 'idle' ? (dis ? (g.between ? 'Start the period to track' : 'Game over') : 'Tap a stat, then the player') : PHASE_TEXT[F.phase]();
