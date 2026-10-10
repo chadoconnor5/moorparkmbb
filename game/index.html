@@ -141,15 +141,19 @@ table{border-collapse:collapse}
 .tracker{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,340px) minmax(0,1fr);gap:10px;align-items:start}
 @media (max-width:1000px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
 .col{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px;display:flex;flex-direction:column;gap:7px}
-.col-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
-.pgrid{display:grid;grid-template-columns:1fr;gap:7px}
-.pgrid.two{grid-template-columns:1fr 1fr}
-.pbtn{position:relative;text-align:left;padding:9px 14px;border-radius:11px;background:var(--card);border:1px solid var(--border);font-weight:600;font-size:15.5px;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:background .1s,opacity .12s,box-shadow .12s}
+.col-head{min-height:36px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
+.pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+.pgrid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.col{min-width:0}
+.pbtn{min-width:0;position:relative;text-align:left;padding:9px 14px;border-radius:11px;background:var(--card);border:1px solid var(--border);font-weight:600;font-size:15.5px;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:background .1s,opacity .12s,box-shadow .12s}
 .col.a .pbtn{box-shadow:inset 3px 0 0 var(--us-d)}
 .col.b .pbtn{box-shadow:inset 3px 0 0 var(--them-d)}
 .pbtn:hover{background:var(--hover)}
 .pnum{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
-.pbtn .pnum{margin-right:2px}
+.pbtn .pname{display:flex;align-items:baseline;gap:8px;min-width:0;padding-right:44px}
+.pbtn .plabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.pbtn .onote{font-size:11.5px;font-weight:500;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 0;min-width:0}
+.pbtn.team .pname{padding-right:0}
 .pbtn .pline{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px}
 .pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
 .pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
@@ -159,11 +163,10 @@ table{border-collapse:collapse}
 .abandon-link{align-self:center;margin-top:6px;font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding:4px 8px}
 .abandon-link:hover{color:var(--bad)}
 .skipbig{width:100%;padding:12px;font-size:15px}
-.pbtn .oinfo{color:var(--text2)}
 .bench-mini{font-size:11.5px;color:var(--muted);padding:2px}
 .lpm{background:var(--card);border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;margin-top:6px}
 .lpm2{display:grid;gap:6px}
-.lpm2.two{grid-template-columns:1fr 1fr}
+.lpm2.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .lpm2.two .lpm{padding:8px 10px}
 .lpm2.two .lpm-row{font-size:12.5px}
 .lpm2.two .lpm-head{letter-spacing:.06em}
@@ -1759,7 +1762,13 @@ function paintTracker() {
   const btn = (t, p) => {
     const s = line(t, p);
     const isTeam = p === TEAM;
-    const label = isTeam ? (t === 'b' && !oppHasRoster(g) ? esc(g.teamBName) : 'Team') : t === 'a' ? `${numOf(p) !== '' ? '<span class="pnum">#' + esc(numOf(p)) + '</span>' : ''}${esc(p)}` : oppLabelHtml(p);
+    /* Both sides' cards are the same card: number, full name, then the stat line. Their
+       scouting note rides on the name line (cut short if it is long), so it never makes
+       their cards taller than ours. */
+    const oi = t === 'b' && !isTeam ? (g.oppInfo || {})[p] : null;
+    const label = isTeam ? (t === 'b' && !oppHasRoster(g) ? esc(g.teamBName) : 'Team')
+      : t === 'a' ? `${numOf(p) !== '' ? '<span class="pnum">#' + esc(numOf(p)) + '</span> ' : ''}${esc(p)}`
+      : oi && oi.name ? `${oi.num !== '' ? '<span class="pnum">#' + esc(oi.num) + '</span> ' : ''}${esc(oi.name)}` : oppLabelHtml(p);
     const dim = dis || (F.phase !== 'idle' && !allowed(t, p));
     const hot = F.phase !== 'idle' && !dim;
     /* Foul trouble: 2 in the 1st half, or 3+ in the 2nd half / OT, turns the badge bright red. */
@@ -1767,9 +1776,9 @@ function paintTracker() {
     const pfCls = (firstHalf && s.pf >= 2) || s.pf >= 3 ? 'f-trouble' : '';
     const info = t === 'b' && !isTeam ? oppInfoLine(g, p) : '';
     const pmv = !isTeam ? (t === 'a' ? (LPM.pm[p] || 0) : OT ? (OPM.pm[p] || 0) : null) : null;
-    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>${info ? `<span class="pline oinfo">${esc(info)}</span>` : ''}`;
+    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>`;
     return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
-      <span>${label}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
+      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
   };
   const lu = sortedLineup(g);
   const LPM_ = lineupPlusMinus(g); Object.assign(LPM, LPM_);
