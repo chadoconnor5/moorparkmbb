@@ -32,7 +32,7 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
 - **Sub**: tap the player on the floor (no stat selected) → tap his replacement → type the
   clock → Enter. The clock is required at every sub.
 - **Timeout**: team, 30s or full, clock.
-- Space runs/stops the optional game clock; S flips to the scouting report and back.
+- No running clock: the time entered at each sub, timeout and period end is the clock. S flips to the scouting report and back.
 
 ## Garbage time and leverage (live)
 
