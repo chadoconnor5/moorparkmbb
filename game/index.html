@@ -89,7 +89,7 @@ table{border-collapse:collapse}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
 
 /* toast */
-#toasts{position:fixed;bottom:16px;right:16px;z-index:300;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none}
+#toasts{position:fixed;bottom:16px;left:16px;z-index:300;display:flex;flex-direction:column;gap:6px;align-items:flex-start;pointer-events:none}
 .toast{background:rgba(34,39,49,.96);border:1px solid var(--border2);padding:7px 14px;border-radius:99px;font-weight:500;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;backdrop-filter:blur(8px)}
 .toast.good::before,.toast.bad::before,.toast.warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:8px;vertical-align:1px}
 .toast.good::before{background:var(--good)} .toast.bad::before{background:var(--bad)} .toast.warn::before{background:var(--warn)}
@@ -142,8 +142,8 @@ table{border-collapse:collapse}
 @media (max-width:1000px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
 .col{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px;display:flex;flex-direction:column;gap:7px}
 .col-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
-.col.a .col-head span::before,.col.b .col-head span::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
-.col.a .col-head span::before{background:var(--us)} .col.b .col-head span::before{background:var(--them)}
+.col.a .col-head > span:first-child::before,.col.b .col-head > span:first-child::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.col.a .col-head > span:first-child::before{background:var(--us)} .col.b .col-head > span:first-child::before{background:var(--them)}
 .pgrid{display:grid;grid-template-columns:1fr;gap:7px}
 .col.b .pgrid{grid-template-columns:1fr 1fr}
 .pbtn{position:relative;text-align:left;padding:9px 14px;border-radius:11px;background:var(--card);border:1px solid var(--border);font-weight:600;font-size:15.5px;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:background .1s,opacity .12s,box-shadow .12s}
@@ -162,6 +162,16 @@ table{border-collapse:collapse}
 .pbtn .oinfo{color:var(--text2)}
 .bench-mini{font-size:11.5px;color:var(--muted);padding:2px}
 .lpm{background:var(--card);border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.lpm2{display:grid;gap:6px}
+.lpm2.two{grid-template-columns:1fr 1fr}
+.lpm2.two .lpm{padding:8px 10px}
+.lpm2.two .lpm-row{font-size:12.5px}
+.lpm2.two .lpm-head{letter-spacing:.06em}
+.lpm-them::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--them);margin-right:7px;vertical-align:1px}
+.obench-h{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#fff;margin:2px 2px -2px}
+.col.b .obench .pbtn{min-height:38px;padding:5px 10px;font-size:12.5px}
+.col.b .obench .pbtn .pline{display:none}
+.col.b .obench{grid-template-columns:1fr 1fr 1fr}
 .lpm-us::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--us);margin-right:7px;vertical-align:1px}
 .lpm-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#fff;padding-bottom:5px;margin-bottom:2px;border-bottom:1px solid var(--border)}
 .lpm-head .lpm-val{font-size:15px;letter-spacing:0}
@@ -314,6 +324,7 @@ table{border-collapse:collapse}
 .box-team-header .tlogo{margin-right:-4px}
 .sch-opp{display:flex;align-items:center;gap:8px}
 .sch-opp input{flex:1;min-width:0}
+.sch-box{order:3;padding:3px 10px}
 .sch-event{padding-left:38px!important;font-size:11px;color:var(--text2);padding-left:8px;text-align:left}
 .res.w{color:var(--good)} .res.l{color:var(--bad)}
 .opp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -618,20 +629,32 @@ function finalScore(g) {
   const o = g.finalScore;
   return o && o.override ? { a: o.a, b: o.b } : { a: score(g, 'a'), b: score(g, 'b') };
 }
-function currentLineup(g) {
-  const lu = [...(g.startersA || [])];
-  for (const e of g.eventLog) {
-    if (e.type !== 'sub') continue;
-    for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; }
-  }
+/* Subs carry a team on each swap (Moorpark 'a', the opponent 'b'). Every lineup replay
+   applies only its own team's swaps. */
+const subTeam = (s, e) => s.team || e.team || 'a';
+function applySubs(lu, e, t) {
+  for (const s of e.subs || []) { if (subTeam(s, e) !== t) continue; const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; }
+}
+/* Their five can be set partway through (when their roster went in late); before that
+   point their lineup is unknown and counts for nothing. */
+function lineupStart(g, t, i) {
+  if (t === 'a') return i === 0 ? [...(g.startersA || [])] : null;
+  return i === (g.oppTrackIdx || 0) ? [...(g.startersB || [])] : null;
+}
+function currentLineup(g, t = 'a') {
+  let lu = t === 'b' && (g.oppTrackIdx || 0) > 0 ? [] : [...((t === 'a' ? g.startersA : g.startersB) || [])];
+  if (t === 'b' && (g.oppTrackIdx || 0) >= g.eventLog.length && (g.oppTrackIdx || 0) > 0) return [...(g.startersB || [])];
+  g.eventLog.forEach((e, i) => { const st = i > 0 ? lineupStart(g, t, i) : null; if (st && t === 'b') lu = st; if (e.type === 'sub') applySubs(lu, e, t); });
   return lu;
 }
+/* Their lineups are tracked once their five has been set (needs their roster). */
+function oppTracked(g) { return oppHasRoster(g) && (g.startersB || []).length === 5; }
 /* Every player who has been on this team's floor or in the box. */
 function teamPlayers(g, t) {
   if (t === 'b') return (g.oppRoster || []).slice();
   const set = new Set([...(g.dressedA || []), ...(g.startersA || [])]);
   for (const e of g.eventLog) {
-    if (e.type === 'sub') for (const s of e.subs || []) { set.add(s.playerIn); set.add(s.playerOut); }
+    if (e.type === 'sub') { for (const s of e.subs || []) if (subTeam(s, e) === 'a') { set.add(s.playerIn); set.add(s.playerOut); } }
     else if (isStat(e) && e.team === 'a' && e.player !== TEAM) set.add(e.player);
   }
   return [...set];
@@ -815,6 +838,7 @@ function pickPlayer(team, p) {
   if (F.phase === 'idle') {
     // Tapping a man on the floor with no stat armed is the fastest way into a substitution.
     if (team === 'a' && p !== TEAM && !g.between) openSub(p);
+    else if (team === 'b' && p !== TEAM && !g.between && oppTracked(g)) { if (currentLineup(g, 'b').includes(p)) openOppSub(p); else openOppSub(); }
     else toast('Pick a stat first');
     return;
   }
@@ -887,7 +911,7 @@ function stintHasPlay(g, q) {
   for (let i = g.eventLog.length - 1; i >= 0; i--) {
     const e = g.eventLog[i];
     if (e.quarter !== q) break;
-    if (e.type === 'sub') break;
+    if (e.type === 'sub' && (e.team || 'a') === 'a') break;   // their subs don't split our stints
     if (isStat(e)) return true;
   }
   return false;
@@ -1076,31 +1100,38 @@ function indivDrtg(s, MP, gameMin, tS, oS) {
 /* The practice tracker's live lineup card: each man's +/- for the game, and the current
    five's +/- across every stint that exact five has played (not just this one). Order is all
    it needs, so the stint on the floor right now counts too. */
-function lineupPlusMinus(g) {
-  const lu = [...(g.startersA || [])];
+function lineupPlusMinus(g, t = 'a') {
+  let lu = t === 'b' && (g.oppTrackIdx || 0) > 0 ? [] : [...((t === 'a' ? g.startersA : g.startersB) || [])];
   const pm = {}, unit = {};
   const key = a => a.slice().sort().join('|');
-  for (const e of g.eventLog) {
-    if (e.type === 'sub') { for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; } continue; }
+  for (let i = 0; i < g.eventLog.length; i++) {
+    const e = g.eventLog[i];
+    if (t === 'b' && i > 0 && i === (g.oppTrackIdx || 0)) lu = [...(g.startersB || [])];
+    if (e.type === 'sub') { applySubs(lu, e, t); continue; }
     if (!isStat(e)) continue;
     const p = evPts(e); if (!p) continue;
-    const sw = e.team === 'a' ? p : -p;
+    const sw = e.team === t ? p : -p;
     lu.forEach(n => { pm[n] = (pm[n] || 0) + sw; });
     unit[key(lu)] = (unit[key(lu)] || 0) + sw;
   }
+  if (t === 'b' && (g.oppTrackIdx || 0) >= g.eventLog.length && (g.oppTrackIdx || 0) > 0) lu = [...(g.startersB || [])];
   return { lineup: lu, pm, unit: unit[key(lu)] || 0 };
 }
 function plusMinus(g, pred) {
-  const lu = [...(g.startersA || [])];
-  const a = {};
-  for (const e of g.eventLog) {
-    if (e.type === 'sub') { for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; } continue; }
+  const luA = [...(g.startersA || [])];
+  let luB = (g.oppTrackIdx || 0) > 0 ? [] : [...(g.startersB || [])];
+  const a = {}, b = {};
+  for (let i = 0; i < g.eventLog.length; i++) {
+    const e = g.eventLog[i];
+    if (i > 0 && i === (g.oppTrackIdx || 0)) luB = [...(g.startersB || [])];
+    if (e.type === 'sub') { applySubs(luA, e, 'a'); applySubs(luB, e, 'b'); continue; }
     if (!isStat(e) || (pred && !pred(e))) continue;
     const p = evPts(e); if (!p) continue;
     const sw = e.team === 'a' ? p : -p;
-    lu.forEach(n => { a[n] = (a[n] || 0) + sw; });
+    luA.forEach(n => { a[n] = (a[n] || 0) + sw; });
+    luB.forEach(n => { b[n] = (b[n] || 0) - sw; });
   }
-  return { a };
+  return { a, b };
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1315,32 +1346,35 @@ function tripPass(tr, f) {
 /* ════════════════════════════════════════════════════════════
    LINEUPS + ON/OFF (Moorpark), on possessions so the leverage / garbage filter is exact.
 ════════════════════════════════════════════════════════════ */
-function lineupAtEach(g) {
-  const lu = [...(g.startersA || [])];
-  return g.eventLog.map(e => {
-    if (e.type === 'sub') for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; }
+function lineupAtEach(g, t = 'a') {
+  let lu = t === 'b' && (g.oppTrackIdx || 0) > 0 ? [] : [...((t === 'a' ? g.startersA : g.startersB) || [])];
+  return g.eventLog.map((e, i) => {
+    if (t === 'b' && i > 0 && i === (g.oppTrackIdx || 0)) lu = [...(g.startersB || [])];
+    if (e.type === 'sub') applySubs(lu, e, t);
     return lu.slice();
   });
 }
 const unitKey = arr => arr.slice().sort().join('|');
-function lineupTable(g, f) {
-  const A = analyzeTrips(g), L = lineupAtEach(g);
+function lineupTable(g, f, side = 'a') {
+  const A = analyzeTrips(g), L = lineupAtEach(g, side);
   const units = new Map();
   const U = k => { if (!units.has(k)) units.set(k, { key: k, names: k.split('|'), secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, kF: 0, kA: 0, evA: [], evB: [] }); return units.get(k); };
-  for (const s of g.lineupSegments) { if (s.lineupA.length) U(unitKey(s.lineupA)).secs += segSecs(g, s); }
+  if (side === 'a') for (const s of g.lineupSegments) { if (s.lineupA.length) U(unitKey(s.lineupA)).secs += segSecs(g, s); }
   for (const tr of A.trips) {
     if (!tripPass(tr, f)) continue;
+    if (!L[tr.startIdx].length) continue;
     const u = U(unitKey(L[tr.startIdx]));
-    if (tr.team === 'a') u.oT++; else u.dT++;
+    if (tr.team === side) u.oT++; else u.dT++;
     // The kill goes to the five on the floor for the stop that completed it.
-    if (tr.kill === 'a') u.kF++; else if (tr.kill === 'b') u.kA++;
+    if (tr.kill === side) u.kF++; else if (tr.kill) u.kA++;
   }
   g.eventLog.forEach((e, i) => {
     if (!isStat(e)) return;
     const tr = A.evTrip[i]; if (!tr || !tripPass(tr, f)) return;
+    if (!L[i].length) return;
     const u = U(unitKey(L[i]));
     const p = evPts(e);
-    if (e.team === 'a') { u.pf += p; u.evA.push(e); } else { u.pa += p; u.evB.push(e); }
+    if (e.team === side) { u.pf += p; u.evA.push(e); } else { u.pa += p; u.evB.push(e); }
   });
   return [...units.values()].filter(u => u.secs > 0 || u.oT + u.dT > 0);
 }
@@ -1595,25 +1629,45 @@ function paintTracker() {
     const hot = F.phase !== 'idle' && !dim;
     const pfCls = s.pf >= 4 ? 'f4' : (s.pf >= 2 && curPeriod(g) === 1) || s.pf >= 3 ? 'f2' : '';
     const info = t === 'b' && !isTeam ? oppInfoLine(g, p) : '';
-    const pmv = t === 'a' && !isTeam ? (LPM.pm[p] || 0) : null;
+    const pmv = !isTeam ? (t === 'a' ? (LPM.pm[p] || 0) : OT ? (OPM.pm[p] || 0) : null) : null;
     const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>${info ? `<span class="pline oinfo">${esc(info)}</span>` : ''}`;
     return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
       ${label}${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
   };
   const lu = sortedLineup(g);
   const LPM_ = lineupPlusMinus(g); Object.assign(LPM, LPM_);
+  const OT = oppTracked(g);
+  const OPM = OT ? lineupPlusMinus(g, 'b') : { pm: {}, unit: 0, lineup: [] };
   const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
   ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span><button class="btn btn-sm" data-act="sub" ${dis || F.phase !== 'idle' ? 'disabled' : ''}>⇄ Sub</button></div>
     <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
     <div class="bench-mini">Tap a player with no stat selected to sub him out.</div>`;
-  cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}</span><button class="btn btn-sm" data-act="opp-live-edit">Roster</button></div>
-    <div class="pgrid">${buttonPlayers(g, 'b').map(p => btn('b', p)).join('')}</div>
-    <div class="lpm">
-      <div class="lpm-head"><span class="lpm-us">Moorpark lineup +/-</span><span class="lpm-val ${pmCls(LPM.unit)}" title="This five, every stint together">${sgn(LPM.unit)}</span></div>
-      ${lu.map(n => `<div class="lpm-row"><span class="lpm-name">${numOf(n) !== '' ? '#' + esc(numOf(n)) + ' ' : ''}${esc(n)}</span><span class="lpm-val ${pmCls(LPM.pm[n] || 0)}">${sgn(LPM.pm[n] || 0)}</span></div>`).join('')}
-      ${bench.some(n => LPM.pm[n]) ? `<div class="lpm-bench">${bench.filter(n => LPM.pm[n] != null).map(n => `<span>${esc(lastName(n))} <b class="${pmCls(LPM.pm[n])}">${sgn(LPM.pm[n])}</b></span>`).join('')}</div>` : ''}
+  /* Their side: once their five is set, the five on the floor are the big buttons (slot
+     order, like ours) and the bench sits underneath, still tappable for a missed sub. */
+  const oLu = OT ? currentLineup(g, 'b') : [];
+  const oBench = OT ? g.oppRoster.filter(n => !oLu.includes(n)) : [];
+  const oppGrid = OT
+    ? `<div class="pgrid">${oLu.map(p => btn('b', p)).join('')}</div>
+       <div class="obench-h">Bench</div><div class="pgrid obench">${oBench.map(p => btn('b', p)).join('')}${btn('b', TEAM)}</div>`
+    : `<div class="pgrid">${buttonPlayers(g, 'b').map(p => btn('b', p)).join('')}</div>`;
+  const oppHead = oppHasRoster(g)
+    ? (OT ? `<button class="btn btn-sm" data-act="opp-sub" ${dis || F.phase !== 'idle' ? 'disabled' : ''}>⇄ Sub</button>` : `<button class="btn btn-sm btn-good" data-act="opp-five" ${dis ? 'disabled' : ''}>Set their five</button>`)
+    : '';
+  cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}${OT ? ' — on floor' : ''}</span><span class="row" style="gap:6px">${oppHead}<button class="btn btn-sm" data-act="opp-live-edit">Roster</button></span></div>
+    ${oppGrid}
+    <div class="lpm2 ${OT ? 'two' : ''}">
+      <div class="lpm">
+        <div class="lpm-head"><span class="lpm-us">${OT ? 'Moorpark' : 'Moorpark lineup +/-'}</span><span class="lpm-val ${pmCls(LPM.unit)}" title="This five, every stint together">${sgn(LPM.unit)}</span></div>
+        ${lu.map(n => `<div class="lpm-row"><span class="lpm-name">${esc(OT ? lastName(n) : n)}</span><span class="lpm-val ${pmCls(LPM.pm[n] || 0)}">${sgn(LPM.pm[n] || 0)}</span></div>`).join('')}
+        ${bench.some(n => LPM.pm[n]) ? `<div class="lpm-bench">${bench.filter(n => LPM.pm[n] != null).map(n => `<span>${esc(lastName(n))} <b class="${pmCls(LPM.pm[n])}">${sgn(LPM.pm[n])}</b></span>`).join('')}</div>` : ''}
+      </div>
+      ${OT ? `<div class="lpm">
+        <div class="lpm-head"><span class="lpm-them">${esc(g.teamBName)}</span><span class="lpm-val ${pmCls(OPM.unit)}">${sgn(OPM.unit)}</span></div>
+        ${oLu.map(n => `<div class="lpm-row"><span class="lpm-name">${esc(n)}</span><span class="lpm-val ${pmCls(OPM.pm[n] || 0)}">${sgn(OPM.pm[n] || 0)}</span></div>`).join('')}
+        ${oBench.some(n => OPM.pm[n] != null) ? `<div class="lpm-bench">${oBench.filter(n => OPM.pm[n] != null).map(n => `<span>${esc(n.replace(/^#\d+\s*/, ''))} <b class="${pmCls(OPM.pm[n])}">${sgn(OPM.pm[n])}</b></span>`).join('')}</div>` : ''}
+      </div>` : ''}
     </div>
-`;
+    ${!OT && oppHasRoster(g) ? '<div class="bench-mini">Set their five to track their lineups and +/-.</div>' : ''}`;
 
   const stBtn = ([k, l, c]) => {
     /* Practice-tracker behaviour: once a play is under way, only the buttons that can finish
@@ -1778,7 +1832,14 @@ function openSub(preOut) {
 function openPeriodStart() {
   const g = liveGame(); if (!g) return;
   Object.assign(SUB, { mode: 'start', pairs: [], pendingOut: null });
+  OSUB.five = oppTracked(g) ? currentLineup(g, 'b') : [];
   showSubModal();
+  paintPeriodOpp();
+}
+function paintPeriodOpp() {
+  const g = liveGame(); const box = $('#ps-opp'); if (!box) return;
+  box.innerHTML = g.oppRoster.map(n => `<button class="sub-p ${OSUB.five.includes(n) ? 'in' : ''}" data-act="ps-opp" data-p="${esc(n)}">${esc(n)}</button>`).join('');
+  $('#ps-opp-n').textContent = OSUB.five.length + '/5';
 }
 function showSubModal() {
   const g = liveGame();
@@ -1799,6 +1860,7 @@ function showSubModal() {
     <div class="sub-sec" id="sub-bench-h">Bench</div>
     <div class="sub-grid sub-bench" id="sub-bench"></div>
     <div class="pairs" id="sub-pairs"></div>
+    ${start && oppHasRoster(g) ? `<div class="sub-sec" style="margin-top:22px">${esc(g.teamBName)} — their five <span id="ps-opp-n"></span> <span style="text-transform:none;letter-spacing:0;font-weight:400">(tap 5, or none to skip their lineups)</span></div><div class="sub-grid" id="ps-opp"></div>` : ''}
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
       <button class="btn btn-good btn-lg" data-act="sub-confirm">${start ? 'Start ' + periodName(g, q) : 'Confirm sub ⏎'}</button></div>
   </div></div>`;
@@ -1885,7 +1947,21 @@ function confirmSub() {
 function startPeriod(pairs) {
   const g = liveGame(); if (!g || !g.between) return;
   if (SUB.pendingOut) { toast('Pick who replaces ' + SUB.pendingOut, 'bad'); return; }
+  const oppFive = oppHasRoster(g) ? OSUB.five.slice() : [];
+  if (oppFive.length && oppFive.length !== 5) { toast(`Pick 5 of theirs (${oppFive.length} picked), or none`, 'bad'); return; }
   snapshot();
+  if (oppFive.length === 5) {
+    if (!oppTracked(g)) { g.startersB = oppFive; g.oppTrackIdx = g.eventLog.length; }
+    else {
+      const cur = currentLineup(g, 'b');
+      const outs = cur.filter(n => !oppFive.includes(n)), ins = oppFive.filter(n => !cur.includes(n));
+      if (outs.length) {
+        const qn = curPeriod(g), d = periodDur(g, qn);
+        const subs = outs.map((o, i) => ({ team: 'b', playerOut: o, playerIn: ins[i] }));
+        g.eventLog.push({ id: nextId(g), type: 'sub', team: 'b', subs, playerOut: subs[0].playerOut, playerIn: subs[0].playerIn, timeSecs: d, quarter: qn, startOfStint: true, ts: Date.now() });
+      }
+    }
+  }
   const q = curPeriod(g), dur = periodDur(g, q);
   if (pairs.length) {
     if (q === 1) {
@@ -1903,6 +1979,88 @@ function startPeriod(pairs) {
   saveGames(); closeModal();
   toast(periodName(g, q) + ' started — ' + fmtClock(dur), 'good');
   render();
+}
+
+/* ── Their five and their subs ──
+   Same tap-out / tap-in as ours. Their clock is optional: +/- only needs the order of
+   events, and asking for a time on every one of their changes would cost plays. A time
+   typed in still sets the clock like any other entry. */
+const OSUB = { mode: 'sub', pairs: [], pendingOut: null, five: [] };
+function openOppSub(preOut) {
+  const g = liveGame(); if (!g || g.between) return;
+  if (!oppTracked(g)) return openOppFive();
+  Object.assign(OSUB, { mode: 'sub', pairs: [], pendingOut: preOut || null });
+  showOppModal();
+}
+function openOppFive() {
+  const g = liveGame(); if (!g || !oppHasRoster(g)) return;
+  Object.assign(OSUB, { mode: 'five', pairs: [], pendingOut: null, five: oppTracked(g) ? currentLineup(g, 'b') : [] });
+  showOppModal();
+}
+function showOppModal() {
+  const g = liveGame();
+  const five = OSUB.mode === 'five';
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:760px">
+    <h2>${esc(g.teamBName)} — ${five ? 'their five on the floor' : 'substitution'}</h2>
+    ${five ? '<div class="small muted">Tap the five on the floor now. Their lineup and +/- are tracked from here.</div>' : `
+    <div class="row" style="margin-bottom:4px"><span class="small muted">Clock (optional)</span>
+      <input id="osub-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss" style="width:110px;font-size:18px;font-weight:700;text-align:center"><span class="small" id="osub-prev"></span></div>`}
+    <div id="osub-body"></div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
+      <button class="btn btn-good btn-lg" data-act="osub-confirm">${five ? 'Set their five' : 'Confirm sub ⏎'}</button></div></div></div>`;
+  paintOppModal();
+  const ci = $('#osub-clock');
+  if (ci) {
+    ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#osub-prev').textContent = t == null ? '' : '= ' + fmtClock(t); });
+    ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmOppModal(); } });
+  }
+}
+function paintOppModal() {
+  const g = liveGame(); const box = $('#osub-body'); if (!box) return;
+  const line = n => { const st = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n)); return `${st.pts} pts · ${st.pf} PF`; };
+  if (OSUB.mode === 'five') {
+    box.innerHTML = `<div class="sub-sec">${OSUB.five.length}/5 selected</div><div class="sub-grid">${g.oppRoster.map(n => `<button class="sub-p ${OSUB.five.includes(n) ? 'in' : ''}" data-act="osub-five" data-p="${esc(n)}">${esc(n)}<span class="tiny">${line(n)}</span></button>`).join('')}</div>`;
+    return;
+  }
+  const lu = currentLineup(g, 'b');
+  const ins = OSUB.pairs.map(p => p.in);
+  box.innerHTML = `<div class="sub-sec">On the floor — tap who's coming OUT</div>
+    <div class="sub-grid">${lu.map(n => { const pr = OSUB.pairs.find(p => p.out === n); return `<button class="sub-p ${OSUB.pendingOut === n ? 'pending' : pr ? 'out' : ''}" data-act="osub-out" data-p="${esc(n)}">${esc(n)}<span class="tiny">${pr ? '→ ' + esc(pr.in) : line(n)}</span></button>`; }).join('')}</div>
+    <div class="sub-sec">${OSUB.pendingOut ? 'Bench — who replaces ' + esc(OSUB.pendingOut) + '?' : 'Bench'}</div>
+    <div class="sub-grid sub-bench ${OSUB.pendingOut ? 'waiting' : ''}">${g.oppRoster.filter(n => !lu.includes(n)).map(n => `<button class="sub-p ${ins.includes(n) ? 'in' : ''}" data-act="osub-in" data-p="${esc(n)}" ${!OSUB.pendingOut && !ins.includes(n) ? 'disabled' : ''}>${esc(n)}<span class="tiny">${ins.includes(n) ? '← for ' + esc(OSUB.pairs.find(p => p.in === n).out) : line(n)}</span></button>`).join('') || '<div class="muted">No one else on their roster — add players with Roster.</div>'}</div>
+    <div class="pairs">${OSUB.pairs.map((p, i) => `<span class="pair"><b class="i">IN ${esc(p.in)}</b> for <b class="o">${esc(p.out)}</b><button class="btn btn-sm" data-act="osub-unpair" data-i="${i}">✕</button></span>`).join('')}</div>`;
+}
+function confirmOppModal() {
+  const g = liveGame(); if (!g) return;
+  if (OSUB.mode === 'five') {
+    if (OSUB.five.length !== 5) { toast('Pick exactly 5 (' + OSUB.five.length + ' picked)', 'bad'); return; }
+    snapshot();
+    if (!oppTracked(g)) {
+      g.startersB = OSUB.five.slice();
+      g.oppTrackIdx = g.eventLog.length;   // their lineup is known from this point on
+    } else {
+      const cur = currentLineup(g, 'b');
+      const outs = cur.filter(n => !OSUB.five.includes(n)), ins = OSUB.five.filter(n => !cur.includes(n));
+      if (outs.length) pushOppSub(g, outs.map((o, i) => ({ out: o, in: ins[i] })), null);
+    }
+    saveGames(); closeModal(); render(); toast(g.teamBName + ' five set', 'good'); return;
+  }
+  if (OSUB.pendingOut) { toast('Pick who replaces ' + OSUB.pendingOut, 'bad'); return; }
+  if (!OSUB.pairs.length) { toast('Tap who is coming out', 'bad'); return; }
+  const ci = $('#osub-clock'); const raw = ci ? ci.value.trim() : '';
+  const t = raw ? parseClock(raw) : null;
+  if (raw && t == null) { toast('Not a clock time — or leave it blank', 'bad'); return; }
+  if (t != null && t > g.clock.rem) { toast('The clock was last at ' + fmtClock(g.clock.rem) + ' — leave it blank or enter a later time', 'bad', 3500); return; }
+  snapshot();
+  pushOppSub(g, OSUB.pairs, t);
+  if (t != null) clockSet(g, t);
+  saveGames(); closeModal(); render();
+  toast(g.teamBName + ': ' + OSUB.pairs.map(p => p.in + ' for ' + p.out).join(', '), 'good');
+}
+function pushOppSub(g, pairs, t) {
+  const subs = pairs.map(p => ({ team: 'b', playerOut: p.out, playerIn: p.in }));
+  g.eventLog.push({ id: nextId(g), type: 'sub', team: 'b', subs, playerOut: subs[0].playerOut, playerIn: subs[0].playerIn,
+                    timeSecs: t, quarter: curPeriod(g), ts: Date.now() });
 }
 
 function keypadHtml(target) {
@@ -2065,10 +2223,10 @@ const BX_COLS = [
   ['min', 'MIN'], ['minPctVal', 'MIN%'], ['ortg', 'ORTG'], ['usgPct', 'USG'], ['shotPct', 'SHOT%'], ['efgPct', 'EFG'], ['tsPct', 'TS%'], ['ftRate', 'FTR'],
   ['orPct', 'OR%'], ['drPct', 'DR%'], ['astPct', 'AST%'], ['toPct', 'TO%'], ['stlPct', 'STL%'], ['blkPct', 'BLK%'],
   ['fg2', '2PT'], ['fg3', '3PT'], ['ft', 'FT'], ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'],
-  ['oreb', 'OR'], ['dreb', 'DR'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS'], ['pm', '+/-'],
+  ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS'], ['pm', '+/-'],
 ];
 const BX_OPP_COLS = [['efgPct', 'EFG'], ['tsPct', 'TS%'], ['ftRate', 'FTR'], ['fg2', '2PT'], ['fg3', '3PT'], ['ft', 'FT'], ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'],
-  ['oreb', 'OR'], ['dreb', 'DR'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS']];
+  ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS']];
 let bxPanel = 'a';
 function bxHi(v, good, bad) { return v == null ? '' : v >= good ? 'bs-hi' : v <= bad ? 'bs-lo' : ''; }
 function bxLo(v, good, bad) { return v == null ? '' : v <= good ? 'bs-hi' : v >= bad ? 'bs-lo' : ''; }
@@ -2099,7 +2257,8 @@ function bxTable(g, t, qf) {
   const pred = qf ? (e => e.quarter === qf) : null;
   const T = teamStats(g, pred);
   const ts = T[t];
-  const cols = t === 'a' ? BX_COLS : BX_OPP_COLS;
+  const cols = t === 'a' ? BX_COLS : (oppTracked(g) ? [...BX_OPP_COLS, ['pm', '+/-']] : BX_OPP_COLS);
+  const oppPM = t === 'b' && oppTracked(g) ? plusMinus(g, pred).b : null;
   let rows;
   if (t === 'a') {
     const starters = new Set(g.startersA);
@@ -2113,8 +2272,9 @@ function bxTable(g, t, qf) {
       s.efgPct = s.fga ? (s.fgm + 0.5 * s.fg3m) / s.fga * 100 : null;
       s.tsPct = (s.fga + 0.475 * s.fta) ? 50 * s.pts / (s.fga + 0.475 * s.fta) : null;
       s.ftRate = s.fga ? 100 * s.fta / s.fga : null;
+      if (oppPM) s.pm = oppPM[p] != null ? oppPM[p] : null;
       return Object.assign({ name: p }, s);
-    }).filter(r => r.fga || r.fta || r.reb || r.ast || r.tov || r.pf || r.stl || r.blk || r.fd || r.pts);
+    }).filter(r => r.fga || r.fta || r.reb || r.ast || r.tov || r.pf || r.stl || r.blk || r.fd || r.pts || r.pm != null);
   }
   const teamOnly = statLine(g.eventLog.filter(e => isStat(e) && e.team === t && e.player === TEAM && (!pred || pred(e))));
   let bench = false;
@@ -2220,6 +2380,7 @@ function renderAnalytics() {
     <div class="card"><h3>By period</h3>${periodTable(g)}</div>
   </div>
   <div class="card"><h3>Lineups ${levSelect()} <span class="muted">possession-based ratings · MIN is total</span></h3>${lineupsHtml(g)}</div>
+  ${oppTracked(g) ? `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.teamBName)}</span> lineups ${levSelect()} <span class="muted">their fives, from their side: + is good for them</span></h3>${oppLineupsHtml(g)}</div>` : ''}
   <div class="card"><h3>On / Off ${levSelect()} <span class="muted">net rating per 100 possessions with each player on vs off</span></h3>${onOffHtml(g)}</div>
   <div class="grid2">
     <div class="card"><h3>Timeouts</h3>${timeoutTable(g, A)}</div>
@@ -2385,6 +2546,15 @@ function lineupsHtml(g) {
     ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
       return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td><td>${u.kF} / ${u.kA}</td></tr>`; }).join('')}
   </table></div><div class="tiny muted" style="margin-top:6px">Highlighted row is on the floor now.</div>`;
+}
+function oppLineupsHtml(g) {
+  const units = lineupTable(g, App.lev, 'b').sort((x, y) => (y.oT + y.dT) - (x.oT + x.dT));
+  if (!units.length) return '<div class="muted">No lineups yet.</div>';
+  const cur = g.completed ? '' : unitKey(currentLineup(g, 'b'));
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Lineup</th><th>Poss O/D</th><th>Pts F–A</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th></tr>
+    ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
+      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.map(esc).join(', ')}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td></tr>`; }).join('')}
+  </table></div><div class="tiny muted" style="margin-top:6px">Minutes aren't kept for their side (their subs don't need a clock). Highlighted row is on the floor now.</div>`;
 }
 function onOffHtml(g) {
   const rows = onOffTable(g, App.lev).filter(r => r.secs > 0 || r.on.oT + r.on.dT > 0).sort((x, y) => y.secs - x.secs);
@@ -2838,13 +3008,13 @@ function renderSchedule() {
     const g = gameForRow(r);
     let status;
     if (g && g.completed) { const fs = finalScore(g); const w = fs.a > fs.b; if (!r.scrim && !g.scrimmage) { w ? W++ : L++; }
-      status = `<span class="res ${w ? 'w' : 'l'}">${w ? 'W' : 'L'} ${fs.a}–${fs.b}</span> <button class="btn btn-sm" data-act="view-game" data-id="${g.id}">Box</button>`; }
+      status = `<span class="res ${w ? 'w' : 'l'}">${w ? 'W' : 'L'} ${fs.a}–${fs.b}</span>`; }
     else if (g) status = `<button class="btn btn-sm btn-good" data-act="resume" data-id="${g.id}">Resume</button>`;
     else status = `<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
     return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
       <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
       <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
-      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logoHtml(r.opp, 22) : '<span class="tlogo" style="--lg:22px"></span>'}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
+      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logoHtml(r.opp, 22) : '<span class="tlogo" style="--lg:22px"></span>'}${g && g.completed ? `<button class="btn btn-sm sch-box" data-act="view-game" data-id="${g.id}">Box</button>` : ''}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
       <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}" placeholder="${i === 0 ? '7:00 PM' : ''}"></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="scrim" ${r.scrim ? 'checked' : ''}></td>
@@ -3108,6 +3278,14 @@ document.addEventListener('click', e => {
     case 'sub-in': subTapIn(t.dataset.p); break;
     case 'sub-unpair': SUB.pairs.splice(+t.dataset.i, 1); paintSub(); break;
     case 'sub-confirm': confirmSub(); break;
+    case 'ps-opp': { const n = t.dataset.p, i = OSUB.five.indexOf(n); if (i !== -1) OSUB.five.splice(i, 1); else if (OSUB.five.length < 5) OSUB.five.push(n); else toast('Already 5 — tap one to remove'); paintPeriodOpp(); break; }
+    case 'osub-five': { const n = t.dataset.p, i = OSUB.five.indexOf(n); if (i !== -1) OSUB.five.splice(i, 1); else if (OSUB.five.length < 5) OSUB.five.push(n); else toast('Already 5 — tap one to remove'); paintOppModal(); break; }
+    case 'osub-out': { const n = t.dataset.p, i = OSUB.pairs.findIndex(p => p.out === n); if (i !== -1) { OSUB.pairs.splice(i, 1); OSUB.pendingOut = null; } else OSUB.pendingOut = OSUB.pendingOut === n ? null : n; paintOppModal(); break; }
+    case 'osub-in': { const n = t.dataset.p, i = OSUB.pairs.findIndex(p => p.in === n); if (i !== -1 && !OSUB.pendingOut) { OSUB.pairs.splice(i, 1); } else if (OSUB.pendingOut && i === -1) { OSUB.pairs.push({ out: OSUB.pendingOut, in: n }); OSUB.pendingOut = null; } paintOppModal(); const ci = $('#osub-clock'); if (ci) ci.focus(); break; }
+    case 'osub-unpair': OSUB.pairs.splice(+t.dataset.i, 1); paintOppModal(); break;
+    case 'osub-confirm': confirmOppModal(); break;
+    case 'opp-five': openOppFive(); break;
+    case 'opp-sub': openOppSub(); break;
     case 'key': keyPress(t.dataset.target, t.dataset.k); break;
     case 'timeout': openTimeout(); break;
     case 'to-team': TO.team = t.dataset.team; { const L = timeoutsLeft(g, TO.team); if ((TO.type === '30' ? L.s30 : L.full) <= 0) TO.type = TO.type === '30' ? 'full' : '30'; } paintTO(); break;
