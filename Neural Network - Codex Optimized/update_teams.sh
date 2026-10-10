@@ -1,25 +1,18 @@
 #!/bin/bash
-# Daily update script for CCCMBCA team data.
-# Run manually or schedule via cron/launchd.
+# Nightly in-season update: box scores posted today (or yesterday before 6 PM),
+# re-checks of games still missing stats, and a few team-page refreshes.
+# See "Terminal Commands README.md" -> Daily Scraping.
 #
-# Cron setup (runs daily at 6 AM):
+# Cron setup (runs nightly at 11:45 PM):
 #   crontab -e
-#   0 6 * * * /Users/chadoconnor/Neural\ Network/update_teams.sh >> /Users/chadoconnor/Neural\ Network/2025-26\ Teams\ Schedules/update.log 2>&1
+#   45 23 * * * "/Users/chadoconnor/Neural Network - Codex Optimized/update_teams.sh" >> "/Users/chadoconnor/Neural Network - Codex Optimized/scrape_state/nightly.log" 2>&1
 #
-# To add/remove teams, edit the TEAMS array below.
+# Build the master schedule once before the first nightly run:
+#   python3 scrape.py master
 
 set -e
 cd "$(dirname "$0")"
 
-TEAMS=(
-    "Moorpark"
-)
-
-echo "=== Team Update: $(date) ==="
-
-for team in "${TEAMS[@]}"; do
-    echo "Updating $team..."
-    python3 scrape_team.py --teams "$team"
-done
-
+echo "=== Nightly scrape: $(date) ==="
+python3 scrape.py nightly
 echo "=== Done ==="

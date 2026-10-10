@@ -107,6 +107,19 @@ This copy keeps the original project intact and starts consolidating the working
   (2526_teams) so they match the Game Plan view exactly. If promoted, fold
   into generate_scouting_report.py and retire the per-team forks.
 
+- In-season scraping moved to `scrape.py` (Oct 2026). The nightly job reads
+  one composite (daily scoreboard) page, fetches each box score once and
+  writes it into both teams' folders, and patches both teams' schedule.json
+  rows — so the stats scripts' inputs are unchanged. A box score is only
+  "complete" when both teams have players; one-sided ones are re-fetched on a
+  backoff (scrape_team.py cached them forever). Small player-points vs score
+  mismatches (~4% of last season's boxes) are kept as a ledger note, not
+  re-checked. Box labels are matched to schedule names with
+  `name_strength()` (exact / TEAM_ALIASES / safe variants); validated on all
+  1,443 2025-26 box scores with zero mismatches. State in
+  scrape_state/<season>/ — outside the schedules folder, which the stats
+  scripts treat as conference folders.
+
 ## Example commands
 
 ```bash
