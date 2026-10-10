@@ -447,7 +447,8 @@ const LOGO_FILES = new Set(["alameda", "allan_hancock", "american_river", "antel
 const LOGO_ALIAS = { fresno_city: 'fresno', mira_costa: 'miracosta', mt_sac: 'mt_san_antonio', mt_san_antonio_college: 'mt_san_antonio',
   la_city: 'los_angeles_city', lacc: 'los_angeles_city', elac: 'east_los_angeles', la_trade: 'la_trade_tech', west_los_angeles: 'west_la',
   pierce: 'la_pierce', santa_monica_college: 'santa_monica', smc: 'santa_monica', sbcc: 'santa_barbara', santa_barbara_city: 'santa_barbara',
-  san_bernardino: 'san_bernardino_valley', sbvc: 'san_bernardino_valley', av: 'antelope_valley', mack_attack: 'mack_attack_prep' };
+  san_bernardino: 'san_bernardino_valley', sbvc: 'san_bernardino_valley', av: 'antelope_valley', mack_attack: 'mack_attack_prep',
+  miramar: 'san_diego_miramar', sd_miramar: 'san_diego_miramar', san_diego_miramar_college: 'san_diego_miramar' };
 function logoSlug(name) {
   let k = String(name || '').toLowerCase().replace(/&/g, 'and').replace(/\b(college|cc|community)\b/g, ' ').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   if (LOGO_ALIAS[k]) k = LOGO_ALIAS[k];
@@ -472,11 +473,18 @@ function teamPalette(name) {
   const k = logoSlug(name) || String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
   const hex = TEAM_COLORS[k];
   if (!hex) return null;
-  const base = hexRgb(hex), bg = hexRgb('#1a1e26');
+  let base = hexRgb(hex); const bg = hexRgb('#1a1e26');
   let fill = liftTo(base, bg, 3), text = liftTo(base, bg, 4.5);
-  // Too close to Moorpark's Columbia blue to tell apart at a glance: show them in white.
-  const us = hexRgb('#4fc3f7');
-  if (Math.hypot(...fill.map((v, i) => v - us[i])) < 70) { fill = [229, 231, 235]; text = fill; }
+  /* Too close to Moorpark's Columbia blue to tell apart at a glance (San Diego Miramar,
+     Cuyamaca): keep their hue but take it deeper until the two sides separate, staying
+     readable on the panel. Only if no shade does both does it fall back to white. */
+  const us = hexRgb('#4fc3f7'), far = c => Math.hypot(...c.map((v, i) => v - us[i])) >= 90;
+  if (!far(fill)) {
+    const [h, s0, l0] = rgbHsl(fill); const s = Math.max(s0, .5); let found = null;
+    for (let l = l0; l >= .2; l -= .02) { const c = hslRgb([h, s, l]); if (far(c) && contrast(c, bg) >= 3) { found = c; break; } }
+    if (found) { fill = found; text = liftTo(found, bg, 4.5); if (!far(text)) text = found; base = found; }
+    else { fill = [229, 231, 235]; text = fill; }
+  }
   return { fill: rgbHex(fill), text: rgbHex(text), stripe: rgbHex(fill), hdr: rgbHex(mixRgb(base, [13, 15, 20], lum(base) > .4 ? .72 : .45)),
            bg: `rgba(${fill.map(Math.round).join(',')},.12)` };
 }
