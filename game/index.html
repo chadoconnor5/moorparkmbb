@@ -401,6 +401,7 @@ table{border-collapse:collapse}
 .rep-mid{text-align:center;display:flex;flex-direction:column;align-items:center}
 .rep-label{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
 .rep-tbl td,.rep-tbl th{padding:6px 9px}
+.rep-box .box-wrap:last-child{margin-bottom:0}
 .rep-tbl td.win{font-weight:800} .rep-tbl td.win.a{color:var(--us)} .rep-tbl td.win.b{color:var(--them-text)}
 @media (max-width:760px){.rep-head{grid-template-columns:1fr}.rep-team.b{justify-content:flex-start}}
 @media print{
@@ -412,6 +413,9 @@ table{border-collapse:collapse}
   .card h3,.tbl th,.cmp-tbl tr.cmp-h td,.bs-score-table th,.bs-final-col{color:#000!important;background:#eee!important}
   .bs-score-table td{background:#fff!important;color:#000}
   .ins{background:#f6f6f6;color:#000}
+  .box-table thead th{background:#ddd!important;color:#000!important}
+  .box-team-header{background:#eee!important;color:#000!important}
+  .box-table tbody td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 /* scouting */
 .scout-pages{height:calc(100vh - 52px - 96px);height:calc(100dvh - 52px - 96px);overflow:auto;-webkit-overflow-scrolling:touch;background:#2a2e37;border-radius:12px;padding:14px}
@@ -2413,7 +2417,7 @@ function bxVal(r, k) {
 /* One table for either side, same columns. Their minutes come from the clock at their subs,
    so with their five tracked they get the full advanced set; without it (no roster, or their
    five never set) the minutes-based columns read —. */
-function bxTable(g, t, qf) {
+function bxTable(g, t, qf, opts = {}) {
   const pred = qf ? (e => e.quarter === qf) : null;
   const T = teamStats(g, pred);
   const ts = T[t], os = T[other(t)];
@@ -2421,7 +2425,7 @@ function bxTable(g, t, qf) {
   let rows = [];
   if (t === 'a' || oppHasRoster(g)) {
     const starters = new Set(t === 'a' ? g.startersA : (g.startersB || []));
-    const lu = new Set(g.completed || (t === 'b' && !oppTracked(g)) ? [] : currentLineup(g, t));
+    const lu = new Set(g.completed || g.between || opts.noOn || (t === 'b' && !oppTracked(g)) ? [] : currentLineup(g, t));
     rows = playerStats(g, qf, t).filter(r => starters.has(r.name) || r.min > 0 || r.fga || r.fta || r.reb || r.ast || r.tov || r.pf || r.stl || r.blk || r.fd)
       .map(r => Object.assign(r, { starter: starters.has(r.name), on: lu.has(r.name) }))
       .sort((x, y) => (y.starter - x.starter) || (y.min - x.min) || (t === 'a' ? byLast(x.name, y.name) : 0));
@@ -2881,11 +2885,6 @@ function reportHtml(g, scope) {
   const keys = reportKeys(g, T, A, qf, half);
   const ffRow = (lbl, va, vb, hi, fmt = f1) => { const w = va === vb ? '' : ((va > vb) === hi ? 'a' : 'b');
     return `<tr><td class="l">${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${fmt(va)}</td><td class="${w === 'b' ? 'win b' : ''}">${fmt(vb)}</td></tr>`; };
-  // Players
-  const ours = playerStats(g, qf, 'a').filter(r => r.min > 0 || r.fga || r.fta || r.reb || r.pf).sort((x, y) => (y.min - x.min));
-  const theirs = oppHasRoster(g) ? playerStats(g, qf, 'b').filter(r => r.pts > 0).sort((x, y) => y.pts - x.pts).slice(0, 4) : [];
-  const pRow = (r, t) => `<tr><td class="l">${t === 'a' ? esc(r.name) : oppLabelHtml(r.name)}</td><td>${r.min > 0 ? r.min.toFixed(0) : '—'}</td><td><b>${r.pts}</b></td><td>${r.fgm}-${r.fga}</td><td>${r.fg3m}-${r.fg3a}</td><td>${r.ftm}-${r.fta}</td><td>${r.reb}</td><td>${r.ast}</td><td>${r.tov}</td><td>${r.stl}</td><td>${r.pf}</td><td class="${pmCls(r.pm)}">${r.pm == null ? '—' : sgn(r.pm)}</td></tr>`;
-  const pHead = `<tr><th>Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>REB</th><th>AST</th><th>TO</th><th>STL</th><th>PF</th><th>+/-</th></tr>`;
   // Lineups: best and worst five with at least 4 possessions each way
   const units = lineupTable(g, 'nogt').filter(u => u.oT >= 4 && u.dT >= 4)
     .map(u => Object.assign(u, { net: 100 * u.pf / u.oT - 100 * u.pa / u.dT }));
@@ -2922,9 +2921,7 @@ function reportHtml(g, scope) {
           <div>${fouls('b').map(r => `<span class="${r.pf >= 4 ? 'good' : ''}">${esc(r.name)} <b>${r.pf}</b></span>`).join(' · ') || '<span class="muted">' + (oppHasRoster(g) ? 'No one in foul trouble' : 'No roster') + '</span>'}</div>
         </div></div>
     </div>
-    <div class="card"><h3>${esc(g.teamAName)}</h3><div class="tbl-wrap"><table class="tbl rep-tbl">${pHead}${ours.map(r => pRow(r, 'a')).join('')}
-      <tr class="tot"><td class="l">Team</td><td></td><td>${a.pts}</td><td>${a.fgm}-${a.fga}</td><td>${a.fg3m}-${a.fg3a}</td><td>${a.ftm}-${a.fta}</td><td>${a.reb}</td><td>${a.ast}</td><td>${a.tov}</td><td>${a.stl}</td><td>${a.pf}</td><td class="${pmCls(a.pts - b.pts)}">${sgn(a.pts - b.pts)}</td></tr></table></div></div>
-    ${theirs.length ? `<div class="card"><h3>${esc(g.teamBName)} — who hurt us</h3><div class="tbl-wrap"><table class="tbl rep-tbl">${pHead}${theirs.map(r => pRow(r, 'b')).join('')}</table></div></div>` : ''}
+    <div class="card rep-box"><h3>Box score <span class="muted">${half ? '1st half' : 'full game'} · greyed: under 25% of the minutes</span></h3>${bxTable(g, 'a', qf, { noOn: true })}${bxTable(g, 'b', qf, { noOn: true })}</div>
     <div class="grid2">
       <div class="card"><h3>Lineups <span class="muted">best and worst five, 4+ possessions each way, no garbage time</span></h3>
         ${lu.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Five</th><th>MIN</th><th>Poss</th><th>+/-</th><th>Net</th></tr>${luRow(lu[0], 'Best')}${lu.length > 1 ? luRow(lu[lu.length - 1], 'Worst') : ''}</table></div>` : '<div class="muted small">No five has played enough possessions together yet.</div>'}</div>
