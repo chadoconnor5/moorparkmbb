@@ -23,6 +23,20 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
 - Timeouts: 2 × 30-second + 4 full. Each OT adds one 30-second timeout to what is left.
 - Team fouls reset at the half and carry into OT; bonus at 7, double bonus at 10.
 
+## Schedule and opponents
+
+Schedule tab: **+ Add game** (date, home/away/neutral, opponent, time, conference) or
+**Paste schedule** — one game per line as it reads on the athletics site
+(`Fri, Nov 7 vs Ventura 7:00 PM`, `11/12 at Oxnard*`, `Nov 22 Santa Barbara (N)`; `*` =
+conference). Save schedule. Each game has **Start game** (fills in the setup screen) and
+shows the result once played; on game day today's game fills setup in by itself.
+
+The **Opponent** dropdown under the schedule opens that team's page: roster (**+ Add
+player** — number, name, position, height, year, and a note that shows on his button in
+the game), scouting PDF, notes, results against them and their players' totals against
+us. Mid-game, the **Roster** button on their side edits the same roster; edits match by
+number, so stats already logged stay with the player.
+
 ## Live entry
 
 - Tap a stat, then the player. Makes ask for the assister, misses for the rebounder (tap
@@ -32,7 +46,7 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
 - **Sub**: tap the player on the floor (no stat selected) → tap his replacement → type the
   clock → Enter. The clock is required at every sub.
 - **Timeout**: team, 30s or full, clock.
-- Space runs/stops the optional game clock; S flips to the scouting report and back.
+- No running clock: the time entered at each sub, timeout and period end is the clock. **Set time** under the scoreboard clock updates it any time (e.g. to check garbage time during a long stretch with no sub). S flips to the scouting report and back.
 
 ## Garbage time and leverage (live)
 
