@@ -1,0 +1,2406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1117">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Moorpark MBB — Game Tracker</title>
+<!--
+  LIVE GAME TRACKER
+  Built from the practice tracker's engine (same event log, lineup stints, stat lines and
+  rating formulas) with everything a live game can't afford taken out: no film, no shot
+  locations, no shot types, no shot clock.
+
+  OFFLINE: this file is fully self-contained - no CDN, no fonts, no network calls are needed
+  to track a game. Data lives in this browser (localStorage; scouting PDFs in IndexedDB).
+  Served from GitHub Pages it also registers sw.js, so after one visit online it opens with
+  wifi off. Opened straight from disk (file://) it works as-is.
+-->
+<style>
+:root{
+  --bg:#0f1117; --surface:#1a1f2e; --card:#242938; --card2:#2d3347; --border:#2d3347; --border2:#3a4158;
+  --primary:#4f6ef7; --us:#22c55e; --us-d:#15803d; --them:#f97316; --them-d:#c2410c;
+  --good:#22c55e; --bad:#ef4444; --warn:#f59e0b; --info:#06b6d4; --purple:#a855f7; --gold:#eab308;
+  --text:#f8fafc; --text2:#cbd5e1; --muted:#94a3b8;
+  --r:8px; --rl:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom)}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none;touch-action:manipulation}
+input,select,textarea{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--border2);border-radius:6px;padding:7px 9px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--primary);outline-offset:0}
+table{border-collapse:collapse}
+.hidden{display:none!important}
+.muted{color:var(--muted)} .small{font-size:12px} .tiny{font-size:11px}
+.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;height:48px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.brand{font-weight:800;font-size:15px;margin-right:10px;white-space:nowrap}
+.brand span{color:var(--us)}
+.tab{padding:7px 12px;border-radius:6px;font-weight:600;color:var(--muted);white-space:nowrap}
+.tab:hover{background:var(--card);color:var(--text)}
+.tab.active{background:var(--card2);color:var(--text)}
+.tab.scout-tab.active{background:var(--purple);color:#fff}
+.nav-right{margin-left:auto;display:flex;gap:2px}
+.offline-dot{font-size:11px;padding:3px 8px;border-radius:99px;border:1px solid var(--border2);color:var(--muted);white-space:nowrap;margin-left:6px}
+.offline-dot.ready{color:var(--good);border-color:var(--us-d)}
+
+.page{padding:12px;max-width:1500px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:var(--r);font-weight:700;background:var(--card2);border:1px solid var(--border2);white-space:nowrap}
+.btn:hover{filter:brightness(1.15)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn-good{background:var(--us-d);border-color:var(--us-d);color:#fff}
+.btn-bad{background:#991b1b;border-color:#b91c1c;color:#fff}
+.btn-warn{background:#92400e;border-color:#b45309;color:#fff}
+.btn-sm{padding:5px 9px;font-size:12px}
+.btn-lg{padding:12px 18px;font-size:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px;margin-bottom:12px}
+.card h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.03em;border:1px solid currentColor}
+
+/* toast */
+#toasts{position:fixed;bottom:12px;left:12px;z-index:300;display:flex;flex-direction:column;gap:4px;align-items:flex-start;pointer-events:none;max-width:420px}
+.toast{background:var(--card2);border:1px solid var(--border2);padding:5px 10px;border-radius:7px;font-weight:600;font-size:12px;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:90vw;opacity:.96}
+.toast.good{border-color:var(--us-d)} .toast.bad{border-color:var(--bad)} .toast.warn{border-color:var(--warn)}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;overflow-y:auto}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--rl);width:100%;max-width:640px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+.modal h2{font-size:18px;margin-bottom:10px}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+
+/* scoreboard */
+.scorebar{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px;margin-bottom:8px}
+.sb-team{display:flex;flex-direction:column;gap:4px}
+.sb-team.b{align-items:flex-end;text-align:right}
+.sb-name{font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+.sb-team.a .sb-name{color:var(--us)} .sb-team.b .sb-name{color:var(--them)}
+.sb-score{font-size:44px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.sb-meta{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--text2);align-items:center}
+.sb-team.b .sb-meta{justify-content:flex-end}
+.sb-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:150px}
+.sb-period{font-weight:800;color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.08em}
+.sb-clock{font-size:34px;font-weight:900;font-variant-numeric:tabular-nums;padding:0 10px;border-radius:8px;border:1px dashed transparent;line-height:1.1}
+.sb-clock:hover{border-color:var(--border2)}
+.sb-clock.running{color:var(--good)}
+.to-dots{display:inline-flex;gap:3px;align-items:center}
+.to-dot{width:9px;height:9px;border-radius:50%;background:var(--text2)}
+.to-dot.full{border-radius:2px}
+.to-dot.used{background:transparent;border:1px solid var(--border2)}
+.bonus{font-size:10px;font-weight:900;padding:1px 6px;border-radius:4px;background:var(--warn);color:#000}
+.bonus.dbl{background:var(--bad);color:#fff}
+.kills{display:inline-flex;align-items:center;gap:4px;font-weight:800;color:var(--text)}
+.kills b{font-size:15px;color:var(--gold)}
+.kpip{width:8px;height:8px;border-radius:2px;border:1px solid var(--gold);display:inline-block}
+.kpip.on{background:var(--gold)}
+
+.levbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:8px;font-size:12px}
+.lev{font-weight:900;padding:2px 9px;border-radius:5px;font-size:11px;letter-spacing:.05em}
+.lev-high{background:#b91c1c;color:#fff} .lev-med{background:#b45309;color:#fff} .lev-low{background:#334155;color:#cbd5e1}
+.lev-clutch{background:var(--gold);color:#000} .lev-gt{background:#475569;color:#fff}
+.gt-meter{flex:1;min-width:120px;max-width:260px;height:7px;border-radius:9px;background:var(--card2);overflow:hidden}
+.gt-meter > div{height:100%;background:var(--gold)}
+
+/* tracker layout */
+.tracker{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(250px,.9fr) minmax(0,1fr);gap:8px}
+@media (max-width:1000px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
+.col{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:8px;display:flex;flex-direction:column;gap:6px}
+.col-head{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center}
+.col.a .col-head{color:var(--us)} .col.b .col-head{color:var(--them)}
+.pgrid{display:grid;grid-template-columns:1fr;gap:6px}
+.col.b .pgrid{grid-template-columns:1fr 1fr}
+.pbtn{position:relative;text-align:left;padding:12px 12px;border-radius:10px;background:var(--card);border:2px solid var(--border2);font-weight:800;font-size:16px;min-height:60px;display:flex;flex-direction:column;justify-content:center;transition:opacity .1s}
+.col.b .pbtn{font-size:14px;min-height:50px;padding:8px 10px}
+.col.a .pbtn{border-left:6px solid var(--us-d)}
+.col.b .pbtn{border-left:6px solid var(--them-d)}
+.pbtn .pnum{color:var(--muted);font-weight:700;margin-right:4px}
+.pbtn .pline{font-size:11px;font-weight:600;color:var(--muted);margin-top:2px}
+.pbtn .pf{position:absolute;top:6px;right:8px;font-size:11px;font-weight:900;padding:1px 6px;border-radius:4px;background:var(--card2)}
+.pbtn .pf.f2{background:var(--warn);color:#000} .pbtn .pf.f4{background:var(--bad);color:#fff}
+.pbtn:hover{border-color:var(--muted)}
+.pbtn.team{min-height:40px;font-size:13px;color:var(--text2);border-style:dashed}
+.pbtn.dim{opacity:.18;pointer-events:none}
+.pbtn.hot{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary)}
+.bench-mini{font-size:11px;color:var(--muted)}
+
+.stat-col .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sbtn{padding:13px 8px;border-radius:10px;font-weight:800;font-size:15px;background:var(--card);border:2px solid var(--border2);transition:opacity .1s}
+.sbtn.make{border-color:#15803d;color:#86efac}
+.sbtn.miss{border-color:#7f1d1d;color:#fca5a5}
+.sbtn.reb{border-color:#0e7490;color:#67e8f9}
+.sbtn.def{border-color:#6d28d9;color:#d8b4fe}
+.sbtn.badb{border-color:#9a3412;color:#fdba74}
+.sbtn.foul{border-color:#a16207;color:#fde047}
+.sbtn.neutral{border-color:#334155}
+.sbtn.dim{opacity:.18;pointer-events:none}
+.sbtn.on{background:var(--primary);border-color:var(--primary);color:#fff;opacity:1}
+.status{min-height:52px;padding:8px 10px;border-radius:8px;background:var(--card);border:1px solid var(--border2);font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.status.wait{border-color:var(--primary);background:#1e2a5a}
+.ctrls{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ctrls .btn{padding:10px 6px}
+.feed{font-size:12px;max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.feed div{padding:3px 6px;border-radius:4px;background:var(--card)}
+.feed .a{border-left:3px solid var(--us)} .feed .b{border-left:3px solid var(--them)} .feed .s{border-left:3px solid var(--muted);color:var(--muted)}
+.banner{background:linear-gradient(90deg,#1e2a5a,#1a1f2e);border:1px solid var(--primary);border-radius:var(--rl);padding:16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.banner h2{font-size:18px;flex:1}
+
+/* sub modal */
+.sub-sec{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:10px 0 6px}
+.sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.sub-p{padding:12px 10px;border-radius:10px;background:var(--card);border:2px solid var(--border2);font-weight:800;text-align:left;min-height:52px}
+.sub-p .pnum{color:var(--muted);margin-right:4px}
+.sub-p .tiny{display:block;font-weight:600;color:var(--muted)}
+.sub-p.out{border-color:var(--bad);background:#3b1111}
+.sub-p.pending{border-color:var(--warn);background:#3b2a0a;animation:pulse 1s infinite}
+.sub-p.in{border-color:var(--good);background:#0f2e1a}
+.sub-p:disabled{opacity:.3}
+.sub-bench.waiting .sub-p:not(:disabled){border-color:var(--good)}
+@keyframes pulse{50%{box-shadow:0 0 0 3px rgba(245,158,11,.35)}}
+.pairs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pair{background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-weight:700;display:flex;gap:8px;align-items:center}
+.pair b.o{color:#fca5a5} .pair b.i{color:#86efac}
+.clockin{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.clockin input{font-size:30px;font-weight:900;width:150px;text-align:center;font-variant-numeric:tabular-nums;padding:6px}
+.clockin input.need{border-color:var(--bad);box-shadow:0 0 0 2px rgba(239,68,68,.35)}
+.keypad{display:grid;grid-template-columns:repeat(3,52px);gap:5px}
+.keypad button{height:44px;border-radius:8px;background:var(--card2);border:1px solid var(--border2);font-weight:800;font-size:18px}
+.clk-prev{font-weight:700;margin-top:6px}
+.clk-err{color:var(--bad);font-weight:700;margin-top:4px;font-size:13px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+.tbl{width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+.tbl th{background:var(--card2);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 7px;text-align:right;white-space:nowrap;position:sticky;top:0;cursor:default}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl td{padding:5px 7px;text-align:right;border-top:1px solid var(--border);white-space:nowrap}
+.tbl tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+.tbl tr.tot td{font-weight:800;background:var(--card)}
+.tbl tr.cur td{background:#1e2a5a}
+.tbl tr.dnp td{color:var(--muted)}
+.tbl td.l{text-align:left}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.ff{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ff .k{background:var(--card);border-radius:8px;padding:8px 10px}
+.ff .k .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.ff .k .v{font-size:18px;font-weight:800;display:flex;justify-content:space-between;gap:8px}
+.ff .k .v .a{color:var(--us)} .ff .k .v .b{color:var(--them)}
+.insights{display:flex;flex-direction:column;gap:5px}
+.ins{padding:7px 10px;border-radius:7px;background:var(--card);border-left:4px solid var(--muted);font-weight:600}
+.ins.bad{border-left-color:var(--bad)} .ins.warn{border-left-color:var(--warn)} .ins.good{border-left-color:var(--good)} .ins.info{border-left-color:var(--info)}
+.chart svg{width:100%;height:auto;display:block}
+.pbp-row{display:grid;grid-template-columns:52px 54px 1fr 66px auto;gap:8px;align-items:center;padding:5px 8px;border-top:1px solid var(--border);font-size:13px}
+.pbp-row.a{border-left:3px solid var(--us)} .pbp-row.b{border-left:3px solid var(--them)} .pbp-row.s{border-left:3px solid var(--muted);color:var(--text2)}
+.pbp-row .acts{display:flex;gap:4px}
+.tag{font-size:10px;font-weight:900;padding:1px 5px;border-radius:4px;margin-left:4px}
+
+/* setup */
+.setup{max-width:900px;margin:0 auto}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.field label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.chk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.chk{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;background:var(--card);border:1px solid var(--border2);cursor:pointer;user-select:none}
+.chk.on{border-color:var(--us)}
+.chk.starter{background:#0f2e1a;border-color:var(--us)}
+.chk .st{margin-left:auto;font-size:10px;font-weight:900;padding:1px 6px;border-radius:4px;border:1px solid var(--border2)}
+.chk.starter .st{background:var(--us);color:#000;border-color:var(--us)}
+
+/* scouting */
+.scout-pages{height:calc(100vh - 48px - 70px);height:calc(100dvh - 48px - 70px);overflow:auto;-webkit-overflow-scrolling:touch;background:#3f4350;border-radius:8px;padding:12px}
+.scout-page{margin:0 auto 12px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+.scout-page canvas{display:block}
+.scout-empty{color:#e2e8f0;padding:30px;text-align:center;font-weight:600}
+.scout-float{position:fixed;right:14px;bottom:14px;z-index:60;padding:12px 16px;border-radius:99px;background:var(--purple);color:#fff;font-weight:800;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand">Moorpark <span>MBB</span> · Game</div>
+  <button class="tab editor-only" data-tab="track">Live</button>
+  <button class="tab" data-tab="box">Box Score</button>
+  <button class="tab" data-tab="analytics">Analytics</button>
+  <button class="tab" data-tab="pbp">Play-by-Play</button>
+  <button class="tab scout-tab editor-only" data-tab="scout" title="Scouting report (S)">Scouting</button>
+  <button class="tab" data-tab="games">Games</button>
+  <button class="tab" data-tab="season">Season</button>
+  <div class="nav-right">
+    <button class="tab editor-only" id="nav-roster">Roster</button>
+    <button class="tab editor-only" id="nav-backup" title="Download every game and the roster">Backup</button>
+    <button class="tab editor-only" id="nav-import">Import</button>
+    <button class="tab editor-only" id="nav-publish" title="Download gt_data.json to publish to the live site">Publish</button>
+    <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">offline: file</span>
+  </div>
+</nav>
+<input type="file" id="import-file" accept=".json,application/json" class="hidden">
+<input type="file" id="scout-file" accept="application/pdf,.pdf" class="hidden">
+
+<div id="view" class="page"></div>
+<div id="scout-pane" class="page hidden"></div>
+<button id="scout-back" class="scout-float hidden">◀ Back to game</button>
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script>
+'use strict';
+/* ════════════════════════════════════════════════════════════
+   CONSTANTS
+════════════════════════════════════════════════════════════ */
+const LS_GAMES = 'gt_games', LS_ROSTER = 'gt_roster', LS_LIVE = 'gt_live_id', LS_UI = 'gt_ui';
+const TEAM = 'TEAM';
+/* Our standard game: two 20:00 halves, every OT 5:00. Two 30-second timeouts and four fulls;
+   each OT adds one 30-second timeout on top of whatever is left. Team fouls reset at the half
+   and carry into OT; 7th = one-and-one, 10th = two shots. */
+const FORMAT = { periods: 2, periodLen: 1200, otLen: 300, to30: 2, toFull: 4, bonus: 7, dbonus: 10 };
+/* Seed roster for a first open with no data at all (offline, nothing in this browser yet). */
+const SEED_ROSTER = ["Josh Castaniero","Matthew Wilson","Alex Bello","SoulJah Niles","Mikey Duran-Morales",
+  "Eric Kubel","Quian Khawaja","Brenden Banks-Speed","George Hees","Emmitt Claiborne","Sean Castro","CJ Temme",
+  "Axel Ostergard","Jaylen Smith","Finn Ortiz","Jack Johnson","Ashton Carraway","Reese Widerburg"]
+  .map(n => ({ name: n, num: '', hidden: false }));
+
+const STAT_BTNS = [
+  ['2fg_make', '2PT Make', 'make'], ['2fg_miss', '2PT Miss', 'miss'],
+  ['3fg_make', '3PT Make', 'make'], ['3fg_miss', '3PT Miss', 'miss'],
+  ['ft_make', 'FT Make', 'make'],   ['ft_miss', 'FT Miss', 'miss'],
+  ['oreb', 'Off Reb', 'reb'],       ['dreb', 'Def Reb', 'reb'],
+  ['stl', 'Steal', 'def'],          ['blk', 'Block', 'def'],
+  ['tov', 'Turnover', 'badb'],      ['ast', 'Assist', 'neutral'],
+  ['foul', 'Foul', 'foul'],         ['offf', 'Off Foul', 'foul'],
+];
+const STAT_LABEL = {
+  '2fg_make': '2PT make', '2fg_miss': '2PT miss', '3fg_make': '3PT make', '3fg_miss': '3PT miss',
+  ft_make: 'FT make', ft_miss: 'FT miss', oreb: 'off rebound', dreb: 'def rebound', ast: 'assist',
+  stl: 'steal', blk: 'block', tov: 'turnover', foul: 'foul', fd: 'drew foul', offf: 'offensive foul',
+};
+
+/* ════════════════════════════════════════════════════════════
+   UTILS
+════════════════════════════════════════════════════════════ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const other = t => t === 'a' ? 'b' : 'a';
+const sgn = v => (v > 0 ? '+' : '') + v;
+const pmCls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+const f1 = v => v == null || !isFinite(v) ? '—' : (+v).toFixed(1);
+const f0 = v => v == null || !isFinite(v) ? '—' : Math.round(v);
+const pct = (m, a) => a > 0 ? (100 * m / a).toFixed(1) : '—';
+function fmtClock(secs) {
+  if (secs == null || !isFinite(secs)) return '—';
+  const s = Math.max(0, Math.ceil(secs - 1e-6));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+/* Typed clock: "12:34", "1234" -> 12:34, "934" -> 9:34, "45" -> 0:45. Digits-only is the fast
+   path on a keypad; the preview under the box shows how it was read so a slip is visible. */
+function parseClock(str) {
+  str = String(str || '').trim();
+  if (!str) return null;
+  let m = str.match(/^(\d{1,2}):(\d{1,2})(?:\.\d+)?$/);
+  if (m) { if (+m[2] >= 60) return null; return +m[1] * 60 + +m[2]; }
+  if (!/^\d{1,4}$/.test(str)) return null;
+  if (str.length <= 2) return +str;
+  const mm = +str.slice(0, -2), ss = +str.slice(-2);
+  if (ss >= 60) return null;
+  return mm * 60 + ss;
+}
+function toast(msg, cls = '', ms = 2200) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + cls; el.textContent = msg;
+  const box = $('#toasts');
+  box.appendChild(el);
+  // Never let confirmations pile up over the buttons during a fast stretch.
+  while (box.children.length > 2) box.firstChild.remove();
+  setTimeout(() => el.remove(), ms);
+}
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+  catch (e) { toast('Could not save — browser storage is full or blocked', 'bad', 5000); return false; }
+}
+function download(name, text, mime = 'application/json') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+const lastName = n => { const p = String(n).replace(/\s+(jr\.?|sr\.?|ii|iii|iv)$/i, '').split(/\s+/); return p[p.length - 1]; };
+const byLast = (a, b) => lastName(a).localeCompare(lastName(b)) || String(a).localeCompare(String(b));
+
+/* ════════════════════════════════════════════════════════════
+   APP STATE + STORAGE
+════════════════════════════════════════════════════════════ */
+const App = {
+  games: [], roster: [], liveId: null, viewer: false, publishedAt: null,
+  tab: 'track', viewId: null, period: 'all', adv: false, lev: 'nogt', prevTab: 'track',
+};
+function saveGames() { if (!App.viewer) lsSet(LS_GAMES, App.games); }
+function saveRoster() { if (!App.viewer) lsSet(LS_ROSTER, App.roster); }
+function liveGame() { return App.liveId ? App.games.find(g => g.id === App.liveId) || null : null; }
+function viewGame() {
+  return App.games.find(g => g.id === App.viewId) || liveGame()
+    || [...App.games].sort((x, y) => (y.date || '').localeCompare(x.date || '') || (y.createdAt || '').localeCompare(x.createdAt || ''))[0] || null;
+}
+function rosterEntry(name) { return App.roster.find(r => r.name === name); }
+function numOf(name) { const r = rosterEntry(name); return r && r.num !== '' && r.num != null ? r.num : ''; }
+
+/* ════════════════════════════════════════════════════════════
+   GAME MODEL
+   Same shape as a practice-tracker session (teamAName/B, startersA, quarters, eventLog,
+   lineupSegments, teamStats, playerStats, finalScore) so games can feed the same analysis.
+   Team 'a' is always Moorpark, 'b' the opponent. Only Moorpark's lineups are tracked.
+════════════════════════════════════════════════════════════ */
+function periodDur(g, q) { return q <= g.format.periods ? g.format.periodLen : g.format.otLen; }
+function curPeriod(g) { return g.quarters.length + 1; }
+function periodName(g, q, short) {
+  const P = g.format.periods;
+  if (q <= P) {
+    if (P === 2) return short ? (q === 1 ? '1H' : '2H') : (q === 1 ? '1st Half' : '2nd Half');
+    return short ? 'Q' + q : 'Quarter ' + q;
+  }
+  const n = q - P;
+  return short ? (n === 1 ? 'OT' : n + 'OT') : (n === 1 ? 'Overtime' : n + 'nd OT'.replace('nd', n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'));
+}
+function oppHasRoster(g) { return (g.oppRoster || []).length > 0; }
+function teamName(g, t) { return t === 'a' ? g.teamAName : g.teamBName; }
+function nextId(g) { g.nextId = (g.nextId || g.eventLog.length) + 1; return g.nextId; }
+const isStat = e => e && !e.type;
+function evPts(e) { return e.stat === '2fg_make' ? 2 : e.stat === '3fg_make' ? 3 : e.stat === 'ft_make' ? 1 : 0; }
+function score(g, t, pred) {
+  let p = 0;
+  for (const e of g.eventLog) if (isStat(e) && e.team === t && (!pred || pred(e))) p += evPts(e);
+  return p;
+}
+function finalScore(g) {
+  const o = g.finalScore;
+  return o && o.override ? { a: o.a, b: o.b } : { a: score(g, 'a'), b: score(g, 'b') };
+}
+function currentLineup(g) {
+  const lu = [...(g.startersA || [])];
+  for (const e of g.eventLog) {
+    if (e.type !== 'sub') continue;
+    for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; }
+  }
+  return lu;
+}
+/* Every player who has been on this team's floor or in the box. */
+function teamPlayers(g, t) {
+  if (t === 'b') return (g.oppRoster || []).slice();
+  const set = new Set([...(g.dressedA || []), ...(g.startersA || [])]);
+  for (const e of g.eventLog) {
+    if (e.type === 'sub') for (const s of e.subs || []) { set.add(s.playerIn); set.add(s.playerOut); }
+    else if (isStat(e) && e.team === 'a' && e.player !== TEAM) set.add(e.player);
+  }
+  return [...set];
+}
+
+/* ── Clock ──
+   Optional running clock. Nothing depends on it running: every sub and timeout DEMANDS the
+   clock, and those typed times are the anchors the analytics read the game clock from. When
+   it is running, each stat event is stamped with it as well, which only sharpens the same
+   reading. */
+function clockNow(g) {
+  const c = g.clock;
+  if (!c.running) return c.rem;
+  return Math.max(0, c.anchorRem - (Date.now() - c.anchorMs) / 1000);
+}
+function clockSet(g, secs) {
+  const c = g.clock;
+  c.rem = secs;
+  if (c.running) { c.anchorRem = secs; c.anchorMs = Date.now(); }
+}
+function clockStop(g) { const c = g.clock; c.rem = clockNow(g); c.running = false; }
+function clockToggle() {
+  const g = liveGame(); if (!g || g.between) return;
+  const c = g.clock;
+  if (c.running) clockStop(g);
+  else if (c.rem > 0) { c.running = true; c.anchorMs = Date.now(); c.anchorRem = c.rem; }
+  saveGames(); paintScorebar();
+}
+
+/* ════════════════════════════════════════════════════════════
+   UNDO / REDO — whole-game snapshots. A game is small, and a snapshot can never disagree
+   with itself the way a hand-written inverse of every action eventually does.
+════════════════════════════════════════════════════════════ */
+const undoStack = [], redoStack = [];
+function snapshot() {
+  const g = liveGame(); if (!g) return;
+  undoStack.push(JSON.stringify(g));
+  if (undoStack.length > 300) undoStack.shift();
+  redoStack.length = 0;
+}
+function swapGame(json) {
+  const g = liveGame();
+  const next = JSON.parse(json);
+  /* The clock is live state, not a record: keep it running through an undo unless the undo
+     crosses a period boundary, where the restored clock is the right one. */
+  if (g && next.quarters.length === g.quarters.length && next.between === g.between) next.clock = g.clock;
+  const i = App.games.findIndex(x => x.id === next.id);
+  if (i !== -1) App.games[i] = next;
+  saveGames();
+}
+function undo() {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') { cancelFlow(); return; }
+  if (!undoStack.length) { toast('Nothing to undo'); return; }
+  redoStack.push(JSON.stringify(g));
+  swapGame(undoStack.pop());
+  toast('Undone', 'warn'); render();
+}
+function redo() {
+  const g = liveGame(); if (!g || !redoStack.length) return;
+  undoStack.push(JSON.stringify(g));
+  swapGame(redoStack.pop());
+  toast('Redone'); render();
+}
+
+/* ════════════════════════════════════════════════════════════
+   ENTRY FLOW — the practice tracker's state machine, minus zones / shot types / film.
+   Tap a stat, then the player(s). Steps that are decided by the play itself (who can block,
+   who loses the ball on a steal) only light up the side that can do it.
+════════════════════════════════════════════════════════════ */
+const F = { phase: 'idle', stat: null, staged: [], shooter: null, shooterTeam: null, rebType: null, fouler: null, foulerTeam: null, blocked: false };
+const PHASE_TEXT = {
+  pick_shooter: () => 'Who shot it?',
+  pick_ft: () => 'Who shot the free throw?',
+  pick_player: () => 'Who? (' + STAT_LABEL[F.stat] + ')',
+  pick_fouler: () => F.stat === 'offf' ? 'Who committed the offensive foul?' : 'Who fouled?',
+  await_assister: () => F.shooter + ' scored — who assisted?',
+  await_reb: () => F.shooter + ' missed — tap the rebounder' + (F.blocked ? '' : ' (or Block)'),
+  await_ft_reb: () => 'FT missed — tap the rebounder, or No rebound',
+  await_blocker: () => 'Who blocked it?',
+  await_rebounder: () => 'Who got the ' + (F.rebType === 'oreb' ? 'offensive' : 'defensive') + ' rebound?',
+  await_tov_after_stl: () => 'Steal — who turned it over?',
+  await_drawer: () => F.stat === 'offf' ? 'Who drew the charge / offensive foul?' : 'Who drew the foul?',
+};
+const SKIP_TEXT = { await_assister: 'No assist', await_reb: 'No rebound', await_ft_reb: 'No rebound', await_drawer: 'Skip' };
+const AUTO_PHASES = new Set(['await_blocker', 'await_tov_after_stl', 'await_drawer', 'await_rebounder']);
+
+function playerish(g, team, p) { return p !== TEAM || (team === 'b' && !oppHasRoster(g)); }
+function allowed(team, p) {
+  const g = liveGame(); if (!g) return false;
+  switch (F.phase) {
+    case 'idle': return true;
+    case 'pick_shooter': case 'pick_ft': return playerish(g, team, p);
+    case 'pick_player': return ['tov', 'oreb', 'dreb'].includes(F.stat) ? true : playerish(g, team, p);
+    case 'pick_fouler': return F.stat === 'offf' ? playerish(g, team, p) : true;
+    case 'await_assister': return team === F.shooterTeam && p !== F.shooter && playerish(g, team, p);
+    case 'await_reb': case 'await_ft_reb': return true;
+    case 'await_blocker': return team !== F.shooterTeam && playerish(g, team, p);
+    case 'await_rebounder': return team === (F.rebType === 'oreb' ? F.shooterTeam : other(F.shooterTeam));
+    case 'await_tov_after_stl': return team !== F.shooterTeam;
+    case 'await_drawer': return team !== F.foulerTeam && playerish(g, team, p);
+  }
+  return false;
+}
+function resetFlow() {
+  Object.assign(F, { phase: 'idle', stat: null, staged: [], shooter: null, shooterTeam: null, rebType: null, fouler: null, foulerTeam: null, blocked: false });
+}
+function cancelFlow() { const had = F.phase !== 'idle'; resetFlow(); paintTracker(); if (had) toast('Entry cancelled', 'warn'); }
+function setPhase(p) {
+  F.phase = p;
+  paintTracker();
+  if (AUTO_PHASES.has(p)) {
+    // One side, one button (no opponent roster): there is nothing to choose, so don't ask.
+    const c = candidates();
+    if (c.length === 1) pickPlayer(c[0].team, c[0].p);
+  }
+}
+function candidates() {
+  const g = liveGame(); const out = [];
+  for (const t of ['a', 'b']) for (const p of buttonPlayers(g, t)) if (allowed(t, p)) out.push({ team: t, p });
+  return out;
+}
+function buttonPlayers(g, t) {
+  if (t === 'a') return [...sortedLineup(g), TEAM];
+  return oppHasRoster(g) ? [...g.oppRoster, TEAM] : [TEAM];
+}
+/* Slot order, not alphabetical: a sub takes the same button the man he replaced had, so the
+   other four never move under your finger. */
+function sortedLineup(g) { return currentLineup(g); }
+function stage(team, player, stat, extra) { F.staged.push(Object.assign({ team, player, stat }, extra || {})); }
+
+function commitStaged() {
+  const g = liveGame();
+  if (!g || !F.staged.length) { resetFlow(); return; }
+  snapshot();
+  const q = curPeriod(g);
+  const gc = g.clock.running ? Math.round(clockNow(g) * 10) / 10 : null;
+  const now = Date.now();
+  const added = [];
+  for (const s of F.staged) {
+    const ev = Object.assign({ id: nextId(g) }, s, { quarter: q, ts: now });
+    if (gc != null) ev.gc = gc;
+    g.eventLog.push(ev); added.push(ev);
+  }
+  resetFlow();
+  saveGames();
+  toast(added.map(e => shortName(g, e.team, e.player) + ' ' + STAT_LABEL[e.stat]).join(' + '), 'good', 1800);
+  render();
+}
+function shortName(g, t, p) {
+  if (p === TEAM) return t === 'b' && !oppHasRoster(g) ? g.teamBName : teamName(g, t) + ' team';
+  if (t === 'a') { const n = numOf(p); return (n !== '' ? '#' + n + ' ' : '') + lastName(p); }
+  return p;
+}
+
+function startStat(stat) {
+  const g = liveGame();
+  if (!g || g.between || g.completed) return;
+  // Mid-flow taps that continue the current play instead of starting a new one.
+  if ((F.phase === 'await_reb' || F.phase === 'await_ft_reb')) {
+    if (stat === 'blk' && F.phase === 'await_reb' && !F.blocked) { F.stat = 'blk_mid'; setPhase('await_blocker'); return; }
+    if (stat === 'oreb' || stat === 'dreb') { F.rebType = stat; setPhase('await_rebounder'); return; }
+  }
+  if (F.phase === 'await_assister' && stat === 'ast') return;
+  if (F.phase === 'await_tov_after_stl' && stat === 'tov') return;
+  /* Starting a new stat mid-play keeps what the last one already settled (a made basket
+     whose assist was never tapped is still a made basket) rather than throwing it away.
+     Cancel / Esc is the way to throw it away. */
+  if (F.phase !== 'idle') commitStaged();
+  resetFlow();
+  F.stat = stat;
+  if (/fg_/.test(stat)) setPhase('pick_shooter');
+  else if (stat === 'ft_make' || stat === 'ft_miss') setPhase('pick_ft');
+  else if (stat === 'foul' || stat === 'offf') setPhase('pick_fouler');
+  else setPhase('pick_player');
+}
+
+function pickPlayer(team, p) {
+  const g = liveGame(); if (!g) return;
+  if (F.phase === 'idle') {
+    // Tapping a man on the floor with no stat armed is the fastest way into a substitution.
+    if (team === 'a' && p !== TEAM && !g.between) openSub(p);
+    else toast('Pick a stat first');
+    return;
+  }
+  if (!allowed(team, p)) return;
+  switch (F.phase) {
+    case 'pick_shooter':
+      stage(team, p, F.stat); F.shooter = shortName(g, team, p); F.shooterTeam = team;
+      setPhase(/make/.test(F.stat) ? 'await_assister' : 'await_reb');
+      break;
+    case 'pick_ft':
+      stage(team, p, F.stat);
+      if (F.stat === 'ft_make') commitStaged();
+      else { F.shooter = shortName(g, team, p); F.shooterTeam = team; setPhase('await_ft_reb'); }
+      break;
+    case 'pick_player':
+      if (F.stat === 'stl') { stage(team, p, 'stl'); F.shooterTeam = team; setPhase('await_tov_after_stl'); break; }
+      stage(team, p, F.stat); commitStaged();
+      break;
+    case 'pick_fouler':
+      /* An offensive foul is three facts at once: a personal foul on the man who committed
+         it, a turnover by him, and a foul drawn by the defender. All three are staged here so
+         they land - and undo - as one play. */
+      if (F.stat === 'offf') { stage(team, p, 'foul', { offensive: true }); stage(team, p, 'tov', { tovType: 'off_foul' }); }
+      else stage(team, p, 'foul');
+      F.fouler = p; F.foulerTeam = team;
+      setPhase('await_drawer');
+      break;
+    case 'await_drawer':
+      stage(team, p, 'fd', F.stat === 'offf' ? { offensive: true } : null); commitStaged();
+      break;
+    case 'await_assister':
+      stage(team, p, 'ast'); commitStaged();
+      break;
+    case 'await_reb': case 'await_ft_reb':
+      // The tap says which board it was: the shooter's side is offensive, the other defensive.
+      stage(team, p, team === F.shooterTeam ? 'oreb' : 'dreb'); commitStaged();
+      break;
+    case 'await_blocker':
+      stage(team, p, 'blk'); F.blocked = true; F.stat = null; setPhase('await_reb');
+      break;
+    case 'await_rebounder':
+      stage(team, p, F.rebType); commitStaged();
+      break;
+    case 'await_tov_after_stl':
+      stage(team, p, 'tov', { tovType: 'stolen' }); commitStaged();
+      break;
+  }
+}
+function skipStep() { commitStaged(); }
+
+/* ════════════════════════════════════════════════════════════
+   LINEUP STINTS — ported. Minutes come only from lineupSegments, and a stint must close at a
+   smaller clock than it opened (the clock counts down).
+════════════════════════════════════════════════════════════ */
+function activeSeg(g) { for (let i = g.lineupSegments.length - 1; i >= 0; i--) if (g.lineupSegments[i].endTimeSecs === null) return g.lineupSegments[i]; return null; }
+function closeActive(g, t) { const s = activeSeg(g); if (s) s.endTimeSecs = t; }
+function openSeg(g, t) { g.lineupSegments.push({ quarter: curPeriod(g), lineupA: currentLineup(g), lineupB: [], startTimeSecs: t, endTimeSecs: null }); }
+function stintHasPlay(g, q) {
+  for (let i = g.eventLog.length - 1; i >= 0; i--) {
+    const e = g.eventLog[i];
+    if (e.quarter !== q) break;
+    if (e.type === 'sub') break;
+    if (isStat(e)) return true;
+  }
+  return false;
+}
+function segSecs(g, seg) {
+  let end = seg.endTimeSecs;
+  if (end === null) {
+    if (g.between || g.completed || seg.quarter !== curPeriod(g)) return 0;
+    end = clockNow(g);
+  }
+  return Math.max(0, seg.startTimeSecs - end);
+}
+function playerSecs(g, name, qf) {
+  let t = 0;
+  for (const s of g.lineupSegments) if ((qf == null || s.quarter === qf) && s.lineupA.includes(name)) t += segSecs(g, s);
+  return t;
+}
+function gameSecs(g, qf) {
+  let t = 0;
+  g.quarters.forEach((q, i) => { if (qf == null || qf === i + 1) t += q.playedDuration; });
+  if (!g.between && !g.completed) {
+    const q = curPeriod(g);
+    if (qf == null || qf === q) t += Math.max(0, periodDur(g, q) - clockNow(g));
+  }
+  return t;
+}
+
+/* ════════════════════════════════════════════════════════════
+   TIMEOUTS
+════════════════════════════════════════════════════════════ */
+function otStarted(g) {
+  const started = g.quarters.length + (g.between ? 0 : 1);
+  return Math.max(0, started - g.format.periods);
+}
+function timeoutsLeft(g, t) {
+  let u30 = 0, uF = 0;
+  for (const e of g.eventLog) if (e.type === 'timeout' && e.team === t) { if (e.toType === '30') u30++; else uF++; }
+  return { s30: g.format.to30 + otStarted(g) - u30, full: g.format.toFull - uF };
+}
+function teamFouls(g, t, q) {
+  // Fouls reset at the half; overtime carries the second half's count.
+  const P = g.format.periods;
+  const inWindow = P === 2 ? (e => (q <= 1 ? e.quarter === 1 : e.quarter >= 2)) : (e => e.quarter === q);
+  let n = 0;
+  for (const e of g.eventLog) if (isStat(e) && e.stat === 'foul' && e.team === t && inWindow(e)) n++;
+  return n;
+}
+
+/* ════════════════════════════════════════════════════════════
+   STAT LINES + RATINGS — the practice tracker's formulas, ported as-is.
+════════════════════════════════════════════════════════════ */
+function statLine(evs) {
+  const s = { pts: 0, fgm: 0, fga: 0, fg2m: 0, fg2a: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, reb: 0,
+              ast: 0, tov: 0, blk: 0, stl: 0, pf: 0, offf: 0, fd: 0, chg: 0 };
+  for (const e of evs) {
+    switch (e.stat) {
+      case '2fg_make': s.pts += 2; s.fgm++; s.fga++; s.fg2m++; s.fg2a++; break;
+      case '2fg_miss': s.fga++; s.fg2a++; break;
+      case '3fg_make': s.pts += 3; s.fgm++; s.fga++; s.fg3m++; s.fg3a++; break;
+      case '3fg_miss': s.fga++; s.fg3a++; break;
+      case 'ft_make': s.pts++; s.ftm++; s.fta++; break;
+      case 'ft_miss': s.fta++; break;
+      case 'oreb': s.oreb++; s.reb++; break;
+      case 'dreb': s.dreb++; s.reb++; break;
+      case 'ast': s.ast++; break;
+      case 'tov': s.tov++; break;
+      case 'blk': s.blk++; break;
+      case 'stl': s.stl++; break;
+      case 'foul': s.pf++; if (e.offensive) s.offf++; break;
+      case 'fd': s.fd++; if (e.offensive) s.chg++; break;
+    }
+  }
+  return s;
+}
+const calcPoss = s => +((s.fga - s.oreb) + s.tov + 0.475 * s.fta).toFixed(2);
+
+function teamStats(g, pred) {
+  const line = {
+    a: statLine(g.eventLog.filter(e => isStat(e) && e.team === 'a' && (!pred || pred(e)))),
+    b: statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && (!pred || pred(e)))),
+  };
+  // One shared possession count: the teams alternate, so ORtg(a) must equal DRtg(b).
+  const poss = +(((calcPoss(line.a) + calcPoss(line.b)) / 2).toFixed(2));
+  for (const t of ['a', 'b']) {
+    const s = line[t], o = line[other(t)];
+    s.possessions = poss;
+    s.ortg = poss > 0 ? +(100 * s.pts / poss).toFixed(1) : 0;
+    s.drtg = poss > 0 ? +(100 * o.pts / poss).toFixed(1) : 0;
+    s.netrtg = +(s.ortg - s.drtg).toFixed(1);
+    s.efgPct = s.fga > 0 ? +((s.fgm + 0.5 * s.fg3m) / s.fga * 100).toFixed(1) : 0;
+    s.tsPct = (s.fga + 0.475 * s.fta) > 0 ? +(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100).toFixed(1) : 0;
+    s.tovPct = poss > 0 ? +(100 * s.tov / poss).toFixed(1) : 0;
+    s.orebPct = (s.oreb + o.dreb) > 0 ? +(100 * s.oreb / (s.oreb + o.dreb)).toFixed(1) : 0;
+    s.drebPct = (s.dreb + o.oreb) > 0 ? +(100 * s.dreb / (s.dreb + o.oreb)).toFixed(1) : 0;
+    s.ftr = s.fga > 0 ? +(100 * s.fta / s.fga).toFixed(1) : 0;
+    s.ppp = poss > 0 ? +(s.pts / poss).toFixed(2) : 0;
+  }
+  return line;
+}
+
+/* Moorpark player rows with the advanced set (practice tracker's computePlayerStats). */
+function playerStats(g, qf) {
+  const pred = qf == null ? null : (e => e.quarter === qf);
+  const TS = teamStats(g, pred);
+  const tS = TS.a, oS = TS.b;
+  const gameMin = gameSecs(g, qf) / 60;
+  const pm = plusMinus(g, pred);
+  const rows = [];
+  for (const name of teamPlayers(g, 'a')) {
+    const s = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === name && (!pred || pred(e))));
+    const minExact = playerSecs(g, name, qf) / 60;
+    s.min = minExact;
+    s.pm = pm.a[name] || 0;
+    const p1 = (v, d = 1) => (v != null && isFinite(v)) ? +v.toFixed(d) : null;
+    const minPct = gameMin > 0 ? minExact / gameMin : 0;
+    s.efgPct = s.fga > 0 ? p1((s.fgm + 0.5 * s.fg3m) / s.fga * 100) : null;
+    s.tsPct = (s.fga + 0.475 * s.fta) > 0 ? p1(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100) : null;
+    s.ftRate = s.fga > 0 ? p1(100 * s.fta / s.fga) : null;
+    const tFgaPoss = tS.fga + 0.475 * tS.fta + tS.tov;
+    s.usgPct = (minExact > 0 && tFgaPoss > 0) ? p1(100 * (s.fga + 0.475 * s.fta + s.tov) * gameMin / (minExact * tFgaPoss)) : null;
+    s.orPct = (minPct > 0 && (tS.oreb + oS.dreb) > 0) ? p1(100 * s.oreb / (minPct * (tS.oreb + oS.dreb))) : null;
+    s.drPct = (minPct > 0 && (tS.dreb + oS.oreb) > 0) ? p1(100 * s.dreb / (minPct * (tS.dreb + oS.oreb))) : null;
+    s.astPct = (minPct > 0 && (tS.fgm - s.fgm) > 0) ? p1(100 * s.ast / ((tS.fgm - s.fgm) * minPct)) : null;
+    const toD = s.fga + 0.475 * s.fta + s.ast + s.tov;
+    s.toPct = toD > 0 ? p1(100 * s.tov / toD) : null;
+    s.stlPct = minPct > 0 && tS.possessions > 0 ? p1(100 * s.stl / (minPct * tS.possessions)) : null;
+    s.blkPct = minPct > 0 ? p1(100 * s.blk / (minPct * Math.max(1, oS.fg2a))) : null;
+    s.ortg = indivOrtg(s, minExact, gameMin, tS, oS);
+    s.drtg = indivDrtg(s, minExact, gameMin, tS, oS);
+    rows.push(Object.assign({ name, team: 'a' }, s));
+  }
+  return rows;
+}
+function indivOrtg(s, MP, tMP5, tS, oS) {
+  if (!(MP > 0 && tMP5 > 0 && (s.fga > 0 || s.fta > 0 || s.tov > 0 || s.ast > 0 || s.oreb > 0))) return null;
+  const tFGM = tS.fgm, tFGA = tS.fga, tFG3M = tS.fg3m, tFTM = tS.ftm, tFTA = tS.fta, tPTS = tS.pts, tTOV = tS.tov, tAST = tS.ast;
+  const tOREB = tS.oreb, oDREB = oS.dreb;
+  const qAST_1 = tFGM > 0 ? (MP / tMP5) * (1.14 * ((tAST - s.ast) / tFGM)) : 0;
+  const adjAST = tAST * (MP / tMP5) - s.ast, adjFGM = tFGM * (MP / tMP5) - s.fgm;
+  const qAST = qAST_1 + (adjFGM > 0 ? (adjAST / adjFGM) * (1 - MP / tMP5) : 0);
+  const fgRatio = s.fga > 0 ? (s.pts - s.ftm) / (2 * s.fga) : 0;
+  const FG_Part = s.fgm * (1 - 0.5 * fgRatio * qAST);
+  const AST_Part = (tFGA - s.fga) > 0 ? 0.5 * ((tPTS - tFTM - (s.pts - s.ftm)) / (2 * (tFGA - s.fga))) * s.ast : 0;
+  const FT_Part = s.fta > 0 ? (1 - Math.pow(1 - s.ftm / s.fta, 2)) * 0.4 * s.fta : 0;
+  const tScPoss = tFGM + (tFTA > 0 ? (1 - Math.pow(1 - tFTM / tFTA, 2)) * tFTA * 0.4 : 0);
+  const tORBpct = (tOREB + oDREB) > 0 ? tOREB / (tOREB + oDREB) : 0;
+  const tPlayPct = (tFGA + tFTA * 0.4 + tTOV) > 0 ? tScPoss / (tFGA + tFTA * 0.4 + tTOV) : 0;
+  const den = (1 - tORBpct) * tPlayPct + tORBpct * (1 - tPlayPct);
+  const tORBWt = den > 0 ? ((1 - tORBpct) * tPlayPct) / den : 0;
+  const ORB_Part = s.oreb * tORBWt * tPlayPct;
+  const teamOrbAdj = tScPoss > 0 ? (tOREB / tScPoss) * tORBWt * tPlayPct : 0;
+  const ScPoss = (FG_Part + AST_Part + FT_Part) * (1 - teamOrbAdj) + ORB_Part;
+  const FGxPoss = (s.fga - s.fgm) * (1 - 1.07 * tORBpct);
+  const FTxPoss = s.fta > 0 ? Math.pow(1 - s.ftm / s.fta, 2) * 0.4 * s.fta : 0;
+  const TotPoss = ScPoss + FGxPoss + FTxPoss + s.tov;
+  if (!(TotPoss > 0)) return null;
+  const PProd_FG = 2 * (s.fgm + 0.5 * s.fg3m) * (1 - 0.5 * fgRatio * qAST);
+  const PProd_AST = (tFGM - s.fgm) > 0
+    ? 2 * ((tFGM - s.fgm + 0.5 * (tFG3M - s.fg3m)) / (tFGM - s.fgm)) * 0.5 * ((tPTS - tFTM - (s.pts - s.ftm)) / (2 * Math.max(tFGA - s.fga, 1))) * s.ast : 0;
+  const PProd_ORB = tScPoss > 0 ? s.oreb * tORBWt * tPlayPct * (tPTS / tScPoss) : 0;
+  const PProd = (PProd_FG + PProd_AST + s.ftm) * (1 - teamOrbAdj) + PProd_ORB;
+  return Math.round(100 * PProd / TotPoss);
+}
+function indivDrtg(s, MP, gameMin, tS, oS) {
+  if (!(MP > 0 && gameMin > 0)) return null;
+  const tMP = gameMin * 5;
+  const DORpct = (oS.oreb + tS.dreb) > 0 ? oS.oreb / (oS.oreb + tS.dreb) : 0;
+  const DFGpct = oS.fga > 0 ? oS.fgm / oS.fga : 0;
+  const fmDen = DFGpct * (1 - DORpct) + (1 - DFGpct) * DORpct;
+  const FMwt = fmDen > 0 ? (DFGpct * (1 - DORpct)) / fmDen : 0;
+  const oFTpct = oS.fta > 0 ? oS.ftm / oS.fta : 0;
+  const Stops1 = s.stl + s.blk * FMwt * (1 - 1.07 * DORpct) + s.dreb * (1 - FMwt);
+  const ftStops = tS.pf > 0 ? (s.pf / tS.pf) * 0.4 * oS.fta * Math.pow(1 - oFTpct, 2) : 0;
+  const Stops2 = (((oS.fga - oS.fgm - tS.blk) / tMP) * FMwt * (1 - 1.07 * DORpct) + ((oS.tov - tS.stl) / tMP)) * MP + ftStops;
+  const tPoss = tS.possessions;
+  const stopPct = tPoss > 0 ? ((Stops1 + Stops2) * tMP) / (tPoss * MP) : null;
+  const scPoss = oS.fgm + (1 - Math.pow(1 - oFTpct, 2)) * oS.fta * 0.4;
+  const dPPS = scPoss > 0 ? oS.pts / scPoss : null;
+  if (stopPct == null || dPPS == null || !isFinite(stopPct)) return null;
+  return Math.round(tS.drtg + 0.2 * (100 * dPPS * (1 - stopPct) - tS.drtg));
+}
+
+/* Plus/minus by replay: only ORDER is needed, so the open stint counts too. */
+function plusMinus(g, pred) {
+  const lu = [...(g.startersA || [])];
+  const a = {};
+  for (const e of g.eventLog) {
+    if (e.type === 'sub') { for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; } continue; }
+    if (!isStat(e) || (pred && !pred(e))) continue;
+    const p = evPts(e); if (!p) continue;
+    const sw = e.team === 'a' ? p : -p;
+    lu.forEach(n => { a[n] = (a[n] || 0) + sw; });
+  }
+  return { a };
+}
+
+/* ════════════════════════════════════════════════════════════
+   GAME CLOCK PER EVENT
+   Stat events don't carry a clock unless the running clock was on. Subs, timeouts, clock
+   sets and period ends all DO, because they demand one. Every event's clock is read off the
+   anchors either side of it, interpolated by order - with a sub every couple of minutes that
+   lands within a few seconds, which is all garbage time and leverage need.
+════════════════════════════════════════════════════════════ */
+function eventClocks(g) {
+  const log = g.eventLog, out = new Array(log.length).fill(null);
+  const byQ = new Map();
+  log.forEach((e, i) => { if (!byQ.has(e.quarter)) byQ.set(e.quarter, []); byQ.get(e.quarter).push(i); });
+  for (const [q, idxs] of byQ) {
+    const anchors = [{ pos: idxs[0] - 0.5, t: periodDur(g, q) }];
+    for (const i of idxs) {
+      const e = log[i];
+      const t = (e.type === 'sub' || e.type === 'timeout' || e.type === 'clock') ? e.timeSecs : (e.gc != null ? e.gc : null);
+      if (t != null && isFinite(t)) anchors.push({ pos: i, t });
+    }
+    const qq = g.quarters[q - 1];
+    const lastPos = idxs[idxs.length - 1] + 0.5;
+    if (qq) anchors.push({ pos: lastPos, t: qq.timeRemaining });
+    else if (!g.between && !g.completed && q === curPeriod(g)) anchors.push({ pos: lastPos, t: clockNow(g) });
+    let m = Infinity;
+    for (const a of anchors) { a.t = Math.min(a.t, m); m = a.t; }   // the clock only runs down
+    let k = 0;
+    for (const i of idxs) {
+      while (k + 1 < anchors.length && anchors[k + 1].pos <= i) k++;
+      const a0 = anchors[k], a1 = anchors[k + 1];
+      out[i] = a1 ? a0.t + (a1.t - a0.t) * (i - a0.pos) / (a1.pos - a0.pos) : a0.t;
+    }
+  }
+  return out;
+}
+function gameSecRem(g, q, rem) {
+  const P = g.format.periods;
+  return q <= P ? (P - q) * g.format.periodLen + rem : rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   POSSESSIONS, LEVERAGE, CLUTCH, GARBAGE TIME
+   ───────────────────────────────────────────────────────────
+   Trips are read off the log in order: a possession ends on a made basket, a defensive
+   rebound or a turnover, and an and-one free throw stays with the basket it came from.
+
+   LEVERAGE is the practice tracker's grading, with the real game clock behind it:
+     HIGH   within 3 (one possession)
+     MEDIUM 4-12 and still reachable
+     LOW    13+, or a gap the trailing side cannot close at three points a trip on the trips
+            it has left (trips left = clock left / seconds per trip, split between the teams)
+   CLUTCH is the NBA's test, which a game clock makes literal: the last 5:00 of the game (all
+   of any overtime), within 5, and never a LOW trip. It overlays HIGH/MEDIUM, not a 4th band.
+
+   GARBAGE TIME is the defensive possession logger's ladder, on game minutes remaining:
+     30+ any time · 25+ at 8:00 or less · 20+ at 5:00 · 15+ at 3:00 · 10+ at 1:00
+   It is sticky - the first possession that meets it is the cutoff and every one after it is
+   flagged - exactly as the logger does it. A manual mark and an off switch override it.
+════════════════════════════════════════════════════════════ */
+const LEV_CUT = { high: 3, low: 13, ppp: 3 };
+const CLUTCH = { margin: 5, secs: 300 };
+const DEFAULT_SPT = 17.5;
+const KILL_STOPS = 3;   // seconds per trip until the game has its own pace
+function gtReq(minRem) { if (minRem <= 1) return 10; if (minRem <= 3) return 15; if (minRem <= 5) return 20; if (minRem <= 8) return 25; return 30; }
+function levTier(margin, trailLeft) {
+  const d = Math.abs(margin);
+  if (d >= LEV_CUT.low) return 'low';
+  if (d > LEV_CUT.ppp * trailLeft) return 'low';
+  if (d <= LEV_CUT.high) return 'high';
+  return 'med';
+}
+function gradeState(g, margin, gsr, spt, teamWithBall) {
+  const n = 1 + Math.floor(Math.max(0, gsr) / spt);   // trips left in the game, this one included
+  const trailing = margin > 0 ? 'b' : margin < 0 ? 'a' : null;
+  const trailLeft = !trailing ? Infinity : (teamWithBall === trailing ? Math.ceil(n / 2) : Math.floor(n / 2));
+  const tier = levTier(margin, trailLeft);
+  const clutch = tier !== 'low' && Math.abs(margin) <= CLUTCH.margin && gsr <= CLUTCH.secs;
+  const req = gtReq(gsr / 60);
+  return { tier, clutch, req, lead: Math.abs(margin), gtHit: Math.abs(margin) >= req, trailLeft };
+}
+
+let _tripCache = { key: null, val: null };
+function analyzeTrips(g) {
+  const key = g.id + ':' + g.eventLog.length + ':' + (g.nextId || 0) + ':' + g.quarters.length + ':' + (g.gtManualIdx ?? '') + ':' + (g.gtOff ? 1 : 0) + ':' + Math.round(clockNow(g));
+  if (_tripCache.key === key) return _tripCache.val;
+  const log = g.eventLog;
+  const clocks = eventClocks(g);
+  const trips = [];
+  let cur = null, pending = null, andOne = null, sA = 0, sB = 0, q = null;
+  const pot = { a: 0, b: 0 }, scp = { a: 0, b: 0 };
+  const evTrip = new Array(log.length).fill(null);
+  const ensure = (t, i) => {
+    if (cur && cur.team === t) return cur;
+    const flags = pending && pending.team === t ? Object.assign({}, pending.flags) : {};
+    pending = null;
+    cur = { team: t, period: log[i].quarter, startIdx: i, sA, sB, pts: 0, flags, events: [] };
+    trips.push(cur);
+    return cur;
+  };
+  const attach = (trip, i) => { if (trip) { trip.events.push(i); evTrip[i] = trip; } };
+  for (let i = 0; i < log.length; i++) {
+    const e = log[i];
+    if (e.quarter !== q) { q = e.quarter; cur = null; pending = null; andOne = null; }
+    if (!isStat(e)) continue;
+    const t = e.team, st = e.stat, v = evPts(e);
+    const isFt = st === 'ft_make' || st === 'ft_miss';
+    if (andOne && !isFt && !['foul', 'fd', 'ast'].includes(st)) andOne = null;
+    let trip;
+    if (/fg_/.test(st)) {
+      trip = ensure(t, i); attach(trip, i); trip.lastShot = st;
+      if (v) {
+        trip.pts += v; if (t === 'a') sA += v; else sB += v;
+        if (trip.flags.tov) pot[t] += v; if (trip.flags.oreb) scp[t] += v;
+        andOne = { team: t, trip }; cur = null; pending = { team: other(t), flags: {} };
+      }
+    } else if (isFt) {
+      if (andOne && andOne.team === t && !cur) trip = andOne.trip; else trip = ensure(t, i);
+      attach(trip, i); trip.lastShot = st;
+      if (v) { trip.pts += v; if (t === 'a') sA += v; else sB += v; if (trip.flags.tov) pot[t] += v; if (trip.flags.oreb) scp[t] += v; }
+    } else if (st === 'oreb') {
+      trip = ensure(t, i); trip.flags.oreb = true; attach(trip, i);
+    } else if (st === 'dreb') {
+      trip = ensure(t, i); attach(trip, i);
+    } else if (st === 'tov') {
+      trip = ensure(t, i); attach(trip, i); trip.endTov = true;
+      cur = null; pending = { team: other(t), flags: { tov: true } };
+    } else {
+      // stl / blk / foul / fd / ast: part of whatever trip is live, never the start of one.
+      attach(cur || (andOne && andOne.trip) || trips[trips.length - 1] || null, i);
+    }
+  }
+
+  // Pace: game seconds elapsed per trip, once there are enough trips to trust it.
+  const lastClock = trips.length ? clocks[trips[trips.length - 1].startIdx] : null;
+  let spt = DEFAULT_SPT;
+  if (trips.length >= 20 && lastClock != null) {
+    const lt = trips[trips.length - 1];
+    const totalReg = g.format.periods * g.format.periodLen;
+    const el = lt.period <= g.format.periods ? totalReg - gameSecRem(g, lt.period, lastClock) : totalReg + (lt.period - g.format.periods - 1) * g.format.otLen + (g.format.otLen - lastClock);
+    if (el > 0) spt = Math.min(30, Math.max(10, el / trips.length));
+  }
+
+  let gtCut = null;
+  const counts = { high: 0, med: 0, low: 0, clutch: 0, gt: 0, total: 0 };
+  trips.forEach((tr, k) => {
+    tr.idx = k;
+    tr.clock = clocks[tr.startIdx];
+    tr.gsr = gameSecRem(g, tr.period, tr.clock == null ? periodDur(g, tr.period) : tr.clock);
+    tr.margin = tr.sA - tr.sB;
+    const st = gradeState(g, tr.margin, tr.gsr, spt, tr.team);
+    tr.tier = st.tier; tr.clutch = st.clutch;
+    if (gtCut == null && !g.gtOff && st.gtHit) gtCut = k;
+    if (gtCut == null && g.gtManualIdx != null && tr.startIdx >= g.gtManualIdx) gtCut = k;
+    tr.gt = gtCut != null && k >= gtCut;
+    counts[tr.tier]++; counts.total++; if (tr.clutch) counts.clutch++; if (tr.gt) counts.gt++;
+  });
+  /* KILLS — the practice tracker's rule: three straight stops and the defence banks a kill,
+     then the count starts over (six straight stops = two kills). A stop is a finished trip
+     with no points, EXCEPT one that ended on a rebound off a missed free throw: the defence
+     fouled to get there, so that trip is not a stop and it breaks the run. A turnover after
+     the missed free throw (offensive board, then a giveaway) is a stop as normal.
+     The trip still in progress is not judged until it ends. Runs carry across the half. */
+  const kills = { a: 0, b: 0 }, streak = { a: 0, b: 0 };
+  trips.forEach((tr, k) => {
+    // A turnover ends a trip on the spot, and points can't be taken back, so neither waits
+    // for the next possession to be logged before it counts.
+    tr.closed = k < trips.length - 1 || !!g.completed || g.quarters.length >= tr.period || !!tr.endTov || tr.pts > 0;
+    tr.ftEnd = tr.pts === 0 && /^ft_/.test(tr.lastShot || '') && !tr.endTov;
+    tr.stop = tr.closed && tr.pts === 0 && !tr.ftEnd;
+    tr.kill = null;
+    if (!tr.closed) return;
+    if (!tr.stop) { streak[tr.team] = 0; return; }
+    if (++streak[tr.team] >= KILL_STOPS) { tr.kill = other(tr.team); kills[tr.kill]++; streak[tr.team] = 0; }
+  });
+
+  // Stamp the grading onto the events themselves so an export carries it.
+  for (let i = 0; i < log.length; i++) {
+    const tr = evTrip[i], e = log[i];
+    if (!isStat(e)) continue;
+    if (tr) { e.lev = tr.tier; e.clutch = tr.clutch || undefined; e.gt = tr.gt || undefined; e.poss = tr.idx;
+              e.kill = tr.kill && i === tr.events[tr.events.length - 1] ? tr.kill : undefined; }
+  }
+  const val = { trips, clocks, evTrip, spt, gtCut: gtCut == null ? null : trips[gtCut], counts, pot, scp, kills, streak };
+  _tripCache = { key, val };
+  return val;
+}
+/* The state RIGHT NOW, for the live badge. */
+function liveLeverage(g) {
+  const A = analyzeTrips(g);
+  const q = curPeriod(g);
+  const rem = g.between ? (g.quarters.length ? 0 : periodDur(g, 1)) : clockNow(g);
+  const gsr = gameSecRem(g, g.between ? Math.max(1, g.quarters.length) : q, rem);
+  const margin = score(g, 'a') - score(g, 'b');
+  const lastTrip = A.trips[A.trips.length - 1];
+  const st = gradeState(g, margin, gsr, A.spt, lastTrip ? lastTrip.team : null);
+  return Object.assign(st, { gsr, margin, gt: !!A.gtCut || (!g.gtOff && st.gtHit) || g.gtManualIdx != null, A });
+}
+
+/* Filter used by On/Off and Lineups. Default: everything except garbage time. */
+const LEV_FILTERS = [
+  ['nogt', 'All but garbage time'], ['all', 'All possessions'], ['high', 'High leverage'],
+  ['med', 'Medium leverage'], ['low', 'Low leverage'], ['clutch', 'Clutch'], ['gt', 'Garbage time only'],
+];
+function tripPass(tr, f) {
+  switch (f) {
+    case 'all': return true; case 'nogt': return !tr.gt; case 'gt': return !!tr.gt;
+    case 'clutch': return !!tr.clutch; default: return tr.tier === f;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   LINEUPS + ON/OFF (Moorpark), on possessions so the leverage / garbage filter is exact.
+════════════════════════════════════════════════════════════ */
+function lineupAtEach(g) {
+  const lu = [...(g.startersA || [])];
+  return g.eventLog.map(e => {
+    if (e.type === 'sub') for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; }
+    return lu.slice();
+  });
+}
+const unitKey = arr => arr.slice().sort().join('|');
+function lineupTable(g, f) {
+  const A = analyzeTrips(g), L = lineupAtEach(g);
+  const units = new Map();
+  const U = k => { if (!units.has(k)) units.set(k, { key: k, names: k.split('|'), secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, kF: 0, kA: 0, evA: [], evB: [] }); return units.get(k); };
+  for (const s of g.lineupSegments) { if (s.lineupA.length) U(unitKey(s.lineupA)).secs += segSecs(g, s); }
+  for (const tr of A.trips) {
+    if (!tripPass(tr, f)) continue;
+    const u = U(unitKey(L[tr.startIdx]));
+    if (tr.team === 'a') u.oT++; else u.dT++;
+    // The kill goes to the five on the floor for the stop that completed it.
+    if (tr.kill === 'a') u.kF++; else if (tr.kill === 'b') u.kA++;
+  }
+  g.eventLog.forEach((e, i) => {
+    if (!isStat(e)) return;
+    const tr = A.evTrip[i]; if (!tr || !tripPass(tr, f)) return;
+    const u = U(unitKey(L[i]));
+    const p = evPts(e);
+    if (e.team === 'a') { u.pf += p; u.evA.push(e); } else { u.pa += p; u.evB.push(e); }
+  });
+  return [...units.values()].filter(u => u.secs > 0 || u.oT + u.dT > 0);
+}
+function onOffTable(g, f) {
+  const A = analyzeTrips(g), L = lineupAtEach(g);
+  const tot = { oT: 0, dT: 0, pf: 0, pa: 0 };
+  const P = new Map();
+  const R = n => { if (!P.has(n)) P.set(n, { name: n, on: { oT: 0, dT: 0, pf: 0, pa: 0 } }); return P.get(n); };
+  teamPlayers(g, 'a').forEach(R);
+  for (const tr of A.trips) {
+    if (!tripPass(tr, f)) continue;
+    const k = tr.team === 'a' ? 'oT' : 'dT';
+    tot[k]++;
+    for (const n of L[tr.startIdx]) R(n).on[k]++;
+  }
+  g.eventLog.forEach((e, i) => {
+    if (!isStat(e)) return;
+    const tr = A.evTrip[i]; if (!tr || !tripPass(tr, f)) return;
+    const p = evPts(e); if (!p) return;
+    const k = e.team === 'a' ? 'pf' : 'pa';
+    tot[k] += p;
+    for (const n of L[i]) R(n).on[k] += p;
+  });
+  return [...P.values()].map(r => {
+    const on = r.on, off = { oT: tot.oT - on.oT, dT: tot.dT - on.dT, pf: tot.pf - on.pf, pa: tot.pa - on.pa };
+    const rt = x => ({ ortg: x.oT ? 100 * x.pf / x.oT : null, drtg: x.dT ? 100 * x.pa / x.dT : null });
+    const a = rt(on), b = rt(off);
+    const onNet = a.ortg != null && a.drtg != null ? a.ortg - a.drtg : null;
+    const offNet = b.ortg != null && b.drtg != null ? b.ortg - b.drtg : null;
+    return { name: r.name, secs: playerSecs(g, r.name), on, off, onNet, offNet, onO: a.ortg, onD: a.drtg,
+             diff: onNet != null && offNet != null && (off.oT + off.dT) >= 2 ? onNet - offNet : null };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════
+   GAME FLOW: runs, leads, scoring timeline
+════════════════════════════════════════════════════════════ */
+function scoringFlow(g) {
+  const A = analyzeTrips(g);
+  const pts = []; let a = 0, b = 0;
+  g.eventLog.forEach((e, i) => {
+    if (!isStat(e)) return;
+    const v = evPts(e); if (!v) return;
+    if (e.team === 'a') a += v; else b += v;
+    pts.push({ i, team: e.team, v, a, b, q: e.quarter, clock: A.clocks[i] });
+  });
+  let leadA = 0, leadB = 0, changes = 0, ties = 0, lastLeader = null;
+  let run = { team: null, a: 0, b: 0 }, bestRun = { a: 0, b: 0 };
+  for (const p of pts) {
+    const m = p.a - p.b;
+    leadA = Math.max(leadA, m); leadB = Math.max(leadB, -m);
+    const leader = m > 0 ? 'a' : m < 0 ? 'b' : 'tie';
+    if (leader === 'tie') ties++;
+    else { if (lastLeader && lastLeader !== leader) changes++; lastLeader = leader; }
+    if (run.team === p.team) run[p.team] += p.v; else run = { team: p.team, a: p.team === 'a' ? p.v : 0, b: p.team === 'b' ? p.v : 0 };
+    bestRun[p.team] = Math.max(bestRun[p.team], run[p.team]);
+  }
+  return { pts, leadA, leadB, changes, ties, run, bestRun };
+}
+/* Empty trips in a row for a team, most recent first. */
+function drought(g, t) {
+  const A = analyzeTrips(g); let n = 0;
+  for (let k = A.trips.length - 1; k >= 0; k--) {
+    const tr = A.trips[k]; if (tr.team !== t) continue;
+    if (tr.pts > 0) break; n++;
+  }
+  return n;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SCOUTING REPORT — PDFs kept in IndexedDB on this device, so they open with no network.
+════════════════════════════════════════════════════════════ */
+const IDB_NAME = 'gt_files';
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbPut(key, val) { const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(val, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+async function idbGet(key) { const db = await idb(); return new Promise((res, rej) => { const r = db.transaction('files').objectStore('files').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbDel(key) { const db = await idb(); return new Promise(res => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete(key); tx.oncomplete = res; }); }
+async function idbKeys() { const db = await idb(); return new Promise(res => { const r = db.transaction('files').objectStore('files').getAllKeys(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }); }
+/* ════════════════════════════════════════════════════════════
+   RENDER
+════════════════════════════════════════════════════════════ */
+function setTab(t) {
+  if (App.viewer && ['track', 'scout'].includes(t)) t = 'analytics';
+  if (t === 'scout' && App.tab !== 'scout') App.prevTab = App.tab;
+  App.tab = t;
+  lsSet(LS_UI, { tab: t, viewId: App.viewId, lev: App.lev });
+  document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  render();
+}
+function render() {
+  const v = $('#view');
+  $('#scout-back').classList.toggle('hidden', App.tab !== 'scout');
+  switch (App.tab) {
+    case 'track': v.innerHTML = renderTrack(); afterTrack(); break;
+    case 'box': v.innerHTML = renderBox(); break;
+    case 'analytics': v.innerHTML = renderAnalytics(); break;
+    case 'pbp': v.innerHTML = renderPbp(); break;
+    case 'games': v.innerHTML = renderGames(); break;
+    case 'season': v.innerHTML = renderSeason(); break;
+    case 'scout': refreshScoutPane(); break;
+  }
+  v.classList.toggle('hidden', App.tab === 'scout');
+  $('#scout-pane').classList.toggle('hidden', App.tab !== 'scout');
+}
+
+/* ── LIVE TAB ── */
+function renderTrack() {
+  const g = liveGame();
+  if (!g) return renderSetup();
+  return `
+  <div id="scorebar"></div>
+  <div id="levbar"></div>
+  ${g.between ? renderBetween(g) : ''}
+  <div class="tracker">
+    <div class="col a" id="col-a"></div>
+    <div class="col stat-col" id="col-stats"></div>
+    <div class="col b" id="col-b"></div>
+  </div>`;
+}
+function afterTrack() { if (liveGame()) { paintScorebar(); paintTracker(); } }
+
+function renderBetween(g) {
+  const q = curPeriod(g), P = g.format.periods, s = finalScore(g);
+  if (g.quarters.length === 0)
+    return `<div class="banner"><h2>Ready — ${esc(g.teamAName)} vs ${esc(g.teamBName)}</h2>
+      <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, 1)}</button></div>`;
+  if (g.quarters.length < P)
+    return `<div class="banner"><h2>${g.quarters.length === 1 && P === 2 ? 'Halftime' : 'End of ' + periodName(g, g.quarters.length)} · ${s.a}–${s.b}</h2>
+      <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, q)}</button></div>`;
+  const tied = s.a === s.b;
+  return `<div class="banner"><h2>End of ${periodName(g, g.quarters.length)} · ${s.a}–${s.b}${tied ? ' · TIED' : ''}</h2>
+    <button class="btn ${tied ? 'btn-good' : ''} btn-lg" data-act="start-period">Start ${periodName(g, q)} (5:00)</button>
+    <button class="btn ${tied ? '' : 'btn-primary'} btn-lg" data-act="finish">Final — finish game</button></div>`;
+}
+
+function toDots(g, t) {
+  const L = timeoutsLeft(g, t);
+  let h = '<span class="to-dots" title="Timeouts left: ' + L.s30 + ' × 30s, ' + L.full + ' full">';
+  for (let i = 0; i < Math.max(L.s30, 0); i++) h += '<span class="to-dot"></span>';
+  h += '<span style="width:4px"></span>';
+  for (let i = 0; i < Math.max(L.full, 0); i++) h += '<span class="to-dot full"></span>';
+  return h + `</span><span class="tiny muted">${L.s30}×30 · ${L.full} full</span>`;
+}
+function bonusTag(g, shootingTeam) {
+  const q = Math.max(1, curPeriod(g) - (g.between ? 1 : 0));
+  const f = teamFouls(g, other(shootingTeam), g.between && g.quarters.length < g.format.periods ? q + 1 : q);
+  if (f >= g.format.dbonus) return '<span class="bonus dbl">DBL BONUS</span>';
+  if (f >= g.format.bonus) return '<span class="bonus">BONUS</span>';
+  return '';
+}
+function paintScorebar() {
+  const g = liveGame(); const el = $('#scorebar'); if (!g || !el) return;
+  const q = curPeriod(g);
+  const fq = g.between ? Math.min(q, g.format.periods + 1) : q;
+  const tf = t => teamFouls(g, t, fq);
+  const AK = analyzeTrips(g);
+  // A team's kills are its DEFENCE's; the pips fill with the opponent's current stop run.
+  const killHtml = t => `<span class="kills" title="Kills: ${KILL_STOPS} straight stops. Pips = ${t === 'a' ? 'their' : 'our'} current scoreless run.">KILLS <b>${AK.kills[t]}</b>${Array.from({ length: KILL_STOPS }, (_, i) => `<span class="kpip ${i < AK.streak[other(t)] ? 'on' : ''}"></span>`).join('')}</span>`;
+  el.className = 'scorebar';
+  el.innerHTML = `
+    <div class="sb-team a"><div class="sb-name">${esc(g.teamAName)}</div><div class="sb-score">${score(g, 'a')}</div>
+      <div class="sb-meta">Fouls ${tf('a')} ${bonusTag(g, 'a')} · ${toDots(g, 'a')}</div><div class="sb-meta">${killHtml('a')}</div></div>
+    <div class="sb-mid">
+      <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
+      <button class="sb-clock ${g.clock.running ? 'running' : ''}" id="sb-clock" data-act="set-clock" title="Tap to set the game clock">${fmtClock(clockNow(g))}</button>
+      <div class="row">
+        <button class="btn btn-sm ${g.clock.running ? 'btn-bad' : 'btn-good'}" data-act="clock-toggle" ${g.between ? 'disabled' : ''} title="Space">${g.clock.running ? '■ Stop' : '▶ Run'} clock</button>
+      </div>
+    </div>
+    <div class="sb-team b"><div class="sb-name">${esc(g.teamBName)}</div><div class="sb-score">${score(g, 'b')}</div>
+      <div class="sb-meta">${toDots(g, 'b')} · ${bonusTag(g, 'b')} Fouls ${tf('b')}</div><div class="sb-meta">${killHtml('b')}</div></div>`;
+  paintLevbar();
+}
+function paintLevbar() {
+  const g = liveGame(); const el = $('#levbar'); if (!g || !el) return;
+  const L = liveLeverage(g);
+  const tierCls = { high: 'lev-high', med: 'lev-med', low: 'lev-low' }[L.tier];
+  const tierName = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' }[L.tier];
+  let h = `<span class="muted">Leverage</span><span class="lev ${tierCls}">${tierName}</span>`;
+  if (L.clutch) h += '<span class="lev lev-clutch">CLUTCH</span>';
+  if (L.gt) {
+    const c = L.A.gtCut;
+    h += `<span class="lev lev-gt">🗑 GARBAGE TIME</span><span class="small">${c ? 'since ' + periodName(g, c.period, true) + ' ' + fmtClock(c.clock) + ', ' + c.sA + '–' + c.sB : 'marked manually'} — those possessions are flagged</span>`;
+    h += `<button class="btn btn-sm" data-act="gt-clear" style="margin-left:auto">Not garbage time</button>`;
+  } else {
+    const p = Math.min(100, Math.round(100 * L.lead / L.req));
+    h += `<span class="small muted">Garbage time at a ${L.req}-pt lead (${fmtClock(Math.min(L.gsr, 99 * 60))} game time left)</span>
+      <span class="gt-meter" title="${p}% of the way to garbage time"><div style="width:${p}%"></div></span><span class="small">${p}%</span>
+      <button class="btn btn-sm" data-act="gt-mark" style="margin-left:auto">Mark garbage time now</button>`;
+  }
+  if (g.gtOff) h += '<span class="tiny warn">auto garbage time off</span>';
+  el.className = 'levbar'; el.innerHTML = h;
+}
+
+function paintTracker() {
+  const g = liveGame(); if (!g || App.tab !== 'track') return;
+  const ca = $('#col-a'), cb = $('#col-b'), cs = $('#col-stats'); if (!ca) return;
+  const dis = g.between || g.completed;
+  const pRow = g.eventLog;
+  const box = {};
+  for (const e of pRow) if (isStat(e)) { const k = e.team + '|' + e.player; (box[k] = box[k] || []).push(e); }
+  const line = (t, p) => statLine(box[t + '|' + p] || []);
+  const btn = (t, p) => {
+    const s = line(t, p);
+    const isTeam = p === TEAM;
+    const label = isTeam ? (t === 'b' && !oppHasRoster(g) ? esc(g.teamBName) : 'Team') : t === 'a' ? `${numOf(p) !== '' ? '<span class="pnum">#' + esc(numOf(p)) + '</span>' : ''}${esc(p)}` : esc(p);
+    const dim = dis || (F.phase !== 'idle' && !allowed(t, p));
+    const hot = F.phase !== 'idle' && !dim;
+    const pfCls = s.pf >= 4 ? 'f4' : (s.pf >= 2 && curPeriod(g) === 1) || s.pf >= 3 ? 'f2' : '';
+    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}</span>`;
+    return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
+      ${label}${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
+  };
+  const lu = sortedLineup(g);
+  const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
+  ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span><button class="btn btn-sm" data-act="sub" ${dis ? 'disabled' : ''}>⇄ Sub</button></div>
+    <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
+    <div class="bench-mini">Tap a player with no stat selected to sub him out. Bench: ${bench.map(n => esc(lastName(n))).join(', ') || '—'}</div>`;
+  cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}</span></div>
+    <div class="pgrid">${buttonPlayers(g, 'b').map(p => btn('b', p)).join('')}</div>`;
+
+  const stBtn = ([k, l, c]) => {
+    let dim = dis;
+    if (!dis && F.phase !== 'idle') {
+      const live = { await_reb: F.blocked ? ['oreb', 'dreb'] : ['blk', 'oreb', 'dreb'], await_ft_reb: ['oreb', 'dreb'] }[F.phase];
+      dim = live ? !live.includes(k) : false;
+    }
+    const on = F.stat === k || (F.phase === 'await_tov_after_stl' && k === 'tov') || (F.phase === 'await_assister' && k === 'ast');
+    return `<button class="sbtn ${c} ${dim ? 'dim' : ''} ${on ? 'on' : ''}" data-act="stat" data-stat="${k}">${l}</button>`;
+  };
+  const statusTxt = F.phase === 'idle' ? (dis ? (g.between ? 'Start the period to track' : 'Game over') : 'Tap a stat, then the player') : PHASE_TEXT[F.phase]();
+  const recent = g.eventLog.slice(-8).reverse().map(e => `<div class="${e.type ? 's' : e.team}">${esc(describe(g, e))}</div>`).join('');
+  cs.innerHTML = `
+    <div class="status ${F.phase !== 'idle' ? 'wait' : ''}"><span style="flex:1">${esc(statusTxt)}</span>
+      ${SKIP_TEXT[F.phase] ? `<button class="btn btn-sm btn-primary" data-act="skip">${SKIP_TEXT[F.phase]}</button>` : ''}
+      ${F.phase !== 'idle' ? '<button class="btn btn-sm" data-act="cancel">Cancel</button>' : ''}</div>
+    <div class="sgrid">${STAT_BTNS.map(stBtn).join('')}</div>
+    <div class="ctrls">
+      <button class="btn" data-act="sub" ${dis ? 'disabled' : ''}>⇄ Sub</button>
+      <button class="btn btn-warn" data-act="timeout" ${dis ? 'disabled' : ''}>Timeout</button>
+      <button class="btn" data-act="scout">📄 Scout</button>
+      <button class="btn" data-act="undo" ${!undoStack.length && F.phase === 'idle' ? 'disabled' : ''}>↶ Undo</button>
+      <button class="btn" data-act="redo" ${!redoStack.length ? 'disabled' : ''}>↷ Redo</button>
+      <button class="btn btn-bad" data-act="end-period" ${dis ? 'disabled' : ''}>End ${g.between ? 'period' : periodName(g, curPeriod(g), true)}</button>
+    </div>
+    <div class="feed">${recent || '<div class="s">No plays yet</div>'}</div>`;
+}
+
+function describe(g, e) {
+  if (e.type === 'sub') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} SUB ${e.subs.map(s => lastName(s.playerIn) + ' for ' + lastName(s.playerOut)).join(', ')}`;
+  if (e.type === 'timeout') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} TIMEOUT ${teamName(g, e.team)} (${e.toType === '30' ? '30s' : 'full'})`;
+  if (e.type === 'clock') return `${periodName(g, e.quarter, true)} clock set to ${fmtClock(e.timeSecs)}`;
+  let s = shortName(g, e.team, e.player) + ' ' + (e.stat === 'foul' && e.offensive ? 'offensive foul' : e.stat === 'fd' && e.offensive ? 'drew offensive foul' : STAT_LABEL[e.stat]);
+  return s;
+}
+
+/* ── SETUP ── */
+let setupDraft = null;
+function renderSetup() {
+  if (!setupDraft) {
+    const visible = App.roster.filter(r => !r.hidden).map(r => r.name);
+    setupDraft = { opponent: '', date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
+                   site: 'home', dressed: visible.slice(), starters: [], oppRoster: '', conf: false, scoutKey: null };
+  }
+  const d = setupDraft;
+  const players = App.roster.filter(r => !r.hidden || d.dressed.includes(r.name)).map(r => r.name).sort(byLast);
+  return `<div class="setup">
+    <div class="card"><h3>New game</h3>
+      <div class="grid2">
+        <div class="field"><label>Opponent</label><input id="su-opp" value="${esc(d.opponent)}" placeholder="e.g. Ventura" autocomplete="off"></div>
+        <div class="field"><label>Date</label><input id="su-date" type="date" value="${esc(d.date)}"></div>
+        <div class="field"><label>Site</label><select id="su-site">${['home', 'away', 'neutral'].map(s => `<option ${d.site === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+        <div class="field"><label>Conference game</label><select id="su-conf"><option value="0">No</option><option value="1" ${d.conf ? 'selected' : ''}>Yes</option></select></div>
+      </div>
+      <div class="small muted">Format: two 20:00 halves, every OT 5:00. Timeouts: 2 × 30s + 4 full (each OT adds a 30). Bonus at 7 team fouls, double bonus at 10.</div>
+    </div>
+    <div class="card"><h3>Moorpark — tap to dress, tap again to start <span class="muted">${d.starters.length}/5 starters · ${d.dressed.length} dressed</span>
+      <button class="btn btn-sm" data-act="roster" style="margin-left:auto">Edit roster / numbers</button></h3>
+      <div class="chk-grid">${players.map(n => {
+        const on = d.dressed.includes(n), st = d.starters.includes(n);
+        return `<div class="chk ${on ? 'on' : ''} ${st ? 'starter' : ''}" data-act="su-player" data-p="${esc(n)}">
+          <span>${numOf(n) !== '' ? '#' + esc(numOf(n)) + ' ' : ''}${esc(n)}</span><span class="st">${st ? 'STARTER' : on ? 'DRESSED' : 'OUT'}</span></div>`;
+      }).join('')}</div>
+      <div class="tiny muted" style="margin-top:6px">Cycle: dressed → starter → out.</div>
+    </div>
+    <div class="card"><h3>Opponent roster <span class="muted">optional — one per line, e.g. "23 Smith". Leave empty to track them as one team.</span></h3>
+      <textarea id="su-opproster" rows="5" style="width:100%" placeholder="1 Johnson&#10;3 Garcia&#10;23 Smith">${esc(d.oppRoster)}</textarea>
+    </div>
+    <div class="card"><h3>Scouting report <span class="muted">optional — PDF saved on this device, opens offline</span></h3>
+      <div class="row" id="su-scout"></div>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button class="btn btn-good btn-lg" data-act="su-create">Create game →</button></div>
+  </div>`;
+}
+function readSetupFields() {
+  if (!setupDraft || !$('#su-opp')) return;
+  setupDraft.opponent = $('#su-opp').value.trim();
+  setupDraft.date = $('#su-date').value;
+  setupDraft.site = $('#su-site').value;
+  setupDraft.conf = $('#su-conf').value === '1';
+  setupDraft.oppRoster = $('#su-opproster').value;
+}
+async function paintSetupScout() {
+  const el = $('#su-scout'); if (!el) return;
+  const keys = await idbKeys();
+  const files = await Promise.all(keys.map(async k => ({ k, rec: await idbGet(k) })));
+  el.innerHTML = `<select id="su-scoutsel"><option value="">— none —</option>${files.map(f => `<option value="${esc(f.k)}" ${setupDraft.scoutKey === f.k ? 'selected' : ''}>${esc(f.rec && f.rec.name || f.k)}</option>`).join('')}</select>
+    <button class="btn btn-sm" data-act="scout-upload" data-for="setup">Add PDF…</button>`;
+  $('#su-scoutsel').onchange = e => { setupDraft.scoutKey = e.target.value || null; };
+}
+function createGame() {
+  readSetupFields();
+  const d = setupDraft;
+  if (!d.opponent) { toast('Enter the opponent', 'bad'); $('#su-opp').focus(); return; }
+  if (d.starters.length !== 5) { toast('Pick exactly 5 starters (' + d.starters.length + ' picked)', 'bad'); return; }
+  const opp = d.oppRoster.split(/\n/).map(s => s.trim()).filter(Boolean).map(s => {
+    const m = s.match(/^#?(\d{1,2})\s*[-.]?\s*(.*)$/);
+    return m ? '#' + m[1] + (m[2] ? ' ' + m[2] : '') : s;
+  });
+  const g = {
+    id: 'game_' + Date.now(), kind: 'game', app: 'moorpark-game-tracker',
+    title: (d.site === 'away' ? '@ ' : 'vs ') + d.opponent, date: d.date, opponent: d.opponent, site: d.site, conference: d.conf,
+    teamAName: 'Moorpark', teamBName: d.opponent, format: Object.assign({}, FORMAT),
+    dressedA: d.dressed.slice(), startersA: d.starters.slice(), startersB: [], oppRoster: opp,
+    quarters: [], eventLog: [], lineupSegments: [], nextId: 0,
+    clock: { rem: FORMAT.periodLen, running: false, anchorMs: null, anchorRem: null },
+    between: true, completed: false, scoutKey: d.scoutKey || null, createdAt: new Date().toISOString(),
+  };
+  App.games.push(g); App.liveId = g.id; App.viewId = g.id;
+  lsSet(LS_LIVE, g.id); saveGames();
+  undoStack.length = 0; redoStack.length = 0;
+  setupDraft = null; resetFlow();
+  toast('Game created', 'good');
+  render();
+}
+
+/* ── SUBSTITUTION (quick) ──
+   Tap the man coming off, tap his replacement, type the clock, Enter. Several at once is the
+   same thing repeated before Enter. The clock is required on every sub: minutes, lineups,
+   on/off and garbage time all hang off it. */
+const SUB = { mode: 'sub', pairs: [], pendingOut: null };
+function openSub(preOut) {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') commitStaged();
+  Object.assign(SUB, { mode: 'sub', pairs: [], pendingOut: preOut || null });
+  showSubModal();
+}
+function openPeriodStart() {
+  const g = liveGame(); if (!g) return;
+  Object.assign(SUB, { mode: 'start', pairs: [], pendingOut: null });
+  showSubModal();
+}
+function showSubModal() {
+  const g = liveGame();
+  const start = SUB.mode === 'start';
+  const q = curPeriod(g);
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:820px">
+    <h2>${start ? 'Start ' + periodName(g, q) + ' — who is on the floor?' : 'Substitution — ' + periodName(g, q)}</h2>
+    ${start ? '<div class="small muted">Tap a player to swap him for someone on the bench, or just Start.</div>' : `
+    <div class="clockin">
+      <div><div class="sub-sec" style="margin-top:0">Time left in the ${periodName(g, q).toLowerCase()} — required</div>
+        <input id="sub-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss" class="need">
+        <div class="clk-prev" id="sub-prev"></div><div class="clk-err" id="sub-err"></div>
+        ${g.clock.running ? `<button class="btn btn-sm" data-act="use-clock" style="margin-top:6px">Use running clock (${fmtClock(clockNow(g))})</button>` : ''}
+      </div>
+      ${keypadHtml('sub-clock')}
+    </div>`}
+    <div class="sub-sec">On the floor — tap who's coming OUT</div>
+    <div class="sub-grid" id="sub-floor"></div>
+    <div class="sub-sec" id="sub-bench-h">Bench</div>
+    <div class="sub-grid sub-bench" id="sub-bench"></div>
+    <div class="pairs" id="sub-pairs"></div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
+      <button class="btn btn-good btn-lg" data-act="sub-confirm">${start ? 'Start ' + periodName(g, q) : 'Confirm sub ⏎'}</button></div>
+  </div></div>`;
+  paintSub();
+  const ci = $('#sub-clock');
+  if (ci) { ci.addEventListener('input', paintSubClock); ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSub(); } }); }
+}
+function paintSubClock() {
+  const ci = $('#sub-clock'); if (!ci) return;
+  const g = liveGame(), q = curPeriod(g);
+  const t = parseClock(ci.value);
+  ci.classList.toggle('need', t == null);
+  $('#sub-prev').textContent = t == null ? (ci.value ? 'Not a clock time' : '') : '= ' + fmtClock(t) + ' left in the ' + periodName(g, q).toLowerCase();
+  $('#sub-err').textContent = t == null ? '' : subClockError(g, t) || '';
+}
+function subClockError(g, t) {
+  const q = curPeriod(g), dur = periodDur(g, q);
+  if (t > dur) return 'Can\'t be more than ' + fmtClock(dur) + ' in this period';
+  const s = activeSeg(g);
+  if (s && s.quarter === q && t > s.startTimeSecs) return 'The last change was at ' + fmtClock(s.startTimeSecs) + ' — the clock can\'t go back up';
+  return null;
+}
+function paintSub() {
+  const g = liveGame();
+  const lu = currentLineup(g).slice().sort(byLast);
+  const outs = SUB.pairs.map(p => p.out), ins = SUB.pairs.map(p => p.in);
+  const pmap = {}; for (const e of g.eventLog) if (isStat(e) && e.team === 'a') { (pmap[e.player] = pmap[e.player] || []).push(e); }
+  const info = n => { const s = statLine(pmap[n] || []); return `${s.pts} pts · ${s.pf} PF · ${Math.floor(playerSecs(g, n) / 60)} min`; };
+  const nm = n => `${numOf(n) !== '' ? '<span class="pnum">#' + esc(numOf(n)) + '</span>' : ''}${esc(n)}`;
+  $('#sub-floor').innerHTML = lu.map(n => {
+    const pair = SUB.pairs.find(p => p.out === n);
+    const cls = SUB.pendingOut === n ? 'pending' : pair ? 'out' : '';
+    return `<button class="sub-p ${cls}" data-act="sub-out" data-p="${esc(n)}">${nm(n)}<span class="tiny">${pair ? '→ ' + esc(pair.in) : info(n)}</span></button>`;
+  }).join('');
+  const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
+  $('#sub-bench').classList.toggle('waiting', !!SUB.pendingOut);
+  $('#sub-bench-h').textContent = SUB.pendingOut ? 'Bench — who replaces ' + SUB.pendingOut + '?' : 'Bench';
+  $('#sub-bench').innerHTML = bench.map(n => {
+    const used = ins.includes(n);
+    return `<button class="sub-p ${used ? 'in' : ''}" data-act="sub-in" data-p="${esc(n)}" ${!SUB.pendingOut && !used ? 'disabled' : ''}>${nm(n)}<span class="tiny">${used ? '← for ' + esc(SUB.pairs.find(p => p.in === n).out) : info(n)}</span></button>`;
+  }).join('') || '<div class="muted">No one on the bench — dress more players in Roster / setup.</div>';
+  $('#sub-pairs').innerHTML = SUB.pairs.map((p, i) => `<span class="pair"><b class="i">IN ${esc(p.in)}</b> for <b class="o">${esc(p.out)}</b><button class="btn btn-sm" data-act="sub-unpair" data-i="${i}">✕</button></span>`).join('');
+}
+function subTapOut(n) {
+  const i = SUB.pairs.findIndex(p => p.out === n);
+  if (i !== -1) { SUB.pairs.splice(i, 1); SUB.pendingOut = null; }
+  else SUB.pendingOut = SUB.pendingOut === n ? null : n;
+  paintSub();
+}
+function subTapIn(n) {
+  const i = SUB.pairs.findIndex(p => p.in === n);
+  if (i !== -1 && !SUB.pendingOut) { SUB.pairs.splice(i, 1); paintSub(); return; }
+  if (!SUB.pendingOut || i !== -1) return;
+  SUB.pairs.push({ out: SUB.pendingOut, in: n });
+  SUB.pendingOut = null;
+  paintSub();
+  const ci = $('#sub-clock'); if (ci) ci.focus();
+}
+function confirmSub() {
+  const g = liveGame(); if (!g) return;
+  if (SUB.mode === 'start') return startPeriod(SUB.pairs);
+  const ci = $('#sub-clock');
+  const t = parseClock(ci.value);
+  if (t == null) { toast('Enter the time left on the clock', 'bad'); ci.classList.add('need'); ci.focus(); return; }
+  const err = subClockError(g, t);
+  if (err) { toast(err, 'bad', 3500); ci.focus(); return; }
+  if (SUB.pendingOut) { toast('Pick who replaces ' + SUB.pendingOut, 'bad'); return; }
+  if (!SUB.pairs.length) { toast('Tap who is coming out', 'bad'); return; }
+  snapshot();
+  const q = curPeriod(g);
+  const act = activeSeg(g);
+  // Two subs on the same clock with no play between them change one stint's five, not two stints.
+  const inPlace = !!act && act.quarter === q && act.startTimeSecs === t && !stintHasPlay(g, q);
+  if (!inPlace) closeActive(g, t);
+  const subs = SUB.pairs.map(p => ({ team: 'a', playerOut: p.out, playerIn: p.in }));
+  g.eventLog.push({ id: nextId(g), type: 'sub', team: 'a', subs, playerOut: subs[0].playerOut, playerIn: subs[0].playerIn,
+                    timeSecs: t, quarter: q, startOfStint: inPlace, ts: Date.now() });
+  if (inPlace) act.lineupA = currentLineup(g); else openSeg(g, t);
+  clockSet(g, t);
+  saveGames(); closeModal();
+  toast(subs.map(s => lastName(s.playerIn) + ' in for ' + lastName(s.playerOut)).join(', ') + ' @ ' + fmtClock(t), 'good');
+  render();
+}
+function startPeriod(pairs) {
+  const g = liveGame(); if (!g || !g.between) return;
+  if (SUB.pendingOut) { toast('Pick who replaces ' + SUB.pendingOut, 'bad'); return; }
+  snapshot();
+  const q = curPeriod(g), dur = periodDur(g, q);
+  if (pairs.length) {
+    if (q === 1) {
+      // Before the tip, a change is a change of starters, not a substitution.
+      for (const p of pairs) { const i = g.startersA.indexOf(p.out); if (i !== -1) g.startersA[i] = p.in; }
+    } else {
+      const subs = pairs.map(p => ({ team: 'a', playerOut: p.out, playerIn: p.in }));
+      g.eventLog.push({ id: nextId(g), type: 'sub', team: 'a', subs, playerOut: subs[0].playerOut, playerIn: subs[0].playerIn,
+                        timeSecs: dur, quarter: q, startOfStint: true, ts: Date.now() });
+    }
+  }
+  g.between = false;
+  g.clock = { rem: dur, running: false, anchorMs: null, anchorRem: null };
+  openSeg(g, dur);
+  saveGames(); closeModal();
+  toast(periodName(g, q) + ' started — ' + fmtClock(dur), 'good');
+  render();
+}
+
+function keypadHtml(target) {
+  const k = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'];
+  return `<div class="keypad">${k.map(x => `<button data-act="key" data-k="${x}" data-target="${target}">${x}</button>`).join('')}</div>`;
+}
+function keyPress(target, k) {
+  const el = document.getElementById(target); if (!el) return;
+  let v = el.value.replace(/[^\d]/g, '');
+  if (k === 'C') v = ''; else if (k === '⌫') v = v.slice(0, -1); else if (v.length < 4) v += k;
+  el.value = v;
+  el.dispatchEvent(new Event('input'));
+}
+
+/* ── TIMEOUT ── */
+const TO = { team: 'a', type: 'full' };
+function openTimeout() {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') commitStaged();
+  if (g.clock.running) clockStop(g);
+  TO.team = 'a'; TO.type = timeoutsLeft(g, 'a').full > 0 ? 'full' : '30';
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal">
+    <h2>Timeout — ${periodName(g, curPeriod(g))}</h2>
+    <div id="to-body"></div>
+    <div class="clockin" style="margin-top:10px">
+      <div><div class="sub-sec" style="margin-top:0">Time left — required</div>
+        <input id="to-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss" value="${g.clock.rem > 0 && g.clock.rem < periodDur(g, curPeriod(g)) ? fmtClock(g.clock.rem).replace(':', '') : ''}">
+        <div class="clk-prev" id="to-prev"></div></div>
+      ${keypadHtml('to-clock')}
+    </div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-warn btn-lg" data-act="to-confirm">Confirm timeout ⏎</button></div>
+  </div></div>`;
+  paintTO();
+  const ci = $('#to-clock');
+  const pv = () => { const t = parseClock(ci.value); $('#to-prev').textContent = t == null ? '' : '= ' + fmtClock(t); ci.classList.toggle('need', t == null); };
+  ci.addEventListener('input', pv); pv();
+  ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmTimeout(); } });
+  ci.focus(); ci.select();   // a prefilled time is replaced by the first keystroke, not appended to
+}
+function paintTO() {
+  const g = liveGame();
+  const b = (t) => { const L = timeoutsLeft(g, t); return `<button class="btn btn-lg ${TO.team === t ? 'btn-primary' : ''}" data-act="to-team" data-team="${t}" style="flex:1">${esc(teamName(g, t))}<span class="tiny" style="display:block;font-weight:600">${L.s30} × 30s · ${L.full} full left</span></button>`; };
+  const L = timeoutsLeft(g, TO.team);
+  $('#to-body').innerHTML = `<div class="row">${b('a')}${b('b')}</div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-lg ${TO.type === 'full' ? 'btn-primary' : ''}" data-act="to-type" data-type="full" style="flex:1" ${L.full <= 0 ? 'disabled' : ''}>Full (${L.full} left)</button>
+      <button class="btn btn-lg ${TO.type === '30' ? 'btn-primary' : ''}" data-act="to-type" data-type="30" style="flex:1" ${L.s30 <= 0 ? 'disabled' : ''}>30 second (${L.s30} left)</button>
+    </div>`;  const ci = $('#to-clock'); if (ci) { ci.focus(); ci.select(); }   // keep typing going after a tap
+}
+function confirmTimeout() {
+  const g = liveGame(); if (!g) return;
+  const t = parseClock($('#to-clock').value);
+  if (t == null) { toast('Enter the time left on the clock', 'bad'); return; }
+  const q = curPeriod(g);
+  if (t > periodDur(g, q)) { toast('More than the period length', 'bad'); return; }
+  const L = timeoutsLeft(g, TO.team);
+  if ((TO.type === '30' ? L.s30 : L.full) <= 0) { toast('No ' + (TO.type === '30' ? '30-second' : 'full') + ' timeouts left', 'bad'); return; }
+  snapshot();
+  g.eventLog.push({ id: nextId(g), type: 'timeout', team: TO.team, toType: TO.type, timeSecs: t, quarter: q, ts: Date.now() });
+  clockStop(g); clockSet(g, t);
+  saveGames(); closeModal();
+  const L2 = timeoutsLeft(g, TO.team);
+  toast(teamName(g, TO.team) + ' timeout · ' + L2.s30 + '×30 + ' + L2.full + ' full left', 'warn', 3000);
+  render();
+}
+
+/* ── CLOCK SET ── */
+function openSetClock() {
+  const g = liveGame(); if (!g || g.between) return;
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:420px">
+    <h2>Set game clock</h2>
+    <div class="clockin"><div><input id="sc-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div></div>${keypadHtml('sc-clock')}</div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
+  const ci = $('#sc-clock');
+  ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t); });
+  ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSetClock(); } });
+  ci.focus();
+}
+function confirmSetClock() {
+  const g = liveGame(); const t = parseClock($('#sc-clock').value);
+  if (t == null || t > periodDur(g, curPeriod(g))) { toast('Not a valid time', 'bad'); return; }
+  snapshot();
+  // Recorded as an anchor so the analytics' game clock benefits from it too.
+  g.eventLog.push({ id: nextId(g), type: 'clock', timeSecs: t, quarter: curPeriod(g), ts: Date.now() });
+  clockSet(g, t); saveGames(); closeModal(); render();
+}
+
+/* ── END PERIOD / FINISH ── */
+function openEndPeriod() {
+  const g = liveGame(); if (!g || g.between) return;
+  const q = curPeriod(g);
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:460px">
+    <h2>End ${periodName(g, q)}?</h2>
+    <div class="small muted">Time left when it ended (normally 0:00).</div>
+    <div class="clockin" style="margin-top:8px"><div><input id="ep-clock" inputmode="numeric" value="0:00" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmEndPeriod();}"><div class="clk-prev" id="ep-prev"></div></div></div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-bad btn-lg" data-act="ep-confirm">End ${periodName(g, q)}</button></div></div></div>`;
+}
+function confirmEndPeriod() {
+  const g = liveGame(); if (!g) return;
+  const t = parseClock($('#ep-clock').value);
+  const q = curPeriod(g), dur = periodDur(g, q);
+  if (t == null || t > dur) { toast('Not a valid time', 'bad'); return; }
+  const s = activeSeg(g);
+  if (s && t > s.startTimeSecs) { toast('The last sub was at ' + fmtClock(s.startTimeSecs), 'bad'); return; }
+  if (F.phase !== 'idle') commitStaged();
+  snapshot();
+  closeActive(g, t);
+  g.quarters.push({ number: q, duration: dur, playedDuration: dur - t, endedAt: Date.now(), timeRemaining: t });
+  g.between = true;
+  g.clock = { rem: 0, running: false, anchorMs: null, anchorRem: null };
+  saveGames(); closeModal();
+  toast('End of ' + periodName(g, q), 'good');
+  render();
+}
+function finishGame() {
+  const g = liveGame(); if (!g) return;
+  if (!confirm('Finish the game and lock the final?')) return;
+  snapshot();
+  analyzeTrips(g);
+  g.completed = true; g.completedAt = new Date().toISOString();
+  g.teamStats = teamStats(g);
+  g.playerStats = playerStats(g).map(r => Object.assign({}, r, { min: +r.min.toFixed(1) }));
+  const fs = { a: score(g, 'a'), b: score(g, 'b') };
+  g.finalScore = Object.assign({ setAt: g.completedAt }, fs);
+  App.liveId = null; lsSet(LS_LIVE, null);
+  App.viewId = g.id;
+  saveGames();
+  toast('Final: ' + g.teamAName + ' ' + fs.a + ', ' + g.teamBName + ' ' + fs.b, 'good', 4000);
+  setTab('box');
+}
+
+function closeModal() { $('#modal-root').innerHTML = ''; }
+
+/* ── BOX SCORE ── */
+function gamePicker(g) {
+  const games = [...App.games].sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+  return `<select data-act="pick-game">${games.map(x => `<option value="${x.id}" ${x.id === g.id ? 'selected' : ''}>${esc(x.date || '')} ${esc(x.title)}${x.id === App.liveId ? ' (LIVE)' : ''}</option>`).join('')}</select>`;
+}
+function periodPicker(g) {
+  const n = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  let h = `<select data-act="pick-period"><option value="all">Full game</option>`;
+  for (let q = 1; q <= n; q++) h += `<option value="${q}" ${String(App.period) === String(q) ? 'selected' : ''}>${periodName(g, q)}</option>`;
+  return h + '</select>';
+}
+function periodFilter(g) { const q = App.period === 'all' ? null : +App.period; return q && q <= curPeriod(g) ? q : null; }
+function noGame() { return `<div class="card"><h3>No games yet</h3><div class="muted">Start one from the Live tab.</div></div>`; }
+function renderBox() {
+  const g = viewGame(); if (!g) return noGame();
+  const qf = periodFilter(g);
+  const pred = qf ? (e => e.quarter === qf) : null;
+  const rows = playerStats(g, qf);
+  const T = teamStats(g, pred);
+  const fs = qf ? { a: T.a.pts, b: T.b.pts } : finalScore(g);
+  const starters = new Set(g.startersA);
+  const playedOrHas = r => r.min > 0 || r.fga || r.fta || r.reb || r.ast || r.tov || r.pf || r.stl || r.blk;
+  rows.sort((x, y) => (starters.has(y.name) - starters.has(x.name)) || (y.min - x.min) || byLast(x.name, y.name));
+  const fg = (m, a) => `${m}-${a}`;
+  const basic = r => `<td>${r.min ? r.min.toFixed(1) : '0'}</td><td><b>${r.pts}</b></td><td>${fg(r.fgm, r.fga)}</td><td>${fg(r.fg3m, r.fg3a)}</td><td>${fg(r.ftm, r.fta)}</td><td>${r.oreb}</td><td>${r.dreb}</td><td>${r.reb}</td><td>${r.ast}</td><td>${r.stl}</td><td>${r.blk}</td><td>${r.tov}</td><td>${r.pf}${r.offf ? '<span class="tiny muted"> (' + r.offf + 'o)</span>' : ''}</td><td>${r.fd}${r.chg ? '<span class="tiny muted"> (' + r.chg + 'c)</span>' : ''}</td>`;
+  const adv = r => `<td>${f1(r.efgPct)}</td><td>${f1(r.tsPct)}</td><td>${f1(r.usgPct)}</td><td>${f0(r.ortg)}</td><td>${f0(r.drtg)}</td><td>${f1(r.astPct)}</td><td>${f1(r.toPct)}</td><td>${f1(r.orPct)}</td><td>${f1(r.drPct)}</td>`;
+  const head = `<tr><th>Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>FD</th><th>+/-</th>${App.adv ? '<th>eFG%</th><th>TS%</th><th>USG%</th><th>ORtg</th><th>DRtg</th><th>AST%</th><th>TO%</th><th>OR%</th><th>DR%</th>' : ''}</tr>`;
+  const lu = new Set(g.completed ? [] : currentLineup(g));
+  const body = rows.map(r => `<tr class="${playedOrHas(r) ? '' : 'dnp'}"><td class="l">${lu.has(r.name) ? '● ' : ''}${numOf(r.name) !== '' ? '#' + esc(numOf(r.name)) + ' ' : ''}${esc(r.name)}${starters.has(r.name) ? ' <span class="tiny muted">S</span>' : ''}</td>${basic(r)}<td class="${pmCls(r.pm)}">${sgn(r.pm)}</td>${App.adv ? adv(r) : ''}</tr>`).join('');
+  const teamOnly = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === TEAM && (!pred || pred(e))));
+  const ta = T.a;
+  const teamRow = teamOnly.reb || teamOnly.tov || teamOnly.pf ? `<tr><td class="l muted">Team</td><td></td><td></td><td></td><td></td><td></td><td>${teamOnly.oreb}</td><td>${teamOnly.dreb}</td><td>${teamOnly.reb}</td><td></td><td></td><td></td><td>${teamOnly.tov}</td><td>${teamOnly.pf}</td><td></td><td></td>${App.adv ? '<td colspan="9"></td>' : ''}</tr>` : '';
+  const tot = `<tr class="tot"><td class="l">Totals</td><td>${(gameSecs(g, qf) / 60).toFixed(0)}</td><td>${ta.pts}</td><td>${fg(ta.fgm, ta.fga)} <span class="tiny">${pct(ta.fgm, ta.fga)}</span></td><td>${fg(ta.fg3m, ta.fg3a)} <span class="tiny">${pct(ta.fg3m, ta.fg3a)}</span></td><td>${fg(ta.ftm, ta.fta)} <span class="tiny">${pct(ta.ftm, ta.fta)}</span></td><td>${ta.oreb}</td><td>${ta.dreb}</td><td>${ta.reb}</td><td>${ta.ast}</td><td>${ta.stl}</td><td>${ta.blk}</td><td>${ta.tov}</td><td>${ta.pf}</td><td>${ta.fd}</td><td class="${pmCls(ta.pts - T.b.pts)}">${sgn(ta.pts - T.b.pts)}</td>${App.adv ? `<td>${f1(ta.efgPct)}</td><td>${f1(ta.tsPct)}</td><td></td><td>${f1(ta.ortg)}</td><td>${f1(ta.drtg)}</td><td colspan="4"></td>` : ''}</tr>`;
+  // Opponent
+  const oppRows = (oppHasRoster(g) ? g.oppRoster : []).map(p => ({ name: p, s: statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === p && (!pred || pred(e)))) }));
+  const oTeam = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === TEAM && (!pred || pred(e))));
+  const tb = T.b;
+  const oHead = `<tr><th>Player</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>FD</th></tr>`;
+  const oRow = (n, s, cls = '') => `<tr class="${cls}"><td class="l">${esc(n)}</td><td><b>${s.pts}</b></td><td>${fg(s.fgm, s.fga)}</td><td>${fg(s.fg3m, s.fg3a)}</td><td>${fg(s.ftm, s.fta)}</td><td>${s.oreb}</td><td>${s.dreb}</td><td>${s.reb}</td><td>${s.ast}</td><td>${s.stl}</td><td>${s.blk}</td><td>${s.tov}</td><td>${s.pf}</td><td>${s.fd}</td></tr>`;
+  return `
+  <div class="row" style="margin-bottom:10px">${gamePicker(g)} ${periodPicker(g)}
+    <label class="row small"><input type="checkbox" data-act="toggle-adv" ${App.adv ? 'checked' : ''}> Advanced</label>
+    <span style="margin-left:auto;font-size:20px;font-weight:900"><span style="color:var(--us)">${esc(g.teamAName)} ${fs.a}</span> – <span style="color:var(--them)">${fs.b} ${esc(g.teamBName)}</span>
+    <span class="small muted">${g.completed ? 'Final' : 'LIVE'}</span></span></div>
+  <div class="card"><h3>${esc(g.teamAName)} <span class="muted">● on floor · S starter · PF (o = offensive) · FD fouls drawn (c = charges/off. fouls drawn)</span></h3>
+    <div class="tbl-wrap"><table class="tbl">${head}${body}${teamRow}${tot}</table></div></div>
+  <div class="card"><h3>${esc(g.teamBName)}</h3>
+    <div class="tbl-wrap"><table class="tbl">${oHead}${oppRows.map(r => oRow(r.name, r.s)).join('')}${oppHasRoster(g) ? oRow('Team', oTeam, 'muted') : ''}
+      ${oRow('Totals', tb, 'tot')}</table></div>
+    <div class="small muted" style="margin-top:6px">FG ${pct(tb.fgm, tb.fga)}% · 3PT ${pct(tb.fg3m, tb.fg3a)}% · FT ${pct(tb.ftm, tb.fta)}%</div></div>`;
+}
+
+/* ── ANALYTICS ── */
+function renderAnalytics() {
+  const g = viewGame(); if (!g) return noGame();
+  const qf = periodFilter(g);
+  const pred = qf ? (e => e.quarter === qf) : null;
+  const T = teamStats(g, pred);
+  const A = analyzeTrips(g);
+  const flow = scoringFlow(g);
+  const a = T.a, b = T.b;
+  const kv = (lbl, va, vb, hi) => { const better = hi == null ? '' : (hi ? (va > vb ? 'a' : vb > va ? 'b' : '') : (va < vb ? 'a' : vb < va ? 'b' : ''));
+    return `<div class="k"><div class="lbl">${lbl}</div><div class="v"><span class="a" style="${better === 'b' ? 'opacity:.55' : ''}">${va}</span><span class="b" style="${better === 'a' ? 'opacity:.55' : ''}">${vb}</span></div></div>`; };
+  const bench = t => { const st = new Set(g.startersA); return t === 'a' ? g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player !== TEAM && !st.has(e.player) && (!pred || pred(e))).reduce((s, e) => s + evPts(e), 0) : null; };
+  const potScp = (() => { if (!qf) return { pot: A.pot, scp: A.scp };
+    const pot = { a: 0, b: 0 }, scp = { a: 0, b: 0 };
+    A.trips.forEach(tr => { if (tr.period !== qf) return; if (tr.flags.tov) pot[tr.team] += tr.pts; if (tr.flags.oreb) scp[tr.team] += tr.pts; });
+    return { pot, scp }; })();
+  const factors = `<div class="ff">
+    ${kv('Score', a.pts, b.pts, true)}
+    ${kv('Possessions', f1(a.possessions), f1(b.possessions))}
+    ${kv('Off. rating (pts/100)', f1(a.ortg), f1(b.ortg), true)}
+    ${kv('eFG%', f1(a.efgPct), f1(b.efgPct), true)}
+    ${kv('Turnover %', f1(a.tovPct), f1(b.tovPct), false)}
+    ${kv('Off. reb %', f1(a.orebPct), f1(b.orebPct), true)}
+    ${kv('FT rate (FTA/FGA)', f1(a.ftr), f1(b.ftr), true)}
+    ${kv('TS%', f1(a.tsPct), f1(b.tsPct), true)}
+    ${kv('FG', a.fgm + '-' + a.fga, b.fgm + '-' + b.fga)}
+    ${kv('3PT', a.fg3m + '-' + a.fg3a, b.fg3m + '-' + b.fg3a)}
+    ${kv('FT', a.ftm + '-' + a.fta, b.ftm + '-' + b.fta)}
+    ${kv('3PA rate', pct(a.fg3a, a.fga), pct(b.fg3a, b.fga))}
+    ${kv('Rebounds', a.reb, b.reb, true)}
+    ${kv('Assists', a.ast, b.ast, true)}
+    ${kv('AST / FGM', pct(a.ast, a.fgm), pct(b.ast, b.fgm), true)}
+    ${kv('Turnovers', a.tov, b.tov, false)}
+    ${kv('Steals · Blocks', a.stl + ' · ' + a.blk, b.stl + ' · ' + b.blk)}
+    ${kv('Kills (3 straight stops)', killsFor(A, qf, 'a'), killsFor(A, qf, 'b'), true)}
+    ${kv('Pts off turnovers', potScp.pot.a, potScp.pot.b, true)}
+    ${kv('2nd-chance pts', potScp.scp.a, potScp.scp.b, true)}
+    ${kv('Fouls (off.)', a.pf + ' (' + a.offf + ')', b.pf + ' (' + b.offf + ')', false)}
+    ${kv('Charges / OF drawn', a.chg, b.chg, true)}
+    ${qf ? '' : kv('Largest lead', flow.leadA, flow.leadB, true)}
+    ${qf ? '' : kv('Best run', flow.bestRun.a + '-0', flow.bestRun.b + '-0')}
+    ${bench('a') != null ? `<div class="k"><div class="lbl">Bench pts · lead chg · ties</div><div class="v"><span class="a">${bench('a')}</span><span>${flow.changes} · ${flow.ties}</span></div></div>` : ''}
+  </div>`;
+  return `
+  <div class="row" style="margin-bottom:10px">${gamePicker(g)} ${periodPicker(g)}
+    <span style="margin-left:auto;font-size:20px;font-weight:900"><span style="color:var(--us)">${esc(g.teamAName)} ${finalScore(g).a}</span> – <span style="color:var(--them)">${finalScore(g).b} ${esc(g.teamBName)}</span>
+    <span class="small muted">${g.completed ? 'Final' : 'LIVE · ' + (g.between ? 'break' : periodName(g, curPeriod(g), true) + ' ' + fmtClock(clockNow(g)))}</span></span></div>
+  ${g.completed ? '' : `<div class="card"><h3>Right now</h3><div class="insights">${insights(g).map(i => `<div class="ins ${i.c}">${esc(i.t)}</div>`).join('') || '<div class="muted">Nothing flagged.</div>'}</div></div>`}
+  <div class="card"><h3>Team comparison <span class="muted"><span style="color:var(--us)">${esc(g.teamAName)}</span> left · <span style="color:var(--them)">${esc(g.teamBName)}</span> right</span></h3>${factors}</div>
+  <div class="card chart"><h3>Score margin <span class="muted">Moorpark lead above the line · game clock read from subs/timeouts · shaded: clutch (gold), garbage time (grey)</span></h3>${marginChart(g, flow, A)}</div>
+  <div class="grid2">
+    <div class="card"><h3>Leverage <span class="muted">points per possession by how tight it was</span></h3>${leverageTable(g, A)}</div>
+    <div class="card"><h3>By period</h3>${periodTable(g)}</div>
+  </div>
+  <div class="card"><h3>Lineups ${levSelect()} <span class="muted">possession-based ratings · MIN is total</span></h3>${lineupsHtml(g)}</div>
+  <div class="card"><h3>On / Off ${levSelect()} <span class="muted">net rating per 100 possessions with each player on vs off</span></h3>${onOffHtml(g)}</div>
+  <div class="grid2">
+    <div class="card"><h3>Timeouts</h3>${timeoutTable(g, A)}</div>
+    <div class="card"><h3>Fouls</h3>${foulTable(g)}</div>
+  </div>
+  <div class="card"><h3>Garbage time</h3>${gtSummary(g, A)}</div>`;
+}
+function killsFor(A, qf, t, f) {
+  return A.trips.filter(tr => tr.kill === t && (qf == null || tr.period === qf) && (!f || tripPass(tr, f))).length;
+}
+function levSelect() {
+  return `<select data-act="pick-lev" style="font-size:12px;padding:3px 6px;text-transform:none;letter-spacing:0">${LEV_FILTERS.map(([k, l]) => `<option value="${k}" ${App.lev === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+}
+function insights(g) {
+  const out = [];
+  const q = curPeriod(g);
+  const lev = liveLeverage(g);
+  if (lev.clutch) out.push({ c: 'warn', t: 'CLUTCH — last 5:00 and within 5.' });
+  if (lev.gt) out.push({ c: 'info', t: 'Garbage time — every possession now is flagged and left out of On/Off and Lineups by default.' });
+  const flow = scoringFlow(g);
+  const r = flow.run;
+  if (r.team) {
+    const n = r[r.team];
+    if (n >= 6) out.push({ c: r.team === 'a' ? 'good' : 'bad', t: `${teamName(g, r.team)} on a ${n}-0 run.` + (r.team === 'b' ? ' Timeouts left: ' + (() => { const L = timeoutsLeft(g, 'a'); return L.s30 + '×30, ' + L.full + ' full'; })() : '') });
+  }
+  const AK = analyzeTrips(g);
+  if (AK.streak.b === KILL_STOPS - 1) out.push({ c: 'good', t: `${KILL_STOPS - 1} straight stops — one more is a kill (${AK.kills.a} so far).` });
+  if (AK.streak.a === KILL_STOPS - 1) out.push({ c: 'bad', t: `${KILL_STOPS - 1} straight empty trips — score or ${g.teamBName} gets a kill.` });
+  const dA = drought(g, 'a'), dB = drought(g, 'b');
+  if (dA >= 4) out.push({ c: 'bad', t: `Moorpark: ${dA} straight empty possessions.` });
+  if (dB >= 4) out.push({ c: 'good', t: `${g.teamBName}: ${dB} straight empty possessions.` });
+  const fq = g.between ? Math.min(q, g.format.periods + 1) : q;
+  const fa = teamFouls(g, 'a', fq), fb = teamFouls(g, 'b', fq);
+  if (fa >= g.format.dbonus) out.push({ c: 'bad', t: `${g.teamBName} in the double bonus (we have ${fa} fouls).` });
+  else if (fa >= g.format.bonus) out.push({ c: 'warn', t: `${g.teamBName} in the bonus (we have ${fa} fouls).` });
+  else if (fa === g.format.bonus - 1) out.push({ c: 'warn', t: `One more Moorpark foul puts them in the bonus.` });
+  if (fb >= g.format.bonus) out.push({ c: 'good', t: `We're in the ${fb >= g.format.dbonus ? 'double ' : ''}bonus (${g.teamBName} ${fb} fouls).` });
+  const half = g.format.periods === 2 ? (q <= 1 ? 1 : 2) : q;
+  for (const n of currentLineup(g).concat(teamPlayers(g, 'a'))) {
+    if (out.some(o => o.n === n)) continue;
+    const pf = g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === n && e.stat === 'foul').length;
+    const on = currentLineup(g).includes(n);
+    if (pf >= 5) continue;
+    if (pf === 4 || (half === 1 && pf >= 2 && on) || (pf >= 3 && on)) out.push({ n, c: pf >= 4 ? 'bad' : 'warn', t: `${n}: ${pf} fouls${on ? ' — on the floor' : ''}.` });
+  }
+  if (oppHasRoster(g)) for (const p of g.oppRoster) {
+    const pf = g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === p && e.stat === 'foul').length;
+    if (pf >= 3 || (half === 1 && pf >= 2)) out.push({ c: 'info', t: `${g.teamBName} ${p}: ${pf} fouls — attack him.` });
+  }
+  const L = timeoutsLeft(g, 'a');
+  out.push({ c: '', t: `Moorpark timeouts left: ${L.s30} × 30s, ${L.full} full. ${g.teamBName}: ${timeoutsLeft(g, 'b').s30} × 30s, ${timeoutsLeft(g, 'b').full} full.` });
+  return out;
+}
+function marginChart(g, flow, A) {
+  const P = g.format.periods, reg = P * g.format.periodLen;
+  const nP = Math.max(P, g.quarters.length + (g.between || g.completed ? 0 : 1));
+  const total = reg + Math.max(0, nP - P) * g.format.otLen;
+  const elapsed = (q, rem) => q <= P ? (q - 1) * g.format.periodLen + (g.format.periodLen - rem) : reg + (q - P - 1) * g.format.otLen + (g.format.otLen - rem);
+  const W = 1000, H = 240, pad = 26;
+  const maxM = Math.max(8, ...flow.pts.map(p => Math.abs(p.a - p.b))) + 2;
+  const X = s => pad + (W - 2 * pad) * s / total, Y = m => H / 2 - (H / 2 - 14) * m / maxM;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Score margin over the game">`;
+  // Shading for clutch and garbage-time stretches
+  const shade = (pred, color) => {
+    let s = null;
+    A.trips.forEach((tr, k) => {
+      const on = pred(tr), x = X(elapsed(tr.period, tr.clock ?? periodDur(g, tr.period)));
+      if (on && s == null) s = x;
+      const next = A.trips[k + 1];
+      if (s != null && (!next || !pred(next))) {
+        const xe = next ? X(elapsed(next.period, next.clock ?? periodDur(g, next.period))) : X(elapsed(tr.period, A.clocks[tr.events[tr.events.length - 1]] ?? 0));
+        svg += `<rect x="${s}" y="6" width="${Math.max(2, xe - s)}" height="${H - 12}" fill="${color}"/>`; s = null;
+      }
+    });
+  };
+  shade(tr => tr.clutch, 'rgba(234,179,8,.13)');
+  shade(tr => tr.gt, 'rgba(148,163,184,.16)');
+  for (let q = 1; q < nP; q++) { const x = X(elapsed(q + 1, periodDur(g, q + 1))); svg += `<line x1="${x}" y1="6" x2="${x}" y2="${H - 6}" stroke="#3a4158" stroke-dasharray="4 4"/><text x="${x + 4}" y="16" fill="#94a3b8" font-size="11">${periodName(g, q + 1, true)}</text>`; }
+  for (const m of [-20, -10, 10, 20]) if (Math.abs(m) < maxM) svg += `<line x1="${pad}" y1="${Y(m)}" x2="${W - pad}" y2="${Y(m)}" stroke="#2d3347"/><text x="2" y="${Y(m) + 4}" fill="#64748b" font-size="10">${m > 0 ? '+' : ''}${m}</text>`;
+  svg += `<line x1="${pad}" y1="${Y(0)}" x2="${W - pad}" y2="${Y(0)}" stroke="#94a3b8"/>`;
+  let d = `M${X(0)},${Y(0)}`, last = 0;
+  for (const p of flow.pts) { const x = X(elapsed(p.q, p.clock ?? 0)); d += ` L${x},${Y(last)} L${x},${Y(p.a - p.b)}`; last = p.a - p.b; }
+  const endX = X(g.completed || g.between ? elapsed(Math.max(1, g.quarters.length), g.quarters.length ? g.quarters[g.quarters.length - 1].timeRemaining : periodDur(g, 1)) : elapsed(curPeriod(g), clockNow(g)));
+  d += ` L${endX},${Y(last)}`;
+  svg += `<path d="${d}" fill="none" stroke="#f8fafc" stroke-width="2"/>`;
+  for (const p of flow.pts) { const x = X(elapsed(p.q, p.clock ?? 0)); svg += `<circle cx="${x}" cy="${Y(p.a - p.b)}" r="2.5" fill="${p.team === 'a' ? '#22c55e' : '#f97316'}"/>`; }
+  return svg + '</svg>';
+}
+function leverageTable(g, A) {
+  const rows = [['high', 'High'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['gt', 'Garbage time']];
+  const agg = f => { const r = { aT: 0, bT: 0, aP: 0, bP: 0 }; for (const tr of A.trips) if (tripPass(tr, f)) { if (tr.team === 'a') { r.aT++; r.aP += tr.pts; } else { r.bT++; r.bP += tr.pts; } } return r; };
+  const ppp = (p, t) => t ? (p / t).toFixed(2) : '—';
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Tier</th><th>Poss (us/them)</th><th>PPP us</th><th>PPP them</th><th>Net /100</th></tr>
+    ${rows.map(([k, l]) => { const r = agg(k); const net = r.aT && r.bT ? 100 * (r.aP / r.aT - r.bP / r.bT) : null;
+      return `<tr><td class="l"><span class="lev ${k === 'gt' ? 'lev-gt' : 'lev-' + k}">${l}</span></td><td>${r.aT} / ${r.bT}</td><td>${ppp(r.aP, r.aT)}</td><td>${ppp(r.bP, r.bT)}</td><td class="${pmCls(net)}">${net == null ? '—' : sgn(Math.round(net))}</td></tr>`; }).join('')}
+  </table></div><div class="tiny muted" style="margin-top:6px">High ≤3 · Medium 4–12 and reachable · Low 13+ or out of reach on the trips left · Clutch: last 5:00 (any OT), within 5, not Low. Pace: ${A.spt.toFixed(1)} s/possession.</div>`;
+}
+function periodTable(g) {
+  const n = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  let h = `<div class="tbl-wrap"><table class="tbl"><tr><th>Period</th><th>Score</th><th>eFG% us/them</th><th>TO us/them</th><th>OREB us/them</th><th>ORtg us/them</th><th>Kills us/them</th></tr>`;
+  for (let q = 1; q <= n; q++) {
+    const T = teamStats(g, e => e.quarter === q);
+    h += `<tr><td class="l">${periodName(g, q)}</td><td class="${pmCls(T.a.pts - T.b.pts)}">${T.a.pts}–${T.b.pts}</td><td>${f1(T.a.efgPct)} / ${f1(T.b.efgPct)}</td><td>${T.a.tov} / ${T.b.tov}</td><td>${T.a.oreb} / ${T.b.oreb}</td><td>${f0(T.a.ortg)} / ${f0(T.b.ortg)}</td><td>${killsFor(analyzeTrips(g), q, 'a')} / ${killsFor(analyzeTrips(g), q, 'b')}</td></tr>`;
+  }
+  return h + '</table></div>';
+}
+function lineupsHtml(g) {
+  const units = lineupTable(g, App.lev).sort((x, y) => y.secs - x.secs || (y.oT + y.dT) - (x.oT + x.dT));
+  if (!units.length) return '<div class="muted">No lineups yet.</div>';
+  const cur = g.completed ? '' : unitKey(currentLineup(g));
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Lineup</th><th>MIN</th><th>Poss O/D</th><th>Pts F–A</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th><th>Kills F/A</th></tr>
+    ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
+      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td><td>${u.kF} / ${u.kA}</td></tr>`; }).join('')}
+  </table></div><div class="tiny muted" style="margin-top:6px">Highlighted row is on the floor now.</div>`;
+}
+function onOffHtml(g) {
+  const rows = onOffTable(g, App.lev).filter(r => r.secs > 0 || r.on.oT + r.on.dT > 0).sort((x, y) => y.secs - x.secs);
+  if (!rows.length) return '<div class="muted">No minutes yet.</div>';
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Player</th><th>MIN</th><th>On poss</th><th>On ORtg</th><th>On DRtg</th><th>On Net</th><th>Off Net</th><th>On–Off</th></tr>
+    ${rows.map(r => `<tr><td class="l">${esc(r.name)}</td><td>${(r.secs / 60).toFixed(1)}</td><td>${r.on.oT + r.on.dT}</td><td>${f0(r.onO)}</td><td>${f0(r.onD)}</td><td class="${pmCls(r.onNet)}">${r.onNet == null ? '—' : sgn(Math.round(r.onNet))}</td><td class="${pmCls(r.offNet)}">${r.offNet == null ? '—' : sgn(Math.round(r.offNet))}</td><td class="${pmCls(r.diff)}"><b>${r.diff == null ? '—' : sgn(Math.round(r.diff))}</b></td></tr>`).join('')}
+  </table></div>`;
+}
+function timeoutTable(g, A) {
+  const tos = g.eventLog.map((e, i) => ({ e, i })).filter(x => x.e.type === 'timeout');
+  if (!tos.length) return '<div class="muted">No timeouts yet.</div>' + toLeft(g);
+  let sA = 0, sB = 0; const at = [];
+  g.eventLog.forEach((e, i) => { if (isStat(e)) { if (e.team === 'a') sA += evPts(e); else sB += evPts(e); } at[i] = [sA, sB]; });
+  const rows = tos.map(({ e, i }) => {
+    // Run going in: unanswered points by one side right before the timeout.
+    let run = { t: null, n: 0 };
+    for (let k = i - 1; k >= 0; k--) { const x = g.eventLog[k]; if (!isStat(x) || !evPts(x)) continue; if (run.t && run.t !== x.team) break; run.t = x.team; run.n += evPts(x); }
+    // After: the calling team's first possession out of it.
+    const next = A.trips.find(tr => tr.startIdx > i && tr.team === e.team);
+    return `<tr><td class="l" style="color:${e.team === 'a' ? 'var(--us)' : 'var(--them)'}">${esc(teamName(g, e.team))}</td><td>${e.toType === '30' ? '30s' : 'Full'}</td><td>${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)}</td><td>${at[i][0]}–${at[i][1]}</td><td>${run.t ? esc(run.t === 'a' ? 'MC' : g.teamBName.slice(0, 8)) + ' ' + run.n + '-0' : '—'}</td><td>${next ? next.pts + ' pts' : '—'}</td></tr>`;
+  });
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Team</th><th>Type</th><th>When</th><th>Score</th><th>Run in</th><th>Next poss</th></tr>${rows.join('')}</table></div>` + toLeft(g);
+}
+function toLeft(g) { const a = timeoutsLeft(g, 'a'), b = timeoutsLeft(g, 'b'); return `<div class="small" style="margin-top:6px">Left — Moorpark: <b>${a.s30}</b> × 30s, <b>${a.full}</b> full · ${esc(g.teamBName)}: <b>${b.s30}</b> × 30s, <b>${b.full}</b> full</div>`; }
+function foulTable(g) {
+  const n = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  let h = `<div class="tbl-wrap"><table class="tbl"><tr><th>Period</th><th>Moorpark</th><th>${esc(g.teamBName)}</th></tr>`;
+  for (let q = 1; q <= n; q++) {
+    const c = t => g.eventLog.filter(e => isStat(e) && e.team === t && e.stat === 'foul' && e.quarter === q).length;
+    h += `<tr><td class="l">${periodName(g, q)}</td><td>${c('a')}</td><td>${c('b')}</td></tr>`;
+  }
+  h += '</table></div>';
+  const pf = {}; g.eventLog.forEach(e => { if (isStat(e) && e.team === 'a' && e.stat === 'foul' && e.player !== TEAM) pf[e.player] = (pf[e.player] || 0) + 1; });
+  const list = Object.entries(pf).sort((x, y) => y[1] - x[1]);
+  return h + `<div class="small" style="margin-top:6px">${list.map(([n, c]) => `<span class="${c >= 4 ? 'bad' : c >= 3 ? 'warn' : ''}">${esc(lastName(n))} ${c}</span>`).join(' · ') || 'No Moorpark fouls.'}</div>`;
+}
+function gtSummary(g, A) {
+  const c = A.gtCut;
+  const editable = !App.viewer;
+  let h = c ? `<div>Garbage time from <b>${periodName(g, c.period)} ${fmtClock(c.clock)}</b>, ${c.sA}–${c.sB}. <b>${A.counts.gt}</b> of ${A.counts.total} possessions flagged.</div>`
+            : g.gtManualIdx != null ? '<div>Marked manually.</div>' : `<div>No garbage time${g.gtOff ? ' (automatic detection is off for this game)' : ''}. ${A.counts.total} possessions, all competitive.</div>`;
+  h += `<div class="tiny muted" style="margin-top:4px">Ladder (game time left): 30+ any time · 25+ ≤8:00 · 20+ ≤5:00 · 15+ ≤3:00 · 10+ ≤1:00. Once reached, every later possession is flagged. Each event carries <code>gt</code>, <code>lev</code> and <code>clutch</code> in the export.</div>`;
+  if (editable) h += `<div class="row" style="margin-top:8px"><button class="btn btn-sm" data-act="gt-toggle-auto" data-id="${g.id}">${g.gtOff ? 'Turn automatic garbage time back on' : 'Turn automatic garbage time off for this game'}</button>${g.gtManualIdx != null ? `<button class="btn btn-sm" data-act="gt-unmark" data-id="${g.id}">Remove manual mark</button>` : ''}</div>`;
+  return h;
+}
+
+/* ── PLAY BY PLAY ── */
+function renderPbp() {
+  const g = viewGame(); if (!g) return noGame();
+  const A = analyzeTrips(g);
+  let sA = 0, sB = 0;
+  const rows = g.eventLog.map((e, i) => { if (isStat(e)) { if (e.team === 'a') sA += evPts(e); else sB += evPts(e); } return { e, i, sA, sB }; });
+  const canEdit = !App.viewer;
+  const playersFor = t => t === 'a' ? [...teamPlayers(g, 'a').sort(byLast), TEAM] : (oppHasRoster(g) ? [...g.oppRoster, TEAM] : [TEAM]);
+  const html = rows.slice().reverse().map(({ e, i, sA, sB }) => {
+    const tr = A.evTrip[i];
+    const tags = tr ? `${e.kill ? `<span class="tag" style="background:var(--gold);color:#000">KILL ${e.kill === 'a' ? 'MC' : 'OPP'}</span>` : ''}${tr.ftEnd && i === tr.events[tr.events.length - 1] ? '<span class="tag lev-low" title="Ended on a free-throw rebound: not a stop">FT reb</span>' : ''}${tr.gt ? '<span class="tag lev-gt">GT</span>' : ''}${tr.clutch ? '<span class="tag lev-clutch">CL</span>' : ''}<span class="tag lev-${tr.tier}">${tr.tier[0].toUpperCase()}</span>` : '';
+    const clk = e.type ? fmtClock(e.timeSecs) : (A.clocks[i] != null ? (e.gc != null ? '' : '~') + fmtClock(A.clocks[i]) : '');
+    const edit = canEdit && isStat(e) ? `<select data-act="pbp-player" data-i="${i}" style="font-size:12px;padding:2px 4px">${playersFor(e.team).map(p => `<option value="${esc(p)}" ${p === e.player ? 'selected' : ''}>${esc(p === TEAM ? 'Team' : p)}</option>`).join('')}</select>` : '';
+    const del = canEdit && (isStat(e) || e.type === 'timeout' || e.type === 'clock') ? `<button class="btn btn-sm" data-act="pbp-del" data-i="${i}" title="Delete">🗑</button>` : '';
+    return `<div class="pbp-row ${e.type ? 's' : e.team}"><span class="small muted">${periodName(g, e.quarter, true)}</span><span class="small">${clk}</span>
+      <span>${esc(describe(g, e))}${tags}</span><span class="small" style="text-align:right">${sA}–${sB}</span><span class="acts">${edit}${del}</span></div>`;
+  }).join('');
+  return `<div class="row" style="margin-bottom:10px">${gamePicker(g)}<span class="small muted">Newest first · ~ = clock read from the nearest subs/timeouts · tags: H/M/L leverage, CL clutch, GT garbage time. Subs can only be taken back with Undo.</span></div>
+    <div class="card" style="padding:0">${html || '<div class="muted" style="padding:12px">No plays yet.</div>'}</div>`;
+}
+function pbpEdit(i, player) {
+  const g = viewGame(); const e = g.eventLog[i]; if (!e) return;
+  if (g.id === App.liveId) snapshot();
+  e.player = player; saveGames(); render(); toast('Updated');
+}
+function pbpDelete(i) {
+  const g = viewGame(); const e = g.eventLog[i]; if (!e) return;
+  if (!confirm('Delete: ' + describe(g, e) + '?')) return;
+  if (g.id === App.liveId) snapshot();
+  g.eventLog.splice(i, 1);
+  if (g.completed) { g.teamStats = teamStats(g); g.finalScore = Object.assign({}, g.finalScore, { a: score(g, 'a'), b: score(g, 'b') }); }
+  saveGames(); render(); toast('Deleted', 'warn');
+}
+
+/* ── GAMES ── */
+function renderGames() {
+  const games = [...App.games].sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+  const rows = games.map(g => {
+    const s = finalScore(g); const w = s.a > s.b;
+    const res = g.completed ? `<b class="${w ? 'good' : 'bad'}">${w ? 'W' : 'L'}</b> ${s.a}–${s.b}` : `<span class="warn">LIVE</span> ${s.a}–${s.b}`;
+    return `<tr><td class="l">${esc(g.date)}</td><td class="l">${esc(g.title)}${g.conference ? ' <span class="tiny muted">conf</span>' : ''}</td><td>${res}</td>
+      <td style="text-align:right"><button class="btn btn-sm" data-act="view-game" data-id="${g.id}">Box</button> <button class="btn btn-sm" data-act="view-an" data-id="${g.id}">Analytics</button>
+      ${!App.viewer && !g.completed ? `<button class="btn btn-sm btn-good" data-act="resume" data-id="${g.id}">Resume</button>` : ''}
+      ${!App.viewer && g.completed ? `<button class="btn btn-sm" data-act="reopen" data-id="${g.id}" title="Unlock to fix the end of the game">Reopen</button>` : ''}
+      ${!App.viewer ? `<button class="btn btn-sm" data-act="export-game" data-id="${g.id}">Export</button> <button class="btn btn-sm btn-bad" data-act="del-game" data-id="${g.id}">Delete</button>` : ''}</td></tr>`;
+  }).join('');
+  return `<div class="row" style="margin-bottom:10px"><h2 style="font-size:18px">Games</h2>${!App.viewer ? '<button class="btn btn-good" data-act="new-game" style="margin-left:auto">+ New game</button>' : ''}</div>
+    ${App.viewer && App.publishedAt ? `<div class="small muted" style="margin-bottom:8px">Published ${esc(new Date(App.publishedAt).toLocaleString())}</div>` : ''}
+    <div class="card" style="padding:0"><div class="tbl-wrap" style="border:none"><table class="tbl"><tr><th>Date</th><th>Game</th><th>Result</th><th></th></tr>${rows || '<tr><td class="l muted" colspan="4">No games yet.</td></tr>'}</table></div></div>`;
+}
+
+/* ── SEASON ── */
+function renderSeason() {
+  const games = App.games.filter(g => g.completed);
+  if (!games.length) return '<div class="card"><h3>Season</h3><div class="muted">Finished games show up here.</div></div>';
+  const agg = new Map();
+  let W = 0, Lw = 0; const team = { a: statLine([]), b: statLine([]), poss: 0 };
+  const sumInto = (dst, src) => { for (const k of Object.keys(dst)) if (typeof src[k] === 'number') dst[k] += src[k]; };
+  const lev = { aT: 0, aP: 0, bT: 0, bP: 0 }, kl = { a: 0, b: 0 };
+  for (const g of games) {
+    const s = finalScore(g); if (s.a > s.b) W++; else Lw++;
+    const T = teamStats(g); sumInto(team.a, T.a); sumInto(team.b, T.b); team.poss += T.a.possessions;
+    for (const r of playerStats(g)) {
+      if (!(r.min > 0 || r.fga || r.fta || r.reb || r.pf)) continue;
+      if (!agg.has(r.name)) agg.set(r.name, Object.assign(statLine([]), { gp: 0, min: 0, pm: 0 }));
+      const x = agg.get(r.name); sumInto(x, r); x.gp++;
+    }
+    { const AK = analyzeTrips(g); kl.a += AK.kills.a; kl.b += AK.kills.b; }
+    for (const tr of analyzeTrips(g).trips) if (!tr.gt) { if (tr.team === 'a') { lev.aT++; lev.aP += tr.pts; } else { lev.bT++; lev.bP += tr.pts; } }
+  }
+  const n = games.length;
+  const rows = [...agg.entries()].sort((x, y) => y[1].pts / y[1].gp - x[1].pts / x[1].gp).map(([name, s]) => {
+    const pg = v => (v / s.gp).toFixed(1);
+    return `<tr><td class="l">${esc(name)}</td><td>${s.gp}</td><td>${pg(s.min)}</td><td><b>${pg(s.pts)}</b></td><td>${pg(s.reb)}</td><td>${pg(s.ast)}</td><td>${pg(s.stl)}</td><td>${pg(s.blk)}</td><td>${pg(s.tov)}</td><td>${pg(s.pf)}</td><td>${s.chg}</td>
+      <td>${pct(s.fgm, s.fga)}</td><td>${pct(s.fg3m, s.fg3a)}</td><td>${pct(s.ftm, s.fta)}</td><td>${s.fga ? f1(100 * (s.fgm + 0.5 * s.fg3m) / s.fga) : '—'}</td><td>${(s.fga + 0.475 * s.fta) ? f1(50 * s.pts / (s.fga + 0.475 * s.fta)) : '—'}</td><td class="${pmCls(s.pm)}">${sgn(s.pm)}</td></tr>`;
+  }).join('');
+  const a = team.a, b = team.b, P = team.poss;
+  return `<div class="card"><h3>Season — ${W}-${Lw} <span class="muted">${n} finished game${n === 1 ? '' : 's'}</span></h3>
+    <div class="ff">
+      <div class="k"><div class="lbl">PPG / Opp PPG</div><div class="v"><span class="a">${(a.pts / n).toFixed(1)}</span><span class="b">${(b.pts / n).toFixed(1)}</span></div></div>
+      <div class="k"><div class="lbl">ORtg / DRtg</div><div class="v"><span class="a">${f1(100 * a.pts / P)}</span><span class="b">${f1(100 * b.pts / P)}</span></div></div>
+      <div class="k"><div class="lbl">Non-garbage PPP</div><div class="v"><span class="a">${lev.aT ? (lev.aP / lev.aT).toFixed(2) : '—'}</span><span class="b">${lev.bT ? (lev.bP / lev.bT).toFixed(2) : '—'}</span></div></div>
+      <div class="k"><div class="lbl">eFG%</div><div class="v"><span class="a">${a.fga ? f1(100 * (a.fgm + .5 * a.fg3m) / a.fga) : '—'}</span><span class="b">${b.fga ? f1(100 * (b.fgm + .5 * b.fg3m) / b.fga) : '—'}</span></div></div>
+      <div class="k"><div class="lbl">TOV%</div><div class="v"><span class="a">${f1(100 * a.tov / P)}</span><span class="b">${f1(100 * b.tov / P)}</span></div></div>
+      <div class="k"><div class="lbl">OREB%</div><div class="v"><span class="a">${pct(a.oreb, a.oreb + b.dreb)}</span><span class="b">${pct(b.oreb, b.oreb + a.dreb)}</span></div></div>
+      <div class="k"><div class="lbl">FT rate</div><div class="v"><span class="a">${pct(a.fta, a.fga)}</span><span class="b">${pct(b.fta, b.fga)}</span></div></div>
+      <div class="k"><div class="lbl">Kills per game</div><div class="v"><span class="a">${(kl.a / n).toFixed(1)}</span><span class="b">${(kl.b / n).toFixed(1)}</span></div></div>
+      <div class="k"><div class="lbl">Pace (poss/g)</div><div class="v"><span>${(P / n).toFixed(1)}</span></div></div>
+    </div></div>
+  <div class="card"><h3>Players — per game</h3><div class="tbl-wrap"><table class="tbl">
+    <tr><th>Player</th><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>CHG</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>+/- tot</th></tr>${rows}</table></div></div>`;
+}
+
+/* ── SCOUTING ──
+   The report lives in a pane that is never torn down, so flipping game → report → game is
+   instant and the report stays on the page you left it at. Pages are drawn with the bundled
+   pdf.js (vendor/), because iPad Safari only shows page one of a PDF in a frame. Pages are
+   drawn as they scroll near and released when far away, which keeps a 20-page report inside
+   what an iPad will give a web page. If pdf.js can't load (e.g. opened from a local file),
+   it falls back to the browser's own PDF viewer. */
+const SC = { key: null, doc: null, zoom: 1, built: false, io: null, token: 0 };
+let _pdfjs = null;
+async function loadPdfJs() {
+  if (_pdfjs) return _pdfjs;
+  const lib = await import(new URL('vendor/pdf.min.mjs', location.href).href);
+  lib.GlobalWorkerOptions.workerSrc = new URL('vendor/pdf.worker.min.mjs', location.href).href;
+  _pdfjs = lib;
+  return lib;
+}
+function buildScoutPane() {
+  const pane = $('#scout-pane');
+  pane.innerHTML = `<div class="row" style="margin-bottom:8px"><b>Scouting report</b>
+      <select id="scout-sel"></select>
+      <button class="btn btn-sm" data-act="scout-upload" data-for="game">Add PDF…</button>
+      <span class="row" style="gap:4px"><button class="btn btn-sm" data-act="scout-zoom" data-z="-1">−</button><button class="btn btn-sm" data-act="scout-zoom" data-z="0">Fit</button><button class="btn btn-sm" data-act="scout-zoom" data-z="1">+</button></span>
+      <button class="btn btn-sm btn-bad" data-act="scout-del">Remove</button>
+      <span class="small muted" style="margin-left:auto">S or the purple button goes back · saved on this device</span></div>
+    <div id="scout-pages" class="scout-pages"></div>`;
+  $('#scout-sel').onchange = e => {
+    const g = liveGame() || viewGame();
+    if (g && !App.viewer) { g.scoutKey = e.target.value || null; saveGames(); }
+    showScout(e.target.value);
+  };
+  SC.built = true;
+}
+async function refreshScoutPane() {
+  if (!SC.built) buildScoutPane();
+  const g = liveGame() || viewGame();
+  const sel = $('#scout-sel');
+  let keys = [];
+  try { keys = await idbKeys(); } catch (e) { toast('This browser blocks offline file storage', 'bad'); }
+  const recs = await Promise.all(keys.map(async k => ({ k, r: await idbGet(k) })));
+  const want = (g && g.scoutKey && keys.includes(g.scoutKey)) ? g.scoutKey : (keys.includes(SC.key) ? SC.key : (keys[keys.length - 1] || ''));
+  sel.innerHTML = recs.length ? recs.map(x => `<option value="${esc(x.k)}" ${x.k === want ? 'selected' : ''}>${esc(x.r && x.r.name || x.k)}</option>`).join('') : '<option value="">No PDFs yet — Add PDF…</option>';
+  if (want !== SC.key || !want) showScout(want);
+}
+async function scoutBytes(key) {
+  const rec = await idbGet(key); if (!rec) return null;
+  if (rec.data) return rec.data;
+  if (rec.blob) return await rec.blob.arrayBuffer();
+  return null;
+}
+async function showScout(key) {
+  const box = $('#scout-pages'); if (!box) return;
+  const token = ++SC.token;
+  SC.key = key || null;
+  if (SC.io) { SC.io.disconnect(); SC.io = null; }
+  if (SC.doc) { try { SC.doc.destroy(); } catch (e) {} SC.doc = null; }
+  if (!key) { box.innerHTML = '<div class="scout-empty">Add the scouting report PDF with “Add PDF…”. It is saved on this device and opens without wifi.</div>'; return; }
+  box.innerHTML = '<div class="scout-empty">Loading…</div>';
+  const bytes = await scoutBytes(key);
+  if (token !== SC.token) return;
+  if (!bytes) { box.innerHTML = '<div class="scout-empty">That PDF is no longer on this device.</div>'; return; }
+  let lib;
+  try { lib = await loadPdfJs(); }
+  catch (e) {
+    // No pdf.js (opened from disk): the browser's own viewer is the fallback.
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    box.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:0;background:#fff"></iframe>`;
+    return;
+  }
+  try { SC.doc = await lib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise; }
+  catch (e) { box.innerHTML = '<div class="scout-empty">Could not open that PDF.</div>'; return; }
+  if (token !== SC.token) return;
+  layoutScout();
+}
+async function layoutScout() {
+  const box = $('#scout-pages'); const doc = SC.doc; if (!box || !doc) return;
+  if (SC.io) SC.io.disconnect();
+  const keepRatio = box.scrollHeight ? box.scrollTop / box.scrollHeight : 0;
+  box.innerHTML = '';
+  const first = await doc.getPage(1);
+  const base = first.getViewport({ scale: 1 });
+  const fitW = Math.max(200, box.clientWidth - 24);
+  const scale = (fitW / base.width) * SC.zoom;
+  const holders = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const d = document.createElement('div');
+    d.className = 'scout-page'; d.dataset.page = i;
+    d.style.width = Math.round(base.width * scale) + 'px';
+    d.style.height = Math.round(base.height * scale) + 'px';
+    box.appendChild(d); holders.push(d);
+  }
+  box.scrollTop = keepRatio * box.scrollHeight;
+  const token = SC.token;
+  SC.io = new IntersectionObserver(entries => {
+    for (const en of entries) {
+      const d = en.target;
+      if (en.isIntersecting) { if (!d.firstChild) drawPage(d, +d.dataset.page, scale, token); }
+      else if (d.firstChild) { const c = d.firstChild; c.width = 0; c.height = 0; d.innerHTML = ''; }   // give the memory back
+    }
+  }, { root: box, rootMargin: '1200px 0px' });
+  holders.forEach(h => SC.io.observe(h));
+}
+async function drawPage(holder, n, scale, token) {
+  const doc = SC.doc; if (!doc || token !== SC.token) return;
+  const page = await doc.getPage(n);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const vp = page.getViewport({ scale: scale * dpr });
+  const c = document.createElement('canvas');
+  c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+  c.style.width = holder.style.width; c.style.height = holder.style.height;
+  holder.innerHTML = ''; holder.appendChild(c);
+  try { await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; } catch (e) { /* scrolled away mid-draw */ }
+}
+function scoutZoom(z) {
+  SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8)));
+  layoutScout();
+}
+async function uploadScout(file, forWhat) {
+  if (!file) return;
+  if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast('That is not a PDF', 'bad'); return; }
+  const key = 'scout_' + Date.now();
+  // Stored as raw bytes: older iPad Safari is unreliable about Blobs in IndexedDB.
+  try { await idbPut(key, { name: file.name, data: await file.arrayBuffer(), added: new Date().toISOString() }); }
+  catch (e) { toast('Could not store the PDF on this device', 'bad'); return; }
+  toast('Saved ' + file.name + ' for offline use', 'good');
+  if (forWhat === 'setup' && setupDraft) { setupDraft.scoutKey = key; paintSetupScout(); return; }
+  const g = liveGame() || viewGame();
+  if (g && !App.viewer) { g.scoutKey = key; saveGames(); }
+  if (App.tab === 'scout') { await refreshScoutPane(); showScout(key); }
+}
+function toggleScout() {
+  if (App.viewer) return;
+  if (App.tab === 'scout') setTab(App.prevTab || 'track'); else setTab('scout');
+}
+
+/* ── ROSTER EDITOR ── */
+function openRoster() {
+  const rows = App.roster.map((r, i) => `<tr><td><input data-r="${i}" data-f="num" value="${esc(r.num)}" style="width:54px" inputmode="numeric"></td>
+    <td><input data-r="${i}" data-f="name" value="${esc(r.name)}" style="width:100%"></td>
+    <td style="text-align:center"><input type="checkbox" data-r="${i}" data-f="hidden" ${r.hidden ? 'checked' : ''}></td></tr>`).join('');
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal">
+    <h2>Roster</h2><div class="small muted" style="margin-bottom:8px">Jersey numbers show on the buttons. Hidden players stay out of new games. Renaming here does not rewrite old games.</div>
+    <table class="tbl" id="roster-tbl"><tr><th>#</th><th>Name</th><th>Hidden</th></tr>${rows}</table>
+    <div class="row" style="margin-top:8px"><input id="roster-new" placeholder="Add player name"><button class="btn btn-sm" data-act="roster-add">Add</button></div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="roster-save">Save</button></div></div></div>`;
+}
+function saveRosterModal() {
+  document.querySelectorAll('#roster-tbl [data-r]').forEach(el => {
+    const r = App.roster[+el.dataset.r]; const f = el.dataset.f;
+    if (f === 'hidden') r.hidden = el.checked; else r[f] = el.value.trim();
+  });
+  App.roster = App.roster.filter(r => r.name);
+  saveRoster(); closeModal(); render(); toast('Roster saved', 'good');
+}
+
+/* ── BACKUP / IMPORT / PUBLISH ── */
+function backup() {
+  download('moorpark_games_backup_' + new Date().toISOString().slice(0, 10) + '.json',
+    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, games: App.games }, null, 1));
+}
+function publish() {
+  App.games.forEach(g => analyzeTrips(g));
+  download('gt_data.json', JSON.stringify({ app: 'moorpark-game-tracker', version: 1, publishedAt: new Date().toISOString(), roster: App.roster, games: App.games }));
+  toast('Put gt_data.json in the game/ folder of the repo and push', 'good', 5000);
+}
+function importFile(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    let d; try { d = JSON.parse(rd.result); } catch (e) { toast('Not a valid JSON file', 'bad'); return; }
+    const games = Array.isArray(d) ? d : d.games || (d.eventLog ? [d] : []);
+    let added = 0, replaced = 0;
+    for (const g of games) {
+      if (!g || !g.id || !Array.isArray(g.eventLog)) continue;
+      const i = App.games.findIndex(x => x.id === g.id);
+      if (i === -1) { App.games.push(g); added++; } else if (g.id !== App.liveId) { App.games[i] = g; replaced++; }
+    }
+    if (Array.isArray(d.roster) && d.roster.length && confirm('Also replace the roster with the one in this file?')) { App.roster = d.roster.map(normRosterEntry); saveRoster(); }
+    saveGames(); render();
+    toast(`Imported: ${added} new, ${replaced} updated`, 'good');
+  };
+  rd.readAsText(file);
+}
+function exportGame(id) {
+  const g = App.games.find(x => x.id === id); if (!g) return;
+  analyzeTrips(g);
+  download('game_' + (g.date || '') + '_' + String(g.opponent || '').replace(/\W+/g, '_').toLowerCase() + '.json', JSON.stringify(g, null, 1));
+}
+
+/* ════════════════════════════════════════════════════════════
+   EVENTS (delegated)
+════════════════════════════════════════════════════════════ */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if (!t) {
+    const tab = e.target.closest('.tab[data-tab]'); if (tab) setTab(tab.dataset.tab);
+    return;
+  }
+  const act = t.dataset.act, g = liveGame();
+  switch (act) {
+    case 'overlay': if (e.target === t) closeModal(); break;
+    case 'close-modal': closeModal(); break;
+    case 'stat': startStat(t.dataset.stat); break;
+    case 'player': pickPlayer(t.dataset.team, t.dataset.p); break;
+    case 'skip': skipStep(); break;
+    case 'cancel': cancelFlow(); break;
+    case 'undo': undo(); break;
+    case 'redo': redo(); break;
+    case 'sub': openSub(); break;
+    case 'sub-out': subTapOut(t.dataset.p); break;
+    case 'sub-in': subTapIn(t.dataset.p); break;
+    case 'sub-unpair': SUB.pairs.splice(+t.dataset.i, 1); paintSub(); break;
+    case 'sub-confirm': confirmSub(); break;
+    case 'use-clock': { const ci = $('#sub-clock'); ci.value = fmtClock(clockNow(g)).replace(':', ''); ci.dispatchEvent(new Event('input')); ci.focus(); break; }
+    case 'key': keyPress(t.dataset.target, t.dataset.k); break;
+    case 'timeout': openTimeout(); break;
+    case 'to-team': TO.team = t.dataset.team; { const L = timeoutsLeft(g, TO.team); if ((TO.type === '30' ? L.s30 : L.full) <= 0) TO.type = TO.type === '30' ? 'full' : '30'; } paintTO(); break;
+    case 'to-type': TO.type = t.dataset.type; paintTO(); break;
+    case 'to-confirm': confirmTimeout(); break;
+    case 'set-clock': openSetClock(); break;
+    case 'sc-confirm': confirmSetClock(); break;
+    case 'clock-toggle': clockToggle(); break;
+    case 'end-period': openEndPeriod(); break;
+    case 'ep-confirm': confirmEndPeriod(); break;
+    case 'start-period': openPeriodStart(); break;
+    case 'finish': finishGame(); break;
+    case 'gt-mark': if (g) { snapshot(); g.gtManualIdx = g.eventLog.length; g.gtOff = false; saveGames(); render(); toast('Garbage time marked from here', 'warn'); } break;
+    case 'gt-clear': if (g) { snapshot(); g.gtManualIdx = null; g.gtOff = true; saveGames(); render(); toast('Garbage time cleared — automatic detection off for this game', 'warn', 3500); } break;
+    case 'gt-toggle-auto': { const x = App.games.find(y => y.id === t.dataset.id); if (x) { x.gtOff = !x.gtOff; saveGames(); render(); } break; }
+    case 'gt-unmark': { const x = App.games.find(y => y.id === t.dataset.id); if (x) { x.gtManualIdx = null; saveGames(); render(); } break; }
+    case 'scout': toggleScout(); break;
+    case 'scout-upload': $('#scout-file').dataset.for = t.dataset.for || 'game'; $('#scout-file').click(); break;
+    case 'scout-zoom': scoutZoom(+t.dataset.z); break;
+    case 'scout-del': { const k = $('#scout-sel') && $('#scout-sel').value; if (k && confirm('Remove this PDF from this device?')) { idbDel(k).then(() => { SC.key = undefined; refreshScoutPane(); }); } break; }
+    case 'roster': readSetupFields(); openRoster(); break;
+    case 'roster-add': { const v = $('#roster-new').value.trim(); if (v) { saveRosterModalInputs(); App.roster.push({ name: v, num: '', hidden: false }); openRoster(); } break; }
+    case 'roster-save': saveRosterModal(); break;
+    case 'su-player': {
+      readSetupFields();
+      const d = setupDraft, n = t.dataset.p;
+      if (d.starters.includes(n)) { d.starters = d.starters.filter(x => x !== n); d.dressed = d.dressed.filter(x => x !== n); }
+      else if (d.dressed.includes(n)) { if (d.starters.length >= 5) { toast('Already 5 starters — tap one to remove'); break; } d.starters.push(n); }
+      else d.dressed.push(n);
+      render(); break;
+    }
+    case 'su-create': createGame(); break;
+    case 'new-game': if (liveGame() && !confirm('A game is still live. Leave it (you can resume from Games) and start a new one?')) break; App.liveId = null; lsSet(LS_LIVE, null); setupDraft = null; setTab('track'); break;
+    case 'resume': App.liveId = t.dataset.id; App.viewId = t.dataset.id; lsSet(LS_LIVE, App.liveId); undoStack.length = 0; redoStack.length = 0; resetFlow(); setTab('track'); break;
+    case 'reopen': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Reopen this game for editing? It goes back to the end-of-game break.')) { x.completed = false; x.between = true; App.liveId = x.id; App.viewId = x.id; lsSet(LS_LIVE, x.id); saveGames(); setTab('track'); } break; }
+    case 'view-game': App.viewId = t.dataset.id; App.period = 'all'; setTab('box'); break;
+    case 'view-an': App.viewId = t.dataset.id; App.period = 'all'; setTab('analytics'); break;
+    case 'export-game': exportGame(t.dataset.id); break;
+    case 'del-game': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Delete ' + x.title + ' (' + x.date + ')? This cannot be undone. Export it first if unsure.')) { App.games = App.games.filter(y => y.id !== x.id); if (App.liveId === x.id) { App.liveId = null; lsSet(LS_LIVE, null); } saveGames(); render(); } break; }
+    case 'pbp-del': pbpDelete(+t.dataset.i); break;
+  }
+});
+function saveRosterModalInputs() {
+  document.querySelectorAll('#roster-tbl [data-r]').forEach(el => { const r = App.roster[+el.dataset.r]; const f = el.dataset.f; if (f === 'hidden') r.hidden = el.checked; else r[f] = el.value.trim(); });
+}
+document.addEventListener('change', e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  switch (t.dataset.act) {
+    case 'pick-game': App.viewId = t.value; App.period = 'all'; render(); break;
+    case 'pick-period': App.period = t.value; render(); break;
+    case 'pick-lev': App.lev = t.value; lsSet(LS_UI, { tab: App.tab, viewId: App.viewId, lev: App.lev }); render(); break;
+    case 'toggle-adv': App.adv = t.checked; render(); break;
+    case 'pbp-player': pbpEdit(+t.dataset.i, t.value); break;
+  }
+});
+$('#scout-file').addEventListener('change', e => { const f = e.target.files[0]; uploadScout(f, e.target.dataset.for); e.target.value = ''; });
+$('#import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
+$('#nav-roster').onclick = () => openRoster();
+$('#nav-backup').onclick = backup;
+$('#nav-import').onclick = () => $('#import-file').click();
+$('#nav-publish').onclick = publish;
+$('#scout-back').onclick = toggleScout;
+
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''));
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (typing) return;
+  if (e.key === 'Escape') { if ($('#modal-root').innerHTML) closeModal(); else cancelFlow(); return; }
+  if ($('#modal-root').innerHTML) return;
+  if (e.key === ' ' && App.tab === 'track' && liveGame()) { e.preventDefault(); clockToggle(); }
+  else if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey) toggleScout();
+});
+
+/* Keep the clock, minutes and live tables moving without re-rendering on every frame. */
+let _lastSec = null, _lastAnalyticsPaint = 0;
+setInterval(() => {
+  const g = liveGame(); if (!g || !g.clock.running) return;
+  const now = clockNow(g);
+  if (now <= 0) { clockStop(g); g.clock.rem = 0; saveGames(); paintScorebar(); toast('Clock hit 0:00 — end the period when ready', 'warn', 4000); return; }
+  const el = $('#sb-clock'); if (el) el.textContent = fmtClock(now);
+  const s = Math.ceil(now);
+  if (s !== _lastSec) {
+    _lastSec = s;
+    if (s % 5 === 0) { lsSet(LS_GAMES, App.games); if (App.tab === 'track') paintLevbar(); }
+    if ((App.tab === 'box' || App.tab === 'analytics') && Date.now() - _lastAnalyticsPaint > 10000 && !document.activeElement.closest('select')) { _lastAnalyticsPaint = Date.now(); render(); }
+  }
+}, 200);
+
+/* ════════════════════════════════════════════════════════════
+   BOOT
+════════════════════════════════════════════════════════════ */
+function normRosterEntry(r) { return typeof r === 'string' ? { name: r, num: '', hidden: false } : { name: r.name, num: r.num != null ? String(r.num) : '', hidden: !!r.hidden }; }
+async function loadRoster() {
+  const own = lsGet(LS_ROSTER, null);
+  if (Array.isArray(own) && own.length) return own.map(normRosterEntry);
+  // Same site as the practice tracker, so its roster is right there in this browser.
+  const pt = lsGet('pt_roster', null);
+  if (Array.isArray(pt) && pt.length) return pt.map(normRosterEntry);
+  try {
+    const res = await fetch('../tracker/pt_data.json', { cache: 'no-store' });
+    if (res.ok) { const d = await res.json(); if (Array.isArray(d.roster) && d.roster.length) return d.roster.map(normRosterEntry); }
+  } catch (e) { /* offline or opened from disk: fall through to the seed */ }
+  return SEED_ROSTER.map(r => Object.assign({}, r));
+}
+async function boot() {
+  App.games = lsGet(LS_GAMES, []) || [];
+  App.liveId = lsGet(LS_LIVE, null);
+  if (App.liveId && !App.games.some(g => g.id === App.liveId && !g.completed)) App.liveId = null;
+  const ui = lsGet(LS_UI, {}) || {};
+  App.lev = ui.lev || 'nogt';
+  App.viewId = ui.viewId || null;
+  if (!App.games.length && location.protocol !== 'file:') {
+    // Viewer path: no games in this browser, so show the published snapshot read-only.
+    try {
+      const res = await fetch('gt_data.json', { cache: 'no-store' });
+      if (res.ok) { const d = await res.json(); if (Array.isArray(d.games) && d.games.length) { App.games = d.games; App.viewer = true; App.publishedAt = d.publishedAt; if (d.roster) App.roster = d.roster.map(normRosterEntry); } }
+    } catch (e) { /* none published */ }
+  }
+  if (!App.roster.length) App.roster = await loadRoster();
+  if (App.viewer) document.querySelectorAll('.editor-only').forEach(el => el.classList.add('hidden'));
+  else if (!lsGet(LS_ROSTER, null)) saveRoster();
+  // Running clock survives a reload: it was anchored to wall time.
+  setTab(App.viewer ? 'games' : (App.liveId ? 'track' : (ui.tab && ui.tab !== 'scout' ? ui.tab : 'track')));
+  if (App.tab === 'track' && !liveGame()) paintSetupScout();
+  registerOffline();
+}
+/* paintSetupScout needs the setup DOM; hook it onto every render of the setup screen. */
+const _render = render;
+render = function () { _render(); if (App.tab === 'track' && !liveGame()) paintSetupScout(); };
+
+function registerOffline() {
+  const dot = $('#offline-dot');
+  if (location.protocol === 'file:') { dot.textContent = 'offline: ready (local file)'; dot.classList.add('ready'); return; }
+  if (!('serviceWorker' in navigator)) { dot.textContent = 'offline: not supported'; return; }
+  navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => {
+    dot.textContent = 'offline: ready'; dot.classList.add('ready');
+  }).catch(() => { dot.textContent = 'offline: unavailable'; });
+}
+let _rsz = null;
+window.addEventListener('resize', () => { clearTimeout(_rsz); _rsz = setTimeout(() => { if (App.tab === 'scout' && SC.doc) layoutScout(); }, 250); });
+window.addEventListener('beforeunload', () => { const g = liveGame(); if (g) lsSet(LS_GAMES, App.games); });
+boot();
+</script>
+</body>
+</html>
