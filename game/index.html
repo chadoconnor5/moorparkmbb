@@ -88,7 +88,7 @@ table{border-collapse:collapse}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
 
 /* toast */
-#toasts{position:fixed;bottom:16px;left:16px;z-index:300;display:flex;flex-direction:column;gap:6px;align-items:flex-start;pointer-events:none}
+#toasts{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:300;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
 .toast{background:rgba(34,39,49,.96);border:1px solid var(--border2);padding:7px 14px;border-radius:99px;font-weight:500;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;backdrop-filter:blur(8px)}
 .toast.good::before,.toast.bad::before,.toast.warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:8px;vertical-align:1px}
 .toast.good::before{background:var(--good)} .toast.bad::before{background:var(--bad)} .toast.warn::before{background:var(--warn)}
@@ -159,6 +159,15 @@ table{border-collapse:collapse}
 .skipbig{width:100%;padding:12px;font-size:15px}
 .pbtn .oinfo{color:var(--text2)}
 .bench-mini{font-size:11.5px;color:var(--muted);padding:2px}
+.lpm{background:var(--card);border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.lpm-us::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--us);margin-right:7px;vertical-align:1px}
+.lpm-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding-bottom:5px;margin-bottom:2px;border-bottom:1px solid var(--border)}
+.lpm-head .lpm-val{font-size:15px;letter-spacing:0}
+.lpm-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
+.lpm-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lpm-val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted)}
+.lpm-val.pos{color:var(--good)} .lpm-val.neg{color:var(--bad)}
+.lpm-bench{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted);margin-top:5px;padding-top:6px;border-top:1px solid var(--border)}
 
 .stat-col .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .sbtn{padding:11px 8px;border-radius:11px;font-weight:600;font-size:14.5px;background:var(--card);border:1px solid var(--border);color:var(--text);transition:background .1s,opacity .12s;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -891,6 +900,23 @@ function indivDrtg(s, MP, gameMin, tS, oS) {
 }
 
 /* Plus/minus by replay: only ORDER is needed, so the open stint counts too. */
+/* The practice tracker's live lineup card: each man's +/- for the game, and the current
+   five's +/- across every stint that exact five has played (not just this one). Order is all
+   it needs, so the stint on the floor right now counts too. */
+function lineupPlusMinus(g) {
+  const lu = [...(g.startersA || [])];
+  const pm = {}, unit = {};
+  const key = a => a.slice().sort().join('|');
+  for (const e of g.eventLog) {
+    if (e.type === 'sub') { for (const s of e.subs || []) { const i = lu.indexOf(s.playerOut); if (i !== -1) lu[i] = s.playerIn; } continue; }
+    if (!isStat(e)) continue;
+    const p = evPts(e); if (!p) continue;
+    const sw = e.team === 'a' ? p : -p;
+    lu.forEach(n => { pm[n] = (pm[n] || 0) + sw; });
+    unit[key(lu)] = (unit[key(lu)] || 0) + sw;
+  }
+  return { lineup: lu, pm, unit: unit[key(lu)] || 0 };
+}
 function plusMinus(g, pred) {
   const lu = [...(g.startersA || [])];
   const a = {};
@@ -1350,6 +1376,7 @@ function paintLevbar() {
   el.className = 'levbar'; el.innerHTML = h;
 }
 
+const LPM = { pm: {}, unit: 0, lineup: [] };
 function paintTracker() {
   const g = liveGame(); if (!g || App.tab !== 'track') return;
   const ca = $('#col-a'), cb = $('#col-b'), cs = $('#col-stats'); if (!ca) return;
@@ -1366,17 +1393,25 @@ function paintTracker() {
     const hot = F.phase !== 'idle' && !dim;
     const pfCls = s.pf >= 4 ? 'f4' : (s.pf >= 2 && curPeriod(g) === 1) || s.pf >= 3 ? 'f2' : '';
     const info = t === 'b' && !isTeam ? oppInfoLine(g, p) : '';
-    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}</span>${info ? `<span class="pline oinfo">${esc(info)}</span>` : ''}`;
+    const pmv = t === 'a' && !isTeam ? (LPM.pm[p] || 0) : null;
+    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>${info ? `<span class="pline oinfo">${esc(info)}</span>` : ''}`;
     return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
       ${label}${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
   };
   const lu = sortedLineup(g);
+  const LPM_ = lineupPlusMinus(g); Object.assign(LPM, LPM_);
   const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
   ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span><button class="btn btn-sm" data-act="sub" ${dis || F.phase !== 'idle' ? 'disabled' : ''}>⇄ Sub</button></div>
     <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
-    <div class="bench-mini">Tap a player with no stat selected to sub him out. Bench: ${bench.map(n => esc(lastName(n))).join(', ') || '—'}</div>`;
+    <div class="bench-mini">Tap a player with no stat selected to sub him out.</div>`;
   cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}</span><button class="btn btn-sm" data-act="opp-live-edit">Roster</button></div>
-    <div class="pgrid">${buttonPlayers(g, 'b').map(p => btn('b', p)).join('')}</div>`;
+    <div class="pgrid">${buttonPlayers(g, 'b').map(p => btn('b', p)).join('')}</div>
+    <div class="lpm">
+      <div class="lpm-head"><span class="lpm-us">Moorpark lineup +/-</span><span class="lpm-val ${pmCls(LPM.unit)}" title="This five, every stint together">${sgn(LPM.unit)}</span></div>
+      ${lu.map(n => `<div class="lpm-row"><span class="lpm-name">${numOf(n) !== '' ? '#' + esc(numOf(n)) + ' ' : ''}${esc(n)}</span><span class="lpm-val ${pmCls(LPM.pm[n] || 0)}">${sgn(LPM.pm[n] || 0)}</span></div>`).join('')}
+      ${bench.some(n => LPM.pm[n]) ? `<div class="lpm-bench">${bench.filter(n => LPM.pm[n] != null).map(n => `<span>${esc(lastName(n))} <b class="${pmCls(LPM.pm[n])}">${sgn(LPM.pm[n])}</b></span>`).join('')}</div>` : ''}
+    </div>
+`;
 
   const stBtn = ([k, l, c]) => {
     /* Practice-tracker behaviour: once a play is under way, only the buttons that can finish
