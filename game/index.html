@@ -2230,7 +2230,7 @@ const BX_COLS = [
 ];
 const BX_OPP_COLS = [['efgPct', 'EFG'], ['tsPct', 'TS%'], ['ftRate', 'FTR'], ['fg2', '2PT'], ['fg3', '3PT'], ['ft', 'FT'], ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'],
   ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS']];
-let bxPanel = 'a';
+let bxPanel = 'both';   // Combined first: both teams on one page is the default view
 function bxHi(v, good, bad) { return v == null ? '' : v >= good ? 'bs-hi' : v <= bad ? 'bs-lo' : ''; }
 function bxLo(v, good, bad) { return v == null ? '' : v <= good ? 'bs-hi' : v >= bad ? 'bs-lo' : ''; }
 function bxClass(r, k) {
@@ -2342,7 +2342,7 @@ function renderBox() {
       <table class="bs-score-table"><thead><tr><th>Team</th>${Array.from({ length: n }, (_, i) => `<th>${periodName(g, i + 1, true)}</th>`).join('')}<th class="bs-final-col">Final</th></tr></thead>
         <tbody>${line('a')}${line('b')}</tbody></table>
     </div>
-    <div class="bs-tab-row">${tab('a', g.teamAName)}${tab('b', g.teamBName)}${tab('both', 'Combined')}${tab('pbp', 'Play-by-Play')}</div>
+    <div class="bs-tab-row">${tab('both', 'Combined')}${tab('a', g.teamAName)}${tab('b', g.teamBName)}${tab('pbp', 'Play-by-Play')}</div>
     ${panel}
   </div>`;
 }
@@ -3363,7 +3363,7 @@ document.addEventListener('click', e => {
     case 'new-game': if (liveGame() && !confirm('A game is still live. Leave it (you can resume from Games) and start a new one?')) break; App.liveId = null; lsSet(LS_LIVE, null); setupDraft = null; setTab('track'); break;
     case 'resume': App.liveId = t.dataset.id; App.viewId = t.dataset.id; lsSet(LS_LIVE, App.liveId); undoStack.length = 0; redoStack.length = 0; resetFlow(); setTab('track'); break;
     case 'reopen': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Reopen this game for editing? It goes back to the end-of-game break.')) { x.completed = false; x.between = true; App.liveId = x.id; App.viewId = x.id; lsSet(LS_LIVE, x.id); saveGames(); setTab('track'); } break; }
-    case 'view-game': App.viewId = t.dataset.id; App.period = 'all'; setTab('box'); break;
+    case 'view-game': App.viewId = t.dataset.id; App.period = 'all'; bxPanel = 'both'; setTab('box'); break;
     case 'view-an': App.viewId = t.dataset.id; App.period = 'all'; setTab('analytics'); break;
     case 'export-game': exportGame(t.dataset.id); break;
     case 'backup': backup(); break;
