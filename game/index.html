@@ -402,6 +402,8 @@ table{border-collapse:collapse}
 .rep-label{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
 .rep-tbl td,.rep-tbl th{padding:6px 9px}
 .rep-box .box-wrap:last-child{margin-bottom:0}
+.trend-us{background:var(--us-bg);color:var(--us)} .trend-them{background:var(--them-bg);color:var(--them-text)}
+.half-tbl td:not(.l),.half-tbl th{text-align:right}
 .rep-tbl td.win{font-weight:800} .rep-tbl td.win.a{color:var(--us)} .rep-tbl td.win.b{color:var(--them-text)}
 @media (max-width:760px){.rep-head{grid-template-columns:1fr}.rep-team.b{justify-content:flex-start}}
 @media print{
@@ -2838,7 +2840,7 @@ function reportKeys(g, T, A, qf, half) {
   const push = (w, good, t) => out.push({ w, good, t });
   const dE = a.efgPct - b.efgPct;
   if (Math.abs(dE) >= 5) push(Math.abs(dE) / 5, dE > 0, dE > 0 ? `Shooting edge: ${f1(a.efgPct)} eFG% to their ${f1(b.efgPct)} (3PT ${a.fg3m}-${a.fg3a} vs ${b.fg3m}-${b.fg3a}).`
-    : `They're out-shooting us: ${f1(b.efgPct)} eFG% to our ${f1(a.efgPct)} (their 3PT ${b.fg3m}-${b.fg3a}, ours ${a.fg3m}-${a.fg3a}).`);
+    : `${half ? "They're out-shooting us" : 'They out-shot us'}: ${f1(b.efgPct)} eFG% to our ${f1(a.efgPct)} (their 3PT ${b.fg3m}-${b.fg3a}, ours ${a.fg3m}-${a.fg3a}).`);
   const pot = qf ? A.trips.reduce((m, tr) => { if (tr.period === qf && tr.flags.tov) m[tr.team] += tr.pts; return m; }, { a: 0, b: 0 }) : A.pot;
   const scp = qf ? A.trips.reduce((m, tr) => { if (tr.period === qf && tr.flags.oreb) m[tr.team] += tr.pts; return m; }, { a: 0, b: 0 }) : A.scp;
   const dT = b.tovPct - a.tovPct;
@@ -2846,16 +2848,16 @@ function reportKeys(g, T, A, qf, half) {
     `Turnovers: ${a.tov} ours (${f1(a.tovPct)}%) vs ${b.tov} theirs (${f1(b.tovPct)}%) — points off turnovers ${pot.a}–${pot.b}.`);
   const dO = a.orebPct - b.orebPct;
   if (Math.abs(dO) >= 8 || Math.abs(scp.a - scp.b) >= 5) push(Math.max(Math.abs(dO) / 8, Math.abs(scp.a - scp.b) / 5), dO > 0,
-    dO > 0 ? `Winning the glass: ${a.oreb} offensive boards (${f1(a.orebPct)}%), 2nd-chance points ${scp.a}–${scp.b}.`
-           : `They're getting second shots: ${b.oreb} offensive boards (${f1(b.orebPct)}%), 2nd-chance points ${scp.b}–${scp.a} them. Box out.`);
+    dO > 0 ? `${half ? 'Winning' : 'Won'} the glass: ${a.oreb} offensive boards (${f1(a.orebPct)}%), 2nd-chance points ${scp.a}–${scp.b}.`
+           : `${half ? "They're getting" : 'They got'} second shots: ${b.oreb} offensive boards (${f1(b.orebPct)}%), 2nd-chance points ${scp.b}–${scp.a} them. Box out.`);
   const dF = a.ftr - b.ftr;
   if (Math.abs(dF) >= 12 && (a.fta + b.fta) >= 6) push(Math.abs(dF) / 12, dF > 0,
-    dF > 0 ? `Getting to the line: ${a.fta} FTA to their ${b.fta}.` : `Fouling too much: they've shot ${b.fta} free throws to our ${a.fta} (${a.pf} fouls on us).`);
+    dF > 0 ? `${half ? 'Getting' : 'Got'} to the line: ${a.fta} FTA to their ${b.fta}.` : `${half ? 'Fouling too much' : 'Fouled too much'}: ${half ? "they've shot" : 'they shot'} ${b.fta} free throws to our ${a.fta} (${a.pf} fouls on us).`);
   if (a.fta >= 6 && a.ftm / a.fta < 0.62) push(1.2, false, `Free throws: ${a.ftm}-${a.fta} (${pct(a.ftm, a.fta)}%) — ${a.fta - a.ftm} points left at the line.`);
   // Their best scorer
   if (oppHasRoster(g)) {
     const top = playerStats(g, qf, 'b').sort((x, y) => y.pts - x.pts)[0];
-    if (top && top.pts >= (half ? 8 : 15)) push(top.pts / (half ? 8 : 15), false, `${top.name} has ${top.pts} (${top.fgm}-${top.fga} FG, ${top.fg3m}-${top.fg3a} 3PT, ${top.ftm}-${top.fta} FT).`);
+    if (top && top.pts >= (half ? 8 : 15)) push(top.pts / (half ? 8 : 15), false, `${top.name} ${half ? 'has' : 'scored'} ${top.pts} (${top.fgm}-${top.fga} FG, ${top.fg3m}-${top.fg3a} 3PT, ${top.ftm}-${top.fta} FT).`);
   }
   // The biggest run each way
   const runTxt = (r, who) => `${who} ${r.pts}-0 run (${periodName(g, r.startQ, true)} ${fmtClock(A.clocks[r.startIdx])}–${fmtClock(A.clocks[r.endIdx])}), ${r.startA}–${r.startB} to ${r.endA}–${r.endB}.`;
@@ -2872,25 +2874,110 @@ function reportKeys(g, T, A, qf, half) {
       push(99, fin > 0, fin > 0 ? `Comeback: down ${-m1} at the half (${h1.a.pts}–${h1.b.pts}), won the 2nd half ${h2.a.pts}–${h2.b.pts}.`
                                 : `Lead lost: up ${m1} at the half (${h1.a.pts}–${h1.b.pts}), lost the 2nd half ${h2.a.pts}–${h2.b.pts}.`);
     else if (Math.abs(m2 - m1) >= 12) push(1.5, m2 > m1, `${m2 > m1 ? 'Won' : 'Lost'} the 2nd half ${h2.a.pts}–${h2.b.pts} after a ${h1.a.pts}–${h1.b.pts} 1st half.`);
-    // Which factor moved most between the halves, scaled the same way the keys above are.
-    const sw = [
-      ['our eFG%', h1.a.efgPct, h2.a.efgPct, true, 5], ['their eFG%', h1.b.efgPct, h2.b.efgPct, false, 5],
-      ['our turnover %', h1.a.tovPct, h2.a.tovPct, false, 4], ['their turnover %', h1.b.tovPct, h2.b.tovPct, true, 4],
-      ['our off. rebound %', h1.a.orebPct, h2.a.orebPct, true, 8], ['their off. rebound %', h1.b.orebPct, h2.b.orebPct, false, 8],
-    ].map(([l, x, y, up, sc]) => ({ l, x, y, good: (y > x) === up, w: Math.abs(y - x) / sc })).sort((p, q) => q.w - p.w)[0];
-    if (sw && sw.w >= 2) push(sw.w / 2, sw.good, `Halftime adjustment: ${sw.l} ${f1(sw.x)} in the 1st half → ${f1(sw.y)} in the 2nd.`);
-  }
-  const kA = killsFor(A, qf, 'a'), kB = killsFor(A, qf, 'b');
-  if (Math.abs(kA - kB) >= 2) push(Math.abs(kA - kB) / 2, kA > kB, `Kills: ${kA} for us, ${kB} for them (three straight stops each).`);
-  if (half) {
-    const trouble = playerStats(g, null, 'a').filter(r => r.pf >= 2).sort((x, y) => y.pf - x.pf);
-    if (trouble.length) push(1.5, false, `Foul trouble: ${trouble.map(r => `${lastName(r.name)} ${r.pf}`).join(', ')}.`);
-    if (oppHasRoster(g)) {
-      const theirs = playerStats(g, null, 'b').filter(r => r.pf >= 2).sort((x, y) => y.pf - x.pf);
-      if (theirs.length) push(1.4, true, `Attack: ${theirs.map(r => `${r.name} (${r.pf} PF)`).join(', ')}.`);
+    // Why each side's scoring moved between the halves: the stats that drove it.
+    for (const t of ['a', 'b']) {
+      const d = scoringDrivers(g, h1, h2, t);
+      if (d) push(50 - (t === 'a' ? 0 : 1), (t === 'a') === (d.delta > 0), d.text);
     }
+    // And what held all game - an edge one side kept through both halves.
+    const held = halfSplits(g, A).filter(r => r.trend === 'held' || r.trend === 'grew').sort((x, y) => Math.min(Math.abs(y.e1), Math.abs(y.e2)) / y.sc - Math.min(Math.abs(x.e1), Math.abs(x.e2)) / x.sc)[0];
+    if (held) push(10, held.e2 > 0, `Held all game — ${held.lbl}: ${held.e2 > 0 ? 'ours' : 'theirs'} both halves (${held.fa(held.h1a)} to ${held.fa(held.h1b)}, then ${held.fa(held.h2a)} to ${held.fa(held.h2b)}).`);
   }
-  return out.sort((x, y) => y.w - x.w).slice(0, 6);
+  return out.sort((x, y) => y.w - x.w).slice(0, 7);
+}
+/* 1st half against 2nd half (OT counts with the 2nd), factor by factor. Each factor's EDGE is
+   Moorpark's advantage in that half on the factor's own scale (positive = ours); the trend
+   compares the two halves' edges:
+     flip      the edge changed hands and the 2nd-half edge is a real one (≥ the threshold)
+     grew      ours/theirs both halves, and the 2nd-half edge is a threshold bigger
+     held      ours/theirs both halves, each at least half a threshold
+     narrowed  ours/theirs both halves, but by a threshold less in the 2nd
+     even      nothing either way */
+function halfSplits(g, A) {
+  const H = [e => e.quarter === 1, e => e.quarter >= 2].map(p => teamStats(g, p));
+  const tr = (k, half) => { const m = { a: 0, b: 0 }; A.trips.forEach(t => { if ((half === 1) === (t.period === 1) && t.flags[k]) m[t.team] += t.pts; }); return m; };
+  const kills = half => ({ a: A.trips.filter(t => t.kill === 'a' && (half === 1) === (t.period === 1)).length, b: A.trips.filter(t => t.kill === 'b' && (half === 1) === (t.period === 1)).length });
+  const p3 = s => s.fg3a ? 100 * s.fg3m / s.fg3a : 0;
+  const defs = [
+    ['Points per 100 poss', s => s.ortg, true, 10, f0],
+    ['eFG%', s => s.efgPct, true, 5, f1],
+    ['3PT%', p3, true, 8, (v, s) => f1(v)],
+    ['Turnover %', s => s.tovPct, false, 4, f1],
+    ['Off. rebound %', s => s.orebPct, true, 8, f1],
+    ['FT rate', s => s.ftr, true, 12, f1],
+  ];
+  const rows = defs.map(([lbl, get, hi, sc, fa]) => ({ lbl, sc, fa, h1a: get(H[0].a), h1b: get(H[0].b), h2a: get(H[1].a), h2b: get(H[1].b), hi }));
+  const pot = [tr('tov', 1), tr('tov', 2)], scp = [tr('oreb', 1), tr('oreb', 2)], kl = [kills(1), kills(2)];
+  rows.push({ lbl: 'Points off turnovers', sc: 4, fa: v => v, h1a: pot[0].a, h1b: pot[0].b, h2a: pot[1].a, h2b: pot[1].b, hi: true });
+  rows.push({ lbl: '2nd-chance points', sc: 4, fa: v => v, h1a: scp[0].a, h1b: scp[0].b, h2a: scp[1].a, h2b: scp[1].b, hi: true });
+  rows.push({ lbl: 'Kills', sc: 2, fa: v => v, h1a: kl[0].a, h1b: kl[0].b, h2a: kl[1].a, h2b: kl[1].b, hi: true });
+  for (const r of rows) {
+    r.e1 = (r.h1a - r.h1b) * (r.hi ? 1 : -1); r.e2 = (r.h2a - r.h2b) * (r.hi ? 1 : -1);
+    const real = e => Math.abs(e) >= r.sc, half_ = e => Math.abs(e) >= r.sc / 2;
+    if (Math.sign(r.e1) !== Math.sign(r.e2) && real(r.e2) && half_(r.e1)) r.trend = 'flip';
+    else if (Math.sign(r.e1) === Math.sign(r.e2) && r.e1 !== 0 && Math.abs(r.e2) - Math.abs(r.e1) >= r.sc && half_(r.e1)) r.trend = 'grew';
+    else if (Math.sign(r.e1) === Math.sign(r.e2) && r.e1 !== 0 && half_(r.e1) && half_(r.e2)) r.trend = Math.abs(r.e1) - Math.abs(r.e2) >= r.sc ? 'narrowed' : 'held';
+    else r.trend = 'even';
+  }
+  return rows;
+}
+/* WHY A SIDE'S SCORING MOVED between the halves. Its points per 100 possessions in each half,
+   and the stats behind the change, each turned into an estimate of what it was worth per
+   100 possessions at the 2nd half's shot volume:
+     2PT% / 3PT%      change in make rate × points per make × attempts per 100
+     FT trips, FT%    change in FTA per 100 × FT%, and change in FT% × FTA per 100
+     turnovers        change in TO% × points per live (non-turnover) possession
+     rebounding       change in OREB% × misses per 100 × points per possession —
+                      named from the defense's side when it is theirs ("our DREB%")
+   The estimates are approximate and overlap a little; they rank the causes, they don't add
+   up to the total exactly. Only drivers pointing the same way as the change are named. */
+function scoringDrivers(g, h1, h2, t) {
+  const x1 = h1[t], x2 = h2[t];
+  if (!(x1.possessions > 4 && x2.possessions > 4)) return null;
+  const delta = x2.ortg - x1.ortg;
+  if (Math.abs(delta) < 10) return null;
+  const P = x2.possessions, per = v => 100 * v / P;
+  const rate = (m, a) => a ? m / a : null;
+  const live = Math.min(1.4, Math.max(0.8, x1.pts / Math.max(1, x1.possessions * (1 - x1.tovPct / 100))));
+  const ours = t === 'a', them = esc(g.teamBName);
+  const who = ours ? 'our' : 'their';
+  const drivers = [];
+  const add = (label, v1, v2, impact, fmt = f1) => { if (v1 != null && v2 != null && isFinite(impact)) drivers.push({ label, v1, v2, impact, fmt }); };
+  const p2a = rate(x1.fg2m, x1.fg2a), p2b = rate(x2.fg2m, x2.fg2a);
+  if (p2a != null && p2b != null) add(`${who} 2PT%`, 100 * p2a, 100 * p2b, (p2b - p2a) * 2 * per(x2.fg2a));
+  const p3a = rate(x1.fg3m, x1.fg3a), p3b = rate(x2.fg3m, x2.fg3a);
+  if (p3a != null && p3b != null) add(`${who} 3PT% (${x1.fg3m}-${x1.fg3a} → ${x2.fg3m}-${x2.fg3a})`, 100 * p3a, 100 * p3b, (p3b - p3a) * 3 * per(x2.fg3a));
+  add(`${who} turnover %`, x1.tovPct, x2.tovPct, -(x2.tovPct - x1.tovPct) * live);
+  const misses = per(x2.fga - x2.fgm);
+  const dOreb = x2.orebPct - x1.orebPct;
+  if (ours) add('our OREB%', x1.orebPct, x2.orebPct, dOreb / 100 * misses * live);
+  else add('our DREB%', 100 - x1.orebPct, 100 - x2.orebPct, dOreb / 100 * misses * live);
+  const ftp = x2.fta ? x2.ftm / x2.fta : 0.7;
+  add(`${who} FTA per 100 poss`, 100 * x1.fta / x1.possessions, per(x2.fta), (per(x2.fta) - 100 * x1.fta / x1.possessions) * ftp, f0);
+  const fa = rate(x1.ftm, x1.fta), fb = rate(x2.ftm, x2.fta);
+  if (fa != null && fb != null) add(`${who} FT%`, 100 * fa, 100 * fb, (fb - fa) * per(x2.fta));
+  const why = drivers.filter(d => Math.sign(d.impact) === Math.sign(delta) && Math.abs(d.impact) >= 3)
+    .sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 3);
+  const name = ours ? 'Our' : `${them}'s`;
+  const head = `${name} scoring ${delta > 0 ? 'rose' : 'fell'} from ${f0(x1.ortg)} to ${f0(x2.ortg)} per 100 possessions in the 2nd half`;
+  if (!why.length) return { delta, text: head + ' — no single stat behind it; spread across everything.' };
+  return { delta, text: head + '. Why: ' + why.map(d => `${d.label} ${d.fmt(d.v1)} → ${d.fmt(d.v2)} (about ${sgn(Math.round(d.impact))} per 100)`).join('; ') + '.' };
+}
+function halfSplitHtml(g, A) {
+  const tag = r => {
+    const who = r.e2 > 0 ? esc(g.teamAName) : esc(g.teamBName);
+    const cls = r.trend === 'even' ? 'lev-low' : r.e2 > 0 ? 'trend-us' : 'trend-them';
+    const txt = { flip: 'Flipped → ' + who, grew: 'Grew — ' + who, held: 'Held — ' + who, narrowed: 'Narrowed — ' + who, even: 'Even' }[r.trend];
+    return `<span class="tag ${cls}" style="margin:0">${txt}</span>`;
+  };
+  const cell = (v, w, r) => `<td class="${w ? 'win ' + w : ''}">${r.fa(v)}</td>`;
+  const win = (x, y, hi) => x === y ? '' : ((x > y) === hi ? 'a' : 'b');
+  return `<div class="tbl-wrap"><table class="tbl rep-tbl half-tbl">
+    <tr><th rowspan="2"></th><th colspan="2" class="grp">1st half</th><th colspan="2" class="grp">2nd half</th><th rowspan="2" style="text-align:left">Trend</th></tr>
+    <tr><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
+    ${halfSplits(g, A).map(r => { const w1 = win(r.h1a, r.h1b, r.hi), w2 = win(r.h2a, r.h2b, r.hi);
+      return `<tr><td class="l">${r.lbl}</td>${cell(r.h1a, w1 === 'a' && 'a', r)}${cell(r.h1b, w1 === 'b' && 'b', r)}<td class="gl ${w2 === 'a' ? 'win a' : ''}">${r.fa(r.h2a)}</td>${cell(r.h2b, w2 === 'b' && 'b', r)}<td class="l">${tag(r)}</td></tr>`; }).join('')}
+  </table></div><div class="tiny muted" style="margin-top:6px">Each half's better side is coloured. Flipped: the edge changed hands at the half. Held: the same side won it both halves. Grew / Narrowed: same side, by a lot more / a lot less in the 2nd half. OT counts with the 2nd half.</div>`;
 }
 function reportHtml(g, scope) {
   const half = scope === 'half';
@@ -2926,6 +3013,7 @@ function reportHtml(g, scope) {
     </div>
     <div class="card"><h3>${half ? 'Second-half keys' : 'What decided it'}</h3>
       <div class="insights">${keys.map(k => `<div class="ins ${k.good ? 'good' : 'bad'}">${esc(k.t)}</div>`).join('') || '<div class="muted">Nothing stood out — an even game on every factor.</div>'}</div></div>
+    ${!half && g.format.periods === 2 && g.quarters.length >= 2 ? `<div class="card"><h3>1st half vs 2nd half <span class="muted">what changed at the break, and what held</span></h3>${halfSplitHtml(g, A)}</div>` : ''}
     <div class="grid2">
       <div class="card"><h3>Four factors</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
         ${ffRow('eFG%', a.efgPct, b.efgPct, true)}${ffRow('Turnover %', a.tovPct, b.tovPct, false)}${ffRow('Off. rebound %', a.orebPct, b.orebPct, true)}${ffRow('FT rate', a.ftr, b.ftr, true)}

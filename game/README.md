@@ -80,7 +80,11 @@ factors that are swinging it, turnovers and second chances with the points they 
 hot scorer, runs against, foul trouble on both sides), four factors, fouls and timeouts
 left, our box, their top scorers, best and worst lineup, and 10-0 runs. **Start 2nd Half**
 sets both starting fives. Finishing the game opens the same report for the whole game on
-the **Report** tab (Halftime / Final switch). 🖨 prints it on white paper.
+the **Report** tab (Halftime / Final switch). Its "What decided it" leads with the comeback
+(or the lead lost) and explains each side's change in points per 100 possessions between the
+halves through the stats that drove it, each with a rough worth in points per 100 (e.g.
+their 3PT% 8-14 → 3-14, our DREB% 63 → 93). A 1st half vs 2nd half table tags every factor
+Flipped, Grew, Held or Narrowed. 🖨 prints it on white paper.
 
 ## Garbage time and leverage (live)
 
