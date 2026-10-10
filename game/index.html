@@ -306,7 +306,15 @@ table{border-collapse:collapse}
 .sch-tbl input[type=checkbox]{width:auto}
 .res{font-weight:600;font-size:13px;margin-right:6px}
 .sch-tbl input.tbd{color:var(--warn)}
-.sch-event{font-size:11px;color:var(--text2);padding-left:8px;text-align:left}
+.tlogo{width:var(--lg);height:var(--lg);object-fit:contain;flex-shrink:0;display:inline-block;vertical-align:middle}
+.tlogo-ph{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--card2);color:var(--text2);font-size:calc(var(--lg) * .34);font-weight:800}
+.sb-name .tlogo{margin-right:2px}
+.sb-team .sb-name::before{display:none}
+.bx-team .tlogo{margin-right:8px;vertical-align:-6px}
+.box-team-header .tlogo{margin-right:-4px}
+.sch-opp{display:flex;align-items:center;gap:8px}
+.sch-opp input{flex:1;min-width:0}
+.sch-event{padding-left:38px!important;font-size:11px;color:var(--text2);padding-left:8px;text-align:left}
 .res.w{color:var(--good)} .res.l{color:var(--bad)}
 .opp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .opp-chip{background:var(--card);border-radius:99px;padding:4px 11px;font-size:12.5px}
@@ -432,6 +440,25 @@ const SEED_ROSTER = ["Josh Castaniero","Matthew Wilson","Alex Bello","SoulJah Ni
   "Eric Kubel","Quian Khawaja","Brenden Banks-Speed","George Hees","Emmitt Claiborne","Sean Castro","CJ Temme",
   "Axel Ostergard","Jaylen Smith","Finn Ortiz","Jack Johnson","Ashton Carraway","Reese Widerburg"]
   .map(n => ({ name: n, num: '', hidden: false }));
+
+/* Team logos — the leaderboard's set (game/logos, 128px). Matched by name: "LA Pierce" ->
+   la_pierce.png. A team with no file gets an initials badge. */
+const LOGO_FILES = new Set(["alameda", "allan_hancock", "american_river", "antelope_valley", "bakersfield", "barstow", "butte", "cabrillo", "canada", "canyons", "cerritos", "cerro_coso", "chabot", "chaffey", "citrus", "coalinga", "columbia", "compton", "contra_costa", "copper_mountain", "cosumnes_river", "cuesta", "cuyamaca", "cypress", "de_anza", "desert", "diablo_valley", "east_los_angeles", "el_camino", "feather_river", "folsom_lake", "foothill", "fresno", "fullerton", "gavilan", "glendale", "golden_west", "grossmont", "hartnell", "imperial_valley", "irvine_valley", "la_harbor", "la_pierce", "la_southwest", "la_trade_tech", "la_valley", "las_positas", "lassen", "lemoore", "long_beach", "los_angeles_city", "los_medanos", "mack_attack_prep", "marin", "mendocino", "merced", "merritt", "miracosta", "modesto", "monterey_peninsula", "moorpark", "mt_san_antonio", "mt_san_jacinto", "napa_valley", "ohlone", "orange_coast", "oxnard", "palo_verde", "palomar", "pasadena_city", "porterville", "redwoods", "reedley", "rio_hondo", "riverside", "sacramento_city", "saddleback", "san_bernardino_valley", "san_diego_city", "san_diego_mesa", "san_diego_miramar", "san_francisco", "san_joaquin_delta", "san_jose", "san_mateo", "santa_ana", "santa_barbara", "santa_monica", "santa_rosa", "santiago_canyon", "sequoias", "shasta", "sierra", "siskiyous", "skyline", "solano", "southwestern", "ventura", "victor_valley", "west_la", "west_valley", "yuba"]);
+const LOGO_ALIAS = { fresno_city: 'fresno', mira_costa: 'miracosta', mt_sac: 'mt_san_antonio', mt_san_antonio_college: 'mt_san_antonio',
+  la_city: 'los_angeles_city', lacc: 'los_angeles_city', elac: 'east_los_angeles', la_trade: 'la_trade_tech', west_los_angeles: 'west_la',
+  pierce: 'la_pierce', santa_monica_college: 'santa_monica', smc: 'santa_monica', sbcc: 'santa_barbara', santa_barbara_city: 'santa_barbara',
+  san_bernardino: 'san_bernardino_valley', sbvc: 'san_bernardino_valley', av: 'antelope_valley', mack_attack: 'mack_attack_prep' };
+function logoSlug(name) {
+  let k = String(name || '').toLowerCase().replace(/&/g, 'and').replace(/\b(college|cc|community)\b/g, ' ').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (LOGO_ALIAS[k]) k = LOGO_ALIAS[k];
+  return LOGO_FILES.has(k) ? k : null;
+}
+function logoHtml(name, size, cls = '') {
+  const k = logoSlug(name);
+  if (k) return `<img class="tlogo ${cls}" style="--lg:${size}px" src="logos/${k}.png" alt="" loading="lazy">`;
+  const ini = String(name || '?').replace(/^TBD.*/, '?').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  return `<span class="tlogo tlogo-ph ${cls}" style="--lg:${size}px">${esc(ini)}</span>`;
+}
 
 const STAT_BTNS = [
   ['2fg_make', '2PT Make', 'make'], ['2fg_miss', '2PT Miss', 'miss'],
@@ -1471,7 +1498,7 @@ function paintScorebar() {
      a period). Those entries are what minutes and the game-time analytics are built from. */
   el.innerHTML = `
     <div class="sb-team a">
-      <div class="sb-id"><div class="sb-name">${esc(g.teamAName)}</div>
+      <div class="sb-id"><div class="sb-name">${logoHtml('Moorpark', 34)}${esc(g.teamAName)}</div>
         <div class="sb-meta">${bonusTag(g, 'a')}<span>Fouls ${tf('a')}</span>${toDots(g, 'a')}</div>
         <div class="sb-meta">${killHtml('a')}</div></div>
       <div class="sb-score">${score(g, 'a')}</div></div>
@@ -1482,7 +1509,7 @@ function paintScorebar() {
     </div>
     <div class="sb-team b">
       <div class="sb-score">${score(g, 'b')}</div>
-      <div class="sb-id"><div class="sb-name">${esc(g.teamBName)}</div>
+      <div class="sb-id"><div class="sb-name">${logoHtml(g.teamBName, 34)}${esc(g.teamBName)}</div>
         <div class="sb-meta">${toDots(g, 'b')}<span>Fouls ${tf('b')}</span>${bonusTag(g, 'b')}</div>
         <div class="sb-meta">${killHtml('b')}</div></div></div>`;
   paintLevbar();
@@ -2064,7 +2091,7 @@ function bxTable(g, t, qf) {
     return bxVal(tot, k);
   };
   const header = t === 'a' ? g.teamAName : g.teamBName;
-  return `<div class="box-team-header ${t}">${esc(header.toUpperCase())}<span>${Math.round(ts.possessions)} POSS</span></div>
+  return `<div class="box-team-header ${t}">${logoHtml(t === 'a' ? 'Moorpark' : header, 20)}${esc(header.toUpperCase())}<span>${Math.round(ts.possessions)} POSS</span></div>
     <div class="box-wrap"><table class="box-table"><thead><tr><th>PLAYER</th>${cols.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
       <tbody>${body || `<tr><td colspan="${cols.length + 1}" style="text-align:center;color:#475569">${t === 'b' && !oppHasRoster(g) ? 'No roster entered — team totals below.' : 'No stats yet.'}</td></tr>`}${teamRow}
       <tr class="totals-row"><td>TEAM</td>${cols.map(([k]) => `<td>${totVal(k)}</td>`).join('')}</tr></tbody></table></div>`;
@@ -2075,7 +2102,7 @@ function renderBox() {
   const n = Math.max(g.format.periods, g.quarters.length + (g.between || g.completed ? 0 : 1));
   const qs = t => Array.from({ length: n }, (_, i) => score(g, t, e => e.quarter === i + 1));
   const fs = finalScore(g);
-  const line = t => `<tr><td class="bx-team ${t}">${esc(teamName(g, t))}</td>${qs(t).map(v => `<td>${v}</td>`).join('')}<td class="bs-final-col">${fs[t]}</td></tr>`;
+  const line = t => `<tr><td class="bx-team ${t}">${logoHtml(t === 'a' ? 'Moorpark' : teamName(g, t), 24)}${esc(teamName(g, t))}</td>${qs(t).map(v => `<td>${v}</td>`).join('')}<td class="bs-final-col">${fs[t]}</td></tr>`;
   const status = g.completed ? '' : g.between ? (g.quarters.length ? ' — End of ' + periodName(g, g.quarters.length) : ' — Pregame') : ' — 🔴 LIVE (' + periodName(g, curPeriod(g), true) + ' ' + fmtClock(clockNow(g)) + ' left)';
   const tab = (k, l) => `<button class="bs-tab-pill ${bxPanel === k ? 'active' : ''}" data-act="bx-panel" data-k="${k}">${esc(l)}</button>`;
   const panel = bxPanel === 'b' ? bxTable(g, 'b', qf) : bxPanel === 'both' ? bxTable(g, 'a', qf) + bxTable(g, 'b', qf) : bxPanel === 'pbp' ? renderPbp(true) : bxTable(g, 'a', qf);
@@ -2774,7 +2801,7 @@ function renderSchedule() {
     return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
       <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
       <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
-      <td><input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}" class="${isTBD(r.opp) ? 'tbd' : ''}">${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
+      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logoHtml(r.opp, 22) : '<span class="tlogo" style="--lg:22px"></span>'}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
       <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}" placeholder="${i === 0 ? '7:00 PM' : ''}"></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="scrim" ${r.scrim ? 'checked' : ''}></td>
@@ -2799,7 +2826,7 @@ function renderSchedule() {
         <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
     </div>
     <div class="card prof">
-      <div class="row" style="margin-bottom:14px"><h3 style="margin:0">Opponent</h3>
+      <div class="row" style="margin-bottom:14px">${SCH.prof ? logoHtml(SCH.prof, 44) : ''}<h3 style="margin:0">Opponent</h3>
         <select id="prof-sel" style="min-width:220px">${names.map(n => `<option ${SCH.prof && n.toLowerCase() === SCH.prof.toLowerCase() ? 'selected' : ''}>${esc(n)}</option>`).join('') || '<option value="">— add a game first —</option>'}</select>
         ${SCH.prof ? `<span class="small muted">${profGamesLine(SCH.prof)}</span>` : ''}</div>
       ${SCH.prof ? profileHtml(SCH.prof) : '<div class="muted">Add games above and each opponent gets a page here: roster, scouting report, notes and results.</div>'}
@@ -3225,12 +3252,17 @@ async function boot() {
 const _render = render;
 render = function () { _render(); if (App.tab === 'track' && !liveGame()) paintSetupScout(); };
 
+function warmLogos() {
+  const names = new Set(['Moorpark', ...App.schedule.map(r => r.opp), ...App.games.map(g => g.teamBName)]);
+  for (const n of names) { const k = logoSlug(n); if (k) fetch('logos/' + k + '.png').catch(() => {}); }
+}
 function registerOffline() {
   const dot = $('#offline-dot');
   if (location.protocol === 'file:') { dot.textContent = 'Offline ready'; dot.classList.add('ready'); return; }
   if (!('serviceWorker' in navigator)) { dot.textContent = 'Offline not supported'; return; }
   navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => {
     dot.textContent = 'Offline ready'; dot.classList.add('ready');
+    warmLogos();
   }).catch(() => { dot.textContent = 'Offline unavailable'; });
 }
 let _rsz = null;
