@@ -154,7 +154,7 @@ table{border-collapse:collapse}
 .pbtn .pnum{color:var(--muted);font-weight:500;margin-right:5px;font-variant-numeric:tabular-nums}
 .pbtn .pline{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px}
 .pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
-.pbtn .pf.f2{color:var(--warn)} .pbtn .pf.f4{color:var(--bad)}
+.pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
 .pbtn.team{min-height:40px;font-size:13px;color:var(--text2);background:transparent;border-style:dashed;box-shadow:none!important}
 .pbtn.dim{opacity:.22;pointer-events:none}
 .pbtn.hot{background:var(--card2);border-color:var(--border2)}
@@ -1633,7 +1633,9 @@ function paintTracker() {
     const label = isTeam ? (t === 'b' && !oppHasRoster(g) ? esc(g.teamBName) : 'Team') : t === 'a' ? `${numOf(p) !== '' ? '<span class="pnum">#' + esc(numOf(p)) + '</span>' : ''}${esc(p)}` : esc(p);
     const dim = dis || (F.phase !== 'idle' && !allowed(t, p));
     const hot = F.phase !== 'idle' && !dim;
-    const pfCls = s.pf >= 4 ? 'f4' : (s.pf >= 2 && curPeriod(g) === 1) || s.pf >= 3 ? 'f2' : '';
+    /* Foul trouble: 2 in the 1st half, or 3+ in the 2nd half / OT, turns the badge bright red. */
+    const firstHalf = curPeriod(g) <= Math.max(1, g.format.periods / 2);
+    const pfCls = (firstHalf && s.pf >= 2) || s.pf >= 3 ? 'f-trouble' : '';
     const info = t === 'b' && !isTeam ? oppInfoLine(g, p) : '';
     const pmv = !isTeam ? (t === 'a' ? (LPM.pm[p] || 0) : OT ? (OPM.pm[p] || 0) : null) : null;
     const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>${info ? `<span class="pline oinfo">${esc(info)}</span>` : ''}`;
