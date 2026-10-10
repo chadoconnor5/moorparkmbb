@@ -23,6 +23,14 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
 - Timeouts: 2 × 30-second + 4 full. Each OT adds one 30-second timeout to what is left.
 - Team fouls reset at the half and carry into OT; bonus at 7, double bonus at 10.
 
+## Opponent rosters
+
+Opponents tab → **+ New opponent** → team name, then **+ Add player** for each (number,
+name, position, height, year, and a scouting note that shows on his button in the game).
+Enter in any box starts the next player. At game setup pick the saved team. Mid-game, the
+**Roster** button on their side adds or fixes players; edits match by number, so stats
+already logged stay with the player.
+
 ## Live entry
 
 - Tap a stat, then the player. Makes ask for the assister, misses for the rebounder (tap
