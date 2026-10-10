@@ -271,6 +271,10 @@ table{border-collapse:collapse}
 .ks-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
 .ks-nums b{display:block;font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
 .ks-nums span{font-size:11px;color:var(--text2);font-weight:600}
+.lu-ff td,.lu-ff th{padding-left:6px;padding-right:6px}
+.lu-ff tr.grp th{background:transparent;padding-bottom:0;padding-top:4px}
+.lu-ff .grp-h{text-align:center!important;color:#fff;letter-spacing:.12em}
+.lu-ff td.lu-names{white-space:normal;min-width:190px;max-width:240px}
 .insights{display:flex;flex-direction:column;gap:6px}
 .ins{padding:9px 12px;border-radius:10px;background:var(--card);font-weight:500;display:flex;align-items:center;gap:10px;color:var(--text2)}
 .ins::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
@@ -2598,24 +2602,55 @@ function periodTable(g) {
   }
   return h + '</table></div>';
 }
-function lineupsHtml(g) {
-  const units = lineupTable(g, App.lev).sort((x, y) => y.secs - x.secs || (y.oT + y.dT) - (x.oT + x.dT));
-  if (!units.length) return '<div class="muted">No lineups yet.</div>';
-  const cur = g.completed ? '' : unitKey(currentLineup(g));
-  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Lineup</th><th>MIN</th><th>Poss O/D</th><th>Pts F–A</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th><th>Kills F/A</th></tr>
-    ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
-      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td><td>${u.kF} / ${u.kA}</td></tr>`; }).join('')}
-  </table></div><div class="tiny muted" style="margin-top:6px">Highlighted row is on the floor now.</div>`;
+/* Lineups, with the four factors on both ends. Each factor is coloured against the team's
+   number over the same possessions (the same leverage filter), so a row shows which fives
+   lift it and which drag it. Offense: eFG%, TOV% (per trip), OREB%, FT rate. Defense: the
+   opponent's eFG%, turnovers forced (per trip), DREB%, the opponent's FT rate. */
+function unitFactors(us, them, oT, dT) {
+  const r = (n, d) => d > 0 ? 100 * n / d : null;
+  return {
+    oEfg: r(us.fgm + 0.5 * us.fg3m, us.fga), oTov: r(us.tov, oT), oOreb: r(us.oreb, us.oreb + them.dreb), oFtr: r(us.fta, us.fga),
+    dEfg: r(them.fgm + 0.5 * them.fg3m, them.fga), dTov: r(them.tov, dT), dDreb: r(us.dreb, us.dreb + them.oreb), dFtr: r(them.fta, them.fga),
+  };
 }
-function oppLineupsHtml(g) {
-  const units = lineupTable(g, App.lev, 'b').sort((x, y) => (y.oT + y.dT) - (x.oT + x.dT));
+const UF_COLS = [['oEfg', 'eFG%', true], ['oTov', 'TOV%', false], ['oOreb', 'OREB%', true], ['oFtr', 'FTR', true],
+                 ['dEfg', 'eFG%', false], ['dTov', 'TOV%', true], ['dDreb', 'DREB%', true], ['dFtr', 'FTR', false]];
+function lineupFactorTable(g, side) {
+  const units = lineupTable(g, App.lev, side).sort((x, y) => (side === 'a' ? y.secs - x.secs : 0) || (y.oT + y.dT) - (x.oT + x.dT));
   if (!units.length) return '<div class="muted">No lineups yet.</div>';
-  const cur = g.completed ? '' : unitKey(currentLineup(g, 'b'));
-  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Lineup</th><th>Poss O/D</th><th>Pts F–A</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th></tr>
-    ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
-      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.map(esc).join(', ')}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td></tr>`; }).join('')}
-  </table></div><div class="tiny muted" style="margin-top:6px">Minutes aren't kept for their side (their subs don't need a clock). Highlighted row is on the floor now.</div>`;
+  const cur = g.completed ? '' : unitKey(currentLineup(g, side));
+  const all = { evA: [], evB: [], oT: 0, dT: 0 };
+  units.forEach(u => { all.evA.push(...u.evA); all.evB.push(...u.evB); all.oT += u.oT; all.dT += u.dT; });
+  const base = unitFactors(statLine(all.evA), statLine(all.evB), all.oT, all.dT);
+  const cell = (v, k, hi) => {
+    if (v == null) return '<td>—</td>';
+    const bv = base[k]; let c = '';
+    if (bv != null && Math.abs(v - bv) >= 1) c = (v > bv) === hi ? 'pos' : 'neg';
+    return `<td class="${c}">${v.toFixed(1)}</td>`;
+  };
+  const nm = u => side === 'a' ? u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ') : u.names.map(esc).join(', ');
+  const rows = units.map(u => {
+    const F = unitFactors(statLine(u.evA), statLine(u.evB), u.oT, u.dT);
+    const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
+    return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l lu-names">${nm(u)}</td>${side === 'a' ? `<td>${(u.secs / 60).toFixed(1)}</td>` : ''}
+      <td>${u.oT} / ${u.dT}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td>
+      <td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td>
+      ${UF_COLS.map(([k, , hi], i) => (i === 0 || i === 4 ? '' : '') + cell(F[k], k, hi).replace('<td', i === 0 || i === 4 ? '<td style="border-left:2px solid var(--border2)"' : '<td')).join('')}
+      ${side === 'a' ? `<td style="border-left:2px solid var(--border2)">${u.kF} / ${u.kA}</td>` : ''}</tr>`;
+  }).join('');
+  const baseRow = `<tr class="tot"><td class="l">${side === 'a' ? 'Team' : esc(g.teamBName)} (same possessions)</td>${side === 'a' ? '<td></td>' : ''}<td>${all.oT} / ${all.dT}</td><td></td><td></td><td></td><td></td>
+    ${UF_COLS.map(([k], i) => `<td${i === 0 || i === 4 ? ' style="border-left:2px solid var(--border2)"' : ''}>${base[k] == null ? '—' : base[k].toFixed(1)}</td>`).join('')}${side === 'a' ? '<td style="border-left:2px solid var(--border2)"></td>' : ''}</tr>`;
+  return `<div class="tbl-wrap"><table class="tbl lu-ff">
+    <tr class="grp"><th></th>${side === 'a' ? '<th></th>' : ''}<th></th><th></th><th></th><th></th><th></th>
+      <th colspan="4" class="grp-h" style="border-left:2px solid var(--border2)">Offense</th><th colspan="4" class="grp-h" style="border-left:2px solid var(--border2)">Defense</th>${side === 'a' ? '<th style="border-left:2px solid var(--border2)"></th>' : ''}</tr>
+    <tr><th>Lineup</th>${side === 'a' ? '<th>MIN</th>' : ''}<th>Poss O/D</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th>
+      ${UF_COLS.map(([, l], i) => `<th${i === 0 || i === 4 ? ' style="border-left:2px solid var(--border2)"' : ''}>${i >= 4 ? (l === 'eFG%' || l === 'FTR' ? 'Opp ' + l : l === 'TOV%' ? 'Forced TOV%' : l) : l}</th>`).join('')}
+      ${side === 'a' ? '<th style="border-left:2px solid var(--border2)">Kills F/A</th>' : ''}</tr>
+    ${rows}${baseRow}</table></div>
+    <div class="tiny muted" style="margin-top:6px">Green/red: better/worse than ${side === 'a' ? 'the team' : 'their team'} over the same possessions. Highlighted row is on the floor now.${side === 'b' ? ' Minutes aren\'t kept for their side (their subs don\'t need a clock).' : ''}</div>`;
 }
+function lineupsHtml(g) { return lineupFactorTable(g, 'a'); }
+function oppLineupsHtml(g) { return lineupFactorTable(g, 'b'); }
 function onOffHtml(g) {
   const rows = onOffTable(g, App.lev).filter(r => r.secs > 0 || r.on.oT + r.on.dT > 0).sort((x, y) => y.secs - x.secs);
   if (!rows.length) return '<div class="muted">No minutes yet.</div>';
