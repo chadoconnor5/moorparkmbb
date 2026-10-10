@@ -158,6 +158,8 @@ table{border-collapse:collapse}
 .pbtn.team{min-height:40px;font-size:13px;color:var(--text2);background:transparent;border-style:dashed;box-shadow:none!important}
 .pbtn.dim{opacity:.22;pointer-events:none}
 .pbtn.hot{background:var(--card2);border-color:var(--border2)}
+.abandon-link{align-self:center;margin-top:6px;font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding:4px 8px}
+.abandon-link:hover{color:var(--bad)}
 .skipbig{width:100%;padding:12px;font-size:15px}
 .pbtn .oinfo{color:var(--text2)}
 .bench-mini{font-size:11.5px;color:var(--muted);padding:2px}
@@ -1540,7 +1542,8 @@ function renderBetween(g) {
   const q = curPeriod(g), P = g.format.periods, s = finalScore(g);
   if (g.quarters.length === 0)
     return `<div class="banner"><h2>Ready — ${esc(g.teamAName)} vs ${esc(g.teamBName)}</h2>
-      <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, 1)}</button></div>`;
+      <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, 1)}</button>
+      <button class="btn btn-bad" data-act="abandon">Abandon — back to setup</button></div>`;
   if (g.quarters.length < P)
     return `<div class="banner"><h2>${g.quarters.length === 1 && P === 2 ? 'Halftime' : 'End of ' + periodName(g, g.quarters.length)} · ${s.a}–${s.b}</h2>
       <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, q)}</button></div>`;
@@ -1698,7 +1701,8 @@ function paintTracker() {
       <button class="btn" data-act="redo" ${!redoStack.length || busy ? 'disabled' : ''}>↷ Redo</button>
       <button class="btn btn-bad" data-act="end-period" ${dis || busy ? 'disabled' : ''}>End ${g.between ? 'period' : periodName(g, curPeriod(g), true)}</button>
     </div>
-    <div class="feed">${recent || '<div class="s">No plays yet</div>'}</div>`;
+    <div class="feed">${recent || '<div class="s">No plays yet</div>'}</div>
+    <button class="abandon-link" data-act="abandon">Abandon game…</button>`;
 }
 
 function describe(g, e) {
@@ -2203,6 +2207,36 @@ function finishGame() {
   saveGames();
   toast('Final: ' + g.teamAName + ' ' + fs.a + ', ' + g.teamBName + ' ' + fs.b, 'good', 4000);
   setTab('box');
+}
+
+/* ── ABANDON ──
+   For a game set up wrong (wrong opponent, wrong starters, wrong date) or started badly:
+   delete it outright - it never reaches the box scores, Games or Season - and land back
+   on setup with what was chosen still filled in, so only the mistake needs fixing. */
+function openAbandon() {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') cancelFlow();
+  const plays = g.eventLog.filter(isStat).length, subs = g.eventLog.filter(e => e.type === 'sub').length;
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:480px">
+    <h2>Abandon this game?</h2>
+    <div style="color:var(--text2);line-height:1.6">${esc(g.title)} — ${esc(g.date || '')}<br>
+      ${plays || subs ? `<b style="color:var(--bad)">${plays} play${plays === 1 ? '' : 's'}${subs ? ' and ' + subs + ' sub' + (subs === 1 ? '' : 's') : ''} will be deleted.</b>` : 'Nothing has been tracked yet.'}
+      <br>It won't appear in Games, box scores or Season. You go back to setup with the opponent, date, roster and starters still filled in.</div>
+    ${plays ? '<div class="small muted" style="margin-top:8px">Just a wrong play? Use Undo instead — this deletes the whole game.</div>' : ''}
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Keep the game</button><button class="btn btn-bad btn-lg" data-act="abandon-confirm">Abandon and start over</button></div></div></div>`;
+}
+function abandonGame() {
+  const g = liveGame(); if (!g) return;
+  setupDraft = { opponent: g.opponent || g.teamBName, date: g.date, site: g.site || 'home', conf: !!g.conference, scrim: !!g.scrimmage,
+                 oppId: (oppByName(g.opponent || g.teamBName) || {}).id || null, scoutKey: g.scoutKey || null, scheduleId: g.scheduleId || null,
+                 dressed: (g.dressedA || []).slice(), starters: (g.startersA || []).slice() };
+  App.games = App.games.filter(x => x.id !== g.id);
+  App.liveId = null; lsSet(LS_LIVE, null);
+  if (App.viewId === g.id) App.viewId = null;
+  undoStack.length = 0; redoStack.length = 0; resetFlow();
+  saveGames(); closeModal();
+  toast('Game abandoned — fix the setup and create it again', 'warn', 3500);
+  setTab('track');
 }
 
 function closeModal() { $('#modal-root').innerHTML = ''; }
@@ -3322,6 +3356,8 @@ document.addEventListener('click', e => {
     case 'ep-confirm': confirmEndPeriod(); break;
     case 'start-period': openPeriodStart(); break;
     case 'finish': finishGame(); break;
+    case 'abandon': openAbandon(); break;
+    case 'abandon-confirm': abandonGame(); break;
     case 'gt-mark': if (g) { snapshot(); g.gtManualIdx = g.eventLog.length; g.gtOff = false; saveGames(); render(); toast('Garbage time marked from here', 'warn'); } break;
     case 'gt-clear': if (g) { snapshot(); g.gtManualIdx = null; g.gtOff = true; saveGames(); render(); toast('Garbage time cleared — automatic detection off for this game', 'warn', 3500); } break;
     case 'gt-toggle-auto': { const x = App.games.find(y => y.id === t.dataset.id); if (x) { x.gtOff = !x.gtOff; saveGames(); render(); } break; }
