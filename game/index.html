@@ -355,9 +355,9 @@ table{border-collapse:collapse}
 .box-team-header span{color:#f8fafc;font-size:11px}
 .box-team-header.a{background:#1e3a5f;color:#4fc3f7} .box-team-header.b{background:var(--them-hdr);color:var(--them-text)}
 .box-wrap{overflow-x:auto;margin-bottom:22px;border-radius:0 0 10px 10px}
-.box-table{width:100%;font-size:11px;white-space:nowrap;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.box-table{width:100%;font-size:11px;white-space:nowrap;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
 .box-table thead th{padding:5px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#f8fafc;background:#242938;text-align:center;border-bottom:2px solid #2d3347}
-.box-table tbody td{padding:5px 4px;text-align:center;color:#000;border-bottom:1px solid rgba(0,0,0,.06)}
+.box-table tbody td{padding:5px 4px;text-align:center;color:#000;border-bottom:1px solid #000}
 .box-table tbody tr:nth-child(odd) td{background:#d9d9d9} .box-table tbody tr:nth-child(even) td{background:#fff}
 .box-table tbody tr:hover td{background:#c0c8d8}
 .box-table td:first-child,.box-table th:first-child{text-align:left;min-width:96px;position:sticky;left:0;z-index:2;font-weight:600;padding-left:8px}
@@ -366,7 +366,7 @@ table{border-collapse:collapse}
 .box-table tr.low-min td{color:#8a93a3;font-weight:400}
 .box-table tr.low-min td.bs-hi,.box-table tr.low-min td.bs-lo{color:#8a93a3;font-weight:400}
 .box-table tr.low-min td:first-child{color:#8a93a3;font-weight:500}
-.box-table tr.bench-divider td{padding:0;height:4px;background:#2d3347!important}
+.box-table tr.bench-divider td{padding:3px 8px;background:#2d3347!important;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.14em;text-align:left;border-top:2px solid #000;border-bottom:2px solid #000}
 .box-table tr.team-row td{color:#475569;font-style:italic}
 .box-table tr.totals-row td{padding:5px 4px;font-weight:700;color:#0f172a;border-top:2px solid #94a3b8;background:#e2e8f0!important}
 .bx-on{color:#15803d;font-size:9px}
@@ -2291,12 +2291,17 @@ function bxTable(g, t, qf) {
       if (oppPM) s.pm = oppPM[p] != null ? oppPM[p] : null;
       return Object.assign({ name: p }, s);
     }).filter(r => r.fga || r.fta || r.reb || r.ast || r.tov || r.pf || r.stl || r.blk || r.fd || r.pts || r.pm != null);
+    if (oppPM) {
+      const st = new Set(g.startersB || []);
+      rows.forEach(r => { r.starter = st.has(r.name); });
+      rows.sort((x, y) => (y.starter - x.starter));
+    }
   }
   const teamOnly = statLine(g.eventLog.filter(e => isStat(e) && e.team === t && e.player === TEAM && (!pred || pred(e))));
   let bench = false;
   const body = rows.map(r => {
     let div = '';
-    if (t === 'a' && !r.starter && !bench) { bench = true; div = `<tr class="bench-divider"><td colspan="${cols.length + 1}"></td></tr>`; }
+    if ((t === 'a' || oppPM) && !r.starter && !bench) { bench = true; div = `<tr class="bench-divider"><td>BENCH</td><td colspan="${cols.length}"></td></tr>`; }
     const nm = t === 'a' ? `${esc(r.name)}${r.on ? '<span class="bx-on" title="On the floor"> ●</span>' : ''}` : esc(r.name);
     // Under a quarter of the available minutes: still readable, but out of the eye-line.
     const share = t === 'a' ? r.minPctVal : (oppShare ? oppShare(r.name) : null);
