@@ -363,6 +363,9 @@ table{border-collapse:collapse}
 .box-table td:first-child,.box-table th:first-child{text-align:left;min-width:96px;position:sticky;left:0;z-index:2;font-weight:600;padding-left:8px}
 .box-table thead th:first-child{z-index:3}
 .box-table td.bs-hi{color:#15803d;font-weight:700} .box-table td.bs-lo{color:#b91c1c;font-weight:700}
+.box-table tr.low-min td{color:#8a93a3;font-weight:400}
+.box-table tr.low-min td.bs-hi,.box-table tr.low-min td.bs-lo{color:#8a93a3;font-weight:400}
+.box-table tr.low-min td:first-child{color:#8a93a3;font-weight:500}
 .box-table tr.bench-divider td{padding:0;height:4px;background:#2d3347!important}
 .box-table tr.team-row td{color:#475569;font-style:italic}
 .box-table tr.totals-row td{padding:5px 4px;font-weight:700;color:#0f172a;border-top:2px solid #94a3b8;background:#e2e8f0!important}
@@ -2259,6 +2262,19 @@ function bxTable(g, t, qf) {
   const ts = T[t];
   const cols = t === 'a' ? BX_COLS : (oppTracked(g) ? [...BX_OPP_COLS, ['pm', '+/-']] : BX_OPP_COLS);
   const oppPM = t === 'b' && oppTracked(g) ? plusMinus(g, pred).b : null;
+  /* Their side has no minutes (their subs don't take a clock), so their share is read off
+     possessions: the trips he was on the floor for, out of every trip since their five was
+     set. Same 25% line. */
+  let oppShare = null;
+  if (oppPM) {
+    const A = analyzeTrips(g), L = lineupAtEach(g, 'b');
+    let tot = 0; const on = {};
+    for (const tr of A.trips) {
+      if ((qf && tr.period !== qf) || !L[tr.startIdx].length) continue;
+      tot++; for (const n of L[tr.startIdx]) on[n] = (on[n] || 0) + 1;
+    }
+    oppShare = n => tot ? 100 * (on[n] || 0) / tot : null;
+  }
   let rows;
   if (t === 'a') {
     const starters = new Set(g.startersA);
@@ -2282,7 +2298,10 @@ function bxTable(g, t, qf) {
     let div = '';
     if (t === 'a' && !r.starter && !bench) { bench = true; div = `<tr class="bench-divider"><td colspan="${cols.length + 1}"></td></tr>`; }
     const nm = t === 'a' ? `${esc(r.name)}${r.on ? '<span class="bx-on" title="On the floor"> ●</span>' : ''}` : esc(r.name);
-    return `${div}<tr><td>${nm}</td>${cols.map(([k]) => `<td class="${bxClass(r, k)}">${bxVal(r, k)}</td>`).join('')}</tr>`;
+    // Under a quarter of the available minutes: still readable, but out of the eye-line.
+    const share = t === 'a' ? r.minPctVal : (oppShare ? oppShare(r.name) : null);
+    const low = share != null && share < 25;
+    return `${div}<tr class="${low ? 'low-min' : ''}" ${low ? `title="${Math.round(share)}% of the available ${t === 'a' ? 'minutes' : 'possessions'}"` : ''}><td>${nm}</td>${cols.map(([k]) => `<td class="${bxClass(r, k)}">${bxVal(r, k)}</td>`).join('')}</tr>`;
   }).join('');
   const teamRow = (teamOnly.reb || teamOnly.tov || teamOnly.pf)
     ? `<tr class="team-row"><td>Team</td>${cols.map(([k]) => `<td>${['oreb', 'dreb', 'tov', 'pf'].includes(k) ? teamOnly[k] : ''}</td>`).join('')}</tr>` : '';
