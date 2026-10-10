@@ -2857,9 +2857,29 @@ function reportKeys(g, T, A, qf, half) {
     const top = playerStats(g, qf, 'b').sort((x, y) => y.pts - x.pts)[0];
     if (top && top.pts >= (half ? 8 : 15)) push(top.pts / (half ? 8 : 15), false, `${top.name} has ${top.pts} (${top.fgm}-${top.fga} FG, ${top.fg3m}-${top.fg3a} 3PT, ${top.ftm}-${top.fta} FT).`);
   }
-  // Runs against
-  const runs = scoringRuns(g, qf).filter(r => r.team === 'b').sort((x, y) => y.pts - x.pts);
-  if (runs[0]) push(runs[0].pts / 10, false, `Their ${runs[0].pts}-0 run (${periodName(g, runs[0].startQ, true)} ${fmtClock(A.clocks[runs[0].startIdx])}–${fmtClock(A.clocks[runs[0].endIdx])}), ${runs[0].startA}–${runs[0].startB} to ${runs[0].endA}–${runs[0].endB}.`);
+  // The biggest run each way
+  const runTxt = (r, who) => `${who} ${r.pts}-0 run (${periodName(g, r.startQ, true)} ${fmtClock(A.clocks[r.startIdx])}–${fmtClock(A.clocks[r.endIdx])}), ${r.startA}–${r.startB} to ${r.endA}–${r.endB}.`;
+  for (const t of ['a', 'b']) {
+    const r = scoringRuns(g, qf).filter(x => x.team === t).sort((x, y) => y.pts - x.pts)[0];
+    if (r) push(r.pts / 10, t === 'a', runTxt(r, t === 'a' ? 'Our' : 'Their'));
+  }
+  /* Post-game: how the second half differed from the first - the comeback (or the lead that
+     got away) and the factor that swung most between the halves. */
+  if (!half && g.format.periods === 2 && g.quarters.length >= 2) {
+    const h1 = teamStats(g, e => e.quarter === 1), h2 = teamStats(g, e => e.quarter >= 2);
+    const m1 = h1.a.pts - h1.b.pts, m2 = h2.a.pts - h2.b.pts, fin = m1 + m2;
+    if (Math.sign(m1) !== Math.sign(fin) && m1 !== 0)
+      push(99, fin > 0, fin > 0 ? `Comeback: down ${-m1} at the half (${h1.a.pts}–${h1.b.pts}), won the 2nd half ${h2.a.pts}–${h2.b.pts}.`
+                                : `Lead lost: up ${m1} at the half (${h1.a.pts}–${h1.b.pts}), lost the 2nd half ${h2.a.pts}–${h2.b.pts}.`);
+    else if (Math.abs(m2 - m1) >= 12) push(1.5, m2 > m1, `${m2 > m1 ? 'Won' : 'Lost'} the 2nd half ${h2.a.pts}–${h2.b.pts} after a ${h1.a.pts}–${h1.b.pts} 1st half.`);
+    // Which factor moved most between the halves, scaled the same way the keys above are.
+    const sw = [
+      ['our eFG%', h1.a.efgPct, h2.a.efgPct, true, 5], ['their eFG%', h1.b.efgPct, h2.b.efgPct, false, 5],
+      ['our turnover %', h1.a.tovPct, h2.a.tovPct, false, 4], ['their turnover %', h1.b.tovPct, h2.b.tovPct, true, 4],
+      ['our off. rebound %', h1.a.orebPct, h2.a.orebPct, true, 8], ['their off. rebound %', h1.b.orebPct, h2.b.orebPct, false, 8],
+    ].map(([l, x, y, up, sc]) => ({ l, x, y, good: (y > x) === up, w: Math.abs(y - x) / sc })).sort((p, q) => q.w - p.w)[0];
+    if (sw && sw.w >= 2) push(sw.w / 2, sw.good, `Halftime adjustment: ${sw.l} ${f1(sw.x)} in the 1st half → ${f1(sw.y)} in the 2nd.`);
+  }
   const kA = killsFor(A, qf, 'a'), kB = killsFor(A, qf, 'b');
   if (Math.abs(kA - kB) >= 2) push(Math.abs(kA - kB) / 2, kA > kB, `Kills: ${kA} for us, ${kB} for them (three straight stops each).`);
   if (half) {
