@@ -133,6 +133,14 @@ table{border-collapse:collapse}
 .pbtn.dim{opacity:.18;pointer-events:none}
 .pbtn.hot{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary)}
 .bench-mini{font-size:11px;color:var(--muted)}
+.pbtn .oinfo{color:var(--gold);font-weight:700}
+.opp-list{display:flex;flex-direction:column;gap:6px}
+.opp-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--card);border:1px solid var(--border2)}
+.opp-item.sel{border-color:var(--primary)}
+.opp-tbl input{width:100%;padding:4px 6px;font-size:13px}
+.opp-tbl td{padding:3px 4px}
+.drop{border:2px dashed var(--border2);border-radius:10px;padding:16px;text-align:center;color:var(--muted)}
+.drop.over{border-color:var(--primary);color:var(--text)}
 
 .stat-col .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .sbtn{padding:13px 8px;border-radius:10px;font-weight:800;font-size:15px;background:var(--card);border:2px solid var(--border2);transition:opacity .1s}
@@ -231,6 +239,7 @@ table{border-collapse:collapse}
   <button class="tab" data-tab="analytics">Analytics</button>
   <button class="tab" data-tab="pbp">Play-by-Play</button>
   <button class="tab scout-tab editor-only" data-tab="scout" title="Scouting report (S)">Scouting</button>
+  <button class="tab editor-only" data-tab="opps">Opponents</button>
   <button class="tab" data-tab="games">Games</button>
   <button class="tab" data-tab="season">Season</button>
   <div class="nav-right">
@@ -243,6 +252,7 @@ table{border-collapse:collapse}
 </nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
 <input type="file" id="scout-file" accept="application/pdf,.pdf" class="hidden">
+<input type="file" id="opp-file" accept=".csv,.tsv,.txt,.pdf,text/csv,text/plain,application/pdf" class="hidden">
 
 <div id="view" class="page"></div>
 <div id="scout-pane" class="page hidden"></div>
@@ -255,7 +265,7 @@ table{border-collapse:collapse}
 /* ════════════════════════════════════════════════════════════
    CONSTANTS
 ════════════════════════════════════════════════════════════ */
-const LS_GAMES = 'gt_games', LS_ROSTER = 'gt_roster', LS_LIVE = 'gt_live_id', LS_UI = 'gt_ui';
+const LS_GAMES = 'gt_games', LS_ROSTER = 'gt_roster', LS_LIVE = 'gt_live_id', LS_UI = 'gt_ui', LS_OPPS = 'gt_opp_rosters';
 const TEAM = 'TEAM';
 /* Our standard game: two 20:00 halves, every OT 5:00. Two 30-second timeouts and four fulls;
    each OT adds one 30-second timeout on top of whatever is left. Team fouls reset at the half
@@ -338,11 +348,12 @@ const byLast = (a, b) => lastName(a).localeCompare(lastName(b)) || String(a).loc
    APP STATE + STORAGE
 ════════════════════════════════════════════════════════════ */
 const App = {
-  games: [], roster: [], liveId: null, viewer: false, publishedAt: null,
+  games: [], roster: [], opps: [], liveId: null, viewer: false, publishedAt: null,
   tab: 'track', viewId: null, period: 'all', adv: false, lev: 'nogt', prevTab: 'track',
 };
 function saveGames() { if (!App.viewer) lsSet(LS_GAMES, App.games); }
 function saveRoster() { if (!App.viewer) lsSet(LS_ROSTER, App.roster); }
+function saveOpps() { if (!App.viewer) lsSet(LS_OPPS, App.opps); }
 function liveGame() { return App.liveId ? App.games.find(g => g.id === App.liveId) || null : null; }
 function viewGame() {
   return App.games.find(g => g.id === App.viewId) || liveGame()
@@ -1177,6 +1188,7 @@ function render() {
     case 'analytics': v.innerHTML = renderAnalytics(); break;
     case 'pbp': v.innerHTML = renderPbp(); break;
     case 'games': v.innerHTML = renderGames(); break;
+    case 'opps': v.innerHTML = renderOpps(); afterOpps(); break;
     case 'season': v.innerHTML = renderSeason(); break;
     case 'scout': refreshScoutPane(); break;
   }
@@ -1288,7 +1300,8 @@ function paintTracker() {
     const dim = dis || (F.phase !== 'idle' && !allowed(t, p));
     const hot = F.phase !== 'idle' && !dim;
     const pfCls = s.pf >= 4 ? 'f4' : (s.pf >= 2 && curPeriod(g) === 1) || s.pf >= 3 ? 'f2' : '';
-    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}</span>`;
+    const info = t === 'b' && !isTeam ? oppInfoLine(g, p) : '';
+    const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}</span>${info ? `<span class="pline oinfo">${esc(info)}</span>` : ''}`;
     return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
       ${label}${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
   };
@@ -1297,7 +1310,7 @@ function paintTracker() {
   ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span><button class="btn btn-sm" data-act="sub" ${dis ? 'disabled' : ''}>⇄ Sub</button></div>
     <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
     <div class="bench-mini">Tap a player with no stat selected to sub him out. Bench: ${bench.map(n => esc(lastName(n))).join(', ') || '—'}</div>`;
-  cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}</span></div>
+  cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}</span><button class="btn btn-sm" data-act="opp-live-edit">Roster</button></div>
     <div class="pgrid">${buttonPlayers(g, 'b').map(p => btn('b', p)).join('')}</div>`;
 
   const stBtn = ([k, l, c]) => {
@@ -1341,10 +1354,11 @@ function renderSetup() {
   if (!setupDraft) {
     const visible = App.roster.filter(r => !r.hidden).map(r => r.name);
     setupDraft = { opponent: '', date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
-                   site: 'home', dressed: visible.slice(), starters: [], oppRoster: '', conf: false, scoutKey: null };
+                   site: 'home', dressed: visible.slice(), starters: [], oppRoster: '', oppId: null, conf: false, scoutKey: null };
   }
   const d = setupDraft;
-  const players = App.roster.filter(r => !r.hidden || d.dressed.includes(r.name)).map(r => r.name).sort(byLast);
+  const players = App.roster.filter(r => !r.hidden).map(r => r.name).sort(byLast);
+  const nHidden = App.roster.length - players.length;
   return `<div class="setup">
     <div class="card"><h3>New game</h3>
       <div class="grid2">
@@ -1362,10 +1376,14 @@ function renderSetup() {
         return `<div class="chk ${on ? 'on' : ''} ${st ? 'starter' : ''}" data-act="su-player" data-p="${esc(n)}">
           <span>${numOf(n) !== '' ? '#' + esc(numOf(n)) + ' ' : ''}${esc(n)}</span><span class="st">${st ? 'STARTER' : on ? 'DRESSED' : 'OUT'}</span></div>`;
       }).join('')}</div>
-      <div class="tiny muted" style="margin-top:6px">Cycle: dressed → starter → out.</div>
+      <div class="tiny muted" style="margin-top:6px">Cycle: dressed → starter → out.${nHidden ? ` ${nHidden} hidden player${nHidden === 1 ? '' : 's'} not shown (hidden in the practice tracker, or with Edit roster).` : ''}</div>
     </div>
-    <div class="card"><h3>Opponent roster <span class="muted">optional — one per line, e.g. "23 Smith". Leave empty to track them as one team.</span></h3>
-      <textarea id="su-opproster" rows="5" style="width:100%" placeholder="1 Johnson&#10;3 Garcia&#10;23 Smith">${esc(d.oppRoster)}</textarea>
+    <div class="card"><h3>Opponent roster <span class="muted">optional — leave empty to track them as one team</span>
+      <button class="btn btn-sm" data-act="su-opp-upload" style="margin-left:auto">Upload roster file…</button>
+      <button class="btn btn-sm" data-act="tab-opps">Opponents page</button></h3>
+      <div class="row" style="margin-bottom:6px"><select id="su-oppsel"><option value="">— pick a saved roster —</option>${App.opps.slice().sort((x, y) => x.name.localeCompare(y.name)).map(o => `<option value="${o.id}" ${d.oppId === o.id ? 'selected' : ''}>${esc(o.name)} (${o.players.length})</option>`).join('')}</select>
+        <span class="small muted">or type / paste one per line: <code>23 John Smith G 6-2 Jr | shooter</code></span></div>
+      <textarea id="su-opproster" rows="6" style="width:100%" placeholder="1 Johnson&#10;3 Garcia&#10;23 Smith">${esc(d.oppRoster)}</textarea>
     </div>
     <div class="card"><h3>Scouting report <span class="muted">optional — PDF saved on this device, opens offline</span></h3>
       <div class="row" id="su-scout"></div>
@@ -1385,24 +1403,43 @@ async function paintSetupScout() {
   const el = $('#su-scout'); if (!el) return;
   const keys = await idbKeys();
   const files = await Promise.all(keys.map(async k => ({ k, rec: await idbGet(k) })));
+  if (!el.isConnected || !setupDraft) return;   // the screen was redrawn while we waited
   el.innerHTML = `<select id="su-scoutsel"><option value="">— none —</option>${files.map(f => `<option value="${esc(f.k)}" ${setupDraft.scoutKey === f.k ? 'selected' : ''}>${esc(f.rec && f.rec.name || f.k)}</option>`).join('')}</select>
     <button class="btn btn-sm" data-act="scout-upload" data-for="setup">Add PDF…</button>`;
   $('#su-scoutsel').onchange = e => { setupDraft.scoutKey = e.target.value || null; };
+  const os = $('#su-oppsel');
+  if (os) os.onchange = e => { readSetupFields(); applyOppToSetup(e.target.value); setTimeout(render, 0); };
+  const oi = $('#su-opp');
+  // Typing a team that is already saved fills its roster (and scouting report) in for you.
+  if (oi) oi.onchange = () => {
+    readSetupFields();
+    const hit = App.opps.find(o => o.name.toLowerCase() === setupDraft.opponent.toLowerCase());
+    // Deferred: re-rendering inside a change event that fires on blur tears out the node mid-event.
+    if (hit && !setupDraft.oppRoster.trim()) { applyOppToSetup(hit.id); setTimeout(render, 0); }
+  };
+}
+function applyOppToSetup(id) {
+  const o = App.opps.find(x => x.id === id);
+  setupDraft.oppId = o ? o.id : null;
+  if (!o) return;
+  if (!setupDraft.opponent) setupDraft.opponent = o.name;
+  setupDraft.oppRoster = playersToText(o.players);
+  if (o.scoutKey) setupDraft.scoutKey = o.scoutKey;
 }
 function createGame() {
   readSetupFields();
   const d = setupDraft;
   if (!d.opponent) { toast('Enter the opponent', 'bad'); $('#su-opp').focus(); return; }
   if (d.starters.length !== 5) { toast('Pick exactly 5 starters (' + d.starters.length + ' picked)', 'bad'); return; }
-  const opp = d.oppRoster.split(/\n/).map(s => s.trim()).filter(Boolean).map(s => {
-    const m = s.match(/^#?(\d{1,2})\s*[-.]?\s*(.*)$/);
-    return m ? '#' + m[1] + (m[2] ? ' ' + m[2] : '') : s;
-  });
+  const players = parseRoster(d.oppRoster);
+  const { labels: opp, info: oppInfo } = buildOppLabels(players);
+  // Keep the library current: a roster typed or tweaked here is saved under the team's name.
+  if (players.length) upsertOpp(d.opponent, players, d.scoutKey);
   const g = {
     id: 'game_' + Date.now(), kind: 'game', app: 'moorpark-game-tracker',
     title: (d.site === 'away' ? '@ ' : 'vs ') + d.opponent, date: d.date, opponent: d.opponent, site: d.site, conference: d.conf,
     teamAName: 'Moorpark', teamBName: d.opponent, format: Object.assign({}, FORMAT),
-    dressedA: d.dressed.slice(), startersA: d.starters.slice(), startersB: [], oppRoster: opp,
+    dressedA: d.dressed.slice(), startersA: d.starters.slice(), startersB: [], oppRoster: opp, oppInfo,
     quarters: [], eventLog: [], lineupSegments: [], nextId: 0,
     clock: { rem: FORMAT.periodLen, running: false, anchorMs: null, anchorRem: null },
     between: true, completed: false, scoutKey: d.scoutKey || null, createdAt: new Date().toISOString(),
@@ -2177,6 +2214,314 @@ async function uploadScout(file, forWhat) {
   if (g && !App.viewer) { g.scoutKey = key; saveGames(); }
   if (App.tab === 'scout') { await refreshScoutPane(); showScout(key); }
 }
+/* ════════════════════════════════════════════════════════════
+   OPPONENT ROSTERS — a saved library, so a roster is uploaded once and picked at setup.
+   Reads CSV / TSV / plain text, and PDFs (text pulled out with the bundled pdf.js, so it
+   works offline). Free text is read line by line: a jersey number plus a name, with any
+   position, height, class and weight picked out; anything after "|" is a scouting note
+   that shows on the player's button during the game.
+════════════════════════════════════════════════════════════ */
+const POS_RE = /^(PG|SG|SF|PF|C|G|F|W|G\/F|F\/G|F\/C|C\/F|WING|POST|GUARD|FORWARD|CENTER)$/i;
+const HT_RE = /^\d['’′\-]\s?\d{1,2}(["”″]|'')?$/;
+const YR_RE = /^(R-?|RS-?)?(FR|SO|JR|SR|GR|FRESHMAN|SOPHOMORE|JUNIOR|SENIOR|GRAD)\.?$/i;
+const WT_RE = /^\d{3}(\s?LBS?)?$/i;
+function splitDelim(line, d) {
+  if (d === '\t') return line.split('\t').map(x => x.trim());
+  const out = []; let cur = '', q = false;
+  for (const ch of line) {
+    if (ch === '"') q = !q;
+    else if (ch === ',' && !q) { out.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+function parseRoster(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  const share = ch => lines.filter(l => l.includes(ch)).length / lines.length;
+  let rows;
+  if (share('\t') >= 0.6) rows = parseDelimited(lines, '\t');
+  else if (share(',') >= 0.6 && !lines.every(l => /^\s*#?\d{1,2}\b/.test(l) && (l.match(/,/g) || []).length === 1)) rows = parseDelimited(lines, ',');
+  else rows = lines.map(parseFreeLine).filter(Boolean);
+  // One player per number; the first line wins.
+  const seen = new Set();
+  return rows.filter(r => r.name || r.num !== '').filter(r => { const k = r.num !== '' ? '#' + r.num : r.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+function parseDelimited(lines, d) {
+  const rows = lines.map(l => splitDelim(l, d));
+  const H = rows[0].map(h => h.toLowerCase().replace(/[^a-z#.]/g, ''));
+  const find = re => H.findIndex(h => re.test(h));
+  const col = { num: find(/^(#|no\.?|num|number|jersey|jersey#)$/), name: find(/^(name|player|fullname|playername)$/),
+                first: find(/^first/), last: find(/^last/), pos: find(/^(pos|position)/), ht: find(/^(ht|height)/),
+                yr: find(/^(yr|year|class|cl\.?|elig|eligibility)/), note: find(/^(note|notes|scout|scouting|comment)/) };
+  const hasHeader = col.num >= 0 || col.name >= 0 || col.last >= 0;
+  if (!hasHeader) return rows.map(r => parseFreeLine(r.join(' ')).valueOf()).filter(Boolean);
+  return rows.slice(1).map(r => {
+    const get = i => (i >= 0 ? (r[i] || '') : '').trim();
+    let name = get(col.name);
+    if (!name && (col.first >= 0 || col.last >= 0)) name = (get(col.first) + ' ' + get(col.last)).trim();
+    if (/^[^,]+,\s*[^,]+$/.test(name)) { const [l, f] = name.split(',').map(x => x.trim()); name = f + ' ' + l; }   // "Smith, John"
+    return { num: get(col.num).replace(/[^\d]/g, '').slice(0, 2), name: tidyName(name), pos: get(col.pos), ht: get(col.ht), yr: get(col.yr), note: get(col.note) };
+  }).filter(r => r.name || r.num);
+}
+function tidyName(n) {
+  n = String(n || '').replace(/\s+/g, ' ').trim();
+  if (n && n === n.toUpperCase() && /[A-Z]{3}/.test(n)) n = n.toLowerCase().replace(/(^|[\s\-'’])([a-z])/g, (m, a, b) => a + b.toUpperCase());   // SMITH -> Smith
+  return n;
+}
+function parseFreeLine(line) {
+  let note = '';
+  const bar = line.indexOf('|');
+  if (bar !== -1) { note = line.slice(bar + 1).trim(); line = line.slice(0, bar); }
+  let toks = line.replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!toks.length) return null;
+  let num = '';
+  const isNum = t => /^#?\d{1,2}\.?$/.test(t);
+  if (isNum(toks[0])) num = toks.shift().replace(/[^\d]/g, '');
+  else {
+    const i = toks.findIndex((t, k) => k <= 4 && isNum(t) && !HT_RE.test(t));
+    if (i !== -1 && /^#/.test(toks[i])) num = toks.splice(i, 1)[0].replace(/[^\d]/g, '');
+  }
+  let pos = '', ht = '', yr = '';
+  const nameToks = [];
+  let done = false;
+  for (const t of toks) {
+    const c = t.replace(/[.]$/, '');
+    if (POS_RE.test(c)) { pos = pos || c.toUpperCase(); done = true; continue; }
+    if (HT_RE.test(t)) { ht = ht || t.replace(/[’′]/g, "'"); done = true; continue; }
+    if (YR_RE.test(t)) { yr = yr || t; done = true; continue; }
+    if (WT_RE.test(t)) { done = true; continue; }
+    if (!done && /^[A-Za-zÀ-ÿ'’.\-]+$/.test(t) && nameToks.length < 4) nameToks.push(t);
+    else done = true;   // hometown / high school etc. — stop collecting the name
+  }
+  const name = tidyName(nameToks.join(' '));
+  // No jersey number: only a player if the line also carries a position or height - otherwise
+  // it is a heading ("Men's Basketball Roster", "No. Name Pos Ht").
+  if (!num && (!name || !(pos || ht) || /^(no|name|player|pos|roster)\b/i.test(name))) return null;
+  if (/^(no|name|player)$/i.test(name)) return null;
+  return { num, name, pos, ht, yr, note };
+}
+function playersToText(players) {
+  return players.map(p => [p.num, p.name, p.pos, p.ht, p.yr].filter(Boolean).join(' ') + (p.note ? ' | ' + p.note : '')).join('\n');
+}
+/* Button labels: "#23 Smith". The full name only where two players share a last name. */
+function buildOppLabels(players) {
+  const lastCount = {};
+  players.forEach(p => { const l = lastName(p.name || ''); lastCount[l] = (lastCount[l] || 0) + 1; });
+  const labels = [], info = {};
+  for (const p of players) {
+    const nm = p.name ? (lastCount[lastName(p.name)] > 1 ? p.name : lastName(p.name)) : '';
+    const label = ((p.num !== '' ? '#' + p.num : '') + (nm ? ' ' + nm : '')).trim() || p.name;
+    if (!label || labels.includes(label)) continue;
+    labels.push(label);
+    info[label] = { num: p.num, name: p.name, pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' };
+  }
+  return { labels, info };
+}
+function oppInfoLine(g, label) {
+  const i = (g.oppInfo || {})[label]; if (!i) return '';
+  return [i.pos, i.ht, i.note].filter(Boolean).join(' · ');
+}
+function upsertOpp(name, players, scoutKey) {
+  if (!name || !players.length) return null;
+  let o = App.opps.find(x => x.name.toLowerCase() === name.toLowerCase());
+  if (!o) { o = { id: 'opp_' + Date.now(), name }; App.opps.push(o); }
+  o.players = players.map(p => Object.assign({}, p));
+  if (scoutKey) o.scoutKey = scoutKey;
+  o.updatedAt = new Date().toISOString();
+  saveOpps();
+  return o;
+}
+async function pdfText(file) {
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const out = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const tc = await page.getTextContent();
+    // Rebuild lines from positioned text: same baseline (within 3pt) = same line, left to right.
+    const rows = [];
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = it.transform[5], x = it.transform[4];
+      let r = rows.find(r => Math.abs(r.y - y) < 3);
+      if (!r) { r = { y, items: [] }; rows.push(r); }
+      r.items.push({ x, s: it.str });
+    }
+    rows.sort((a, b) => b.y - a.y);
+    for (const r of rows) out.push(r.items.sort((a, b) => a.x - b.x).map(i => i.s.trim()).join(' '));
+  }
+  doc.destroy();
+  return out.join('\n');
+}
+async function readRosterFile(file) {
+  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+    try { return await pdfText(file); }
+    catch (e) { toast('Could not read that PDF' + (location.protocol === 'file:' ? ' (open the site, not the local file, for PDF rosters)' : ''), 'bad', 4000); return null; }
+  }
+  return await file.text();
+}
+
+/* ── Opponents page ── */
+const OPP = { editId: null, name: '', rows: [], dirty: false };
+function oppEditorLoad(id) {
+  const o = App.opps.find(x => x.id === id);
+  OPP.editId = o ? o.id : null;
+  OPP.name = o ? o.name : '';
+  OPP.rows = o ? o.players.map(p => Object.assign({ num: '', name: '', pos: '', ht: '', yr: '', note: '' }, p)) : [];
+  OPP.dirty = false;
+}
+function renderOpps() {
+  const list = App.opps.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const rowsHtml = OPP.rows.map((r, i) => `<tr>
+      <td style="width:58px"><input data-or="${i}" data-f="num" value="${esc(r.num)}" inputmode="numeric"></td>
+      <td><input data-or="${i}" data-f="name" value="${esc(r.name)}"></td>
+      <td style="width:70px"><input data-or="${i}" data-f="pos" value="${esc(r.pos)}"></td>
+      <td style="width:70px"><input data-or="${i}" data-f="ht" value="${esc(r.ht)}"></td>
+      <td style="width:70px"><input data-or="${i}" data-f="yr" value="${esc(r.yr)}"></td>
+      <td><input data-or="${i}" data-f="note" value="${esc(r.note)}" placeholder="e.g. shooter, lefty"></td>
+      <td style="width:40px"><button class="btn btn-sm" data-act="opp-row-del" data-i="${i}" title="Remove">✕</button></td></tr>`).join('');
+  return `<div class="row" style="margin-bottom:10px"><h2 style="font-size:18px">Opponent rosters</h2>
+      <span class="small muted">Saved on this device — pick one when you set up a game.</span>
+      <button class="btn btn-good" data-act="opp-new" style="margin-left:auto">+ New opponent</button></div>
+    <div class="grid2" style="grid-template-columns:minmax(220px,1fr) 2.4fr">
+      <div class="card"><h3>Saved (${list.length})</h3><div class="opp-list">${list.map(o => `<div class="opp-item ${o.id === OPP.editId ? 'sel' : ''}">
+          <div style="flex:1"><b>${esc(o.name)}</b><div class="tiny muted">${o.players.length} players${o.scoutKey ? ' · scouting PDF' : ''} · ${esc((o.updatedAt || '').slice(0, 10))}</div></div>
+          <button class="btn btn-sm" data-act="opp-edit" data-id="${o.id}">Edit</button></div>`).join('') || '<div class="muted">None yet. Upload one →</div>'}</div></div>
+      <div class="card">
+        <h3>${OPP.editId ? 'Edit' : 'New'} roster</h3>
+        <div class="row" style="margin-bottom:8px"><div class="field" style="flex:1;margin:0"><label>Team</label><input id="opp-name" value="${esc(OPP.name)}" placeholder="e.g. Ventura"></div></div>
+        <div class="drop" id="opp-drop">
+          <div style="font-weight:700;color:var(--text)">Drop a roster file here, or</div>
+          <div class="row" style="justify-content:center;margin-top:8px">
+            <button class="btn btn-primary" data-act="opp-upload">Upload file (CSV, TXT, PDF)</button>
+            <button class="btn" data-act="opp-paste-toggle">Paste text</button></div>
+          <div class="tiny" style="margin-top:6px">Works with a roster PDF, a CSV/Excel export, or text copied off the team's website.</div>
+        </div>
+        <div id="opp-paste" class="hidden" style="margin-top:8px">
+          <textarea id="opp-paste-text" rows="7" style="width:100%" placeholder="Paste the roster here — one player per line&#10;1 John Johnson G 6-1 So.&#10;23 Marcus Smith F 6-7 Fr. | shooter"></textarea>
+          <div class="row" style="margin-top:6px"><button class="btn btn-primary btn-sm" data-act="opp-parse">Read pasted roster</button>
+            <label class="small row"><input type="checkbox" id="opp-replace" checked> replace current list</label></div>
+        </div>
+        <div style="margin-top:10px" class="tbl-wrap"><table class="tbl opp-tbl"><tr><th>#</th><th>Name</th><th>Pos</th><th>Ht</th><th>Yr</th><th>Scouting note (shows on his button)</th><th></th></tr>
+          ${rowsHtml || '<tr><td class="l muted" colspan="7">No players yet.</td></tr>'}</table></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn btn-sm" data-act="opp-row-add">+ Add player</button>
+          <span class="small muted">${OPP.rows.length} players</span>
+          <span style="margin-left:auto"></span>
+          ${OPP.editId ? '<button class="btn btn-sm btn-bad" data-act="opp-delete">Delete</button>' : ''}
+          <button class="btn btn-good" data-act="opp-save">Save roster</button></div>
+        <div class="row" style="margin-top:10px"><span class="small muted">Scouting report for this team:</span><select id="opp-scout"></select></div>
+      </div>
+    </div>`;
+}
+async function afterOpps() {
+  const drop = $('#opp-drop');
+  if (drop) {
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) loadOppFile(f, 'page'); };
+  }
+  const sel = $('#opp-scout'); if (!sel) return;
+  let keys = []; try { keys = await idbKeys(); } catch (e) {}
+  const recs = await Promise.all(keys.map(async k => ({ k, r: await idbGet(k) })));
+  const o = App.opps.find(x => x.id === OPP.editId);
+  sel.innerHTML = '<option value="">— none —</option>' + recs.map(x => `<option value="${esc(x.k)}" ${o && o.scoutKey === x.k ? 'selected' : ''}>${esc(x.r && x.r.name || x.k)}</option>`).join('');
+}
+function oppCollect() {
+  const n = $('#opp-name'); if (n) OPP.name = n.value.trim();
+  document.querySelectorAll('[data-or]').forEach(el => { const r = OPP.rows[+el.dataset.or]; if (r) r[el.dataset.f] = el.value.trim(); });
+}
+function oppMergeRows(parsed, replace) {
+  if (replace) OPP.rows = parsed;
+  else for (const p of parsed) { const i = OPP.rows.findIndex(r => r.num !== '' && r.num === p.num); if (i === -1) OPP.rows.push(p); else OPP.rows[i] = p; }
+  OPP.rows.sort((a, b) => (a.num === '' ? 999 : +a.num) - (b.num === '' ? 999 : +b.num));
+}
+async function loadOppFile(file, target) {
+  const text = await readRosterFile(file); if (text == null) return;
+  const parsed = parseRoster(text);
+  if (!parsed.length) { toast('No players found in ' + file.name + ' — try Paste text', 'bad', 4000); return; }
+  if (target === 'setup' && setupDraft) {
+    readSetupFields();
+    setupDraft.oppRoster = playersToText(parsed);
+    setupDraft.oppId = null;
+    toast(`Read ${parsed.length} players — check them below`, 'good', 3000);
+    render(); return;
+  }
+  oppCollect();
+  if (!OPP.name) OPP.name = guessTeamName(file.name, text);
+  oppMergeRows(parsed, true);
+  toast(`Read ${parsed.length} players from ${file.name} — check them, then Save`, 'good', 3500);
+  render();
+}
+function guessTeamName(fname, text) {
+  // A roster PDF usually opens with "<School> Men's Basketball Roster".
+  const head = String(text || '').split('\n').slice(0, 4).find(l => /roster|basketball/i.test(l));
+  if (head) {
+    const t = head.replace(/\b(20\d\d([-–/]\d\d)?|men'?s|basketball|roster|mbb|official)\b/gi, '').replace(/\s+/g, ' ').trim();
+    if (t.length >= 4) return t;
+  }
+  const base = fname.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').replace(/\b(roster|mbb|men'?s|basketball|20\d\d(\s?\d\d)?)\b/gi, '').replace(/\s+/g, ' ').trim();
+  return base.length >= 4 ? base.replace(/\b\w/g, c => c.toUpperCase()) : '';
+}
+function oppSave() {
+  oppCollect();
+  if (!OPP.name) { toast('Enter the team name', 'bad'); $('#opp-name').focus(); return; }
+  const players = OPP.rows.filter(r => r.name || r.num).map(r => ({ num: String(r.num || '').replace(/[^\d]/g, '').slice(0, 2), name: tidyName(r.name), pos: r.pos, ht: r.ht, yr: r.yr, note: r.note }));
+  const nums = players.map(p => p.num).filter(Boolean);
+  const dupe = nums.find((n, i) => nums.indexOf(n) !== i);
+  if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
+  let o = OPP.editId && App.opps.find(x => x.id === OPP.editId);
+  const clash = App.opps.find(x => x.name.toLowerCase() === OPP.name.toLowerCase() && x !== o);
+  if (clash && !confirm(OPP.name + ' is already saved. Replace it?')) return;
+  if (clash) { App.opps = App.opps.filter(x => x !== clash); }
+  if (!o) { o = { id: 'opp_' + Date.now() }; App.opps.push(o); }
+  o.name = OPP.name; o.players = players; o.updatedAt = new Date().toISOString();
+  const sk = $('#opp-scout'); if (sk) o.scoutKey = sk.value || null;
+  saveOpps(); OPP.editId = o.id; OPP.rows = players.map(p => Object.assign({}, p));
+  toast('Saved ' + o.name + ' — ' + players.length + ' players', 'good');
+  render();
+}
+
+/* ── Live: fix the opponent roster mid-game ──
+   Players can be added or corrected at any time. Edits are matched by jersey number, so a
+   corrected name carries every stat already logged for that number with it. */
+function openOppLiveEdit() {
+  const g = liveGame(); if (!g) return;
+  const players = (g.oppRoster || []).map(l => { const i = (g.oppInfo || {})[l]; if (i) return i; const m = l.match(/^#(\d{1,2})\s*(.*)$/); return { num: m ? m[1] : '', name: m ? m[2] : l, pos: '', ht: '', yr: '', note: '' }; });
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal">
+    <h2>${esc(g.teamBName)} roster</h2>
+    <div class="small muted" style="margin-bottom:6px">One per line: <code>23 John Smith G 6-2 | note</code>. Matched by number, so stats already logged stay with the player.</div>
+    <textarea id="ole-text" rows="12" style="width:100%">${esc(playersToText(players))}</textarea>
+    <div class="row" style="margin-top:6px"><label class="small row"><input type="checkbox" id="ole-lib" checked> also update the saved ${esc(g.teamBName)} roster</label></div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="ole-save">Save</button></div></div></div>`;
+}
+function saveOppLiveEdit() {
+  const g = liveGame(); if (!g) return;
+  const players = parseRoster($('#ole-text').value);
+  const { labels, info } = buildOppLabels(players);
+  const oldLabels = g.oppRoster || [];
+  const oldNum = l => ((g.oppInfo || {})[l] || {}).num || ((l.match(/^#(\d{1,2})/) || [])[1] || '');
+  snapshot();
+  // Carry logged stats across a rename (same number, new label).
+  const rename = {};
+  for (const ol of oldLabels) {
+    const n = oldNum(ol); if (!n) continue;
+    const nl = labels.find(l => info[l].num === n);
+    if (nl && nl !== ol) rename[ol] = nl;
+  }
+  const used = new Set(g.eventLog.filter(e => isStat(e) && e.team === 'b').map(e => e.player));
+  for (const e of g.eventLog) if (isStat(e) && e.team === 'b' && rename[e.player]) e.player = rename[e.player];
+  // Never drop a player who already has stats, even if his line was deleted.
+  const keep = oldLabels.filter(l => used.has(l) && !rename[l] && !labels.includes(l));
+  g.oppRoster = [...labels, ...keep];
+  g.oppInfo = Object.assign({}, ...keep.map(l => ({ [l]: (g.oppInfo || {})[l] || { num: oldNum(l), name: l } })), info);
+  if ($('#ole-lib').checked && players.length) upsertOpp(g.teamBName, players);
+  saveGames(); closeModal(); render();
+  toast(`${g.teamBName}: ${g.oppRoster.length} players${keep.length ? ' (' + keep.length + ' kept — they have stats)' : ''}`, 'good', 3000);
+}
+
 function toggleScout() {
   if (App.viewer) return;
   if (App.tab === 'scout') setTab(App.prevTab || 'track'); else setTab('scout');
@@ -2196,16 +2541,17 @@ function openRoster() {
 function saveRosterModal() {
   document.querySelectorAll('#roster-tbl [data-r]').forEach(el => {
     const r = App.roster[+el.dataset.r]; const f = el.dataset.f;
-    if (f === 'hidden') r.hidden = el.checked; else r[f] = el.value.trim();
+    if (f === 'hidden') { if (r.hidden !== el.checked) r.hiddenSet = true; r.hidden = el.checked; } else r[f] = el.value.trim();
   });
   App.roster = App.roster.filter(r => r.name);
+  dropHiddenFromSetup();
   saveRoster(); closeModal(); render(); toast('Roster saved', 'good');
 }
 
 /* ── BACKUP / IMPORT / PUBLISH ── */
 function backup() {
   download('moorpark_games_backup_' + new Date().toISOString().slice(0, 10) + '.json',
-    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, games: App.games }, null, 1));
+    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, games: App.games }, null, 1));
 }
 function publish() {
   App.games.forEach(g => analyzeTrips(g));
@@ -2223,6 +2569,14 @@ function importFile(file) {
       const i = App.games.findIndex(x => x.id === g.id);
       if (i === -1) { App.games.push(g); added++; } else if (g.id !== App.liveId) { App.games[i] = g; replaced++; }
     }
+    let oppN = 0;
+    if (Array.isArray(d.opponents)) for (const o of d.opponents) {
+      if (!o || !o.name || !Array.isArray(o.players)) continue;
+      const i = App.opps.findIndex(x => x.id === o.id || x.name.toLowerCase() === o.name.toLowerCase());
+      if (i === -1) App.opps.push(o); else if ((o.updatedAt || '') >= (App.opps[i].updatedAt || '')) App.opps[i] = o;
+      oppN++;
+    }
+    if (oppN) saveOpps();
     if (Array.isArray(d.roster) && d.roster.length && confirm('Also replace the roster with the one in this file?')) { App.roster = d.roster.map(normRosterEntry); saveRoster(); }
     saveGames(); render();
     toast(`Imported: ${added} new, ${replaced} updated`, 'good');
@@ -2291,6 +2645,19 @@ document.addEventListener('click', e => {
       render(); break;
     }
     case 'su-create': createGame(); break;
+    case 'su-opp-upload': readSetupFields(); $('#opp-file').dataset.for = 'setup'; $('#opp-file').click(); break;
+    case 'tab-opps': readSetupFields(); setTab('opps'); break;
+    case 'opp-new': oppEditorLoad(null); render(); break;
+    case 'opp-edit': oppEditorLoad(t.dataset.id); render(); break;
+    case 'opp-upload': oppCollect(); $('#opp-file').dataset.for = 'page'; $('#opp-file').click(); break;
+    case 'opp-paste-toggle': $('#opp-paste').classList.toggle('hidden'); if (!$('#opp-paste').classList.contains('hidden')) $('#opp-paste-text').focus(); break;
+    case 'opp-parse': { oppCollect(); const parsed = parseRoster($('#opp-paste-text').value); if (!parsed.length) { toast('No players found — one per line, number then name', 'bad'); break; } oppMergeRows(parsed, $('#opp-replace').checked); toast('Read ' + parsed.length + ' players', 'good'); render(); break; }
+    case 'opp-row-add': oppCollect(); OPP.rows.push({ num: '', name: '', pos: '', ht: '', yr: '', note: '' }); render(); { const ins = document.querySelectorAll('[data-f="num"]'); if (ins.length) ins[ins.length - 1].focus(); } break;
+    case 'opp-row-del': oppCollect(); OPP.rows.splice(+t.dataset.i, 1); render(); break;
+    case 'opp-save': oppSave(); break;
+    case 'opp-delete': { const o = App.opps.find(x => x.id === OPP.editId); if (o && confirm('Delete the saved ' + o.name + ' roster? Games already played keep theirs.')) { App.opps = App.opps.filter(x => x !== o); saveOpps(); oppEditorLoad(null); render(); } break; }
+    case 'opp-live-edit': openOppLiveEdit(); break;
+    case 'ole-save': saveOppLiveEdit(); break;
     case 'new-game': if (liveGame() && !confirm('A game is still live. Leave it (you can resume from Games) and start a new one?')) break; App.liveId = null; lsSet(LS_LIVE, null); setupDraft = null; setTab('track'); break;
     case 'resume': App.liveId = t.dataset.id; App.viewId = t.dataset.id; lsSet(LS_LIVE, App.liveId); undoStack.length = 0; redoStack.length = 0; resetFlow(); setTab('track'); break;
     case 'reopen': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Reopen this game for editing? It goes back to the end-of-game break.')) { x.completed = false; x.between = true; App.liveId = x.id; App.viewId = x.id; lsSet(LS_LIVE, x.id); saveGames(); setTab('track'); } break; }
@@ -2302,7 +2669,7 @@ document.addEventListener('click', e => {
   }
 });
 function saveRosterModalInputs() {
-  document.querySelectorAll('#roster-tbl [data-r]').forEach(el => { const r = App.roster[+el.dataset.r]; const f = el.dataset.f; if (f === 'hidden') r.hidden = el.checked; else r[f] = el.value.trim(); });
+  document.querySelectorAll('#roster-tbl [data-r]').forEach(el => { const r = App.roster[+el.dataset.r]; const f = el.dataset.f; if (f === 'hidden') { if (r.hidden !== el.checked) r.hiddenSet = true; r.hidden = el.checked; } else r[f] = el.value.trim(); });
 }
 document.addEventListener('change', e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
@@ -2314,6 +2681,7 @@ document.addEventListener('change', e => {
     case 'pbp-player': pbpEdit(+t.dataset.i, t.value); break;
   }
 });
+$('#opp-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadOppFile(f, e.target.dataset.for || 'page'); e.target.value = ''; });
 $('#scout-file').addEventListener('change', e => { const f = e.target.files[0]; uploadScout(f, e.target.dataset.for); e.target.value = ''; });
 $('#import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
 $('#nav-roster').onclick = () => openRoster();
@@ -2350,7 +2718,36 @@ setInterval(() => {
 /* ════════════════════════════════════════════════════════════
    BOOT
 ════════════════════════════════════════════════════════════ */
-function normRosterEntry(r) { return typeof r === 'string' ? { name: r, num: '', hidden: false } : { name: r.name, num: r.num != null ? String(r.num) : '', hidden: !!r.hidden }; }
+function normRosterEntry(r) { return typeof r === 'string' ? { name: r, num: '', hidden: false } : Object.assign({ name: r.name, num: r.num != null ? String(r.num) : '', hidden: !!r.hidden }, r.hiddenSet ? { hiddenSet: true } : {}); }
+/* The practice tracker decides who is hidden. The game roster used to copy it once, on the
+   first open, and never look again - so anyone hidden later (or everyone, on a device whose
+   first open was offline and fell back to the seed list) kept showing up at game setup.
+   Now every open re-reads it: this browser's practice tracker first, else the published
+   snapshot. A hide/unhide made in this app's own Roster editor (hiddenSet) is respected. */
+async function syncRosterFromPractice() {
+  let src = lsGet('pt_roster', null);
+  if (!Array.isArray(src) || !src.length) {
+    src = null;
+    try {
+      const res = await fetch('../tracker/pt_data.json', { cache: 'no-store' });
+      if (res.ok) { const d = await res.json(); if (Array.isArray(d.roster)) src = d.roster; }
+    } catch (e) { /* offline: keep what we have */ }
+  }
+  if (!src) return;
+  let changed = false;
+  for (const p of src.map(normRosterEntry)) {
+    const r = App.roster.find(x => x.name === p.name);
+    if (!r) { App.roster.push({ name: p.name, num: '', hidden: p.hidden }); changed = true; }
+    else if (!r.hiddenSet && r.hidden !== p.hidden) { r.hidden = p.hidden; changed = true; }
+  }
+  if (changed) { saveRoster(); dropHiddenFromSetup(); }
+}
+function dropHiddenFromSetup() {
+  if (!setupDraft) return;
+  const hidden = new Set(App.roster.filter(r => r.hidden).map(r => r.name));
+  setupDraft.dressed = setupDraft.dressed.filter(n => !hidden.has(n));
+  setupDraft.starters = setupDraft.starters.filter(n => !hidden.has(n));
+}
 async function loadRoster() {
   const own = lsGet(LS_ROSTER, null);
   if (Array.isArray(own) && own.length) return own.map(normRosterEntry);
@@ -2365,6 +2762,7 @@ async function loadRoster() {
 }
 async function boot() {
   App.games = lsGet(LS_GAMES, []) || [];
+  App.opps = lsGet(LS_OPPS, []) || [];
   App.liveId = lsGet(LS_LIVE, null);
   if (App.liveId && !App.games.some(g => g.id === App.liveId && !g.completed)) App.liveId = null;
   const ui = lsGet(LS_UI, {}) || {};
@@ -2378,6 +2776,7 @@ async function boot() {
     } catch (e) { /* none published */ }
   }
   if (!App.roster.length) App.roster = await loadRoster();
+  if (!App.viewer) await syncRosterFromPractice();
   if (App.viewer) document.querySelectorAll('.editor-only').forEach(el => el.classList.add('hidden'));
   else if (!lsGet(LS_ROSTER, null)) saveRoster();
   // Running clock survives a reload: it was anchored to wall time.
