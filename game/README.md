@@ -23,13 +23,19 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
 - Timeouts: 2 × 30-second + 4 full. Each OT adds one 30-second timeout to what is left.
 - Team fouls reset at the half and carry into OT; bonus at 7, double bonus at 10.
 
-## Opponent rosters
+## Schedule and opponents
 
-Opponents tab → **+ New opponent** → team name, then **+ Add player** for each (number,
-name, position, height, year, and a scouting note that shows on his button in the game).
-Enter in any box starts the next player. At game setup pick the saved team. Mid-game, the
-**Roster** button on their side adds or fixes players; edits match by number, so stats
-already logged stay with the player.
+Schedule tab: **+ Add game** (date, home/away/neutral, opponent, time, conference) or
+**Paste schedule** — one game per line as it reads on the athletics site
+(`Fri, Nov 7 vs Ventura 7:00 PM`, `11/12 at Oxnard*`, `Nov 22 Santa Barbara (N)`; `*` =
+conference). Save schedule. Each game has **Start game** (fills in the setup screen) and
+shows the result once played; on game day today's game fills setup in by itself.
+
+The **Opponent** dropdown under the schedule opens that team's page: roster (**+ Add
+player** — number, name, position, height, year, and a note that shows on his button in
+the game), scouting PDF, notes, results against them and their players' totals against
+us. Mid-game, the **Roster** button on their side edits the same roster; edits match by
+number, so stats already logged stay with the player.
 
 ## Live entry
 

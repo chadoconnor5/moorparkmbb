@@ -264,6 +264,11 @@ table{border-collapse:collapse}
 .opp-tbl input::placeholder{color:var(--muted);opacity:.45}
 .prow-x{width:30px;height:30px;border-radius:8px;color:var(--muted)}
 .prow-x:hover{background:var(--card2);color:var(--bad)}
+.sch-tbl select{width:100%;padding:5px 6px;font-size:13px;background:transparent;border-color:transparent}
+.sch-tbl select:hover{border-color:var(--border2)}
+.sch-tbl input[type=checkbox]{width:auto}
+.res{font-weight:600;font-size:13px;margin-right:6px}
+.res.w{color:var(--good)} .res.l{color:var(--bad)}
 .opp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .opp-chip{background:var(--card);border-radius:99px;padding:4px 11px;font-size:12.5px}
 
@@ -283,7 +288,7 @@ table{border-collapse:collapse}
   <button class="tab" data-tab="analytics">Analytics</button>
   <button class="tab" data-tab="pbp">Play-by-Play</button>
   <button class="tab scout-tab editor-only" data-tab="scout" title="Scouting report (S)">Scouting</button>
-  <button class="tab editor-only" data-tab="opps">Opponents</button>
+  <button class="tab editor-only" data-tab="sched">Schedule</button>
   <button class="tab" data-tab="games">Games</button>
   <button class="tab" data-tab="season">Season</button>
   <div class="nav-right">
@@ -388,7 +393,7 @@ const byLast = (a, b) => lastName(a).localeCompare(lastName(b)) || String(a).loc
    APP STATE + STORAGE
 ════════════════════════════════════════════════════════════ */
 const App = {
-  games: [], roster: [], opps: [], liveId: null, viewer: false, publishedAt: null,
+  games: [], roster: [], opps: [], schedule: [], liveId: null, viewer: false, publishedAt: null,
   tab: 'track', viewId: null, period: 'all', adv: false, lev: 'nogt', prevTab: 'track',
 };
 function saveGames() { if (!App.viewer) lsSet(LS_GAMES, App.games); }
@@ -1231,7 +1236,7 @@ function setTab(t) {
   document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   render();
 }
-const TAB_WIDTH = { games: 'narrow', pbp: 'narrow', opps: 'mid', analytics: 'mid', season: 'mid', box: 'mid' };
+const TAB_WIDTH = { games: 'narrow', pbp: 'narrow', sched: 'mid', analytics: 'mid', season: 'mid', box: 'mid' };
 function render() {
   const v = $('#view');
   v.className = 'page ' + (TAB_WIDTH[App.tab] || '');
@@ -1242,7 +1247,7 @@ function render() {
     case 'analytics': v.innerHTML = renderAnalytics(); break;
     case 'pbp': v.innerHTML = renderPbp(); break;
     case 'games': v.innerHTML = renderGames(); break;
-    case 'opps': v.innerHTML = renderOpps(); afterOpps(); break;
+    case 'sched': v.innerHTML = renderSchedule(); afterSchedule(); break;
     case 'season': v.innerHTML = renderSeason(); break;
     case 'scout': refreshScoutPane(); break;
   }
@@ -1416,7 +1421,12 @@ function renderSetup() {
   if (!setupDraft) {
     const visible = App.roster.filter(r => !r.hidden).map(r => r.name);
     setupDraft = { opponent: '', date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
-                   site: 'home', dressed: visible.slice(), starters: [], oppId: null, conf: false, scoutKey: null };
+                   site: 'home', dressed: visible.slice(), starters: [], oppId: null, conf: false, scoutKey: null, scheduleId: null };
+  }
+  // Game day: today's scheduled game fills itself in, as long as nothing has been entered yet.
+  if (!setupDraft.opponent && !setupDraft.scheduleId && !setupDraft.starters.length) {
+    const todays = App.schedule.find(r => r.date === todayISO() && !gameForRow(r));
+    if (todays) applySchedToSetup(todays);
   }
   const d = setupDraft;
   const players = App.roster.filter(r => !r.hidden).map(r => r.name).sort(byLast);
@@ -1424,6 +1434,7 @@ function renderSetup() {
   return `<div class="setup">
     <div class="setup-head"><h1>New game</h1><p>Set the opponent and your five, then start the 1st half.</p></div>
     <div class="card"><h3>Game</h3>
+      ${App.schedule.length ? `<div class="field"><label>From the schedule</label><select id="su-sched"><option value="">— not on the schedule —</option>${App.schedule.filter(r => !gameForRow(r) || r.id === d.scheduleId).map(r => `<option value="${r.id}" ${d.scheduleId === r.id ? 'selected' : ''}>${esc(fmtDate(r.date))} ${SITE_LABEL[r.site] || ''} ${esc(r.opp)}${r.conf ? ' *' : ''}</option>`).join('')}</select></div>` : ''}
       <div class="grid2">
         <div class="field"><label>Opponent</label><input id="su-opp" value="${esc(d.opponent)}" placeholder="e.g. Ventura" autocomplete="off"></div>
         <div class="field"><label>Date</label><input id="su-date" type="date" value="${esc(d.date)}"></div>
@@ -1467,6 +1478,8 @@ async function paintSetupScout() {
   el.innerHTML = `<select id="su-scoutsel"><option value="">— none —</option>${files.map(f => `<option value="${esc(f.k)}" ${setupDraft.scoutKey === f.k ? 'selected' : ''}>${esc(f.rec && f.rec.name || f.k)}</option>`).join('')}</select>
     <button class="btn btn-sm" data-act="scout-upload" data-for="setup">Add PDF…</button>`;
   $('#su-scoutsel').onchange = e => { setupDraft.scoutKey = e.target.value || null; };
+  const ss = $('#su-sched');
+  if (ss) ss.onchange = e => { readSetupFields(); const r = App.schedule.find(x => x.id === e.target.value); if (r) applySchedToSetup(r); else setupDraft.scheduleId = null; setTimeout(render, 0); };
   const os = $('#su-oppsel');
   if (os) os.onchange = e => { readSetupFields(); applyOppToSetup(e.target.value); setTimeout(render, 0); };
   const oi = $('#su-opp');
@@ -1477,6 +1490,11 @@ async function paintSetupScout() {
     // Deferred: re-rendering inside a change event that fires on blur tears out the node mid-event.
     if (hit && !setupDraft.oppId) { applyOppToSetup(hit.id); setTimeout(render, 0); }
   };
+}
+function applySchedToSetup(r) {
+  const o = ensureOpp(r.opp);
+  Object.assign(setupDraft, { opponent: r.opp, date: r.date, site: r.site || 'home', conf: !!r.conf, scheduleId: r.id,
+                              oppId: o ? o.id : null, scoutKey: (o && o.scoutKey) || setupDraft.scoutKey });
 }
 function applyOppToSetup(id) {
   const o = App.opps.find(x => x.id === id);
@@ -1499,7 +1517,7 @@ function createGame() {
     dressedA: d.dressed.slice(), startersA: d.starters.slice(), startersB: [], oppRoster: opp, oppInfo,
     quarters: [], eventLog: [], lineupSegments: [], nextId: 0,
     clock: { rem: FORMAT.periodLen, running: false, anchorMs: null, anchorRem: null },
-    between: true, completed: false, scoutKey: d.scoutKey || null, createdAt: new Date().toISOString(),
+    between: true, completed: false, scoutKey: d.scoutKey || null, scheduleId: d.scheduleId || null, createdAt: new Date().toISOString(),
   };
   App.games.push(g); App.liveId = g.id; App.viewId = g.id;
   lsSet(LS_LIVE, g.id); saveGames();
@@ -2270,6 +2288,7 @@ async function uploadScout(file, forWhat) {
   catch (e) { toast('Could not store the PDF on this device', 'bad'); return; }
   toast('Saved ' + file.name + ' for offline use', 'good');
   if (forWhat === 'setup' && setupDraft) { setupDraft.scoutKey = key; paintSetupScout(); return; }
+  if (forWhat === 'opp') { const o = ensureOpp($('#opp-name') && $('#opp-name').value); if (o) { o.scoutKey = key; saveOpps(); } render(); return; }
   const g = liveGame() || viewGame();
   if (g && !App.viewer) { g.scoutKey = key; saveGames(); }
   if (App.tab === 'scout') { await refreshScoutPane(); showScout(key); }
@@ -2321,7 +2340,7 @@ function playerTableHtml(rows, scope) {
   // Example hints only on the first row, so they never read as filled-in values below it.
   const cell = (i, f, r, w, ph, extra = '') => `<td${w ? ` style="width:${w}px"` : ''}><input data-scope="${scope}" data-or="${i}" data-f="${f}" value="${esc(r[f])}" placeholder="${i === 0 ? ph : ''}" ${extra}></td>`;
   return `<div class="tbl-wrap"><table class="tbl opp-tbl"><tr><th>#</th><th>Name</th><th>Pos</th><th>Ht</th><th>Yr</th><th>Scouting note (shows on his button)</th><th></th></tr>
-    ${rows.map((r, i) => `<tr>${cell(i, 'num', r, 64, '23', 'inputmode="numeric"')}${cell(i, 'name', r, 0, 'Full name')}${cell(i, 'pos', r, 70, 'G')}${cell(i, 'ht', r, 74, '6-4')}${cell(i, 'yr', r, 66, 'So')}${cell(i, 'note', r, 0, 'e.g. shooter, lefty')}
+    ${rows.map((r, i) => `<tr>${cell(i, 'num', r, 64, '23', 'inputmode="numeric"')}${cell(i, 'name', r, 0, 'Full name')}${cell(i, 'pos', r, 70, '')}${cell(i, 'ht', r, 74, '')}${cell(i, 'yr', r, 66, '')}${cell(i, 'note', r, 0, 'e.g. shooter, lefty')}
       <td style="width:40px"><button class="prow-x" data-act="prow-del" data-scope="${scope}" data-i="${i}" title="Remove">✕</button></td></tr>`).join('')
       || '<tr><td class="l muted" colspan="7" style="padding:14px">No players yet — tap + Add player.</td></tr>'}</table></div>
     <div class="row" style="margin-top:10px"><button class="btn" data-act="prow-add" data-scope="${scope}">+ Add player</button>
@@ -2355,28 +2374,168 @@ function oppEditorLoad(id, name) {
   OPP.name = o ? o.name : (name || '');
   OPP.rows = o ? o.players.map(p => Object.assign(BLANK_PLAYER(), p)) : [];
 }
-function renderOpps() {
-  const list = App.opps.slice().sort((a, b) => a.name.localeCompare(b.name));
-  return `<div class="page-head"><h2>Opponent rosters</h2>
+/* ════════════════════════════════════════════════════════════
+   SCHEDULE — the season's games, and the opponent hub hanging off them. Each opponent
+   carries its roster, scouting PDF, notes and every game played against it.
+════════════════════════════════════════════════════════════ */
+const LS_SCHED = 'gt_schedule';
+function saveSched() { if (!App.viewer) lsSet(LS_SCHED, App.schedule); }
+const todayISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const oppByName = n => App.opps.find(o => o.name.toLowerCase() === String(n || '').trim().toLowerCase()) || null;
+function ensureOpp(name) {
+  name = String(name || '').trim(); if (!name) return null;
+  let o = oppByName(name);
+  if (!o) { o = { id: 'opp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), name, players: [], updatedAt: new Date().toISOString() }; App.opps.push(o); saveOpps(); }
+  return o;
+}
+function gamesVs(name) { const k = String(name || '').toLowerCase(); return App.games.filter(g => (g.opponent || g.teamBName || '').toLowerCase() === k); }
+function gameForRow(r) {
+  return App.games.find(g => g.scheduleId === r.id)
+      || App.games.find(g => !g.scheduleId && g.date === r.date && (g.opponent || '').toLowerCase() === (r.opp || '').toLowerCase()) || null;
+}
+const SITE_LABEL = { home: 'vs', away: '@', neutral: 'vs (N)' };
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/* Paste-in: one game per line, as it reads on an athletics site —
+   "Fri, Nov 7  vs  Ventura  7:00 PM", "11/12 at Oxnard*", "Nov 22 Santa Barbara (N)". */
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function seasonYear(month) {
+  const now = new Date(); const start = now.getMonth() + 1 >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  return month >= 7 ? start : start + 1;
+}
+function parseScheduleText(text) {
+  const out = [];
+  for (let line of String(text || '').split(/\r?\n/)) {
+    line = line.trim(); if (!line) continue;
+    let m, mo = null, dy = null, yr = null;
+    if ((m = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/))) { mo = +m[1]; dy = +m[2]; yr = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : null; }
+    else if ((m = line.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/i))) { mo = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()) + 1; dy = +m[2]; }
+    if (!mo || !dy || mo > 12 || dy > 31) continue;            // a heading or a blank month row
+    line = line.replace(m[0], ' ');
+    const y = yr || seasonYear(mo);
+    const date = `${y}-${String(mo).padStart(2, '0')}-${String(dy).padStart(2, '0')}`;
+    let time = '';
+    const tm = line.match(/\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))/i);
+    if (tm) { time = tm[1].replace(/\./g, '').toUpperCase().replace(/(\d)(AM|PM)/, '$1 $2'); line = line.replace(tm[0], ' '); }
+    let site = 'home';
+    if (/(^|\s)(@|at)\s/i.test(' ' + line + ' ')) site = 'away';
+    if (/\(n\)|neutral/i.test(line)) site = 'neutral';
+    const conf = /\*|\bconf(erence)?\b/i.test(line);
+    let opp = line
+      .replace(/\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|sday|nesday|rsday|urday)?\b\.?,?/gi, ' ')
+      .replace(/\b[WLT]\s*,?\s*\d{2,3}\s*[-–]\s*\d{2,3}\b/g, ' ')                  // a result already played
+      .replace(/\(n\)|neutral|\*|\bconf(erence)?\b|\bTBA\b|\bTBD\b/gi, ' ')
+      .replace(/(^|\s)(vs\.?|v\.|@|at)(?=\s)/gi, ' ')
+      .replace(/[|,;\t]+/g, ' ').replace(/\s+/g, ' ').trim()
+      .replace(/^[-–:]+|[-–:]+$/g, '').trim();
+    if (!opp) continue;
+    out.push({ id: 'sch_' + Date.now() + '_' + out.length, date, time, opp, site, conf });
+  }
+  return out;
+}
+
+const SCH = { prof: null, paste: false, rows: null };
+function schRows() { if (!SCH.rows) SCH.rows = App.schedule.map(r => Object.assign({}, r)); return SCH.rows; }
+function collectSched() {
+  document.querySelectorAll('[data-sr]').forEach(el => {
+    const r = SCH.rows[+el.dataset.sr]; if (!r) return;
+    r[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+}
+function renderSchedule() {
+  const rows = schRows();
+  const today = todayISO();
+  const nextIdx = rows.map((r, i) => ({ r, i })).filter(x => x.r.date >= today && !(gameForRow(x.r) || {}).completed).sort((a, b) => a.r.date.localeCompare(b.r.date))[0];
+  let W = 0, L = 0;
+  const body = rows.map((r, i) => {
+    const g = gameForRow(r);
+    let status;
+    if (g && g.completed) { const fs = finalScore(g); const w = fs.a > fs.b; w ? W++ : L++;
+      status = `<span class="res ${w ? 'w' : 'l'}">${w ? 'W' : 'L'} ${fs.a}–${fs.b}</span> <button class="btn btn-sm" data-act="view-game" data-id="${g.id}">Box</button>`; }
+    else if (g) status = `<button class="btn btn-sm btn-good" data-act="resume" data-id="${g.id}">Resume</button>`;
+    else status = `<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
+    return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
+      <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
+      <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
+      <td><input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" placeholder="${i === 0 ? 'Opponent' : ''}"></td>
+      <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}" placeholder="${i === 0 ? '7:00 PM' : ''}"></td>
+      <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
+      <td style="white-space:nowrap">${status}</td>
+      <td style="width:36px"><button class="prow-x" data-act="sch-del" data-i="${i}" title="Remove">✕</button></td></tr>`;
+  }).join('');
+  const names = [...new Set([...App.opps.map(o => o.name), ...rows.map(r => r.opp).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+  if (!SCH.prof || !names.some(n => n.toLowerCase() === SCH.prof.toLowerCase())) SCH.prof = nextIdx ? nextIdx.r.opp : (names[0] || null);
+  return `<div class="page-head"><h2>Schedule</h2><span class="muted small">${rows.length} games${W + L ? ` · ${W}-${L}` : ''}</span>
       ${setupDraft ? '<button class="btn btn-sm" data-act="back-setup">← Back to game setup</button>' : ''}
-      <button class="btn btn-good" data-act="opp-new" style="margin-left:auto">+ New opponent</button></div>
-    <div class="grid2" style="grid-template-columns:minmax(220px,1fr) 2.4fr">
-      <div class="card"><h3>Saved (${list.length})</h3><div class="opp-list">${list.map(o => `<div class="opp-item ${o.id === OPP.editId ? 'sel' : ''}">
-          <div style="flex:1"><b>${esc(o.name)}</b><div class="tiny muted">${o.players.length} players${o.scoutKey ? ' · scouting PDF' : ''}</div></div>
-          <button class="btn btn-sm" data-act="opp-edit" data-id="${o.id}">Edit</button></div>`).join('') || '<div class="muted small">None yet.</div>'}</div></div>
-      <div class="card">
-        <h3>${OPP.editId ? 'Edit' : 'New'} roster</h3>
-        <div class="field" style="max-width:360px"><label>Team</label><input id="opp-name" value="${esc(OPP.name)}" placeholder="e.g. Ventura"></div>
-        <div id="opp-rows">${playerTableHtml(OPP.rows, 'page')}</div>
-        <div class="row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-          <span class="small muted">Scouting report</span><select id="opp-scout"></select>
-          <span style="margin-left:auto"></span>
-          ${OPP.editId ? '<button class="btn btn-sm btn-bad" data-act="opp-delete">Delete team</button>' : ''}
-          <button class="btn btn-good" data-act="opp-save">Save roster</button></div>
-      </div>
+      <span style="margin-left:auto"></span>
+      <button class="btn btn-sm" data-act="sch-paste">Paste schedule</button>
+      <button class="btn btn-good" data-act="sch-add">+ Add game</button></div>
+    <datalist id="opp-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    ${SCH.paste ? `<div class="card"><h3>Paste schedule <span class="muted">one game per line, as it reads on the athletics site — e.g. <code>Fri, Nov 7 vs Ventura 7:00 PM</code>, <code>11/12 at Oxnard*</code> (* = conference)</span></h3>
+      <textarea id="sch-paste-text" rows="8" style="width:100%"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn btn-primary btn-sm" data-act="sch-paste-read">Add these games</button><button class="btn btn-sm" data-act="sch-paste">Close</button></div></div>` : ''}
+    <div class="card" style="padding:0">
+      <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th>Time</th><th style="text-align:center!important">Conf</th><th>Result</th><th></th></tr>
+        ${body || '<tr><td class="l muted" colspan="7" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
+      <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Changes save when you tap Save.</span>
+        <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
+    </div>
+    <div class="card prof">
+      <div class="row" style="margin-bottom:14px"><h3 style="margin:0">Opponent</h3>
+        <select id="prof-sel" style="min-width:220px">${names.map(n => `<option ${SCH.prof && n.toLowerCase() === SCH.prof.toLowerCase() ? 'selected' : ''}>${esc(n)}</option>`).join('') || '<option value="">— add a game first —</option>'}</select>
+        ${SCH.prof ? `<span class="small muted">${profGamesLine(SCH.prof)}</span>` : ''}</div>
+      ${SCH.prof ? profileHtml(SCH.prof) : '<div class="muted">Add games above and each opponent gets a page here: roster, scouting report, notes and results.</div>'}
     </div>`;
 }
-async function afterOpps() {
+function profGamesLine(name) {
+  const sched = App.schedule.filter(r => (r.opp || '').toLowerCase() === name.toLowerCase());
+  return sched.map(r => `${fmtDate(r.date)} ${SITE_LABEL[r.site] || ''}`).join(' · ');
+}
+function profileHtml(name) {
+  const o = oppByName(name);
+  if (!OPP.editId || !o || OPP.editId !== o.id) oppEditorLoad(o ? o.id : null, name);
+  const played = gamesVs(name).filter(g => g.eventLog && g.eventLog.length);
+  let hist = '';
+  if (played.length) {
+    const rows = played.sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(g => {
+      const fs = finalScore(g), T = teamStats(g), w = fs.a > fs.b;
+      return `<tr><td class="l">${esc(fmtDate(g.date))} ${SITE_LABEL[g.site] || ''}</td><td class="l"><span class="res ${g.completed ? (w ? 'w' : 'l') : ''}">${g.completed ? (w ? 'W' : 'L') : 'LIVE'} ${fs.a}–${fs.b}</span></td>
+        <td>${f1(T.a.ortg)}</td><td>${f1(T.b.ortg)}</td><td>${f1(T.b.efgPct)}</td><td>${f1(T.b.tovPct)}</td><td>${f1(T.b.orebPct)}</td>
+        <td><button class="btn btn-sm" data-act="view-game" data-id="${g.id}">Box</button> <button class="btn btn-sm" data-act="view-an" data-id="${g.id}">Analytics</button></td></tr>`;
+    }).join('');
+    // Their players across every game against us.
+    const tot = new Map();
+    for (const g of played) for (const e of g.eventLog) {
+      if (!isStat(e) || e.team !== 'b' || e.player === TEAM) continue;
+      if (!tot.has(e.player)) tot.set(e.player, { evs: [], gp: new Set() });
+      const x = tot.get(e.player); x.evs.push(e); x.gp.add(g.id);
+    }
+    const pl = [...tot.entries()].map(([n, x]) => Object.assign({ n, gp: x.gp.size }, statLine(x.evs))).sort((a, b) => b.pts - a.pts);
+    hist = `<div class="sub-sec">Results vs ${esc(name)}</div>
+      <div class="tbl-wrap"><table class="tbl"><tr><th>Game</th><th>Result</th><th>Our ORtg</th><th>Their ORtg</th><th>Their eFG%</th><th>Their TO%</th><th>Their OREB%</th><th></th></tr>${rows}</table></div>
+      ${pl.length ? `<div class="sub-sec">Their players vs us</div><div class="tbl-wrap"><table class="tbl"><tr><th>Player</th><th>GP</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>REB</th><th>AST</th><th>TO</th><th>PF</th></tr>
+        ${pl.map(r => `<tr><td class="l">${esc(r.n)}</td><td>${r.gp}</td><td><b>${r.pts}</b></td><td>${r.fgm}-${r.fga}</td><td>${r.fg3m}-${r.fg3a}</td><td>${r.ftm}-${r.fta}</td><td>${r.reb}</td><td>${r.ast}</td><td>${r.tov}</td><td>${r.pf}</td></tr>`).join('')}</table></div>` : ''}`;
+  }
+  return `<div class="grid2" style="grid-template-columns:2fr 1fr;align-items:start">
+      <div><div class="sub-sec" style="margin-top:0">Roster</div><div id="opp-rows">${playerTableHtml(OPP.rows, 'page')}</div></div>
+      <div><div class="sub-sec" style="margin-top:0">Scouting report</div>
+        <div class="row"><select id="opp-scout" style="flex:1"></select><button class="btn btn-sm" data-act="scout-upload" data-for="opp">Add PDF…</button></div>
+        <div class="sub-sec">Notes</div>
+        <textarea id="opp-notes" rows="7" style="width:100%" placeholder="Personnel, sets, what to take away…">${esc((o && o.notes) || '')}</textarea></div>
+    </div>
+    <input type="hidden" id="opp-name" value="${esc(name)}">
+    <div class="row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      ${o ? '<button class="btn btn-sm btn-bad" data-act="opp-delete">Delete opponent</button>' : ''}
+      <button class="btn btn-good" data-act="opp-save" style="margin-left:auto">Save ${esc(name)}</button></div>
+    ${hist}`;
+}
+async function afterSchedule() {
+  const ps = $('#prof-sel');
+  if (ps) ps.onchange = () => { collectSched(); SCH.prof = ps.value; OPP.editId = null; render(); };
   const sel = $('#opp-scout'); if (!sel) return;
   let keys = []; try { keys = await idbKeys(); } catch (e) {}
   const recs = await Promise.all(keys.map(async k => ({ k, r: await idbGet(k) })));
@@ -2384,6 +2543,34 @@ async function afterOpps() {
   const o = App.opps.find(x => x.id === OPP.editId);
   sel.innerHTML = '<option value="">— none —</option>' + recs.map(x => `<option value="${esc(x.k)}" ${o && o.scoutKey === x.k ? 'selected' : ''}>${esc(x.r && x.r.name || x.k)}</option>`).join('');
 }
+function schSave(quiet) {
+  collectSched();
+  const rows = SCH.rows.filter(r => r.date || r.opp).map(r => Object.assign(r, { opp: String(r.opp || '').trim() }));
+  const bad = rows.find(r => !r.date || !r.opp);
+  if (bad) { toast('Every game needs a date and an opponent', 'bad'); return false; }
+  rows.sort((a, b) => a.date.localeCompare(b.date));
+  rows.forEach(r => ensureOpp(r.opp));   // every opponent on the schedule gets a page
+  App.schedule = rows.map(r => Object.assign({}, r));
+  SCH.rows = null;
+  saveSched();
+  if (!quiet) toast('Schedule saved — ' + rows.length + ' games', 'good');
+  return true;
+}
+function schStart(i) {
+  collectSched();
+  const r = SCH.rows[i];
+  if (!r || !r.date || !r.opp) { toast('Give the game a date and opponent first', 'bad'); return; }
+  if (!schSave(true)) return;
+  const row = App.schedule.find(x => x.id === r.id) || r;
+  if (liveGame() && !confirm('A game is still live. Leave it (you can resume from Games) and set up this one?')) return;
+  App.liveId = null; lsSet(LS_LIVE, null);
+  const o = ensureOpp(row.opp);
+  const visible = App.roster.filter(x => !x.hidden).map(x => x.name);
+  setupDraft = { opponent: row.opp, date: row.date, site: row.site || 'home', conf: !!row.conf, oppId: o ? o.id : null,
+                 scoutKey: o && o.scoutKey || null, scheduleId: row.id, dressed: visible.slice(), starters: [] };
+  setTab('track');
+}
+
 function oppSave() {
   collectRows('page');
   OPP.name = $('#opp-name').value.trim();
@@ -2393,14 +2580,14 @@ function oppSave() {
   if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
   let o = OPP.editId && App.opps.find(x => x.id === OPP.editId);
   const clash = App.opps.find(x => x.name.toLowerCase() === OPP.name.toLowerCase() && x !== o);
-  if (clash && !confirm(OPP.name + ' is already saved. Replace it?')) return;
-  if (clash) App.opps = App.opps.filter(x => x !== clash);
+  if (clash && !o) o = clash;   // the profile for a team that already exists: update it
   if (!o) { o = { id: 'opp_' + Date.now() }; App.opps.push(o); }
   o.name = OPP.name; o.players = players; o.updatedAt = new Date().toISOString();
   const sk = $('#opp-scout'); if (sk) o.scoutKey = sk.value || null;
+  const nt = $('#opp-notes'); if (nt) o.notes = nt.value;
   saveOpps(); OPP.editId = o.id; OPP.rows = players.map(p => Object.assign(BLANK_PLAYER(), p));
   // Came here from game setup: hand the saved team straight back to it.
-  if (setupDraft && (!setupDraft.opponent || setupDraft.opponent.toLowerCase() === o.name.toLowerCase())) { setupDraft.opponent = o.name; setupDraft.oppId = o.id; if (o.scoutKey) setupDraft.scoutKey = o.scoutKey; }
+  if (setupDraft && setupDraft.opponent && setupDraft.opponent.toLowerCase() === o.name.toLowerCase()) { setupDraft.oppId = o.id; if (o.scoutKey) setupDraft.scoutKey = o.scoutKey; }
   toast('Saved ' + o.name + ' — ' + players.length + ' players', 'good');
   render();
 }
@@ -2474,7 +2661,7 @@ function saveRosterModal() {
 /* ── BACKUP / IMPORT / PUBLISH ── */
 function backup() {
   download('moorpark_games_backup_' + new Date().toISOString().slice(0, 10) + '.json',
-    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, games: App.games }, null, 1));
+    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, schedule: App.schedule, games: App.games }, null, 1));
 }
 function publish() {
   App.games.forEach(g => analyzeTrips(g));
@@ -2500,6 +2687,7 @@ function importFile(file) {
       oppN++;
     }
     if (oppN) saveOpps();
+    if (Array.isArray(d.schedule)) { for (const r of d.schedule) if (r && r.id && !App.schedule.some(x => x.id === r.id)) App.schedule.push(r); App.schedule.sort((a, b) => (a.date || '').localeCompare(b.date || '')); saveSched(); SCH.rows = null; }
     if (Array.isArray(d.roster) && d.roster.length && confirm('Also replace the roster with the one in this file?')) { App.roster = d.roster.map(normRosterEntry); saveRoster(); }
     saveGames(); render();
     toast(`Imported: ${added} new, ${replaced} updated`, 'good');
@@ -2565,15 +2753,23 @@ document.addEventListener('click', e => {
       render(); break;
     }
     case 'su-create': createGame(); break;
-    case 'su-opp-add': { readSetupFields(); const o = App.opps.find(x => x.id === setupDraft.oppId); oppEditorLoad(o ? o.id : null, setupDraft.opponent); setTab('opps'); if (!o) addRow('page'); break; }
-    case 'tab-opps': readSetupFields(); setTab('opps'); break;
+    case 'su-opp-add': { readSetupFields(); if (!setupDraft.opponent) { toast('Enter the opponent first', 'bad'); break; } const o = ensureOpp(setupDraft.opponent); setupDraft.oppId = o.id; SCH.prof = o.name; OPP.editId = null; setTab('sched'); if (!o.players.length) addRow('page'); break; }
+    case 'sch-add': collectSched(); SCH.rows.push({ id: 'sch_' + Date.now(), date: '', time: '', opp: '', site: 'home', conf: false }); render(); { const d = document.querySelectorAll('[data-f="date"][data-sr]'); if (d.length) d[d.length - 1].focus(); } break;
+    case 'sch-del': { collectSched(); const r = SCH.rows[+t.dataset.i]; if (r && (!r.opp || confirm('Remove ' + fmtDate(r.date) + ' ' + r.opp + ' from the schedule? (A game already tracked is kept.)'))) { SCH.rows.splice(+t.dataset.i, 1); render(); } break; }
+    case 'sch-save': if (schSave()) render(); break;
+    case 'sch-paste': collectSched(); SCH.paste = !SCH.paste; render(); if (SCH.paste) $('#sch-paste-text').focus(); break;
+    case 'sch-paste-read': { collectSched(); const got = parseScheduleText($('#sch-paste-text').value);
+      if (!got.length) { toast('No games found — each line needs a date and an opponent', 'bad'); break; }
+      const have = new Set(SCH.rows.map(r => r.date + '|' + r.opp.toLowerCase()));
+      const add = got.filter(r => !have.has(r.date + '|' + r.opp.toLowerCase()));
+      SCH.rows.push(...add); SCH.rows.sort((x, y) => (x.date || '9').localeCompare(y.date || '9')); SCH.paste = false;
+      toast(`Added ${add.length} game${add.length === 1 ? '' : 's'} — check them, then Save schedule`, 'good', 3500); render(); break; }
+    case 'sch-start': schStart(+t.dataset.i); break;
     case 'back-setup': setTab('track'); break;
-    case 'opp-new': oppEditorLoad(null); render(); addRow('page'); break;
-    case 'opp-edit': oppEditorLoad(t.dataset.id); render(); break;
     case 'prow-add': addRow(t.dataset.scope); break;
     case 'prow-del': collectRows(t.dataset.scope); rowsFor(t.dataset.scope).splice(+t.dataset.i, 1); repaintRows(t.dataset.scope); break;
     case 'opp-save': oppSave(); break;
-    case 'opp-delete': { const o = App.opps.find(x => x.id === OPP.editId); if (o && confirm('Delete the saved ' + o.name + ' roster? Games already played keep theirs.')) { App.opps = App.opps.filter(x => x !== o); saveOpps(); oppEditorLoad(null); render(); } break; }
+    case 'opp-delete': { const o = App.opps.find(x => x.id === OPP.editId); if (o && confirm('Delete ' + o.name + "'s roster, notes and scouting link? Games already played keep theirs; schedule entries stay.")) { App.opps = App.opps.filter(x => x !== o); saveOpps(); OPP.editId = null; render(); } break; }
     case 'opp-live-edit': openOppLiveEdit(); break;
     case 'ole-save': saveOppLiveEdit(); break;
     case 'new-game': if (liveGame() && !confirm('A game is still live. Leave it (you can resume from Games) and start a new one?')) break; App.liveId = null; lsSet(LS_LIVE, null); setupDraft = null; setTab('track'); break;
@@ -2679,6 +2875,7 @@ async function loadRoster() {
 async function boot() {
   App.games = lsGet(LS_GAMES, []) || [];
   App.opps = lsGet(LS_OPPS, []) || [];
+  App.schedule = lsGet(LS_SCHED, []) || [];
   App.liveId = lsGet(LS_LIVE, null);
   if (App.liveId && !App.games.some(g => g.id === App.liveId && !g.completed)) App.liveId = null;
   const ui = lsGet(LS_UI, {}) || {};
