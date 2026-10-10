@@ -24,6 +24,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Install dependencies (if any requirements.txt or pip install needed)
 
 ## Main Scripts & Commands
+- In-season daily scraping: `scrape.py` (master schedule, nightly composite
+  scrape, missing-box-score ledger in `scrape_state/<season>/`). Full command
+  list in "Terminal Commands README.md". Keep it low-traffic: one request at a
+  time, never fetch a box score that's already COMPLETE.
+  python3 scrape.py master      # once, when schedules post
+  python3 scrape.py nightly     # every night
+  python3 scrape.py status      # what's missing (no network)
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:

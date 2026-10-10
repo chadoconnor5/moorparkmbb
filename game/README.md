@@ -31,20 +31,29 @@ Schedule tab: **+ Add game** (date, home/away/neutral, opponent, time, conferenc
 conference; `scrimmage` marks a scrimmage, which is tracked but kept out of the record and season totals). Save schedule. Each game has **Start game** (fills in the setup screen) and
 shows the result once played; on game day today's game fills setup in by itself.
 
-The **Opponent** dropdown under the schedule opens that team's page: roster (**+ Add
-player** — number, name, position, height, year, and a note that shows on his button in
-the game), scouting PDF, notes, results against them and their players' totals against
-us. Mid-game, the **Roster** button on their side edits the same roster; edits match by
-number, so stats already logged stay with the player.
+The **Opponents** tab (its own tab, apart from the schedule) has a page per team: roster
+(**+ Add player** — number, name, position, height, year, and a note that shows on his
+button in the game), scouting PDF, notes, results against them and their players' totals
+against us. At game setup, **+ Add players / Edit roster** opens the same roster in a
+pop-up without leaving setup, and their five starters can be tapped right there (optional —
+they can also be set at tip-off). Mid-game, the **Roster** button on their side edits the
+same roster; edits match by number, so stats already logged stay with the player.
 
 ## Live entry
 
 - Tap a stat, then the player. Makes ask for the assister, misses for the rebounder (tap
   the player — offensive/defensive is read from his team). Steal → who turned it over.
 - **Foul** → who fouled → who drew it. **Off Foul** → who committed it → who drew it
-  (records the foul, a turnover, and a foul drawn / charge for the defender).
-- **Sub**: tap the player on the floor (no stat selected) → tap his replacement → type the
-  clock → Enter. The clock is required at every sub.
+  (records the foul, a turnover, and an offensive foul drawn for the defender). **Charge**
+  is the same, flagged as a charge: every charge is an offensive foul drawn, not every
+  offensive foul drawn is a charge, and Analytics counts them separately.
+- **Sub**: one window for both teams. Tap a player on either side (no stat selected), or
+  **⇄ Sub** → tap who comes out → who goes in, on either or both sides → type the clock →
+  Enter. The clock is required at every sub, theirs included.
+- **Free throws across a sub**: free throws (attempts and points) belong to the five on the
+  floor when the foul was committed, even with a sub between the foul and the shots or
+  between the shots. A rebound off a missed free throw belongs to the five on the floor
+  then. Lineups, on/off and +/- all follow this.
 - **Timeout**: team, 30s or full, clock.
 - No running clock: the time entered at each sub, timeout and period end is the clock. **Set time** under the scoreboard clock updates it any time (e.g. to check garbage time during a long stretch with no sub). S flips to the scouting report and back.
 
@@ -54,13 +63,28 @@ Tracked silently (no live alert): every unanswered run. 10-0 is a killshot; 15-0
 are counted on top of it, for and against, and runs carry across the half. Analytics lists
 each one with when it happened and the Moorpark five on the floor; Season totals them.
 
-## Their lineups and +/-
+## Their lineups, minutes and +/-
 
-With their roster entered, pick their five when you start each half (or **Set their five**
-in their column). Their subs: tap one of their players with no stat selected, tap who comes
-in; the clock is optional for their subs. Their five show big, the bench underneath. Each of
-their players carries his +/- on his button and in the box score, both lineups' +/- sit side
-by side on the live page, and Analytics has a table of their fives.
+With their roster entered, pick their five at setup, at the start of each half (the start
+window picks both teams' fives), or with **Set their five** in their column. Their column
+looks like ours: the five on the floor and a Team button. Their subs go through the same
+Sub window with the clock, so they get minutes, and their box score has every column ours
+has. Under their column, each team's current five shows its possessions, ORtg, DRtg, Net
+and +/- together, then each man's +/-. Analytics has a table of their fives with minutes
+and the four factors at both ends.
+
+## Halftime and post-game reports
+
+Ending the 1st half opens the **halftime report** on the Live tab: second-half keys (the
+factors that are swinging it, turnovers and second chances with the points they cost, their
+hot scorer, runs against, foul trouble on both sides), four factors, fouls and timeouts
+left, our box, their top scorers, best and worst lineup, and 10-0 runs. **Start 2nd Half**
+sets both starting fives. Finishing the game opens the same report for the whole game on
+the **Report** tab (Halftime / Final switch). Its "What decided it" leads with the comeback
+(or the lead lost) and explains each side's change in points per 100 possessions between the
+halves through the stats that drove it, each with a rough worth in points per 100 (e.g.
+their 3PT% 8-14 → 3-14, our DREB% 63 → 93). A 1st half vs 2nd half table tags every factor
+Flipped, Grew, Held or Narrowed. 🖨 prints it on white paper.
 
 ## Garbage time and leverage (live)
 
