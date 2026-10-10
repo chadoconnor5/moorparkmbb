@@ -54,6 +54,14 @@ Tracked silently (no live alert): every unanswered run. 10-0 is a killshot; 15-0
 are counted on top of it, for and against, and runs carry across the half. Analytics lists
 each one with when it happened and the Moorpark five on the floor; Season totals them.
 
+## Their lineups and +/-
+
+With their roster entered, pick their five when you start each half (or **Set their five**
+in their column). Their subs: tap one of their players with no stat selected, tap who comes
+in; the clock is optional for their subs. Their five show big, the bench underneath. Each of
+their players carries his +/- on his button and in the box score, both lineups' +/- sit side
+by side on the live page, and Analytics has a table of their fives.
+
 ## Garbage time and leverage (live)
 
 - **Garbage time** — the defensive possession logger's ladder on game time left: 30+ any
