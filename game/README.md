@@ -41,6 +41,10 @@ keep a copy, and **Publish** to download `gt_data.json` for the read-only site v
   are flagged (`gt` on each event) and left out of On/Off and Lineups by default.
 - **Leverage** per possession — High ≤3, Medium 4–12 and reachable, Low 13+ or out of reach
   on the trips left. **Clutch**: last 5:00 of the game (all of OT), within 5, not Low.
+- **Kills** — three straight stops banks a kill for that defence; the count restarts after
+  each one (six straight = two). A trip that ends on a rebound off a missed free throw is
+  not a stop and breaks the run. Shown on the scoreboard (pips = current stop run), in
+  Analytics by period and by lineup, and tagged in the play-by-play.
 - The game clock for each possession is read from the sub/timeout clocks (and the running
   clock when used).
 

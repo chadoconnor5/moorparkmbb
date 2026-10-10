@@ -100,6 +100,10 @@ table{border-collapse:collapse}
 .to-dot.used{background:transparent;border:1px solid var(--border2)}
 .bonus{font-size:10px;font-weight:900;padding:1px 6px;border-radius:4px;background:var(--warn);color:#000}
 .bonus.dbl{background:var(--bad);color:#fff}
+.kills{display:inline-flex;align-items:center;gap:4px;font-weight:800;color:var(--text)}
+.kills b{font-size:15px;color:var(--gold)}
+.kpip{width:8px;height:8px;border-radius:2px;border:1px solid var(--gold);display:inline-block}
+.kpip.on{background:var(--gold)}
 
 .levbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:8px;font-size:12px}
 .lev{font-weight:900;padding:2px 9px;border-radius:5px;font-size:11px;letter-spacing:.05em}
@@ -891,7 +895,8 @@ function gameSecRem(g, q, rem) {
 ════════════════════════════════════════════════════════════ */
 const LEV_CUT = { high: 3, low: 13, ppp: 3 };
 const CLUTCH = { margin: 5, secs: 300 };
-const DEFAULT_SPT = 17.5;   // seconds per trip until the game has its own pace
+const DEFAULT_SPT = 17.5;
+const KILL_STOPS = 3;   // seconds per trip until the game has its own pace
 function gtReq(minRem) { if (minRem <= 1) return 10; if (minRem <= 3) return 15; if (minRem <= 5) return 20; if (minRem <= 8) return 25; return 30; }
 function levTier(margin, trailLeft) {
   const d = Math.abs(margin);
@@ -938,7 +943,7 @@ function analyzeTrips(g) {
     if (andOne && !isFt && !['foul', 'fd', 'ast'].includes(st)) andOne = null;
     let trip;
     if (/fg_/.test(st)) {
-      trip = ensure(t, i); attach(trip, i);
+      trip = ensure(t, i); attach(trip, i); trip.lastShot = st;
       if (v) {
         trip.pts += v; if (t === 'a') sA += v; else sB += v;
         if (trip.flags.tov) pot[t] += v; if (trip.flags.oreb) scp[t] += v;
@@ -946,14 +951,14 @@ function analyzeTrips(g) {
       }
     } else if (isFt) {
       if (andOne && andOne.team === t && !cur) trip = andOne.trip; else trip = ensure(t, i);
-      attach(trip, i);
+      attach(trip, i); trip.lastShot = st;
       if (v) { trip.pts += v; if (t === 'a') sA += v; else sB += v; if (trip.flags.tov) pot[t] += v; if (trip.flags.oreb) scp[t] += v; }
     } else if (st === 'oreb') {
       trip = ensure(t, i); trip.flags.oreb = true; attach(trip, i);
     } else if (st === 'dreb') {
       trip = ensure(t, i); attach(trip, i);
     } else if (st === 'tov') {
-      trip = ensure(t, i); attach(trip, i);
+      trip = ensure(t, i); attach(trip, i); trip.endTov = true;
       cur = null; pending = { team: other(t), flags: { tov: true } };
     } else {
       // stl / blk / foul / fd / ast: part of whatever trip is live, never the start of one.
@@ -985,13 +990,33 @@ function analyzeTrips(g) {
     tr.gt = gtCut != null && k >= gtCut;
     counts[tr.tier]++; counts.total++; if (tr.clutch) counts.clutch++; if (tr.gt) counts.gt++;
   });
+  /* KILLS — the practice tracker's rule: three straight stops and the defence banks a kill,
+     then the count starts over (six straight stops = two kills). A stop is a finished trip
+     with no points, EXCEPT one that ended on a rebound off a missed free throw: the defence
+     fouled to get there, so that trip is not a stop and it breaks the run. A turnover after
+     the missed free throw (offensive board, then a giveaway) is a stop as normal.
+     The trip still in progress is not judged until it ends. Runs carry across the half. */
+  const kills = { a: 0, b: 0 }, streak = { a: 0, b: 0 };
+  trips.forEach((tr, k) => {
+    // A turnover ends a trip on the spot, and points can't be taken back, so neither waits
+    // for the next possession to be logged before it counts.
+    tr.closed = k < trips.length - 1 || !!g.completed || g.quarters.length >= tr.period || !!tr.endTov || tr.pts > 0;
+    tr.ftEnd = tr.pts === 0 && /^ft_/.test(tr.lastShot || '') && !tr.endTov;
+    tr.stop = tr.closed && tr.pts === 0 && !tr.ftEnd;
+    tr.kill = null;
+    if (!tr.closed) return;
+    if (!tr.stop) { streak[tr.team] = 0; return; }
+    if (++streak[tr.team] >= KILL_STOPS) { tr.kill = other(tr.team); kills[tr.kill]++; streak[tr.team] = 0; }
+  });
+
   // Stamp the grading onto the events themselves so an export carries it.
   for (let i = 0; i < log.length; i++) {
     const tr = evTrip[i], e = log[i];
     if (!isStat(e)) continue;
-    if (tr) { e.lev = tr.tier; e.clutch = tr.clutch || undefined; e.gt = tr.gt || undefined; e.poss = tr.idx; }
+    if (tr) { e.lev = tr.tier; e.clutch = tr.clutch || undefined; e.gt = tr.gt || undefined; e.poss = tr.idx;
+              e.kill = tr.kill && i === tr.events[tr.events.length - 1] ? tr.kill : undefined; }
   }
-  const val = { trips, clocks, evTrip, spt, gtCut: gtCut == null ? null : trips[gtCut], counts, pot, scp };
+  const val = { trips, clocks, evTrip, spt, gtCut: gtCut == null ? null : trips[gtCut], counts, pot, scp, kills, streak };
   _tripCache = { key, val };
   return val;
 }
@@ -1033,12 +1058,14 @@ const unitKey = arr => arr.slice().sort().join('|');
 function lineupTable(g, f) {
   const A = analyzeTrips(g), L = lineupAtEach(g);
   const units = new Map();
-  const U = k => { if (!units.has(k)) units.set(k, { key: k, names: k.split('|'), secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, evA: [], evB: [] }); return units.get(k); };
+  const U = k => { if (!units.has(k)) units.set(k, { key: k, names: k.split('|'), secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, kF: 0, kA: 0, evA: [], evB: [] }); return units.get(k); };
   for (const s of g.lineupSegments) { if (s.lineupA.length) U(unitKey(s.lineupA)).secs += segSecs(g, s); }
   for (const tr of A.trips) {
     if (!tripPass(tr, f)) continue;
     const u = U(unitKey(L[tr.startIdx]));
     if (tr.team === 'a') u.oT++; else u.dT++;
+    // The kill goes to the five on the floor for the stop that completed it.
+    if (tr.kill === 'a') u.kF++; else if (tr.kill === 'b') u.kA++;
   }
   g.eventLog.forEach((e, i) => {
     if (!isStat(e)) return;
@@ -1207,10 +1234,13 @@ function paintScorebar() {
   const q = curPeriod(g);
   const fq = g.between ? Math.min(q, g.format.periods + 1) : q;
   const tf = t => teamFouls(g, t, fq);
+  const AK = analyzeTrips(g);
+  // A team's kills are its DEFENCE's; the pips fill with the opponent's current stop run.
+  const killHtml = t => `<span class="kills" title="Kills: ${KILL_STOPS} straight stops. Pips = ${t === 'a' ? 'their' : 'our'} current scoreless run.">KILLS <b>${AK.kills[t]}</b>${Array.from({ length: KILL_STOPS }, (_, i) => `<span class="kpip ${i < AK.streak[other(t)] ? 'on' : ''}"></span>`).join('')}</span>`;
   el.className = 'scorebar';
   el.innerHTML = `
     <div class="sb-team a"><div class="sb-name">${esc(g.teamAName)}</div><div class="sb-score">${score(g, 'a')}</div>
-      <div class="sb-meta">Fouls ${tf('a')} ${bonusTag(g, 'a')} · ${toDots(g, 'a')}</div></div>
+      <div class="sb-meta">Fouls ${tf('a')} ${bonusTag(g, 'a')} · ${toDots(g, 'a')}</div><div class="sb-meta">${killHtml('a')}</div></div>
     <div class="sb-mid">
       <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
       <button class="sb-clock ${g.clock.running ? 'running' : ''}" id="sb-clock" data-act="set-clock" title="Tap to set the game clock">${fmtClock(clockNow(g))}</button>
@@ -1219,7 +1249,7 @@ function paintScorebar() {
       </div>
     </div>
     <div class="sb-team b"><div class="sb-name">${esc(g.teamBName)}</div><div class="sb-score">${score(g, 'b')}</div>
-      <div class="sb-meta">${toDots(g, 'b')} · ${bonusTag(g, 'b')} Fouls ${tf('b')}</div></div>`;
+      <div class="sb-meta">${toDots(g, 'b')} · ${bonusTag(g, 'b')} Fouls ${tf('b')}</div><div class="sb-meta">${killHtml('b')}</div></div>`;
   paintLevbar();
 }
 function paintLevbar() {
@@ -1744,6 +1774,7 @@ function renderAnalytics() {
     ${kv('AST / FGM', pct(a.ast, a.fgm), pct(b.ast, b.fgm), true)}
     ${kv('Turnovers', a.tov, b.tov, false)}
     ${kv('Steals · Blocks', a.stl + ' · ' + a.blk, b.stl + ' · ' + b.blk)}
+    ${kv('Kills (3 straight stops)', killsFor(A, qf, 'a'), killsFor(A, qf, 'b'), true)}
     ${kv('Pts off turnovers', potScp.pot.a, potScp.pot.b, true)}
     ${kv('2nd-chance pts', potScp.scp.a, potScp.scp.b, true)}
     ${kv('Fouls (off.)', a.pf + ' (' + a.offf + ')', b.pf + ' (' + b.offf + ')', false)}
@@ -1771,6 +1802,9 @@ function renderAnalytics() {
   </div>
   <div class="card"><h3>Garbage time</h3>${gtSummary(g, A)}</div>`;
 }
+function killsFor(A, qf, t, f) {
+  return A.trips.filter(tr => tr.kill === t && (qf == null || tr.period === qf) && (!f || tripPass(tr, f))).length;
+}
 function levSelect() {
   return `<select data-act="pick-lev" style="font-size:12px;padding:3px 6px;text-transform:none;letter-spacing:0">${LEV_FILTERS.map(([k, l]) => `<option value="${k}" ${App.lev === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
 }
@@ -1786,6 +1820,9 @@ function insights(g) {
     const n = r[r.team];
     if (n >= 6) out.push({ c: r.team === 'a' ? 'good' : 'bad', t: `${teamName(g, r.team)} on a ${n}-0 run.` + (r.team === 'b' ? ' Timeouts left: ' + (() => { const L = timeoutsLeft(g, 'a'); return L.s30 + '×30, ' + L.full + ' full'; })() : '') });
   }
+  const AK = analyzeTrips(g);
+  if (AK.streak.b === KILL_STOPS - 1) out.push({ c: 'good', t: `${KILL_STOPS - 1} straight stops — one more is a kill (${AK.kills.a} so far).` });
+  if (AK.streak.a === KILL_STOPS - 1) out.push({ c: 'bad', t: `${KILL_STOPS - 1} straight empty trips — score or ${g.teamBName} gets a kill.` });
   const dA = drought(g, 'a'), dB = drought(g, 'b');
   if (dA >= 4) out.push({ c: 'bad', t: `Moorpark: ${dA} straight empty possessions.` });
   if (dB >= 4) out.push({ c: 'good', t: `${g.teamBName}: ${dB} straight empty possessions.` });
@@ -1857,10 +1894,10 @@ function leverageTable(g, A) {
 }
 function periodTable(g) {
   const n = g.quarters.length + (g.between || g.completed ? 0 : 1);
-  let h = `<div class="tbl-wrap"><table class="tbl"><tr><th>Period</th><th>Score</th><th>eFG% us/them</th><th>TO us/them</th><th>OREB us/them</th><th>ORtg us/them</th></tr>`;
+  let h = `<div class="tbl-wrap"><table class="tbl"><tr><th>Period</th><th>Score</th><th>eFG% us/them</th><th>TO us/them</th><th>OREB us/them</th><th>ORtg us/them</th><th>Kills us/them</th></tr>`;
   for (let q = 1; q <= n; q++) {
     const T = teamStats(g, e => e.quarter === q);
-    h += `<tr><td class="l">${periodName(g, q)}</td><td class="${pmCls(T.a.pts - T.b.pts)}">${T.a.pts}–${T.b.pts}</td><td>${f1(T.a.efgPct)} / ${f1(T.b.efgPct)}</td><td>${T.a.tov} / ${T.b.tov}</td><td>${T.a.oreb} / ${T.b.oreb}</td><td>${f0(T.a.ortg)} / ${f0(T.b.ortg)}</td></tr>`;
+    h += `<tr><td class="l">${periodName(g, q)}</td><td class="${pmCls(T.a.pts - T.b.pts)}">${T.a.pts}–${T.b.pts}</td><td>${f1(T.a.efgPct)} / ${f1(T.b.efgPct)}</td><td>${T.a.tov} / ${T.b.tov}</td><td>${T.a.oreb} / ${T.b.oreb}</td><td>${f0(T.a.ortg)} / ${f0(T.b.ortg)}</td><td>${killsFor(analyzeTrips(g), q, 'a')} / ${killsFor(analyzeTrips(g), q, 'b')}</td></tr>`;
   }
   return h + '</table></div>';
 }
@@ -1868,9 +1905,9 @@ function lineupsHtml(g) {
   const units = lineupTable(g, App.lev).sort((x, y) => y.secs - x.secs || (y.oT + y.dT) - (x.oT + x.dT));
   if (!units.length) return '<div class="muted">No lineups yet.</div>';
   const cur = g.completed ? '' : unitKey(currentLineup(g));
-  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Lineup</th><th>MIN</th><th>Poss O/D</th><th>Pts F–A</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th></tr>
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Lineup</th><th>MIN</th><th>Poss O/D</th><th>Pts F–A</th><th>+/-</th><th>ORtg</th><th>DRtg</th><th>Net</th><th>Kills F/A</th></tr>
     ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null;
-      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td></tr>`; }).join('')}
+      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td><td>${u.kF} / ${u.kA}</td></tr>`; }).join('')}
   </table></div><div class="tiny muted" style="margin-top:6px">Highlighted row is on the floor now.</div>`;
 }
 function onOffHtml(g) {
@@ -1928,7 +1965,7 @@ function renderPbp() {
   const playersFor = t => t === 'a' ? [...teamPlayers(g, 'a').sort(byLast), TEAM] : (oppHasRoster(g) ? [...g.oppRoster, TEAM] : [TEAM]);
   const html = rows.slice().reverse().map(({ e, i, sA, sB }) => {
     const tr = A.evTrip[i];
-    const tags = tr ? `${tr.gt ? '<span class="tag lev-gt">GT</span>' : ''}${tr.clutch ? '<span class="tag lev-clutch">CL</span>' : ''}<span class="tag lev-${tr.tier}">${tr.tier[0].toUpperCase()}</span>` : '';
+    const tags = tr ? `${e.kill ? `<span class="tag" style="background:var(--gold);color:#000">KILL ${e.kill === 'a' ? 'MC' : 'OPP'}</span>` : ''}${tr.ftEnd && i === tr.events[tr.events.length - 1] ? '<span class="tag lev-low" title="Ended on a free-throw rebound: not a stop">FT reb</span>' : ''}${tr.gt ? '<span class="tag lev-gt">GT</span>' : ''}${tr.clutch ? '<span class="tag lev-clutch">CL</span>' : ''}<span class="tag lev-${tr.tier}">${tr.tier[0].toUpperCase()}</span>` : '';
     const clk = e.type ? fmtClock(e.timeSecs) : (A.clocks[i] != null ? (e.gc != null ? '' : '~') + fmtClock(A.clocks[i]) : '');
     const edit = canEdit && isStat(e) ? `<select data-act="pbp-player" data-i="${i}" style="font-size:12px;padding:2px 4px">${playersFor(e.team).map(p => `<option value="${esc(p)}" ${p === e.player ? 'selected' : ''}>${esc(p === TEAM ? 'Team' : p)}</option>`).join('')}</select>` : '';
     const del = canEdit && (isStat(e) || e.type === 'timeout' || e.type === 'clock') ? `<button class="btn btn-sm" data-act="pbp-del" data-i="${i}" title="Delete">🗑</button>` : '';
@@ -1976,7 +2013,7 @@ function renderSeason() {
   const agg = new Map();
   let W = 0, Lw = 0; const team = { a: statLine([]), b: statLine([]), poss: 0 };
   const sumInto = (dst, src) => { for (const k of Object.keys(dst)) if (typeof src[k] === 'number') dst[k] += src[k]; };
-  const lev = { aT: 0, aP: 0, bT: 0, bP: 0 };
+  const lev = { aT: 0, aP: 0, bT: 0, bP: 0 }, kl = { a: 0, b: 0 };
   for (const g of games) {
     const s = finalScore(g); if (s.a > s.b) W++; else Lw++;
     const T = teamStats(g); sumInto(team.a, T.a); sumInto(team.b, T.b); team.poss += T.a.possessions;
@@ -1985,6 +2022,7 @@ function renderSeason() {
       if (!agg.has(r.name)) agg.set(r.name, Object.assign(statLine([]), { gp: 0, min: 0, pm: 0 }));
       const x = agg.get(r.name); sumInto(x, r); x.gp++;
     }
+    { const AK = analyzeTrips(g); kl.a += AK.kills.a; kl.b += AK.kills.b; }
     for (const tr of analyzeTrips(g).trips) if (!tr.gt) { if (tr.team === 'a') { lev.aT++; lev.aP += tr.pts; } else { lev.bT++; lev.bP += tr.pts; } }
   }
   const n = games.length;
@@ -2003,6 +2041,7 @@ function renderSeason() {
       <div class="k"><div class="lbl">TOV%</div><div class="v"><span class="a">${f1(100 * a.tov / P)}</span><span class="b">${f1(100 * b.tov / P)}</span></div></div>
       <div class="k"><div class="lbl">OREB%</div><div class="v"><span class="a">${pct(a.oreb, a.oreb + b.dreb)}</span><span class="b">${pct(b.oreb, b.oreb + a.dreb)}</span></div></div>
       <div class="k"><div class="lbl">FT rate</div><div class="v"><span class="a">${pct(a.fta, a.fga)}</span><span class="b">${pct(b.fta, b.fga)}</span></div></div>
+      <div class="k"><div class="lbl">Kills per game</div><div class="v"><span class="a">${(kl.a / n).toFixed(1)}</span><span class="b">${(kl.b / n).toFixed(1)}</span></div></div>
       <div class="k"><div class="lbl">Pace (poss/g)</div><div class="v"><span>${(P / n).toFixed(1)}</span></div></div>
     </div></div>
   <div class="card"><h3>Players — per game</h3><div class="tbl-wrap"><table class="tbl">
