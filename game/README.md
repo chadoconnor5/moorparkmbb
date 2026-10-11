@@ -167,6 +167,19 @@ OREB% or DREB% on 4+ chances, 10 points of TO% on 3+ turnovers. A last row, **AS
 with the assist-to-turnover ratio under it), lights up on 25 points over 4+ makes. Five minutes is 8-10 trips, so this
 is the "something changed" flag, not a verdict.
 
+## ⚡ Fast mode
+
+The **⚡ Fast** switch (top of the stat column on the Live screen; remembered on this iPad)
+is for when one person can't follow every player. **Made shots and fouls** still name the
+player - that's the score and foul trouble. **Misses, Rebound, Turnover, Steal and Block**
+name only the team: each team's whole column turns into one giant button (Moorpark left,
+them right). **Rebound** is one button - offensive or defensive follows from who missed
+last. **Steal** also logs the other side's turnover. No assist step. Subs, timeouts, fouls,
+possession, flags and the Huddle are unchanged, and lineups, minutes, +/-, possessions,
+four factors and kills keep working; individual rebounds, assists, turnovers, steals and
+blocks come from the official box score instead. Flip it any time - both modes log the
+same game.
+
 ## Fouls
 
 **Foul** and **Off Foul** are one tap after the stat: the man who fouled, and the play is
