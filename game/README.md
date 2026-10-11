@@ -47,6 +47,11 @@ same roster; edits match by number, so stats already logged stay with the player
   (records the foul, a turnover, and an offensive foul drawn for the defender). **Charge**
   is the same, flagged as a charge: every charge is an offensive foul drawn, not every
   offensive foul drawn is a charge, and Analytics counts them separately.
+- **Tech** → tap the player, or **[team] coach**. A player technical is a personal foul and a
+  team foul; a coach technical is a team foul. The other side then shoots two (FT Make /
+  FT Miss, any player): no rebound on a miss, and they don't use a possession — the
+  shooting side keeps the ball. Offensive fouls (charges included) are personal fouls only
+  and don't count toward the bonus.
 - **Sub**: one window for both teams. Tap a player on either side (no stat selected), or
   **⇄ Sub** → tap who comes out → who goes in, on either or both sides → type the clock →
   Enter. The clock is required at every sub, theirs included.
