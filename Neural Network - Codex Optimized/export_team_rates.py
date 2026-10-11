@@ -5,9 +5,10 @@ Reads <season> Team Statistics/*/<team>/season_stats.json (raw box totals, the s
 own output) and writes ../game/team_rates.json:
 
     {"season": "2026-27", "generatedAt": ..., "teams": {"Ventura": {"gp": 12, "ppp": 1.08,
-      "tpar": 34.7, "ftr": 38.3, "orebPct": 37.2, "tovPct": 18.8, "astPct": 47.6}, ...}}
+      "efg": 56.0, "tpar": 34.7, "ftr": 38.3, "orebPct": 37.2, "tovPct": 18.8, "astPct": 47.6}, ...}}
 
-The same definitions the tracker uses for a game: points per possession (possessions =
+The same definitions the tracker uses for a game: eFG% ((FGM + 0.5 3PM) / FGA), points per
+possession (possessions =
 FGA - OREB + TO + 0.475 FTA), 3PA / FGA, FTA / FGA, OREB / (OREB + opponent DREB),
 TO / possessions, AST / FGM. Raw, not opponent-adjusted - they sit beside tonight's raw
 numbers. The tracker only shows them for the game's own season and once a team has
@@ -32,6 +33,7 @@ def rates(tt, ot):
     pct = lambda n, d: round(100 * n / d, 1) if d else None
     return {
         "ppp": round(tt.get("PTS", 0) / poss, 3) if poss else None,
+        "efg": pct(tt.get("FGM", 0) + 0.5 * tt.get("3PM", 0), fga),
         "tpar": pct(tt.get("3PA", 0), fga),
         "ftr": pct(fta, fga),
         "orebPct": pct(oreb, oreb + ot.get("DREB", 0)),
