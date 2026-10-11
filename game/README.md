@@ -57,8 +57,13 @@ same roster; edits match by number, so stats already logged stay with the player
   shooting side keeps the ball. Offensive fouls (charges included) are personal fouls only
   and don't count toward the bonus.
 - **Sub**: one window for both teams, from the **⇄ Sub** button only (a stray tap on a
-  player card does nothing) → tap who comes out → who goes in, on either or both sides → type the clock →
-  Enter. The clock is required at every sub, theirs included.
+  player card does nothing). Each team's roster shows with the five on the floor lit: tap
+  as many as you like to take them out and as many to put in, in any order, until five are
+  lit (an OUT / IN line shows the change) → **Confirm** (top of the window). Step two is a
+  big number pad on its own screen: the time starts filled with the clock as it stands
+  (the first key replaces it), and **Confirm sub** lights
+  up once the time is valid. **◀ Back** returns to the players. Who replaced whom isn't
+  asked - only the new five matters.
 - **Free throws across a sub**: free throws (attempts and points) belong to the five on the
   floor when the foul was committed, even with a sub between the foul and the shots or
   between the shots. A rebound off a missed free throw belongs to the five on the floor
@@ -194,8 +199,8 @@ therefore counts charges taken only.
 
 ## Clock entries
 
-The Sub, Timeout and Set time windows have their own number pad next to mm:ss, so the iPad
-keyboard never opens (it used to cover the subs list and the Confirm button). In the Sub
+The Sub, Timeout and Set time windows have their own number pad next to mm:ss; the mm:ss
+box itself can't be tapped or focused, so the iPad keyboard never opens (it used to cover the subs list and the Confirm button). In the Sub
 window **Cancel / Confirm sub** sit right under the clock box.
 
 
