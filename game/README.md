@@ -56,8 +56,8 @@ same roster; edits match by number, so stats already logged stay with the player
   FT Miss, any player): no rebound on a miss, and they don't use a possession — the
   shooting side keeps the ball. Offensive fouls (charges included) are personal fouls only
   and don't count toward the bonus.
-- **Sub**: one window for both teams. Tap a player on either side (no stat selected), or
-  **⇄ Sub** → tap who comes out → who goes in, on either or both sides → type the clock →
+- **Sub**: one window for both teams, from the **⇄ Sub** button only (a stray tap on a
+  player card does nothing) → tap who comes out → who goes in, on either or both sides → type the clock →
   Enter. The clock is required at every sub, theirs included.
 - **Free throws across a sub**: free throws (attempts and points) belong to the five on the
   floor when the foul was committed, even with a sub between the foul and the shots or
@@ -141,20 +141,20 @@ play), `quarter`, `clk` (game clock, seconds left in the period, read from the c
 the nearest sub/timeout clocks), `ts` and an increasing `id`, so a backup or export
 reads in order without the app.
 
-## Possession (all game)
+## Possession pill
 
-The pill under the clock shows who has the ball (◀ MOORPARK BALL / THEIRS BALL ▶ in
-their colour). It follows the plays logged (makes, rebounds, steals, turnovers) and one
-tap sets it:
+The pill under the clock changes **only when you tap it** - no play, clock entry, sub,
+timeout or new period moves it. Use it like the possession arrow: tap it at the tip, at
+the start of the 2nd half and on a jump ball.
 
-- **Tip-off and the start of the 2nd half** (or before the first play of a period, or at
-  the break): the tap just gives the ball - no questions.
+- **Tip-off / start of a half / at a break**: the tap just gives the ball.
 - **Mid-possession** (a tie-up): the tap asks. **Held ball: turnover + steal** logs a
-  turnover on the man who lost it (none picked = Team) and, optionally, a steal for the
-  man who tied him up. **Just switch** only fixes a wrong read (out of bounds, etc.).
+  turnover on the man who lost it (none picked = Team) and, optionally, a steal for the man
+  who tied him up. **Just switch** only switches the pill.
+- Undo takes a tap back.
 
-A tap holds through timeouts and subs until the next play. The end-of-game alerts read
-the same possession.
+The end-of-game alerts read possession from the plays logged (a make, a defensive board, a
+turnover...), not from the pill.
 
 ## Huddle: last 5:00 vs the game
 
@@ -193,6 +193,11 @@ therefore counts charges taken only.
   longer make sense (the reason is shown). Undo takes an edit back.
 
 ## Clock entries
+
+The Sub, Timeout and Set time windows have their own number pad next to mm:ss, so the iPad
+keyboard never opens (it used to cover the subs list and the Confirm button). In the Sub
+window **Cancel / Confirm sub** sit right under the clock box.
+
 
 A sub, a timeout (official included) and the end of a period refuse a time that has
 already gone by in the period: above the live clock when it runs, the last time entered

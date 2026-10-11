@@ -256,6 +256,7 @@ table{border-collapse:collapse}
 .pbtn .pline{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px;padding-right:38px}
 .pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
 .pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.sub-acts{display:flex;gap:8px;margin-top:14px} .sub-acts .btn-lg{flex:1}
 .pbtn .stint{position:absolute;bottom:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
 /* foul trouble: the whole card, amber then red */
 .tracker .col .pbtn.ft-warn{background:rgba(250,204,21,.13);border-color:rgba(250,204,21,.75);box-shadow:inset 4px 0 0 #facc15}
@@ -576,7 +577,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.47</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.50</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1128,12 +1129,8 @@ function startStat(stat) {
 
 function pickPlayer(team, p) {
   const g = liveGame(); if (!g) return;
-  if (F.phase === 'idle') {
-    // Tapping a man on the floor with no stat armed is the fastest way into a substitution.
-    if (p !== TEAM && !g.between && (team === 'a' || oppHasRoster(g))) openSub(team === 'a' || oppTracked(g) ? { team, n: p } : null);
-    else toast('Pick a stat first');
-    return;
-  }
+  // No stat picked: a stray tap on a card does nothing (subs only from the ⇄ Sub button).
+  if (F.phase === 'idle') return;
   if (!allowed(team, p)) return;
   switch (F.phase) {
     case 'pick_shooter':
@@ -2066,9 +2063,8 @@ function paintScorebar() {
   fitNames(el);
   paintLevbar();
 }
-/* Possession, all game: read off the last play logged (a make, a rebound, a steal...),
-   and one tap sets it - the tip-off, a jump ball, the start of the 2nd half, or any time
-   the read is wrong. A tap holds until the next play is logged. */
+/* The possession pill: set ONLY by tapping it (the tip, a jump ball, the start of the 2nd
+   half). Tapped mid-possession it asks whether it was a held ball (turnover + steal). */
 function possPill(g) {
   if (g.completed) return '';
   const ball = ballTeam(g);
@@ -2097,13 +2093,17 @@ function fitNames(root) {
    next play is logged. Got it hides an alert until the situation behind it changes. */
 const SHOT_CLOCK = 30;
 const ALERT = { dismissed: null };
-/* A Their ball? / Our ball? fix holds until the next play is logged; subs, timeouts and
-   clock changes don't clear it. */
-const playCount = g => g.eventLog.reduce((n, e) => n + (isStat(e) ? 1 : 0), 0);
-function ballTeam(g) {
-  if (g.ballOverride && g.ballOverride.plays === playCount(g)) return g.ballOverride.team;
+/* POSSESSION PILL: changes ONLY when it is tapped - no play, clock entry, sub, timeout or
+   new period moves it. Tap it at the tip, at the start of the 2nd half, after a jump ball,
+   and whenever the ball changes hands in a way you want shown. The end-of-game alerts read
+   it. (Possession numbers in the stats are built from the plays separately.) */
+function ballTeam(g) { return g.ball === 'a' || g.ball === 'b' ? g.ball : null; }
+/* Who has the ball by the plays logged (made basket → the other side, defensive board →
+   the rebounders, turnover → the other side...). Only the end-of-game alerts use this; the
+   pill never does. */
+function playBall(g) {
   const A = analyzeTrips(g), lt = A.trips[A.trips.length - 1];
-  if (!lt || lt.period !== curPeriod(g)) return null;
+  if (!lt || lt.period !== curPeriod(g)) return ballTeam(g);
   return lt.closed ? other(lt.team) : lt.team;
 }
 function endgameAlert(g) {
@@ -2111,7 +2111,7 @@ function endgameAlert(g) {
   const q = curPeriod(g); if (q < g.format.periods) return null;
   const rem = clockNow(g), gsr = gameSecRem(g, q, rem);
   if (gsr > 120 || rem <= 0) return null;
-  const m = score(g, 'a') - score(g, 'b'), ball = ballTeam(g);
+  const m = score(g, 'a') - score(g, 'b'), ball = playBall(g);
   const fa = teamFouls(g, 'a', q), fb = teamFouls(g, 'b', q), B = g.format.bonus, DB = g.format.dbonus;
   const toGive = Math.max(0, B - 1 - fa);
   const clk = fmtClock(rem), them = g.teamBName;
@@ -2140,7 +2140,6 @@ function paintLevbar() {
   const g = liveGame(); const el = $('#levbar'); if (!g || !el) return;
   const al = endgameAlert(g);
   if (al && ALERT.dismissed !== al.key) {
-    const ball = ballTeam(g);
     el.className = 'levbar alert-bar ' + al.cls;
     el.innerHTML = `<span class="al-ic">${al.icon}</span><b class="al-h">${esc(al.head)}</b><span class="al-s">${esc(al.sub)}</span>
       <span style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-sm" data-act="alert-ok" data-key="${esc(al.key)}">Got it</button></span>`;
@@ -2229,7 +2228,7 @@ function paintTracker() {
   const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
   ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span></div>
     <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
-    <div class="bench-mini">Tap a player with no stat selected to sub.</div>`;
+`;
   /* Their side matches ours: once their five is set, the five on the floor and a Team button.
      Before that (roster in, five not set) their whole roster shows, two to a row. */
   const oLu = OT ? currentLineup(g, 'b').sort(byJersey(g, 'b')) : [];
@@ -2240,7 +2239,6 @@ function paintTracker() {
   const oppHead = oppHasRoster(g) && !OT ? `<button class="btn btn-sm btn-good" data-act="sub" ${dis || F.phase !== 'idle' ? 'disabled' : ''}>Set their five</button>` : '';
   cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}${OT ? ' — on floor' : ''}</span><span class="row" style="gap:6px">${oppHead}<button class="btn btn-sm" data-act="opp-live-edit">Roster</button></span></div>
     ${oppGrid}
-    ${OT ? '<div class="bench-mini">Tap a player with no stat selected to sub.</div>' : ''}
     <div class="lpm2 ${OT ? 'two' : ''}">
       ${lpmHtml(g, 'a', lu, LPM, bench)}
       ${OT ? lpmHtml(g, 'b', oLu, OPM, oBench) : ''}
@@ -2456,8 +2454,9 @@ function showSubModal() {
   const clock = start ? '' : `
     <div class="clockin">
       <div><div class="sub-sec" style="margin-top:0">Time left in the ${periodName(g, q).toLowerCase()} — required</div>
-        <input id="sub-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss" class="need">
+        <input id="sub-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" class="need">
         <div class="clk-prev" id="sub-prev"></div><div class="clk-err" id="sub-err"></div>
+        <div class="sub-acts"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-good btn-lg" data-act="sub-confirm">Confirm sub ⏎</button></div>
       </div>
       ${keypadHtml('sub-clock')}
     </div>`;
@@ -2466,13 +2465,13 @@ function showSubModal() {
     ${start ? '<div class="small muted">Tap to put a player in or take him out. Five each.</div>' : ''}
     ${clock}
     <div id="sub-body"></div>
-    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
-      <button class="btn btn-good btn-lg" data-act="sub-confirm">${start ? 'Start ' + periodName(g, q) : 'Confirm sub ⏎'}</button></div>
+    ${start ? `<div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
+      <button class="btn btn-good btn-lg" data-act="sub-confirm">Start ${periodName(g, q)}</button></div>` : ''}
   </div></div>`;
   paintSub();
   const ci = $('#sub-clock');
   if (ci) {
-    ci.addEventListener('input', paintSubClock);
+    ci.addEventListener('input', paintSubClock); paintSubClock();
     ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSub(); } });
     if (!SUB.pending) ci.focus();
   }
@@ -2483,7 +2482,10 @@ function paintSubClock() {
   const t = parseClock(ci.value);
   ci.classList.toggle('need', t == null);
   $('#sub-prev').textContent = t == null ? (ci.value ? 'Not a clock time' : '') : '= ' + fmtClock(t) + ' left in the ' + periodName(g, q).toLowerCase();
-  $('#sub-err').textContent = t == null ? '' : subClockError(g, t) || '';
+  const err = t == null ? '' : subClockError(g, t) || '';
+  $('#sub-err').textContent = err;
+  // Confirm stays greyed out until a valid time is in.
+  const cb = $('.sub-acts [data-act="sub-confirm"]'); if (cb) cb.disabled = t == null || !!err;
 }
 /* Every clock entry (sub, timeout, Set time, end of period) must be at or below where the
    clock already is: a time that has already gone by is refused. "Already" is the live clock
@@ -2676,7 +2678,7 @@ function openTimeout() {
     <div id="to-body"></div>
     <div class="clockin" style="margin-top:10px">
       <div><div class="sub-sec" style="margin-top:0">Time left — required</div>
-        <input id="to-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss" value="${g.clock.rem > 0 && g.clock.rem < periodDur(g, curPeriod(g)) ? fmtClock(g.clock.rem).replace(':', '') : ''}">
+        <input id="to-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" value="${g.clock.rem > 0 && g.clock.rem < periodDur(g, curPeriod(g)) ? fmtClock(g.clock.rem).replace(':', '') : ''}">
         <div class="clk-prev" id="to-prev"></div></div>
       ${keypadHtml('to-clock')}
     </div>
@@ -2809,11 +2811,12 @@ function heldBallConfirm(held) {
   const g = liveGame(); if (!g) return;
   const off = HB.off, def = other(off);
   closeModal();
-  if (!held) { g.ballOverride = { team: def, plays: playCount(g) }; saveGames(); paintScorebar(); return; }
+  if (!held) { snapshot(); g.ball = def; saveGames(); paintScorebar(); paintTracker(); return; }
   // Same order as a steal entered from the buttons: steal, then the turnover. The
   // turnover ends their trip, so the ball reads as the defence's from here on.
   if (HB.stealer) stage(def, HB.stealer, 'stl', { heldBall: true });
   stage(off, HB.loser || TEAM, 'tov', { tovType: 'held_ball' });
+  g.ball = def;   // the pill moves because it was tapped
   commitStaged();
 }
 /* LAST 5:00 vs THE GAME — what each side is doing differently right now. Five minutes is
@@ -2958,7 +2961,7 @@ function openSetClock() {
   $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:420px">
     <h2>Set time — ${periodName(g, curPeriod(g))}</h2>
     <div class="small muted" style="margin-bottom:10px">Time left on the clock now. Updates minutes, leverage and the garbage-time check without waiting for a sub or timeout. Clock now: ${fmtClock(clockNow(g))}. This is also where you correct it back up if the officials put time back.</div>
-    <div class="clockin"><div><input id="sc-clock" inputmode="numeric" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
+    <div class="clockin"><div><input id="sc-clock" inputmode="none" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
   const ci = $('#sc-clock');
   ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t) + ' left'; $('#sc-err').textContent = t == null ? '' : (setClockError(g, t) || setClockNote(g, t)); });
@@ -4737,8 +4740,8 @@ document.addEventListener('click', e => {
     case 'ball-flip': if (g) { const b = ballTeam(g);
       // Mid-possession (not the tip, not a break): a tie-up going to the defence is a
       // turnover + steal, so ask. The tip-off and the 2nd-half start just set the ball.
-      if (b && !g.between && playCount(g) > 0 && analyzeTrips(g).trips.some(tr => tr.period === curPeriod(g))) openHeldBall(b);
-      else { g.ballOverride = { team: b === 'a' ? 'b' : 'a', plays: playCount(g) }; saveGames(); paintScorebar(); } } break;
+      if (b && !g.between && analyzeTrips(g).trips.some(tr => tr.period === curPeriod(g))) openHeldBall(b);
+      else { snapshot(); g.ball = b === 'a' ? 'b' : 'a'; saveGames(); paintScorebar(); paintTracker(); } } break;
     case 'hb-pick': HB[t.dataset.role] = HB[t.dataset.role] === t.dataset.p ? null : t.dataset.p; paintHeldBall(); break;
     case 'hb-held': heldBallConfirm(true); break;
     case 'hb-switch': heldBallConfirm(false); break;
