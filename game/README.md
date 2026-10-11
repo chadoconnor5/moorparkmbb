@@ -169,10 +169,10 @@ is the "something changed" flag, not a verdict.
 
 ## Fouls
 
-**Foul** is one tap after the stat: the fouler, and the play is done - there is no "who drew
-it?" step. **Charge** and **Off Foul** still ask who took the charge / drew the foul (that is
-what credits the charge). FD in the box score therefore counts drawn charges and offensive
-fouls only.
+**Foul** and **Off Foul** are one tap after the stat: the man who fouled, and the play is
+done - there is no "who drew it?" step (an offensive foul still logs his turnover).
+**Charge** still asks who took the charge, which is what credits it. FD in the box score
+therefore counts charges taken only.
 
 ## Flags and editing past subs
 
