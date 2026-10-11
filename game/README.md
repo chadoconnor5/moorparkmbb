@@ -156,6 +156,14 @@ tap sets it:
 A tap holds through timeouts and subs until the next play. The end-of-game alerts read
 the same possession.
 
+## Clock entries
+
+A sub, a timeout (official included) and the end of a period refuse a time that has
+already gone by in the period: above the live clock when it runs, the last time entered
+when it doesn't, or the last sub. **Set time** is the one place the clock may go back UP
+(a correction, or the officials put time back), and it shows that it is a correction; it
+still can't go above the last sub.
+
 ## Official timeouts
 
 The timeout window has a third choice, **Official** (clock fix, wet spot, injury): the
