@@ -503,7 +503,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.18</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.19</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1949,11 +1949,12 @@ function paintScorebar() {
   paintLevbar();
 }
 /* END-OF-GAME ALERTS — the last 2:00 of the 2nd half and of each OT. One line, in the
-   Leverage bar's place (no extra height on the screen), the most urgent one only:
-     red    up 3 with their ball under 0:10 (foul before they shoot?); down 1-3 with their
-            ball and the game clock under the shot clock (they can run it out: foul);
-            down 4-9 with their ball under 1:30 (foul to stop the clock?)
-     blue   tied or down 1-3 with our ball under 0:35 (play for the last shot)
+   Leverage bar's place (no extra height on the screen), the most urgent one only. Facts,
+   not instructions: the situation, then the fouls / bonus / FT / timeout numbers behind it.
+     red    up 3 with their ball under 0:10; down 1-3 with their ball and the game clock
+            under the shot clock; down 4-9 with their ball under 1:30 (with their FT
+            shooting tonight, and each man on the floor's)
+     blue   tied or down 1-3 with our ball under 0:35 (bonus status, timeouts)
      amber  fouls to give before the bonus; they're in the double bonus
    Possession is read off the last play; the Our ball / Their ball button flips it until the
    next play is logged. Got it hides an alert until the situation behind it changes. */
@@ -1974,24 +1975,24 @@ function endgameAlert(g) {
   const fa = teamFouls(g, 'a', q), fb = teamFouls(g, 'b', q), B = g.format.bonus, DB = g.format.dbonus;
   const toGive = Math.max(0, B - 1 - fa);
   const clk = fmtClock(rem), them = g.teamBName;
-  const bonusTxt = fa >= DB ? 'they\'re in the double bonus (2 shots)' : fa >= B ? 'they\'re in the bonus (1-and-1)' : `${toGive} to give · not in the bonus`;
+  const bonusTxt = fa >= DB ? 'they\'re in the double bonus (2 shots)' : fa >= B ? 'they\'re in the bonus (1-and-1)' : `${toGive} foul${toGive === 1 ? '' : 's'} to give · not in the bonus`;
   const oppFt = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b'));
   const ftTarget = () => {
     if (!oppTracked(g)) return '';
     const rows = currentLineup(g, 'b').map(n => ({ n, s: statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n)) }));
-    const shot = rows.filter(r => r.s.fta >= 2).sort((x, y) => x.s.ftm / x.s.fta - y.s.ftm / y.s.fta);
+    const shot = rows.filter(r => r.s.fta >= 1).sort((x, y) => x.s.ftm / x.s.fta - y.s.ftm / y.s.fta);
     if (!shot.length) return '';
-    const lo = shot[0], hi = shot[shot.length - 1];
-    return ` · foul ${lo.n} (${lo.s.ftm}-${lo.s.fta})` + (shot.length > 1 && hi.s.ftm / hi.s.fta > lo.s.ftm / lo.s.fta ? `, avoid ${hi.n} (${hi.s.ftm}-${hi.s.fta})` : '');
+    return ' · on the floor: ' + shot.map(r => `${r.n} ${r.s.ftm}-${r.s.fta}`).join(', ');
   };
   const ftTxt = oppFt.fta ? ` · they're ${oppFt.ftm}-${oppFt.fta} FT` : '';
   const L = (cls, icon, head, sub, key) => ({ cls, icon, head, sub, key: key + '|' + m + '|' + ball + '|' + fa });
   const lead = m > 0 ? 'UP ' + m : m < 0 ? 'DOWN ' + (-m) : 'TIED';
-  if (ball === 'b' && m === 3 && rem <= 10) return L('al-red', '⏱', `UP 3 · ${clk} · THEIR BALL — FOUL BEFORE THEY SHOOT?`, bonusTxt, 'up3');
-  if (ball === 'b' && m < 0 && m >= -3 && rem <= SHOT_CLOCK) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL — THEY CAN RUN IT OUT: FOUL`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'runout');
-  if (ball === 'b' && m <= -4 && m >= -9 && rem <= 90) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL — FOUL TO STOP THE CLOCK?`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'chase');
-  if (ball === 'a' && m <= 0 && m >= -3 && rem <= 35) return L('al-blue', '🏀', `${lead} · ${clk} · OUR BALL — PLAY FOR THE LAST SHOT`, `go at ~0:08 · ${fb >= B ? 'we\'re in the bonus — attack the rim' : 'we\'re not in the bonus'} · TOs: us ${timeoutsLeft(g, 'a').s30 + timeoutsLeft(g, 'a').full}, them ${timeoutsLeft(g, 'b').s30 + timeoutsLeft(g, 'b').full}`, 'last');
-  if (m > 0 && fa >= DB) return L('al-amber', '✋', `${them.toUpperCase()} IN THE DOUBLE BONUS — NO REACHING`, `${fa} team fouls on us · every foul is 2 shots`, 'dbl');
+  const tos = `timeouts: us ${timeoutsLeft(g, 'a').s30 + timeoutsLeft(g, 'a').full}, them ${timeoutsLeft(g, 'b').s30 + timeoutsLeft(g, 'b').full}`;
+  if (ball === 'b' && m === 3 && rem <= 10) return L('al-red', '⏱', `UP 3 · ${clk} · THEIR BALL`, bonusTxt, 'up3');
+  if (ball === 'b' && m < 0 && m >= -3 && rem <= SHOT_CLOCK) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL · UNDER THE SHOT CLOCK`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'runout');
+  if (ball === 'b' && m <= -4 && m >= -9 && rem <= 90) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'chase');
+  if (ball === 'a' && m <= 0 && m >= -3 && rem <= 35) return L('al-blue', '🏀', `${lead} · ${clk} · OUR BALL`, `${fb >= DB ? 'we\'re in the double bonus' : fb >= B ? 'we\'re in the bonus' : 'we\'re not in the bonus'} · ${tos}`, 'last');
+  if (m > 0 && fa >= DB) return L('al-amber', '✋', `${them.toUpperCase()} IN THE DOUBLE BONUS`, `${fa} team fouls on us`, 'dbl');
   if (m >= 0 && rem <= 60 && toGive > 0) return L('al-amber', '✋', `${toGive} FOUL${toGive === 1 ? '' : 'S'} TO GIVE`, `${fa} team fouls · the ${B}th puts them in the bonus`, 'give');
   return null;
 }
@@ -2582,25 +2583,25 @@ function huddlePoints(g, W) {
   const out = [], opp = g.teamBName;
   const add = (w, good, t) => out.push({ w, good, t });
   const a = W.a, b = W.b;
-  if (a.tov >= 3) add(a.tov, false, `${a.tov} turnovers in the last 5:00 → ${b.pot} points for them. Value the ball.`);
-  if (b.tov >= 3) add(b.tov - 0.5, true, `They've turned it over ${b.tov} times in the last 5:00 — keep the pressure on.`);
-  if (b.oreb >= 2) add(b.oreb + 0.5, false, `They have ${b.oreb} offensive boards in the last 5:00 — box out.`);
-  if (a.oreb >= 3) add(a.oreb - 1, true, `${a.oreb} offensive boards for us in the last 5:00 — keep crashing.`);
+  if (a.tov >= 3) add(a.tov, false, `${a.tov} turnovers in the last 5:00 → ${b.pot} points for them.`);
+  if (b.tov >= 3) add(b.tov - 0.5, true, `They've turned it over ${b.tov} times in the last 5:00.`);
+  if (b.oreb >= 2) add(b.oreb + 0.5, false, `They have ${b.oreb} offensive boards in the last 5:00.`);
+  if (a.oreb >= 3) add(a.oreb - 1, true, `${a.oreb} offensive boards for us in the last 5:00.`);
   const hot = Object.entries(b.byPlayer).sort((x, y) => y[1] - x[1])[0];
-  if (hot && hot[1] >= 6) add(hot[1] / 2, false, `${hot[0]} has ${hot[1]} of their last ${b.pts}. Who's guarding him?`);
+  if (hot && hot[1] >= 6) add(hot[1] / 2, false, `${hot[0]} has ${hot[1]} of their last ${b.pts}.`);
   const flow = scoringFlow(g), r = flow.run;
   if (r.team === 'b' && r.b >= 6) add(r.b / 2, false, `They're on a ${r.b}-0 run.`);
-  const dA = drought(g, 'a'); if (dA >= 3) add(dA, false, `${dA} straight empty trips for us — get a good look.`);
+  const dA = drought(g, 'a'); if (dA >= 3) add(dA, false, `${dA} straight empty trips for us.`);
   const q = curPeriod(g), fq = g.between ? Math.min(q, g.format.periods + 1) : q;
   const fa = teamFouls(g, 'a', fq), fb = teamFouls(g, 'b', fq);
-  if (fa >= g.format.bonus) add(4, false, `They're in the ${fa >= g.format.dbonus ? 'double ' : ''}bonus (${fa} fouls on us) — no reaching.`);
+  if (fa >= g.format.bonus) add(4, false, `They're in the ${fa >= g.format.dbonus ? 'double ' : ''}bonus (${fa} fouls on us).`);
   else if (fa === g.format.bonus - 1) add(3, false, `One more foul puts them in the bonus.`);
-  if (fb >= g.format.bonus) add(3, true, `We're in the ${fb >= g.format.dbonus ? 'double ' : ''}bonus — attack the rim.`);
+  if (fb >= g.format.bonus) add(3, true, `We're in the ${fb >= g.format.dbonus ? 'double ' : ''}bonus (${fb} fouls on them).`);
   const lu = currentLineup(g);
   for (const n of lu) { const pf = g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === n && e.stat === 'foul').length;
     if (pf >= 4 || (q === 1 && pf >= 2) || pf >= 3) add(pf, false, `${n} has ${pf} fouls.`); }
   if (oppTracked(g)) for (const n of currentLineup(g, 'b')) { const pf = g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n && e.stat === 'foul').length;
-    if (pf >= 3 || (q === 1 && pf >= 2)) add(pf - 0.5, true, `Attack ${n} (${pf} PF).`); }
+    if (pf >= 3 || (q === 1 && pf >= 2)) add(pf - 0.5, true, `${n} has ${pf} fouls.`); }
   return out.sort((x, y) => y.w - x.w).slice(0, 4);
 }
 function openHuddle(calledBy, toType) {
@@ -3133,7 +3134,7 @@ function insights(g) {
   }
   if (oppHasRoster(g)) for (const p of g.oppRoster) {
     const pf = g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === p && e.stat === 'foul').length;
-    if (pf >= 3 || (half === 1 && pf >= 2)) out.push({ c: 'info', t: `${g.teamBName} ${p}: ${pf} fouls — attack him.` });
+    if (pf >= 3 || (half === 1 && pf >= 2)) out.push({ c: 'info', t: `${g.teamBName} ${p}: ${pf} fouls.` });
   }
   const L = timeoutsLeft(g, 'a');
   out.push({ c: '', t: `Moorpark timeouts left: ${L.s30} × 30s, ${L.full} full. ${g.teamBName}: ${timeoutsLeft(g, 'b').s30} × 30s, ${timeoutsLeft(g, 'b').full} full.` });
@@ -3351,10 +3352,10 @@ function reportKeys(g, T, A, qf, half) {
   const dO = a.orebPct - b.orebPct;
   if (Math.abs(dO) >= 8 || Math.abs(scp.a - scp.b) >= 5) push(Math.max(Math.abs(dO) / 8, Math.abs(scp.a - scp.b) / 5), dO > 0,
     dO > 0 ? `${half ? 'Winning' : 'Won'} the glass: ${a.oreb} offensive boards (${f1(a.orebPct)}%), 2nd-chance points ${scp.a}–${scp.b}.`
-           : `${half ? "They're getting" : 'They got'} second shots: ${b.oreb} offensive boards (${f1(b.orebPct)}%), 2nd-chance points ${scp.b}–${scp.a} them. Box out.`);
+           : `${half ? "They're getting" : 'They got'} second shots: ${b.oreb} offensive boards (${f1(b.orebPct)}%), 2nd-chance points ${scp.b}–${scp.a} them.`);
   const dF = a.ftr - b.ftr;
   if (Math.abs(dF) >= 12 && (a.fta + b.fta) >= 6) push(Math.abs(dF) / 12, dF > 0,
-    dF > 0 ? `${half ? 'Getting' : 'Got'} to the line: ${a.fta} FTA to their ${b.fta}.` : `${half ? 'Fouling too much' : 'Fouled too much'}: ${half ? "they've shot" : 'they shot'} ${b.fta} free throws to our ${a.fta} (${a.pf} fouls on us).`);
+    dF > 0 ? `${half ? 'Getting' : 'Got'} to the line: ${a.fta} FTA to their ${b.fta}.` : `Free throws: ${half ? "they've shot" : 'they shot'} ${b.fta} to our ${a.fta} (${a.pf} fouls on us).`);
   if (a.fta >= 6 && a.ftm / a.fta < 0.62) push(1.2, false, `Free throws: ${a.ftm}-${a.fta} (${pct(a.ftm, a.fta)}%) — ${a.fta - a.ftm} points left at the line.`);
   // Their best scorer
   if (oppHasRoster(g)) {

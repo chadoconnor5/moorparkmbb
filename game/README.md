@@ -69,11 +69,11 @@ same roster; edits match by number, so stats already logged stay with the player
   timeouts, fouls, up to four talk points, the last 5:00 for both teams, the current run,
   empty-trip streaks, kills this half, and both fives on the floor.
 - **End-of-game alerts** (last 2:00 of the 2nd half and each OT): one line in the Leverage
-  bar's place — no extra room taken — for the most urgent situation: up 3 with their ball
-  under 0:10 (foul before they shoot?), down 1–3 with their ball under the shot clock (they
-  can run it out), down 4–9 with their ball under 1:30 (foul to stop the clock? their FT
-  shooting, who to foul), tied / down 1–3 with our ball under 0:35 (last shot), fouls to
-  give, and their double bonus. Possession comes from the last play; **Our ball? / Their
+  bar's place — no extra room taken — for the most urgent situation, stated as facts (no
+  instructions): up 3 with their ball under 0:10; down 1–3 with their ball under the shot
+  clock; down 4–9 with their ball under 1:30 (with their FT shooting and each man on the
+  floor's); tied / down 1–3 with our ball under 0:35 (bonus status, timeouts); fouls to
+  give; their double bonus. Possession comes from the last play; **Our ball? / Their
   ball?** flips it. **Got it** hides it until the situation changes. The same line tops the
   📋 Huddle talk points.
 - **Fouled out / ejected**: a 5th foul or a 2nd technical opens the Sub window with him coming
