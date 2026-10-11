@@ -328,6 +328,11 @@ table{border-collapse:collapse}
 .tbl tr.dnp td{color:var(--muted)}
 .tbl th.grp{text-align:center;border-left:1px solid var(--border2)}
 .tbl td.gl{border-left:1px solid var(--border2)}
+/* season lineups: light grey / slightly darker grey rows, dark text */
+.season-lu .lu-tbl td{color:#1f2937;border-top-color:#c4c9d1}
+.season-lu .lu-tbl tr:nth-child(odd) td{background:#eef0f3} .season-lu .lu-tbl tr:nth-child(even) td{background:#dde1e7}
+.season-lu .lu-tbl td.pos{color:#15803d;font-weight:700} .season-lu .lu-tbl td.neg{color:#b91c1c;font-weight:700}
+.season-lu .lu-tbl td.gl{border-left-color:#b8bec8}
 .tbl td.l{text-align:left}
 .pos{color:var(--good)} .neg{color:var(--bad)}
 .cmp-tbl td,.cmp-tbl th{padding:7px 12px}
@@ -337,10 +342,10 @@ table{border-collapse:collapse}
 .cmp-tbl td.cmp-a,.cmp-tbl td.cmp-b{width:24%;color:var(--text2)}
 .cmp-tbl td.win{font-weight:800;color:var(--text)}
 .cmp-tbl td.cmp-a.win{color:var(--us)} .cmp-tbl td.cmp-b.win{color:var(--them-text)}
-/* Team comparison: the box score's light rows, white and light grey alternating within
+/* Team comparison: the box score's light rows, light grey and a slightly darker grey alternating within
    each section, black text; the better side's number bold in a dark team colour. */
-.cmp-light tr:not(.cmp-h) td{background:#fff;color:#000;border-top:1px solid #c9ced6}
-.cmp-light tr.alt:not(.cmp-h) td{background:#e3e6eb}
+.cmp-light tr:not(.cmp-h) td{background:#eef0f3;color:#000;border-top:1px solid #c9ced6}
+.cmp-light tr.alt:not(.cmp-h) td{background:#dde1e7}
 .cmp-light tr:not(.cmp-h):hover td{background:#cfd6e2}
 .cmp-light td.cmp-a,.cmp-light td.cmp-b{color:#1f2937}
 .cmp-light td.cmp-a.win{color:#0b6fa4} .cmp-light td.cmp-b.win{color:var(--them-d)}
@@ -462,7 +467,7 @@ table{border-collapse:collapse}
 .box-table{width:100%;font-size:11px;white-space:nowrap;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
 .box-table thead th{padding:5px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#f8fafc;background:#242938;text-align:center;border-bottom:2px solid #2d3347}
 .box-table tbody td{padding:5px 4px;text-align:center;color:#000;border-bottom:1px solid #000}
-.box-table tbody tr:nth-child(odd) td{background:#d9d9d9} .box-table tbody tr:nth-child(even) td{background:#fff}
+.box-table tbody tr:nth-child(odd) td{background:#dde1e7} .box-table tbody tr:nth-child(even) td{background:#eef0f3}
 .box-table tbody tr:hover td{background:#c0c8d8}
 .box-table td:first-child,.box-table th:first-child{text-align:left;min-width:96px;position:sticky;left:0;z-index:2;font-weight:600;padding-left:8px}
 .box-table thead th:first-child{z-index:3}
@@ -530,7 +535,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.27</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.29</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -3296,7 +3301,7 @@ function seasonLineupsHtml(games) {
   const big = units.filter(u => u.oT + u.dT >= SEASON_LU_MIN), small = units.filter(u => u.oT + u.dT < SEASON_LU_MIN);
   if (!units.length) return '';
   const done = { completed: true };
-  return `<div class="card"><h3>Season lineups <span class="muted">${big.length} five${big.length === 1 ? '' : 's'} with ${SEASON_LU_MIN}+ possessions</span></h3>
+  return `<div class="card season-lu"><h3>Season lineups <span class="muted">${big.length} five${big.length === 1 ? '' : 's'} with ${SEASON_LU_MIN}+ possessions</span></h3>
     ${big.length ? lineupRowsHtml(done, 'a', big) : `<div class="muted">No five has ${SEASON_LU_MIN} possessions together yet.</div>`}
     ${small.length ? `<details style="margin-top:8px"><summary class="small muted">${small.length} more five${small.length === 1 ? '' : 's'} under ${SEASON_LU_MIN} possessions</summary>${lineupRowsHtml(done, 'a', small)}</details>` : ''}
     <div class="tiny muted" style="margin-top:6px">All finished games, scrimmages out. Garbage-time possessions left out; minutes are all minutes. GP is games this five played together.</div></div>`;
