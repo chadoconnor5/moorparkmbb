@@ -457,6 +457,9 @@ table{border-collapse:collapse}
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .field label{font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.08em}
 .chk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px}
+/* Column by column (top to bottom, then the next column) - read like a numbered roster sheet. */
+.chk-grid.down{display:block;column-width:200px;column-gap:7px}
+.chk-grid.down > .chk{break-inside:avoid;margin-bottom:7px}
 .chk{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:transparent;border:1px solid var(--border);cursor:pointer;user-select:none;color:var(--muted);transition:background .1s;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
 .chk.on{background:var(--card);text-decoration:none}
 .chk:hover{background:var(--hover)}
@@ -595,7 +598,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.57</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.58</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2326,7 +2329,9 @@ function renderSetup() {
     if (todays) applySchedToSetup(todays);
   }
   const d = setupDraft;
-  const players = App.roster.filter(r => !r.hidden).map(r => r.name).sort(byLast);
+  // By jersey number (no number last, then by name), filled DOWN each column: 1 2 3 4 5, then 10 12 14...
+  const jn = n => { const v = parseInt(numOf(n), 10); return isNaN(v) ? 999 : v; };
+  const players = App.roster.filter(r => !r.hidden).map(r => r.name).sort((x, y) => jn(x) - jn(y) || byLast(x, y));
   const nHidden = App.roster.length - players.length;
   return `<div class="setup">
     <div class="setup-head"><h1>New game</h1><p>Set the opponent and your five, then start the 1st half.</p></div>
@@ -2342,7 +2347,7 @@ function renderSetup() {
     </div>
     <div class="card"><h3>Moorpark — tap to start, tap again to sit out <span class="muted">${d.starters.length}/5 starters · ${d.dressed.length} dressed</span>
       <button class="btn btn-sm" data-act="roster" style="margin-left:auto">Edit roster / numbers</button></h3>
-      <div class="chk-grid">${players.map(n => {
+      <div class="chk-grid down">${players.map(n => {
         const on = d.dressed.includes(n), st = d.starters.includes(n);
         return `<div class="chk ${on ? 'on' : ''} ${st ? 'starter' : ''}" data-act="su-player" data-p="${esc(n)}">
           <span>${numOf(n) !== '' ? '#' + esc(numOf(n)) + ' ' : ''}${esc(n)}</span><span class="st">${st ? 'Starter' : on ? '' : 'Not dressed'}</span></div>`;
