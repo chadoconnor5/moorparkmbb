@@ -982,16 +982,24 @@ function commitStaged() {
   saveGames();
   toast(added.map(e => shortName(g, e.team, e.player) + ' ' + STAT_LABEL[e.stat]).join(' + '), 'good', 1800);
   render();
-  // A 5th foul: he's out. Open the Sub window with him already coming off.
-  const dq = added.find(e => e.stat === 'foul' && fouledOut(g, e.team, e.player) && personalFouls(g, e.team, e.player) === FOUL_OUT
-    && (e.team === 'a' || oppTracked(g)) && currentLineup(g, e.team).includes(e.player));
-  if (dq) { toast(`${shortName(g, dq.team, dq.player)} has fouled out (${FOUL_OUT} fouls) — sub him out`, 'bad', 4000); openSub({ team: dq.team, n: dq.player }); }
+  // A 5th foul or a 2nd technical: he's out. Open the Sub window with him already coming off.
+  const dq = added.find(e => e.stat === 'foul' && (e.team === 'a' || oppTracked(g)) && currentLineup(g, e.team).includes(e.player)
+    && ((personalFouls(g, e.team, e.player) === FOUL_OUT && technicals(g, e.team, e.player) < TECH_OUT) || (e.technical && technicals(g, e.team, e.player) === TECH_OUT)));
+  if (dq) { toast(`${shortName(g, dq.team, dq.player)}: ${outReason(g, dq.team, dq.player).toLowerCase()} — sub him out`, 'bad', 4000); openSub({ team: dq.team, n: dq.player }); }
 }
 /* FIFTH FOUL. Five personal fouls (technicals included) and a player is out for the game:
    red in the Sub window, and he can't be put back in. */
-const FOUL_OUT = 5;
+const FOUL_OUT = 5, TECH_OUT = 2;
 function personalFouls(g, t, n) { return g.eventLog.filter(e => isStat(e) && e.team === t && e.player === n && e.stat === 'foul').length; }
-function fouledOut(g, t, n) { return n !== TEAM && personalFouls(g, t, n) >= FOUL_OUT; }
+function technicals(g, t, n) { return g.eventLog.filter(e => isStat(e) && e.team === t && e.player === n && e.stat === 'foul' && e.technical).length; }
+/* Out of the game: two technicals (ejected) or five personal fouls (fouled out). */
+function outReason(g, t, n) {
+  if (n === TEAM) return null;
+  if (technicals(g, t, n) >= TECH_OUT) return 'EJECTED (2 T)';
+  if (personalFouls(g, t, n) >= FOUL_OUT) return 'FOULED OUT';
+  return null;
+}
+function fouledOut(g, t, n) { return !!outReason(g, t, n); }
 function shortName(g, t, p) {
   if (p === TEAM) return t === 'b' && !oppHasRoster(g) ? g.teamBName : teamName(g, t) + ' team';
   if (t === 'a') { const n = numOf(p); return (n !== '' ? '#' + n + ' ' : '') + lastName(p); }
@@ -1995,7 +2003,7 @@ function paintTracker() {
     const pmv = !isTeam ? (t === 'a' ? (LPM.pm[p] || 0) : OT ? (OPM.pm[p] || 0) : null) : null;
     const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>`;
     return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
-      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${!isTeam && s.pf >= FOUL_OUT ? 'FOULED OUT' : s.pf + ' PF'}</span>` : ''}</button>`;
+      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls || (!isTeam && outReason(g, t, p) ? 'f-trouble' : '')}">${(!isTeam && outReason(g, t, p)) || s.pf + ' PF'}</span>` : ''}</button>`;
   };
   const lu = sortedLineup(g);
   const LPM_ = lineupPlusMinus(g); Object.assign(LPM, LPM_);
@@ -2276,7 +2284,7 @@ function subSideHtml(g, t) {
     const note = t === 'b' && SUB.mode !== 'start' ? ' — tap their five on the floor now (or leave empty)' : '';
     return `${head}<div class="sub-sec">${five.length}/5 on the floor${note}</div>
       <div class="sub-grid">${all.map(n => { const dq = fouledOut(g, t, n);
-        return `<button class="sub-p ${five.includes(n) ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-five" data-team="${t}" data-p="${esc(n)}" ${dq && !five.includes(n) ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? 'FOULED OUT' : subLine(g, t, n)}</span></button>`; }).join('') || '<div class="muted">No roster.</div>'}</div>`;
+        return `<button class="sub-p ${five.includes(n) ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-five" data-team="${t}" data-p="${esc(n)}" ${dq && !five.includes(n) ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? outReason(g, t, n) : subLine(g, t, n)}</span></button>`; }).join('') || '<div class="muted">No roster.</div>'}</div>`;
   }
   const lu = currentLineup(g, t);
   const pairs = SUB.pairs[t], ins = pairs.map(p => p.in);
@@ -2284,11 +2292,11 @@ function subSideHtml(g, t) {
   const floor = lu.slice().sort(byJersey(g, t)).map(n => {
     const pr = pairs.find(p => p.out === n);
     const dq = fouledOut(g, t, n);
-    return `<button class="sub-p ${pend === n ? 'pending' : pr ? 'out' : ''} ${dq ? 'dq' : ''}" data-act="sub-out" data-team="${t}" data-p="${esc(n)}">${subName(t, n)}<span class="tiny">${pr ? '→ ' + esc(pr.in) : dq ? 'FOULED OUT — must come out' : subLine(g, t, n)}</span></button>`;
+    return `<button class="sub-p ${pend === n ? 'pending' : pr ? 'out' : ''} ${dq ? 'dq' : ''}" data-act="sub-out" data-team="${t}" data-p="${esc(n)}">${subName(t, n)}<span class="tiny">${pr ? '→ ' + esc(pr.in) : dq ? outReason(g, t, n) + ' — must come out' : subLine(g, t, n)}</span></button>`;
   }).join('');
   const bench = all.filter(n => !lu.includes(n)).map(n => {
     const used = ins.includes(n), dq = fouledOut(g, t, n);
-    return `<button class="sub-p ${used ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-in" data-team="${t}" data-p="${esc(n)}" ${(!pend && !used) || dq ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? 'FOULED OUT' : used ? '← for ' + esc(pairs.find(p => p.in === n).out) : subLine(g, t, n)}</span></button>`;
+    return `<button class="sub-p ${used ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-in" data-team="${t}" data-p="${esc(n)}" ${(!pend && !used) || dq ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? outReason(g, t, n) : used ? '← for ' + esc(pairs.find(p => p.in === n).out) : subLine(g, t, n)}</span></button>`;
   }).join('');
   return `${head}<div class="sub-sec">On the floor — tap who's coming OUT</div><div class="sub-grid">${floor}</div>
     <div class="sub-sec">${pend ? 'Bench — who replaces ' + esc(pend) + '?' : 'Bench'}</div>
@@ -2309,7 +2317,7 @@ function subTapOut(t, n) {
   paintSub();
 }
 function subTapIn(t, n) {
-  if (fouledOut(liveGame(), t, n)) { toast(n + ' has fouled out', 'bad'); return; }
+  if (fouledOut(liveGame(), t, n)) { toast(n + ': ' + outReason(liveGame(), t, n).toLowerCase() + ' — can\'t come back in', 'bad'); return; }
   const pairs = SUB.pairs[t];
   const i = pairs.findIndex(p => p.in === n);
   const pend = SUB.pending && SUB.pending.team === t ? SUB.pending.n : null;
@@ -2322,7 +2330,7 @@ function subTapIn(t, n) {
 }
 function subTapFive(t, n) {
   const five = SUB.five[t], i = five.indexOf(n);
-  if (i === -1 && fouledOut(liveGame(), t, n)) { toast(n + ' has fouled out', 'bad'); return; }
+  if (i === -1 && fouledOut(liveGame(), t, n)) { toast(n + ': ' + outReason(liveGame(), t, n).toLowerCase() + ' — can\'t come back in', 'bad'); return; }
   if (i !== -1) five.splice(i, 1); else if (five.length < 5) five.push(n); else { toast('Already 5 — tap one to take him out'); return; }
   paintSub();
 }
