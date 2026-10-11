@@ -493,9 +493,10 @@ table{border-collapse:collapse}
   <button class="tab" data-tab="games">Games</button>
   <button class="tab" data-tab="season">Season</button>
   <div class="nav-right">
+    <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.16</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.17</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1886,7 +1887,8 @@ function renderBetween(g) {
   if (g.quarters.length < P)
     return `<div class="banner"><h2>${g.quarters.length === 1 && P === 2 ? 'Halftime' : 'End of ' + periodName(g, g.quarters.length)} · ${s.a}–${s.b}</h2>
       <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, q)} — set both starting fives</button>
-      <button class="btn btn-lg" data-act="print">🖨 Print report</button></div>`;
+      <button class="btn btn-lg" data-act="print">🖨 Print report</button>
+      <button class="btn btn-lg" data-act="backup" data-id="${g.id}" data-tag="halftime">⬇ Backup</button></div>`;
   const tied = s.a === s.b;
   return `<div class="banner"><h2>End of ${periodName(g, g.quarters.length)} · ${s.a}–${s.b}${tied ? ' · TIED' : ''}</h2>
     <button class="btn ${tied ? 'btn-good' : ''} btn-lg" data-act="start-period">Start ${periodName(g, q)} (5:00)</button>
@@ -2692,6 +2694,7 @@ function confirmEndPeriod() {
   saveGames(); closeModal();
   toast('End of ' + periodName(g, q), 'good');
   render();
+  if (q === 1 && g.format.periods === 2) backup(g, 'halftime');   // automatic backup at the half
 }
 function finishGame() {
   const g = liveGame(); if (!g) return;
@@ -2709,6 +2712,7 @@ function finishGame() {
   toast('Final: ' + g.teamAName + ' ' + fs.a + ', ' + g.teamBName + ' ' + fs.b, 'good', 4000);
   REP.scope = 'game';
   setTab('report');
+  backup(g, 'final');   // automatic backup at the final
 }
 
 /* ── ABANDON ──
@@ -4139,9 +4143,27 @@ function saveRosterModal() {
 }
 
 /* ── BACKUP / IMPORT / PUBLISH ── */
-function backup() {
-  download('moorpark_games_backup_' + new Date().toISOString().slice(0, 10) + '.json',
-    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, schedule: App.schedule, games: App.games }, null, 1));
+/* BACKUPS. Everything this device holds - every game, the roster, opponents, schedule - in
+   one file, the same file Import reads back. Saved by the ⬇ Backup button, and on its own
+   at the end of the 1st half and when a game is finished, so a lost or broken iPad never
+   costs a game. On the iPad home-screen app a plain download is unreliable, so it opens
+   the Share sheet with the file (Save to Files / AirDrop / Mail); elsewhere it downloads. */
+function backupJson() {
+  return JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, schedule: App.schedule, games: App.games }, null, 1);
+}
+async function saveFile(name, text) {
+  const standalone = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  try {
+    const file = new File([text], name, { type: 'application/json' });
+    if (standalone && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; }
+  } catch (e) { if (e && e.name === 'AbortError') return false; }
+  download(name, text);
+  return true;
+}
+function backup(g, tag) {
+  const day = new Date().toISOString().slice(0, 10);
+  const what = g ? `${g.date || day}_vs_${String(g.opponent || g.teamBName || '').replace(/\W+/g, '_').toLowerCase()}_${tag}` : day;
+  saveFile(`moorpark_backup_${what}.json`, backupJson()).then(ok => { if (ok) toast(`Backup saved${tag ? ' (' + tag + ')' : ''} — keep it in Files`, 'good', 3500); });
 }
 function publish() {
   App.games.forEach(g => analyzeTrips(g));
@@ -4270,7 +4292,7 @@ document.addEventListener('click', e => {
     case 'view-game': App.viewId = t.dataset.id; App.period = 'all'; bxPanel = 'both'; setTab('box'); break;
     case 'view-an': App.viewId = t.dataset.id; App.period = 'all'; setTab('analytics'); break;
     case 'export-game': exportGame(t.dataset.id); break;
-    case 'backup': backup(); break;
+    case 'backup': backup(t.dataset.id ? App.games.find(y => y.id === t.dataset.id) : liveGame(), t.dataset.tag || ''); break;
     case 'import': $('#import-file').click(); break;
     case 'publish': publish(); break;
     case 'del-game': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Delete ' + x.title + ' (' + x.date + ')? This cannot be undone. Export it first if unsure.')) { App.games = App.games.filter(y => y.id !== x.id); if (App.liveId === x.id) { App.liveId = null; lsSet(LS_LIVE, null); } saveGames(); render(); } break; }
@@ -4297,6 +4319,7 @@ document.addEventListener('change', e => {
 $('#scout-file').addEventListener('change', e => { const f = e.target.files[0]; uploadScout(f, e.target.dataset.for); e.target.value = ''; });
 $('#import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
 $('#nav-roster').onclick = () => openRoster();
+$('#nav-backup').onclick = () => backup(liveGame(), liveGame() ? 'live' : '');
 $('#scout-back').onclick = toggleScout;
 
 document.addEventListener('keydown', e => {

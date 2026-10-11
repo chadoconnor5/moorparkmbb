@@ -14,8 +14,12 @@ no film, no shot locations, no shot types and no shot clock.
 4. Add the scouting report PDF (Scouting tab → Add PDF… or at game setup) while you have the
    file — it is saved on the iPad and opens offline.
 
-Data lives on the device that tracked it (browser storage). Use **Backup** after each game to
-keep a copy, and **Publish** to download `gt_data.json` for the read-only site view.
+Data lives on the device that tracked it (browser storage). **⬇ Backup** (top bar) saves
+everything — every game, the roster, opponents and schedule — to one file, and the app does
+it on its own when the 1st half ends and when a game is finished, so a lost iPad never costs
+a game. On the home-screen app the iPad's Share sheet opens with the file: tap **Save to
+Files** (or AirDrop / Mail it). Games → **Import** reads a backup back in. **Publish**
+downloads `gt_data.json` for the read-only site view.
 
 ## Format
 
@@ -61,6 +65,11 @@ same roster; edits match by number, so stats already logged stay with the player
   then. Lineups, on/off and +/- all follow this.
 - Players on the floor (both teams), the lineup card and the Sub window are in jersey order.
 - **Timeout**: team, 30s or full, clock.
+- **📋 Huddle** (timeout sheet): opens on every timeout and from under the clock — score,
+  timeouts, fouls, up to four talk points, the last 5:00 for both teams, the current run,
+  empty-trip streaks, kills this half, and both fives on the floor.
+- **Fouled out / ejected**: a 5th foul or a 2nd technical opens the Sub window with him coming
+  off; he's red in the Sub window (FOULED OUT / EJECTED (2 T)) and can't be put back in.
 - **± Fouls / TOs** (under the scoreboard clock): fix a missed or doubled foul or timeout —
   each team's fouls this half (the bonus count only; a player's foul still goes in with
   Foul), 30-second and full timeouts left. Each tap shows in the play-by-play and Undo takes
@@ -93,7 +102,8 @@ factors that are swinging it, turnovers and second chances with the points they 
 hot scorer, runs against, foul trouble on both sides), four factors, fouls and timeouts
 left, our box, their top scorers, best and worst lineup, and 10-0 runs. **Start 2nd Half**
 sets both starting fives. Finishing the game opens the same report for the whole game on
-the **Report** tab, which has 1st half / 2nd half / Full game reports (the Box Score has the
+the **Report** tab (each report has a rotation chart — who was on the floor and when, with
+10-0 runs shaded), which has 1st half / 2nd half / Full game reports (the Box Score has the
 same three buttons). Its "What decided it" leads with the comeback
 (or the lead lost) and explains each side's change in points per 100 possessions between the
 halves through the stats that drove it, each with a rough worth in points per 100 (e.g.
