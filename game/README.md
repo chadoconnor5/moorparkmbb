@@ -141,6 +141,21 @@ play), `quarter`, `clk` (game clock, seconds left in the period, read from the c
 the nearest sub/timeout clocks), `ts` and an increasing `id`, so a backup or export
 reads in order without the app.
 
+## Possession (all game)
+
+The pill under the clock shows who has the ball (◀ MOORPARK BALL / THEIRS BALL ▶ in
+their colour). It follows the plays logged (makes, rebounds, steals, turnovers) and one
+tap sets it:
+
+- **Tip-off and the start of the 2nd half** (or before the first play of a period, or at
+  the break): the tap just gives the ball - no questions.
+- **Mid-possession** (a tie-up): the tap asks. **Held ball: turnover + steal** logs a
+  turnover on the man who lost it (none picked = Team) and, optionally, a steal for the
+  man who tied him up. **Just switch** only fixes a wrong read (out of bounds, etc.).
+
+A tap holds through timeouts and subs until the next play. The end-of-game alerts read
+the same possession.
+
 ## Live cards
 
 - **Foul trouble** colours the whole card: 1st half 2 PF amber, 3+ red; 2nd half and OT
