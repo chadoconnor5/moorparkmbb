@@ -160,6 +160,27 @@ table{border-collapse:collapse}
 .sb-clock{font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.01em}
 .sb-cap{font-size:10.5px;color:var(--muted)}
 .sb-settime{margin-top:4px;padding:4px 10px;font-size:12px}
+.poss-btn{margin:2px 0 4px;padding:4px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.08em;border:1.5px solid;display:inline-flex;align-items:center;gap:7px;max-width:100%;white-space:nowrap}
+.poss-btn .pn{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.poss-btn .pb{font-size:13px}
+.poss-btn.a{color:#4fc3f7;border-color:#4fc3f7;background:rgba(79,195,247,.12)}
+.poss-btn.b{color:var(--them-text);border-color:var(--them-text);background:color-mix(in srgb,var(--them-text) 14%,transparent)}
+.poss-btn.none{color:var(--text2);border-color:var(--border2);background:var(--card)}
+/* Both sides stay the same shape: a team name is one line (cut with … if it truly can't
+   fit), and the fouls / kills lines never wrap. */
+.sb-team,.sb-id{min-width:0}
+.sb-name{white-space:nowrap;min-width:0;max-width:100%}
+.sb-name .sb-nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sb-meta{flex-wrap:nowrap;white-space:nowrap}
+@media (max-width:1000px){
+  .scorebar{padding:10px 14px}
+  .sb-team{gap:10px}
+  .sb-mid{margin:0 10px;padding:0 10px;min-width:0}
+  .sb-score{font-size:44px;min-width:54px}
+  .sb-name{font-size:14px;gap:6px}
+  .sb-name .tlogo{--lg:28px!important}
+  .sb-settime{padding:4px 7px;font-size:11px}
+}
 .to-dots{display:inline-flex;gap:3px;align-items:center}
 .to-dot{width:7px;height:7px;border-radius:50%;background:#facc15}
 .to-dot.full{border-radius:2px;width:9px}
@@ -536,7 +557,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.32</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.34</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1984,21 +2005,42 @@ function paintScorebar() {
      a period). Those entries are what minutes and the game-time analytics are built from. */
   el.innerHTML = `
     <div class="sb-team a">
-      <div class="sb-id"><div class="sb-name">${logoHtml('Moorpark', 34)}${esc(g.teamAName)}</div>
+      <div class="sb-id"><div class="sb-name">${logoHtml('Moorpark', 34)}<span class="sb-nm">${esc(g.teamAName)}</span></div>
         <div class="sb-meta">${bonusTag(g, 'a')}<span>Fouls ${tf('a')}</span>${toDots(g, 'a')}</div>
         <div class="sb-meta">${killHtml('a')}</div></div>
       <div class="sb-score">${score(g, 'a')}</div></div>
     <div class="sb-mid">
       <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
       <div class="sb-clock">${fmtClock(clockNow(g))}</div>
+      ${possPill(g)}
       <div class="row" style="gap:6px;justify-content:center">${g.between ? '' : `<button class="btn btn-sm sb-settime" data-act="set-clock">⏱ Set time</button>`}<button class="btn btn-sm sb-settime" data-act="adjust" title="Fix a missed foul or timeout">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle" title="Timeout sheet">📋 Huddle</button></div>
     </div>
     <div class="sb-team b">
       <div class="sb-score">${score(g, 'b')}</div>
-      <div class="sb-id"><div class="sb-name">${logoHtml(g.teamBName, 34)}${esc(g.teamBName)}</div>
+      <div class="sb-id"><div class="sb-name">${logoHtml(g.teamBName, 34)}<span class="sb-nm" title="${esc(g.teamBName)}">${esc(g.teamBName)}</span></div>
         <div class="sb-meta">${toDots(g, 'b')}<span>Fouls ${tf('b')}</span>${bonusTag(g, 'b')}</div>
         <div class="sb-meta">${killHtml('b')}</div></div></div>`;
+  fitNames(el);
   paintLevbar();
+}
+/* Possession, all game: read off the last play logged (a make, a rebound, a steal...),
+   and one tap sets it - the tip-off, a jump ball, the start of the 2nd half, or any time
+   the read is wrong. A tap holds until the next play is logged. */
+function possPill(g) {
+  if (g.completed) return '';
+  const ball = ballTeam(g);
+  if (!ball) return `<button class="poss-btn none" data-act="ball-flip" title="Tap to give a team the ball">JUMP BALL · TAP</button>`;
+  const nm = esc((ball === 'a' ? g.teamAName : g.teamBName).toUpperCase());
+  return `<button class="poss-btn ${ball}" data-act="ball-flip" title="Tap to switch possession">${ball === 'a' ? `<span class="pb">◀</span><span class="pn">${nm}</span> BALL` : `<span class="pn">${nm}</span> BALL<span class="pb">▶</span>`}</button>`;
+}
+/* A long school name shrinks to fit its side (down to 11px) instead of wrapping onto more
+   lines; only a name that still can't fit is cut with … */
+function fitNames(root) {
+  root.querySelectorAll('.sb-nm').forEach(n => {
+    n.style.fontSize = '';
+    let fs = parseFloat(getComputedStyle(n).fontSize);
+    while (n.scrollWidth > n.clientWidth + 0.5 && fs > 11) { fs -= 0.5; n.style.fontSize = fs + 'px'; }
+  });
 }
 /* END-OF-GAME ALERTS — the last 2:00 of the 2nd half and of each OT. One line, in the
    Leverage bar's place (no extra height on the screen), the most urgent one only. Facts,
@@ -2058,7 +2100,7 @@ function paintLevbar() {
     const ball = ballTeam(g);
     el.className = 'levbar alert-bar ' + al.cls;
     el.innerHTML = `<span class="al-ic">${al.icon}</span><b class="al-h">${esc(al.head)}</b><span class="al-s">${esc(al.sub)}</span>
-      <span style="margin-left:auto;display:flex;gap:6px">${ball ? `<button class="btn btn-sm" data-act="ball-flip" title="Possession is read off the last play — fix it here">${ball === 'a' ? 'Their ball?' : 'Our ball?'}</button>` : ''}<button class="btn btn-sm" data-act="alert-ok" data-key="${esc(al.key)}">Got it</button></span>`;
+      <span style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-sm" data-act="alert-ok" data-key="${esc(al.key)}">Got it</button></span>`;
     return;
   }
   const L = liveLeverage(g);
@@ -2202,7 +2244,8 @@ function describe(g, e) {
   if (e.stat === 'foul' && e.technical) return (e.coach ? teamName(g, e.team) + ' coach' : e.player === TEAM ? teamName(g, e.team) + ' bench' : shortName(g, e.team, e.player)) + ' technical foul';
   if (e.tech) return shortName(g, e.team, e.player) + ' technical ' + STAT_LABEL[e.stat];
   let s = shortName(g, e.team, e.player) + ' ' + (e.stat === 'foul' && e.charge ? 'charge' : e.stat === 'foul' && e.offensive ? 'offensive foul'
-    : e.stat === 'fd' && e.charge ? 'took a charge' : e.stat === 'fd' && e.offensive ? 'drew offensive foul' : STAT_LABEL[e.stat]);
+    : e.stat === 'fd' && e.charge ? 'took a charge' : e.stat === 'fd' && e.offensive ? 'drew offensive foul'
+    : e.stat === 'tov' && e.tovType === 'held_ball' ? 'turnover (held ball)' : e.stat === 'stl' && e.heldBall ? 'steal (held ball)' : STAT_LABEL[e.stat]);
   return s;
 }
 
@@ -2670,6 +2713,44 @@ function huddlePoints(g, W) {
   if (oppTracked(g)) for (const n of currentLineup(g, 'b')) { const pf = g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n && e.stat === 'foul').length;
     if (pf >= 3 || (q === 1 && pf >= 2)) add(pf - 0.5, true, `${n} has ${pf} fouls.`); }
   return out.sort((x, y) => y.w - x.w).slice(0, 4);
+}
+/* HELD BALL — tapping the possession pill mid-possession. A tie-up with the arrow going
+   to the defence is a turnover on the man who lost it and a steal for the man who tied
+   him up (NCAA scoring); "Just switch" only fixes a wrong read (out of bounds, etc.). */
+const HB = { off: null, loser: null, stealer: null };
+function openHeldBall(offense) {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') commitStaged();
+  HB.off = offense; HB.loser = null; HB.stealer = null;
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:640px">
+    <h2>Jump ball → ${esc(teamName(g, other(offense)))} ball</h2>
+    <div id="hb-body"></div>
+    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
+      <button class="btn" data-act="hb-switch" title="No turnover: the possession was just read wrong">Just switch</button>
+      <button class="btn btn-primary btn-lg" data-act="hb-held">Held ball: turnover + steal</button></div>
+  </div></div>`;
+  paintHeldBall();
+}
+function paintHeldBall() {
+  const g = liveGame(), off = HB.off, def = other(off);
+  const five = t => { const lu = currentLineup(g, t); return lu.length ? [...lu.slice().sort(byJersey(g, t)), TEAM] : [TEAM]; };
+  const btn = (t, role, n) => `<button class="sub-p ${HB[role] === n ? 'in' : ''}" data-act="hb-pick" data-role="${role}" data-p="${esc(n)}">${n === TEAM ? 'Team' : subName(t, n)}</button>`;
+  $('#hb-body').innerHTML = `
+    <div class="sub-sec">Turnover — ${esc(teamName(g, off))} <span class="muted">(who lost it; none picked = Team)</span></div>
+    <div class="sub-grid">${five(off).map(n => btn(off, 'loser', n)).join('')}</div>
+    <div class="sub-sec">Steal — ${esc(teamName(g, def))} <span class="muted">(who tied him up; optional)</span></div>
+    <div class="sub-grid">${five(def).filter(n => n !== TEAM).map(n => btn(def, 'stealer', n)).join('') || '<div class="muted">Their five isn\'t set.</div>'}</div>`;
+}
+function heldBallConfirm(held) {
+  const g = liveGame(); if (!g) return;
+  const off = HB.off, def = other(off);
+  closeModal();
+  if (!held) { g.ballOverride = { team: def, plays: playCount(g) }; saveGames(); paintScorebar(); return; }
+  // Same order as a steal entered from the buttons: steal, then the turnover. The
+  // turnover ends their trip, so the ball reads as the defence's from here on.
+  if (HB.stealer) stage(def, HB.stealer, 'stl', { heldBall: true });
+  stage(off, HB.loser || TEAM, 'tov', { tovType: 'held_ball' });
+  commitStaged();
 }
 function openHuddle(calledBy, toType) {
   const g = liveGame(); if (!g) return;
@@ -4425,7 +4506,14 @@ document.addEventListener('click', e => {
     case 'adjust': openAdjust(); break;
     case 'huddle': openHuddle(); break;
     case 'alert-ok': ALERT.dismissed = t.dataset.key; paintLevbar(); break;
-    case 'ball-flip': if (g) { const b = ballTeam(g); g.ballOverride = { team: b === 'a' ? 'b' : 'a', plays: playCount(g) }; saveGames(); paintLevbar(); } break;
+    case 'ball-flip': if (g) { const b = ballTeam(g);
+      // Mid-possession (not the tip, not a break): a tie-up going to the defence is a
+      // turnover + steal, so ask. The tip-off and the 2nd-half start just set the ball.
+      if (b && !g.between && playCount(g) > 0 && analyzeTrips(g).trips.some(tr => tr.period === curPeriod(g))) openHeldBall(b);
+      else { g.ballOverride = { team: b === 'a' ? 'b' : 'a', plays: playCount(g) }; saveGames(); paintScorebar(); } } break;
+    case 'hb-pick': HB[t.dataset.role] = HB[t.dataset.role] === t.dataset.p ? null : t.dataset.p; paintHeldBall(); break;
+    case 'hb-held': heldBallConfirm(true); break;
+    case 'hb-switch': heldBallConfirm(false); break;
     case 'adj': adjust(t.dataset.team, t.dataset.what, +t.dataset.d); break;
     case 'end-period': openEndPeriod(); break;
     case 'ep-confirm': confirmEndPeriod(); break;
@@ -4638,7 +4726,7 @@ function registerOffline() {
   }).catch(() => { dot.textContent = 'Offline unavailable'; });
 }
 let _rsz = null;
-window.addEventListener('resize', () => { clearTimeout(_rsz); _rsz = setTimeout(() => { if (App.tab === 'scout' && SC.doc) layoutScout(); }, 250); });
+window.addEventListener('resize', () => { clearTimeout(_rsz); _rsz = setTimeout(() => { if (App.tab === 'scout' && SC.doc) layoutScout(); const sb = $('#scorebar'); if (sb) fitNames(sb); }, 250); });
 window.addEventListener('beforeunload', () => { const g = liveGame(); if (g) lsSet(LS_GAMES, App.games); });
 boot();
 </script>
