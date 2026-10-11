@@ -83,6 +83,14 @@ table{border-collapse:collapse}
 .hud-pts .ins{font-size:14.5px;font-weight:600;color:var(--text)}
 .hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hud-grid .card{margin-bottom:12px}
+.hud-floor{margin-bottom:12px} .hud-floor td,.hud-floor th{padding:6px 7px}
+/* light grey / slightly darker grey rows with dark text (same as the box score) */
+.zebra tr:nth-child(even) td{background:#eef0f3} .zebra tr:nth-child(odd) td{background:#dde1e7}
+.zebra td{color:#1f2937;border-top-color:#c4c9d1}
+.zebra td .muted,.zebra td.muted{color:#6b7280} .zebra .pnum{color:#4b5563}
+.zebra td.pos{color:#15803d;font-weight:700} .zebra td.neg{color:#b91c1c;font-weight:700}
+.zebra td.tf-bonus{color:#b45309;font-weight:800} .zebra td.tf-dbl{color:#b91c1c;font-weight:800}
+.zebra td.win.a{color:#0b6fa4} .zebra td.win.b{color:var(--them-d)}
 .hud-big{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
 .hud-big span:first-child{color:var(--text2);font-size:12.5px} .hud-big b{font-size:16px;text-align:right}
 .hud-big .k-good{color:#22c55e} .hud-big .k-bad{color:#ef4444}
@@ -564,7 +572,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.37</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.38</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2824,15 +2832,25 @@ function openHuddle(calledBy, toType) {
   const lineA = n => statLine(g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === n));
   const uA = lineupTable(g, 'all').find(x => x.key === unitKey(currentLineup(g)));
   const netA = uA && uA.oT && uA.dT ? 100 * uA.pf / uA.oT - 100 * uA.pa / uA.dT : null;
-  const ourFive = luA.map(n => { const s = lineA(n); const pfc = s.pf >= 4 ? 'tf-dbl' : s.pf >= 3 || (q === 1 && s.pf >= 2) ? 'tf-bonus' : '';
-    return `<tr><td class="l">${numOf(n) !== '' ? '<span class="pnum">#' + esc(numOf(n)) + '</span> ' : ''}${esc(n)}</td><td>${s.pts}</td><td class="${pfc}">${s.pf}</td><td class="${pmCls(pmA.pm[n] || 0)}">${sgn(pmA.pm[n] || 0)}</td></tr>`; }).join('');
+  /* One line per man on the floor: points (last 5:00 in brackets), shooting, boards,
+     turnovers, fouls (amber / red = foul trouble, same rule as the cards), +/-, and how long
+     he has been on in this stint. */
+  const firstHalf = q <= Math.max(1, g.format.periods / 2);
+  const stintOn = t => { const out = {}; if (g.between || (t === 'b' && !oppTracked(g))) return out;
+    const st = floorStints(g, t); for (const n of Object.keys(st)) { const x = st[n][st[n].length - 1]; if (x && x[0] === q) out[n] = Math.max(0, x[1] - clockNow(g)); } return out; };
+  const floorRows = (t, five, label, pm) => { const on = stintOn(t);
+    return five.map(n => { const s = statLine(g.eventLog.filter(e => isStat(e) && e.team === t && e.player === n));
+      const l5 = W[t].byPlayer[n] || 0, hot = l5 >= 6;
+      const pfc = s.pf >= (firstHalf ? 3 : 4) ? 'tf-dbl' : s.pf >= (firstHalf ? 2 : 3) ? 'tf-bonus' : '';
+      const ma = (m, a_) => a_ ? `${m}-${a_}` : '<span class="muted">—</span>';
+      return `<tr><td class="l">${label(n)}${hot ? ' <span class="tag lev-high" style="margin-left:4px">HOT</span>' : ''}</td>
+        <td><b>${s.pts}</b>${l5 ? ` <span class="small muted">(${l5})</span>` : ''}</td><td>${ma(s.fgm, s.fga)}</td><td>${ma(s.fg3m, s.fg3a)}</td><td>${ma(s.ftm, s.fta)}</td>
+        <td>${s.reb}</td><td class="${s.tov >= 3 ? 'tf-bonus' : ''}">${s.tov}</td><td class="${pfc}">${s.pf}</td><td class="${pmCls(pm[n] || 0)}">${sgn(pm[n] || 0)}</td>
+        <td class="small">${on[n] != null ? fmtClock(Math.floor(on[n])) : '—'}</td></tr>`; }).join(''); };
+  const floorHead = '<tr><th>Player</th><th>PTS <span class="tiny muted">(L5)</span></th><th>FG</th><th>3P</th><th>FT</th><th>REB</th><th>TO</th><th>PF</th><th>+/-</th><th>On</th></tr>';
+  const ourFive = floorRows('a', luA, n => `${numOf(n) !== '' ? '<span class="pnum">#' + esc(numOf(n)) + '</span> ' : ''}${esc(n)}`, pmA.pm);
   let theirFive = '';
-  if (oppTracked(g)) {
-    const pmB = lineupPlusMinus(g, 'b');
-    theirFive = currentLineup(g, 'b').sort(byJersey(g, 'b')).map(n => { const s = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n));
-      const hot = (W.b.byPlayer[n] || 0) >= 6, pfc = s.pf >= 4 ? 'tf-dbl' : s.pf >= 3 || (q === 1 && s.pf >= 2) ? 'tf-bonus' : '';
-      return `<tr><td class="l">${oppLabelHtml(n)}${hot ? ' <span class="tag lev-high" style="margin-left:4px">HOT</span>' : ''}</td><td>${s.pts}</td><td class="${pfc}">${s.pf}</td><td class="${pmCls(pmB.pm[n] || 0)}">${sgn(pmB.pm[n] || 0)}</td></tr>`; }).join('');
-  }
+  if (oppTracked(g)) theirFive = floorRows('b', currentLineup(g, 'b').sort(byJersey(g, 'b')), n => oppLabelHtml(n), lineupPlusMinus(g, 'b').pm);
   const run = flow.run.team ? `${teamName(g, flow.run.team)} ${flow.run[flow.run.team]}-0` : '—';
   const caller = calledBy === 'off' ? 'Official timeout' : calledBy ? `${esc(teamName(g, calledBy))} ${toType === '30' ? '30-second' : 'full'} timeout` : 'Huddle';
   $('#modal-root').innerHTML = `<div class="overlay huddle-overlay" data-act="overlay"><div class="modal huddle">
@@ -2843,7 +2861,7 @@ function openHuddle(calledBy, toType) {
     </div>
     <div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
     <div class="hud-grid">
-      <div class="card"><h3>Last 5:00</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
+      <div class="card"><h3>Last 5:00</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl zebra"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
         ${wRow('Points', W.a.pts, W.b.pts, true)}${wRow('Pts / trip', ppp(W.a.ppp), ppp(W.b.ppp), null)}${wRow('Turnovers', W.a.tov, W.b.tov, false)}
         ${wRow('Off. boards', W.a.oreb, W.b.oreb, true)}${wRow('FT made-att', W.a.ftm + '-' + W.a.fta, W.b.ftm + '-' + W.b.fta, null)}</table></div></div>
       <div class="card"><h3>Momentum</h3>
@@ -2852,12 +2870,10 @@ function openHuddle(calledBy, toType) {
         <div class="hud-big"><span>Kills this half</span><b><span class="${killsNow('a') >= 3 ? 'k-good' : ''}">${killsNow('a')}</span> – <span class="${killsNow('b') >= 3 ? 'k-bad' : ''}">${killsNow('b')}</span> <span class="small muted">(stop run: us ${A.streak.b}, them ${A.streak.a})</span></b></div>
       </div>
     </div>
-    <div class="hud-grid">
-      <div class="card"><h3>${esc(g.teamAName)} on the floor <span class="muted">this five: net ${netA == null ? '—' : sgn(Math.round(netA))} · ${sgn(pmA.unit)}</span></h3>
-        <div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Player</th><th>PTS</th><th>PF</th><th>+/-</th></tr>${ourFive}</table></div></div>
-      <div class="card"><h3>${esc(g.teamBName)} on the floor</h3>
-        ${theirFive ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Player</th><th>PTS</th><th>PF</th><th>+/-</th></tr>${theirFive}</table></div>` : '<div class="muted small">Their five isn\'t set — set it to see who\'s on the floor.</div>'}</div>
-    </div>
+    <div class="card hud-floor"><h3>${esc(g.teamAName)} on the floor <span class="muted">this five: net ${netA == null ? '—' : sgn(Math.round(netA))} · ${sgn(pmA.unit)}</span></h3>
+      <div class="tbl-wrap"><table class="tbl rep-tbl zebra">${floorHead}${ourFive}</table></div></div>
+    <div class="card hud-floor"><h3>${esc(g.teamBName)} on the floor</h3>
+      ${theirFive ? `<div class="tbl-wrap"><table class="tbl rep-tbl zebra">${floorHead}${theirFive}</table></div>` : '<div class="muted small">Their five isn\'t set — set it to see who\'s on the floor.</div>'}</div>
     <div class="modal-foot"><button class="btn btn-good btn-lg" data-act="close-modal">Back to game</button></div>
   </div></div>`;
 }
