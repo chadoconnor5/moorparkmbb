@@ -356,6 +356,12 @@ table{border-collapse:collapse}
 .keypad{display:grid;grid-template-columns:repeat(3,54px);gap:6px}
 .keypad button{height:42px;border-radius:9px;background:var(--card2);font-weight:600;font-size:17px}
 .keypad button:hover{background:var(--hover)}
+/* Bigger pads where the clock is typed mid-game (Sub, Timeout, Set time). */
+.clockin.big .keypad{grid-template-columns:repeat(3,92px);gap:10px}
+.clockin.big .keypad button{height:68px;font-size:28px;border-radius:12px}
+.clockin.big input{font-size:40px;width:190px}
+.nudges{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.nudges button{flex:1;min-width:58px;height:46px;border-radius:10px;background:var(--card2);font-weight:700;font-size:15px}
 .clk-prev{font-weight:500;margin-top:8px;font-size:13px;color:var(--text2);text-align:center}
 .clk-err{color:var(--bad);font-weight:500;margin-top:4px;font-size:12.5px;text-align:center;max-width:220px}
 
@@ -578,7 +584,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.52</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.53</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2047,8 +2053,8 @@ function paintScorebar() {
   el.innerHTML = `
     <div class="sb-team a">
       <div class="sb-id"><div class="sb-name">${logoHtml('Moorpark', 34)}<span class="sb-nm">${esc(g.teamAName)}</span></div>
-        <div class="sb-meta">${bonusTag(g, 'a')}<span>Fouls ${tf('a')}</span>${toDots(g, 'a')}</div>
-        <div class="sb-meta">${killHtml('a')}</div></div>
+        <div class="sb-meta"><span>Fouls ${tf('a')}</span>${toDots(g, 'a')}</div>
+        <div class="sb-meta">${bonusTag(g, 'a')}${killHtml('a')}</div></div>
       <div class="sb-score">${score(g, 'a')}</div></div>
     <div class="sb-mid">
       <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
@@ -2059,8 +2065,8 @@ function paintScorebar() {
     <div class="sb-team b">
       <div class="sb-score">${score(g, 'b')}</div>
       <div class="sb-id"><div class="sb-name">${logoHtml(g.teamBName, 34)}<span class="sb-nm" title="${esc(g.teamBName)}">${esc(g.teamBName)}</span></div>
-        <div class="sb-meta">${toDots(g, 'b')}<span>Fouls ${tf('b')}</span>${bonusTag(g, 'b')}</div>
-        <div class="sb-meta">${killHtml('b')}</div></div></div>`;
+        <div class="sb-meta">${toDots(g, 'b')}<span>Fouls ${tf('b')}</span></div>
+        <div class="sb-meta">${killHtml('b')}${bonusTag(g, 'b')}</div></div></div>`;
   fitNames(el);
   paintLevbar();
 }
@@ -2455,10 +2461,14 @@ function showSubModal() {
   const g = liveGame();
   const start = SUB.mode === 'start';
   const q = curPeriod(g);
+  // Starts filled with the clock as it stands (the last time entered, or the running clock):
+  // if that's right, just Confirm; typing replaces it; the −5s…−1:00 buttons nudge it down.
+  const now0 = Math.ceil(clockNow(g) - 1e-6), pre = now0 > 0 && now0 < periodDur(g, q) ? fmtClock(now0).replace(':', '') : '';
   const clock = start ? '' : `
-    <div class="clockin">
+    <div class="clockin big">
       <div><div class="sub-sec" style="margin-top:0">Time left in the ${periodName(g, q).toLowerCase()} — required</div>
-        <input id="sub-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" class="need">
+        <input id="sub-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" class="need" value="${pre}" data-pre="${pre ? 1 : ''}">
+        ${nudgeHtml('sub-clock')}
         <div class="clk-prev" id="sub-prev"></div><div class="clk-err" id="sub-err"></div>
         <div class="sub-acts"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-good btn-lg" data-act="sub-confirm">Confirm sub ⏎</button></div>
       </div>
@@ -2671,6 +2681,18 @@ function pushOppSub(g, pairs, t) {
                     timeSecs: t, quarter: curPeriod(g), ts: Date.now() });
 }
 
+function nudgeHtml(target) {
+  return `<div class="nudges">${[5, 10, 30, 60].map(d => `<button data-act="nudge" data-target="${target}" data-d="${d}">−${d < 60 ? d + 's' : '1:00'}</button>`).join('')}</div>`;
+}
+/* Take seconds off the time in the box (or off the clock as it stands, if the box is empty). */
+function nudgeClock(target, d) {
+  const el = document.getElementById(target); if (!el) return;
+  const g = liveGame(); let t = parseClock(el.value);
+  if (t == null) t = Math.ceil(clockNow(g) - 1e-6);
+  t = Math.max(0, t - d);
+  el.value = fmtClock(t).replace(':', ''); el.dataset.pre = '';
+  el.dispatchEvent(new Event('input'));
+}
 function keypadHtml(target) {
   const k = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'];
   return `<div class="keypad">${k.map(x => `<button data-act="key" data-k="${x}" data-target="${target}">${x}</button>`).join('')}</div>`;
@@ -2678,6 +2700,7 @@ function keypadHtml(target) {
 function keyPress(target, k) {
   const el = document.getElementById(target); if (!el) return;
   let v = el.value.replace(/[^\d]/g, '');
+  if (el.dataset.pre) { el.dataset.pre = ''; if (/\d/.test(k)) v = ''; }   // a prefilled time is replaced, not appended to
   if (k === 'C') v = ''; else if (k === '⌫') v = v.slice(0, -1); else if (v.length < 4) v += k;
   el.value = v;
   el.dispatchEvent(new Event('input'));
@@ -2693,10 +2716,10 @@ function openTimeout() {
   $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal">
     <h2>Timeout — ${periodName(g, curPeriod(g))}</h2>
     <div id="to-body"></div>
-    <div class="clockin" style="margin-top:10px">
+    <div class="clockin big" style="margin-top:10px">
       <div><div class="sub-sec" style="margin-top:0">Time left — required</div>
         <input id="to-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" value="${g.clock.rem > 0 && g.clock.rem < periodDur(g, curPeriod(g)) ? fmtClock(g.clock.rem).replace(':', '') : ''}">
-        <div class="clk-prev" id="to-prev"></div></div>
+        <div class="clk-prev" id="to-prev"></div>${nudgeHtml('to-clock')}</div>
       ${keypadHtml('to-clock')}
     </div>
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-warn btn-lg" data-act="to-confirm">Confirm timeout ⏎</button></div>
@@ -2975,10 +2998,10 @@ function adjust(t, what, d) {
 /* ── CLOCK SET ── */
 function openSetClock() {
   const g = liveGame(); if (!g || g.between) return;
-  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:420px">
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:640px">
     <h2>Set time — ${periodName(g, curPeriod(g))}</h2>
     <div class="small muted" style="margin-bottom:10px">Time left on the clock now. Updates minutes, leverage and the garbage-time check without waiting for a sub or timeout. Clock now: ${fmtClock(clockNow(g))}. This is also where you correct it back up if the officials put time back.</div>
-    <div class="clockin"><div><input id="sc-clock" inputmode="none" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
+    <div class="clockin big"><div><input id="sc-clock" inputmode="none" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
   const ci = $('#sc-clock');
   ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t) + ' left'; $('#sc-err').textContent = t == null ? '' : (setClockError(g, t) || setClockNote(g, t)); });
@@ -4745,6 +4768,7 @@ document.addEventListener('click', e => {
     case 'sub-unpair': SUB.pairs[t.dataset.team].splice(+t.dataset.i, 1); paintSub(); break;
     case 'sub-confirm': confirmSub(); break;
     case 'key': keyPress(t.dataset.target, t.dataset.k); break;
+    case 'nudge': nudgeClock(t.dataset.target, +t.dataset.d); break;
     case 'timeout': openTimeout(); break;
     case 'to-team': TO.team = t.dataset.team; if (TO.team !== 'off') { const L = timeoutsLeft(g, TO.team); if ((TO.type === '30' ? L.s30 : L.full) <= 0) TO.type = TO.type === '30' ? 'full' : '30'; } paintTO(); break;
     case 'to-type': TO.type = t.dataset.type; paintTO(); break;
