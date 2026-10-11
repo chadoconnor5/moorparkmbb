@@ -86,6 +86,9 @@ table{border-collapse:collapse}
 .hud-big span:first-child{color:var(--text2);font-size:12.5px} .hud-big b{font-size:16px;text-align:right}
 .hud-big .k-good{color:#22c55e} .hud-big .k-bad{color:#ef4444}
 @media (max-width:760px){.hud-pts,.hud-grid{grid-template-columns:1fr}}
+.rot-svg{width:100%;height:auto;display:block}
+.rot-team{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:6px 0 2px}
+.rot-team.a{color:var(--us)} .rot-team.b{color:var(--them-text)}
 .adj-team{margin-bottom:14px}
 .adj-row{display:grid;grid-template-columns:1fr 52px 48px 52px;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border)}
 .adj-row b{text-align:center;font-size:20px;font-variant-numeric:tabular-nums}
@@ -492,7 +495,7 @@ table{border-collapse:collapse}
   <div class="nav-right">
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.15</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.16</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1162,6 +1165,37 @@ function floorSecs(g, t, qf) {
     add(lu, last - end);
   }
   return { per, units };
+}
+/* Every stretch each player spent on the floor, as [period, from, to] in clock seconds
+   remaining - the same replay floorSecs uses, kept as intervals for the rotation chart. */
+function floorStints(g, t) {
+  const log = g.eventLog, clocks = eventClocks(g), L = floorAtEach(g, t);
+  const out = {};
+  const add = (lu, q, from, to) => { if (!(from > to)) return; lu.forEach(n => { (out[n] = out[n] || []).push([q, from, to]); }); };
+  const nP = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  for (let q = 1; q <= nP; q++) {
+    const idx = []; log.forEach((e, i) => { if (e.quarter === q) idx.push(i); });
+    const firstI = idx.length ? idx[0] : null;
+    let lu = firstI == null ? (q === curPeriod(g) ? currentLineup(g, t) : []) : (firstI > 0 ? L[firstI - 1] : lineupStartFive(g, t));
+    let last = periodDur(g, q);
+    for (const i of idx) {
+      const e = log[i];
+      if (t === 'b' && i === (g.oppTrackIdx || 0) && i > 0) { last = clocks[i] != null ? Math.min(last, clocks[i]) : last; lu = L[i]; continue; }
+      if (e.type !== 'sub' || (t === 'b' && i < (g.oppTrackIdx || 0))) continue;
+      const tm = e.timeSecs != null ? e.timeSecs : clocks[i];
+      if (tm == null) continue;
+      add(lu, q, last, tm); last = Math.min(last, tm); lu = L[i];
+    }
+    const qq = g.quarters[q - 1];
+    add(lu, q, last, qq ? qq.timeRemaining : (!g.between && !g.completed && q === curPeriod(g) ? clockNow(g) : last));
+  }
+  // Join back-to-back stretches (someone else subbed, he stayed on) into one bar.
+  for (const n of Object.keys(out)) {
+    const m = [];
+    for (const x of out[n]) { const p = m[m.length - 1]; if (p && p[0] === x[0] && Math.abs(p[2] - x[1]) < 0.5) p[2] = x[2]; else m.push(x.slice()); }
+    out[n] = m;
+  }
+  return out;
 }
 function lineupStartFive(g, t) {
   if (t === 'a') return [...(g.startersA || [])];
@@ -3176,6 +3210,54 @@ function renderReport() {
       <button class="btn btn-sm" data-act="print" style="margin-left:auto">🖨 Print</button></div>
     ${reportHtml(g, scope)}`;
 }
+/* ROTATION CHART — who was on the floor and when, one row per player, for the periods the
+   report covers; 10-0 (or better) runs are shaded across both teams in the scoring side's
+   colour, with the run and its score. Rows: starters first, then by minutes. */
+function rotationHtml(g, per, qf, A) {
+  const P = g.format.periods;
+  const len = q => periodDur(g, q);
+  const offs = {}; let total = 0; for (const q of per) { offs[q] = total; total += len(q); }
+  const W = 1000, LBL = 170, RGT = 92, ROW = 20, HEAD = 34;
+  const X = (q, rem) => LBL + (W - LBL - RGT) * (offs[q] + len(q) - rem) / total;
+  const pm = plusMinus(g, qf ? (e => e.quarter === qf) : null);
+  const block = (t, title) => {
+    const st = floorStints(g, t);
+    const starters = new Set(t === 'a' ? g.startersA : (g.startersB || []));
+    const secs = n => (st[n] || []).filter(x => per.includes(x[0])).reduce((v, x) => v + x[1] - x[2], 0);
+    const names = Object.keys(st).filter(n => secs(n) > 0).sort((x, y) => (starters.has(y) - starters.has(x)) || secs(y) - secs(x));
+    if (!names.length) return '';
+    const H = HEAD + names.length * ROW + 6;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" class="rot-svg" role="img" aria-label="${esc(title)} rotation">`;
+    // runs
+    for (const r of scoringRuns(g, qf)) {
+      if (!per.includes(r.startQ) && !per.includes(r.endQ)) continue;
+      const q0 = per.includes(r.startQ) ? r.startQ : per[0], q1 = per.includes(r.endQ) ? r.endQ : per[per.length - 1];
+      const c0 = per.includes(r.startQ) ? (A.clocks[r.startIdx] ?? len(q0)) : len(q0), c1 = per.includes(r.endQ) ? (A.clocks[r.endIdx] ?? 0) : 0;
+      const x0 = X(q0, c0), x1 = Math.max(X(q1, c1), x0 + 3);
+      const col = r.team === 'a' ? 'var(--us)' : 'var(--them)';
+      svg += `<rect x="${x0}" y="${HEAD - 14}" width="${x1 - x0}" height="${H - HEAD + 12}" style="fill:${col};opacity:.13"/>
+        <text x="${(x0 + x1) / 2}" y="${HEAD - 18}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${col}">${r.pts}-0</text>`;
+    }
+    // period lines and labels
+    per.forEach((q, k) => { const x = X(q, len(q));
+      if (k) svg += `<line x1="${x}" y1="${HEAD - 14}" x2="${x}" y2="${H}" stroke="#4b5563" stroke-dasharray="4 4"/>`;
+      svg += `<text x="${x + 4}" y="${HEAD - 4}" font-size="10" fill="#94a3b8">${periodName(g, q, true)}</text>`; });
+    names.forEach((n, k) => {
+      const y = HEAD + k * ROW;
+      if (k % 2) svg += `<rect x="0" y="${y}" width="${W}" height="${ROW}" fill="rgba(255,255,255,.025)"/>`;
+      const lbl = t === 'a' ? (numOf(n) !== '' ? '#' + numOf(n) + ' ' : '') + n : n;
+      svg += `<text x="6" y="${y + 14}" font-size="12" fill="${starters.has(n) ? '#f8fafc' : '#cbd5e1'}" font-weight="${starters.has(n) ? 700 : 500}">${esc(lbl)}</text>`;
+      for (const [q, a, b] of st[n] || []) if (per.includes(q))
+        svg += `<rect x="${X(q, a)}" y="${y + 4}" width="${Math.max(1.5, X(q, b) - X(q, a))}" height="${ROW - 8}" rx="3" style="fill:${t === 'a' ? 'var(--us)' : 'var(--them)'}"/>`;
+      const v = pm[t][n] || 0;
+      svg += `<text x="${W - RGT + 8}" y="${y + 14}" font-size="12" fill="#cbd5e1">${(secs(n) / 60).toFixed(0)}'</text>
+        <text x="${W - 6}" y="${y + 14}" font-size="12" text-anchor="end" font-weight="700" fill="${v > 0 ? '#5cbf95' : v < 0 ? '#e2736d' : '#94a3b8'}">${sgn(v)}</text>`;
+    });
+    return `<div class="rot-team ${t}">${esc(title)}</div>` + svg + '</svg>';
+  };
+  const a = block('a', g.teamAName), b = oppTracked(g) ? block('b', g.teamBName) : '';
+  return a + b + `<div class="tiny muted" style="margin-top:4px">Bars: on the floor · shaded: 10-0 runs in the scoring side's colour · right: minutes and +/-.${oppTracked(g) ? '' : ' Set their five to chart theirs.'}</div>`;
+}
 /* The few things worth saying out loud, strongest first. Plain facts with the numbers. */
 function reportKeys(g, T, A, qf, half) {
   const a = T.a, b = T.b, out = [];
@@ -3376,6 +3458,7 @@ function reportHtml(g, scope) {
         </div></div>
     </div>
     <div class="card rep-box"><h3>Box score <span class="muted">${qf === 1 ? '1st half' : qf === 2 ? '2nd half' : 'full game'} · greyed: under 25% of the minutes</span></h3>${bxTable(g, 'a', qf, { noOn: true })}${bxTable(g, 'b', qf, { noOn: true })}</div>
+    <div class="card"><h3>Rotation <span class="muted">who was on the floor, and when</span></h3>${rotationHtml(g, per, qf, A)}</div>
     <div class="grid2">
       <div class="card"><h3>Lineups <span class="muted">best and worst five, 4+ possessions each way, no garbage time</span></h3>
         ${lu.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Five</th><th>MIN</th><th>Poss</th><th>+/-</th><th>Net</th></tr>${luRow(lu[0], 'Best')}${lu.length > 1 ? luRow(lu[lu.length - 1], 'Worst') : ''}</table></div>` : '<div class="muted small">No five has played enough possessions together yet.</div>'}</div>
