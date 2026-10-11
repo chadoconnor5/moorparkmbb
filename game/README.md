@@ -61,7 +61,7 @@ same roster; edits match by number, so stats already logged stay with the player
   as many as you like to take them out and as many to put in, in any order, until five are
   lit (an OUT / IN line shows the change) → **Confirm** (top of the window). Step two is a
   big number pad on its own screen: the time starts filled with the clock as it stands
-  (the first key replaces it; −5s / −10s / −30s / −1:00 nudge it), and **Confirm sub** lights
+  (the first key replaces it), and **Confirm sub** lights
   up once the time is valid. **◀ Back** returns to the players. Who replaced whom isn't
   asked - only the new five matters.
 - **Free throws across a sub**: free throws (attempts and points) belong to the five on the
@@ -199,8 +199,8 @@ therefore counts charges taken only.
 
 ## Clock entries
 
-The Sub, Timeout and Set time windows have their own number pad next to mm:ss, so the iPad
-keyboard never opens (it used to cover the subs list and the Confirm button). In the Sub
+The Sub, Timeout and Set time windows have their own number pad next to mm:ss; the mm:ss
+box itself can't be tapped or focused, so the iPad keyboard never opens (it used to cover the subs list and the Confirm button). In the Sub
 window **Cancel / Confirm sub** sit right under the clock box.
 
 

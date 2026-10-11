@@ -361,6 +361,9 @@ table{border-collapse:collapse}
 .clockin{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center;background:var(--card);border-radius:12px;padding:14px}
 .clockin input{font-size:30px;font-weight:600;width:150px;text-align:center;font-variant-numeric:tabular-nums;padding:8px;background:var(--surface)}
 .clockin input.need{border-color:rgba(226,115,109,.6)}
+/* The mm:ss box is a display only: not tappable, never focused, so the iPad keyboard can't
+   open - the number pad beside it does the typing. */
+.clockin input[readonly]{pointer-events:none;caret-color:transparent;-webkit-user-select:none;user-select:none}
 .keypad{display:grid;grid-template-columns:repeat(3,54px);gap:6px}
 .keypad button{height:42px;border-radius:9px;background:var(--card2);font-weight:600;font-size:17px}
 .keypad button:hover{background:var(--hover)}
@@ -368,8 +371,6 @@ table{border-collapse:collapse}
 .clockin.big .keypad{grid-template-columns:repeat(3,92px);gap:10px}
 .clockin.big .keypad button{height:68px;font-size:28px;border-radius:12px}
 .clockin.big input{font-size:40px;width:190px}
-.nudges{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-.nudges button{flex:1;min-width:58px;height:46px;border-radius:10px;background:var(--card2);font-weight:700;font-size:15px}
 .clk-prev{font-weight:500;margin-top:8px;font-size:13px;color:var(--text2);text-align:center}
 .clk-err{color:var(--bad);font-weight:500;margin-top:4px;font-size:12.5px;text-align:center;max-width:220px}
 
@@ -592,7 +593,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.54</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.55</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2501,7 +2502,7 @@ function subNext() {
   showSubClock();
 }
 /* Step 2: the time, on a big pad. Starts filled with the clock as it stands (first key
-   replaces it); −5s…−1:00 nudge it; Confirm is greyed out until the time is valid. */
+   replaces it); Confirm is greyed out until the time is valid. */
 function showSubClock() {
   const g = liveGame(), q = curPeriod(g);
   const now0 = Math.ceil(clockNow(g) - 1e-6), pre = now0 > 0 && now0 < periodDur(g, q) ? fmtClock(now0).replace(':', '') : '';
@@ -2512,9 +2513,8 @@ function showSubClock() {
     <h2>Time of the sub — ${periodName(g, q)}</h2>
     ${chg('a')}${chg('b')}${setB}
     <div class="clockin xl">
-      <div><input id="sub-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" class="need" value="${pre}" data-pre="${pre ? 1 : ''}">
+      <div><input id="sub-clock" inputmode="none" readonly tabindex="-1" autocomplete="off" placeholder="mm:ss" class="need" value="${pre}" data-pre="${pre ? 1 : ''}">
         <div class="clk-prev" id="sub-prev"></div><div class="clk-err" id="sub-err"></div>
-        ${nudgeHtml('sub-clock')}
         <div class="sub-acts"><button class="btn" data-act="sub-back">◀ Back</button><button class="btn btn-good btn-lg" data-act="sub-confirm">Confirm sub ⏎</button></div>
       </div>
       ${keypadHtml('sub-clock')}
@@ -2523,7 +2523,7 @@ function showSubClock() {
   const ci = $('#sub-clock');
   ci.addEventListener('input', paintSubClock); paintSubClock();
   ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSub(); } });
-  ci.focus();
+  
 }
 function paintSubClock() {
   const ci = $('#sub-clock'); if (!ci) return;
@@ -2610,7 +2610,6 @@ function subTapIn(t, n) {
   pairs.push({ out: pend, in: n });
   SUB.pending = null;
   paintSub();
-  const ci = $('#sub-clock'); if (ci) ci.focus();
 }
 function subTapFive(t, n) {
   const five = SUB.five[t], i = five.indexOf(n);
@@ -2628,9 +2627,9 @@ function confirmSub() {
   if (SUB.mode === 'start') return startPeriod();
   const ci = $('#sub-clock');
   const t = parseClock(ci.value);
-  if (t == null) { toast('Enter the time left on the clock', 'bad'); ci.classList.add('need'); ci.focus(); return; }
+  if (t == null) { toast('Enter the time left on the clock', 'bad'); ci.classList.add('need'); return; }
   const err = subClockError(g, t);
-  if (err) { toast(err, 'bad', 3500); ci.focus(); return; }
+  if (err) { toast(err, 'bad', 3500); return; }
   const fe = subFivesError(g); if (fe) { toast(fe, 'bad', 3000); return; }
   const setB = SUB.setB && SUB.five.b.length;
   snapshot();
@@ -2706,18 +2705,6 @@ function pushOppSub(g, pairs, t) {
                     timeSecs: t, quarter: curPeriod(g), ts: Date.now() });
 }
 
-function nudgeHtml(target) {
-  return `<div class="nudges">${[5, 10, 30, 60].map(d => `<button data-act="nudge" data-target="${target}" data-d="${d}">−${d < 60 ? d + 's' : '1:00'}</button>`).join('')}</div>`;
-}
-/* Take seconds off the time in the box (or off the clock as it stands, if the box is empty). */
-function nudgeClock(target, d) {
-  const el = document.getElementById(target); if (!el) return;
-  const g = liveGame(); let t = parseClock(el.value);
-  if (t == null) t = Math.ceil(clockNow(g) - 1e-6);
-  t = Math.max(0, t - d);
-  el.value = fmtClock(t).replace(':', ''); el.dataset.pre = '';
-  el.dispatchEvent(new Event('input'));
-}
 function keypadHtml(target) {
   const k = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'];
   return `<div class="keypad">${k.map(x => `<button data-act="key" data-k="${x}" data-target="${target}">${x}</button>`).join('')}</div>`;
@@ -2743,8 +2730,8 @@ function openTimeout() {
     <div id="to-body"></div>
     <div class="clockin big" style="margin-top:10px">
       <div><div class="sub-sec" style="margin-top:0">Time left — required</div>
-        <input id="to-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" value="${g.clock.rem > 0 && g.clock.rem < periodDur(g, curPeriod(g)) ? fmtClock(g.clock.rem).replace(':', '') : ''}">
-        <div class="clk-prev" id="to-prev"></div>${nudgeHtml('to-clock')}</div>
+        <input id="to-clock" inputmode="none" readonly tabindex="-1" autocomplete="off" placeholder="mm:ss" value="${g.clock.rem > 0 && g.clock.rem < periodDur(g, curPeriod(g)) ? fmtClock(g.clock.rem).replace(':', '') : ''}" data-pre="1">
+        <div class="clk-prev" id="to-prev"></div></div>
       ${keypadHtml('to-clock')}
     </div>
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-warn btn-lg" data-act="to-confirm">Confirm timeout ⏎</button></div>
@@ -2755,7 +2742,6 @@ function openTimeout() {
     $('#to-prev').innerHTML = t == null ? '' : '= ' + fmtClock(t) + (err ? `<div class="clk-err">${esc(err)}</div>` : ''); ci.classList.toggle('need', t == null || !!err); };
   ci.addEventListener('input', pv); pv();
   ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmTimeout(); } });
-  ci.focus(); ci.select();   // a prefilled time is replaced by the first keystroke, not appended to
 }
 function paintTO() {
   const g = liveGame();
@@ -2764,7 +2750,6 @@ function paintTO() {
   if (TO.team === 'off') {
     $('#to-body').innerHTML = `<div class="row">${b('a')}${b('b')}${off}</div>
       <div class="small muted" style="margin-top:8px">Official timeout (clock fix, wet spot, injury): the stoppage and its clock are logged; neither team is charged.</div>`;
-    const ci = $('#to-clock'); if (ci) { ci.focus(); ci.select(); }
     return;
   }
   const L = timeoutsLeft(g, TO.team);
@@ -2772,14 +2757,14 @@ function paintTO() {
     <div class="row" style="margin-top:8px">
       <button class="btn btn-lg ${TO.type === 'full' ? 'btn-primary' : ''}" data-act="to-type" data-type="full" style="flex:1" ${L.full <= 0 ? 'disabled' : ''}>Full (${L.full} left)</button>
       <button class="btn btn-lg ${TO.type === '30' ? 'btn-primary' : ''}" data-act="to-type" data-type="30" style="flex:1" ${L.s30 <= 0 ? 'disabled' : ''}>30 second (${L.s30} left)</button>
-    </div>`;  const ci = $('#to-clock'); if (ci) { ci.focus(); ci.select(); }   // keep typing going after a tap
+    </div>`;
 }
 function confirmTimeout() {
   const g = liveGame(); if (!g) return;
   const t = parseClock($('#to-clock').value);
   if (t == null) { toast('Enter the time left on the clock', 'bad'); return; }
   const q = curPeriod(g);
-  { const err = clockEntryError(g, t); if (err) { toast(err, 'bad', 3500); $('#to-clock').focus(); return; } }
+  { const err = clockEntryError(g, t); if (err) { toast(err, 'bad', 3500); return; } }
   const official = TO.team === 'off';
   const L = official ? null : timeoutsLeft(g, TO.team);
   if (!official && (TO.type === '30' ? L.s30 : L.full) <= 0) { toast('No ' + (TO.type === '30' ? '30-second' : 'full') + ' timeouts left', 'bad'); return; }
@@ -3026,12 +3011,11 @@ function openSetClock() {
   $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:640px">
     <h2>Set time — ${periodName(g, curPeriod(g))}</h2>
     <div class="small muted" style="margin-bottom:10px">Time left on the clock now. Updates minutes, leverage and the garbage-time check without waiting for a sub or timeout. Clock now: ${fmtClock(clockNow(g))}. This is also where you correct it back up if the officials put time back.</div>
-    <div class="clockin big"><div><input id="sc-clock" inputmode="none" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
+    <div class="clockin big"><div><input id="sc-clock" inputmode="none" readonly tabindex="-1" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
     <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
   const ci = $('#sc-clock');
   ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t) + ' left'; $('#sc-err').textContent = t == null ? '' : (setClockError(g, t) || setClockNote(g, t)); });
   ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSetClock(); } });
-  ci.focus();
 }
 /* Set time is the one entry that may move the clock back UP - a correction (the officials
    put time back, or the last entry was wrong) - but not above the last sub, or that five's
@@ -4795,7 +4779,6 @@ document.addEventListener('click', e => {
     case 'sub-next': subNext(); break;
     case 'sub-back': showSubModal(); break;
     case 'key': keyPress(t.dataset.target, t.dataset.k); break;
-    case 'nudge': nudgeClock(t.dataset.target, +t.dataset.d); break;
     case 'timeout': openTimeout(); break;
     case 'to-team': TO.team = t.dataset.team; if (TO.team !== 'off') { const L = timeoutsLeft(g, TO.team); if ((TO.type === '30' ? L.s30 : L.full) <= 0) TO.type = TO.type === '30' ? 'full' : '30'; } paintTO(); break;
     case 'to-type': TO.type = t.dataset.type; paintTO(); break;
