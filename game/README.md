@@ -158,12 +158,13 @@ the same possession.
 
 ## Huddle: last 5:00 vs the game
 
-The Huddle's table is the four factors plus 3PA rate - eFG%, TO% (with the points the
+The Huddle's table is the four factors plus 3PA rate and assist rate - eFG%, TO% (with the points the
 turnovers gave up), OREB% (with second-chance points), FT rate (FTA / FGA) and 3PA rate
 (3PA / FGA) - each side's last 5:00 beside its whole-game number, with the count behind
 it. A cell turns amber with ▲/▼ only when the last 5:00 has moved well away from the game
 on enough attempts: 15 points of eFG% or 20 of FT / 3PA rate on 5+ FGA, 20 points of
-OREB% on 4+ chances, 10 points of TO% on 3+ turnovers. Five minutes is 8-10 trips, so this
+OREB% on 4+ chances, 10 points of TO% on 3+ turnovers. A last row, **AST rate** (AST / FGM,
+with the assist-to-turnover ratio under it), lights up on 25 points over 4+ makes. Five minutes is 8-10 trips, so this
 is the "something changed" flag, not a verdict.
 
 A third, italic **season** column per team holds that team's numbers for this season from
