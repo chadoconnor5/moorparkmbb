@@ -55,6 +55,13 @@ same roster; edits match by number, so stats already logged stay with the player
   between the shots. A rebound off a missed free throw belongs to the five on the floor
   then. Lineups, on/off and +/- all follow this.
 - **Timeout**: team, 30s or full, clock.
+- **± Fouls / TOs** (under the scoreboard clock): fix a missed or doubled foul or timeout —
+  each team's fouls this half (the bonus count only; a player's foul still goes in with
+  Foul), 30-second and full timeouts left. Each tap shows in the play-by-play and Undo takes
+  it back.
+- Every school name on every screen shows in that school's main colour (a deeper shade on
+  white rows and on paper). The small version label next to the Offline pill shows which
+  build the device is running.
 - No running clock: the time entered at each sub, timeout and period end is the clock. **Set time** under the scoreboard clock updates it any time (e.g. to check garbage time during a long stretch with no sub). S flips to the scouting report and back.
 
 ## Killshots

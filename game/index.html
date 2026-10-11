@@ -61,6 +61,12 @@ table{border-collapse:collapse}
 .offline-dot{font-size:11px;padding:3px 9px;border-radius:99px;color:var(--muted);white-space:nowrap;margin-left:6px;background:var(--card)}
 .offline-dot::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:1px}
 .offline-dot.ready::before{background:var(--good)}
+.tname{color:var(--tc)}
+.box-table tbody .tname,.cmp-light tr:not(.cmp-h) .tname{color:var(--tcl)}
+.adj-team{margin-bottom:14px}
+.adj-row{display:grid;grid-template-columns:1fr 52px 48px 52px;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border)}
+.adj-row b{text-align:center;font-size:20px;font-variant-numeric:tabular-nums}
+.adj-row .btn{font-size:20px;padding:6px 0}
 .app-ver{font-size:10.5px;color:var(--muted);margin-left:6px;white-space:nowrap}
 
 .page{padding:14px 16px 40px;max-width:1320px;margin:0 auto}
@@ -184,6 +190,7 @@ table{border-collapse:collapse}
 .sub-team.a{color:var(--us)} .sub-team.b{color:var(--them-text)}
 .lpm-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#fff;padding-bottom:5px;margin-bottom:2px;border-bottom:1px solid var(--border)}
 .lpm-head .lpm-val{font-size:15px;letter-spacing:0}
+.lpm-team.a{color:var(--us)} .lpm-team.b{color:var(--them-text)}
 .lpm-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
 .lpm-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lpm-val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted)}
@@ -257,6 +264,7 @@ table{border-collapse:collapse}
 .pos{color:var(--good)} .neg{color:var(--bad)}
 .cmp-tbl td,.cmp-tbl th{padding:7px 12px}
 .cmp-tbl th.cmp-a,.cmp-tbl th.cmp-b{text-align:right;text-transform:none;letter-spacing:0;font-size:12.5px}
+.cmp-tbl th.cmp-a{color:var(--us)} .cmp-tbl th.cmp-b{color:var(--them-text)}
 .cmp-tbl th .tlogo{vertical-align:-4px}
 .cmp-tbl td.cmp-a,.cmp-tbl td.cmp-b{width:24%;color:var(--text2)}
 .cmp-tbl td.win{font-weight:800;color:var(--text)}
@@ -423,6 +431,7 @@ table{border-collapse:collapse}
   .card h3,.tbl th,.cmp-tbl tr.cmp-h td,.bs-score-table th,.bs-final-col{color:#000!important;background:#eee!important}
   .bs-score-table td{background:#fff!important;color:#000}
   .ins{background:#f6f6f6;color:#000}
+  .tname{color:var(--tcl)!important}
   .box-table thead th{background:#ddd!important;color:#000!important}
   .box-team-header{background:#eee!important;color:#000!important}
   .box-table tbody td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -451,7 +460,7 @@ table{border-collapse:collapse}
   <div class="nav-right">
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.2</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -568,6 +577,62 @@ function applyTeamColors(g) {
   r.setProperty('--them', pal.fill); r.setProperty('--them-d', pal.stripe); r.setProperty('--them-bg', pal.bg);
   r.setProperty('--them-text', pal.text); r.setProperty('--them-hdr', pal.hdr);
 }
+/* SCHOOL COLOURS ON EVERY NAME. Any school's name anywhere on the page - Moorpark or an
+   opponent, in a heading, a table, a sentence - is drawn in that school's main colour: the
+   shade that reads on our dark panels, and a deeper one (--tcl) on the white box-score and
+   comparison rows and on paper. Done as one pass over the page after it changes rather than
+   at each of the ~90 places a name is written, so a new screen can't forget it. Buttons,
+   menus and inputs are left alone (coloured text on a coloured button fights it). */
+function darkTo(c, bg, ratio) { const [h, s0, l0] = rgbHsl(c); let l = l0, out = c;
+  while (contrast(out, bg) < ratio && l > .05) { l -= .02; out = hslRgb([h, Math.max(s0, .45), l]); } return out; }
+const _schoolCol = new Map();
+function schoolColors(name) {
+  if (_schoolCol.has(name)) return _schoolCol.get(name);
+  let c = null;
+  if (name === 'Moorpark') c = { dark: '#4fc3f7', light: '#0b6fa4' };
+  else {
+    const hex = TEAM_COLORS[logoSlug(name) || ''], pal = hex ? teamPalette(name) : null;
+    if (pal) c = { dark: pal.text, light: rgbHex(darkTo(hexRgb(hex), [255, 255, 255], 4.5)) };
+  }
+  _schoolCol.set(name, c);
+  return c;
+}
+function schoolNameRe() {
+  const set = new Set(['Moorpark']);
+  App.opps.forEach(o => set.add(o.name));
+  App.schedule.forEach(r => { if (r.opp && !isTBD(r.opp)) set.add(r.opp); });
+  App.games.forEach(g => { if (g.teamBName) set.add(g.teamBName); });
+  const names = [...set].filter(n => n && n.length > 2 && schoolColors(n)).sort((a, b) => b.length - a.length);
+  const key = names.join('|');
+  if (schoolNameRe.key !== key) {
+    schoolNameRe.key = key;
+    schoolNameRe.re = names.length ? new RegExp('(^|[^A-Za-z])(' + names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![A-Za-z])', 'g') : null;
+  }
+  return schoolNameRe.re;
+}
+const NAME_SKIP = 'button,select,option,textarea,input,script,style,svg,.tname,.tag';
+function colorSchoolNames(root) {
+  const re = root && schoolNameRe(); if (!re) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => !n.nodeValue.trim() || !n.parentElement || n.parentElement.closest(NAME_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const hits = [];
+  while (walker.nextNode()) { re.lastIndex = 0; if (re.test(walker.currentNode.nodeValue)) hits.push(walker.currentNode); }
+  for (const tn of hits) {
+    const txt = tn.nodeValue, frag = document.createDocumentFragment();
+    let last = 0, m; re.lastIndex = 0;
+    while ((m = re.exec(txt))) {
+      const at = m.index + m[1].length, c = schoolColors(m[2]);
+      frag.append(txt.slice(last, at));
+      const sp = document.createElement('span');
+      sp.className = 'tname'; sp.style.setProperty('--tc', c.dark); sp.style.setProperty('--tcl', c.light); sp.textContent = m[2];
+      frag.append(sp); last = at + m[2].length;
+    }
+    frag.append(txt.slice(last));
+    tn.replaceWith(frag);
+  }
+}
+const _nameObs = new MutationObserver(() => { _nameObs.disconnect(); colorSchoolNames($('#view')); colorSchoolNames($('#modal-root')); watchNames(); });
+function watchNames() { for (const id of ['#view', '#modal-root']) { const el = $(id); if (el) _nameObs.observe(el, { childList: true, subtree: true, characterData: true }); } }
 function logoHtml(name, size, cls = '') {
   const k = logoSlug(name);
   if (k) return `<img class="tlogo ${cls}" style="--lg:${size}px" src="logos/${k}.png" alt="" loading="lazy">`;
@@ -1050,7 +1115,11 @@ function otStarted(g) {
 }
 function timeoutsLeft(g, t) {
   let u30 = 0, uF = 0;
-  for (const e of g.eventLog) if (e.type === 'timeout' && e.team === t) { if (e.toType === '30') u30++; else uF++; }
+  for (const e of g.eventLog) {
+    if (e.type === 'timeout' && e.team === t) { if (e.toType === '30') u30++; else uF++; }
+    // Manual corrections (± Fouls / TOs): a delta on timeouts USED.
+    if (e.type === 'adj' && e.team === t) { if (e.what === 'to30') u30 += e.delta; else if (e.what === 'tofull') uF += e.delta; }
+  }
   return { s30: g.format.to30 + otStarted(g) - u30, full: g.format.toFull - uF };
 }
 function teamFouls(g, t, q) {
@@ -1058,8 +1127,11 @@ function teamFouls(g, t, q) {
   const P = g.format.periods;
   const inWindow = P === 2 ? (e => (q <= 1 ? e.quarter === 1 : e.quarter >= 2)) : (e => e.quarter === q);
   let n = 0;
-  for (const e of g.eventLog) if (isStat(e) && e.stat === 'foul' && e.team === t && inWindow(e)) n++;
-  return n;
+  for (const e of g.eventLog) {
+    if (isStat(e) && e.stat === 'foul' && e.team === t && inWindow(e)) n++;
+    if (e.type === 'adj' && e.what === 'foul' && e.team === t && inWindow(e)) n += e.delta;   // a missed foul, bonus count only
+  }
+  return Math.max(0, n);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1720,7 +1792,7 @@ function paintScorebar() {
     <div class="sb-mid">
       <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
       <div class="sb-clock">${fmtClock(clockNow(g))}</div>
-      ${g.between ? '<div class="sb-cap">&nbsp;</div>' : `<button class="btn btn-sm sb-settime" data-act="set-clock">⏱ Set time</button>`}
+      <div class="row" style="gap:6px;justify-content:center">${g.between ? '' : `<button class="btn btn-sm sb-settime" data-act="set-clock">⏱ Set time</button>`}<button class="btn btn-sm sb-settime" data-act="adjust" title="Fix a missed foul or timeout">± Fouls / TOs</button></div>
     </div>
     <div class="sb-team b">
       <div class="sb-score">${score(g, 'b')}</div>
@@ -1760,7 +1832,7 @@ function lpmHtml(g, t, lu, PM, bench) {
   const nm = n => esc(t === 'a' ? lastName(n) : n.replace(/^#\d+\s*/, '') || n);
   const cell = (l, v, cls = '') => `<div><span>${l}</span><b class="${cls}">${v}</b></div>`;
   return `<div class="lpm">
-    <div class="lpm-head"><span>${esc(teamName(g, t))}</span></div>
+    <div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))}</span></div>
     <div class="lpm-stats">${cell('Poss', u ? u.oT + u.dT : 0)}${cell('ORtg', f0(o))}${cell('DRtg', f0(d))}${cell('Net', net == null ? '—' : sgn(Math.round(net)), pmCls(net))}${cell('+/-', sgn(PM.unit), pmCls(PM.unit))}</div>
     ${lu.map(n => `<div class="lpm-row"><span class="lpm-name">${t === 'b' ? oppLabelHtml(n) : esc(lastName(n))}</span><span class="lpm-val ${pmCls(PM.pm[n] || 0)}">${sgn(PM.pm[n] || 0)}</span></div>`).join('')}
     ${bench.some(n => PM.pm[n] != null) ? `<div class="lpm-bench">${bench.filter(n => PM.pm[n] != null).map(n => `<span>${nm(n)} <b class="${pmCls(PM.pm[n])}">${sgn(PM.pm[n])}</b></span>`).join('')}</div>` : ''}
@@ -1853,6 +1925,7 @@ function paintTracker() {
 function describe(g, e) {
   if (e.type === 'sub') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} SUB ${e.subs.map(s => lastName(s.playerIn) + ' for ' + lastName(s.playerOut)).join(', ')}`;
   if (e.type === 'timeout') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} TIMEOUT ${teamName(g, e.team)} (${e.toType === '30' ? '30s' : 'full'})`;
+  if (e.type === 'adj') return `${periodName(g, e.quarter, true)} ${teamName(g, e.team)} ${{ foul: 'team fouls', to30: '30s timeouts left', tofull: 'full timeouts left' }[e.what]} adjusted ${e.what === 'foul' ? sgn(e.delta) : sgn(-e.delta)}`;
   if (e.type === 'clock') return `${periodName(g, e.quarter, true)} clock set to ${fmtClock(e.timeSecs)}`;
   let s = shortName(g, e.team, e.player) + ' ' + (e.stat === 'foul' && e.charge ? 'charge' : e.stat === 'foul' && e.offensive ? 'offensive foul'
     : e.stat === 'fd' && e.charge ? 'took a charge' : e.stat === 'fd' && e.offensive ? 'drew offensive foul' : STAT_LABEL[e.stat]);
@@ -2269,6 +2342,44 @@ function confirmTimeout() {
   render();
 }
 
+/* ── ADJUST FOULS / TIMEOUTS ──
+   For a foul or timeout that was missed (or logged twice): nudge a team's foul count for
+   the bonus, or its timeouts left. Each tap is an 'adj' event - it shows in the
+   play-by-play, can be deleted there, and Undo takes it back. Player fouls are untouched:
+   to charge a foul to a player, log it with Foul. */
+function openAdjust() {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') commitStaged();
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:620px">
+    <h2>Adjust fouls &amp; timeouts</h2>
+    <div class="small muted" style="margin-bottom:10px">For one that was missed or entered twice. Team fouls here change the bonus count only — to give a player a foul, use Foul.</div>
+    <div id="adj-body"></div>
+    <div class="modal-foot"><button class="btn btn-primary" data-act="close-modal">Done</button></div></div></div>`;
+  paintAdjust();
+}
+function paintAdjust() {
+  const g = liveGame(); const box = $('#adj-body'); if (!g || !box) return;
+  const q = curPeriod(g);
+  const fq = g.between ? Math.min(q, g.format.periods + 1) : q;
+  const half = g.format.periods === 2 ? (fq <= 1 ? '1st half' : '2nd half') : periodName(g, fq);
+  const line = (t, what, label, val) => `<div class="adj-row"><span>${label}</span>
+    <button class="btn" data-act="adj" data-team="${t}" data-what="${what}" data-d="-1" ${val <= 0 ? 'disabled' : ''}>−</button>
+    <b>${val}</b>
+    <button class="btn" data-act="adj" data-team="${t}" data-what="${what}" data-d="1">+</button></div>`;
+  box.innerHTML = ['a', 'b'].map(t => { const L = timeoutsLeft(g, t);
+    return `<div class="adj-team"><div class="sub-team ${t}">${logoHtml(t === 'a' ? 'Moorpark' : g.teamBName, 22)}${esc(teamName(g, t))}</div>
+      ${line(t, 'foul', 'Team fouls — ' + half, teamFouls(g, t, fq))}
+      ${line(t, 'to30', '30-second timeouts left', L.s30)}
+      ${line(t, 'tofull', 'Full timeouts left', L.full)}</div>`; }).join('');
+}
+function adjust(t, what, d) {
+  const g = liveGame(); if (!g) return;
+  snapshot();
+  // Fouls: +1 is one more foul. Timeouts: the window counts timeouts LEFT, the event counts USED.
+  g.eventLog.push({ id: nextId(g), type: 'adj', team: t, what, delta: what === 'foul' ? d : -d, quarter: curPeriod(g), ts: Date.now() });
+  saveGames(); paintAdjust(); paintScorebar();
+}
+
 /* ── CLOCK SET ── */
 function openSetClock() {
   const g = liveGame(); if (!g || g.between) return;
@@ -2567,7 +2678,7 @@ function renderAnalytics() {
   <div class="row" style="margin-bottom:10px">${gamePicker(g)} ${periodPicker(g)}
     <span style="margin-left:auto;font-size:20px;font-weight:900"><span style="color:var(--us)">${esc(g.teamAName)} ${finalScore(g).a}</span> – <span style="color:var(--them-text)">${finalScore(g).b} ${esc(g.teamBName)}</span>
     <span class="small muted">${g.completed ? 'Final' : 'LIVE · ' + (g.between ? 'break' : periodName(g, curPeriod(g), true) + ' ' + fmtClock(clockNow(g)))}</span></span></div>
-  ${g.completed ? '' : `<div class="card"><h3>Right now</h3><div class="insights">${insights(g).map(i => `<div class="ins ${i.c}">${esc(i.t)}</div>`).join('') || '<div class="muted">Nothing flagged.</div>'}</div></div>`}
+  ${g.completed ? '' : `<div class="card"><h3>Right now</h3><div class="insights">${insights(g).map(i => `<div class="ins ${i.c}"><span>${esc(i.t)}</span></div>`).join('') || '<div class="muted">Nothing flagged.</div>'}</div></div>`}
   <div class="card"><h3>Four Factors <span class="muted"><span style="color:var(--us)">${esc(g.teamAName)}</span> vs <span style="color:var(--them-text)">${esc(g.teamBName)}</span>${qf ? ' · ' + periodName(g, qf) : ''}</span></h3>${fourFactorsHtml(g, T, qf)}</div>
   <div class="card"><h3>Killshots <span class="muted">unanswered runs — 10-0 is a killshot</span></h3>${killshotsHtml(g, qf)}</div>
   <div class="card"><h3>Team comparison</h3>${factors}</div>
@@ -3021,7 +3132,7 @@ function reportHtml(g, scope) {
       <div class="rep-team b"><div style="text-align:right"><div class="rep-name">${esc(g.teamBName)}</div><div class="rep-score b">${sB}</div></div>${logoHtml(g.teamBName, 46)}</div>
     </div>
     <div class="card"><h3>${half ? 'Second-half keys' : 'What decided it'}</h3>
-      <div class="insights">${keys.map(k => `<div class="ins ${k.good ? 'good' : 'bad'}">${esc(k.t)}</div>`).join('') || '<div class="muted">Nothing stood out — an even game on every factor.</div>'}</div></div>
+      <div class="insights">${keys.map(k => `<div class="ins ${k.good ? 'good' : 'bad'}"><span>${esc(k.t)}</span></div>`).join('') || '<div class="muted">Nothing stood out — an even game on every factor.</div>'}</div></div>
     ${!half && g.format.periods === 2 && g.quarters.length >= 2 ? `<div class="card"><h3>1st half vs 2nd half <span class="muted">what changed at the break, and what held</span></h3>${halfSplitHtml(g, A)}</div>` : ''}
     <div class="grid2">
       <div class="card"><h3>Four factors</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
@@ -3070,7 +3181,7 @@ function renderPbp(embedded) {
     const tags = (ks ? `<span class="tag" style="background:${ks.team === 'a' ? 'var(--us)' : 'var(--them)'};color:${ks.team === 'a' ? '#000' : '#fff'};text-shadow:${ks.team === 'a' ? 'none' : '0 1px 2px rgba(0,0,0,.6)'}">${ks.mark}-0 ${ks.mark === 10 ? 'KILLSHOT' : 'RUN'}</span>` : '') + (tr ? `${e.kill ? `<span class="tag" style="background:var(--gold);color:#000">KILL ${e.kill === 'a' ? 'MC' : 'OPP'}</span>` : ''}${tr.ftEnd && i === tr.events[tr.events.length - 1] ? '<span class="tag lev-low" title="Ended on a free-throw rebound: not a stop">FT reb</span>' : ''}${tr.gt ? '<span class="tag lev-gt">GT</span>' : ''}${tr.clutch ? '<span class="tag lev-clutch">CL</span>' : ''}<span class="tag lev-${tr.tier}">${tr.tier[0].toUpperCase()}</span>` : '');
     const clk = e.type ? fmtClock(e.timeSecs) : (A.clocks[i] != null ? (e.gc != null ? '' : '~') + fmtClock(A.clocks[i]) : '');
     const edit = canEdit && isStat(e) ? `<select data-act="pbp-player" data-i="${i}" style="font-size:12px;padding:2px 4px">${playersFor(e.team).map(p => `<option value="${esc(p)}" ${p === e.player ? 'selected' : ''}>${esc(p === TEAM ? 'Team' : p)}</option>`).join('')}</select>` : '';
-    const del = canEdit && (isStat(e) || e.type === 'timeout' || e.type === 'clock') ? `<button class="btn btn-sm" data-act="pbp-del" data-i="${i}" title="Delete">🗑</button>` : '';
+    const del = canEdit && (isStat(e) || e.type === 'timeout' || e.type === 'clock' || e.type === 'adj') ? `<button class="btn btn-sm" data-act="pbp-del" data-i="${i}" title="Delete">🗑</button>` : '';
     return `<div class="pbp-row ${e.type ? 's' : e.team}"><span class="small muted">${periodName(g, e.quarter, true)}</span><span class="small">${clk}</span>
       <span>${esc(describe(g, e))}${tags}</span><span class="small" style="text-align:right">${sA}–${sB}</span><span class="acts">${edit}${del}</span></div>`;
   }).join('');
@@ -3783,6 +3894,8 @@ document.addEventListener('click', e => {
     case 'to-confirm': confirmTimeout(); break;
     case 'sc-confirm': confirmSetClock(); break;
     case 'set-clock': openSetClock(); break;
+    case 'adjust': openAdjust(); break;
+    case 'adj': adjust(t.dataset.team, t.dataset.what, +t.dataset.d); break;
     case 'end-period': openEndPeriod(); break;
     case 'ep-confirm': confirmEndPeriod(); break;
     case 'start-period': openPeriodStart(); break;
@@ -3936,6 +4049,7 @@ async function loadRoster() {
   return SEED_ROSTER.map(r => Object.assign({}, r));
 }
 async function boot() {
+  watchNames();
   App.games = lsGet(LS_GAMES, []) || [];
   App.opps = lsGet(LS_OPPS, []) || [];
   App.schedule = lsGet(LS_SCHED, []) || [];
