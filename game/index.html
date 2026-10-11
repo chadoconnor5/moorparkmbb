@@ -221,6 +221,8 @@ table{border-collapse:collapse}
 .sbtn.dim{opacity:.2;pointer-events:none}
 .sbtn.on{outline:2px solid #fff;outline-offset:1px;opacity:1}
 .status{min-height:44px;padding:8px 12px;border-radius:11px;background:var(--card);font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text2);text-align:center;justify-content:center}
+.tech-coaches{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:2px}
+.tech-coaches .btn{white-space:normal;line-height:1.2;min-height:42px;text-align:left;justify-content:flex-start}
 .status.wait{background:var(--primary-bg);color:var(--text);justify-content:space-between;text-align:left}
 .ctrls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .ctrls .btn{padding:10px 6px}
@@ -468,7 +470,7 @@ table{border-collapse:collapse}
   <div class="nav-right">
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.12</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.13</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1971,8 +1973,8 @@ function paintTracker() {
   cs.innerHTML = `
     <div class="status ${F.phase !== 'idle' ? 'wait' : ''}"><span style="flex:1">${esc(statusTxt)}</span>
 
-      ${F.phase === 'pick_fouler' && F.stat === 'tech' ? ['a', 'b'].map(t => `<button class="btn btn-sm" data-act="tech-coach" data-team="${t}">${esc(teamName(g, t))} coach</button>`).join('') : ''}
-      ${F.phase !== 'idle' ? '<button class="btn btn-sm" data-act="cancel">Cancel</button>' : ''}</div>
+      ${F.phase !== 'idle' ? '<button class="btn btn-sm" data-act="cancel">Cancel</button>' : ''}
+      ${F.phase === 'pick_fouler' && F.stat === 'tech' ? `<div class="tech-coaches">${['a', 'b'].map(t => `<button class="btn" data-act="tech-coach" data-team="${t}">${logoHtml(t === 'a' ? 'Moorpark' : g.teamBName, 20)}<span>${esc(teamName(g, t))} coach</span></button>`).join('')}</div>` : ''}</div>
     <div class="sgrid">${STAT_BTNS.map(stBtn).join('')}</div>
     ${SKIP_TEXT[F.phase] ? `<button class="btn btn-primary btn-lg skipbig" data-act="skip">${SKIP_TEXT[F.phase]}</button>` : ''}
     <div class="ctrls">
