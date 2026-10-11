@@ -156,6 +156,18 @@ tap sets it:
 A tap holds through timeouts and subs until the next play. The end-of-game alerts read
 the same possession.
 
+## Flags and editing past subs
+
+- **🚩 Flag** a play to look back at later: on the Live screen, **🚩 Flag last play** (the
+  play just logged) or the 🚩 on any recent play; in the Play-by-Play, the 🚩 on any row, with
+  an optional note. **Flagged only** filters the Play-by-Play. Flags are saved on the play
+  (`flag`, `flagNote`), and every ⬇ Backup / export starts with a `flagged` list per game:
+  period, clock, score, play and note.
+- **✏️ Edit a sub** (Play-by-Play): change its clock or who went in / out, or delete it,
+  without undoing the plays after it - they follow the new lineup, and minutes are rebuilt.
+  It's refused if the clock falls outside the entries around it, or if a later sub would no
+  longer make sense (the reason is shown). Undo takes an edit back.
+
 ## Clock entries
 
 A sub, a timeout (official included) and the end of a period refuse a time that has
