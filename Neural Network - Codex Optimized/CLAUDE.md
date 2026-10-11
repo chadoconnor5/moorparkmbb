@@ -31,8 +31,6 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 scrape.py master      # once, when schedules post
   python3 scrape.py nightly     # every night
   python3 scrape.py status      # what's missing (no network)
-- Season rates for the game tracker's Huddle (run by scrape.py after each rebuild):
-  python3 export_team_rates.py --season 2026-27   # -> ../game/team_rates.json
 - Opponent-adjust the game tracker's lineups (tracker Season page -> Lineup file):
   python3 adjust_lineups.py <lineup file>   # -> internal_data/moorpark_lineups_adj.json
 - List all teams:
