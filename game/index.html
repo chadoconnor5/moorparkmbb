@@ -219,9 +219,16 @@ table{border-collapse:collapse}
 .pbtn .plabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
 .pbtn .onote{font-size:11.5px;font-weight:500;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 0;min-width:0}
 .pbtn.team .pname{padding-right:0}
-.pbtn .pline{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px}
+.pbtn .pline{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px;padding-right:38px}
 .pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
 .pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.pbtn .stint{position:absolute;bottom:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+/* foul trouble: the whole card, amber then red */
+.tracker .col .pbtn.ft-warn{background:rgba(250,204,21,.13);border-color:rgba(250,204,21,.75);box-shadow:inset 4px 0 0 #facc15}
+.tracker .col .pbtn.ft-danger{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.85);box-shadow:inset 4px 0 0 #ef4444}
+.pbtn.ft-warn .pf,.pbtn.ft-danger .pf{font-weight:900;padding:2px 7px;border-radius:5px;top:6px}
+.pbtn.ft-warn .pf{background:#facc15;color:#111} .pbtn.ft-danger .pf{background:#ef4444;color:#fff}
+.pbtn.ft-warn .pline,.pbtn.ft-danger .pline,.pbtn.ft-warn .stint,.pbtn.ft-danger .stint{color:var(--text2)}
 .pbtn.team{min-height:40px;font-size:13px;color:var(--text2);background:transparent;border-style:dashed;box-shadow:none!important}
 .pbtn.dim{opacity:.22;pointer-events:none}
 .pbtn.hot{background:var(--card2);border-color:var(--border2)}
@@ -523,7 +530,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.25</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.27</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2083,6 +2090,16 @@ function paintTracker() {
   const box = {};
   for (const e of pRow) if (isStat(e)) { const k = e.team + '|' + e.player; (box[k] = box[k] || []).push(e); }
   const line = (t, p) => statLine(box[t + '|' + p] || []);
+  /* Stint timer: how long each man has been on since he last checked in (restarts at each
+     period). The start is stamped on the card; the clock tick counts it up. */
+  const live = !dis, q = curPeriod(g);
+  const stintFrom = t => {
+    const out = {}; if (!live || (t === 'b' && !oppTracked(g))) return out;
+    const st = floorStints(g, t);
+    for (const n of Object.keys(st)) { const x = st[n][st[n].length - 1]; if (x && x[0] === q) out[n] = x[1]; }
+    return out;
+  };
+  const SF = { a: stintFrom('a'), b: stintFrom('b') };
   const btn = (t, p) => {
     const s = line(t, p);
     const isTeam = p === TEAM;
@@ -2095,14 +2112,16 @@ function paintTracker() {
       : oi && oi.name ? `${oi.num !== '' ? '<span class="pnum">#' + esc(oi.num) + '</span> ' : ''}${esc(oi.name)}` : oppLabelHtml(p);
     const dim = dis || (F.phase !== 'idle' && !allowed(t, p));
     const hot = F.phase !== 'idle' && !dim;
-    /* Foul trouble: 2 in the 1st half, or 3+ in the 2nd half / OT, turns the badge bright red. */
+    /* Foul trouble colours the whole card: 1st half 2 PF amber, 3+ red; 2nd half and OT
+       3 PF amber, 4 red. Fouled out / ejected keeps the red badge. */
     const firstHalf = curPeriod(g) <= Math.max(1, g.format.periods / 2);
-    const pfCls = (firstHalf && s.pf >= 2) || s.pf >= 3 ? 'f-trouble' : '';
+    const out = !isTeam && outReason(g, t, p);
+    const ft = isTeam || out ? '' : s.pf >= (firstHalf ? 3 : 4) ? 'ft-danger' : s.pf >= (firstHalf ? 2 : 3) ? 'ft-warn' : '';
     const info = t === 'b' && !isTeam ? oppInfoLine(g, p) : '';
     const pmv = !isTeam ? (t === 'a' ? (LPM.pm[p] || 0) : OT ? (OPM.pm[p] || 0) : null) : null;
     const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>`;
-    return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
-      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls || (!isTeam && outReason(g, t, p) ? 'f-trouble' : '')}">${(!isTeam && outReason(g, t, p)) || s.pf + ' PF'}</span>` : ''}</button>`;
+    return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''} ${ft}" data-act="player" data-team="${t}" data-p="${esc(p)}">
+      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${out ? 'f-trouble' : ''}">${out || s.pf + ' PF'}</span>` : ''}${!isTeam && SF[t][p] != null && currentLineup(g, t).includes(p) ? `<span class="stint" data-from="${SF[t][p]}">${fmtClock(Math.floor(Math.max(0, SF[t][p] - clockNow(g))))}</span>` : ''}</button>`;
   };
   const lu = sortedLineup(g);
   const LPM_ = lineupPlusMinus(g); Object.assign(LPM, LPM_);
@@ -3241,12 +3260,13 @@ function unitFactors(u) {
 function lineupRowsHtml(g, side, units) {
   const cur = g.completed || (side === 'b' && !oppTracked(g)) ? '' : unitKey(currentLineup(g, side));
   const nm = n => esc(side === 'a' ? lastName(n) : n);
-  const head = `<tr><th rowspan="2">Lineup</th><th rowspan="2">MIN</th><th rowspan="2">Poss O/D</th><th rowspan="2">Pts F–A</th><th rowspan="2">+/-</th><th rowspan="2">ORtg</th><th rowspan="2">DRtg</th><th rowspan="2">Net</th>
+  const gp = units.some(u => u.gp != null);
+  const head = `<tr><th rowspan="2">Lineup</th>${gp ? '<th rowspan="2">GP</th>' : ''}<th rowspan="2">MIN</th><th rowspan="2">Poss O/D</th><th rowspan="2">Pts F–A</th><th rowspan="2">+/-</th><th rowspan="2">ORtg</th><th rowspan="2">DRtg</th><th rowspan="2">Net</th>
       <th colspan="4" class="grp">Offense</th><th colspan="4" class="grp">Defense</th>${side === 'a' ? '<th rowspan="2">Kills F/A</th>' : ''}</tr>
     <tr><th>eFG%</th><th>TO%</th><th>OR%</th><th>FTR</th><th>eFG%</th><th>TO%</th><th>DR%</th><th>FTR</th></tr>`;
   return `<div class="tbl-wrap"><table class="tbl lu-tbl">${head}
     ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null, F = unitFactors(u);
-      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${(side === 'a' ? u.names.slice().sort(byLast) : u.names).map(nm).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td>
+      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${(side === 'a' ? u.names.slice().sort(byLast) : u.names).map(nm).join(', ')}</td>${gp ? `<td>${u.gp}</td>` : ''}<td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td>
         <td class="gl">${f1(F.efg)}</td><td>${f1(F.tov)}</td><td>${f1(F.orb)}</td><td>${f1(F.ftr)}</td><td class="gl">${f1(F.oefg)}</td><td>${f1(F.otov)}</td><td>${f1(F.drb)}</td><td>${f1(F.oftr)}</td>${side === 'a' ? `<td>${u.kF} / ${u.kA}</td>` : ''}</tr>`; }).join('')}
   </table></div>`;
 }
@@ -3259,6 +3279,27 @@ function oppLineupsHtml(g) {
   const units = lineupTable(g, App.lev, 'b').sort((x, y) => y.secs - x.secs || (y.oT + y.dT) - (x.oT + x.dT));
   if (!units.length) return '<div class="muted">No lineups yet.</div>';
   return lineupRowsHtml(g, 'b', units) + `<div class="tiny muted" style="margin-top:6px">Their minutes come from the clock at their subs. Highlighted row is on the floor now.</div>`;
+}
+/* Season lineups: each five's possessions, points, four factors and kills summed over every
+   finished game (scrimmages out), garbage time left out like the season PPP. Fives with
+   fewer than SEASON_LU_MIN possessions are listed apart: too few to read anything into. */
+const SEASON_LU_MIN = 10;
+function seasonLineupsHtml(games) {
+  const all = new Map();
+  for (const g of games) for (const u of lineupTable(g, 'nogt')) {
+    if (!all.has(u.key)) all.set(u.key, { key: u.key, names: u.names, gp: 0, secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, kF: 0, kA: 0, evA: [], evB: [] });
+    const x = all.get(u.key);
+    x.gp++; for (const k of ['secs', 'oT', 'dT', 'pf', 'pa', 'kF', 'kA']) x[k] += u[k];
+    x.evA.push(...u.evA); x.evB.push(...u.evB);
+  }
+  const units = [...all.values()].sort((x, y) => y.secs - x.secs || (y.oT + y.dT) - (x.oT + x.dT));
+  const big = units.filter(u => u.oT + u.dT >= SEASON_LU_MIN), small = units.filter(u => u.oT + u.dT < SEASON_LU_MIN);
+  if (!units.length) return '';
+  const done = { completed: true };
+  return `<div class="card"><h3>Season lineups <span class="muted">${big.length} five${big.length === 1 ? '' : 's'} with ${SEASON_LU_MIN}+ possessions</span></h3>
+    ${big.length ? lineupRowsHtml(done, 'a', big) : `<div class="muted">No five has ${SEASON_LU_MIN} possessions together yet.</div>`}
+    ${small.length ? `<details style="margin-top:8px"><summary class="small muted">${small.length} more five${small.length === 1 ? '' : 's'} under ${SEASON_LU_MIN} possessions</summary>${lineupRowsHtml(done, 'a', small)}</details>` : ''}
+    <div class="tiny muted" style="margin-top:6px">All finished games, scrimmages out. Garbage-time possessions left out; minutes are all minutes. GP is games this five played together.</div></div>`;
 }
 function onOffHtml(g) {
   const rows = onOffTable(g, App.lev).filter(r => r.secs > 0 || r.on.oT + r.on.dT > 0).sort((x, y) => y.secs - x.secs);
@@ -3689,7 +3730,7 @@ function renderSeason() {
       <div class="k"><div class="lbl">Pace (poss/g)</div><div class="v"><span>${(P / n).toFixed(1)}</span></div></div>
     </div></div>
   <div class="card"><h3>Players — per game</h3><div class="tbl-wrap"><table class="tbl">
-    <tr><th>Player</th><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>CHG</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>+/- tot</th></tr>${rows}</table></div></div>`;
+    <tr><th>Player</th><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>CHG</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>+/- tot</th></tr>${rows}</table></div></div>` + seasonLineupsHtml(games);
 }
 
 /* ── SCOUTING ──
@@ -4440,6 +4481,7 @@ setInterval(() => {
   const now = clockNow(g);
   if (now <= 0) { clockStop(g); g.clock.rem = 0; saveGames(); paintScorebar(); toast('Clock hit 0:00 — end the period when ready', 'warn', 4000); return; }
   const el = $('#sb-clock'); if (el) el.textContent = fmtClock(now);
+  document.querySelectorAll('.pbtn .stint').forEach(x => { x.textContent = fmtClock(Math.floor(Math.max(0, +x.dataset.from - now))); });
   const s = Math.ceil(now);
   if (s !== _lastSec) {
     _lastSec = s;
