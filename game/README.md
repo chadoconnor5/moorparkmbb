@@ -156,6 +156,13 @@ tap sets it:
 A tap holds through timeouts and subs until the next play. The end-of-game alerts read
 the same possession.
 
+## Official timeouts
+
+The timeout window has a third choice, **Official** (clock fix, wet spot, injury): the
+stoppage and its clock are logged and the Huddle sheet opens, but neither team is
+charged a timeout. It shows as OFFICIAL TIMEOUT in the play-by-play and "Official" in
+the timeout table.
+
 ## Live cards
 
 - **Foul trouble** colours the whole card: 1st half 2 PF amber, 3+ red; 2nd half and OT

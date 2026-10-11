@@ -557,7 +557,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.34</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.35</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2238,6 +2238,7 @@ function paintTracker() {
 
 function describe(g, e) {
   if (e.type === 'sub') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} SUB ${e.subs.map(s => lastName(s.playerIn) + ' for ' + lastName(s.playerOut)).join(', ')}`;
+  if (e.type === 'timeout' && e.team === 'off') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} OFFICIAL TIMEOUT`;
   if (e.type === 'timeout') return `${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)} TIMEOUT ${teamName(g, e.team)} (${e.toType === '30' ? '30s' : 'full'})`;
   if (e.type === 'adj') return `${periodName(g, e.quarter, true)} ${teamName(g, e.team)} ${{ foul: 'team fouls', to30: '30s timeouts left', tofull: 'full timeouts left' }[e.what]} adjusted ${e.what === 'foul' ? sgn(e.delta) : sgn(-e.delta)}`;
   if (e.type === 'clock') return `${periodName(g, e.quarter, true)} clock set to ${fmtClock(e.timeSecs)}`;
@@ -2639,8 +2640,15 @@ function openTimeout() {
 function paintTO() {
   const g = liveGame();
   const b = (t) => { const L = timeoutsLeft(g, t); return `<button class="btn btn-lg ${TO.team === t ? 'btn-primary' : ''}" data-act="to-team" data-team="${t}" style="flex:1">${esc(teamName(g, t))}<span class="tiny" style="display:block;font-weight:600">${L.s30} × 30s · ${L.full} full left</span></button>`; };
+  const off = `<button class="btn btn-lg ${TO.team === 'off' ? 'btn-primary' : ''}" data-act="to-team" data-team="off" style="flex:1" title="Refs stop play: clock fix, wet spot, injury">Official<span class="tiny" style="display:block;font-weight:600">uses no team's timeouts</span></button>`;
+  if (TO.team === 'off') {
+    $('#to-body').innerHTML = `<div class="row">${b('a')}${b('b')}${off}</div>
+      <div class="small muted" style="margin-top:8px">Official timeout (clock fix, wet spot, injury): the stoppage and its clock are logged; neither team is charged.</div>`;
+    const ci = $('#to-clock'); if (ci) { ci.focus(); ci.select(); }
+    return;
+  }
   const L = timeoutsLeft(g, TO.team);
-  $('#to-body').innerHTML = `<div class="row">${b('a')}${b('b')}</div>
+  $('#to-body').innerHTML = `<div class="row">${b('a')}${b('b')}${off}</div>
     <div class="row" style="margin-top:8px">
       <button class="btn btn-lg ${TO.type === 'full' ? 'btn-primary' : ''}" data-act="to-type" data-type="full" style="flex:1" ${L.full <= 0 ? 'disabled' : ''}>Full (${L.full} left)</button>
       <button class="btn btn-lg ${TO.type === '30' ? 'btn-primary' : ''}" data-act="to-type" data-type="30" style="flex:1" ${L.s30 <= 0 ? 'disabled' : ''}>30 second (${L.s30} left)</button>
@@ -2652,14 +2660,16 @@ function confirmTimeout() {
   if (t == null) { toast('Enter the time left on the clock', 'bad'); return; }
   const q = curPeriod(g);
   if (t > periodDur(g, q)) { toast('More than the period length', 'bad'); return; }
-  const L = timeoutsLeft(g, TO.team);
-  if ((TO.type === '30' ? L.s30 : L.full) <= 0) { toast('No ' + (TO.type === '30' ? '30-second' : 'full') + ' timeouts left', 'bad'); return; }
+  const official = TO.team === 'off';
+  const L = official ? null : timeoutsLeft(g, TO.team);
+  if (!official && (TO.type === '30' ? L.s30 : L.full) <= 0) { toast('No ' + (TO.type === '30' ? '30-second' : 'full') + ' timeouts left', 'bad'); return; }
   snapshot();
-  g.eventLog.push({ id: nextId(g), type: 'timeout', team: TO.team, toType: TO.type, timeSecs: t, quarter: q, ts: Date.now() });
+  g.eventLog.push(official ? { id: nextId(g), type: 'timeout', team: 'off', official: true, timeSecs: t, quarter: q, ts: Date.now() }
+                           : { id: nextId(g), type: 'timeout', team: TO.team, toType: TO.type, timeSecs: t, quarter: q, ts: Date.now() });
   clockStop(g); clockSet(g, t);
   saveGames(); closeModal();
-  const L2 = timeoutsLeft(g, TO.team);
-  toast(teamName(g, TO.team) + ' timeout · ' + L2.s30 + '×30 + ' + L2.full + ' full left', 'warn', 3000);
+  if (official) toast('Official timeout @ ' + fmtClock(t), 'warn', 3000);
+  else { const L2 = timeoutsLeft(g, TO.team); toast(teamName(g, TO.team) + ' timeout · ' + L2.s30 + '×30 + ' + L2.full + ' full left', 'warn', 3000); }
   render();
   openHuddle(TO.team, TO.type);
 }
@@ -2784,7 +2794,7 @@ function openHuddle(calledBy, toType) {
       return `<tr><td class="l">${oppLabelHtml(n)}${hot ? ' <span class="tag lev-high" style="margin-left:4px">HOT</span>' : ''}</td><td>${s.pts}</td><td class="${pfc}">${s.pf}</td><td class="${pmCls(pmB.pm[n] || 0)}">${sgn(pmB.pm[n] || 0)}</td></tr>`; }).join('');
   }
   const run = flow.run.team ? `${teamName(g, flow.run.team)} ${flow.run[flow.run.team]}-0` : '—';
-  const caller = calledBy ? `${esc(teamName(g, calledBy))} ${toType === '30' ? '30-second' : 'full'} timeout` : 'Huddle';
+  const caller = calledBy === 'off' ? 'Official timeout' : calledBy ? `${esc(teamName(g, calledBy))} ${toType === '30' ? '30-second' : 'full'} timeout` : 'Huddle';
   $('#modal-root').innerHTML = `<div class="overlay huddle-overlay" data-act="overlay"><div class="modal huddle">
     <div class="hud-top">
       <div class="hud-team a">${logoHtml('Moorpark', 34)}<div><div class="hud-score">${fs.a}</div><div class="hud-meta">Fouls ${fouls('a')} · <span class="to-dots">${dots('a')}</span></div></div></div>
@@ -3446,8 +3456,8 @@ function timeoutTable(g, A) {
     let run = { t: null, n: 0 };
     for (let k = i - 1; k >= 0; k--) { const x = g.eventLog[k]; if (!isStat(x) || !evPts(x)) continue; if (run.t && run.t !== x.team) break; run.t = x.team; run.n += evPts(x); }
     // After: the calling team's first possession out of it.
-    const next = A.trips.find(tr => tr.startIdx > i && tr.team === e.team);
-    return `<tr><td class="l" style="color:${e.team === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, e.team))}</td><td>${e.toType === '30' ? '30s' : 'Full'}</td><td>${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)}</td><td>${at[i][0]}–${at[i][1]}</td><td>${run.t ? esc(run.t === 'a' ? 'MC' : g.teamBName.slice(0, 8)) + ' ' + run.n + '-0' : '—'}</td><td>${next ? next.pts + ' pts' : '—'}</td></tr>`;
+    const next = e.team === 'off' ? null : A.trips.find(tr => tr.startIdx > i && tr.team === e.team);
+    return `<tr><td class="l" style="color:${e.team === 'a' ? 'var(--us)' : e.team === 'off' ? 'var(--text2)' : 'var(--them-text)'}">${e.team === 'off' ? 'Official' : esc(teamName(g, e.team))}</td><td>${e.team === 'off' ? '—' : e.toType === '30' ? '30s' : 'Full'}</td><td>${periodName(g, e.quarter, true)} ${fmtClock(e.timeSecs)}</td><td>${at[i][0]}–${at[i][1]}</td><td>${run.t ? esc(run.t === 'a' ? 'MC' : g.teamBName.slice(0, 8)) + ' ' + run.n + '-0' : '—'}</td><td>${next ? next.pts + ' pts' : '—'}</td></tr>`;
   });
   return `<div class="tbl-wrap"><table class="tbl"><tr><th>Team</th><th>Type</th><th>When</th><th>Score</th><th>Run in</th><th>Next poss</th></tr>${rows.join('')}</table></div>` + toLeft(g);
 }
@@ -4498,7 +4508,7 @@ document.addEventListener('click', e => {
     case 'sub-confirm': confirmSub(); break;
     case 'key': keyPress(t.dataset.target, t.dataset.k); break;
     case 'timeout': openTimeout(); break;
-    case 'to-team': TO.team = t.dataset.team; { const L = timeoutsLeft(g, TO.team); if ((TO.type === '30' ? L.s30 : L.full) <= 0) TO.type = TO.type === '30' ? 'full' : '30'; } paintTO(); break;
+    case 'to-team': TO.team = t.dataset.team; if (TO.team !== 'off') { const L = timeoutsLeft(g, TO.team); if ((TO.type === '30' ? L.s30 : L.full) <= 0) TO.type = TO.type === '30' ? 'full' : '30'; } paintTO(); break;
     case 'to-type': TO.type = t.dataset.type; paintTO(); break;
     case 'to-confirm': confirmTimeout(); break;
     case 'sc-confirm': confirmSetClock(); break;
