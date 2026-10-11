@@ -137,8 +137,8 @@ table{border-collapse:collapse}
 .bonus.dbl{background:rgba(226,115,109,.16);color:var(--bad)}
 .kills{display:inline-flex;align-items:center;gap:4px;color:var(--text2)}
 .kills b{font-size:13px;color:var(--text);margin-right:2px}
-.kpip{width:7px;height:7px;border-radius:2px;background:var(--card2);display:inline-block}
-.kpip.on{background:var(--gold)}
+.kpip{width:8px;height:8px;border-radius:50%;background:var(--card2);display:inline-block}
+.kpip.on{background:#22c55e}
 
 .levbar{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;padding:8px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);margin-bottom:8px;font-size:12.5px;color:var(--text2)}
 .lev{font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px;letter-spacing:.05em}
@@ -463,7 +463,7 @@ table{border-collapse:collapse}
   <div class="nav-right">
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.4</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.5</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1465,9 +1465,13 @@ function analyzeTrips(g) {
      with no points, EXCEPT one that ended on a rebound off a missed free throw: the defence
      fouled to get there, so that trip is not a stop and it breaks the run. A turnover after
      the missed free throw (offensive board, then a giveaway) is a stop as normal.
-     The trip still in progress is not judged until it ends. Runs carry across the half. */
-  const kills = { a: 0, b: 0 }, streak = { a: 0, b: 0 };
+     The trip still in progress is not judged until it ends. The count starts over at the
+     start of each half (and each overtime): three straight stops inside the same half.
+     Kills still add up over the game for the reports and the season. */
+  const kills = { a: 0, b: 0 };
+  let streak = { a: 0, b: 0 }, streakPeriod = null;
   trips.forEach((tr, k) => {
+    if (tr.period !== streakPeriod) { streak = { a: 0, b: 0 }; streakPeriod = tr.period; }
     // A turnover ends a trip on the spot, and points can't be taken back, so neither waits
     // for the next possession to be logged before it counts.
     tr.closed = k < trips.length - 1 || !!g.completed || g.quarters.length >= tr.period || !!tr.endTov || tr.pts > 0;
@@ -1478,6 +1482,8 @@ function analyzeTrips(g) {
     if (!tr.stop) { streak[tr.team] = 0; return; }
     if (++streak[tr.team] >= KILL_STOPS) { tr.kill = other(tr.team); kills[tr.kill]++; streak[tr.team] = 0; }
   });
+  // A new half has started but no trip of it is logged yet: its count is still 0.
+  if (!g.completed && streakPeriod != null && streakPeriod < curPeriod(g)) streak = { a: 0, b: 0 };
 
   // Stamp the grading onto the events themselves so an export carries it.
   for (let i = 0; i < log.length; i++) {
@@ -1560,14 +1566,14 @@ function lineupAtEach(g, t = 'a') {
   return L.map((lu, i) => anc[i] != null ? L[anc[i]] : lu);
 }
 const unitKey = arr => arr.slice().sort().join('|');
-function lineupTable(g, f, side = 'a') {
+function lineupTable(g, f, side = 'a', qf = null) {
   const A = analyzeTrips(g), L = lineupAtEach(g, side);
   const units = new Map();
   const U = k => { if (!units.has(k)) units.set(k, { key: k, names: k.split('|'), secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, kF: 0, kA: 0, evA: [], evB: [] }); return units.get(k); };
-  if (side === 'a') { for (const s of g.lineupSegments) { if (s.lineupA.length) U(unitKey(s.lineupA)).secs += segSecs(g, s); } }
-  else { const fs = floorSecs(g, 'b').units; for (const k of Object.keys(fs)) U(k).secs += fs[k]; }
+  if (side === 'a') { for (const s of g.lineupSegments) { if (s.lineupA.length && (qf == null || s.quarter === qf)) U(unitKey(s.lineupA)).secs += segSecs(g, s); } }
+  else { const fs = floorSecs(g, 'b', qf).units; for (const k of Object.keys(fs)) U(k).secs += fs[k]; }
   for (const tr of A.trips) {
-    if (!tripPass(tr, f)) continue;
+    if (!tripPass(tr, f) || (qf != null && tr.period !== qf)) continue;
     if (!L[tr.startIdx].length) continue;
     const u = U(unitKey(L[tr.startIdx]));
     if (tr.team === side) u.oT++; else u.dT++;
@@ -1576,7 +1582,7 @@ function lineupTable(g, f, side = 'a') {
   }
   g.eventLog.forEach((e, i) => {
     if (!isStat(e)) return;
-    const tr = A.evTrip[i]; if (!tr || !tripPass(tr, f)) return;
+    const tr = A.evTrip[i]; if (!tr || !tripPass(tr, f) || (qf != null && tr.period !== qf)) return;
     if (!L[i].length) return;
     const u = U(unitKey(L[i]));
     const p = evPts(e);
@@ -1782,7 +1788,9 @@ function paintScorebar() {
   const tf = t => { const n = teamFouls(g, t, fq); const c = n >= g.format.dbonus ? 'tf-dbl' : n >= g.format.bonus ? 'tf-bonus' : n >= g.format.bonus - 2 ? 'tf-warn' : ''; return c ? `<b class="${c}">${n}</b>` : n; };
   const AK = analyzeTrips(g);
   // A team's kills are its DEFENCE's; the pips fill with the opponent's current stop run.
-  const killHtml = t => `<span class="kills" title="Kills: ${KILL_STOPS} straight stops. Pips = ${t === 'a' ? 'their' : 'our'} current scoreless run.">KILLS <b>${AK.kills[t]}</b>${Array.from({ length: KILL_STOPS }, (_, i) => `<span class="kpip ${i < AK.streak[other(t)] ? 'on' : ''}"></span>`).join('')}</span>`;
+  // Kills this half (the count starts over at the half); the game total is in the reports.
+  const killsNow = t => AK.trips.filter(tr => tr.kill === t && tr.period === curPeriod(g)).length;
+  const killHtml = t => `<span class="kills" title="Kills this half: ${KILL_STOPS} straight stops in the same half. Circles = ${t === 'a' ? 'their' : 'our'} current scoreless run. Game total ${AK.kills[t]}.">KILLS <b>${killsNow(t)}</b>${Array.from({ length: KILL_STOPS }, (_, i) => `<span class="kpip ${i < AK.streak[other(t)] ? 'on' : ''}"></span>`).join('')}</span>`;
   el.className = 'scorebar';
   /* No running clock: the clock shown is the last one entered (a sub, a timeout, the end of
      a period). Those entries are what minutes and the game-time analytics are built from. */
@@ -2503,6 +2511,14 @@ function periodPicker(g) {
   for (let q = 1; q <= n; q++) h += `<option value="${q}" ${String(App.period) === String(q) ? 'selected' : ''}>${periodName(g, q)}</option>`;
   return h + '</select>';
 }
+/* Box score: Full game / 1st half / 2nd half (/ OT) as buttons, not a menu. */
+function periodPills(g) {
+  const n = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  const pill = (k, l) => `<button class="bs-tab-pill ${String(App.period) === String(k) ? 'active' : ''}" data-act="pick-period-btn" data-k="${k}">${l}</button>`;
+  let h = pill('all', 'Full game');
+  for (let q = 1; q <= n; q++) h += pill(q, q <= g.format.periods && g.format.periods === 2 ? (q === 1 ? '1st half' : '2nd half') : periodName(g, q));
+  return `<div class="bs-tab-row" style="border-bottom:none;padding-bottom:0;margin-bottom:12px">${h}</div>`;
+}
 function periodFilter(g) { const q = App.period === 'all' ? null : +App.period; return q && q <= curPeriod(g) ? q : null; }
 function noGame() { return `<div class="card"><h3>No games yet</h3><div class="muted">Start one from the Live tab.</div></div>`; }
 /* The practice tracker's box score: score-by-period box, team tabs, Torvik-style tables on
@@ -2599,13 +2615,14 @@ function renderBox() {
   const panel = bxPanel === 'b' ? bxTable(g, 'b', qf) : bxPanel === 'both' ? bxTable(g, 'a', qf) + bxTable(g, 'b', qf) : bxPanel === 'pbp' ? renderPbp(true) : bxTable(g, 'a', qf);
   return `<div class="bx-panel">
     <div class="bx-titlebar"><div class="bx-title">${esc(g.title)} — ${esc(g.date || '')}${esc(status)}</div>
-      <div class="row">${gamePicker(g)}${periodPicker(g)}</div></div>
+      <div class="row">${gamePicker(g)}</div></div>
     <div class="bs-scorebox">
       <div class="bs-scorebox-title">${esc(g.title)}</div>
       <div class="bs-scorebox-date">${esc(g.date || '')}</div>
       <table class="bs-score-table"><thead><tr><th>Team</th>${Array.from({ length: n }, (_, i) => `<th>${periodName(g, i + 1, true)}</th>`).join('')}<th class="bs-final-col">Final</th></tr></thead>
         <tbody>${line('a')}${line('b')}</tbody></table>
     </div>
+    ${periodPills(g)}
     <div class="bs-tab-row">${tab('both', 'Combined')}${tab('a', g.teamAName)}${tab('b', g.teamBName)}${tab('pbp', 'Play-by-Play')}</div>
     ${panel}
   </div>`;
@@ -2948,11 +2965,12 @@ function gtSummary(g, A) {
 const REP = { scope: 'game' };
 function renderReport() {
   const g = viewGame(); if (!g) return noGame();
-  const canHalf = g.format.periods === 2 && g.quarters.length >= 1;
-  const scope = canHalf ? REP.scope : 'game';
+  const two = g.format.periods === 2;
+  const has1 = two && g.quarters.length >= 1, has2 = two && (g.quarters.length >= 2 || (g.quarters.length === 1 && !g.between));
+  const scope = (REP.scope === 'half' && has1) || (REP.scope === 'second' && has2) ? REP.scope : 'game';
   const pill = (k, l) => `<button class="bs-tab-pill ${scope === k ? 'active' : ''}" data-act="rep-scope" data-k="${k}">${l}</button>`;
   return `<div class="row no-print" style="margin-bottom:10px">${gamePicker(g)}
-      ${canHalf ? pill('half', 'Halftime') + pill('game', g.completed ? 'Final' : 'Game so far') : ''}
+      ${has1 ? pill('half', '1st half') + (has2 ? pill('second', '2nd half') : '') + pill('game', g.completed ? 'Full game' : 'Game so far') : ''}
       <button class="btn btn-sm" data-act="print" style="margin-left:auto">🖨 Print</button></div>
     ${reportHtml(g, scope)}`;
 }
@@ -2980,7 +2998,7 @@ function reportKeys(g, T, A, qf, half) {
   // Their best scorer
   if (oppHasRoster(g)) {
     const top = playerStats(g, qf, 'b').sort((x, y) => y.pts - x.pts)[0];
-    if (top && top.pts >= (half ? 8 : 15)) push(top.pts / (half ? 8 : 15), false, `${top.name} ${half ? 'has' : 'scored'} ${top.pts} (${top.fgm}-${top.fga} FG, ${top.fg3m}-${top.fg3a} 3PT, ${top.ftm}-${top.fta} FT).`);
+    if (top && top.pts >= (qf ? 8 : 15)) push(top.pts / (qf ? 8 : 15), false, `${top.name} ${half ? 'has' : 'scored'} ${top.pts} (${top.fgm}-${top.fga} FG, ${top.fg3m}-${top.fg3a} 3PT, ${top.ftm}-${top.fta} FT).`);
   }
   // The biggest run each way
   const runTxt = (r, who) => `${who} ${r.pts}-0 run (${periodName(g, r.startQ, true)} ${fmtClock(A.clocks[r.startIdx])}–${fmtClock(A.clocks[r.endIdx])}), ${r.startA}–${r.startB} to ${r.endA}–${r.endB}.`;
@@ -2990,7 +3008,7 @@ function reportKeys(g, T, A, qf, half) {
   }
   /* Post-game: how the second half differed from the first - the comeback (or the lead that
      got away) and the factor that swung most between the halves. */
-  if (!half && g.format.periods === 2 && g.quarters.length >= 2) {
+  if (qf !== 1 && g.format.periods === 2 && g.quarters.length >= 2) {
     const h1 = teamStats(g, e => e.quarter === 1), h2 = teamStats(g, e => e.quarter >= 2);
     const m1 = h1.a.pts - h1.b.pts, m2 = h2.a.pts - h2.b.pts, fin = m1 + m2;
     if (Math.sign(m1) !== Math.sign(fin) && m1 !== 0)
@@ -3102,21 +3120,24 @@ function halfSplitHtml(g, A) {
       return `<tr><td class="l">${r.lbl}</td>${cell(r.h1a, w1 === 'a' && 'a', r)}${cell(r.h1b, w1 === 'b' && 'b', r)}<td class="gl ${w2 === 'a' ? 'win a' : ''}">${r.fa(r.h2a)}</td>${cell(r.h2b, w2 === 'b' && 'b', r)}<td class="l">${tag(r)}</td></tr>`; }).join('')}
   </table></div><div class="tiny muted" style="margin-top:6px">Each half's better side is coloured. Flipped: the edge changed hands at the half. Held: the same side won it both halves. Grew / Narrowed: same side, by a lot more / a lot less in the 2nd half. OT counts with the 2nd half.</div>`;
 }
+/* scope: 'half' (1st half), 'second' (2nd half - overtime is in the full game), 'game'.
+   At the live halftime break the 1st-half report talks in the present ("Second-half keys");
+   looked back on later it reads like the rest. */
 function reportHtml(g, scope) {
-  const half = scope === 'half';
-  const qf = half ? 1 : null;
+  const qf = scope === 'half' ? 1 : scope === 'second' ? 2 : null;
+  const half = qf === 1 && g.between && g.quarters.length === 1 && !g.completed;   // the live halftime break
   const pred = qf ? (e => e.quarter === qf) : null;
   const T = teamStats(g, pred), a = T.a, b = T.b;
   const A = analyzeTrips(g);
-  const sA = half ? score(g, 'a', pred) : finalScore(g).a, sB = half ? score(g, 'b', pred) : finalScore(g).b;
-  const nP = half ? 1 : g.quarters.length + (g.between || g.completed ? 0 : 1);
-  const qs = t => Array.from({ length: nP }, (_, i) => score(g, t, e => e.quarter === i + 1));
-  const label = half ? 'Halftime' : g.completed ? 'Final' + (g.quarters.length > g.format.periods ? ' (' + periodName(g, g.quarters.length, true) + ')' : '') : 'Game so far';
+  const sA = qf ? score(g, 'a', pred) : finalScore(g).a, sB = qf ? score(g, 'b', pred) : finalScore(g).b;
+  const per = qf ? [qf] : Array.from({ length: g.quarters.length + (g.between || g.completed ? 0 : 1) }, (_, i) => i + 1);
+  const qs = t => per.map(q => score(g, t, e => e.quarter === q));
+  const label = half ? 'Halftime' : qf === 1 ? '1st half' : qf === 2 ? '2nd half' : g.completed ? 'Final' + (g.quarters.length > g.format.periods ? ' (' + periodName(g, g.quarters.length, true) + ')' : '') : 'Game so far';
   const keys = reportKeys(g, T, A, qf, half);
   const ffRow = (lbl, va, vb, hi, fmt = f1) => { const w = va === vb ? '' : ((va > vb) === hi ? 'a' : 'b');
     return `<tr><td class="l">${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${fmt(va)}</td><td class="${w === 'b' ? 'win b' : ''}">${fmt(vb)}</td></tr>`; };
   // Lineups: best and worst five with at least 4 possessions each way
-  const units = lineupTable(g, 'nogt').filter(u => u.oT >= 4 && u.dT >= 4)
+  const units = lineupTable(g, 'nogt', 'a', qf).filter(u => u.oT >= 4 && u.dT >= 4)
     .map(u => Object.assign(u, { net: 100 * u.pf / u.oT - 100 * u.pa / u.dT }));
   const lu = units.slice().sort((x, y) => y.net - x.net);
   const luRow = (u, tag) => `<tr><td class="l"><span class="tag ${tag === 'Best' ? 'lev-low' : 'lev-high'}" style="margin:0 6px 0 0">${tag}</span>${u.names.slice().sort(byLast).map(n => esc(lastName(n))).join(', ')}</td><td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT + u.dT}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td class="${pmCls(u.net)}">${sgn(Math.round(u.net))}</td></tr>`;
@@ -3129,14 +3150,14 @@ function reportHtml(g, scope) {
     <div class="rep-head">
       <div class="rep-team">${logoHtml('Moorpark', 46)}<div><div class="rep-name">${esc(g.teamAName)}</div><div class="rep-score a">${sA}</div></div></div>
       <div class="rep-mid"><div class="rep-label">${label}</div><div class="small muted">${esc(fmtDate(g.date))} · ${esc(SITE_LABEL[g.site] || '')} ${esc(g.teamBName)}${g.conference ? ' · conference' : ''}</div>
-        <table class="bs-score-table" style="margin-top:8px"><thead><tr><th>Team</th>${Array.from({ length: nP }, (_, i) => `<th>${periodName(g, i + 1, true)}</th>`).join('')}<th class="bs-final-col">${half ? 'Half' : 'T'}</th></tr></thead>
+        <table class="bs-score-table" style="margin-top:8px"><thead><tr><th>Team</th>${per.map(q => `<th>${periodName(g, q, true)}</th>`).join('')}<th class="bs-final-col">${qf ? 'Half' : 'T'}</th></tr></thead>
           <tbody><tr><td class="bx-team a">${esc(g.teamAName)}</td>${qs('a').map(v => `<td>${v}</td>`).join('')}<td class="bs-final-col">${sA}</td></tr>
           <tr><td class="bx-team b">${esc(g.teamBName)}</td>${qs('b').map(v => `<td>${v}</td>`).join('')}<td class="bs-final-col">${sB}</td></tr></tbody></table></div>
       <div class="rep-team b"><div style="text-align:right"><div class="rep-name">${esc(g.teamBName)}</div><div class="rep-score b">${sB}</div></div>${logoHtml(g.teamBName, 46)}</div>
     </div>
-    <div class="card"><h3>${half ? 'Second-half keys' : 'What decided it'}</h3>
+    <div class="card"><h3>${half ? 'Second-half keys' : qf === 1 ? '1st half — what decided it' : qf === 2 ? '2nd half — what decided it' : 'What decided it'}</h3>
       <div class="insights">${keys.map(k => `<div class="ins ${k.good ? 'good' : 'bad'}"><span>${esc(k.t)}</span></div>`).join('') || '<div class="muted">Nothing stood out — an even game on every factor.</div>'}</div></div>
-    ${!half && g.format.periods === 2 && g.quarters.length >= 2 ? `<div class="card"><h3>1st half vs 2nd half <span class="muted">what changed at the break, and what held</span></h3>${halfSplitHtml(g, A)}</div>` : ''}
+    ${!qf && g.format.periods === 2 && g.quarters.length >= 2 ? `<div class="card"><h3>1st half vs 2nd half <span class="muted">what changed at the break, and what held</span></h3>${halfSplitHtml(g, A)}</div>` : ''}
     <div class="grid2">
       <div class="card"><h3>Four factors</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
         ${ffRow('eFG%', a.efgPct, b.efgPct, true)}${ffRow('Turnover %', a.tovPct, b.tovPct, false)}${ffRow('Off. rebound %', a.orebPct, b.orebPct, true)}${ffRow('FT rate', a.ftr, b.ftr, true)}
@@ -3152,7 +3173,7 @@ function reportHtml(g, scope) {
           <div>${fouls('b').map(r => `<span class="${r.pf >= 4 ? 'good' : ''}">${esc(r.name)} <b>${r.pf}</b></span>`).join(' · ') || '<span class="muted">' + (oppHasRoster(g) ? 'No one in foul trouble' : 'No roster') + '</span>'}</div>
         </div></div>
     </div>
-    <div class="card rep-box"><h3>Box score <span class="muted">${half ? '1st half' : 'full game'} · greyed: under 25% of the minutes</span></h3>${bxTable(g, 'a', qf, { noOn: true })}${bxTable(g, 'b', qf, { noOn: true })}</div>
+    <div class="card rep-box"><h3>Box score <span class="muted">${qf === 1 ? '1st half' : qf === 2 ? '2nd half' : 'full game'} · greyed: under 25% of the minutes</span></h3>${bxTable(g, 'a', qf, { noOn: true })}${bxTable(g, 'b', qf, { noOn: true })}</div>
     <div class="grid2">
       <div class="card"><h3>Lineups <span class="muted">best and worst five, 4+ possessions each way, no garbage time</span></h3>
         ${lu.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Five</th><th>MIN</th><th>Poss</th><th>+/-</th><th>Net</th></tr>${luRow(lu[0], 'Best')}${lu.length > 1 ? luRow(lu[lu.length - 1], 'Worst') : ''}</table></div>` : '<div class="muted small">No five has played enough possessions together yet.</div>'}</div>
@@ -3961,6 +3982,7 @@ document.addEventListener('click', e => {
     case 'pbp-del': pbpDelete(+t.dataset.i); break;
     case 'bx-panel': bxPanel = t.dataset.k; render(); break;
     case 'rep-scope': REP.scope = t.dataset.k; render(); break;
+    case 'pick-period-btn': App.period = t.dataset.k; render(); break;
     case 'print': window.print(); break;
   }
 });
