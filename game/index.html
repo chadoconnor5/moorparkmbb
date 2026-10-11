@@ -523,7 +523,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.23</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.24</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -581,10 +581,24 @@ const SEED_SCHEDULE = [
   { id: 'sch_seed_20270217', date: '2027-02-17', time: "7:00 PM", opp: "Ventura", site: 'home', conf: true, scrim: false },
   { id: 'sch_seed_20270219', date: '2027-02-19', time: "7:00 PM", opp: "Santa Barbara", site: 'away', conf: true, scrim: false },
 ];
-const SEED_ROSTER = ["Josh Castaniero","Matthew Wilson","Alex Bello","SoulJah Niles","Mikey Duran-Morales",
-  "Eric Kubel","Quian Khawaja","Brenden Banks-Speed","George Hees","Emmitt Claiborne","Sean Castro","CJ Temme",
-  "Axel Ostergard","Jaylen Smith","Finn Ortiz","Jack Johnson","Ashton Carraway","Reese Widerburg"]
-  .map(n => ({ name: n, num: '', hidden: false }));
+/* The roster is locked in here, numbers and all, so it survives a new home-screen icon, a new
+   browser or cleared storage: any player whose number is blank on this device gets it from
+   this list. Change a number here (or in the Roster editor, which wins on this device). */
+const JERSEY = {
+  'Josh Castaniero': '', 'Matthew Wilson': '', 'Alex Bello': '', 'SoulJah Niles': '', 'Eric Kubel': '',
+  'Quian Khawaja': '', 'Brenden Banks-Speed': '', 'George Hees': '', 'Emmitt Claiborne': '', 'Sean Castro': '',
+  'Axel Ostergard': '', 'Jaylen Smith': '', 'Finn Ortiz': '', 'Jack Johnson': '', 'Ashton Carraway': '',
+};
+/* Off the roster for good: dropped on every open, even when the practice tracker still lists them. */
+const REMOVED = new Set(['Mikey Duran-Morales', 'Reese Widerburg', 'Jonathan Galloway', 'CJ Temme', "Evan O'Daniel", 'KaLeke Singletary-Jinks']);
+const SEED_ROSTER = Object.keys(JERSEY).map(n => ({ name: n, num: JERSEY[n], hidden: false }));
+/* Apply the lock: drop removed players, fill blank numbers. Returns true if anything changed. */
+function lockRoster() {
+  const before = JSON.stringify(App.roster);
+  App.roster = App.roster.filter(r => !REMOVED.has(r.name));
+  for (const r of App.roster) if ((r.num === '' || r.num == null) && JERSEY[r.name]) r.num = JERSEY[r.name];
+  return JSON.stringify(App.roster) !== before;
+}
 
 /* Team logos — the leaderboard's set (game/logos, 128px). Matched by name: "LA Pierce" ->
    la_pierce.png. A team with no file gets an initials badge. */
@@ -4276,7 +4290,7 @@ function importFile(file) {
     }
     if (oppN) saveOpps();
     if (Array.isArray(d.schedule)) { for (const r of d.schedule) if (r && r.id && !App.schedule.some(x => x.id === r.id)) App.schedule.push(r); App.schedule.sort((a, b) => (a.date || '').localeCompare(b.date || '')); saveSched(); SCH.rows = null; }
-    if (Array.isArray(d.roster) && d.roster.length && confirm('Also replace the roster with the one in this file?')) { App.roster = d.roster.map(normRosterEntry); saveRoster(); }
+    if (Array.isArray(d.roster) && d.roster.length && confirm('Also replace the roster with the one in this file?')) { App.roster = d.roster.map(normRosterEntry); lockRoster(); saveRoster(); }
     saveGames(); render();
     toast(`Imported: ${added} new, ${replaced} updated`, 'good');
   };
@@ -4455,6 +4469,7 @@ async function syncRosterFromPractice() {
   if (!src) return;
   let changed = false;
   for (const p of src.map(normRosterEntry)) {
+    if (REMOVED.has(p.name)) continue;
     const r = App.roster.find(x => x.name === p.name);
     if (!r) { App.roster.push({ name: p.name, num: '', hidden: p.hidden }); changed = true; }
     else if (!r.hiddenSet && r.hidden !== p.hidden) { r.hidden = p.hidden; changed = true; }
@@ -4504,7 +4519,7 @@ async function boot() {
     } catch (e) { /* none published */ }
   }
   if (!App.roster.length) App.roster = await loadRoster();
-  if (!App.viewer) await syncRosterFromPractice();
+  if (!App.viewer) { await syncRosterFromPractice(); if (lockRoster()) saveRoster(); }
   if (App.viewer) document.querySelectorAll('.editor-only').forEach(el => el.classList.add('hidden'));
   else if (!lsGet(LS_ROSTER, null)) saveRoster();
   // Running clock survives a reload: it was anchored to wall time.
