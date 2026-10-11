@@ -57,8 +57,10 @@ same roster; edits match by number, so stats already logged stay with the player
   shooting side keeps the ball. Offensive fouls (charges included) are personal fouls only
   and don't count toward the bonus.
 - **Sub**: one window for both teams, from the **⇄ Sub** button only (a stray tap on a
-  player card does nothing) → tap who comes out → who goes in, on either or both sides → type the clock →
-  Enter. The clock is required at every sub, theirs included.
+  player card does nothing). Each team's roster shows with the five on the floor lit: tap
+  as many as you like to take them out and as many to put in, in any order, until five are
+  lit (an OUT / IN line shows the change), then the clock on the number pad → **Confirm
+  sub**. Who replaced whom isn't asked - only the new five matters. The clock is required.
 - **Free throws across a sub**: free throws (attempts and points) belong to the five on the
   floor when the foul was committed, even with a sub between the foul and the shots or
   between the shots. A rebound off a missed free throw belongs to the five on the floor

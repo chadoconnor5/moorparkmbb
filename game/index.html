@@ -257,6 +257,8 @@ table{border-collapse:collapse}
 .pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
 .pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
 .sub-acts{display:flex;gap:8px;margin-top:14px} .sub-acts .btn-lg{flex:1}
+.sub-chg{display:flex;flex-wrap:wrap;gap:6px 12px;margin:-2px 0 8px;font-size:13px;font-weight:700}
+.sub-chg .o{color:#fca5a5} .sub-chg .i{color:#86efac}
 .pbtn .stint{position:absolute;bottom:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
 /* foul trouble: the whole card, amber then red */
 .tracker .col .pbtn.ft-warn{background:rgba(250,204,21,.13);border-color:rgba(250,204,21,.75);box-shadow:inset 4px 0 0 #facc15}
@@ -577,7 +579,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.50</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.51</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2424,8 +2426,12 @@ const SUB = { mode: 'sub', pairs: { a: [], b: [] }, pending: null, five: { a: []
 function openSub(pre) {
   const g = liveGame(); if (!g || g.between) return;
   if (F.phase !== 'idle') commitStaged();
-  Object.assign(SUB, { mode: 'sub', pairs: { a: [], b: [] }, pending: pre || null, five: { a: [], b: [] }, setB: false });
-  if (oppHasRoster(g) && !oppTracked(g)) { SUB.setB = true; SUB.pending = pre && pre.team === 'a' ? pre : null; }
+  /* A sub is a new five: start from the five on the floor, tap anyone to take him out or
+     put him in - as many as you like, any order - until five are lit. Who replaced whom
+     doesn't matter; the change of five is what's logged. */
+  Object.assign(SUB, { mode: 'sub', pairs: { a: [], b: [] }, pending: null, five: { a: currentLineup(g, 'a').slice(), b: oppTracked(g) ? currentLineup(g, 'b').slice() : [] }, setB: false });
+  if (oppHasRoster(g) && !oppTracked(g)) SUB.setB = true;
+  if (pre && SUB.five[pre.team]) SUB.five[pre.team] = SUB.five[pre.team].filter(n => n !== pre.n);   // fouled out / ejected: already unlit
   showSubModal();
 }
 /* Their roster may have been saved (Opponents tab, or a setup pop-up) after the game was
@@ -2505,14 +2511,19 @@ function subLine(g, t, n) {
   const secs = t === 'a' ? playerSecs(g, n) : (floorSecs(g, 'b').per[n] || 0);
   return `${s.pts} pts · ${s.pf} PF${t === 'a' || oppTracked(g) ? ' · ' + Math.floor(secs / 60) + ' min' : ''}`;
 }
+function subShort(t, n) { return t === 'a' ? lastName(n) : n; }
 function subSideHtml(g, t) {
   const head = `<div class="sub-team ${t}">${logoHtml(t === 'a' ? 'Moorpark' : g.teamBName, 22)}${esc(teamName(g, t))}</div>`;
   const all = teamPlayers(g, t).sort(byJersey(g, t));
-  // Pick-five: period starts, and setting their five for the first time.
-  if (SUB.mode === 'start' || (t === 'b' && SUB.setB)) {
+  // Pick-five: every sub is "who's on the floor now" (period starts, in-game subs, and
+  // setting their five for the first time).
+  if (SUB.mode === 'start' || t === 'a' || SUB.setB || oppTracked(g)) {
     const five = SUB.five[t];
-    const note = t === 'b' && SUB.mode !== 'start' ? ' — tap their five on the floor now (or leave empty)' : '';
-    return `${head}<div class="sub-sec">${five.length}/5 on the floor${note}</div>
+    const note = t === 'b' && SUB.setB && SUB.mode !== 'start' ? ' — tap their five on the floor now (or leave empty)' : '';
+    const cur = SUB.mode === 'start' || (t === 'b' && SUB.setB) ? null : currentLineup(g, t);
+    const outs = cur ? cur.filter(n => !five.includes(n)) : [], ins = cur ? five.filter(n => !cur.includes(n)) : [];
+    const chg = cur && (outs.length || ins.length) ? `<div class="sub-chg">${outs.length ? `<span class="o">OUT ${outs.map(n => esc(subShort(t, n))).join(', ')}</span>` : ''}${ins.length ? `<span class="i">IN ${ins.map(n => esc(subShort(t, n))).join(', ')}</span>` : ''}</div>` : '';
+    return `${head}<div class="sub-sec">${five.length}/5 on the floor${note}${cur ? ' — tap to take out / put in' : ''}</div>${chg}
       <div class="sub-grid">${all.map(n => { const dq = fouledOut(g, t, n);
         return `<button class="sub-p ${five.includes(n) ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-five" data-team="${t}" data-p="${esc(n)}" ${dq && !five.includes(n) ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? outReason(g, t, n) : subLine(g, t, n)}</span></button>`; }).join('') || '<div class="muted">No roster.</div>'}</div>`;
   }
@@ -2577,10 +2588,18 @@ function confirmSub() {
   if (t == null) { toast('Enter the time left on the clock', 'bad'); ci.classList.add('need'); ci.focus(); return; }
   const err = subClockError(g, t);
   if (err) { toast(err, 'bad', 3500); ci.focus(); return; }
-  if (SUB.pending) { toast('Pick who replaces ' + SUB.pending.n, 'bad'); return; }
+  // The new fives → the swaps to log (who-for-whom is just the order; it isn't used).
+  for (const tm of ['a', 'b']) {
+    if (tm === 'b' && (SUB.setB || !oppTracked(g))) continue;
+    const five = SUB.five[tm];
+    if (five.length !== 5) { toast(`${teamName(g, tm)}: ${five.length} on the floor — pick 5`, 'bad'); return; }
+    const dq = five.find(n => fouledOut(g, tm, n));
+    if (dq) { toast(`${dq}: ${outReason(g, tm, dq).toLowerCase()} — take him out`, 'bad'); return; }
+    SUB.pairs[tm] = fivePairs(currentLineup(g, tm), five);
+  }
   const setB = SUB.setB && SUB.five.b.length;
   if (setB && SUB.five.b.length !== 5) { toast(`Pick 5 of theirs (${SUB.five.b.length} picked), or none`, 'bad'); return; }
-  if (!SUB.pairs.a.length && !SUB.pairs.b.length && !setB) { toast('Tap who is coming out', 'bad'); return; }
+  if (!SUB.pairs.a.length && !SUB.pairs.b.length && !setB) { toast('No change — tap who comes out and who goes in', 'bad'); return; }
   snapshot();
   const q = curPeriod(g);
   const msgs = [];
