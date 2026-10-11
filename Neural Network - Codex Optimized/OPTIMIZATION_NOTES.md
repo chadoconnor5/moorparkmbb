@@ -135,6 +135,11 @@ This copy keeps the original project intact and starts consolidating the working
   sums). Moorpark's "Lineups →" link shows in the build's current season even without
   a Synergy export; the Synergy panel itself stays 2025-26 only.
 
+- Tracker season rates (Oct 2026): `scrape.py`'s rebuild step also runs
+  `export_team_rates.py`, which writes `game/team_rates.json` (raw season rates per team
+  from season_stats.json, same definitions the tracker uses for a game). It is the only
+  scrape output written outside this folder; commit it with the nightly data.
+
 ## Example commands
 
 ```bash

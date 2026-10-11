@@ -994,6 +994,8 @@ def rebuild(season: str, teams: set):
     print(f"\nRebuilding stats for {len(teams)} teams: {', '.join(teams)}")
     for script in ("generate_team_stats.py", "update_advanced_analytics.py"):
         subprocess.run([sys.executable, script, "--season", season, "--teams", *teams], check=False)
+    # Season rates for the game tracker's Huddle (game/team_rates.json).
+    subprocess.run([sys.executable, "export_team_rates.py", "--season", season], check=False)
 
 
 def build_parser():

@@ -84,6 +84,18 @@ If the composite page ever stops honouring its `?d=` date parameter, the run
 notices (the box score IDs carry the game date) and falls back to team
 schedule pages. The URL format is `COMPOSITE_URL` at the top of `scrape.py`.
 
+## Season rates for the tracker's Huddle (`export_team_rates.py`)
+
+Writes `game/team_rates.json` (every team's season pts/possession, 3PA rate, FT rate,
+OREB%, TO%, assisted %) from the season's stats folders. `scrape.py` runs it after each
+rebuild; commit and push the file so the tracker picks it up. By hand:
+
+```bash
+python3 export_team_rates.py --season 2026-27
+```
+
+The tracker only shows it for the game's own season and once a team has 3 games.
+
 ## Opponent-adjusted lineups (`adjust_lineups.py`)
 
 Takes the game tracker's **⬇ Lineup file** (Season page) and adjusts each five's games

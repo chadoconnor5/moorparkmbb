@@ -86,7 +86,9 @@ table{border-collapse:collapse}
 .hud-grid .card{margin-bottom:12px}
 .hud-floor{margin-bottom:12px} .hud-floor td,.hud-floor th{padding:6px 7px}
 .l5-tbl td{vertical-align:top} .l5-tbl td .tiny{color:#6b7280;font-weight:500}
-.l5-tbl td.l5-game{color:#6b7280;border-right:1px solid #c4c9d1}
+.l5-tbl td.l5-game{color:#6b7280}
+.l5-tbl td.l5-sea,.l5-tbl th.l5-sea{color:#6b7280;font-style:italic;border-right:1px solid #c4c9d1}
+.l5-tbl th.l5-sea{color:var(--text2)} .l5-tbl th .sea-src{display:block;font-size:9px;letter-spacing:.04em;opacity:.75;font-style:normal}
 .zebra td.l5-moved{background:#fde68a!important;color:#78350f} .zebra td.l5-moved .tiny{color:#92400e}
 /* light grey / slightly darker grey rows with dark text (same as the box score) */
 .zebra tr:nth-child(even) td{background:#eef0f3} .zebra tr:nth-child(odd) td{background:#dde1e7}
@@ -576,7 +578,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.40</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.41</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2827,14 +2829,14 @@ function huddleCompare(g, W, A) {
   const pct = (n, d) => d ? 100 * n / d : null;
   const P = v => v == null ? '—' : Math.round(v) + '%';
   const rows = [
-    { lbl: 'Pts / trip', f: (s) => ({ v: s.ppp, show: s.ppp == null ? '—' : s.ppp.toFixed(2), sub: s.trips ? s.trips + ' trips' : '' }),
+    { lbl: 'Pts / trip', sea: r => r.ppp == null ? '—' : r.ppp.toFixed(2), f: (s) => ({ v: s.ppp, show: s.ppp == null ? '—' : s.ppp.toFixed(2), sub: s.trips ? s.trips + ' trips' : '' }),
       gate: (w) => w.trips >= 5, gap: 0.35, num: v => v == null ? '—' : v.toFixed(2) },
-    { lbl: '3PA rate', f: (s) => ({ v: pct(s.fg3a, s.fga), show: P(pct(s.fg3a, s.fga)), sub: s.fga ? s.fg3a + '/' + s.fga + ' FGA' : '' }), gate: (w) => w.fga >= 5, gap: 20 },
-    { lbl: 'FT rate', f: (s) => ({ v: pct(s.fta, s.fga), show: P(pct(s.fta, s.fga)), sub: s.fga ? s.fta + ' FTA' : '' }), gate: (w) => w.fga >= 5, gap: 20 },
-    { lbl: 'Off. boards', f: (s, o) => ({ v: pct(s.oreb, s.oreb + o.dreb), show: P(pct(s.oreb, s.oreb + o.dreb)), sub: (s.oreb + o.dreb) ? s.oreb + '/' + (s.oreb + o.dreb) + (s.scp ? ' · ' + s.scp + ' 2nd-ch pts' : '') : '' }),
+    { lbl: '3PA rate', sea: r => P(r.tpar), f: (s) => ({ v: pct(s.fg3a, s.fga), show: P(pct(s.fg3a, s.fga)), sub: s.fga ? s.fg3a + '/' + s.fga + ' FGA' : '' }), gate: (w) => w.fga >= 5, gap: 20 },
+    { lbl: 'FT rate', sea: r => P(r.ftr), f: (s) => ({ v: pct(s.fta, s.fga), show: P(pct(s.fta, s.fga)), sub: s.fga ? s.fta + ' FTA' : '' }), gate: (w) => w.fga >= 5, gap: 20 },
+    { lbl: 'Off. boards', sea: r => P(r.orebPct), f: (s, o) => ({ v: pct(s.oreb, s.oreb + o.dreb), show: P(pct(s.oreb, s.oreb + o.dreb)), sub: (s.oreb + o.dreb) ? s.oreb + '/' + (s.oreb + o.dreb) + (s.scp ? ' · ' + s.scp + ' 2nd-ch pts' : '') : '' }),
       gate: (w, wo) => w.oreb + wo.dreb >= 4, gap: 20 },
-    { lbl: 'Turnovers', f: (s) => ({ v: pct(s.tov, s.trips), show: P(pct(s.tov, s.trips)), sub: s.tov ? s.tov + ' TO' : '' }), gate: (w) => w.tov >= 3, gap: 10, potOf: true },
-    { lbl: 'Assisted', f: (s) => ({ v: pct(s.ast, s.fgm), show: P(pct(s.ast, s.fgm)), sub: s.fgm ? s.ast + '/' + s.fgm + ' FGM' : '' }), gate: (w) => w.fgm >= 4, gap: 25 },
+    { lbl: 'Turnovers', sea: r => P(r.tovPct), f: (s) => ({ v: pct(s.tov, s.trips), show: P(pct(s.tov, s.trips)), sub: s.tov ? s.tov + ' TO' : '' }), gate: (w) => w.tov >= 3, gap: 10, potOf: true },
+    { lbl: 'Assisted', sea: r => P(r.astPct), f: (s) => ({ v: pct(s.ast, s.fgm), show: P(pct(s.ast, s.fgm)), sub: s.fgm ? s.ast + '/' + s.fgm + ' FGM' : '' }), gate: (w) => w.fgm >= 4, gap: 25 },
   ];
   const cell = (r, t) => {
     const w = r.f(W[t], W[other(t)]), gm = r.f(G[t], G[other(t)]);
@@ -2842,9 +2844,11 @@ function huddleCompare(g, W, A) {
     if (r.potOf && W[t].tov) { const n = W[other(t)].pot; sub += ' → ' + n + (n === 1 ? ' pt' : ' pts') + ' for ' + (t === 'a' ? 'them' : 'us'); }
     const moved = w.v != null && gm.v != null && r.gate(W[t], W[other(t)]) && Math.abs(w.v - gm.v) >= r.gap;
     const arrow = moved ? (w.v > gm.v ? ' ▲' : ' ▼') : '';
-    return `<td class="${moved ? 'l5-moved' : ''}"><b>${w.show}${arrow}</b>${sub ? `<div class="tiny">${esc(sub)}</div>` : ''}</td><td class="l5-game">${gm.show}</td>`;
+    return `<td class="${moved ? 'l5-moved' : ''}"><b>${w.show}${arrow}</b>${sub ? `<div class="tiny">${esc(sub)}</div>` : ''}</td><td class="l5-game">${gm.show}</td><td class="l5-sea">${SR[t] ? r.sea(SR[t]) : '—'}</td>`;
   };
-  return `<table class="tbl rep-tbl zebra l5-tbl"><tr><th></th><th>${esc(g.teamAName)} <span class="tiny">last 5</span></th><th class="tiny">game</th><th>${esc(g.teamBName)} <span class="tiny">last 5</span></th><th class="tiny">game</th></tr>
+  const SR = { a: seasonRates(g, 'a'), b: seasonRates(g, 'b') };
+  const seaTh = t => `<th class="tiny l5-sea">season<span class="sea-src">${SR[t] ? esc(TEAM_RATES.season) + ' · ' + SR[t].gp + ' g' : 'after ' + RATES_MIN_GP + ' games'}</span></th>`;
+  return `<table class="tbl rep-tbl zebra l5-tbl"><tr><th></th><th>${esc(g.teamAName)} <span class="tiny">last 5</span></th><th class="tiny">game</th>${seaTh('a')}<th>${esc(g.teamBName)} <span class="tiny">last 5</span></th><th class="tiny">game</th>${seaTh('b')}</tr>
     ${rows.map(r => `<tr><td class="l">${r.lbl}</td>${cell(r, 'a')}${cell(r, 'b')}</tr>`).join('')}</table>`;
 }
 function openHuddle(calledBy, toType) {
@@ -4942,6 +4946,29 @@ async function boot() {
   setTab(App.viewer ? 'games' : (App.liveId ? 'track' : (ui.tab && ui.tab !== 'scout' ? ui.tab : 'track')));
   if (App.tab === 'track' && !liveGame()) paintSetupScout();
   registerOffline();
+  loadTeamRates();
+}
+/* SEASON RATES (Huddle "season" column): game/team_rates.json, written by the scrape
+   (export_team_rates.py). Kept in this browser too, so a gym with no signal still has the
+   last copy. Only this game's own season counts, and only with 3+ games played. */
+const LS_RATES = 'gt_team_rates', RATES_MIN_GP = 3;
+let TEAM_RATES = lsGet(LS_RATES, null);
+async function loadTeamRates() {
+  if (location.protocol === 'file:') return;
+  try { const r = await fetch('team_rates.json', { cache: 'no-cache' }); if (r.ok) { const d = await r.json(); if (d && d.teams) { TEAM_RATES = d; lsSet(LS_RATES, d); } } } catch (e) { /* offline: keep the stored copy */ }
+}
+function gameSeason(g) {
+  const d = g.date ? new Date(g.date + 'T12:00:00') : new Date();
+  const y = d.getMonth() + 1 >= 7 ? d.getFullYear() : d.getFullYear() - 1;
+  return y + '-' + String((y + 1) % 100).padStart(2, '0');
+}
+const normTeam = n => String(n || '').toLowerCase().replace(/\bcollege\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+function seasonRates(g, t) {
+  if (!TEAM_RATES || TEAM_RATES.season !== gameSeason(g)) return null;
+  const want = normTeam(t === 'a' ? 'Moorpark' : g.teamBName);
+  const k = Object.keys(TEAM_RATES.teams).find(n => normTeam(n) === want) || Object.keys(TEAM_RATES.teams).find(n => { const x = normTeam(n); return x.endsWith(' ' + want) || want.endsWith(' ' + x); });
+  const r = k ? TEAM_RATES.teams[k] : null;
+  return r && r.gp >= RATES_MIN_GP ? r : null;
 }
 /* paintSetupScout needs the setup DOM; hook it onto every render of the setup screen. */
 const _render = render;

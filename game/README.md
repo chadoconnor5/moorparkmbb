@@ -167,6 +167,12 @@ points of OREB% on 4+ chances, 10 points of TO% on 3+ turnovers, 25 points of as
 share on 4+ makes, 0.35 points per trip on 5+ trips. Five minutes is 8-10 trips, so this
 is the "something changed" flag, not a verdict.
 
+A third, italic **season** column per team holds that team's numbers for this season from
+the scrape (`team_rates.json`, written by `export_team_rates.py` after each nightly
+rebuild - commit it with the scrape's other output). It is shown only for the game's own
+season and only once a team has played 3 games ("after 3 games" until then); last
+season's numbers are never used. The tracker keeps the last copy for offline use.
+
 ## Flags and editing past subs
 
 - **🚩 Flag** a play to look back at later: on the Live screen, **🚩 Flag last play** (the
