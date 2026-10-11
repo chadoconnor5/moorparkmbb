@@ -84,6 +84,22 @@ If the composite page ever stops honouring its `?d=` date parameter, the run
 notices (the box score IDs carry the game date) and falls back to team
 schedule pages. The URL format is `COMPOSITE_URL` at the top of `scrape.py`.
 
+## Opponent-adjusted lineups (`adjust_lineups.py`)
+
+Takes the game tracker's **⬇ Lineup file** (Season page) and adjusts each five's games
+for the opponent's leaderboard rating and home court. Load the output in the tracker
+with **⬆ Adjusted**, and in the leaderboard (Moorpark → Lineups → **⬆ Load adjusted
+lineups**). Both read it in the browser only. Moorpark-internal: don't publish the output.
+
+```bash
+python3 adjust_lineups.py ~/Downloads/moorpark_lineups_2026-11-20.json
+python3 adjust_lineups.py lineups.json --ratings-season 2026-27   # default: newest ratings
+python3 adjust_lineups.py lineups.json --out internal_data/moorpark_lineups_adj.json
+```
+
+Out-of-system opponents (exhibitions) and scrimmages stay in the raw numbers and are
+left out of the adjusted ones; the run lists every game it skipped.
+
 ## Scrape Schedules (`scrape_team.py`, whole-season pulls)
 
 ### List all available teams

@@ -120,6 +120,21 @@ This copy keeps the original project intact and starts consolidating the working
   scrape_state/<season>/ — outside the schedules folder, which the stats
   scripts treat as conference folders.
 
+- Opponent-adjusted lineups (Oct 2026): `adjust_lineups.py` reads the game tracker's
+  game-by-game lineup file and adjusts each five's game with the same formula
+  `compute_iterative_adjusted_ratings()` applies to a team's game (opponent's team
+  ortg/drtg from advanced_analytics.json, league averages, HOME_ADVANTAGE split by
+  venue), possession-weighted across games. It imports update_advanced_analytics for
+  `resolve_opponent()` and `HOME_ADVANTAGE`, so name matching and home court stay in
+  one place. Read-only against the stats folders; writes only its output file.
+  The leaderboard's Lineups panel loads that output in the browser ("Game Tracker —
+  Opponent-Adjusted" section, `leaderboard_tracker_lineups.js`, inserted into the page
+  by generate_leaderboard.py as `_TRACKER_LU_JS`). Nothing is embedded at build time:
+  the file is read client-side and kept in localStorage (`lb_tracker_lineups`). 1- to
+  4-man groups are summed from the 5-man units (adjusted ratings as possession-weighted
+  sums). Moorpark's "Lineups →" link shows in the build's current season even without
+  a Synergy export; the Synergy panel itself stays 2025-26 only.
+
 ## Example commands
 
 ```bash
