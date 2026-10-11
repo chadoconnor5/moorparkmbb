@@ -89,6 +89,13 @@ table{border-collapse:collapse}
 .rot-svg{width:100%;height:auto;display:block}
 .rot-team{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:6px 0 2px}
 .rot-team.a{color:var(--us)} .rot-team.b{color:var(--them-text)}
+.alert-bar{justify-content:flex-start;flex-wrap:nowrap}
+.alert-bar .al-ic{font-size:16px}
+.alert-bar .al-h{font-size:14px;letter-spacing:.02em;white-space:nowrap}
+.alert-bar .al-s{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.alert-bar.al-red{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.55)} .alert-bar.al-red .al-h{color:#fca5a5}
+.alert-bar.al-amber{background:rgba(250,204,21,.09);border-color:rgba(250,204,21,.5)} .alert-bar.al-amber .al-h{color:#fde68a}
+.alert-bar.al-blue{background:rgba(79,195,247,.1);border-color:rgba(79,195,247,.5)} .alert-bar.al-blue .al-h{color:#7dd3fc}
 .adj-team{margin-bottom:14px}
 .adj-row{display:grid;grid-template-columns:1fr 52px 48px 52px;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border)}
 .adj-row b{text-align:center;font-size:20px;font-variant-numeric:tabular-nums}
@@ -496,7 +503,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.17</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.18</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1941,8 +1948,63 @@ function paintScorebar() {
         <div class="sb-meta">${killHtml('b')}</div></div></div>`;
   paintLevbar();
 }
+/* END-OF-GAME ALERTS — the last 2:00 of the 2nd half and of each OT. One line, in the
+   Leverage bar's place (no extra height on the screen), the most urgent one only:
+     red    up 3 with their ball under 0:10 (foul before they shoot?); down 1-3 with their
+            ball and the game clock under the shot clock (they can run it out: foul);
+            down 4-9 with their ball under 1:30 (foul to stop the clock?)
+     blue   tied or down 1-3 with our ball under 0:35 (play for the last shot)
+     amber  fouls to give before the bonus; they're in the double bonus
+   Possession is read off the last play; the Our ball / Their ball button flips it until the
+   next play is logged. Got it hides an alert until the situation behind it changes. */
+const SHOT_CLOCK = 30;
+const ALERT = { dismissed: null };
+function ballTeam(g) {
+  if (g.ballOverride && g.ballOverride.n === g.eventLog.length) return g.ballOverride.team;
+  const A = analyzeTrips(g), lt = A.trips[A.trips.length - 1];
+  if (!lt || lt.period !== curPeriod(g)) return null;
+  return lt.closed ? other(lt.team) : lt.team;
+}
+function endgameAlert(g) {
+  if (g.between || g.completed) return null;
+  const q = curPeriod(g); if (q < g.format.periods) return null;
+  const rem = clockNow(g), gsr = gameSecRem(g, q, rem);
+  if (gsr > 120 || rem <= 0) return null;
+  const m = score(g, 'a') - score(g, 'b'), ball = ballTeam(g);
+  const fa = teamFouls(g, 'a', q), fb = teamFouls(g, 'b', q), B = g.format.bonus, DB = g.format.dbonus;
+  const toGive = Math.max(0, B - 1 - fa);
+  const clk = fmtClock(rem), them = g.teamBName;
+  const bonusTxt = fa >= DB ? 'they\'re in the double bonus (2 shots)' : fa >= B ? 'they\'re in the bonus (1-and-1)' : `${toGive} to give · not in the bonus`;
+  const oppFt = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b'));
+  const ftTarget = () => {
+    if (!oppTracked(g)) return '';
+    const rows = currentLineup(g, 'b').map(n => ({ n, s: statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n)) }));
+    const shot = rows.filter(r => r.s.fta >= 2).sort((x, y) => x.s.ftm / x.s.fta - y.s.ftm / y.s.fta);
+    if (!shot.length) return '';
+    const lo = shot[0], hi = shot[shot.length - 1];
+    return ` · foul ${lo.n} (${lo.s.ftm}-${lo.s.fta})` + (shot.length > 1 && hi.s.ftm / hi.s.fta > lo.s.ftm / lo.s.fta ? `, avoid ${hi.n} (${hi.s.ftm}-${hi.s.fta})` : '');
+  };
+  const ftTxt = oppFt.fta ? ` · they're ${oppFt.ftm}-${oppFt.fta} FT` : '';
+  const L = (cls, icon, head, sub, key) => ({ cls, icon, head, sub, key: key + '|' + m + '|' + ball + '|' + fa });
+  const lead = m > 0 ? 'UP ' + m : m < 0 ? 'DOWN ' + (-m) : 'TIED';
+  if (ball === 'b' && m === 3 && rem <= 10) return L('al-red', '⏱', `UP 3 · ${clk} · THEIR BALL — FOUL BEFORE THEY SHOOT?`, bonusTxt, 'up3');
+  if (ball === 'b' && m < 0 && m >= -3 && rem <= SHOT_CLOCK) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL — THEY CAN RUN IT OUT: FOUL`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'runout');
+  if (ball === 'b' && m <= -4 && m >= -9 && rem <= 90) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL — FOUL TO STOP THE CLOCK?`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'chase');
+  if (ball === 'a' && m <= 0 && m >= -3 && rem <= 35) return L('al-blue', '🏀', `${lead} · ${clk} · OUR BALL — PLAY FOR THE LAST SHOT`, `go at ~0:08 · ${fb >= B ? 'we\'re in the bonus — attack the rim' : 'we\'re not in the bonus'} · TOs: us ${timeoutsLeft(g, 'a').s30 + timeoutsLeft(g, 'a').full}, them ${timeoutsLeft(g, 'b').s30 + timeoutsLeft(g, 'b').full}`, 'last');
+  if (m > 0 && fa >= DB) return L('al-amber', '✋', `${them.toUpperCase()} IN THE DOUBLE BONUS — NO REACHING`, `${fa} team fouls on us · every foul is 2 shots`, 'dbl');
+  if (m >= 0 && rem <= 60 && toGive > 0) return L('al-amber', '✋', `${toGive} FOUL${toGive === 1 ? '' : 'S'} TO GIVE`, `${fa} team fouls · the ${B}th puts them in the bonus`, 'give');
+  return null;
+}
 function paintLevbar() {
   const g = liveGame(); const el = $('#levbar'); if (!g || !el) return;
+  const al = endgameAlert(g);
+  if (al && ALERT.dismissed !== al.key) {
+    const ball = ballTeam(g);
+    el.className = 'levbar alert-bar ' + al.cls;
+    el.innerHTML = `<span class="al-ic">${al.icon}</span><b class="al-h">${esc(al.head)}</b><span class="al-s">${esc(al.sub)}</span>
+      <span style="margin-left:auto;display:flex;gap:6px">${ball ? `<button class="btn btn-sm" data-act="ball-flip" title="Possession is read off the last play — fix it here">${ball === 'a' ? 'Their ball?' : 'Our ball?'}</button>` : ''}<button class="btn btn-sm" data-act="alert-ok" data-key="${esc(al.key)}">Got it</button></span>`;
+    return;
+  }
   const L = liveLeverage(g);
   const tierCls = { high: 'lev-high', med: 'lev-med', low: 'lev-low' }[L.tier];
   const tierName = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' }[L.tier];
@@ -2548,6 +2610,9 @@ function openHuddle(calledBy, toType) {
   const q = curPeriod(g), fq = g.between ? Math.min(q, g.format.periods + 1) : q;
   const flow = scoringFlow(g);
   const pts = huddlePoints(g, W);
+  const eg = endgameAlert(g);
+  if (eg) pts.unshift({ good: eg.cls === 'al-blue', t: eg.head + ' — ' + eg.sub });
+  if (pts.length > 4) pts.length = 4;
   const TL = t => timeoutsLeft(g, t);
   const dots = t => { const L = TL(t); return `${'<span class="to-dot"></span>'.repeat(Math.max(0, L.s30))}<span style="width:4px;display:inline-block"></span>${'<span class="to-dot full"></span>'.repeat(Math.max(0, L.full))}`; };
   const fouls = t => { const n = teamFouls(g, t, fq), c = n >= g.format.dbonus ? 'tf-dbl' : n >= g.format.bonus ? 'tf-bonus' : n >= g.format.bonus - 2 ? 'tf-warn' : ''; return `<b class="${c}">${n}</b>`; };
@@ -4236,6 +4301,8 @@ document.addEventListener('click', e => {
     case 'set-clock': openSetClock(); break;
     case 'adjust': openAdjust(); break;
     case 'huddle': openHuddle(); break;
+    case 'alert-ok': ALERT.dismissed = t.dataset.key; paintLevbar(); break;
+    case 'ball-flip': if (g) { const b = ballTeam(g); g.ballOverride = { team: b === 'a' ? 'b' : 'a', n: g.eventLog.length }; saveGames(); paintLevbar(); } break;
     case 'adj': adjust(t.dataset.team, t.dataset.what, +t.dataset.d); break;
     case 'end-period': openEndPeriod(); break;
     case 'ep-confirm': confirmEndPeriod(); break;
