@@ -120,6 +120,14 @@ This copy keeps the original project intact and starts consolidating the working
   scrape_state/<season>/ — outside the schedules folder, which the stats
   scripts treat as conference folders.
 
+- Opponent-adjusted lineups (Oct 2026): `adjust_lineups.py` reads the game tracker's
+  game-by-game lineup file and adjusts each five's game with the same formula
+  `compute_iterative_adjusted_ratings()` applies to a team's game (opponent's team
+  ortg/drtg from advanced_analytics.json, league averages, HOME_ADVANTAGE split by
+  venue), possession-weighted across games. It imports update_advanced_analytics for
+  `resolve_opponent()` and `HOME_ADVANTAGE`, so name matching and home court stay in
+  one place. Read-only against the stats folders; writes only its output file.
+
 ## Example commands
 
 ```bash

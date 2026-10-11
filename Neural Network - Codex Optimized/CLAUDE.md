@@ -31,6 +31,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 scrape.py master      # once, when schedules post
   python3 scrape.py nightly     # every night
   python3 scrape.py status      # what's missing (no network)
+- Opponent-adjust the game tracker's lineups (tracker Season page -> Lineup file):
+  python3 adjust_lineups.py <lineup file>   # -> internal_data/moorpark_lineups_adj.json
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:

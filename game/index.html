@@ -535,10 +535,11 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.29</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.30</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
+<input type="file" id="lu-adj-file" accept=".json,application/json" class="hidden">
 <input type="file" id="scout-file" accept="application/pdf,.pdf" class="hidden">
 
 <div id="view" class="page"></div>
@@ -3265,13 +3266,13 @@ function unitFactors(u) {
 function lineupRowsHtml(g, side, units) {
   const cur = g.completed || (side === 'b' && !oppTracked(g)) ? '' : unitKey(currentLineup(g, side));
   const nm = n => esc(side === 'a' ? lastName(n) : n);
-  const gp = units.some(u => u.gp != null);
-  const head = `<tr><th rowspan="2">Lineup</th>${gp ? '<th rowspan="2">GP</th>' : ''}<th rowspan="2">MIN</th><th rowspan="2">Poss O/D</th><th rowspan="2">Pts F–A</th><th rowspan="2">+/-</th><th rowspan="2">ORtg</th><th rowspan="2">DRtg</th><th rowspan="2">Net</th>
+  const gp = units.some(u => u.gp != null), adj = units.some(u => u.adj);
+  const head = `<tr><th rowspan="2">Lineup</th>${gp ? '<th rowspan="2">GP</th>' : ''}<th rowspan="2">MIN</th><th rowspan="2">Poss O/D</th><th rowspan="2">Pts F–A</th><th rowspan="2">+/-</th><th rowspan="2">ORtg</th><th rowspan="2">DRtg</th><th rowspan="2">Net</th>${adj ? '<th rowspan="2" class="grp">Adj ORtg</th><th rowspan="2">Adj DRtg</th><th rowspan="2">Adj Net</th>' : ''}
       <th colspan="4" class="grp">Offense</th><th colspan="4" class="grp">Defense</th>${side === 'a' ? '<th rowspan="2">Kills F/A</th>' : ''}</tr>
     <tr><th>eFG%</th><th>TO%</th><th>OR%</th><th>FTR</th><th>eFG%</th><th>TO%</th><th>DR%</th><th>FTR</th></tr>`;
   return `<div class="tbl-wrap"><table class="tbl lu-tbl">${head}
     ${units.map(u => { const o = u.oT ? 100 * u.pf / u.oT : null, d = u.dT ? 100 * u.pa / u.dT : null, F = unitFactors(u);
-      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${(side === 'a' ? u.names.slice().sort(byLast) : u.names).map(nm).join(', ')}</td>${gp ? `<td>${u.gp}</td>` : ''}<td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td>
+      return `<tr class="${u.key === cur ? 'cur' : ''}"><td class="l">${(side === 'a' ? u.names.slice().sort(byLast) : u.names).map(nm).join(', ')}</td>${gp ? `<td>${u.gp}</td>` : ''}<td>${(u.secs / 60).toFixed(1)}</td><td>${u.oT} / ${u.dT}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${f0(o)}</td><td>${f0(d)}</td><td class="${pmCls(o != null && d != null ? o - d : 0)}">${o != null && d != null ? sgn(Math.round(o - d)) : '—'}</td>${adj ? (u.adj ? `<td class="gl">${f0(u.adj.adjOrtg)}</td><td>${f0(u.adj.adjDrtg)}</td><td class="${pmCls(u.adj.adjNet)}"><b>${sgn(Math.round(u.adj.adjNet))}</b></td>` : '<td class="gl">—</td><td>—</td><td>—</td>') : ''}
         <td class="gl">${f1(F.efg)}</td><td>${f1(F.tov)}</td><td>${f1(F.orb)}</td><td>${f1(F.ftr)}</td><td class="gl">${f1(F.oefg)}</td><td>${f1(F.otov)}</td><td>${f1(F.drb)}</td><td>${f1(F.oftr)}</td>${side === 'a' ? `<td>${u.kF} / ${u.kA}</td>` : ''}</tr>`; }).join('')}
   </table></div>`;
 }
@@ -3289,6 +3290,33 @@ function oppLineupsHtml(g) {
    finished game (scrimmages out), garbage time left out like the season PPP. Fives with
    fewer than SEASON_LU_MIN possessions are listed apart: too few to read anything into. */
 const SEASON_LU_MIN = 10;
+const LS_LU_ADJ = 'gt_lineups_adj';
+/* Lineup file: every finished game's fives, game by game, with the opponent - what the
+   repo's adjust_lineups.py needs to opponent-adjust them against the leaderboard's team
+   ratings. Garbage time is left out, as in the season table. */
+function lineupFile() {
+  const pick = s => ({ fgm: s.fgm, fga: s.fga, fg3m: s.fg3m, fg3a: s.fg3a, ftm: s.ftm, fta: s.fta, oreb: s.oreb, dreb: s.dreb, tov: s.tov, pts: s.pts });
+  const games = App.games.filter(g => g.completed).map(g => ({
+    id: g.id, date: g.date || '', opponent: g.opponent || g.teamBName, site: g.site || '', conference: !!g.conference, scrimmage: !!g.scrimmage,
+    units: lineupTable(g, 'nogt').map(u => ({ key: u.key, players: u.names.map(n => ({ name: n, num: numOf(n) })), secs: Math.round(u.secs),
+      oT: u.oT, dT: u.dT, pf: u.pf, pa: u.pa, kF: u.kF, kA: u.kA, o: pick(statLine(u.evA)), d: pick(statLine(u.evB)) })),
+  }));
+  return { app: 'moorpark-game-tracker', kind: 'lineups', version: 1, exportedAt: new Date().toISOString(), games };
+}
+function exportLineups() {
+  const d = lineupFile();
+  if (!d.games.length) { toast('No finished games yet', 'bad'); return; }
+  saveFile('moorpark_lineups_' + todayISO() + '.json', JSON.stringify(d, null, 1));
+}
+function importLineupAdj(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    let d; try { d = JSON.parse(rd.result); } catch (e) { toast('Not a valid JSON file', 'bad'); return; }
+    if (!d || d.kind !== 'lineups-adjusted' || !Array.isArray(d.units)) { toast('Not an adjusted lineup file (run adjust_lineups.py on the ⬇ Lineup file)', 'bad', 5000); return; }
+    if (lsSet(LS_LU_ADJ, d)) { toast(`Adjusted lineups loaded: ${d.units.length} fives`, 'good'); render(); }
+  };
+  rd.readAsText(file);
+}
 function seasonLineupsHtml(games) {
   const all = new Map();
   for (const g of games) for (const u of lineupTable(g, 'nogt')) {
@@ -3298,13 +3326,19 @@ function seasonLineupsHtml(games) {
     x.evA.push(...u.evA); x.evB.push(...u.evB);
   }
   const units = [...all.values()].sort((x, y) => y.secs - x.secs || (y.oT + y.dT) - (x.oT + x.dT));
+  const adj = lsGet(LS_LU_ADJ, null);
+  if (adj) { const m = new Map(adj.units.map(x => [x.key, x])); for (const u of units) { const x = m.get(u.key); u.adj = x && x.adjOrtg != null ? x : null; } }
   const big = units.filter(u => u.oT + u.dT >= SEASON_LU_MIN), small = units.filter(u => u.oT + u.dT < SEASON_LU_MIN);
   if (!units.length) return '';
   const done = { completed: true };
-  return `<div class="card season-lu"><h3>Season lineups <span class="muted">${big.length} five${big.length === 1 ? '' : 's'} with ${SEASON_LU_MIN}+ possessions</span></h3>
+  const editor = !App.viewer;
+  const adjNote = adj ? `<div class="small" style="margin:0 0 8px">Adjusted file: ${esc((adj.generatedAt || '').slice(0, 10))} · ${adj.gamesAdjusted ?? '?'} of ${adj.gamesTotal ?? '?'} games adjusted against ${esc(adj.ratingsSeason || '')} team ratings${adj.gamesTotal != null && adj.gamesTotal < games.length ? ` · <span class="warn">${games.length - adj.gamesTotal} newer game${games.length - adj.gamesTotal === 1 ? '' : 's'} not in it — export and adjust again</span>` : ''}</div>` : '';
+  return `<div class="card season-lu"><div class="row" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Season lineups <span class="muted">${big.length} five${big.length === 1 ? '' : 's'} with ${SEASON_LU_MIN}+ possessions</span></h3>
+    ${editor ? `<span class="row" style="gap:6px"><button class="btn btn-sm" data-act="lu-export" title="Every finished game's fives with the opponent, for adjust_lineups.py">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj-pick" title="Load the file adjust_lineups.py wrote">⬆ Adjusted</button>${adj ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear adjusted</button>' : ''}</span>` : ''}</div>
+    ${adjNote}
     ${big.length ? lineupRowsHtml(done, 'a', big) : `<div class="muted">No five has ${SEASON_LU_MIN} possessions together yet.</div>`}
     ${small.length ? `<details style="margin-top:8px"><summary class="small muted">${small.length} more five${small.length === 1 ? '' : 's'} under ${SEASON_LU_MIN} possessions</summary>${lineupRowsHtml(done, 'a', small)}</details>` : ''}
-    <div class="tiny muted" style="margin-top:6px">All finished games, scrimmages out. Garbage-time possessions left out; minutes are all minutes. GP is games this five played together.</div></div>`;
+    <div class="tiny muted" style="margin-top:6px">All finished games, scrimmages out. Garbage-time possessions left out; minutes are all minutes. GP is games this five played together.${adj ? ' Adj columns: each game adjusted for the opponent\'s leaderboard rating and home court, weighted by possessions; games against teams outside the CCC system are left out of them.' : ''}</div></div>`;
 }
 function onOffHtml(g) {
   const rows = onOffTable(g, App.lev).filter(r => r.secs > 0 || r.on.oT + r.on.dT > 0).sort((x, y) => y.secs - x.secs);
@@ -4442,6 +4476,9 @@ document.addEventListener('click', e => {
     case 'export-game': exportGame(t.dataset.id); break;
     case 'backup': backup(t.dataset.id ? App.games.find(y => y.id === t.dataset.id) : liveGame(), t.dataset.tag || ''); break;
     case 'import': $('#import-file').click(); break;
+    case 'lu-export': exportLineups(); break;
+    case 'lu-adj-pick': $('#lu-adj-file').click(); break;
+    case 'lu-adj-clear': if (confirm('Remove the adjusted lineup file from this device?')) { lsSet(LS_LU_ADJ, null); render(); } break;
     case 'publish': publish(); break;
     case 'del-game': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Delete ' + x.title + ' (' + x.date + ')? This cannot be undone. Export it first if unsure.')) { App.games = App.games.filter(y => y.id !== x.id); if (App.liveId === x.id) { App.liveId = null; lsSet(LS_LIVE, null); } saveGames(); render(); } break; }
     case 'pbp-del': pbpDelete(+t.dataset.i); break;
@@ -4466,6 +4503,7 @@ document.addEventListener('change', e => {
 });
 $('#scout-file').addEventListener('change', e => { const f = e.target.files[0]; uploadScout(f, e.target.dataset.for); e.target.value = ''; });
 $('#import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
+$('#lu-adj-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importLineupAdj(f); e.target.value = ''; });
 $('#nav-roster').onclick = () => openRoster();
 $('#nav-backup').onclick = () => backup(liveGame(), liveGame() ? 'live' : '');
 $('#scout-back').onclick = toggleScout;
