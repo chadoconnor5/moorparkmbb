@@ -179,12 +179,32 @@ table{border-collapse:collapse}
 .lev{font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px;letter-spacing:.05em}
 .lev-high{background:rgba(226,115,109,.16);color:#efa29d} .lev-med{background:rgba(220,176,90,.15);color:var(--warn)} .lev-low{background:var(--card2);color:var(--text2)}
 .lev-comp{background:rgba(220,140,90,.18);color:#efb48a} .lev-clutch{background:rgba(216,184,96,.2);color:var(--gold)} .lev-gt{background:var(--card2);color:var(--muted)}
-.gt-meter{width:160px;height:5px;border-radius:9px;background:var(--card2);overflow:hidden}
+.gt-meter{width:160px;min-width:40px;flex:0 1 160px;height:5px;border-radius:9px;background:var(--card2);overflow:hidden}
+/* the bar stays one line: everything holds its size except the description, which truncates */
+.levbar:not(.alert-bar){flex-wrap:nowrap;white-space:nowrap}
+.levbar > *{flex-shrink:0}
+.levbar > .lev-desc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.levbar > .gt-meter{flex-shrink:1}
 .gt-meter > div{height:100%;background:var(--warn)}
 
 /* tracker layout */
 .tracker{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,340px) minmax(0,1fr);gap:10px;align-items:start}
-@media (max-width:1000px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
+/* Phones: stats on top, the two teams side by side underneath. */
+@media (max-width:699px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
+/* iPad upright (700-1000 wide): keep three columns - players either side of a narrower stat
+   column - so a stat and its player are always on the same screen, no scrolling. */
+@media (max-width:1000px) and (min-width:700px){
+  .tracker{grid-template-columns:minmax(0,1fr) minmax(236px,270px) minmax(0,1fr);gap:8px}
+  .col{padding:8px}
+  .pbtn{padding:8px 10px;font-size:14.5px;min-height:52px}
+  .pbtn .pline{font-size:11px}
+  .pbtn .pname{padding-right:40px}
+  .pbtn .onote{display:none}
+  .sbtn{padding:11px 4px;font-size:13.5px}
+  .ctrls .btn{padding:9px 4px;font-size:12.5px}
+  .lpm2.two{grid-template-columns:minmax(0,1fr)}
+  .status{font-size:13px}
+}
 .col{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px;display:flex;flex-direction:column;gap:7px}
 .col-head{min-height:36px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
 .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
@@ -503,7 +523,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.19</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.21</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2013,15 +2033,15 @@ function paintLevbar() {
   if (L.clutch) h += '<span class="lev lev-clutch">CLUTCH</span>';
   if (L.gt) {
     const c = L.A.gtCut;
-    h += `<span class="lev lev-gt">🗑 GARBAGE TIME</span><span class="small">${c ? 'since ' + periodName(g, c.period, true) + ' ' + fmtClock(c.clock) + ', ' + c.sA + '–' + c.sB : 'marked manually'} — those possessions are flagged</span>`;
+    h += `<span class="lev lev-gt">🗑 GARBAGE TIME</span><span class="small lev-desc">${c ? 'since ' + periodName(g, c.period, true) + ' ' + fmtClock(c.clock) + ', ' + c.sA + '–' + c.sB : 'marked manually'} — those possessions are flagged</span>`;
+    if (g.gtOff) h += '<span class="tiny warn">auto off</span>';
     h += `<button class="btn btn-sm" data-act="gt-clear" style="margin-left:auto">Not garbage time</button>`;
   } else {
     const p = Math.min(100, Math.round(100 * L.lead / L.req));
-    h += `<span class="small muted">Garbage time at a ${L.req}-pt lead (${fmtClock(Math.min(L.gsr, 99 * 60))} game time left)</span>
-      <span class="gt-meter" title="${p}% of the way to garbage time"><div style="width:${p}%"></div></span><span class="small">${p}%</span>
-      <button class="btn btn-sm" data-act="gt-mark" style="margin-left:auto">Mark garbage time now</button>`;
+    h += `<span class="small muted lev-desc">Garbage time at ${L.req}-pt lead · ${fmtClock(Math.min(L.gsr, 99 * 60))} left</span>
+      <span class="gt-meter" title="${p}% of the way to garbage time"><div style="width:${p}%"></div></span><span class="small">${p}%</span>${g.gtOff ? '<span class="tiny warn">auto off</span>' : ''}
+      <button class="btn btn-sm" data-act="gt-mark" style="margin-left:auto">Mark garbage time</button>`;
   }
-  if (g.gtOff) h += '<span class="tiny warn">auto garbage time off</span>';
   el.className = 'levbar'; el.innerHTML = h;
 }
 
