@@ -167,6 +167,13 @@ OREB% or DREB% on 4+ chances, 10 points of TO% on 3+ turnovers. A last row, **AS
 with the assist-to-turnover ratio under it), lights up on 25 points over 4+ makes. Five minutes is 8-10 trips, so this
 is the "something changed" flag, not a verdict.
 
+## Fouls
+
+**Foul** is one tap after the stat: the fouler, and the play is done - there is no "who drew
+it?" step. **Charge** and **Off Foul** still ask who took the charge / drew the foul (that is
+what credits the charge). FD in the box score therefore counts drawn charges and offensive
+fouls only.
+
 ## Flags and editing past subs
 
 - **🚩 Flag** a play to look back at later: on the Live screen, **🚩 Flag last play** (the
