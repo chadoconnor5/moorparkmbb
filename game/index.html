@@ -86,6 +86,8 @@ table{border-collapse:collapse}
 .hud-pts .ins{font-size:14.5px;font-weight:600;color:var(--text)}
 .hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hud-grid .card{margin-bottom:12px}
+/* Huddle: tap a row to mark it light yellow; tap it again (or another row) to clear. */
+.modal.huddle tr.hl td:not(.l5-moved){background:#fef9c3!important}
 .hud-floor{margin-bottom:12px} .hud-floor td,.hud-floor th{padding:6px 7px}
 .l5-tbl td{vertical-align:top} .l5-tbl td .tiny{color:#6b7280;font-weight:500}
 .l5-tbl td.l5-game{color:#6b7280;border-right:1px solid #c4c9d1}
@@ -135,6 +137,8 @@ table{border-collapse:collapse}
 .btn-warn:hover{background:rgba(220,176,90,.1)}
 .btn-sm{padding:5px 10px;font-size:12.5px;border-radius:8px}
 .btn-lg{padding:12px 20px;font-size:15px}
+/* Set time: Cancel and Set as big, half-width touch targets. */
+.foot-big .btn{flex:1;min-height:64px;font-size:20px;font-weight:700}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:14px}
 .card h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#fff;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .card h3 .muted{text-transform:none;letter-spacing:0;font-weight:400}
@@ -382,7 +386,7 @@ table{border-collapse:collapse}
 .tbl th{background:var(--card);color:#fff;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 9px;text-align:right;white-space:nowrap;position:sticky;top:0}
 .tbl th:first-child,.tbl td:first-child{text-align:left}
 .tbl td{padding:7px 9px;text-align:right;border-top:1px solid var(--border);white-space:nowrap}
-.tbl tr:hover td{background:rgba(255,255,255,.015)}
+@media (hover:hover){.tbl:not(.zebra):not(.cmp-light) tr:hover td{background:rgba(255,255,255,.015)}}
 .tbl tr.tot td{font-weight:600;background:var(--card)}
 .tbl tr.cur td{background:var(--primary-bg)}
 .tbl tr.dnp td{color:var(--muted)}
@@ -406,7 +410,6 @@ table{border-collapse:collapse}
    each section, black text; the better side's number bold in a dark team colour. */
 .cmp-light tr:not(.cmp-h) td{background:var(--row-light);color:#000;border-top:1px solid #c9ced6}
 .cmp-light tr.alt:not(.cmp-h) td{background:var(--row-dark)}
-.cmp-light tr:not(.cmp-h):hover td{background:#cfd6e2}
 .cmp-light td.cmp-a,.cmp-light td.cmp-b{color:#1f2937}
 .cmp-light td.cmp-a.win,.cmp-tbl.cmp-light td.win.a{color:#0b6fa4} .cmp-light td.cmp-b.win,.cmp-tbl.cmp-light td.win.b{color:var(--them-d)}
 .cmp-tbl tr.cmp-h td{background:var(--card);color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 12px;text-align:left}
@@ -531,7 +534,7 @@ table{border-collapse:collapse}
 .box-table thead th{padding:5px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#f8fafc;background:#242938;text-align:center;border-bottom:2px solid #2d3347}
 .box-table tbody td{padding:5px 4px;text-align:center;color:#000;border-bottom:1px solid #000}
 .box-table tbody tr:nth-child(odd) td{background:var(--row-dark)} .box-table tbody tr:nth-child(even) td{background:var(--row-light)}
-.box-table tbody tr:hover td{background:#c0c8d8}
+
 .box-table td:first-child,.box-table th:first-child{text-align:left;min-width:96px;position:sticky;left:0;z-index:2;font-weight:600;padding-left:8px}
 .box-table thead th:first-child{z-index:3}
 .box-table td.bs-hi{color:#15803d;font-weight:700} .box-table td.bs-lo{color:#b91c1c;font-weight:700}
@@ -598,7 +601,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.58</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.60</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -3019,7 +3022,7 @@ function openSetClock() {
     <h2>Set time — ${periodName(g, curPeriod(g))}</h2>
     <div class="small muted" style="margin-bottom:10px">Time left on the clock now. Updates minutes, leverage and the garbage-time check without waiting for a sub or timeout. Clock now: ${fmtClock(clockNow(g))}. This is also where you correct it back up if the officials put time back.</div>
     <div class="clockin big"><div><input id="sc-clock" inputmode="none" readonly tabindex="-1" autocomplete="off" placeholder="mm:ss"><div class="clk-prev" id="sc-prev"></div><div class="clk-err" id="sc-err"></div></div>${keypadHtml('sc-clock')}</div>
-    <div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
+    <div class="modal-foot foot-big"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-primary" data-act="sc-confirm">Set ⏎</button></div></div></div>`;
   const ci = $('#sc-clock');
   ci.addEventListener('input', () => { const t = parseClock(ci.value); $('#sc-prev').textContent = t == null ? '' : '= ' + fmtClock(t) + ' left'; $('#sc-err').textContent = t == null ? '' : (setClockError(g, t) || setClockNote(g, t)); });
   ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSetClock(); } });
@@ -4765,6 +4768,13 @@ function exportGame(id) {
    EVENTS (delegated)
 ════════════════════════════════════════════════════════════ */
 document.addEventListener('click', e => {
+  const hr = e.target.closest('.huddle tr');
+  if (hr && hr.querySelector('td') && !hr.classList.contains('cmp-h') && !e.target.closest('button')) {
+    const on = hr.classList.contains('hl');
+    hr.closest('.huddle').querySelectorAll('tr.hl').forEach(r => r.classList.remove('hl'));
+    if (!on) hr.classList.add('hl');
+    return;
+  }
   const t = e.target.closest('[data-act]'); if (!t) {
     const tab = e.target.closest('.tab[data-tab]'); if (tab) setTab(tab.dataset.tab);
     return;

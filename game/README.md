@@ -73,6 +73,7 @@ same roster; edits match by number, so stats already logged stay with the player
 - **📋 Huddle** (timeout sheet): opens on every timeout and from under the clock — score,
   timeouts, fouls, up to four talk points, the last 5:00 for both teams, the current run,
   empty-trip streaks, kills this half, and both fives on the floor.
+  Tap any row to mark it light yellow; tap it again (or another row) to clear it.
 - **End-of-game alerts** (last 2:00 of the 2nd half and each OT): one line in the Leverage
   bar's place — no extra room taken — for the most urgent situation, stated as facts (no
   instructions): up 3 with their ball under 0:10; down 1–3 with their ball under the shot
