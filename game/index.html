@@ -257,6 +257,13 @@ table{border-collapse:collapse}
 .pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
 .pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
 .sub-acts{display:flex;gap:8px;margin-top:14px} .sub-acts .btn-lg{flex:1}
+.sub-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:-1px;z-index:3;background:var(--surface);padding:4px 0 8px}
+.sub-head h2{margin:0}
+.sub-top{display:flex;gap:8px} .sub-top .btn-lg{min-width:170px}
+.clockin.xl{gap:26px;padding:20px}
+.clockin.xl .keypad{grid-template-columns:repeat(3,120px);gap:12px}
+.clockin.xl .keypad button{height:88px;font-size:34px;border-radius:14px}
+.clockin.xl input{font-size:52px;width:230px}
 .sub-chg{display:flex;flex-wrap:wrap;gap:6px 12px;margin:-2px 0 8px;font-size:13px;font-weight:700}
 .sub-chg .o{color:#fca5a5} .sub-chg .i{color:#86efac}
 .pbtn .stint{position:absolute;bottom:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -341,7 +348,8 @@ table{border-collapse:collapse}
 .sub-p .tiny{display:block;font-weight:400;color:var(--muted);margin-top:2px}
 .sub-p.out{border-color:rgba(226,115,109,.5);background:rgba(226,115,109,.08)}
 .sub-p.pending{border-color:var(--warn);background:rgba(220,176,90,.1)}
-.sub-p.in{border-color:rgba(92,191,149,.55);background:rgba(92,191,149,.08)}
+.sub-p.in{border:2px solid #22c55e;background:rgba(34,197,94,.22);color:#fff}
+.sub-p.in .tiny{color:#bbf7d0}
 .sub-p:disabled{opacity:.3}
 .sub-p.dq{border-color:#ef4444;background:rgba(239,68,68,.16);color:#fca5a5}
 .sub-p.dq .tiny{color:#ef4444;font-weight:700}
@@ -584,7 +592,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.53</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.54</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2461,34 +2469,61 @@ function showSubModal() {
   const g = liveGame();
   const start = SUB.mode === 'start';
   const q = curPeriod(g);
-  // Starts filled with the clock as it stands (the last time entered, or the running clock):
-  // if that's right, just Confirm; typing replaces it; the −5s…−1:00 buttons nudge it down.
-  const now0 = Math.ceil(clockNow(g) - 1e-6), pre = now0 > 0 && now0 < periodDur(g, q) ? fmtClock(now0).replace(':', '') : '';
-  const clock = start ? '' : `
-    <div class="clockin big">
-      <div><div class="sub-sec" style="margin-top:0">Time left in the ${periodName(g, q).toLowerCase()} — required</div>
-        <input id="sub-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" class="need" value="${pre}" data-pre="${pre ? 1 : ''}">
-        ${nudgeHtml('sub-clock')}
-        <div class="clk-prev" id="sub-prev"></div><div class="clk-err" id="sub-err"></div>
-        <div class="sub-acts"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-good btn-lg" data-act="sub-confirm">Confirm sub ⏎</button></div>
-      </div>
-      ${keypadHtml('sub-clock')}
-    </div>`;
+  /* Two steps for an in-game sub: 1) set the fives (tap off / on), Confirm at the top;
+     2) a big number pad takes the screen for the time, Confirm again. */
+  const top = start ? '' : `<div class="sub-top"><button class="btn" data-act="close-modal">Cancel</button><button class="btn btn-good btn-lg" data-act="sub-next">Confirm ⏎</button></div>`;
   $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" style="max-width:900px">
-    <h2>${start ? 'Start ' + periodName(g, q) + ' — who starts?' : 'Substitution — ' + periodName(g, q)}</h2>
+    <div class="sub-head"><h2>${start ? 'Start ' + periodName(g, q) + ' — who starts?' : 'Substitution — ' + periodName(g, q)}</h2>${top}</div>
     ${start ? '<div class="small muted">Tap to put a player in or take him out. Five each.</div>' : ''}
-    ${clock}
     <div id="sub-body"></div>
     ${start ? `<div class="modal-foot"><button class="btn" data-act="close-modal">Cancel</button>
       <button class="btn btn-good btn-lg" data-act="sub-confirm">Start ${periodName(g, q)}</button></div>` : ''}
   </div></div>`;
   paintSub();
-  const ci = $('#sub-clock');
-  if (ci) {
-    ci.addEventListener('input', paintSubClock); paintSubClock();
-    ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSub(); } });
-    if (!SUB.pending) ci.focus();
+}
+/* The fives as tapped → the swaps to log. Returns an error message, or null. */
+function subFivesError(g) {
+  for (const tm of ['a', 'b']) {
+    if (tm === 'b' && (SUB.setB || !oppTracked(g))) continue;
+    const five = SUB.five[tm];
+    if (five.length !== 5) return `${teamName(g, tm)}: ${five.length} on the floor — pick 5`;
+    const dq = five.find(n => fouledOut(g, tm, n));
+    if (dq) return `${dq}: ${outReason(g, tm, dq).toLowerCase()} — take him out`;
+    SUB.pairs[tm] = fivePairs(currentLineup(g, tm), five);
   }
+  if (SUB.setB && SUB.five.b.length && SUB.five.b.length !== 5) return `Pick 5 of theirs (${SUB.five.b.length} picked), or none`;
+  if (!SUB.pairs.a.length && !SUB.pairs.b.length && !(SUB.setB && SUB.five.b.length)) return 'No change — tap who comes out and who goes in';
+  return null;
+}
+function subNext() {
+  const g = liveGame(); if (!g) return;
+  const err = subFivesError(g); if (err) { toast(err, 'bad', 3000); return; }
+  showSubClock();
+}
+/* Step 2: the time, on a big pad. Starts filled with the clock as it stands (first key
+   replaces it); −5s…−1:00 nudge it; Confirm is greyed out until the time is valid. */
+function showSubClock() {
+  const g = liveGame(), q = curPeriod(g);
+  const now0 = Math.ceil(clockNow(g) - 1e-6), pre = now0 > 0 && now0 < periodDur(g, q) ? fmtClock(now0).replace(':', '') : '';
+  const chg = t => { const p = SUB.pairs[t]; if (!p.length) return '';
+    return `<div class="sub-chg"><b class="sub-team ${t}" style="margin:0">${esc(teamName(g, t))}</b><span class="o">OUT ${p.map(x => esc(subShort(t, x.out))).join(', ')}</span><span class="i">IN ${p.map(x => esc(subShort(t, x.in))).join(', ')}</span></div>`; };
+  const setB = SUB.setB && SUB.five.b.length === 5 ? `<div class="sub-chg"><b class="sub-team b" style="margin:0">${esc(teamName(g, 'b'))}</b><span>five set</span></div>` : '';
+  $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal sub-clock-step" style="max-width:720px">
+    <h2>Time of the sub — ${periodName(g, q)}</h2>
+    ${chg('a')}${chg('b')}${setB}
+    <div class="clockin xl">
+      <div><input id="sub-clock" inputmode="none" autocomplete="off" placeholder="mm:ss" class="need" value="${pre}" data-pre="${pre ? 1 : ''}">
+        <div class="clk-prev" id="sub-prev"></div><div class="clk-err" id="sub-err"></div>
+        ${nudgeHtml('sub-clock')}
+        <div class="sub-acts"><button class="btn" data-act="sub-back">◀ Back</button><button class="btn btn-good btn-lg" data-act="sub-confirm">Confirm sub ⏎</button></div>
+      </div>
+      ${keypadHtml('sub-clock')}
+    </div>
+  </div></div>`;
+  const ci = $('#sub-clock');
+  ci.addEventListener('input', paintSubClock); paintSubClock();
+  ci.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmSub(); } });
+  ci.focus();
 }
 function paintSubClock() {
   const ci = $('#sub-clock'); if (!ci) return;
@@ -2596,18 +2631,8 @@ function confirmSub() {
   if (t == null) { toast('Enter the time left on the clock', 'bad'); ci.classList.add('need'); ci.focus(); return; }
   const err = subClockError(g, t);
   if (err) { toast(err, 'bad', 3500); ci.focus(); return; }
-  // The new fives → the swaps to log (who-for-whom is just the order; it isn't used).
-  for (const tm of ['a', 'b']) {
-    if (tm === 'b' && (SUB.setB || !oppTracked(g))) continue;
-    const five = SUB.five[tm];
-    if (five.length !== 5) { toast(`${teamName(g, tm)}: ${five.length} on the floor — pick 5`, 'bad'); return; }
-    const dq = five.find(n => fouledOut(g, tm, n));
-    if (dq) { toast(`${dq}: ${outReason(g, tm, dq).toLowerCase()} — take him out`, 'bad'); return; }
-    SUB.pairs[tm] = fivePairs(currentLineup(g, tm), five);
-  }
+  const fe = subFivesError(g); if (fe) { toast(fe, 'bad', 3000); return; }
   const setB = SUB.setB && SUB.five.b.length;
-  if (setB && SUB.five.b.length !== 5) { toast(`Pick 5 of theirs (${SUB.five.b.length} picked), or none`, 'bad'); return; }
-  if (!SUB.pairs.a.length && !SUB.pairs.b.length && !setB) { toast('No change — tap who comes out and who goes in', 'bad'); return; }
   snapshot();
   const q = curPeriod(g);
   const msgs = [];
@@ -4767,6 +4792,8 @@ document.addEventListener('click', e => {
     case 'sub-five': subTapFive(t.dataset.team, t.dataset.p); break;
     case 'sub-unpair': SUB.pairs[t.dataset.team].splice(+t.dataset.i, 1); paintSub(); break;
     case 'sub-confirm': confirmSub(); break;
+    case 'sub-next': subNext(); break;
+    case 'sub-back': showSubModal(); break;
     case 'key': keyPress(t.dataset.target, t.dataset.k); break;
     case 'nudge': nudgeClock(t.dataset.target, +t.dataset.d); break;
     case 'timeout': openTimeout(); break;
