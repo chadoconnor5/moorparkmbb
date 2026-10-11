@@ -127,6 +127,13 @@ This copy keeps the original project intact and starts consolidating the working
   venue), possession-weighted across games. It imports update_advanced_analytics for
   `resolve_opponent()` and `HOME_ADVANTAGE`, so name matching and home court stay in
   one place. Read-only against the stats folders; writes only its output file.
+  The leaderboard's Lineups panel loads that output in the browser ("Game Tracker —
+  Opponent-Adjusted" section, `leaderboard_tracker_lineups.js`, inserted into the page
+  by generate_leaderboard.py as `_TRACKER_LU_JS`). Nothing is embedded at build time:
+  the file is read client-side and kept in localStorage (`lb_tracker_lineups`). 1- to
+  4-man groups are summed from the 5-man units (adjusted ratings as possession-weighted
+  sums). Moorpark's "Lineups →" link shows in the build's current season even without
+  a Synergy export; the Synergy panel itself stays 2025-26 only.
 
 ## Example commands
 

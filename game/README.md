@@ -129,8 +129,17 @@ are folded away. To opponent-adjust them:
    `python3 adjust_lineups.py <that file>`. It adjusts each five's game for the
    opponent's leaderboard rating and home court and writes
    `internal_data/moorpark_lineups_adj.json`.
-3. **⬆ Adjusted** loads that file; the table gains Adj ORtg / Adj DRtg / Adj Net. Repeat
+3. **⬆ Adjusted** loads that file (the leaderboard's Moorpark → Lineups page has the same
+   **⬆ Load adjusted lineups** button, with 1- to 5-man groups); the table gains Adj ORtg / Adj DRtg / Adj Net. Repeat
    between games — the page says when newer games aren't in the loaded file.
+
+## Saved files: play order
+
+A game's `eventLog` is append-only: plays are added in the order they are logged and
+never re-sorted (delete and Undo keep the order). Each event carries `seq` (1 = first
+play), `quarter`, `clk` (game clock, seconds left in the period, read from the clock or
+the nearest sub/timeout clocks), `ts` and an increasing `id`, so a backup or export
+reads in order without the app.
 
 ## Live cards
 

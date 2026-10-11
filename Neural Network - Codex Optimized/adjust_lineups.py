@@ -76,10 +76,14 @@ def adjust(data, ratings, ratings_season):
         hc_o, hc_d = home_court(g.get("site"))
         for u in g.get("units", []):
             x = units.setdefault(u["key"], {"key": u["key"], "players": u["players"], "gp": 0, "secs": 0,
-                                            "oT": 0, "dT": 0, "pf": 0, "pa": 0, "_ao": 0.0, "_ad": 0.0, "_aoT": 0, "_adT": 0})
+                                            "oT": 0, "dT": 0, "pf": 0, "pa": 0, "o": {}, "d": {},
+                                            "_ao": 0.0, "_ad": 0.0, "_aoT": 0, "_adT": 0})
             x["gp"] += 1
             for k in ("secs", "oT", "dT", "pf", "pa"):
                 x[k] += u.get(k, 0)
+            for side in ("o", "d"):  # four-factor counts: ours (o) and theirs (d) while this five played
+                for k, v in (u.get(side) or {}).items():
+                    x[side][k] = x[side].get(k, 0) + v
             if r is None:
                 continue
             # Possession-weighted: sum (adjusted points per 100) * possessions.
@@ -99,6 +103,7 @@ def adjust(data, ratings, ratings_season):
         out_units.append({
             "key": x["key"], "names": [p["name"] for p in x["players"]], "players": x["players"],
             "gp": x["gp"], "secs": x["secs"], "oT": x["oT"], "dT": x["dT"], "pf": x["pf"], "pa": x["pa"],
+            "o": x["o"], "d": x["d"],
             "ortg": rnd(o), "drtg": rnd(d), "net": rnd(o - d) if o is not None and d is not None else None,
             "adjPossO": x["_aoT"], "adjPossD": x["_adT"],
             "adjOrtg": rnd(ao), "adjDrtg": rnd(ad), "adjNet": rnd(ao - ad) if ao is not None and ad is not None else None,

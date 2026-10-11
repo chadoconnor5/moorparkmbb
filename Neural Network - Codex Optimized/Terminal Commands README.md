@@ -88,7 +88,8 @@ schedule pages. The URL format is `COMPOSITE_URL` at the top of `scrape.py`.
 
 Takes the game tracker's **⬇ Lineup file** (Season page) and adjusts each five's games
 for the opponent's leaderboard rating and home court. Load the output in the tracker
-with **⬆ Adjusted**. Moorpark-internal: don't publish the output.
+with **⬆ Adjusted**, and in the leaderboard (Moorpark → Lineups → **⬆ Load adjusted
+lineups**). Both read it in the browser only. Moorpark-internal: don't publish the output.
 
 ```bash
 python3 adjust_lineups.py ~/Downloads/moorpark_lineups_2026-11-20.json

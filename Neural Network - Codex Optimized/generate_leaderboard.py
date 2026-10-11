@@ -16,6 +16,8 @@ from compute_ccc_bpm import (
     BPM_COEFFS, BPM_ROLE_COEFFS, OBPM_COEFFS, OBPM_ROLE_COEFFS, raw_metric,
 )
 from compute_moorpark_lineups import build_moorpark_lineups
+# Game-tracker lineup upload (opponent-adjusted; read in the browser, never published).
+_TRACKER_LU_JS = (Path(__file__).resolve().parent / "leaderboard_tracker_lineups.js").read_text()
 from compute_team_keys import build_keys, load_all_games as load_all_games_keys, LAST_5 as LAST_5_KEYS
 
 
@@ -9552,6 +9554,7 @@ function closeLineups() {{
   document.getElementById('lineups-view').style.display = 'none';
   if (lineupsReturnTeam) showTeamDetail(lineupsReturnTeam);
 }}
+{_TRACKER_LU_JS}
 /* ═══ Keys to Victory ══════════════════════════════════════════════════
    EvanMiya-style "Keys to Victory Automated Team Report" (light theme).
    Three <select>s: Team, Seasons window (5yr / current), Number of Targets.
@@ -10215,9 +10218,21 @@ function renderPlayerTable() {{
 }}
 
 function renderLineups(teamName, keepView) {{
-  const FULL = (typeof MOORPARK_LINEUPS !== 'undefined') ? MOORPARK_LINEUPS : null;
-  if (!FULL || FULL.team !== teamName) {{ closeLineups(); return; }}
+  const FULL = (typeof MOORPARK_LINEUPS !== 'undefined' && activeSeason === '2526') ? MOORPARK_LINEUPS : null;
   const sec = (txt) => `<h3 style="color:#ffd700;font-size:1.05rem;margin:22px 0 8px;border-bottom:2px solid #ffd700;padding-bottom:3px">${{txt}}</h3>`;
+  const trackerSec = sec('Game Tracker — Opponent-Adjusted') + '<div id="lu-tracker"></div>';
+  if (!FULL || FULL.team !== teamName) {{
+    if (teamName !== 'Moorpark') {{ closeLineups(); return; }}
+    // No Synergy export for this season: the panel is the tracker's lineups alone.
+    document.getElementById('lineups-content').innerHTML = `
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:8px;text-align:center">
+        <h2 style="color:#ffd700;font-size:1.6rem;margin:4px 0">${{teamName}} — Lineups</h2></div>` + trackerSec;
+    document.getElementById('team-detail-view').style.display = 'none';
+    document.getElementById('lineups-view').style.display = 'block';
+    renderTrackerLineups();
+    if (!keepView) window.scrollTo(0, 0);
+    return;
+  }}
   const sizeBtn = (k) => `<button id="lu-size-${{k}}" onclick="luSetSize('${{k}}')" style="background:${{k === '5' ? '#ffd700' : '#2a2a40'}};border:1px solid #ffd700;color:${{k === '5' ? '#1a1a2e' : '#ffd700'}};font-weight:${{k === '5' ? '700' : '600'}};padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{k}}-Man</button>`;
   const posBtn = (k, lab) => `<button id="lu-pos-${{k}}" onclick="luSetPos('${{k}}')" style="background:#2a2a40;border:1px solid #4fc3f7;color:#4fc3f7;font-weight:600;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{lab}}</button>`;
   const subs = FULL.subsets || null;
@@ -10257,7 +10272,8 @@ function renderLineups(teamName, keepView) {{
     <div style="display:flex;gap:8px;justify-content:center;margin:0 0 10px;flex-wrap:wrap">${{LU_POS.map(p => posBtn(p[0], p[1])).join('')}}</div>
     <div style="color:#999;font-size:0.72rem;text-align:center;margin-bottom:8px">N-man: lineup combos · Positional: P=guards on floor · Backcourt=guard trios · PG+C=guard+forward · Frontcourt=forward pairs · C=forwards on floor · click any header to sort</div>
     <div id="lu-player-filters" style="display:flex;gap:8px;justify-content:center;align-items:flex-start;margin:0 0 12px;flex-wrap:wrap"></div>
-    <div id="lu-combo-table" style="background:#fff;border-radius:8px;border:1px solid #ccc;overflow-x:auto;padding:4px"></div>`;
+    <div id="lu-combo-table" style="background:#fff;border-radius:8px;border:1px solid #ccc;overflow-x:auto;padding:4px"></div>
+    ${{trackerSec}}`;
   document.getElementById('team-detail-view').style.display = 'none';
   document.getElementById('lineups-view').style.display = 'block';
   if (!keepView) {{
@@ -10268,6 +10284,7 @@ function renderLineups(teamName, keepView) {{
   luRenderPlayerFilters();
   renderPlayerTable();
   renderComboTable();
+  renderTrackerLineups();
   if (!keepView) window.scrollTo(0, 0);
 }}
 
@@ -11351,7 +11368,7 @@ function buildTeamDetail(t) {{
     <div class="td-content">
       <div class="td-scouting">
         <div class="td-section-title">Scouting Report</div>
-        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Game Plan →</span>${{(typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
+        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON)) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
