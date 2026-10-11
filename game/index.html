@@ -85,6 +85,9 @@ table{border-collapse:collapse}
 .hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .hud-grid .card{margin-bottom:12px}
 .hud-floor{margin-bottom:12px} .hud-floor td,.hud-floor th{padding:6px 7px}
+.l5-tbl td{vertical-align:top} .l5-tbl td .tiny{color:#6b7280;font-weight:500}
+.l5-tbl td.l5-game{color:#6b7280;border-right:1px solid #c4c9d1}
+.zebra td.l5-moved{background:#fde68a!important;color:#78350f} .zebra td.l5-moved .tiny{color:#92400e}
 /* light grey / slightly darker grey rows with dark text (same as the box score) */
 .zebra tr:nth-child(even) td{background:#eef0f3} .zebra tr:nth-child(odd) td{background:#dde1e7}
 .zebra td{color:#1f2937;border-top-color:#c4c9d1}
@@ -573,7 +576,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.39</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.40</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -2743,6 +2746,7 @@ function windowStats(g, secs) {
     const tt = trips.filter(tr => tr.team === t);
     s.trips = tt.length; s.ppp = tt.length ? tt.reduce((x, tr) => x + tr.pts, 0) / tt.length : null;
     s.pot = trips.filter(tr => tr.team === t && tr.flags.tov).reduce((x, tr) => x + tr.pts, 0);
+    s.scp = trips.filter(tr => tr.team === t && tr.flags.oreb).reduce((x, tr) => x + tr.pts, 0);
     s.byPlayer = {}; for (const e of ev[t]) if (e.player !== TEAM) s.byPlayer[e.player] = (s.byPlayer[e.player] || 0) + evPts(e);
     out[t] = s;
   }
@@ -2811,6 +2815,38 @@ function heldBallConfirm(held) {
   stage(off, HB.loser || TEAM, 'tov', { tovType: 'held_ball' });
   commitStaged();
 }
+/* LAST 5:00 vs THE GAME — what each side is doing differently right now. Five minutes is
+   8-10 trips, so a rate alone is noise; set beside the same rate for the whole game (with
+   the count behind it), a row lights up only when it has moved well away from the game AND
+   rests on enough attempts to mean something: the "something changed" flag. */
+function huddleCompare(g, W, A) {
+  const G = {}, gameEv = { a: [], b: [] };
+  g.eventLog.forEach(e => { if (isStat(e)) gameEv[e.team].push(e); });
+  for (const t of ['a', 'b']) { const s = statLine(gameEv[t]); const tt = A.trips.filter(tr => tr.team === t);
+    s.trips = tt.length; s.ppp = tt.length ? tt.reduce((x, tr) => x + tr.pts, 0) / tt.length : null; s.pot = A.pot[t]; s.scp = A.scp[t]; G[t] = s; }
+  const pct = (n, d) => d ? 100 * n / d : null;
+  const P = v => v == null ? '—' : Math.round(v) + '%';
+  const rows = [
+    { lbl: 'Pts / trip', f: (s) => ({ v: s.ppp, show: s.ppp == null ? '—' : s.ppp.toFixed(2), sub: s.trips ? s.trips + ' trips' : '' }),
+      gate: (w) => w.trips >= 5, gap: 0.35, num: v => v == null ? '—' : v.toFixed(2) },
+    { lbl: '3PA rate', f: (s) => ({ v: pct(s.fg3a, s.fga), show: P(pct(s.fg3a, s.fga)), sub: s.fga ? s.fg3a + '/' + s.fga + ' FGA' : '' }), gate: (w) => w.fga >= 5, gap: 20 },
+    { lbl: 'FT rate', f: (s) => ({ v: pct(s.fta, s.fga), show: P(pct(s.fta, s.fga)), sub: s.fga ? s.fta + ' FTA' : '' }), gate: (w) => w.fga >= 5, gap: 20 },
+    { lbl: 'Off. boards', f: (s, o) => ({ v: pct(s.oreb, s.oreb + o.dreb), show: P(pct(s.oreb, s.oreb + o.dreb)), sub: (s.oreb + o.dreb) ? s.oreb + '/' + (s.oreb + o.dreb) + (s.scp ? ' · ' + s.scp + ' 2nd-ch pts' : '') : '' }),
+      gate: (w, wo) => w.oreb + wo.dreb >= 4, gap: 20 },
+    { lbl: 'Turnovers', f: (s) => ({ v: pct(s.tov, s.trips), show: P(pct(s.tov, s.trips)), sub: s.tov ? s.tov + ' TO' : '' }), gate: (w) => w.tov >= 3, gap: 10, potOf: true },
+    { lbl: 'Assisted', f: (s) => ({ v: pct(s.ast, s.fgm), show: P(pct(s.ast, s.fgm)), sub: s.fgm ? s.ast + '/' + s.fgm + ' FGM' : '' }), gate: (w) => w.fgm >= 4, gap: 25 },
+  ];
+  const cell = (r, t) => {
+    const w = r.f(W[t], W[other(t)]), gm = r.f(G[t], G[other(t)]);
+    let sub = w.sub;
+    if (r.potOf && W[t].tov) { const n = W[other(t)].pot; sub += ' → ' + n + (n === 1 ? ' pt' : ' pts') + ' for ' + (t === 'a' ? 'them' : 'us'); }
+    const moved = w.v != null && gm.v != null && r.gate(W[t], W[other(t)]) && Math.abs(w.v - gm.v) >= r.gap;
+    const arrow = moved ? (w.v > gm.v ? ' ▲' : ' ▼') : '';
+    return `<td class="${moved ? 'l5-moved' : ''}"><b>${w.show}${arrow}</b>${sub ? `<div class="tiny">${esc(sub)}</div>` : ''}</td><td class="l5-game">${gm.show}</td>`;
+  };
+  return `<table class="tbl rep-tbl zebra l5-tbl"><tr><th></th><th>${esc(g.teamAName)} <span class="tiny">last 5</span></th><th class="tiny">game</th><th>${esc(g.teamBName)} <span class="tiny">last 5</span></th><th class="tiny">game</th></tr>
+    ${rows.map(r => `<tr><td class="l">${r.lbl}</td>${cell(r, 'a')}${cell(r, 'b')}</tr>`).join('')}</table>`;
+}
 function openHuddle(calledBy, toType) {
   const g = liveGame(); if (!g) return;
   if (F.phase !== 'idle') commitStaged();
@@ -2861,11 +2897,10 @@ function openHuddle(calledBy, toType) {
       <div class="hud-team b"><div><div class="hud-score">${fs.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logoHtml(g.teamBName, 34)}</div>
     </div>
     <div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
+    <div class="card hud-floor"><h3>Last 5:00 vs the game <span class="muted">${W.a.pts}–${W.b.pts} in the last 5:00 · ▲▼ highlighted = moved well away from the game on enough attempts</span></h3>
+      <div class="tbl-wrap">${huddleCompare(g, W, A)}</div></div>
     <div class="hud-grid">
-      <div class="card"><h3>Last 5:00</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl zebra"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
-        ${wRow('Points', W.a.pts, W.b.pts, true)}${wRow('Pts / trip', ppp(W.a.ppp), ppp(W.b.ppp), null)}${wRow('Turnovers', W.a.tov, W.b.tov, false)}
-        ${wRow('Off. boards', W.a.oreb, W.b.oreb, true)}${wRow('FT made-att', W.a.ftm + '-' + W.a.fta, W.b.ftm + '-' + W.b.fta, null)}</table></div></div>
-      <div class="card"><h3>Momentum</h3>
+      <div class="card" style="grid-column:1 / -1"><h3>Momentum</h3>
         <div class="hud-big"><span>Current run</span><b>${esc(run)}</b></div>
         <div class="hud-big"><span>Empty trips in a row</span><b>${esc(g.teamAName)} ${drought(g, 'a')} · ${esc(g.teamBName)} ${drought(g, 'b')}</b></div>
         <div class="hud-big"><span>Kills this half</span><b><span class="${killsNow('a') >= 3 ? 'k-good' : ''}">${killsNow('a')}</span> – <span class="${killsNow('b') >= 3 ? 'k-bad' : ''}">${killsNow('b')}</span> <span class="small muted">(stop run: us ${A.streak.b}, them ${A.streak.a})</span></b></div>
