@@ -243,12 +243,7 @@ table{border-collapse:collapse}
 .col-head{min-height:36px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
 .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
 .pgrid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
-.col{min-width:0;position:relative}
-.side-pick{position:absolute;inset:0;z-index:6;border-radius:var(--rl);border:3px solid;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:150px!important;gap:10px;font-size:28px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;padding:12px;text-align:center}
-.side-pick .sp-sub{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:none;opacity:.8}
-.side-pick.a{color:#4fc3f7;border-color:#4fc3f7;background:rgba(9,32,48,.94)}
-.side-pick.b{color:var(--them-text);border-color:var(--them-text);background:color-mix(in srgb,var(--them-text) 16%,rgba(14,14,20,.95))}
-.mode-btn{white-space:nowrap} .mode-btn.on{background:#facc15;color:#111;border-color:#facc15;font-weight:800}
+.col{min-width:0}
 .pbtn{min-width:0;position:relative;text-align:left;padding:9px 14px;border-radius:11px;background:var(--card);border:1px solid var(--border);font-weight:600;font-size:15.5px;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:background .1s,opacity .12s,box-shadow .12s}
 .col.a .pbtn{box-shadow:inset 3px 0 0 var(--us-d)}
 .col.b .pbtn{box-shadow:inset 3px 0 0 var(--them-d)}
@@ -309,7 +304,7 @@ table{border-collapse:collapse}
 .sb-2fg_make{background:#1e40af} .sb-2fg_miss{background:#9f1239}
 .sb-3fg_make{background:#b45309} .sb-3fg_miss{background:#5b21b6}
 .sb-ft_make{background:#155e75}  .sb-ft_miss{background:#701a75}
-.sb-reb{background:#134e4a} .sb-dreb{background:#134e4a}     .sb-oreb{background:#431407}
+.sb-dreb{background:#134e4a}     .sb-oreb{background:#431407}
 .sb-ast{background:#3b0764}      .sb-tov{background:#450a0a}
 .sb-blk{background:#172554}      .sb-stl{background:#422006}
 .sb-foul{background:#1e3a5f}     .sb-offf{background:#3f6212}     .sb-chg{background:#0f5132}     .sb-tech{background:#7c2d12}
@@ -581,7 +576,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.47</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.46</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -785,27 +780,10 @@ const STAT_BTNS = [
   ['blk', 'Block', 'def'],          ['stl', 'Steal', 'def'],
   ['foul', 'Foul', 'foul'],         ['offf', 'Off Foul', 'foul'],   ['chg', 'Charge', 'foul'],   ['tech', 'Tech', 'foul'],
 ];
-/* FAST MODE (⚡ switch on the Live screen, remembered on this iPad): for when one person
-   can't follow every player. Made shots and fouls still name the player - that's the
-   score and foul trouble - but misses, rebounds, turnovers, steals and blocks are one tap
-   on the team's side (a giant button over each column). Rebound is one button: offensive
-   or defensive follows from who missed last. No assist step. Lineups, minutes, +/-,
-   possessions, four factors, kills and the Huddle all keep working; individual boards,
-   assists and turnovers come from the official box score instead. */
-let FAST = !!lsGet('gt_fast', false);
-const FAST_BTNS = [
-  ['2fg_make', '2PT Make', 'make'], ['2fg_miss', '2PT Miss', 'miss'],
-  ['3fg_make', '3PT Make', 'make'], ['3fg_miss', '3PT Miss', 'miss'],
-  ['ft_make', 'FT Make', 'make'],   ['ft_miss', 'FT Miss', 'miss'],
-  ['reb', 'Rebound', 'reb'],        ['tov', 'Turnover', 'badb'],
-  ['stl', 'Steal', 'def'],          ['blk', 'Block', 'def'],
-  ['foul', 'Foul', 'foul'],         ['offf', 'Off Foul', 'foul'],   ['chg', 'Charge', 'foul'],   ['tech', 'Tech', 'foul'],
-];
-const SIDE_STATS = new Set(['2fg_miss', '3fg_miss', 'ft_miss', 'reb', 'tov', 'stl', 'blk']);
 const STAT_LABEL = {
   '2fg_make': '2PT make', '2fg_miss': '2PT miss', '3fg_make': '3PT make', '3fg_miss': '3PT miss',
   ft_make: 'FT make', ft_miss: 'FT miss', oreb: 'off rebound', dreb: 'def rebound', ast: 'assist',
-  reb: 'rebound', stl: 'steal', blk: 'block', tov: 'turnover', foul: 'foul', fd: 'drew foul', offf: 'offensive foul', chg: 'charge', tech: 'technical',
+  stl: 'steal', blk: 'block', tov: 'turnover', foul: 'foul', fd: 'drew foul', offf: 'offensive foul', chg: 'charge', tech: 'technical',
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -1008,7 +986,6 @@ function redo() {
 const F = { phase: 'idle', stat: null, staged: [], shooter: null, shooterTeam: null, rebType: null, fouler: null, foulerTeam: null, blocked: false };
 const PHASE_TEXT = {
   pick_shooter: () => 'Who shot it?',
-  pick_side: () => 'Which team? Tap their side (' + STAT_LABEL[F.stat] + ')',
   pick_ft: () => 'Who shot the free throw?',
   pick_player: () => 'Who? (' + STAT_LABEL[F.stat] + ')',
   pick_fouler: () => F.stat === 'tech' ? 'Who got the technical? Tap the player, or the coach:' : F.stat === 'chg' ? 'Who was called for the charge?' : F.stat === 'offf' ? 'Who committed the offensive foul?' : 'Who fouled?',
@@ -1142,8 +1119,7 @@ function startStat(stat) {
   if (F.phase !== 'idle') commitStaged();
   resetFlow();
   F.stat = stat;
-  if (FAST && SIDE_STATS.has(stat)) setPhase('pick_side');
-  else if (/fg_/.test(stat)) setPhase('pick_shooter');
+  if (/fg_/.test(stat)) setPhase('pick_shooter');
   else if (stat === 'ft_make' || stat === 'ft_miss') setPhase('pick_ft');
   else if (stat === 'foul' || stat === 'offf' || stat === 'chg' || stat === 'tech') setPhase('pick_fouler');
   else setPhase('pick_player');
@@ -1161,7 +1137,6 @@ function pickPlayer(team, p) {
   switch (F.phase) {
     case 'pick_shooter':
       stage(team, p, F.stat); F.shooter = shortName(g, team, p); F.shooterP = p; F.shooterTeam = team;
-      if (FAST && /make/.test(F.stat)) { commitStaged(); break; }   // fast: no assist step
       setPhase(/make/.test(F.stat) ? 'await_assister' : 'await_reb');
       break;
     case 'pick_ft':
@@ -1219,23 +1194,6 @@ function techFoul(team, p, extra) {
   toast(`Technical — 2 free throws for ${teamName(g, other(team))}: FT Make / FT Miss, any player`, 'warn', 4000);
 }
 function skipStep() { commitStaged(); }
-/* Fast mode: the side tapped for a team-level play. */
-function lastMissTeam(g) {
-  for (let i = g.eventLog.length - 1; i >= 0; i--) {
-    const e = g.eventLog[i]; if (!isStat(e)) continue;
-    if (/_miss$/.test(e.stat)) return e.team;
-    if (['oreb', 'dreb', 'tov', '2fg_make', '3fg_make', 'ft_make'].includes(e.stat)) return null;
-  }
-  return null;
-}
-function pickSide(team) {
-  const g = liveGame(); if (!g || F.phase !== 'pick_side') return;
-  const st = F.stat;
-  if (st === 'reb') stage(team, TEAM, lastMissTeam(g) === team ? 'oreb' : 'dreb');
-  else if (st === 'stl') { stage(team, TEAM, 'stl'); stage(other(team), TEAM, 'tov', { tovType: 'stolen' }); }
-  else stage(team, TEAM, st);
-  commitStaged();
-}
 function liveStats() {
   switch (F.phase) {
     case 'await_reb': return F.blocked ? ['oreb', 'dreb'] : ['blk', 'oreb', 'dreb'];
@@ -2222,11 +2180,6 @@ function lpmHtml(g, t, lu, PM, bench) {
     ${bench.some(n => PM.pm[n] != null) ? `<div class="lpm-bench">${bench.filter(n => PM.pm[n] != null).map(n => `<span>${nm(n)} <b class="${pmCls(PM.pm[n])}">${sgn(PM.pm[n])}</b></span>`).join('')}</div>` : ''}
   </div>`;
 }
-function sidePick(t) {
-  if (F.phase !== 'pick_side') return '';
-  const g = liveGame();
-  return `<button class="side-pick ${t}" data-act="side" data-team="${t}">${logoHtml(t === 'a' ? 'Moorpark' : g.teamBName, 56)}<span>${esc(teamName(g, t))}</span><span class="sp-sub">${esc(STAT_LABEL[F.stat])}</span></button>`;
-}
 function paintTracker() {
   const g = liveGame(); if (!g || App.tab !== 'track') return;
   const ca = $('#col-a'), cb = $('#col-b'), cs = $('#col-stats'); if (!ca) return;
@@ -2275,7 +2228,7 @@ function paintTracker() {
   const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
   ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span></div>
     <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
-    <div class="bench-mini">Tap a player with no stat selected to sub.</div>${sidePick('a')}`;
+    <div class="bench-mini">Tap a player with no stat selected to sub.</div>`;
   /* Their side matches ours: once their five is set, the five on the floor and a Team button.
      Before that (roster in, five not set) their whole roster shows, two to a row. */
   const oLu = OT ? currentLineup(g, 'b').sort(byJersey(g, 'b')) : [];
@@ -2291,7 +2244,7 @@ function paintTracker() {
       ${lpmHtml(g, 'a', lu, LPM, bench)}
       ${OT ? lpmHtml(g, 'b', oLu, OPM, oBench) : ''}
     </div>
-    ${!OT && oppHasRoster(g) ? '<div class="bench-mini">Set their five to track their lineups, minutes and +/-.</div>' : ''}${sidePick('b')}`;
+    ${!OT && oppHasRoster(g) ? '<div class="bench-mini">Set their five to track their lineups, minutes and +/-.</div>' : ''}`;
 
   const stBtn = ([k, l, c]) => {
     /* Practice-tracker behaviour: once a play is under way, only the buttons that can finish
@@ -2304,7 +2257,7 @@ function paintTracker() {
   };
   const busy = F.phase !== 'idle';   // a play is half-entered: finish it (or Cancel) first
   const statusTxt = F.phase === 'idle' ? (dis ? (g.between ? 'Start the period to track' : 'Game over')
-    : g.techFT ? `Technical: ${g.techFT.left} free throw${g.techFT.left === 1 ? '' : 's'} for ${teamName(g, g.techFT.team)} — FT Make / FT Miss, any player` : FAST ? 'Makes & fouls: the player · the rest: tap the team' : 'Tap a stat, then the player') : PHASE_TEXT[F.phase]();
+    : g.techFT ? `Technical: ${g.techFT.left} free throw${g.techFT.left === 1 ? '' : 's'} for ${teamName(g, g.techFT.team)} — FT Make / FT Miss, any player` : 'Tap a stat, then the player') : PHASE_TEXT[F.phase]();
   const recent = g.eventLog.map((e, i) => ({ e, i })).filter(({ e }) => e.type !== 'adj').slice(-8).reverse()
     .map(({ e, i }) => `<div class="${e.type ? 's' : e.team} ${e.flag ? 'flagged' : ''}"><span>${esc(describe(g, e))}</span><button class="flagbtn ${e.flag ? 'on' : ''}" data-act="flag" data-live="1" data-i="${i}" title="${e.flag ? 'Unflag' : 'Flag this play to look at later'}">🚩</button></div>`).join('');
   const lastI = (() => { for (let i = g.eventLog.length - 1; i >= 0; i--) if (g.eventLog[i].type !== 'adj') return i; return -1; })();
@@ -2312,9 +2265,9 @@ function paintTracker() {
   cs.innerHTML = `
     <div class="status ${F.phase !== 'idle' ? 'wait' : ''}"><span style="flex:1">${esc(statusTxt)}</span>
 
-      ${F.phase !== 'idle' ? '<button class="btn btn-sm" data-act="cancel">Cancel</button>' : `<button class="btn btn-sm mode-btn ${FAST ? 'on' : ''}" data-act="mode-toggle" title="Fast mode: misses, rebounds, turnovers, steals and blocks by team">⚡ Fast ${FAST ? 'ON' : 'OFF'}</button>`}
+      ${F.phase !== 'idle' ? '<button class="btn btn-sm" data-act="cancel">Cancel</button>' : ''}
       ${F.phase === 'pick_fouler' && F.stat === 'tech' ? `<div class="tech-coaches">${['a', 'b'].map(t => `<button class="btn" data-act="tech-coach" data-team="${t}">${logoHtml(t === 'a' ? 'Moorpark' : g.teamBName, 20)}<span>${esc(teamName(g, t))} coach</span></button>`).join('')}</div>` : ''}</div>
-    <div class="sgrid">${(FAST ? FAST_BTNS : STAT_BTNS).map(stBtn).join('')}</div>
+    <div class="sgrid">${STAT_BTNS.map(stBtn).join('')}</div>
     ${SKIP_TEXT[F.phase] ? `<button class="btn btn-primary btn-lg skipbig" data-act="skip">${SKIP_TEXT[F.phase]}</button>` : ''}
     <div class="ctrls">
       <button class="btn" data-act="sub" ${dis || busy ? 'disabled' : ''}>⇄ Sub</button>
@@ -4760,9 +4713,6 @@ document.addEventListener('click', e => {
     case 'stat': startStat(t.dataset.stat); break;
     case 'player': pickPlayer(t.dataset.team, t.dataset.p); break;
     case 'skip': skipStep(); break;
-    case 'side': pickSide(t.dataset.team); break;
-    case 'mode-toggle': if (F.phase !== 'idle') commitStaged(); FAST = !FAST; lsSet('gt_fast', FAST); paintTracker();
-      toast(FAST ? '⚡ Fast mode: makes and fouls name the player; everything else is one tap on the team' : 'Full mode: every play names the player', 'good', 3200); break;
     case 'tech-coach': if (F.phase === 'pick_fouler' && F.stat === 'tech') techFoul(t.dataset.team, TEAM, { coach: true }); break;
     case 'cancel': cancelFlow(); break;
     case 'undo': undo(); break;
