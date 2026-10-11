@@ -260,6 +260,13 @@ table{border-collapse:collapse}
 .cmp-tbl td.cmp-a,.cmp-tbl td.cmp-b{width:24%;color:var(--text2)}
 .cmp-tbl td.win{font-weight:800;color:var(--text)}
 .cmp-tbl td.cmp-a.win{color:var(--us)} .cmp-tbl td.cmp-b.win{color:var(--them-text)}
+/* Team comparison: the box score's light rows, white and light grey alternating within
+   each section, black text; the better side's number bold in a dark team colour. */
+.cmp-light tr:not(.cmp-h) td{background:#fff;color:#000;border-top:1px solid #c9ced6}
+.cmp-light tr.alt:not(.cmp-h) td{background:#e3e6eb}
+.cmp-light tr:not(.cmp-h):hover td{background:#cfd6e2}
+.cmp-light td.cmp-a,.cmp-light td.cmp-b{color:#1f2937}
+.cmp-light td.cmp-a.win{color:#0b6fa4} .cmp-light td.cmp-b.win{color:var(--them-d)}
 .cmp-tbl tr.cmp-h td{background:var(--card);color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 12px;text-align:left}
 .ff{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
 .ff .k{background:var(--card);border-radius:10px;padding:10px 12px}
@@ -2579,12 +2586,12 @@ function renderAnalytics() {
 /* Team comparison: one vertical table, grouped under headers. Each row is
    [label, ours, theirs, higherIsBetter?, ourNumber?, theirNumber?]; the better side is bold. */
 function compareHtml(g, groups) {
-  const row = ([lbl, va, vb, hi, na, nb]) => {
+  const row = ([lbl, va, vb, hi, na, nb], i) => {
     const x = na != null ? na : +va, y = nb != null ? nb : +vb;
     const better = hi == null || !isFinite(x) || !isFinite(y) || x === y ? '' : ((x > y) === hi ? 'a' : 'b');
-    return `<tr><td class="l">${lbl}</td><td class="cmp-a ${better === 'a' ? 'win' : ''}">${va}</td><td class="cmp-b ${better === 'b' ? 'win' : ''}">${vb}</td></tr>`;
+    return `<tr class="${i % 2 ? 'alt' : ''}"><td class="l">${lbl}</td><td class="cmp-a ${better === 'a' ? 'win' : ''}">${va}</td><td class="cmp-b ${better === 'b' ? 'win' : ''}">${vb}</td></tr>`;
   };
-  return `<div class="tbl-wrap"><table class="tbl cmp-tbl">
+  return `<div class="tbl-wrap"><table class="tbl cmp-tbl cmp-light">
     <tr><th></th><th class="cmp-a">${logoHtml('Moorpark', 18)} ${esc(g.teamAName)}</th><th class="cmp-b">${logoHtml(g.teamBName, 18)} ${esc(g.teamBName)}</th></tr>
     ${groups.map(([h, rows]) => `<tr class="cmp-h"><td colspan="3">${h}</td></tr>${rows.map(row).join('')}`).join('')}
   </table></div><div class="tiny muted" style="margin-top:6px">Bold = the better side.</div>`;
