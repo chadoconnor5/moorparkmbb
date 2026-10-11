@@ -59,6 +59,7 @@ same roster; edits match by number, so stats already logged stay with the player
   floor when the foul was committed, even with a sub between the foul and the shots or
   between the shots. A rebound off a missed free throw belongs to the five on the floor
   then. Lineups, on/off and +/- all follow this.
+- Players on the floor (both teams), the lineup card and the Sub window are in jersey order.
 - **Timeout**: team, 30s or full, clock.
 - **± Fouls / TOs** (under the scoreboard clock): fix a missed or doubled foul or timeout —
   each team's fouls this half (the bonus count only; a player's foul still goes in with
@@ -109,7 +110,8 @@ Flipped, Grew, Held or Narrowed. 🖨 prints it on white paper.
 - **Kills** — three straight stops banks a kill for that defence; the count restarts after
   each one (six straight = two) and at the start of each half (and each OT): the three
   stops have to come in the same half. A trip that ends on a rebound off a missed free
-  throw is not a stop and breaks the run. The scoreboard shows this half's kills (green
+  throw is not a stop and breaks the run, and so does a technical (made or missed) for
+  the side that committed it. The scoreboard shows this half's kills (green
   circles = the current stop run); the reports, Analytics and Season keep the game totals,
   and the play-by-play tags each one.
 - The game clock for each possession is read from the sub/timeout clocks (and the running

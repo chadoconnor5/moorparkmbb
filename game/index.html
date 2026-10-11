@@ -463,7 +463,7 @@ table{border-collapse:collapse}
   <div class="nav-right">
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.8</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.10</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -911,9 +911,20 @@ function buttonPlayers(g, t) {
   if (t === 'a') return [...sortedLineup(g), TEAM];
   return oppHasRoster(g) ? [...g.oppRoster, TEAM] : [TEAM];
 }
-/* Slot order, not alphabetical: a sub takes the same button the man he replaced had, so the
-   other four never move under your finger. */
-function sortedLineup(g) { return currentLineup(g); }
+/* Jersey order: the five on the floor (either side) and the Sub window read lowest number
+   first, like the scorer's book. No number goes last, by name. */
+function jerseyOf(g, t, n) {
+  if (t === 'a') { const v = numOf(n); return v === '' ? null : +v; }
+  const i = (g.oppInfo || {})[n]; if (i && i.num !== '' && i.num != null) return +i.num;
+  const m = String(n).match(/^#(\d{1,2})/); return m ? +m[1] : null;
+}
+function byJersey(g, t) {
+  return (x, y) => { const a = jerseyOf(g, t, x), b = jerseyOf(g, t, y);
+    if (a != null && b != null && a !== b) return a - b;
+    if ((a == null) !== (b == null)) return a == null ? 1 : -1;
+    return t === 'a' ? byLast(x, y) : String(x).localeCompare(String(y)); };
+}
+function sortedLineup(g) { return currentLineup(g).sort(byJersey(g, 'a')); }
 function stage(team, player, stat, extra) { F.staged.push(Object.assign({ team, player, stat }, extra || {})); }
 
 function commitStaged() {
@@ -1416,6 +1427,7 @@ function analyzeTrips(g) {
   let cur = null, pending = null, andOne = null, sA = 0, sB = 0, q = null;
   const pot = { a: 0, b: 0 }, scp = { a: 0, b: 0 };
   const evTrip = new Array(log.length).fill(null);
+  const techResets = [];   // technicals: the side that committed one loses its run of stops
   const ensure = (t, i) => {
     if (cur && cur.team === t) return cur;
     const flags = pending && pending.team === t ? Object.assign({}, pending.flags) : {};
@@ -1432,6 +1444,7 @@ function analyzeTrips(g) {
     const t = e.team, st = e.stat, v = evPts(e);
     const isFt = st === 'ft_make' || st === 'ft_miss';
     if (isFt && e.tech) { if (v) { if (t === 'a') sA += v; else sB += v; } continue; }   // no possession either way
+    if (st === 'foul' && e.technical) techResets.push({ i, team: other(t), period: e.quarter });
     if (andOne && !isFt && !['foul', 'fd', 'ast'].includes(st)) andOne = null;
     let trip;
     if (/fg_/.test(st)) {
@@ -1492,7 +1505,18 @@ function analyzeTrips(g) {
      Kills still add up over the game for the reports and the season. */
   const kills = { a: 0, b: 0 };
   let streak = { a: 0, b: 0 }, streakPeriod = null;
+  /* A technical breaks the run, made or missed, the same way a trip that ends on free
+     throws is never a stop: the side that committed it goes back to 0 straight stops. */
+  let ti = 0;
+  const applyTech = upto => {
+    while (ti < techResets.length && techResets[ti].i < upto) {
+      const x = techResets[ti++];
+      if (x.period !== streakPeriod) { streak = { a: 0, b: 0 }; streakPeriod = x.period; }
+      streak[x.team] = 0;
+    }
+  };
   trips.forEach((tr, k) => {
+    applyTech(tr.startIdx);
     if (tr.period !== streakPeriod) { streak = { a: 0, b: 0 }; streakPeriod = tr.period; }
     // A turnover ends a trip on the spot, and points can't be taken back, so neither waits
     // for the next possession to be logged before it counts.
@@ -1504,6 +1528,7 @@ function analyzeTrips(g) {
     if (!tr.stop) { streak[tr.team] = 0; return; }
     if (++streak[tr.team] >= KILL_STOPS) { tr.kill = other(tr.team); kills[tr.kill]++; streak[tr.team] = 0; }
   });
+  applyTech(Infinity);
   // A new half has started but no trip of it is logged yet: its count is still 0.
   if (!g.completed && streakPeriod != null && streakPeriod < curPeriod(g)) streak = { a: 0, b: 0 };
 
@@ -1910,7 +1935,7 @@ function paintTracker() {
     <div class="bench-mini">Tap a player with no stat selected to sub.</div>`;
   /* Their side matches ours: once their five is set, the five on the floor and a Team button.
      Before that (roster in, five not set) their whole roster shows, two to a row. */
-  const oLu = OT ? currentLineup(g, 'b') : [];
+  const oLu = OT ? currentLineup(g, 'b').sort(byJersey(g, 'b')) : [];
   const oBench = OT ? g.oppRoster.filter(n => !oLu.includes(n)) : [];
   const oppGrid = OT
     ? `<div class="pgrid">${oLu.map(p => btn('b', p)).join('')}${btn('b', TEAM)}</div>`
@@ -2172,7 +2197,7 @@ function subLine(g, t, n) {
 }
 function subSideHtml(g, t) {
   const head = `<div class="sub-team ${t}">${logoHtml(t === 'a' ? 'Moorpark' : g.teamBName, 22)}${esc(teamName(g, t))}</div>`;
-  const all = t === 'a' ? teamPlayers(g, 'a').sort(byLast) : g.oppRoster.slice();
+  const all = teamPlayers(g, t).sort(byJersey(g, t));
   // Pick-five: period starts, and setting their five for the first time.
   if (SUB.mode === 'start' || (t === 'b' && SUB.setB)) {
     const five = SUB.five[t];
@@ -2183,7 +2208,7 @@ function subSideHtml(g, t) {
   const lu = currentLineup(g, t);
   const pairs = SUB.pairs[t], ins = pairs.map(p => p.in);
   const pend = SUB.pending && SUB.pending.team === t ? SUB.pending.n : null;
-  const floor = (t === 'a' ? lu.slice().sort(byLast) : lu).map(n => {
+  const floor = lu.slice().sort(byJersey(g, t)).map(n => {
     const pr = pairs.find(p => p.out === n);
     return `<button class="sub-p ${pend === n ? 'pending' : pr ? 'out' : ''}" data-act="sub-out" data-team="${t}" data-p="${esc(n)}">${subName(t, n)}<span class="tiny">${pr ? '→ ' + esc(pr.in) : subLine(g, t, n)}</span></button>`;
   }).join('');
