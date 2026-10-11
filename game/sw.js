@@ -1,11 +1,11 @@
 /* Offline support for the game tracker.
-   The page: network first, but only for 3 seconds - a gym with one bar of signal must not
+   The page: network first (revalidated, never the browser's stale copy), but only for 5 seconds - a gym with one bar of signal must not
    leave the tracker hanging - then the cached copy. A pushed update shows up the next time
    there is a real connection.
    pdf.js (vendor/) and team logos (logos/): cache first; they never change under the same name.
    The page warms the cache with every logo on the schedule, so they show offline too.
    Bump CACHE when what is cached changes shape. */
-const CACHE = 'gt-v1';
+const CACHE = 'gt-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './logos/moorpark.png',
                './vendor/pdf.min.mjs', './vendor/pdf.worker.min.mjs'];
 
@@ -43,7 +43,9 @@ self.addEventListener('fetch', e => {
 
   const isShell = req.mode === 'navigate' || SHELL.some(p => p !== './' && url.pathname.endsWith(p.slice(1)));
   e.respondWith(
-    withTimeout(fetch(req), isShell ? 3000 : 8000).then(res => {
+    // no-cache: always ask GitHub whether the page changed (a cheap 304 when it hasn't), so a
+    // pushed update shows on the next open instead of after the browser's 10-minute cache.
+    withTimeout(fetch(req, isShell ? { cache: 'no-cache' } : {}), isShell ? 5000 : 8000).then(res => {
       if (res.ok && isShell) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true })
