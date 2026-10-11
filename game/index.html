@@ -67,6 +67,35 @@ table{border-collapse:collapse}
 .offline-dot.ready::before{background:var(--good)}
 .tname{color:var(--tc)}
 .box-table tbody .tname,.cmp-light tr:not(.cmp-h) .tname{color:var(--tcl)}
+/* timeout sheet */
+.modal.huddle{max-width:1000px;padding:18px 20px}
+.huddle-overlay{padding:2vh 10px}
+.hud-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:6px 4px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.hud-team{display:flex;align-items:center;gap:12px} .hud-team.b{justify-content:flex-end}
+.hud-score{font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.hud-team.a .hud-score{color:var(--us)} .hud-team.b .hud-score{color:var(--them-text)}
+.hud-meta{font-size:12px;color:var(--text2);margin-top:4px;display:flex;gap:6px;align-items:center}
+.hud-team.b .hud-meta{justify-content:flex-end}
+.hud-mid{text-align:center} .hud-cap{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--warn)}
+.hud-clock{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.hud-pts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.hud-pts .ins{font-size:14.5px;font-weight:600;color:var(--text)}
+.hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hud-grid .card{margin-bottom:12px}
+.hud-big{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.hud-big span:first-child{color:var(--text2);font-size:12.5px} .hud-big b{font-size:16px;text-align:right}
+.hud-big .k-good{color:#22c55e} .hud-big .k-bad{color:#ef4444}
+@media (max-width:760px){.hud-pts,.hud-grid{grid-template-columns:1fr}}
+.rot-svg{width:100%;height:auto;display:block}
+.rot-team{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:6px 0 2px}
+.rot-team.a{color:var(--us)} .rot-team.b{color:var(--them-text)}
+.alert-bar{justify-content:flex-start;flex-wrap:nowrap}
+.alert-bar .al-ic{font-size:16px}
+.alert-bar .al-h{font-size:14px;letter-spacing:.02em;white-space:nowrap}
+.alert-bar .al-s{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.alert-bar.al-red{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.55)} .alert-bar.al-red .al-h{color:#fca5a5}
+.alert-bar.al-amber{background:rgba(250,204,21,.09);border-color:rgba(250,204,21,.5)} .alert-bar.al-amber .al-h{color:#fde68a}
+.alert-bar.al-blue{background:rgba(79,195,247,.1);border-color:rgba(79,195,247,.5)} .alert-bar.al-blue .al-h{color:#7dd3fc}
 .adj-team{margin-bottom:14px}
 .adj-row{display:grid;grid-template-columns:1fr 52px 48px 52px;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border)}
 .adj-row b{text-align:center;font-size:20px;font-variant-numeric:tabular-nums}
@@ -150,12 +179,32 @@ table{border-collapse:collapse}
 .lev{font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px;letter-spacing:.05em}
 .lev-high{background:rgba(226,115,109,.16);color:#efa29d} .lev-med{background:rgba(220,176,90,.15);color:var(--warn)} .lev-low{background:var(--card2);color:var(--text2)}
 .lev-comp{background:rgba(220,140,90,.18);color:#efb48a} .lev-clutch{background:rgba(216,184,96,.2);color:var(--gold)} .lev-gt{background:var(--card2);color:var(--muted)}
-.gt-meter{width:160px;height:5px;border-radius:9px;background:var(--card2);overflow:hidden}
+.gt-meter{width:160px;min-width:40px;flex:0 1 160px;height:5px;border-radius:9px;background:var(--card2);overflow:hidden}
+/* the bar stays one line: everything holds its size except the description, which truncates */
+.levbar:not(.alert-bar){flex-wrap:nowrap;white-space:nowrap}
+.levbar > *{flex-shrink:0}
+.levbar > .lev-desc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.levbar > .gt-meter{flex-shrink:1}
 .gt-meter > div{height:100%;background:var(--warn)}
 
 /* tracker layout */
 .tracker{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,340px) minmax(0,1fr);gap:10px;align-items:start}
-@media (max-width:1000px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
+/* Phones: stats on top, the two teams side by side underneath. */
+@media (max-width:699px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
+/* iPad upright (700-1000 wide): keep three columns - players either side of a narrower stat
+   column - so a stat and its player are always on the same screen, no scrolling. */
+@media (max-width:1000px) and (min-width:700px){
+  .tracker{grid-template-columns:minmax(0,1fr) minmax(236px,270px) minmax(0,1fr);gap:8px}
+  .col{padding:8px}
+  .pbtn{padding:8px 10px;font-size:14.5px;min-height:52px}
+  .pbtn .pline{font-size:11px}
+  .pbtn .pname{padding-right:40px}
+  .pbtn .onote{display:none}
+  .sbtn{padding:11px 4px;font-size:13.5px}
+  .ctrls .btn{padding:9px 4px;font-size:12.5px}
+  .tracker .lpm2.two{grid-template-columns:minmax(0,1fr)}
+  .status{font-size:13px}
+}
 .col{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px;display:flex;flex-direction:column;gap:7px}
 .col-head{min-height:36px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
 .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
@@ -244,6 +293,9 @@ table{border-collapse:collapse}
 .sub-p.pending{border-color:var(--warn);background:rgba(220,176,90,.1)}
 .sub-p.in{border-color:rgba(92,191,149,.55);background:rgba(92,191,149,.08)}
 .sub-p:disabled{opacity:.3}
+.sub-p.dq{border-color:#ef4444;background:rgba(239,68,68,.16);color:#fca5a5}
+.sub-p.dq .tiny{color:#ef4444;font-weight:700}
+.sub-p.dq:disabled{opacity:.8}
 .sub-bench.waiting .sub-p:not(:disabled){border-color:rgba(92,191,149,.45)}
 .pairs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .pair{background:var(--card);border-radius:99px;padding:4px 6px 4px 12px;font-weight:500;display:flex;gap:8px;align-items:center;font-size:13px}
@@ -468,9 +520,10 @@ table{border-collapse:collapse}
   <button class="tab" data-tab="games">Games</button>
   <button class="tab" data-tab="season">Season</button>
   <div class="nav-right">
+    <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.13</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.23</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -957,7 +1010,24 @@ function commitStaged() {
   saveGames();
   toast(added.map(e => shortName(g, e.team, e.player) + ' ' + STAT_LABEL[e.stat]).join(' + '), 'good', 1800);
   render();
+  // A 5th foul or a 2nd technical: he's out. Open the Sub window with him already coming off.
+  const dq = added.find(e => e.stat === 'foul' && (e.team === 'a' || oppTracked(g)) && currentLineup(g, e.team).includes(e.player)
+    && ((personalFouls(g, e.team, e.player) === FOUL_OUT && technicals(g, e.team, e.player) < TECH_OUT) || (e.technical && technicals(g, e.team, e.player) === TECH_OUT)));
+  if (dq) { toast(`${shortName(g, dq.team, dq.player)}: ${outReason(g, dq.team, dq.player).toLowerCase()} — sub him out`, 'bad', 4000); openSub({ team: dq.team, n: dq.player }); }
 }
+/* FIFTH FOUL. Five personal fouls (technicals included) and a player is out for the game:
+   red in the Sub window, and he can't be put back in. */
+const FOUL_OUT = 5, TECH_OUT = 2;
+function personalFouls(g, t, n) { return g.eventLog.filter(e => isStat(e) && e.team === t && e.player === n && e.stat === 'foul').length; }
+function technicals(g, t, n) { return g.eventLog.filter(e => isStat(e) && e.team === t && e.player === n && e.stat === 'foul' && e.technical).length; }
+/* Out of the game: two technicals (ejected) or five personal fouls (fouled out). */
+function outReason(g, t, n) {
+  if (n === TEAM) return null;
+  if (technicals(g, t, n) >= TECH_OUT) return 'EJECTED (2 T)';
+  if (personalFouls(g, t, n) >= FOUL_OUT) return 'FOULED OUT';
+  return null;
+}
+function fouledOut(g, t, n) { return !!outReason(g, t, n); }
 function shortName(g, t, p) {
   if (p === TEAM) return t === 'b' && !oppHasRoster(g) ? g.teamBName : teamName(g, t) + ' team';
   if (t === 'a') { const n = numOf(p); return (n !== '' ? '#' + n + ' ' : '') + lastName(p); }
@@ -1131,6 +1201,37 @@ function floorSecs(g, t, qf) {
     add(lu, last - end);
   }
   return { per, units };
+}
+/* Every stretch each player spent on the floor, as [period, from, to] in clock seconds
+   remaining - the same replay floorSecs uses, kept as intervals for the rotation chart. */
+function floorStints(g, t) {
+  const log = g.eventLog, clocks = eventClocks(g), L = floorAtEach(g, t);
+  const out = {};
+  const add = (lu, q, from, to) => { if (!(from > to)) return; lu.forEach(n => { (out[n] = out[n] || []).push([q, from, to]); }); };
+  const nP = g.quarters.length + (g.between || g.completed ? 0 : 1);
+  for (let q = 1; q <= nP; q++) {
+    const idx = []; log.forEach((e, i) => { if (e.quarter === q) idx.push(i); });
+    const firstI = idx.length ? idx[0] : null;
+    let lu = firstI == null ? (q === curPeriod(g) ? currentLineup(g, t) : []) : (firstI > 0 ? L[firstI - 1] : lineupStartFive(g, t));
+    let last = periodDur(g, q);
+    for (const i of idx) {
+      const e = log[i];
+      if (t === 'b' && i === (g.oppTrackIdx || 0) && i > 0) { last = clocks[i] != null ? Math.min(last, clocks[i]) : last; lu = L[i]; continue; }
+      if (e.type !== 'sub' || (t === 'b' && i < (g.oppTrackIdx || 0))) continue;
+      const tm = e.timeSecs != null ? e.timeSecs : clocks[i];
+      if (tm == null) continue;
+      add(lu, q, last, tm); last = Math.min(last, tm); lu = L[i];
+    }
+    const qq = g.quarters[q - 1];
+    add(lu, q, last, qq ? qq.timeRemaining : (!g.between && !g.completed && q === curPeriod(g) ? clockNow(g) : last));
+  }
+  // Join back-to-back stretches (someone else subbed, he stayed on) into one bar.
+  for (const n of Object.keys(out)) {
+    const m = [];
+    for (const x of out[n]) { const p = m[m.length - 1]; if (p && p[0] === x[0] && Math.abs(p[2] - x[1]) < 0.5) p[2] = x[2]; else m.push(x.slice()); }
+    out[n] = m;
+  }
+  return out;
 }
 function lineupStartFive(g, t) {
   if (t === 'a') return [...(g.startersA || [])];
@@ -1813,7 +1914,8 @@ function renderBetween(g) {
   if (g.quarters.length < P)
     return `<div class="banner"><h2>${g.quarters.length === 1 && P === 2 ? 'Halftime' : 'End of ' + periodName(g, g.quarters.length)} · ${s.a}–${s.b}</h2>
       <button class="btn btn-good btn-lg" data-act="start-period">Start ${periodName(g, q)} — set both starting fives</button>
-      <button class="btn btn-lg" data-act="print">🖨 Print report</button></div>`;
+      <button class="btn btn-lg" data-act="print">🖨 Print report</button>
+      <button class="btn btn-lg" data-act="backup" data-id="${g.id}" data-tag="halftime">⬇ Backup</button></div>`;
   const tied = s.a === s.b;
   return `<div class="banner"><h2>End of ${periodName(g, g.quarters.length)} · ${s.a}–${s.b}${tied ? ' · TIED' : ''}</h2>
     <button class="btn ${tied ? 'btn-good' : ''} btn-lg" data-act="start-period">Start ${periodName(g, q)} (5:00)</button>
@@ -1857,7 +1959,7 @@ function paintScorebar() {
     <div class="sb-mid">
       <div class="sb-period">${g.between ? (g.quarters.length ? 'Break' : 'Pregame') : periodName(g, q)}</div>
       <div class="sb-clock">${fmtClock(clockNow(g))}</div>
-      <div class="row" style="gap:6px;justify-content:center">${g.between ? '' : `<button class="btn btn-sm sb-settime" data-act="set-clock">⏱ Set time</button>`}<button class="btn btn-sm sb-settime" data-act="adjust" title="Fix a missed foul or timeout">± Fouls / TOs</button></div>
+      <div class="row" style="gap:6px;justify-content:center">${g.between ? '' : `<button class="btn btn-sm sb-settime" data-act="set-clock">⏱ Set time</button>`}<button class="btn btn-sm sb-settime" data-act="adjust" title="Fix a missed foul or timeout">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle" title="Timeout sheet">📋 Huddle</button></div>
     </div>
     <div class="sb-team b">
       <div class="sb-score">${score(g, 'b')}</div>
@@ -1866,8 +1968,64 @@ function paintScorebar() {
         <div class="sb-meta">${killHtml('b')}</div></div></div>`;
   paintLevbar();
 }
+/* END-OF-GAME ALERTS — the last 2:00 of the 2nd half and of each OT. One line, in the
+   Leverage bar's place (no extra height on the screen), the most urgent one only. Facts,
+   not instructions: the situation, then the fouls / bonus / FT / timeout numbers behind it.
+     red    up 3 with their ball under 0:10; down 1-3 with their ball and the game clock
+            under the shot clock; down 4-9 with their ball under 1:30 (with their FT
+            shooting tonight, and each man on the floor's)
+     blue   tied or down 1-3 with our ball under 0:35 (bonus status, timeouts)
+     amber  fouls to give before the bonus; they're in the double bonus
+   Possession is read off the last play; the Our ball / Their ball button flips it until the
+   next play is logged. Got it hides an alert until the situation behind it changes. */
+const SHOT_CLOCK = 30;
+const ALERT = { dismissed: null };
+function ballTeam(g) {
+  if (g.ballOverride && g.ballOverride.n === g.eventLog.length) return g.ballOverride.team;
+  const A = analyzeTrips(g), lt = A.trips[A.trips.length - 1];
+  if (!lt || lt.period !== curPeriod(g)) return null;
+  return lt.closed ? other(lt.team) : lt.team;
+}
+function endgameAlert(g) {
+  if (g.between || g.completed) return null;
+  const q = curPeriod(g); if (q < g.format.periods) return null;
+  const rem = clockNow(g), gsr = gameSecRem(g, q, rem);
+  if (gsr > 120 || rem <= 0) return null;
+  const m = score(g, 'a') - score(g, 'b'), ball = ballTeam(g);
+  const fa = teamFouls(g, 'a', q), fb = teamFouls(g, 'b', q), B = g.format.bonus, DB = g.format.dbonus;
+  const toGive = Math.max(0, B - 1 - fa);
+  const clk = fmtClock(rem), them = g.teamBName;
+  const bonusTxt = fa >= DB ? 'they\'re in the double bonus (2 shots)' : fa >= B ? 'they\'re in the bonus (1-and-1)' : `${toGive} foul${toGive === 1 ? '' : 's'} to give · not in the bonus`;
+  const oppFt = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b'));
+  const ftTarget = () => {
+    if (!oppTracked(g)) return '';
+    const rows = currentLineup(g, 'b').map(n => ({ n, s: statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n)) }));
+    const shot = rows.filter(r => r.s.fta >= 1).sort((x, y) => x.s.ftm / x.s.fta - y.s.ftm / y.s.fta);
+    if (!shot.length) return '';
+    return ' · on the floor: ' + shot.map(r => `${r.n} ${r.s.ftm}-${r.s.fta}`).join(', ');
+  };
+  const ftTxt = oppFt.fta ? ` · they're ${oppFt.ftm}-${oppFt.fta} FT` : '';
+  const L = (cls, icon, head, sub, key) => ({ cls, icon, head, sub, key: key + '|' + m + '|' + ball + '|' + fa });
+  const lead = m > 0 ? 'UP ' + m : m < 0 ? 'DOWN ' + (-m) : 'TIED';
+  const tos = `timeouts: us ${timeoutsLeft(g, 'a').s30 + timeoutsLeft(g, 'a').full}, them ${timeoutsLeft(g, 'b').s30 + timeoutsLeft(g, 'b').full}`;
+  if (ball === 'b' && m === 3 && rem <= 10) return L('al-red', '⏱', `UP 3 · ${clk} · THEIR BALL`, bonusTxt, 'up3');
+  if (ball === 'b' && m < 0 && m >= -3 && rem <= SHOT_CLOCK) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL · UNDER THE SHOT CLOCK`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'runout');
+  if (ball === 'b' && m <= -4 && m >= -9 && rem <= 90) return L('al-red', '⚠', `${lead} · ${clk} · THEIR BALL`, (fa >= B ? bonusTxt : `${B - fa} fouls before they shoot`) + ftTxt + ftTarget(), 'chase');
+  if (ball === 'a' && m <= 0 && m >= -3 && rem <= 35) return L('al-blue', '🏀', `${lead} · ${clk} · OUR BALL`, `${fb >= DB ? 'we\'re in the double bonus' : fb >= B ? 'we\'re in the bonus' : 'we\'re not in the bonus'} · ${tos}`, 'last');
+  if (m > 0 && fa >= DB) return L('al-amber', '✋', `${them.toUpperCase()} IN THE DOUBLE BONUS`, `${fa} team fouls on us`, 'dbl');
+  if (m >= 0 && rem <= 60 && toGive > 0) return L('al-amber', '✋', `${toGive} FOUL${toGive === 1 ? '' : 'S'} TO GIVE`, `${fa} team fouls · the ${B}th puts them in the bonus`, 'give');
+  return null;
+}
 function paintLevbar() {
   const g = liveGame(); const el = $('#levbar'); if (!g || !el) return;
+  const al = endgameAlert(g);
+  if (al && ALERT.dismissed !== al.key) {
+    const ball = ballTeam(g);
+    el.className = 'levbar alert-bar ' + al.cls;
+    el.innerHTML = `<span class="al-ic">${al.icon}</span><b class="al-h">${esc(al.head)}</b><span class="al-s">${esc(al.sub)}</span>
+      <span style="margin-left:auto;display:flex;gap:6px">${ball ? `<button class="btn btn-sm" data-act="ball-flip" title="Possession is read off the last play — fix it here">${ball === 'a' ? 'Their ball?' : 'Our ball?'}</button>` : ''}<button class="btn btn-sm" data-act="alert-ok" data-key="${esc(al.key)}">Got it</button></span>`;
+    return;
+  }
   const L = liveLeverage(g);
   const tierCls = { high: 'lev-high', med: 'lev-med', low: 'lev-low' }[L.tier];
   const tierName = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' }[L.tier];
@@ -1875,15 +2033,15 @@ function paintLevbar() {
   if (L.clutch) h += '<span class="lev lev-clutch">CLUTCH</span>';
   if (L.gt) {
     const c = L.A.gtCut;
-    h += `<span class="lev lev-gt">🗑 GARBAGE TIME</span><span class="small">${c ? 'since ' + periodName(g, c.period, true) + ' ' + fmtClock(c.clock) + ', ' + c.sA + '–' + c.sB : 'marked manually'} — those possessions are flagged</span>`;
+    h += `<span class="lev lev-gt">🗑 GARBAGE TIME</span><span class="small lev-desc">${c ? 'since ' + periodName(g, c.period, true) + ' ' + fmtClock(c.clock) + ', ' + c.sA + '–' + c.sB : 'marked manually'} — those possessions are flagged</span>`;
+    if (g.gtOff) h += '<span class="tiny warn">auto off</span>';
     h += `<button class="btn btn-sm" data-act="gt-clear" style="margin-left:auto">Not garbage time</button>`;
   } else {
     const p = Math.min(100, Math.round(100 * L.lead / L.req));
-    h += `<span class="small muted">Garbage time at a ${L.req}-pt lead (${fmtClock(Math.min(L.gsr, 99 * 60))} game time left)</span>
-      <span class="gt-meter" title="${p}% of the way to garbage time"><div style="width:${p}%"></div></span><span class="small">${p}%</span>
-      <button class="btn btn-sm" data-act="gt-mark" style="margin-left:auto">Mark garbage time now</button>`;
+    h += `<span class="small muted lev-desc">Garbage time at ${L.req}-pt lead · ${fmtClock(Math.min(L.gsr, 99 * 60))} left</span>
+      <span class="gt-meter" title="${p}% of the way to garbage time"><div style="width:${p}%"></div></span><span class="small">${p}%</span>${g.gtOff ? '<span class="tiny warn">auto off</span>' : ''}
+      <button class="btn btn-sm" data-act="gt-mark" style="margin-left:auto">Mark garbage time</button>`;
   }
-  if (g.gtOff) h += '<span class="tiny warn">auto garbage time off</span>';
   el.className = 'levbar'; el.innerHTML = h;
 }
 
@@ -1930,7 +2088,7 @@ function paintTracker() {
     const pmv = !isTeam ? (t === 'a' ? (LPM.pm[p] || 0) : OT ? (OPM.pm[p] || 0) : null) : null;
     const sub = isTeam && !(t === 'b' && !oppHasRoster(g)) ? '' : `<span class="pline">${s.pts} pts · ${s.reb} reb · ${s.ast} ast${s.tov ? ' · ' + s.tov + ' to' : ''}${pmv != null ? ` · <span class="${pmCls(pmv)}">${sgn(pmv)}</span>` : ''}</span>`;
     return `<button class="pbtn ${isTeam ? 'team' : ''} ${dim ? 'dim' : ''} ${hot ? 'hot' : ''}" data-act="player" data-team="${t}" data-p="${esc(p)}">
-      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls}">${s.pf} PF</span>` : ''}</button>`;
+      <span class="pname"><span class="plabel">${label}</span>${info ? `<span class="onote">${esc(info)}</span>` : ''}</span>${sub}${!isTeam || (t === 'b' && !oppHasRoster(g)) ? `<span class="pf ${pfCls || (!isTeam && outReason(g, t, p) ? 'f-trouble' : '')}">${(!isTeam && outReason(g, t, p)) || s.pf + ' PF'}</span>` : ''}</button>`;
   };
   const lu = sortedLineup(g);
   const LPM_ = lineupPlusMinus(g); Object.assign(LPM, LPM_);
@@ -2210,18 +2368,20 @@ function subSideHtml(g, t) {
     const five = SUB.five[t];
     const note = t === 'b' && SUB.mode !== 'start' ? ' — tap their five on the floor now (or leave empty)' : '';
     return `${head}<div class="sub-sec">${five.length}/5 on the floor${note}</div>
-      <div class="sub-grid">${all.map(n => `<button class="sub-p ${five.includes(n) ? 'in' : ''}" data-act="sub-five" data-team="${t}" data-p="${esc(n)}">${subName(t, n)}<span class="tiny">${subLine(g, t, n)}</span></button>`).join('') || '<div class="muted">No roster.</div>'}</div>`;
+      <div class="sub-grid">${all.map(n => { const dq = fouledOut(g, t, n);
+        return `<button class="sub-p ${five.includes(n) ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-five" data-team="${t}" data-p="${esc(n)}" ${dq && !five.includes(n) ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? outReason(g, t, n) : subLine(g, t, n)}</span></button>`; }).join('') || '<div class="muted">No roster.</div>'}</div>`;
   }
   const lu = currentLineup(g, t);
   const pairs = SUB.pairs[t], ins = pairs.map(p => p.in);
   const pend = SUB.pending && SUB.pending.team === t ? SUB.pending.n : null;
   const floor = lu.slice().sort(byJersey(g, t)).map(n => {
     const pr = pairs.find(p => p.out === n);
-    return `<button class="sub-p ${pend === n ? 'pending' : pr ? 'out' : ''}" data-act="sub-out" data-team="${t}" data-p="${esc(n)}">${subName(t, n)}<span class="tiny">${pr ? '→ ' + esc(pr.in) : subLine(g, t, n)}</span></button>`;
+    const dq = fouledOut(g, t, n);
+    return `<button class="sub-p ${pend === n ? 'pending' : pr ? 'out' : ''} ${dq ? 'dq' : ''}" data-act="sub-out" data-team="${t}" data-p="${esc(n)}">${subName(t, n)}<span class="tiny">${pr ? '→ ' + esc(pr.in) : dq ? outReason(g, t, n) + ' — must come out' : subLine(g, t, n)}</span></button>`;
   }).join('');
   const bench = all.filter(n => !lu.includes(n)).map(n => {
-    const used = ins.includes(n);
-    return `<button class="sub-p ${used ? 'in' : ''}" data-act="sub-in" data-team="${t}" data-p="${esc(n)}" ${!pend && !used ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${used ? '← for ' + esc(pairs.find(p => p.in === n).out) : subLine(g, t, n)}</span></button>`;
+    const used = ins.includes(n), dq = fouledOut(g, t, n);
+    return `<button class="sub-p ${used ? 'in' : ''} ${dq ? 'dq' : ''}" data-act="sub-in" data-team="${t}" data-p="${esc(n)}" ${(!pend && !used) || dq ? 'disabled' : ''}>${subName(t, n)}<span class="tiny">${dq ? outReason(g, t, n) : used ? '← for ' + esc(pairs.find(p => p.in === n).out) : subLine(g, t, n)}</span></button>`;
   }).join('');
   return `${head}<div class="sub-sec">On the floor — tap who's coming OUT</div><div class="sub-grid">${floor}</div>
     <div class="sub-sec">${pend ? 'Bench — who replaces ' + esc(pend) + '?' : 'Bench'}</div>
@@ -2242,6 +2402,7 @@ function subTapOut(t, n) {
   paintSub();
 }
 function subTapIn(t, n) {
+  if (fouledOut(liveGame(), t, n)) { toast(n + ': ' + outReason(liveGame(), t, n).toLowerCase() + ' — can\'t come back in', 'bad'); return; }
   const pairs = SUB.pairs[t];
   const i = pairs.findIndex(p => p.in === n);
   const pend = SUB.pending && SUB.pending.team === t ? SUB.pending.n : null;
@@ -2254,6 +2415,7 @@ function subTapIn(t, n) {
 }
 function subTapFive(t, n) {
   const five = SUB.five[t], i = five.indexOf(n);
+  if (i === -1 && fouledOut(liveGame(), t, n)) { toast(n + ': ' + outReason(liveGame(), t, n).toLowerCase() + ' — can\'t come back in', 'bad'); return; }
   if (i !== -1) five.splice(i, 1); else if (five.length < 5) five.push(n); else { toast('Already 5 — tap one to take him out'); return; }
   paintSub();
 }
@@ -2409,6 +2571,117 @@ function confirmTimeout() {
   const L2 = timeoutsLeft(g, TO.team);
   toast(teamName(g, TO.team) + ' timeout · ' + L2.s30 + '×30 + ' + L2.full + ' full left', 'warn', 3000);
   render();
+  openHuddle(TO.team, TO.type);
+}
+
+/* ── TIMEOUT SHEET ("Huddle") ──
+   One screen for a 60-second huddle: opens on every timeout, and any time from 📋 Huddle.
+   Everything is read off the same log as the rest of the app:
+     the last 5:00 of game time for both sides (score, points per trip, turnovers, offensive
+     boards, free throws), the current run and empty-trip streaks, kills this half, both
+     fives on the floor, and up to four talk points worth saying out loud. */
+const HUDDLE_SECS = 300;
+function windowStats(g, secs) {
+  const A = analyzeTrips(g);
+  const q = curPeriod(g), now = gameSecRem(g, g.between ? Math.max(1, g.quarters.length) : q, g.between ? 0 : clockNow(g));
+  const inWin = i => { const c = A.clocks[i]; if (c == null) return false; const r = gameSecRem(g, g.eventLog[i].quarter, c); return r >= now - 0.5 && r - now <= secs; };
+  const ev = { a: [], b: [] };
+  g.eventLog.forEach((e, i) => { if (isStat(e) && inWin(i)) ev[e.team].push(Object.assign({ _i: i }, e)); });
+  const trips = A.trips.filter(tr => inWin(tr.startIdx));
+  const out = {};
+  for (const t of ['a', 'b']) {
+    const s = statLine(ev[t]);
+    const tt = trips.filter(tr => tr.team === t);
+    s.trips = tt.length; s.ppp = tt.length ? tt.reduce((x, tr) => x + tr.pts, 0) / tt.length : null;
+    s.pot = trips.filter(tr => tr.team === t && tr.flags.tov).reduce((x, tr) => x + tr.pts, 0);
+    s.byPlayer = {}; for (const e of ev[t]) if (e.player !== TEAM) s.byPlayer[e.player] = (s.byPlayer[e.player] || 0) + evPts(e);
+    out[t] = s;
+  }
+  return out;
+}
+function huddlePoints(g, W) {
+  const out = [], opp = g.teamBName;
+  const add = (w, good, t) => out.push({ w, good, t });
+  const a = W.a, b = W.b;
+  if (a.tov >= 3) add(a.tov, false, `${a.tov} turnovers in the last 5:00 → ${b.pot} points for them.`);
+  if (b.tov >= 3) add(b.tov - 0.5, true, `They've turned it over ${b.tov} times in the last 5:00.`);
+  if (b.oreb >= 2) add(b.oreb + 0.5, false, `They have ${b.oreb} offensive boards in the last 5:00.`);
+  if (a.oreb >= 3) add(a.oreb - 1, true, `${a.oreb} offensive boards for us in the last 5:00.`);
+  const hot = Object.entries(b.byPlayer).sort((x, y) => y[1] - x[1])[0];
+  if (hot && hot[1] >= 6) add(hot[1] / 2, false, `${hot[0]} has ${hot[1]} of their last ${b.pts}.`);
+  const flow = scoringFlow(g), r = flow.run;
+  if (r.team === 'b' && r.b >= 6) add(r.b / 2, false, `They're on a ${r.b}-0 run.`);
+  const dA = drought(g, 'a'); if (dA >= 3) add(dA, false, `${dA} straight empty trips for us.`);
+  const q = curPeriod(g), fq = g.between ? Math.min(q, g.format.periods + 1) : q;
+  const fa = teamFouls(g, 'a', fq), fb = teamFouls(g, 'b', fq);
+  if (fa >= g.format.bonus) add(4, false, `They're in the ${fa >= g.format.dbonus ? 'double ' : ''}bonus (${fa} fouls on us).`);
+  else if (fa === g.format.bonus - 1) add(3, false, `One more foul puts them in the bonus.`);
+  if (fb >= g.format.bonus) add(3, true, `We're in the ${fb >= g.format.dbonus ? 'double ' : ''}bonus (${fb} fouls on them).`);
+  const lu = currentLineup(g);
+  for (const n of lu) { const pf = g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === n && e.stat === 'foul').length;
+    if (pf >= 4 || (q === 1 && pf >= 2) || pf >= 3) add(pf, false, `${n} has ${pf} fouls.`); }
+  if (oppTracked(g)) for (const n of currentLineup(g, 'b')) { const pf = g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n && e.stat === 'foul').length;
+    if (pf >= 3 || (q === 1 && pf >= 2)) add(pf - 0.5, true, `${n} has ${pf} fouls.`); }
+  return out.sort((x, y) => y.w - x.w).slice(0, 4);
+}
+function openHuddle(calledBy, toType) {
+  const g = liveGame(); if (!g) return;
+  if (F.phase !== 'idle') commitStaged();
+  const A = analyzeTrips(g), W = windowStats(g, HUDDLE_SECS), fs = finalScore(g);
+  const q = curPeriod(g), fq = g.between ? Math.min(q, g.format.periods + 1) : q;
+  const flow = scoringFlow(g);
+  const pts = huddlePoints(g, W);
+  const eg = endgameAlert(g);
+  if (eg) pts.unshift({ good: eg.cls === 'al-blue', t: eg.head + ' — ' + eg.sub });
+  if (pts.length > 4) pts.length = 4;
+  const TL = t => timeoutsLeft(g, t);
+  const dots = t => { const L = TL(t); return `${'<span class="to-dot"></span>'.repeat(Math.max(0, L.s30))}<span style="width:4px;display:inline-block"></span>${'<span class="to-dot full"></span>'.repeat(Math.max(0, L.full))}`; };
+  const fouls = t => { const n = teamFouls(g, t, fq), c = n >= g.format.dbonus ? 'tf-dbl' : n >= g.format.bonus ? 'tf-bonus' : n >= g.format.bonus - 2 ? 'tf-warn' : ''; return `<b class="${c}">${n}</b>`; };
+  const killsNow = t => A.trips.filter(tr => tr.kill === t && tr.period === q).length;
+  const ppp = v => v == null ? '—' : v.toFixed(2);
+  const wRow = (lbl, va, vb, hi) => { const w = va === vb || hi == null ? '' : ((va > vb) === hi ? 'a' : 'b');
+    return `<tr><td class="l">${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${va}</td><td class="${w === 'b' ? 'win b' : ''}">${vb}</td></tr>`; };
+  // On the floor
+  const pmA = lineupPlusMinus(g), luA = sortedLineup(g);
+  const lineA = n => statLine(g.eventLog.filter(e => isStat(e) && e.team === 'a' && e.player === n));
+  const uA = lineupTable(g, 'all').find(x => x.key === unitKey(currentLineup(g)));
+  const netA = uA && uA.oT && uA.dT ? 100 * uA.pf / uA.oT - 100 * uA.pa / uA.dT : null;
+  const ourFive = luA.map(n => { const s = lineA(n); const pfc = s.pf >= 4 ? 'tf-dbl' : s.pf >= 3 || (q === 1 && s.pf >= 2) ? 'tf-bonus' : '';
+    return `<tr><td class="l">${numOf(n) !== '' ? '<span class="pnum">#' + esc(numOf(n)) + '</span> ' : ''}${esc(n)}</td><td>${s.pts}</td><td class="${pfc}">${s.pf}</td><td class="${pmCls(pmA.pm[n] || 0)}">${sgn(pmA.pm[n] || 0)}</td></tr>`; }).join('');
+  let theirFive = '';
+  if (oppTracked(g)) {
+    const pmB = lineupPlusMinus(g, 'b');
+    theirFive = currentLineup(g, 'b').sort(byJersey(g, 'b')).map(n => { const s = statLine(g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === n));
+      const hot = (W.b.byPlayer[n] || 0) >= 6, pfc = s.pf >= 4 ? 'tf-dbl' : s.pf >= 3 || (q === 1 && s.pf >= 2) ? 'tf-bonus' : '';
+      return `<tr><td class="l">${oppLabelHtml(n)}${hot ? ' <span class="tag lev-high" style="margin-left:4px">HOT</span>' : ''}</td><td>${s.pts}</td><td class="${pfc}">${s.pf}</td><td class="${pmCls(pmB.pm[n] || 0)}">${sgn(pmB.pm[n] || 0)}</td></tr>`; }).join('');
+  }
+  const run = flow.run.team ? `${teamName(g, flow.run.team)} ${flow.run[flow.run.team]}-0` : '—';
+  const caller = calledBy ? `${esc(teamName(g, calledBy))} ${toType === '30' ? '30-second' : 'full'} timeout` : 'Huddle';
+  $('#modal-root').innerHTML = `<div class="overlay huddle-overlay" data-act="overlay"><div class="modal huddle">
+    <div class="hud-top">
+      <div class="hud-team a">${logoHtml('Moorpark', 34)}<div><div class="hud-score">${fs.a}</div><div class="hud-meta">Fouls ${fouls('a')} · <span class="to-dots">${dots('a')}</span></div></div></div>
+      <div class="hud-mid"><div class="hud-cap">${caller}</div><div class="hud-clock">${g.between ? 'Break' : periodName(g, q, true) + ' ' + fmtClock(clockNow(g))}</div></div>
+      <div class="hud-team b"><div style="text-align:right"><div class="hud-score">${fs.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logoHtml(g.teamBName, 34)}</div>
+    </div>
+    <div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
+    <div class="hud-grid">
+      <div class="card"><h3>Last 5:00</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
+        ${wRow('Points', W.a.pts, W.b.pts, true)}${wRow('Pts / trip', ppp(W.a.ppp), ppp(W.b.ppp), null)}${wRow('Turnovers', W.a.tov, W.b.tov, false)}
+        ${wRow('Off. boards', W.a.oreb, W.b.oreb, true)}${wRow('FT made-att', W.a.ftm + '-' + W.a.fta, W.b.ftm + '-' + W.b.fta, null)}</table></div></div>
+      <div class="card"><h3>Momentum</h3>
+        <div class="hud-big"><span>Current run</span><b>${esc(run)}</b></div>
+        <div class="hud-big"><span>Empty trips in a row</span><b>${esc(g.teamAName)} ${drought(g, 'a')} · ${esc(g.teamBName)} ${drought(g, 'b')}</b></div>
+        <div class="hud-big"><span>Kills this half</span><b><span class="${killsNow('a') >= 3 ? 'k-good' : ''}">${killsNow('a')}</span> – <span class="${killsNow('b') >= 3 ? 'k-bad' : ''}">${killsNow('b')}</span> <span class="small muted">(stop run: us ${A.streak.b}, them ${A.streak.a})</span></b></div>
+      </div>
+    </div>
+    <div class="hud-grid">
+      <div class="card"><h3>${esc(g.teamAName)} on the floor <span class="muted">this five: net ${netA == null ? '—' : sgn(Math.round(netA))} · ${sgn(pmA.unit)}</span></h3>
+        <div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Player</th><th>PTS</th><th>PF</th><th>+/-</th></tr>${ourFive}</table></div></div>
+      <div class="card"><h3>${esc(g.teamBName)} on the floor</h3>
+        ${theirFive ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Player</th><th>PTS</th><th>PF</th><th>+/-</th></tr>${theirFive}</table></div>` : '<div class="muted small">Their five isn\'t set — set it to see who\'s on the floor.</div>'}</div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-good btn-lg" data-act="close-modal">Back to game</button></div>
+  </div></div>`;
 }
 
 /* ── ADJUST FOULS / TIMEOUTS ──
@@ -2507,6 +2780,7 @@ function confirmEndPeriod() {
   saveGames(); closeModal();
   toast('End of ' + periodName(g, q), 'good');
   render();
+  if (q === 1 && g.format.periods === 2) backup(g, 'halftime');   // automatic backup at the half
 }
 function finishGame() {
   const g = liveGame(); if (!g) return;
@@ -2524,6 +2798,7 @@ function finishGame() {
   toast('Final: ' + g.teamAName + ' ' + fs.a + ', ' + g.teamBName + ' ' + fs.b, 'good', 4000);
   REP.scope = 'game';
   setTab('report');
+  backup(g, 'final');   // automatic backup at the final
 }
 
 /* ── ABANDON ──
@@ -2584,8 +2859,8 @@ function noGame() { return `<div class="card"><h3>No games yet</h3><div class="m
 const BX_COLS = [
   ['min', 'MIN'], ['minPctVal', 'MIN%'], ['ortg', 'ORTG'], ['usgPct', 'USG'], ['shotPct', 'SHOT%'], ['efgPct', 'EFG'], ['tsPct', 'TS%'], ['ftRate', 'FTR'],
   ['orPct', 'OR%'], ['drPct', 'DR%'], ['astPct', 'AST%'], ['toPct', 'TO%'], ['stlPct', 'STL%'], ['blkPct', 'BLK%'],
-  ['fg2', '2PT'], ['fg3', '3PT'], ['ft', 'FT'], ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'],
-  ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS'], ['pm', '+/-'],
+  ['fg2', '2PT'], ['fg3', '3PT'], ['ft', 'FT'], ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'],
+  ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'], ['pf', 'PF'], ['fd', 'FD'], ['pts', 'PTS'], ['pm', '+/-'],
 ];
 let bxPanel = 'both';   // Combined first: both teams on one page is the default view
 function bxHi(v, good, bad) { return v == null ? '' : v >= good ? 'bs-hi' : v <= bad ? 'bs-lo' : ''; }
@@ -2879,7 +3154,7 @@ function insights(g) {
   }
   if (oppHasRoster(g)) for (const p of g.oppRoster) {
     const pf = g.eventLog.filter(e => isStat(e) && e.team === 'b' && e.player === p && e.stat === 'foul').length;
-    if (pf >= 3 || (half === 1 && pf >= 2)) out.push({ c: 'info', t: `${g.teamBName} ${p}: ${pf} fouls — attack him.` });
+    if (pf >= 3 || (half === 1 && pf >= 2)) out.push({ c: 'info', t: `${g.teamBName} ${p}: ${pf} fouls.` });
   }
   const L = timeoutsLeft(g, 'a');
   out.push({ c: '', t: `Moorpark timeouts left: ${L.s30} × 30s, ${L.full} full. ${g.teamBName}: ${timeoutsLeft(g, 'b').s30} × 30s, ${timeoutsLeft(g, 'b').full} full.` });
@@ -3033,6 +3308,54 @@ function renderReport() {
       <button class="btn btn-sm" data-act="print" style="margin-left:auto">🖨 Print</button></div>
     ${reportHtml(g, scope)}`;
 }
+/* ROTATION CHART — who was on the floor and when, one row per player, for the periods the
+   report covers; 10-0 (or better) runs are shaded across both teams in the scoring side's
+   colour, with the run and its score. Rows: starters first, then by minutes. */
+function rotationHtml(g, per, qf, A) {
+  const P = g.format.periods;
+  const len = q => periodDur(g, q);
+  const offs = {}; let total = 0; for (const q of per) { offs[q] = total; total += len(q); }
+  const W = 1000, LBL = 170, RGT = 92, ROW = 20, HEAD = 34;
+  const X = (q, rem) => LBL + (W - LBL - RGT) * (offs[q] + len(q) - rem) / total;
+  const pm = plusMinus(g, qf ? (e => e.quarter === qf) : null);
+  const block = (t, title) => {
+    const st = floorStints(g, t);
+    const starters = new Set(t === 'a' ? g.startersA : (g.startersB || []));
+    const secs = n => (st[n] || []).filter(x => per.includes(x[0])).reduce((v, x) => v + x[1] - x[2], 0);
+    const names = Object.keys(st).filter(n => secs(n) > 0).sort((x, y) => (starters.has(y) - starters.has(x)) || secs(y) - secs(x));
+    if (!names.length) return '';
+    const H = HEAD + names.length * ROW + 6;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" class="rot-svg" role="img" aria-label="${esc(title)} rotation">`;
+    // runs
+    for (const r of scoringRuns(g, qf)) {
+      if (!per.includes(r.startQ) && !per.includes(r.endQ)) continue;
+      const q0 = per.includes(r.startQ) ? r.startQ : per[0], q1 = per.includes(r.endQ) ? r.endQ : per[per.length - 1];
+      const c0 = per.includes(r.startQ) ? (A.clocks[r.startIdx] ?? len(q0)) : len(q0), c1 = per.includes(r.endQ) ? (A.clocks[r.endIdx] ?? 0) : 0;
+      const x0 = X(q0, c0), x1 = Math.max(X(q1, c1), x0 + 3);
+      const col = r.team === 'a' ? 'var(--us)' : 'var(--them)';
+      svg += `<rect x="${x0}" y="${HEAD - 14}" width="${x1 - x0}" height="${H - HEAD + 12}" style="fill:${col};opacity:.13"/>
+        <text x="${(x0 + x1) / 2}" y="${HEAD - 18}" text-anchor="middle" font-size="11" font-weight="700" style="fill:${col}">${r.pts}-0</text>`;
+    }
+    // period lines and labels
+    per.forEach((q, k) => { const x = X(q, len(q));
+      if (k) svg += `<line x1="${x}" y1="${HEAD - 14}" x2="${x}" y2="${H}" stroke="#4b5563" stroke-dasharray="4 4"/>`;
+      svg += `<text x="${x + 4}" y="${HEAD - 4}" font-size="10" fill="#94a3b8">${periodName(g, q, true)}</text>`; });
+    names.forEach((n, k) => {
+      const y = HEAD + k * ROW;
+      if (k % 2) svg += `<rect x="0" y="${y}" width="${W}" height="${ROW}" fill="rgba(255,255,255,.025)"/>`;
+      const lbl = t === 'a' ? (numOf(n) !== '' ? '#' + numOf(n) + ' ' : '') + n : n;
+      svg += `<text x="6" y="${y + 14}" font-size="12" fill="${starters.has(n) ? '#f8fafc' : '#cbd5e1'}" font-weight="${starters.has(n) ? 700 : 500}">${esc(lbl)}</text>`;
+      for (const [q, a, b] of st[n] || []) if (per.includes(q))
+        svg += `<rect x="${X(q, a)}" y="${y + 4}" width="${Math.max(1.5, X(q, b) - X(q, a))}" height="${ROW - 8}" rx="3" style="fill:${t === 'a' ? 'var(--us)' : 'var(--them)'}"/>`;
+      const v = pm[t][n] || 0;
+      svg += `<text x="${W - RGT + 8}" y="${y + 14}" font-size="12" fill="#cbd5e1">${(secs(n) / 60).toFixed(0)}'</text>
+        <text x="${W - 6}" y="${y + 14}" font-size="12" text-anchor="end" font-weight="700" fill="${v > 0 ? '#5cbf95' : v < 0 ? '#e2736d' : '#94a3b8'}">${sgn(v)}</text>`;
+    });
+    return `<div class="rot-team ${t}">${esc(title)}</div>` + svg + '</svg>';
+  };
+  const a = block('a', g.teamAName), b = oppTracked(g) ? block('b', g.teamBName) : '';
+  return a + b + `<div class="tiny muted" style="margin-top:4px">Bars: on the floor · shaded: 10-0 runs in the scoring side's colour · right: minutes and +/-.${oppTracked(g) ? '' : ' Set their five to chart theirs.'}</div>`;
+}
 /* The few things worth saying out loud, strongest first. Plain facts with the numbers. */
 function reportKeys(g, T, A, qf, half) {
   const a = T.a, b = T.b, out = [];
@@ -3049,10 +3372,10 @@ function reportKeys(g, T, A, qf, half) {
   const dO = a.orebPct - b.orebPct;
   if (Math.abs(dO) >= 8 || Math.abs(scp.a - scp.b) >= 5) push(Math.max(Math.abs(dO) / 8, Math.abs(scp.a - scp.b) / 5), dO > 0,
     dO > 0 ? `${half ? 'Winning' : 'Won'} the glass: ${a.oreb} offensive boards (${f1(a.orebPct)}%), 2nd-chance points ${scp.a}–${scp.b}.`
-           : `${half ? "They're getting" : 'They got'} second shots: ${b.oreb} offensive boards (${f1(b.orebPct)}%), 2nd-chance points ${scp.b}–${scp.a} them. Box out.`);
+           : `${half ? "They're getting" : 'They got'} second shots: ${b.oreb} offensive boards (${f1(b.orebPct)}%), 2nd-chance points ${scp.b}–${scp.a} them.`);
   const dF = a.ftr - b.ftr;
   if (Math.abs(dF) >= 12 && (a.fta + b.fta) >= 6) push(Math.abs(dF) / 12, dF > 0,
-    dF > 0 ? `${half ? 'Getting' : 'Got'} to the line: ${a.fta} FTA to their ${b.fta}.` : `${half ? 'Fouling too much' : 'Fouled too much'}: ${half ? "they've shot" : 'they shot'} ${b.fta} free throws to our ${a.fta} (${a.pf} fouls on us).`);
+    dF > 0 ? `${half ? 'Getting' : 'Got'} to the line: ${a.fta} FTA to their ${b.fta}.` : `Free throws: ${half ? "they've shot" : 'they shot'} ${b.fta} to our ${a.fta} (${a.pf} fouls on us).`);
   if (a.fta >= 6 && a.ftm / a.fta < 0.62) push(1.2, false, `Free throws: ${a.ftm}-${a.fta} (${pct(a.ftm, a.fta)}%) — ${a.fta - a.ftm} points left at the line.`);
   // Their best scorer
   if (oppHasRoster(g)) {
@@ -3233,6 +3556,7 @@ function reportHtml(g, scope) {
         </div></div>
     </div>
     <div class="card rep-box"><h3>Box score <span class="muted">${qf === 1 ? '1st half' : qf === 2 ? '2nd half' : 'full game'} · greyed: under 25% of the minutes</span></h3>${bxTable(g, 'a', qf, { noOn: true })}${bxTable(g, 'b', qf, { noOn: true })}</div>
+    <div class="card"><h3>Rotation <span class="muted">who was on the floor, and when</span></h3>${rotationHtml(g, per, qf, A)}</div>
     <div class="grid2">
       <div class="card"><h3>Lineups <span class="muted">best and worst five, 4+ possessions each way, no garbage time</span></h3>
         ${lu.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Five</th><th>MIN</th><th>Poss</th><th>+/-</th><th>Net</th></tr>${luRow(lu[0], 'Best')}${lu.length > 1 ? luRow(lu[lu.length - 1], 'Worst') : ''}</table></div>` : '<div class="muted small">No five has played enough possessions together yet.</div>'}</div>
@@ -3905,9 +4229,27 @@ function saveRosterModal() {
 }
 
 /* ── BACKUP / IMPORT / PUBLISH ── */
-function backup() {
-  download('moorpark_games_backup_' + new Date().toISOString().slice(0, 10) + '.json',
-    JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, schedule: App.schedule, games: App.games }, null, 1));
+/* BACKUPS. Everything this device holds - every game, the roster, opponents, schedule - in
+   one file, the same file Import reads back. Saved by the ⬇ Backup button, and on its own
+   at the end of the 1st half and when a game is finished, so a lost or broken iPad never
+   costs a game. On the iPad home-screen app a plain download is unreliable, so it opens
+   the Share sheet with the file (Save to Files / AirDrop / Mail); elsewhere it downloads. */
+function backupJson() {
+  return JSON.stringify({ app: 'moorpark-game-tracker', version: 1, exportedAt: new Date().toISOString(), roster: App.roster, opponents: App.opps, schedule: App.schedule, games: App.games }, null, 1);
+}
+async function saveFile(name, text) {
+  const standalone = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  try {
+    const file = new File([text], name, { type: 'application/json' });
+    if (standalone && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; }
+  } catch (e) { if (e && e.name === 'AbortError') return false; }
+  download(name, text);
+  return true;
+}
+function backup(g, tag) {
+  const day = new Date().toISOString().slice(0, 10);
+  const what = g ? `${g.date || day}_vs_${String(g.opponent || g.teamBName || '').replace(/\W+/g, '_').toLowerCase()}_${tag}` : day;
+  saveFile(`moorpark_backup_${what}.json`, backupJson()).then(ok => { if (ok) toast(`Backup saved${tag ? ' (' + tag + ')' : ''} — keep it in Files`, 'good', 3500); });
 }
 function publish() {
   App.games.forEach(g => analyzeTrips(g));
@@ -3979,6 +4321,9 @@ document.addEventListener('click', e => {
     case 'sc-confirm': confirmSetClock(); break;
     case 'set-clock': openSetClock(); break;
     case 'adjust': openAdjust(); break;
+    case 'huddle': openHuddle(); break;
+    case 'alert-ok': ALERT.dismissed = t.dataset.key; paintLevbar(); break;
+    case 'ball-flip': if (g) { const b = ballTeam(g); g.ballOverride = { team: b === 'a' ? 'b' : 'a', n: g.eventLog.length }; saveGames(); paintLevbar(); } break;
     case 'adj': adjust(t.dataset.team, t.dataset.what, +t.dataset.d); break;
     case 'end-period': openEndPeriod(); break;
     case 'ep-confirm': confirmEndPeriod(); break;
@@ -4035,7 +4380,7 @@ document.addEventListener('click', e => {
     case 'view-game': App.viewId = t.dataset.id; App.period = 'all'; bxPanel = 'both'; setTab('box'); break;
     case 'view-an': App.viewId = t.dataset.id; App.period = 'all'; setTab('analytics'); break;
     case 'export-game': exportGame(t.dataset.id); break;
-    case 'backup': backup(); break;
+    case 'backup': backup(t.dataset.id ? App.games.find(y => y.id === t.dataset.id) : liveGame(), t.dataset.tag || ''); break;
     case 'import': $('#import-file').click(); break;
     case 'publish': publish(); break;
     case 'del-game': { const x = App.games.find(y => y.id === t.dataset.id); if (x && confirm('Delete ' + x.title + ' (' + x.date + ')? This cannot be undone. Export it first if unsure.')) { App.games = App.games.filter(y => y.id !== x.id); if (App.liveId === x.id) { App.liveId = null; lsSet(LS_LIVE, null); } saveGames(); render(); } break; }
@@ -4062,6 +4407,7 @@ document.addEventListener('change', e => {
 $('#scout-file').addEventListener('change', e => { const f = e.target.files[0]; uploadScout(f, e.target.dataset.for); e.target.value = ''; });
 $('#import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
 $('#nav-roster').onclick = () => openRoster();
+$('#nav-backup').onclick = () => backup(liveGame(), liveGame() ? 'live' : '');
 $('#scout-back').onclick = toggleScout;
 
 document.addEventListener('keydown', e => {
