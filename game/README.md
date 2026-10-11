@@ -56,8 +56,8 @@ same roster; edits match by number, so stats already logged stay with the player
   FT Miss, any player): no rebound on a miss, and they don't use a possession — the
   shooting side keeps the ball. Offensive fouls (charges included) are personal fouls only
   and don't count toward the bonus.
-- **Sub**: one window for both teams. Tap a player on either side (no stat selected), or
-  **⇄ Sub** → tap who comes out → who goes in, on either or both sides → type the clock →
+- **Sub**: one window for both teams, from the **⇄ Sub** button only (a stray tap on a
+  player card does nothing) → tap who comes out → who goes in, on either or both sides → type the clock →
   Enter. The clock is required at every sub, theirs included.
 - **Free throws across a sub**: free throws (attempts and points) belong to the five on the
   floor when the foul was committed, even with a sub between the foul and the shots or

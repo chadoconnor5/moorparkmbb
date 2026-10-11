@@ -577,7 +577,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.48</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.49</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -1129,12 +1129,8 @@ function startStat(stat) {
 
 function pickPlayer(team, p) {
   const g = liveGame(); if (!g) return;
-  if (F.phase === 'idle') {
-    // Tapping a man on the floor with no stat armed is the fastest way into a substitution.
-    if (p !== TEAM && !g.between && (team === 'a' || oppHasRoster(g))) openSub(team === 'a' || oppTracked(g) ? { team, n: p } : null);
-    else toast('Pick a stat first');
-    return;
-  }
+  // No stat picked: a stray tap on a card does nothing (subs only from the ⇄ Sub button).
+  if (F.phase === 'idle') return;
   if (!allowed(team, p)) return;
   switch (F.phase) {
     case 'pick_shooter':
@@ -2232,7 +2228,7 @@ function paintTracker() {
   const bench = teamPlayers(g, 'a').filter(n => !lu.includes(n)).sort(byLast);
   ca.innerHTML = `<div class="col-head"><span>${esc(g.teamAName)} — on floor</span></div>
     <div class="pgrid">${lu.map(p => btn('a', p)).join('')}${btn('a', TEAM)}</div>
-    <div class="bench-mini">Tap a player with no stat selected to sub.</div>`;
+`;
   /* Their side matches ours: once their five is set, the five on the floor and a Team button.
      Before that (roster in, five not set) their whole roster shows, two to a row. */
   const oLu = OT ? currentLineup(g, 'b').sort(byJersey(g, 'b')) : [];
@@ -2243,7 +2239,6 @@ function paintTracker() {
   const oppHead = oppHasRoster(g) && !OT ? `<button class="btn btn-sm btn-good" data-act="sub" ${dis || F.phase !== 'idle' ? 'disabled' : ''}>Set their five</button>` : '';
   cb.innerHTML = `<div class="col-head"><span>${esc(g.teamBName)}${OT ? ' — on floor' : ''}</span><span class="row" style="gap:6px">${oppHead}<button class="btn btn-sm" data-act="opp-live-edit">Roster</button></span></div>
     ${oppGrid}
-    ${OT ? '<div class="bench-mini">Tap a player with no stat selected to sub.</div>' : ''}
     <div class="lpm2 ${OT ? 'two' : ''}">
       ${lpmHtml(g, 'a', lu, LPM, bench)}
       ${OT ? lpmHtml(g, 'b', oLu, OPM, oBench) : ''}
