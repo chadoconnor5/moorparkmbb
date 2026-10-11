@@ -89,7 +89,7 @@ table{border-collapse:collapse}
 .l5-tbl td.l5-game{color:#6b7280;border-right:1px solid #c4c9d1}
 .zebra td.l5-moved{background:#fde68a!important;color:#78350f} .zebra td.l5-moved .tiny{color:#92400e}
 /* light grey / slightly darker grey rows with dark text (same as the box score) */
-.zebra tr:nth-child(even) td{background:#eef0f3} .zebra tr:nth-child(odd) td{background:#dde1e7}
+.zebra tr:nth-child(even) td{background:#eef0f3} .zebra tr:nth-child(odd) td{background:#d2d7df}
 .zebra td{color:#1f2937;border-top-color:#c4c9d1}
 .zebra td .muted,.zebra td.muted{color:#6b7280} .zebra .pnum{color:#4b5563}
 .zebra td.pos{color:#15803d;font-weight:700} .zebra td.neg{color:#b91c1c;font-weight:700}
@@ -388,7 +388,7 @@ table{border-collapse:collapse}
 .tbl td.gl{border-left:1px solid var(--border2)}
 /* season lineups: light grey / slightly darker grey rows, dark text */
 .season-lu .lu-tbl td{color:#1f2937;border-top-color:#c4c9d1}
-.season-lu .lu-tbl tr:nth-child(odd) td{background:#eef0f3} .season-lu .lu-tbl tr:nth-child(even) td{background:#dde1e7}
+.season-lu .lu-tbl tr:nth-child(odd) td{background:#eef0f3} .season-lu .lu-tbl tr:nth-child(even) td{background:#d2d7df}
 .season-lu .lu-tbl td.pos{color:#15803d;font-weight:700} .season-lu .lu-tbl td.neg{color:#b91c1c;font-weight:700}
 .season-lu .lu-tbl td.gl{border-left-color:#b8bec8}
 .tbl td.l{text-align:left}
@@ -403,10 +403,10 @@ table{border-collapse:collapse}
 /* Team comparison: the box score's light rows, light grey and a slightly darker grey alternating within
    each section, black text; the better side's number bold in a dark team colour. */
 .cmp-light tr:not(.cmp-h) td{background:#eef0f3;color:#000;border-top:1px solid #c9ced6}
-.cmp-light tr.alt:not(.cmp-h) td{background:#dde1e7}
+.cmp-light tr.alt:not(.cmp-h) td{background:#d2d7df}
 .cmp-light tr:not(.cmp-h):hover td{background:#cfd6e2}
 .cmp-light td.cmp-a,.cmp-light td.cmp-b{color:#1f2937}
-.cmp-light td.cmp-a.win{color:#0b6fa4} .cmp-light td.cmp-b.win{color:var(--them-d)}
+.cmp-light td.cmp-a.win,.cmp-tbl.cmp-light td.win.a{color:#0b6fa4} .cmp-light td.cmp-b.win,.cmp-tbl.cmp-light td.win.b{color:var(--them-d)}
 .cmp-tbl tr.cmp-h td{background:var(--card);color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 12px;text-align:left}
 .ff{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
 .ff .k{background:var(--card);border-radius:10px;padding:10px 12px}
@@ -525,7 +525,7 @@ table{border-collapse:collapse}
 .box-table{width:100%;font-size:11px;white-space:nowrap;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
 .box-table thead th{padding:5px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#f8fafc;background:#242938;text-align:center;border-bottom:2px solid #2d3347}
 .box-table tbody td{padding:5px 4px;text-align:center;color:#000;border-bottom:1px solid #000}
-.box-table tbody tr:nth-child(odd) td{background:#dde1e7} .box-table tbody tr:nth-child(even) td{background:#eef0f3}
+.box-table tbody tr:nth-child(odd) td{background:#d2d7df} .box-table tbody tr:nth-child(even) td{background:#eef0f3}
 .box-table tbody tr:hover td{background:#c0c8d8}
 .box-table td:first-child,.box-table th:first-child{text-align:left;min-width:96px;position:sticky;left:0;z-index:2;font-weight:600;padding-left:8px}
 .box-table thead th:first-child{z-index:3}
@@ -593,7 +593,7 @@ table{border-collapse:collapse}
     <button class="tab editor-only" id="nav-backup" title="Save every game, the roster, opponents and schedule to one file">⬇ Backup</button>
     <button class="tab editor-only" id="nav-roster">Roster</button>
     <span class="offline-dot" id="offline-dot" title="Whether this page can open with no network">Offline</span>
-    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.55</span>
+    <span class="app-ver" title="Version of the tracker this device is running">v2026.10.11.56</span>
   </div>
 </div></nav>
 <input type="file" id="import-file" accept=".json,application/json" class="hidden">
@@ -3861,8 +3861,11 @@ function reportHtml(g, scope) {
   const qs = t => per.map(q => score(g, t, e => e.quarter === q));
   const label = half ? 'Halftime' : qf === 1 ? '1st half' : qf === 2 ? '2nd half' : g.completed ? 'Final' + (g.quarters.length > g.format.periods ? ' (' + periodName(g, g.quarters.length, true) + ')' : '') : 'Game so far';
   const keys = reportKeys(g, T, A, qf, half);
+  // Light / darker grey rows, restarting under each section header (Four factors, Efficiency).
+  let ffN = 0;
   const ffRow = (lbl, va, vb, hi, fmt = f1) => { const w = va === vb ? '' : ((va > vb) === hi ? 'a' : 'b');
-    return `<tr><td class="l">${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${fmt(va)}</td><td class="${w === 'b' ? 'win b' : ''}">${fmt(vb)}</td></tr>`; };
+    return `<tr class="${ffN++ % 2 ? 'alt' : ''}"><td class="l">${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${fmt(va)}</td><td class="${w === 'b' ? 'win b' : ''}">${fmt(vb)}</td></tr>`; };
+  const ffHead = lbl => { ffN = 0; return `<tr class="cmp-h"><td colspan="3">${lbl}</td></tr>`; };
   // Lineups: best and worst five with at least 4 possessions each way
   const units = lineupTable(g, 'nogt', 'a', qf).filter(u => u.oT >= 4 && u.dT >= 4)
     .map(u => Object.assign(u, { net: 100 * u.pf / u.oT - 100 * u.pa / u.dT }));
@@ -3886,9 +3889,9 @@ function reportHtml(g, scope) {
       <div class="insights">${keys.map(k => `<div class="ins ${k.good ? 'good' : 'bad'}"><span>${esc(k.t)}</span></div>`).join('') || '<div class="muted">Nothing stood out — an even game on every factor.</div>'}</div></div>
     ${!qf && g.format.periods === 2 && g.quarters.length >= 2 ? `<div class="card"><h3>1st half vs 2nd half <span class="muted">what changed at the break, and what held</span></h3>${halfSplitHtml(g, A)}</div>` : ''}
     <div class="grid2">
-      <div class="card"><h3>Four factors</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
+      <div class="card"><h3>Four factors</h3><div class="tbl-wrap"><table class="tbl cmp-tbl rep-tbl cmp-light"><tr><th></th><th>${esc(g.teamAName)}</th><th>${esc(g.teamBName)}</th></tr>
         ${ffRow('eFG%', a.efgPct, b.efgPct, true)}${ffRow('Turnover %', a.tovPct, b.tovPct, false)}${ffRow('Off. rebound %', a.orebPct, b.orebPct, true)}${ffRow('FT rate', a.ftr, b.ftr, true)}
-        <tr class="cmp-h"><td colspan="3">Efficiency</td></tr>
+        ${ffHead('Efficiency')}
         ${ffRow('Points per 100 poss', a.ortg, b.ortg, true)}${ffRow('Possessions', a.possessions, b.possessions, null)}
         ${ffRow('Kills', kA, kB, true, v => v)}${ffRow('Killshots (10-0)', ks.a[10], ks.b[10], true, v => v)}
       </table></div></div>
@@ -3904,9 +3907,9 @@ function reportHtml(g, scope) {
     <div class="card"><h3>Rotation <span class="muted">who was on the floor, and when</span></h3>${rotationHtml(g, per, qf, A)}</div>
     <div class="grid2">
       <div class="card"><h3>Lineups <span class="muted">best and worst five, 4+ possessions each way, no garbage time</span></h3>
-        ${lu.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Five</th><th>MIN</th><th>Poss</th><th>+/-</th><th>Net</th></tr>${luRow(lu[0], 'Best')}${lu.length > 1 ? luRow(lu[lu.length - 1], 'Worst') : ''}</table></div>` : '<div class="muted small">No five has played enough possessions together yet.</div>'}</div>
+        ${lu.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl zebra"><tr><th>Five</th><th>MIN</th><th>Poss</th><th>+/-</th><th>Net</th></tr>${luRow(lu[0], 'Best')}${lu.length > 1 ? luRow(lu[lu.length - 1], 'Worst') : ''}</table></div>` : '<div class="muted small">No five has played enough possessions together yet.</div>'}</div>
       <div class="card"><h3>Runs <span class="muted">10-0 or better</span></h3>
-        ${runs.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl"><tr><th>Run</th><th>By</th><th>When</th><th>Score</th></tr>${runs.map(r => `<tr><td class="l"><b>${r.pts}-0</b></td><td class="l" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, r.team))}</td><td>${periodName(g, r.startQ, true)} ${clk(r.startIdx)}–${clk(r.endIdx)}</td><td>${r.startA}–${r.startB} → ${r.endA}–${r.endB}</td></tr>`).join('')}</table></div>` : '<div class="muted small">No 10-0 runs.</div>'}</div>
+        ${runs.length ? `<div class="tbl-wrap"><table class="tbl rep-tbl zebra"><tr><th>Run</th><th>By</th><th>When</th><th>Score</th></tr>${runs.map(r => `<tr><td class="l"><b>${r.pts}-0</b></td><td class="l" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, r.team))}</td><td>${periodName(g, r.startQ, true)} ${clk(r.startIdx)}–${clk(r.endIdx)}</td><td>${r.startA}–${r.startB} → ${r.endA}–${r.endB}</td></tr>`).join('')}</table></div>` : '<div class="muted small">No 10-0 runs.</div>'}</div>
     </div>
   </div>`;
 }
