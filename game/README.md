@@ -167,6 +167,19 @@ OREB% or DREB% on 4+ chances, 10 points of TO% on 3+ turnovers. A last row, **AS
 with the assist-to-turnover ratio under it), lights up on 25 points over 4+ makes. Five minutes is 8-10 trips, so this
 is the "something changed" flag, not a verdict.
 
+## Rebounds
+
+There are no rebound buttons. After a miss (2PT, 3PT or FT) the next tap - any player card
+or either team's **Team** button - is the rebound: offensive if it's the shooter's side,
+defensive if not. **No rebound** covers a miss at the buzzer.
+
+## Fouls
+
+**Foul** and **Off Foul** are one tap after the stat: the man who fouled, and the play is
+done - there is no "who drew it?" step (an offensive foul still logs his turnover).
+**Charge** still asks who took the charge, which is what credits it. FD in the box score
+therefore counts charges taken only.
+
 ## Flags and editing past subs
 
 - **🚩 Flag** a play to look back at later: on the Live screen, **🚩 Flag last play** (the
