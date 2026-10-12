@@ -25,6 +25,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   (out of bounds, the first of two FTs), just tap the next stat.
 - **Fouls go to the player:** tap Foul, Charge or Off Foul, then his card. "Team / bench foul" is
   for a foul with no player.
+- **Foul trouble** lights the cards: 1st half, 2 fouls yellow, 3–4 red; 2nd half / OT, 3 yellow, 4 red; 5
+  fouls (or 2 technicals) = OUT (red, name struck through).
+- **🚩 Flag last play** (under the buttons), or the 🚩 on any feed / Play-by-Play line, marks a play to look
+  at later. Flagged plays are highlighted, marked on the Sheet, and listed under Play-by-Play → Flagged.
 - **Tech:** pick team, player or coach, and how many of the two free throws went in.
   - On a player it is his foul and a team foul.
   - On a coach it is neither. A second on the same coach flags the ejection.

@@ -729,6 +729,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lutx th,.lutx td{padding:6px 2px}
 .lutx td:first-child{max-width:104px;min-width:90px;padding-left:5px}
 .lutx td:first-child b{font-size:11.5px}
+.pbtn.ft-out .pname{text-decoration:line-through}
+.feed div{position:relative}
+.psheet td.pn span{font-size:11px;margin-left:2px}
 
 </style>
 </head>
@@ -759,7 +762,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.33';
+const VERSION = 'v2026.10.12.34';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1222,12 +1225,14 @@ function playerCards(g, D, t) {
   const list = f.length ? fiveSorted(g, t, f).map(id => pInfo(g, t, id)) : [];
   const L = lineupUnits(g, D, t, 'game');
   const card = p => { const pf = playerFouls(g, t, p.id), te = playerTechs(g, t, p.id), pm = (L.players[p.id] || { pm: 0 }).pm;
-    const cls = pf >= 5 || te >= 2 ? 'ft-danger' : pf === 4 ? 'ft-warn' : '';
+    // Foul trouble: 1st half — 2 yellow, 3-4 red; 2nd half / OT — 3 yellow, 4 red; 5 (or 2 technicals) fouled out.
+    const out = pf >= 5 || te >= 2, h1 = g.per === '1H';
+    const cls = out ? 'ft-danger ft-out' : h1 ? (pf >= 3 ? 'ft-danger' : pf === 2 ? 'ft-warn' : '') : (pf >= 4 ? 'ft-danger' : pf === 3 ? 'ft-warn' : '');
     return `<button class="pbtn ${cls} ${UI.stat && PLAYER_STATS.has(UI.stat) ? 'hot' : ''} ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
       ${p.pos || p.note ? `<span class="pnote">${esc([p.pos, p.note].filter(Boolean).join(' · '))}</span>` : ''}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
-      <span class="pf">${pf} PF</span></button>`; };
+      <span class="pf">${out ? 'OUT' : pf + ' PF'}</span></button>`; };
   const noRoster = !teamPlayers(g, t).length;
   return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
       : `<button class="btn btn-good btn-lg" style="width:100%;margin-bottom:7px" data-act="sub">Set ${esc(teamName(g, t))}'s five</button>`) : ''}
@@ -1246,11 +1251,14 @@ function lpmCard(g, D, t) {
 }
 
 function feedText(g, x) {
+  const r = feedText0(g, x); if (x.kind !== 'poss' && x.e && x.e.flag) r.flag = true; return r;
+}
+function feedText0(g, x) {
   if (x.kind === 'poss') {
     const p = x.p, t = p.team;
     const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${STAT_LABEL[e.k].toLowerCase()}`);
     const tail = p.dreb ? ' · def reb' : '';
-    return { cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
+    return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
   const e = x.e;
   if (x.kind === 'sub') return { cls: 's', html: `⇄ ${esc(teamName(g, e.team))}: ${esc(fiveSorted(g, e.team, e.five).map(id => pShort(g, e.team, id)).join(', '))}`, id: e.id };
@@ -1261,6 +1269,10 @@ function feedText(g, x) {
   return { cls: 's', html: '', id: e.id };
 }
 
+// One feed line: tap it to fix the play, tap 🚩 to flag it for later.
+function feedRow(g, f) {
+  return `<div class="${f.cls} ${f.flag || UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}<button class="flagbtn ${f.flag ? 'on' : ''}" data-act="flag" data-id="${f.id}" title="${f.flag ? 'Unflag' : 'Flag this play to look at later'}">🚩</button></div>`;
+}
 function liveView(g) {
   const D = derive(g);
   const st = UI.stat;
@@ -1278,7 +1290,8 @@ function liveView(g) {
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
         <button class="btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button></div>
-      <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
+      ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)); return `<div class="ctrls" style="margin-top:7px"><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button></div>`; })()}
+      <div class="feed">${items.map(f => feedRow(g, f)).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
     <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>
@@ -1306,7 +1319,7 @@ function sheetTable(g, D, per) {
       return `<td class="m ${col[0] === 'x' ? 'mx' : ''}">●${(col === '2' || col === '3') && en.and1 ? '<span class="tiny">+1</span>' : ''}</td>`;
     };
     const toCol = ['TO', 'STL', 'CHG', 'OFF'].includes(en.col) ? '<td class="m">●' + (en.col !== 'TO' && en.col !== 'STL' ? `<span class="tiny">${en.col}</span>` : '') + '</td>' : '<td></td>';
-    h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''} ${p.gt ? 'gtr' : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
+    h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''} ${p.gt ? 'gtr' : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}${p.plays.some(e => e.flag) ? '<span title="Flagged">🚩</span>' : ''}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
 ${['2', '3', 'FT', 'x2', 'x3', 'xFT'].map(c).join('')}${toCol}
       <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.dead ? 'DS' : p.skunk ? 'S' : p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td><td class="lv">${p.gt ? '<span class="lvg">GT</span>' : `<span class="lv-${p.lev}">${(LEV_LABEL[p.lev] || '')[0] || ''}</span>${p.clutch ? '<span class="lvc">C</span>' : ''}`}</td></tr>`;
   }
@@ -1552,14 +1565,14 @@ function createGame() {
 /* ---------- play-by-play: everything, in order ---------- */
 function pbpView(g) {
   const D = derive(g), f = UI.pbpTeam;
-  const keep = x => f === 'all' || (x.kind === 'poss' ? x.p.team === f : x.e && x.e.team === f);
+  const keep = x => f === 'all' || (f === 'flag' ? (x.kind === 'poss' ? x.p.plays.some(e => e.flag) : x.e && x.e.flag) : (x.kind === 'poss' ? x.p.team === f : x.e && x.e.team === f));
   const perOf = x => x.kind === 'poss' ? x.p.per : x.e.per;
   const secs = g.periods.map(per => {
     const rows = D.items.filter(x => perOf(x) === per && keep(x)).map(x => feedText(g, x)).filter(r => r.html);
     return `<div class="card"><h3>${esc(PER_NAME(per))} <span class="muted">· ${rows.length} entries · tap one to fix it</span></h3>
-      <div class="feed pbp-feed">${rows.map(r => `<div class="${r.cls}" data-act="edit" data-id="${r.id}"><span>${r.html}</span>${r.sc ? `<span class="small muted" style="white-space:nowrap">${r.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing yet</span></div>'}</div></div>`;
+      <div class="feed pbp-feed">${rows.map(r => feedRow(g, r)).join('') || '<div class="s"><span>Nothing yet</span></div>'}</div></div>`;
   });
-  return `<div class="page-head"><h2>Play-by-play</h2><div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['a', 'Moorpark'], ['b', g.opp]].map(([k, l]) => `<button class="btn btn-sm ${f === k ? 'btn-primary' : ''}" data-act="pbp-team" data-t="${k}">${esc(l)}</button>`).join('')}</div></div>${secs.join('')}`;
+  return `<div class="page-head"><h2>Play-by-play</h2><div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['a', 'Moorpark'], ['b', g.opp], ['flag', '🚩 Flagged (' + g.ev.filter(e => e.flag).length + ')']].map(([k, l]) => `<button class="btn btn-sm ${f === k ? 'btn-primary' : ''}" data-act="pbp-team" data-t="${k}">${esc(l)}</button>`).join('')}</div></div>${secs.join('')}`;
 }
 
 /* ---------- schedule: the game tracker's Schedule tab, same store (gt_schedule) ---------- */
@@ -1957,6 +1970,7 @@ document.addEventListener('click', ev => {
       if (PLAYER_STATS.has(UI.stat)) { toast('Fouls go to the player — tap his card'); return; }
       logStat(b.dataset.team, 'TEAM'); break;
     case 'ed-t': { const e = g.ev.find(x => x.id === b.dataset.id); e.team = b.dataset.t; save(); editModal(e.id); render(); break; }
+    case 'flag': { ev.stopPropagation(); const e = g.ev.find(x => x.id === b.dataset.id); if (!e) return; e.flag = !e.flag; save(); render(); toast(e.flag ? '🚩 Flagged — find it under Play-by-Play → Flagged' : 'Flag removed'); break; }
     case 'undo': { UI.reb = null; const last = g.ev[g.ev.length - 1];
       if (!last || isLocked(g, last)) { toast('Nothing to undo — the starting fives stay (change them with ⇄ Sub)'); return; }
       UI.redo.push(g.ev.pop()); save(); render(); break; }
