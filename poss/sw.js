@@ -1,8 +1,9 @@
 /* Offline support for the possession tracker, the same way the game tracker does it: the page
    network first (5 seconds, then the cached copy, so one bar of signal never hangs it), logos
-   cache first. Bump CACHE when what is cached changes shape. */
-const CACHE = 'pl-v1';
-const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png', '../game/logos/moorpark.png'];
+   and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
+const CACHE = 'pl-v2';
+const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png', '../game/logos/moorpark.png',
+               '../game/vendor/pdf.min.mjs', '../game/vendor/pdf.worker.min.mjs'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -23,7 +24,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
-  if (url.pathname.includes('/logos/')) {
+  if (url.pathname.includes('/logos/') || url.pathname.includes('/vendor/')) {
     e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
