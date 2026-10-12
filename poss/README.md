@@ -80,8 +80,11 @@ Hudl's per-game lineup export still supplies offense and minutes.
 - **Killshots:** a run is every point one side scores before the other scores again (technical FTs
   included), across halves. 10-0, 15-0 and 20-0 are counted, nested (a 22-0 is one of each). The
   current run (6+) shows under Poss.
-- Sheet → **Kills & killshots**: both teams' kills, skunks, dead skunks and 10/15/20-0 runs, and every
-  run of 10+ with the score and Moorpark's five when it started.
+- **Stops in a row** are kept like runs: every run of stops for both teams (same stop rules, restarts
+  each half), with the game's longest.
+- Sheet → **Stops, kills & killshots**: each team's most stops in a row, runs of 3+ stops, kills,
+  skunks, dead skunks and 10/15/20-0 runs. Lists every run of 3+ stops (longest first) and every
+  10+ scoring run, with the half, the score and Moorpark's five when it started.
 
 ## Lineups
 ⇄ Sub sets both teams' fives on one screen. The starting fives are asked for when a game starts
