@@ -764,6 +764,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sh-out td,.sh-out th{padding:5px 5px}
 .sh-tbl td.sh-fix .sh-in{border-color:var(--warn);background:rgba(220,176,90,.2)} .sh-tbl tr.sh-sum td.sh-bad{color:var(--bad);font-weight:800}
 .sh-st{margin-left:auto;display:flex;gap:4px;align-items:baseline}
+.sh-tbl td.sh-iffy .sh-in{border:2px dashed var(--warn)}
+.cl-who{font-size:16px;margin:4px 0 10px}
+.cl-img{display:block;max-width:100%;border-radius:8px;border:1px solid var(--border);background:#fff}
+.cl-in{display:flex;gap:10px;justify-content:center;align-items:center;margin:16px 0 8px;font-size:28px}
+.sh-cl{width:110px;font-size:34px;font-weight:800;text-align:center;padding:10px;border-radius:12px;background:var(--surface);border:2px solid var(--warn);color:var(--text)}
 
 </style>
 </head>
@@ -795,7 +800,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.41';
+const VERSION = 'v2026.10.12.42';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2208,6 +2213,10 @@ document.addEventListener('click', ev => {
     case 'sh-add': SHEET[b.dataset.t].rows.push(Object.assign({ num: '', name: '', starter: false }, Object.fromEntries(SH_NUM.map(k => [k, 0])))); sheetModal(); break;
     case 'sh-del': SHEET[b.dataset.t].rows.splice(+b.dataset.i, 1); sheetModal(); break;
     case 'sh-save': sheetSave(); break;
+    case 'sh-clarify': clarifyOpen(); break;
+    case 'cl-next': clarifySave(); SHEET.ci++; clarifyModal(); break;
+    case 'cl-prev': clarifySave(); SHEET.ci = Math.max(0, SHEET.ci - 1); clarifyModal(); break;
+    case 'cl-done': clarifySave(); SHEET.stage = 'check'; sheetModal(); break;
     case 'ball-flip': { const bl = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
       // Mid-half a jump ball going to the other side may be a held ball (a turnover); the tip and a new half just set it.
       if (bl && derive(g).poss.some(p => p.per === g.per)) heldBallModal(bl);
@@ -2537,13 +2546,19 @@ const SH_ALT = [SH_DEFAULT, ['oreb', 'dreb', 'reb', 'pf', 'pts', 'ast', 'tov', '
 // OCR slips in numbers: O→0, l/I/|→1, S→5, B→8, Z→2, a→4 (a 4 often comes out as "a").
 const shDigits = t => t.replace(/[Oo]/g, '0').replace(/[Il|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/a/g, '4');
 const shNumish = t => /^[0-9OoIlSBZa|!:\-.]{1,5}$/.test(t) && (/\d/.test(t) || /^[OoIlSBZa|!]{1,2}$/.test(t));
+/* A line's words → tokens. Each number keeps the reader's confidence and where it sits on the photo, and
+   whether it had to be repaired (letters for digits, a colon for a dash), so iffy ones can be asked about. */
 function shTokens(line) {
-  const s = line.replace(/[—–]/g, '-').replace(/(\d)\s*[-:]\s*(\d)/g, '$1-$2').replace(/[|]/g, ' ');
-  return s.split(/\s+/).filter(Boolean).map(t => {
-    const c = t.replace(/[,;]+$/, '');
-    if (shNumish(c)) return { v: shDigits(c).replace(/[:.]/g, '-'), raw: t };
-    return { w: t, raw: t };
-  });
+  const W = (typeof line === 'string' ? line.replace(/[—–]/g, '-').replace(/(\d)\s*[-:]\s*(\d)/g, '$1-$2').split(/\s+/).map(t => ({ t, conf: 100, bbox: null }))
+    : line.map(w => ({ t: w.text.replace(/[—–]/g, '-'), conf: w.conf, bbox: w.bbox }))).filter(w => w.t && !/^[|]+$/.test(w.t));
+  const M = [];   // join "3" "-" "5" / "3-" "5" / "3" "-5" read as separate words
+  W.forEach(w => { const p = M[M.length - 1];
+    if (p && ((/\d$/.test(p.t) && /^[-:]\d*$/.test(w.t)) || (/\d[-:]$/.test(p.t) && /^\d/.test(w.t)) || (/^\d+$/.test(p.t) && /^[-:]\d/.test(w.t)))) {
+      p.t += w.t; p.conf = Math.min(p.conf, w.conf); if (p.bbox && w.bbox) p.bbox = { x0: Math.min(p.bbox.x0, w.bbox.x0), y0: Math.min(p.bbox.y0, w.bbox.y0), x1: Math.max(p.bbox.x1, w.bbox.x1), y1: Math.max(p.bbox.y1, w.bbox.y1) };
+    } else M.push(Object.assign({}, w)); });
+  return M.map(w => { const c = w.t.replace(/[,;]+$/, '').replace(/[|]/g, '');
+    if (shNumish(c)) { const v = shDigits(c).replace(/[:.]/g, '-'); return { v, conf: w.conf, bbox: w.bbox, fixed: v !== c, raw: w.t }; }
+    return { w: w.t, raw: w.t }; });
 }
 // A made-attempted pair, with or without its dash: "3-5", "35" → 3-5, "110" → 1-10.
 function shPair(v) {
@@ -2568,49 +2583,58 @@ function shHeaderOrder(line) {
 /* One line's numbers → stats, given the layout (MIN or not, then 3 pairs, then the post columns). Read by
    position when the count is right; otherwise find the pairs by their dashes. */
 function shAssign(V, lay) {
-  const r = {}, post = lay.post, pre = lay.min ? 1 : 0, want = pre + 3 + post.length;
-  let pr, rest, m = null;
+  const r = { _q: {} }, post = lay.post, pre = lay.min ? 1 : 0, want = pre + 3 + post.length, val = x => x && x.v;
+  const note = (keys, x, extra) => keys.forEach(k => { r._q[k] = { conf: x ? x.conf : 0, bbox: x ? x.bbox : null, fixed: !!(x && x.fixed) || !!extra }; });
+  let P, rest, mT = null;
   if (V.length === want || V.length === want - pre) {
-    const p0 = V.length === want ? pre : 0; if (p0) m = shInt(V[0]);
-    pr = [V[p0], V[p0 + 1], V[p0 + 2]].map(shPair); rest = V.slice(p0 + 3);
+    const p0 = V.length === want ? pre : 0; if (p0) mT = V[0];
+    P = [V[p0], V[p0 + 1], V[p0 + 2]]; rest = V.slice(p0 + 3);
   } else {
-    const i0 = V.findIndex(v => /-/.test(v)); if (i0 < 0) return null;
-    if (i0 > 0) m = shInt(V[i0 - 1]);
-    pr = V.slice(i0).filter(v => /-/.test(v)).slice(0, 4).map(shPair); rest = V.slice(i0).filter(v => !/-/.test(v));
-    if (pr.length < 3) return null;
+    const i0 = V.findIndex(x => /-/.test(x.v)); if (i0 < 0) return null;
+    if (i0 > 0) mT = V[i0 - 1];
+    P = V.slice(i0).filter(x => /-/.test(x.v)).slice(0, 4); rest = V.slice(i0).filter(x => !/-/.test(x.v));
+    if (P.length < 3) return null;
   }
+  const pr = P.map(x => shPair(val(x)));
   if (pr.slice(0, 3).some(x => !x)) return null;
-  if (m != null) r.min = m;
+  if (mT && shInt(mT.v) != null) { r.min = shInt(mT.v); note(['min'], mT); }
   [r.fgm, r.fga] = pr[0]; [r.fg3m, r.fg3a] = pr[1]; [r.ftm, r.fta] = pr[2];
+  [['fgm', 'fga'], ['fg3m', 'fg3a'], ['ftm', 'fta']].forEach((ks, i) => note(ks, P[i], !/-/.test(P[i].v)));
   let ord = post.slice();
-  if (pr.length >= 4 && pr[3]) { [r.oreb, r.dreb] = pr[3]; ord = ord.filter(k => k !== 'oreb' && k !== 'dreb'); }
-  ord.forEach((k, i) => { const n = shInt(rest[i]); if (n != null) r[k] = n; });
+  if (pr.length >= 4 && pr[3]) { [r.oreb, r.dreb] = pr[3]; note(['oreb', 'dreb'], P[3], !/-/.test(P[3].v)); ord = ord.filter(k => k !== 'oreb' && k !== 'dreb'); }
+  ord.forEach((k, i) => { const n = shInt(val(rest[i])); if (n != null) { r[k] = n; note([k], rest[i]); } });
   return r;
 }
+// A number the reader was under 85% sure of, or one it had to repair, is "iffy": asked about on Clarify.
+const SH_IFFY = 85;
+function shIffy(r) { const out = {}; Object.keys(r._q || {}).forEach(k => { const q = r._q[k]; if (q.conf < SH_IFFY || q.fixed) out[k] = q.bbox; }); return out; }
 const shCalcPts = r => 2 * (r.fgm || 0) + (r.fg3m || 0) + (r.ftm || 0);
 const shPtsOk = r => r.pts != null && r.fgm != null && r.pts === shCalcPts(r);
 const shRebOk = r => r.reb == null || r.oreb == null || r.dreb == null || r.reb === r.oreb + r.dreb;
 
 /* Text → sections (one per team): title, player rows, the team row, totals. */
-function parseSheet(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+function parseSheet(src) {
+  // src: the reader's lines (words with confidence and position), or plain text.
+  const lines = typeof src === 'string' ? src.split('\n').map(l => l.trim()).filter(Boolean).map(t => ({ text: t, words: null, bbox: null }))
+    : src.map(l => ({ text: l.words.map(w => w.text).join(' '), words: l.words, bbox: l.bbox }));
   const secs = []; let cur = null, lastTitle = '', lay = null, group = null;   // group: STARTERS / RESERVES heading in force
   const start = () => { cur = { title: lastTitle, rows: [], team: null, totals: null, lay }; secs.push(cur); };
-  lines.forEach(line => {
-    if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; return; }
+  lines.forEach(L => { const line = L.text;
+    if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; return; }
     if (/%/.test(line) && !/[A-Za-z]{3}/.test(line.replace(/%/g, ''))) return;            // the FG% / 3P% / FT% line
-    const T = shTokens(line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null).map(x => x.v);
+    const T = shTokens(L.words || line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
     if (/^(STARTERS|RESERVES|BENCH)\b/i.test(words) && V.length === 0) { group = /^START/i.test(words) ? 'S' : 'R'; return; }
-    if (/\bTOTALS?\b/i.test(words)) { if (!cur) start(); cur.totals = V; cur.closed = true; return; }
-    if (/\bTEAM\b/i.test(words) && V.length <= 6 && !V.some(v => /-/.test(v))) { if (cur) cur.team = V.map(shInt).filter(n => n != null); return; }
+    if (/\bTOTALS?\b/i.test(words)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
+    if (/\bTEAM\b/i.test(words) && V.length <= 6 && !V.some(x => /-/.test(x.v))) { if (cur) cur.team = V.map(x => shInt(x.v)).filter(n => n != null); return; }
     // A player line: jersey number, the name, then the numbers.
     if (T[0] && T[0].v != null && /^\d{1,2}$/.test(T[0].v) && T[1] && T[1].w && V.length >= 8) {
       if (!cur || cur.closed) start();
       let iNum = T.findIndex((x, i) => i > 0 && x.v != null);
       // "11" minutes is often read as "n" / "u" / "ll" right before the first pair.
-      if (T[iNum - 1] && T[iNum - 1].w && /^(n|u|ll|Il|lI|II|ii|H)$/.test(T[iNum - 1].w) && iNum - 1 > 1) { T[iNum - 1] = { v: '11', raw: T[iNum - 1].raw }; iNum--; }
+      if (T[iNum - 1] && T[iNum - 1].w && /^(n|u|ll|Il|lI|II|ii|H)$/.test(T[iNum - 1].w) && iNum - 1 > 1) {
+        const wd = (L.words || []).find(w => w.text === T[iNum - 1].raw); T[iNum - 1] = { v: '11', raw: T[iNum - 1].raw, conf: wd ? wd.conf : 0, bbox: wd ? wd.bbox : null, fixed: true }; iNum--; }
       const name = T.slice(1, iNum).filter(x => x.w).map(x => x.w.replace(/[^A-Za-z'\-,.]/g, '')).filter(Boolean).join(' ').replace(/\.{2,}.*$/, '').replace(/^[,.\s]+|[,.\s]+$/g, '');
-      cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null).map(x => x.v) });
+      cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null), box: L.bbox });
       return;
     }
     if (V.length === 0 && /[A-Za-z]{3,}/.test(line) && line.length < 40) lastTitle = line;
@@ -2622,12 +2646,14 @@ function parseSheet(text) {
     const best = cands.map(o => [o, score(o)]).sort((x, y) => y[1] - x[1])[0][0];
     const rows = s.rows.map(r => { const v = Object.assign({ num: r.num, name: r.name, starter: r.starter }, shAssign(r.V, best) || {});
       // Points are FG/3P/FT added up; a misread PTS is replaced and marked for a look.
-      if (v.fgm != null && !shPtsOk(v)) { v.ptsRead = v.pts == null ? null : v.pts; v.pts = shCalcPts(v); v.ptsFixed = true; }
+      v.iffy = shIffy(v); v.box = r.box;
+      if (v.fgm != null && !shPtsOk(v)) { v.ptsRead = v.pts == null ? null : v.pts; v.pts = shCalcPts(v); v.ptsFixed = true; v.iffy.pts = v._q.pts ? v._q.pts.bbox : null; }
       if (v.oreb != null && v.dreb != null && v.reb != null && v.reb !== v.oreb + v.dreb) v.rebOff = true;
       return v; });
     const tot = s.totals ? shAssign(s.totals, Object.assign({}, best, { min: false })) : null;
+    if (tot) { tot.iffy = shIffy(tot); tot.box = s.totBox; }
     const team = s.team || [];
-    return { title: s.title, rows, totals: tot, teamReb: team.length >= 2 ? { oreb: team[0], dreb: team[1] } : null };
+    return { title: s.title, rows, totals: tot, headBox: s.headBox, teamReb: team.length >= 2 ? { oreb: team[0], dreb: team[1] } : null };
   });
 }
 /* Which section is Moorpark: the one whose title says so; else by home / away (home is listed second). */
@@ -2637,8 +2663,8 @@ function sheetTeams(g, secs) {
   if (ia < 0) { const ob = secs.findIndex(s => g.opp && s.title && s.title.toLowerCase().includes(String(g.opp).split(' ')[0].toLowerCase())); ia = ob >= 0 ? (ob === 0 ? 1 : 0) : (g.loc === 'A' ? 0 : 1); }
   if (ia >= secs.length) ia = 0;
   const ib = secs.length > 1 ? (ia === 0 ? 1 : 0) : -1;
-  const pack = s => ({ title: s ? s.title : '', rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
-    totals: s && s.totals ? Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])) : null, teamReb: s ? s.teamReb : null });
+  const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
+    totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null }) : null, teamReb: s ? s.teamReb : null });
   return { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
 }
 
@@ -2687,7 +2713,7 @@ async function readSheetPhoto(file, onProg) {
   }
   const c = await shPrep(file);
   const { data } = await TESS.recognize(c);
-  return data.text;
+  return { text: data.text, canvas: c, lines: (data.lines || []).map(l => ({ bbox: l.bbox, words: l.words.map(w => ({ text: w.text, conf: w.confidence, bbox: w.bbox })) })) };
 }
 
 /* ---------- the check-and-fix screen ---------- */
@@ -2695,6 +2721,7 @@ let SHEET = null;   // { sc, a, b, photo, text, stage }
 function sheetSum(T) { const s = {}; SH_NUM.forEach(k => { s[k] = T.rows.reduce((x, r) => x + (+r[k] || 0), 0); }); return s; }
 function sheetModal() {
   const g = cur(), S = SHEET;
+  if (S.stage === 'clarify') { clarifyModal(); return; }
   const sc = S.sc, scBtns = `<div class="row" style="gap:6px">${[['1H', 'Halftime sheet'], ['G', 'Final sheet']].map(([k, l]) => `<button class="btn ${sc === k ? 'btn-primary' : ''}" data-act="sh-sc" data-s="${k}">${l}</button>`).join('')}</div>`;
   if (S.stage === 'pick' || S.stage === 'reading') {
     modal(`<h2>Read the stat sheet</h2>
@@ -2716,7 +2743,7 @@ function sheetModal() {
         <tr class="sh-sum"><td></td><td class="l">Players add up to</td>${SH_NUM.map(k => `<td data-sum="${t}:${k}">${sum[k]}</td>`).join('')}<td></td></tr>${totRow}</tbody></table></div>
       <button class="btn btn-sm" data-act="sh-add" data-t="${t}">+ Add player</button></div>`; };
   modal(`<div class="sub-head"><h2>Check the ${sc === '1H' ? 'halftime' : 'final'} sheet</h2><div class="sub-top"><button class="btn btn-lg" data-act="sh-close">Cancel</button><button class="btn btn-good btn-lg" data-act="sh-save">Save → report</button></div></div>
-    <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">${scBtns}<button class="btn" data-act="sh-swap">⇅ Swap teams</button>${S.photo ? '<button class="btn" data-act="sh-photo">📷 Read again</button>' : ''}
+    <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">${scBtns}<button class="btn" data-act="sh-swap">⇅ Swap teams</button>${S.photo ? '<button class="btn" data-act="sh-photo">📷 Read again</button>' : ''}<button class="btn btn-warn sh-clar" data-act="sh-clarify"></button>
       <span class="small sh-st" data-st="all" style="margin-left:auto"></span></div>
     ${S.photo ? `<details class="sh-photo"><summary>Show the photo</summary><img src="${S.photo}" alt=""></details>` : ''}
     ${team('a')}${team('b')}`, 'sheet-modal wide');
@@ -2731,29 +2758,96 @@ function sheetRefresh() {
     T.rows.forEach((r, i) => { const ok = shPtsOk(r), rb = r.fgm > r.fga || r.fg3m > r.fg3a || r.ftm > r.fta || r.fg3m > r.fgm, fix = ok && r.ptsFixed;
       if (!ok) bad++; if (fix) fixed++;
       const tr = q(`tr[data-row="${t}:${i}"]`); if (tr) tr.classList.toggle('sh-badrow', !ok || rb);
-      const td = q(`td[data-c="${t}:${i}:pts"]`); if (td) { td.className = !ok ? 'sh-bad' : fix ? 'sh-fix' : ''; td.title = fix ? 'Points worked out from FG / 3P / FT — check the sheet' : ''; } });
+      SH_NUM.forEach(k => { const c = q(`td[data-c="${t}:${i}:${k}"]`); if (c) c.classList.toggle('sh-iffy', !!(r.iffy && k in r.iffy)); });
+      const td = q(`td[data-c="${t}:${i}:pts"]`); if (td) { td.classList.toggle('sh-bad', !ok); td.classList.toggle('sh-fix', !!fix); td.title = fix ? 'Points worked out from FG / 3P / FT — check the sheet' : ''; } });
     SH_NUM.forEach(k => { const c = q(`td[data-sum="${t}:${k}"]`); if (c) { c.textContent = sum[k]; c.className = k === 'min' && sum.min && sum.min !== minWant ? 'sh-bad' : ''; }
-      const d = q(`td[data-tot="${t}:${k}"]`); if (d) d.className = tot && tot[k] != null && tot[k] !== sum[k] ? 'sh-bad' : ''; });
+      const d = q(`td[data-tot="${t}:${k}"]`); if (d) { d.classList.toggle('sh-bad', !!(tot && tot[k] != null && tot[k] !== sum[k])); d.classList.toggle('sh-iffy', !!(tot && tot.iffy && k in tot.iffy)); } });
     const mism = tot ? SH_NUM.filter(k => k !== 'min' && tot[k] != null && tot[k] !== sum[k]) : [];
     const st = q(`[data-st="${t}"]`);
     if (st) st.innerHTML = `${sum.min && sum.min !== minWant ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line found' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
+  const n = sheetQueue().length, cb = q('.sh-clar');
+  if (cb) { cb.textContent = `🔎 Clarify iffy numbers (${n})`; cb.style.display = n ? '' : 'none'; }
   const all = q('[data-st="all"]');
   if (all) all.innerHTML = `<span class="${bad ? 'neg' : 'pos'}">${bad ? `${bad} row${bad > 1 ? 's' : ''} lit red: points don't match FGM / 3PM / FTM` : '✓ every row adds up'}</span>${fixed ? ` · <span style="color:var(--warn)">${fixed} PTS box${fixed > 1 ? 'es' : ''} in amber ${fixed > 1 ? 'were' : 'was'} read wrong and filled in from FG / 3P / FT</span>` : ''}`;
 }
 function sheetInput(el) {
   const S = SHEET, T = S[el.dataset.t], k = el.dataset.k, i = el.dataset.i, raw = el.value.trim();
   const v = k === 'num' || k === 'name' ? raw : raw === '' ? null : (parseInt(raw, 10) || 0);
-  if (i === 'tot') { T.totals = T.totals || {}; T.totals[k] = v; } else T.rows[+i][k] = v;
+  const R = i === 'tot' ? (T.totals = T.totals || {}) : T.rows[+i];
+  R[k] = v; if (R.iffy) { delete R.iffy[k]; if (SH_PAIR[k]) delete R.iffy[SH_PAIR[k]]; } if (k === 'pts') delete R.ptsFixed;
 }
 function sheetSave() {
   const g = cur(), S = SHEET; g.sheet = g.sheet || {};
-  g.sheet[S.sc] = { a: S.a, b: S.b, at: new Date().toISOString() };
+  const clean = T => ({ title: T.title, teamReb: T.teamReb || null, totals: T.totals ? Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, T.totals[k]])) : null,
+    rows: T.rows.map(r => Object.assign({ num: r.num, name: r.name, starter: !!r.starter }, Object.fromEntries(SH_NUM.map(k => [k, r[k]])))) });
+  g.sheet[S.sc] = { a: clean(S.a), b: clean(S.b), at: new Date().toISOString() };
   // The totals go to the Four factors tab as printout numbers (the players' sum if no totals line).
   const B = ffBox(g, S.sc);
   ['a', 'b'].forEach(t => { const tot = Object.assign(sheetSum(S[t]), S[t].totals || {});
     Object.assign(B[t], { fgm: tot.fgm, fga: tot.fga, fg3m: tot.fg3m, fg3a: tot.fg3a, ftm: tot.ftm, fta: tot.fta, oreb: tot.oreb, dreb: tot.dreb, tov: tot.tov }); });
   save(); SHEET = null; closeModal(); UI.tab = 'report'; UI.rep = S.sc === '1H' ? 'half' : 'post'; render(); window.scrollTo(0, 0); toast('Stat sheet saved — advanced numbers are in the report', 'good');
 }
+
+const SH_PAIR = { fgm: 'fga', fga: 'fgm', fg3m: 'fg3a', fg3a: 'fg3m', ftm: 'fta', fta: 'ftm' };
+/* CLARIFY — only the numbers the reader was unsure of, one at a time: the strip of the photo with that
+   box circled (the column header above it, the player's name beside it), and the number to confirm or fix. */
+const SH_LABEL = { min: 'Minutes', fgm: 'FG made – attempted', fg3m: '3PT made – attempted', ftm: 'FT made – attempted', oreb: 'Offensive rebounds', dreb: 'Defensive rebounds',
+  ast: 'Assists', stl: 'Steals', blk: 'Blocks', tov: 'Turnovers', pf: 'Fouls', pts: 'Points' };
+function sheetQueue() {
+  const S = SHEET, out = []; if (!S) return out;
+  ['a', 'b'].forEach(t => { const T = S[t];
+    const add = (R, i) => { const ks = Object.keys(R.iffy || {}).filter(k => SH_NUM.includes(k)); const seen = new Set();
+      SH_NUM.filter(k => ks.includes(k)).forEach(k => { const k0 = SH_PAIR[k] && /a$/.test(k) ? SH_PAIR[k] : k; if (seen.has(k0)) return; seen.add(k0);
+        out.push({ t, i, keys: SH_PAIR[k0] ? [k0, SH_PAIR[k0]] : [k0] }); }); };
+    T.rows.forEach((r, i) => add(r, i)); if (T.totals) add(T.totals, 'tot'); });
+  return out;
+}
+/* The sheet vouches for itself: a column whose players add up to the TOTALS line, minutes that add up to
+   100 / 200, and made shots that add up to a row's points are taken as right — only what's left is iffy. */
+function sheetSettle(S, minWant) {
+  ['a', 'b'].forEach(t => { const T = S[t], sum = sheetSum(T), tot = T.totals;
+    SH_NUM.forEach(k => { const okCol = k === 'min' ? sum.min === minWant : tot && tot[k] != null && tot[k] === sum[k];
+      if (!okCol) return; T.rows.forEach(r => { if (r.iffy) delete r.iffy[k]; }); if (tot && tot.iffy) delete tot.iffy[k]; });
+    T.rows.forEach(r => { if (r.iffy && shPtsOk(r) && !r.ptsFixed) ['fgm', 'fg3m', 'ftm', 'pts'].forEach(k => delete r.iffy[k]); }); });
+}
+function sheetCrop(S, T, R, key) {
+  const c = S.canvas, box = R.box, cell = R.iffy && R.iffy[key];
+  if (!c || !box) return '';
+  const pad = 14, rowY0 = Math.max(0, box.y0 - pad), rowY1 = Math.min(c.height, box.y1 + pad), rowH = rowY1 - rowY0;
+  const cx = cell ? (cell.x0 + cell.x1) / 2 : (box.x0 + box.x1) / 2, winW = Math.min(c.width, 1100), wx0 = Math.max(0, Math.min(c.width - winW, cx - winW / 2));
+  const nameW = Math.min(620, Math.max(0, wx0 - box.x0)), hb = T.headBox, headH = hb ? Math.min(90, hb.y1 - hb.y0 + 2 * pad) : 0;
+  const o = document.createElement('canvas'); o.width = nameW + (nameW ? 24 : 0) + winW; o.height = headH + rowH;
+  const x = o.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
+  const ox = nameW ? nameW + 24 : 0;
+  if (hb) x.drawImage(c, wx0, Math.max(0, hb.y0 - pad), winW, headH, ox, 0, winW, headH);
+  if (nameW) x.drawImage(c, box.x0, rowY0, nameW, rowH, 0, headH, nameW, rowH);
+  x.drawImage(c, wx0, rowY0, winW, rowH, ox, headH, winW, rowH);
+  if (nameW) { x.fillStyle = '#d1d5db'; x.fillRect(nameW + 10, headH, 3, rowH); }
+  if (cell) { x.strokeStyle = '#ef4444'; x.lineWidth = 5; x.beginPath(); x.ellipse(ox + cx - wx0, headH + (cell.y0 + cell.y1) / 2 - rowY0, (cell.x1 - cell.x0) / 2 + 26, rowH / 2 - 3, 0, 0, 2 * Math.PI); x.stroke(); }
+  return o.toDataURL('image/jpeg', 0.85);
+}
+function clarifyModal() {
+  const g = cur(), S = SHEET, Q = S.cq, it = Q[S.ci];
+  if (!it) { S.stage = 'check'; sheetModal(); toast('All clarified', 'good'); return; }
+  const T = S[it.t], R = it.i === 'tot' ? T.totals : T.rows[it.i], pair = it.keys.length === 2;
+  const who = it.i === 'tot' ? 'Sheet totals' : `${R.num ? '#' + esc(R.num) + ' ' : ''}${esc(R.name || '')}`;
+  const img = sheetCrop(S, T, R, it.keys[0]);
+  const inp = (k, ph) => `<input class="sh-cl" id="cl-${k}" inputmode="numeric" placeholder="${ph}" value="${R[k] == null ? '' : R[k]}">`;
+  modal(`<div class="sub-head"><h2>Clarify ${S.ci + 1} of ${Q.length}</h2><div class="sub-top"><button class="btn btn-lg" data-act="cl-done">Back to the sheet</button></div></div>
+    <div class="cl-who"><b style="color:${it.t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, it.t))}</b> · ${who} · <b>${SH_LABEL[it.keys[0]]}</b></div>
+    ${img ? `<img class="cl-img" src="${img}" alt="">` : '<div class="muted small" style="margin:10px 0">No photo strip for this one.</div>'}
+    <div class="cl-in">${pair ? `${inp(it.keys[0], 'made')}<span>–</span>${inp(it.keys[1], 'att')}` : inp(it.keys[0], '')}</div>
+    ${it.keys[0] === 'pts' && R.ptsRead != null ? `<div class="small muted" style="text-align:center">Read as ${R.ptsRead}; FG / 3P / FT add up to ${shCalcPts(R)}.</div>` : ''}
+    <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-lg" data-act="cl-prev" ${S.ci ? '' : 'disabled'}>◀ Back</button><button class="btn btn-good btn-lg" data-act="cl-next">✓ That's right · Next ▶</button></div>`, 'sheet-modal wide');
+  const f = document.getElementById('cl-' + it.keys[0]); if (f) { f.focus(); f.select(); }
+}
+function clarifySave() {
+  const S = SHEET, it = S.cq[S.ci]; if (!it) return;
+  const T = S[it.t], R = it.i === 'tot' ? T.totals : T.rows[it.i];
+  it.keys.forEach(k => { const el = document.getElementById('cl-' + k); if (el) { const v = el.value.trim(); R[k] = v === '' ? null : (parseInt(v, 10) || 0); } if (R.iffy) delete R.iffy[k]; });
+  if (it.keys.includes('pts')) delete R.ptsFixed;
+}
+function clarifyOpen() { const S = SHEET; S.cq = sheetQueue(); S.ci = 0; S.stage = 'clarify'; if (!S.cq.length) { S.stage = 'check'; sheetModal(); return; } clarifyModal(); }
 
 /* ---------- advanced numbers from the sheet ---------- */
 function sheetTeamLine(T) { const s = Object.assign(sheetSum(T), T.totals || {}); s.min = sheetSum(T).min; s.reb = s.oreb + s.dreb; return s; }
@@ -2823,16 +2917,18 @@ async function sheetRead(file) {
   S.stage = 'reading'; S.prog = 0; S.msg = 'Loading the reader…'; sheetModal();
   try {
     const rd = new FileReader(); rd.onload = () => { if (SHEET) SHEET.photo = rd.result; }; rd.readAsDataURL(file);
-    const text = await readSheetPhoto(file, p => { if (SHEET && SHEET.stage === 'reading') { SHEET.prog = p; SHEET.msg = `Reading… ${Math.round(100 * p)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * p) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
+    const res = await readSheetPhoto(file, p => { if (SHEET && SHEET.stage === 'reading') { SHEET.prog = p; SHEET.msg = `Reading… ${Math.round(100 * p)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * p) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
     if (!SHEET) return;
-    SHEET.text = text;
-    const T = sheetTeams(g, parseSheet(text));
+    SHEET.text = res.text; SHEET.canvas = res.canvas;
+    const T = sheetTeams(g, parseSheet(res.lines.length ? res.lines : res.text));
     if (!T || (!T.a.rows.length && !T.b.rows.length)) { SHEET.stage = 'pick'; sheetModal(); toast('Couldn\'t find a box score in that photo — try again closer and straight on', 'bad'); return; }
-    Object.assign(SHEET, T, { stage: 'check' }); sheetModal();
+    Object.assign(SHEET, T, { stage: 'check' }); sheetSettle(SHEET, SHEET.sc === '1H' ? 100 : 200 + 25 * otCount(g)); sheetModal();
   } catch (err) { if (SHEET) { SHEET.stage = 'pick'; sheetModal(); } toast('Reading failed: ' + err.message, 'bad'); }
 }
 $('#sh-file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) sheetRead(f); });
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('sh-in') && SHEET) { sheetInput(e.target); sheetRefresh(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('sh-cl') && SHEET) { e.preventDefault();
+  const ins = [...document.querySelectorAll('.sh-cl')], i = ins.indexOf(e.target); if (i < ins.length - 1) { ins[i + 1].focus(); ins[i + 1].select(); } else document.querySelector('[data-act="cl-next"]').click(); } });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();

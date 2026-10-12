@@ -169,6 +169,11 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
     - The players' sums are checked against the sheet's TOTALS, and minutes against 100 (half) or
       200 (+25 per OT).
     - ⇅ Swap teams if Moorpark landed on the wrong side.
+    - **🔎 Clarify iffy numbers (N)** walks you through only the numbers the reader wasn't sure of (under 85%
+      confidence, or repaired), one at a time: the strip of the photo with that box circled, under its column
+      header, beside the player's name, and a big box to confirm or type over. Numbers the sheet vouches for are
+      never asked: a column whose players add up to TOTALS, minutes that add up to 100 / 200, and made shots
+      that add up to a row's points. Iffy boxes have a dashed outline on the check screen.
   - **Save → report** adds an **Individual & team advanced** section to the Halftime / Post-game report:
     - talk points (best game score each side, most-used Moorpark player and his TS%, bench points);
     - team: points, possessions, ORtg, eFG%, TS%, assisted %, AST/TO, STL%, BLK%, bench points, fouls;
