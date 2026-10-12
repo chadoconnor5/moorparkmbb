@@ -108,7 +108,10 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
   - Opponent rosters are shared with the game tracker.
   - Position and the note show on the player's card on the Live screen.
-- **Report:** **Halftime** and **Post-game**:
+- **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
+  to the 2nd-half starting fives), and **Final** brings up the Post-game report. Both start with
+  **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
+  half or 8+ for the game. **Halftime** and **Post-game** show:
   - the score with each team's possessions, PPP and kills;
   - the period-by-period summary (post-game);
   - four factors;
