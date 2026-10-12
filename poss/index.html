@@ -703,7 +703,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.19';
+const VERSION = 'v2026.10.12.20';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1052,7 +1052,7 @@ function lpmCard(g, D, t) {
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
   const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? o - d : null, pm = u.pf - u.pa;
   return `<div class="lpm"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span></div>
-    <div class="lpm-stats"><div><span>Poss</span><b>${u.oPoss}/${u.dPoss}</b></div><div><span>ORtg</span><b>${o}</b></div><div><span>DRtg</span><b>${d}</b></div>
+    <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${o}</b></div><div><span>DRtg</span><b>${d}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
     ${fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
 }
