@@ -657,6 +657,17 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tbtn .rb{position:absolute;bottom:4px;left:0;right:0;font-size:10.5px;font-weight:800;letter-spacing:.08em}
 .tbtn.hot.a,.tbtn.hot.b{background:#e5e7eb;border-color:#facc15;box-shadow:0 0 0 2px rgba(250,204,21,.6)}
 .tbtn.hot .rb{color:#111}
+.pbtn .pnote{display:block;font-size:11.5px;font-weight:500;color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:38px;margin-top:1px}
+.pbp-feed{max-height:none;font-size:13.5px;border-top:0;padding-top:0}
+.pbp-feed div{padding:7px 10px;cursor:pointer}
+.rost{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start}
+.rlist{display:flex;flex-direction:column;gap:6px}
+.rlist .btn{justify-content:flex-start}
+.redit th{background:var(--card2);color:var(--text);font-size:11px;padding:6px;text-align:left}
+.redit td{padding:4px}
+.redit input{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:7px 8px;font:inherit;font-size:15px}
+.schd td{vertical-align:middle}
+@media (max-width:860px){.rost{grid-template-columns:1fr}.rlist{flex-direction:row;flex-wrap:wrap}}
 
 </style>
 </head>
@@ -664,10 +675,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <nav class="nav"><div class="nav-in">
   <div class="brand"><b class="brand-us">Moorpark</b> <span>Possession Tracker</span></div>
   <button class="tab" data-tab="live">Live</button>
+  <button class="tab" data-tab="pbp">Play-by-Play</button>
   <button class="tab" data-tab="sheet">Sheet</button>
   <button class="tab" data-tab="lineups">Lineups</button>
   <button class="tab" data-tab="ff">Four factors</button>
   <button class="tab scout-tab" data-tab="scout">Scouting</button>
+  <button class="tab" data-tab="sched">Schedule</button>
+  <button class="tab" data-tab="rosters">Rosters</button>
   <button class="tab" data-tab="games">Games</button>
 </div></nav>
 <div id="view" class="page"></div>
@@ -683,7 +697,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.9';
+const VERSION = 'v2026.10.12.11';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -702,21 +716,21 @@ let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
 const cur = () => games.find(g => g.id === curId) || null;
 const save = () => { lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
-const UI = { tab: 'live', stat: null, reb: null, ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
+const UI = { tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
 /* ---------- rosters ---------- */
 // Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage).
 function roster() {
   const own = lsGet(LS_ROSTER, null);
   if (Array.isArray(own) && own.length) return own;
-  return (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name }));
+  return (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name, note: '' }));
 }
 const byNum = (a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || String(a.name).localeCompare(b.name);
 const lastName = n => String(n).split(' ').slice(-1)[0];
 // Players are keyed by name for Moorpark and by 'o:<num>' for the opponent.
 function teamPlayers(g, t) {
-  return t === 'a' ? roster().slice().sort(byNum).map(r => ({ id: r.name, num: r.num, name: r.name }))
-    : (g.oppRoster || []).slice().sort(byNum).map(r => ({ id: 'o:' + r.num, num: r.num, name: r.name || '' }));
+  return t === 'a' ? roster().filter(r => !g || !g.dressed || g.dressed.includes(r.name)).slice().sort(byNum).map(r => ({ id: r.name, num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))
+    : (g.oppRoster || []).slice().sort(byNum).map(r => ({ id: 'o:' + r.num, num: r.num, name: r.name || '', pos: r.pos || '', ht: r.ht || '', yr: r.yr || '', note: r.note || '' }));
 }
 function pInfo(g, t, id) {
   if (!id || id === 'TEAM') return { id: 'TEAM', num: '', name: 'Team' };
@@ -736,8 +750,44 @@ function oppNames() {
 }
 function gtOppRoster(name) {
   const o = (lsGet('gt_opp_rosters', []) || []).find(x => x && x.name && x.name.toLowerCase() === String(name).toLowerCase());
-  return o ? (o.players || []).filter(p => p.num !== '' && p.num != null).map(p => ({ num: String(p.num), name: p.name || '' })) : [];
+  return o ? (o.players || []).filter(p => p.num !== '' && p.num != null).map(p => ({ num: String(p.num), name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })) : [];
 }
+
+/* ---------- schedule: the game tracker's, else the posted 2026-27 schedule ---------- */
+const SEED_SCHEDULE = [
+  { id: 'sch_seed_20261015', date: '2026-10-15', time: "", opp: "Mack Attack Prep", site: 'home', conf: false, scrim: true },
+  { id: 'sch_seed_20261022', date: '2026-10-22', time: "", opp: "Santa Monica", site: 'home', conf: false, scrim: true },
+  { id: 'sch_seed_20261102', date: '2026-11-02', time: "", opp: "Antelope Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
+  { id: 'sch_seed_20261103', date: '2026-11-03', time: "", opp: "San Bernardino Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
+  { id: 'sch_seed_20261104', date: '2026-11-04', time: "5:00 PM", opp: "Palomar", site: 'away', conf: false, scrim: false },
+  { id: 'sch_seed_20261114', date: '2026-11-14', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
+  { id: 'sch_seed_20261115', date: '2026-11-15', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
+  { id: 'sch_seed_20261116', date: '2026-11-16', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
+  { id: 'sch_seed_20261205', date: '2026-12-05', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
+  { id: 'sch_seed_20261206', date: '2026-12-06', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
+  { id: 'sch_seed_20261207', date: '2026-12-07', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
+  { id: 'sch_seed_20261210', date: '2026-12-10', time: "5:00 PM", opp: "Cerro Coso", site: 'away', conf: false, scrim: false },
+  { id: 'sch_seed_20261215', date: '2026-12-15', time: "3:00 PM", opp: "Fresno", site: 'away', conf: false, scrim: false, event: "Fresno City College" },
+  { id: 'sch_seed_20261218', date: '2026-12-18', time: "1:00 PM", opp: "Citrus", site: 'away', conf: false, scrim: false },
+  { id: 'sch_seed_20261219', date: '2026-12-19', time: "1:00 PM", opp: "Fullerton", site: 'away', conf: false, scrim: false },
+  { id: 'sch_seed_20261221', date: '2026-12-21', time: "", opp: "TBD — Mira Costa Tournament", site: 'away', conf: false, scrim: false, event: "Mira Costa Tournament" },
+  { id: 'sch_seed_20261222', date: '2026-12-22', time: "", opp: "TBD — Mira Costa Tournament", site: 'away', conf: false, scrim: false, event: "Mira Costa Tournament" },
+  { id: 'sch_seed_20261230', date: '2026-12-30', time: "1:00 PM", opp: "Bakersfield", site: 'home', conf: false, scrim: false },
+  { id: 'sch_seed_20270109', date: '2027-01-09', time: "3:00 PM", opp: "LA Pierce", site: 'home', conf: true, scrim: false },
+  { id: 'sch_seed_20270113', date: '2027-01-13', time: "7:00 PM", opp: "Cuesta", site: 'away', conf: true, scrim: false },
+  { id: 'sch_seed_20270116', date: '2027-01-16', time: "3:00 PM", opp: "Allan Hancock", site: 'away', conf: true, scrim: false },
+  { id: 'sch_seed_20270120', date: '2027-01-20', time: "7:00 PM", opp: "Oxnard", site: 'home', conf: true, scrim: false },
+  { id: 'sch_seed_20270123', date: '2027-01-23', time: "5:00 PM", opp: "Ventura", site: 'away', conf: true, scrim: false },
+  { id: 'sch_seed_20270127', date: '2027-01-27', time: "7:00 PM", opp: "Santa Barbara", site: 'home', conf: true, scrim: false },
+  { id: 'sch_seed_20270203', date: '2027-02-03', time: "7:00 PM", opp: "LA Pierce", site: 'away', conf: true, scrim: false },
+  { id: 'sch_seed_20270205', date: '2027-02-05', time: "7:00 PM", opp: "Cuesta", site: 'home', conf: true, scrim: false },
+  { id: 'sch_seed_20270210', date: '2027-02-10', time: "7:00 PM", opp: "Allan Hancock", site: 'home', conf: true, scrim: false },
+  { id: 'sch_seed_20270212', date: '2027-02-12', time: "7:00 PM", opp: "Oxnard", site: 'away', conf: true, scrim: false },
+  { id: 'sch_seed_20270217', date: '2027-02-17', time: "7:00 PM", opp: "Ventura", site: 'home', conf: true, scrim: false },
+  { id: 'sch_seed_20270219', date: '2027-02-19', time: "7:00 PM", opp: "Santa Barbara", site: 'away', conf: true, scrim: false },
+];
+const schedule = () => { const s = lsGet('gt_schedule', null); return (Array.isArray(s) && s.length ? s : SEED_SCHEDULE).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')); };
+const isTBD = n => !n || /^tbd/i.test(n);
 const logo = (name, px) => `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="../game/logos/${slug(name)}.png" alt="" onerror="this.remove()">`;
 
 /* ---------- periods ---------- */
@@ -868,13 +918,16 @@ function render() {
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
   const g = cur();
   const v = $('#view');
-  if (!g && UI.tab !== 'games') UI.tab = 'games';
+  if (!g && !['games', 'sched', 'rosters', 'live'].includes(UI.tab)) UI.tab = 'live';
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   if (UI.tab === 'games') v.innerHTML = gamesView();
-  else if (UI.tab === 'live') v.innerHTML = liveView(g);
+  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); }
   else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
   else if (UI.tab === 'lineups') v.innerHTML = lineupsView(g);
   else if (UI.tab === 'ff') { v.innerHTML = '<div id="ff"></div>'; renderFF(); }
+  else if (UI.tab === 'pbp') v.innerHTML = pbpView(g);
+  else if (UI.tab === 'sched') v.innerHTML = schedView();
+  else if (UI.tab === 'rosters') v.innerHTML = rostersView();
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
 }
 
@@ -920,6 +973,7 @@ function playerCards(g, D, t) {
     const cls = pf >= 5 || te >= 2 ? 'ft-danger' : pf === 4 ? 'ft-warn' : '';
     return `<button class="pbtn ${cls} ${UI.stat && PLAYER_STATS.has(UI.stat) ? 'hot' : ''} ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
+      ${p.pos || p.note ? `<span class="pnote">${esc([p.pos, p.note].filter(Boolean).join(' · '))}</span>` : ''}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${pf} PF</span></button>`; };
   return `${!f.length ? `<div class="small muted" style="padding:2px 4px 6px">${t === 'b' && !list.length ? 'No roster — tap Roster, or log with Team.' : 'Five not set — ⇄ Sub. Whole roster shown.'}</div>` : ''}
@@ -972,7 +1026,7 @@ function liveView(g) {
         <button class="btn" data-act="undo" ${g.ev.length ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
       <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
     </div>
-    <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="opp-roster">Roster</button></div>
+    <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>
       ${playerCards(g, D, 'b')}
       <div class="lpm2">${lpmCard(g, D, 'a')}${lpmCard(g, D, 'b')}</div></div>
   </div>`;
@@ -1038,6 +1092,159 @@ function lineupsView(g) {
     <div class="small muted">POSS O/D = possessions on offense / defense. ORTG / DRTG = points per 100 possessions. +/- includes technical free throws.</div>`;
 }
 
+/* ---------- new game: the game tracker's setup screen ---------- */
+let SD = null;
+function newDraft() {
+  SD = { opp: '', date: today(), site: 'home', conf: false, schedId: null, dressed: roster().map(r => r.name), starters: [], oppName: '', oppStarters: [], scoutKey: null };
+  // Game day: today's scheduled game fills itself in.
+  const r = schedule().find(x => x.date === today() && !isTBD(x.opp) && !games.some(gm => gm.schedId === x.id));
+  if (r) applySched(r);
+}
+function applySched(r) {
+  Object.assign(SD, { opp: r.opp, date: r.date, site: r.site || 'home', conf: !!r.conf, schedId: r.id });
+  applyOpp(r.opp);
+}
+function applyOpp(name) {
+  const o = oppStore().find(x => x.name.toLowerCase() === String(name).toLowerCase());
+  if ((o ? o.name : '') !== SD.oppName) SD.oppStarters = [];
+  SD.oppName = o ? o.name : '';
+  if (o && o.scoutKey) SD.scoutKey = o.scoutKey;
+}
+function readSetup() {
+  if (!SD || !$('#su-opp')) return;
+  SD.opp = $('#su-opp').value.trim(); SD.date = $('#su-date').value; SD.site = $('#su-site').value; SD.conf = $('#su-conf').value === '1';
+}
+function setupView() {
+  if (!SD) newDraft();
+  const d = SD, players = roster().slice().sort(byNum);
+  const o = oppStore().find(x => x.name === d.oppName), oppPl = o ? (o.players || []).filter(p => p.num !== '' && p.num != null).slice().sort(byNum) : [];
+  const SITE = { home: 'vs', away: '@', neutral: 'vs' };
+  return `<div class="setup">
+    <div class="setup-head"><h1>New game</h1><p>Set the opponent and both fives, then start the 1st half.</p></div>
+    <div class="card"><h3>Game</h3>
+      <div class="field"><label>From the schedule</label><select id="su-sched"><option value="">— not on the schedule —</option>${schedule().filter(r => !isTBD(r.opp) && (!games.some(gm => gm.schedId === r.id) || r.id === d.schedId)).map(r => `<option value="${esc(r.id)}" ${d.schedId === r.id ? 'selected' : ''}>${esc(r.date)} ${SITE[r.site] || ''} ${esc(r.opp)}${r.conf ? ' *' : ''}</option>`).join('')}</select></div>
+      <div class="grid2">
+        <div class="field"><label>Opponent</label><input id="su-opp" value="${esc(d.opp)}" placeholder="e.g. Ventura" autocomplete="off" list="su-opps"><datalist id="su-opps">${oppNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+        <div class="field"><label>Date</label><input id="su-date" type="date" value="${esc(d.date)}"></div>
+        <div class="field"><label>Site</label><select id="su-site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${d.site === x ? 'selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
+        <div class="field"><label>Conference game</label><select id="su-conf"><option value="0">No</option><option value="1" ${d.conf ? 'selected' : ''}>Yes</option></select></div>
+      </div>
+      <div class="small muted">Timeouts: 3 full + 4 × 30s a team (each OT adds a 30). Bonus at 7 team fouls, double bonus at 10. No clock.</div>
+    </div>
+    <div class="card"><h3>Moorpark — tap to start, tap again to sit out <span class="muted">${d.starters.length}/5 starters · ${d.dressed.length} dressed</span>
+      <button class="btn btn-sm" data-act="go-roster-m" style="margin-left:auto">Edit roster / notes</button></h3>
+      <div class="chk-grid down">${players.map(p => { const on = d.dressed.includes(p.name), st = d.starters.includes(p.name);
+        return `<div class="chk ${on ? 'on' : ''} ${st ? 'starter' : ''}" data-act="su-player" data-p="${esc(p.name)}"><span>${p.num ? '#' + esc(p.num) + ' ' : ''}${esc(p.name)}</span><span class="st">${st ? 'Starter' : on ? '' : 'Not dressed'}</span></div>`; }).join('')}</div>
+      <div class="tiny muted" style="margin-top:6px">Tap cycles: dressed → starter → not dressed → dressed.</div>
+    </div>
+    <div class="card"><h3>Opponent roster <span class="muted">optional — numbers are enough; without one their fouls go to the team</span>
+      <button class="btn btn-sm" data-act="su-opp-edit" style="margin-left:auto">${oppPl.length ? 'Edit roster / notes' : '+ Add players'}</button></h3>
+      <div class="row" style="gap:10px"><select id="su-oppsel"><option value="">— none —</option>${oppStore().slice().sort((x, y) => x.name.localeCompare(y.name)).map(x => `<option value="${esc(x.name)}" ${d.oppName === x.name ? 'selected' : ''}>${esc(x.name)} (${(x.players || []).length})</option>`).join('')}</select>
+        ${oppPl.length ? `<span class="small muted">Their starters: <b>${d.oppStarters.length}/5</b> — tap to pick (optional; you can set them with ⇄ Sub)</span>` : ''}</div>
+      ${oppPl.length ? `<div class="chk-grid" style="margin-top:10px">${oppPl.map(p => { const st = d.oppStarters.includes(String(p.num));
+        return `<div class="chk on ${st ? 'starter them' : ''}" data-act="su-opp-starter" data-p="${esc(String(p.num))}"><span>#${esc(p.num)} ${esc(p.name || '')}${p.pos ? ' <span class="muted">' + esc(p.pos) + '</span>' : ''}</span><span class="st">${st ? 'Starter' : ''}</span></div>`; }).join('')}</div>` : ''}
+    </div>
+    <div class="card"><h3>Scouting report <span class="muted">optional — PDF saved on this iPad, opens offline</span></h3><div class="row" style="gap:8px" id="su-scout"></div></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn btn-good btn-lg" data-act="su-create">Create game →</button></div>
+  </div>`;
+}
+async function paintSetupScout() {
+  const el = $('#su-scout'); if (!el) return;
+  let keys = []; try { keys = await idbKeys(); } catch (e) {}
+  const files = await Promise.all(keys.map(async k => ({ k, rec: await idbGet(k) })));
+  if (!el.isConnected || !SD) return;
+  el.innerHTML = `<select id="su-scoutsel"><option value="">— none —</option>${files.map(f => `<option value="${esc(f.k)}" ${SD.scoutKey === f.k ? 'selected' : ''}>${esc(f.rec && f.rec.name || f.k)}</option>`).join('')}</select>
+    <button class="btn btn-sm" data-act="su-scout-add">Add PDF…</button>`;
+  $('#su-scoutsel').onchange = e => { SD.scoutKey = e.target.value || null; };
+  $('#su-sched').onchange = e => { readSetup(); const r = schedule().find(x => x.id === e.target.value); if (r) applySched(r); else SD.schedId = null; setTimeout(render, 0); };
+  $('#su-oppsel').onchange = e => { readSetup(); applyOpp(e.target.value); if (!SD.opp) SD.opp = e.target.value; setTimeout(render, 0); };
+  $('#su-opp').onchange = () => { readSetup(); if (!SD.oppName) { applyOpp(SD.opp); if (SD.oppName) setTimeout(render, 0); } };
+}
+function createGame() {
+  readSetup();
+  const d = SD;
+  if (!d.opp) { toast('Enter the opponent', 'bad'); $('#su-opp').focus(); return; }
+  if (d.starters.length !== 5) { toast('Pick exactly 5 starters (' + d.starters.length + ' picked)', 'bad'); return; }
+  const g = { id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], box: {}, opp: d.opp, date: d.date || today(),
+    loc: { home: 'H', away: 'A', neutral: 'N' }[d.site] || 'H', conf: d.conf, schedId: d.schedId, dressed: d.dressed.slice(),
+    oppRoster: gtOppRoster(d.oppName || d.opp), scoutKey: d.scoutKey || null };
+  g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'a', five: d.starters.slice() });
+  if (d.oppStarters.length === 5) g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'b', five: d.oppStarters.map(n => 'o:' + n) });
+  games.push(g); curId = g.id; SD = null; UI.redo = []; save(); render();
+  toast('Game created', 'good');
+  if (d.oppStarters.length !== 5 && g.oppRoster.length >= 5) { SUB = null; subModal(`${g.opp} starting five`); }
+}
+
+/* ---------- play-by-play: everything, in order ---------- */
+function pbpView(g) {
+  const D = derive(g), f = UI.pbpTeam;
+  const keep = x => f === 'all' || (x.kind === 'poss' ? x.p.team === f : x.e && x.e.team === f);
+  const perOf = x => x.kind === 'poss' ? x.p.per : x.e.per;
+  const secs = g.periods.map(per => {
+    const rows = D.items.filter(x => perOf(x) === per && keep(x)).map(x => feedText(g, x)).filter(r => r.html);
+    return `<div class="card"><h3>${esc(PER_NAME(per))} <span class="muted">· ${rows.length} entries · tap one to fix it</span></h3>
+      <div class="feed pbp-feed">${rows.map(r => `<div class="${r.cls}" data-act="edit" data-id="${r.id}"><span>${r.html}</span>${r.sc ? `<span class="small muted" style="white-space:nowrap">${r.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing yet</span></div>'}</div></div>`;
+  });
+  return `<div class="page-head"><h2>Play-by-play</h2><div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['a', 'Moorpark'], ['b', g.opp]].map(([k, l]) => `<button class="btn btn-sm ${f === k ? 'btn-primary' : ''}" data-act="pbp-team" data-t="${k}">${esc(l)}</button>`).join('')}</div></div>${secs.join('')}`;
+}
+
+/* ---------- schedule ---------- */
+function schedView() {
+  const rows = schedule();
+  return `<div class="page-head"><h2>Schedule</h2><span class="small muted" style="margin-left:auto">Edit it on the game tracker's Schedule tab — it shows here.</span></div>
+    <div class="card"><div class="tbl-wrap"><table class="tbl zebra schd"><thead><tr><th>DATE</th><th>OPPONENT</th><th>SITE</th><th></th><th></th></tr></thead><tbody>
+    ${rows.map(r => { const gm = games.find(x => x.schedId === r.id), tbd = isTBD(r.opp);
+      const d = r.date ? new Date(r.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+      const S = gm ? perSums(derive(gm), null) : null;
+      return `<tr><td style="white-space:nowrap">${esc(d)}${r.time ? `<div class="tiny muted">${esc(r.time)}</div>` : ''}</td>
+        <td><span class="row" style="gap:8px">${tbd ? '' : logo(r.opp, 22)}<b>${esc(r.opp)}</b></span>${r.event ? `<div class="tiny muted">${esc(r.event)}</div>` : ''}</td>
+        <td>${{ home: 'Home', away: 'Away', neutral: 'Neutral' }[r.site] || ''}${r.conf ? ' · <b>Conf</b>' : ''}${r.scrim ? ' · Scrim' : ''}</td>
+        <td>${S ? `${S.pts.a}–${S.pts.b}` : ''}</td>
+        <td style="text-align:right">${gm ? `<button class="btn btn-sm" data-act="open" data-id="${gm.id}">Open</button>` : tbd ? '<span class="tiny muted">opponent TBD</span>' : `<button class="btn btn-sm btn-good" data-act="sched-start" data-id="${esc(r.id)}">Start</button>`}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+}
+
+/* ---------- rosters (shared with the game tracker) ----------
+   Opponent rosters live in the game tracker's store (gt_opp_rosters), so a note typed in either app
+   shows in both. Moorpark's roster is the game tracker's; notes and edits made here are kept in this
+   tracker's own copy (pl_roster). */
+function oppStore() { return lsGet('gt_opp_rosters', []) || []; }
+function rostersView() {
+  const g = cur();
+  const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : []).filter(Boolean))].sort();
+  const sel = UI.rosterSel || (g ? g.opp : 'MPK');
+  const isM = sel === 'MPK';
+  const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppStore().find(x => x.name === sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
+  const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Note', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting note', 0]];
+  const row = p => `<tr class="rrow">${cols.map(([k, , w]) => `<td><input data-k="${k}" value="${esc(p[k] || '')}" ${k === 'num' ? 'inputmode="numeric"' : ''} style="${w ? 'width:' + w + 'px' : 'width:100%'}"></td>`).join('')}<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>`;
+  return `<div class="page-head"><h2>Rosters</h2></div>
+    <div class="rost">
+      <div class="card rlist"><button class="btn ${isM ? 'btn-primary' : ''}" data-act="r-sel" data-n="MPK">Moorpark</button>
+        ${opps.map(n => `<button class="btn ${sel === n ? 'btn-primary' : ''}" data-act="r-sel" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
+        <button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
+      <div class="card"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
+        <span class="row" style="gap:6px;margin-left:auto">${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
+        <div class="tbl-wrap"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
+        <div class="small muted" style="margin-top:8px">${isM ? 'Notes show on the player cards. Saved in this tracker.' : 'Shared with the game tracker. Pos and the note show on the player cards on the Live screen.'}</div></div>
+    </div>`;
+}
+function saveRosterEdit() {
+  const sel = UI.rosterSel || (cur() ? cur().opp : 'MPK');
+  const rows = [...document.querySelectorAll('#rbody tr.rrow')].map(tr => Object.fromEntries([...tr.querySelectorAll('input')].map(i => [i.dataset.k, i.value.trim()])))
+    .map(r => Object.assign(r, { num: String(r.num || '').replace(/\D/g, '').slice(0, 2) })).filter(r => r.num || r.name);
+  const nums = rows.map(r => r.num).filter(Boolean), dupe = nums.find((n, i) => nums.indexOf(n) !== i);
+  if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
+  if (sel === 'MPK') { lsSet(LS_ROSTER, rows.map(r => ({ num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))); toast('Moorpark roster saved', 'good'); return; }
+  const store = oppStore(); let o = store.find(x => x.name === sel);
+  if (!o) { o = { id: 'opp_' + uid(), name: sel, players: [] }; store.push(o); }
+  // Keep each player's other game-tracker fields; replace what is edited here.
+  o.players = rows.map(r => Object.assign({ num: '', name: '', pos: '', ht: '', yr: '', note: '' }, (o.players || []).find(p => String(p.num) === r.num) || {}, r));
+  o.updatedAt = new Date().toISOString();
+  lsSet('gt_opp_rosters', store);
+  games.filter(x => x.opp === sel).forEach(x => { x.oppRoster = o.players.filter(p => p.num).map(p => ({ num: String(p.num), name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })); });
+  save(); toast(sel + ' roster saved', 'good');
+}
+
 /* ---------- games ---------- */
 function gamesView() {
   const list = games.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created - a.created);
@@ -1045,7 +1252,7 @@ function gamesView() {
     ${list.length ? list.map(g => { const D = derive(g), S = perSums(D, null);
       return `<div class="card row" style="gap:10px;align-items:center;${g.id === curId ? 'border-color:var(--us)' : ''}"><div style="flex:1"><b>${esc(g.opp)}</b> <span class="muted small">${esc(g.date)} · ${esc({ H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || '')}</span><br>
         <span class="small">Moorpark ${S.pts.a} – ${S.pts.b} · ${possAvg(S)} possessions</span></div>
-        <button class="btn btn-sm" data-act="open" data-id="${g.id}">Open</button><button class="btn btn-sm" data-act="export" data-id="${g.id}">Export</button><button class="btn btn-sm btn-bad" data-act="del" data-id="${g.id}">Delete</button></div>`; }).join('')
+        <button class="btn btn-sm" data-act="open" data-id="${g.id}">${g.id === curId ? 'Live ▸' : 'Open'}</button><button class="btn btn-sm" data-act="export" data-id="${g.id}">Export</button><button class="btn btn-sm btn-bad" data-act="del" data-id="${g.id}">Delete</button></div>`; }).join('')
       : '<div class="card muted">No games yet. + New game to start.</div>'}
     <div class="row" style="gap:8px;margin-top:6px"><button class="btn btn-sm" data-act="import">Import a game file</button><button class="btn btn-sm" data-act="roster">Moorpark roster</button>${cur() ? '<button class="btn btn-sm" data-act="details">This game\'s details</button>' : ''}</div>
     <div class="small muted" style="margin-top:14px">${VERSION} · saved on this iPad</div>`;
@@ -1193,7 +1400,19 @@ document.addEventListener('click', ev => {
   switch (act) {
     case 'overlay': if (ev.target === b) { SUB = null; TECH = null; closeModal(); } break;
     case 'close': closeModal(); render(); break;
-    case 'new': newGameModal(); break;
+    case 'new': curId = null; SD = null; save(); UI.tab = 'live'; render(); break;
+    case 'su-player': { readSetup(); const n = b.dataset.p, d = SD;
+      if (d.starters.includes(n)) { d.starters = d.starters.filter(x => x !== n); d.dressed = d.dressed.filter(x => x !== n); }
+      else if (d.dressed.includes(n)) { if (d.starters.length >= 5) { toast('Five starters already — tap one to sit him first'); return; } d.starters.push(n); }
+      else d.dressed.push(n);
+      render(); break; }
+    case 'su-opp-starter': { readSetup(); const n = b.dataset.p, d = SD;
+      if (d.oppStarters.includes(n)) d.oppStarters = d.oppStarters.filter(x => x !== n); else if (d.oppStarters.length < 5) d.oppStarters.push(n); else { toast('Five starters already'); return; }
+      render(); break; }
+    case 'su-opp-edit': readSetup(); UI.rosterSel = SD.oppName || SD.opp || null; if (!UI.rosterSel) { toast('Type the opponent first', 'bad'); return; } UI.tab = 'rosters'; render(); break;
+    case 'go-roster-m': readSetup(); UI.rosterSel = 'MPK'; UI.tab = 'rosters'; render(); break;
+    case 'su-scout-add': readSetup(); $('#sc-file').dataset.for = 'setup'; $('#sc-file').click(); break;
+    case 'su-create': createGame(); break;
     case 'details': newGameModal(g); break;
     case 'create': case 'save-game': {
       const opp = $('#f-opp').value.trim(); if (!opp) { toast('Type the opponent first', 'bad'); return; }
@@ -1282,6 +1501,19 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'pbp-team': UI.pbpTeam = b.dataset.t; render(); break;
+    case 'go-roster': UI.rosterSel = g.opp; UI.tab = 'rosters'; render(); break;
+    case 'r-sel': UI.rosterSel = b.dataset.n; render(); break;
+    case 'r-new': { const n = (prompt('Opponent name') || '').trim(); if (!n) return; const st = oppStore(); if (!st.some(o => o.name === n)) { st.push({ id: 'opp_' + uid(), name: n, players: [], updatedAt: new Date().toISOString() }); lsSet('gt_opp_rosters', st); } UI.rosterSel = n; render(); break; }
+    case 'rr-add': { const tb = $('#rbody'), tr = tb.querySelector('tr.rrow'); const html = rostersView().match(/<tr class="rrow">[\s\S]*?<\/tr>/); const tmp = document.createElement('tbody');
+      tmp.innerHTML = (html ? html[0] : '').replace(/value="[^"]*"/g, 'value=""'); if (!tmp.firstElementChild) { const cols = document.querySelectorAll('.redit thead th').length - 1; tmp.innerHTML = '<tr class="rrow">' + Array.from({ length: cols }, (_, i) => `<td><input data-k="${['num', 'name', 'pos', 'ht', 'yr', 'note'][i] || 'note'}" style="width:100%"></td>`).join('') + '<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>'; }
+      tb.appendChild(tmp.firstElementChild); tb.lastElementChild.querySelector('input').focus(); break; }
+    case 'rr-del': b.closest('tr').remove(); break;
+    case 'r-save': saveRosterEdit(); render(); break;
+    case 'sched-start': {
+      const r = schedule().find(x => x.id === b.dataset.id); if (!r) return;
+      const ng = { id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], oppRoster: gtOppRoster(r.opp), box: {}, opp: r.opp, date: r.date || today(), loc: { home: 'H', away: 'A', neutral: 'N' }[r.site] || 'H', schedId: r.id };
+      games.push(ng); curId = ng.id; UI.tab = 'live'; UI.redo = []; save(); render(); SUB = null; subModal('Starting fives'); break; }
     case 'lu-open': UI.luOpen = UI.luOpen === b.dataset.k ? null : b.dataset.k; render(); break;
 
     case 'ff-scope': FF.scope = b.dataset.s; FF.team = 'a'; FF.i = 0; FF.fresh = true; renderFF(); break;
@@ -1380,6 +1612,7 @@ $('#sc-file').addEventListener('change', async e => {
   // Raw bytes, as the game tracker stores them (older iPad Safari is unreliable with Blobs in IndexedDB).
   try { await idbPut(key, { name: f.name, data: await f.arrayBuffer(), added: new Date().toISOString() }); }
   catch (err) { toast('Could not store the PDF on this iPad'); return; }
+  if (e.target.dataset.for === 'setup' && SD) { e.target.dataset.for = ''; SD.scoutKey = key; toast('Saved ' + f.name + ' for offline use'); render(); return; }
   const g = cur(); if (g) { g.scoutKey = key; save(); }
   toast('Saved ' + f.name + ' for offline use'); SC.key = null; openScout();
 });
