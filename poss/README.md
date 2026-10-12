@@ -95,7 +95,7 @@ Hudl's per-game lineup export still supplies offense and minutes.
   10+ scoring run, with the half, the score and Moorpark's five when it started.
 
 ## Lineups
-⇄ Sub sets both teams' fives on one screen: each team's **On the floor** five on top, the **Bench**
+⇄ Sub sets both teams' fives on one screen: each team's **On the floor** five on top, one per line in number order, the **Bench** (two across)
 below. Tap a player on the floor to take him out, tap a bench player to put him in. The starting fives are asked for when a game starts
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).

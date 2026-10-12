@@ -735,6 +735,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .foul-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
 .sub-head .sub-top{flex-wrap:wrap}
 .sub-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
+.sub-grid.sub-floor{grid-template-columns:1fr}
 
 </style>
 </head>
@@ -765,7 +766,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.35';
+const VERSION = 'v2026.10.12.36';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1759,7 +1760,7 @@ function subModal(title) {
           return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : ''}</button>`; };
         // On the floor first, then the bench (fouled-out players last). Tap to move a player between them.
         const on = ps.filter(p => SUB[t].has(p.id)), bench = ps.filter(p => !SUB[t].has(p.id)).sort((x, y) => isOut(g, t, x.id) - isOut(g, t, y.id));
-        return `<div class="sub-lbl">On the floor <span class="muted">${n}/5</span></div><div class="sub-grid">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
+        return `<div class="sub-lbl">On the floor <span class="muted">${n}/5</span></div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
           <div class="sub-lbl">Bench</div><div class="sub-grid">${bench.map(btn).join('') || '<div class="muted small">No one on the bench.</div>'}</div>`; })()
         : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; };
   const ok = t => (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id)));
