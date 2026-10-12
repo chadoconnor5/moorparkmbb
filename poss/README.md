@@ -48,8 +48,43 @@ A 1-of-2 trip, an offensive rebound and a second shot is all one possession.
 The **Poss** number on the scoreboard is the two teams' counts averaged, (Moorpark + opponent) ÷ 2, rounded down to a whole number.
 Each team's own count shows under it.
 
-**Kills:** 3 defensive stops in a row, for each team. The count restarts after a kill, a score, or
-a new period.
+## Leverage, clutch, garbage time (no clock)
+The game tracker's rules, with **possessions left** standing in for the clock (possessions left x this
+game's seconds per possession; 40:00 / regulation possessions):
+- **Leverage:** HIGH within 3 · MEDIUM 4–12 and catchable · LOW 13+, or more than the trailing team
+  can close at 3 points a trip on the trips it has left.
+- **Clutch:** the last 5:00 of regulation or any overtime, within 5, never LOW.
+- **Garbage time:** 30+ any time · 25+ at 8:00 or less · 20+ at 5:00 · 15+ at 3:00 · 10+ at 1:00.
+  Sticky from the first possession that meets it, regulation only.
+
+Live, the 2nd half is assumed to run as long as the 1st (a half is ~69 possessions until there is
+one), so the band under **Poss** is an estimate. Once the game is **Final** (End 2H → Final, or
+start OT) every possession is graded exactly. The Sheet shows the band per row (H / M / L, C =
+clutch, GT = garbage) and where garbage time starts. Tap a row to start garbage time there, turn it
+off, or put it back to automatic. Lineups can be filtered to Clutch or No garbage time.
+
+## Leaderboard export
+Sheet → **⬇ Leaderboard: defense** and **⬇ Leaderboard: offense** download the same CSVs
+`defensive_logger.html` wrote (`def_<date>__<opp>__<venue>.csv`, `off_…__OFF.csv`). Drop them in
+`Neural Network - Codex Optimized/internal_data/def_logs/`; `compute_moorpark_lineups.py` reads them
+unchanged: counted defensive possessions per five, opponent 2P/3P/FT, turnovers, rebounds,
+second-chance and points-off-turnover points, and the garbage flag. Points in the paint aren't tracked.
+Hudl's per-game lineup export still supplies offense and minutes.
+
+**Kills, skunks, killshots** (the game tracker's rules):
+- A **stop** is a finished possession with no points, except one that ended on missed free throws.
+  A technical breaks the fouling team's run. The count starts over each half / OT.
+- **Kill** = every 3 straight stops (6 = two kills). **Skunk** = the run reaches 6. **Dead skunk** = it
+  reaches 9. Counted on top of the kills. The scoreboard shows kills this half, pips toward the next
+  kill, and a SKUNK / DEAD SKUNK tag while the run is alive.
+- **Killshots:** a run is every point one side scores before the other scores again (technical FTs
+  included), across halves. 10-0, 15-0 and 20-0 are counted, nested (a 22-0 is one of each). The
+  current run (6+) shows under Poss.
+- **Stops in a row** are kept like runs: every run of stops for both teams (same stop rules, restarts
+  each half), with the game's longest.
+- Sheet → **Stops, kills & killshots**: each team's biggest run, most stops in a row, runs of 3+ stops, kills,
+  skunks, dead skunks and 10/15/20-0 runs. Lists every run of 3+ stops (longest first) and every
+  10+ scoring run, with the half, the score and Moorpark's five when it started.
 
 ## Lineups
 ⇄ Sub sets both teams' fives on one screen. The starting fives are asked for when a game starts
@@ -73,14 +108,32 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
   - Opponent rosters are shared with the game tracker.
   - Position and the note show on the player's card on the Live screen.
+- **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
+  to the 2nd-half starting fives), and **Final** brings up the Post-game report. Both start with
+  **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
+  half or 8+ for the game. The Post-game report adds **Best combos**: each team's top 3-man and
+  2-man combos by net rating, among those on the floor together for 20+ possessions. Combos that were
+  always on together (identical numbers) share one row. **Halftime** and **Post-game** show:
+  - the score with each team's possessions, PPP and kills;
+  - the period-by-period summary (post-game);
+  - four factors;
+  - the stops, kills & killshots card (biggest run, most stops in a row, skunks, 10/15/20-0, every
+    run of 3+ stops and 10+ points);
+  - both teams' lineups;
+  - clutch and garbage-time scoring (post-game);
+  - Print / PDF.
 - **Sheet:** every possession in order for both teams, with how it ended, offensive rebounds,
   points, kills and the running score. Subs and technicals are shown where they happened.
   - Tap a row to change the stat or team, delete the play, or insert a missed play before it.
   - Summary by period. Print / PDF.
-- **Four factors:** type the printed box score totals on the number pad.
-  - 1st half at halftime, Full game at the end. 2nd half is the difference.
-  - Gives eFG%, TO%, OREB%, DREB%, FT rate, 3PA / AST rate, shooting, possessions and PPP, with
-    the game tracker's formulas.
+- **Four factors:** worked out from the tracked plays, so nothing needs typing at halftime.
+  - Sources: makes and misses, FTs (technical FTs included), the rebound taps, turnovers, steals,
+    charges and offensive fouls.
+  - Views: 1st half, 2nd half (with OT) and full game.
+  - Gives eFG%, TO%, OREB%, DREB%, FT rate, 3PA rate, shooting, possessions and PPP, with the game
+    tracker's formulas. No assists.
+  - Tap a box to type the official printout's number over a tracked one; **Back to tracked**
+    undoes the typed numbers.
 - **Scouting:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
