@@ -115,15 +115,22 @@ the live screen (numbers are enough).
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 
+**Their best five (2nd half and OT only):** the opponent five with the best net rating so far, among
+fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
+shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
+
 **Lineups tab**, for the game or the current period, for both teams, as **5-man, 4-man, 3-man or 2-man**
 combos (a combo is on the floor for every possession of every five that contains it). For each:
 - possessions, points for–against, +/-, ORtg, DRtg, net;
 - offense: eFG%, TO% (per actual possession), OREB%, FT rate;
-- defense: the opponent's eFG%, TO% and FT rate, and DREB%;
+- defense: the opponent's eFG%, TO% and FT rate, DREB%, and **STOPS**: the opponent's possessions that
+  ended with no points while that unit was on (missed free throws don't count, as with kills), with the
+  stop % (stops per defensive possession) under it. Kills can run across lineups; stops belong to the
+  unit that got them. Sort by STOPS to see who gets the most;
 - tap a row to see how its possessions ended at each end.
 
 Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
-rate start lowest-first). Filter All / Clutch / No garbage time.
+rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds up Moorpark's lineups and combos from every game tracked on the iPad.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
@@ -149,6 +156,30 @@ rate start lowest-first). Filter All / Clutch / No garbage time.
   - both teams' lineups;
   - clutch and garbage-time scoring (post-game);
   - Print / PDF.
+- **📷 Read stat sheet** (Report and Four factors tabs): take a photo of the halftime or final box score
+  printout, both teams in view, flat and straight on. It is read on the iPad, **no internet needed**
+  (Tesseract, saved with the app), in a few seconds.
+  - Built for the PrestoSports box (Player · MIN · FGM-A · 3PM-A · FTM-A · OREB · DREB · REB · AST · STL · BLK
+    · TO · PF · PTS, Starters / Reserves, TM Team, TOTALS). The column order is read off the header line.
+  - A tilted photo is straightened first. Common slips (a lost dash in 3-5, a 4 read as "a") are fixed
+    from where the number sits in the row.
+  - **Check screen**, before anything is saved: every box can be edited.
+    - A row turns red when its points don't match FG / 3P / FT.
+    - A PTS box turns amber when it was misread and filled in from FG / 3P / FT.
+    - The players' sums are checked against the sheet's TOTALS, and minutes against 100 (half) or
+      200 (+25 per OT).
+    - ⇅ Swap teams if Moorpark landed on the wrong side.
+    - **🔎 Clarify iffy numbers (N)** walks you through only the numbers the reader wasn't sure of (under 85%
+      confidence, or repaired), one at a time: the strip of the photo with that box circled, under its column
+      header, beside the player's name, and a big box to confirm or type over. Numbers the sheet vouches for are
+      never asked: a column whose players add up to TOTALS, minutes that add up to 100 / 200, and made shots
+      that add up to a row's points. Iffy boxes have a dashed outline on the check screen.
+  - **Save → report** adds an **Individual & team advanced** section to the Halftime / Post-game report:
+    - talk points (best game score each side, most-used Moorpark player and his TS%, bench points);
+    - team: points, possessions, ORtg, eFG%, TS%, assisted %, AST/TO, STL%, BLK%, bench points, fouls;
+    - each player: the box, then game score, eFG%, TS%, USG%, AST%, TOV%, OREB%, DREB%, STL%, BLK%,
+      plus Moorpark's on-floor +/- from the tracker.
+  - The sheet's totals also become the Four factors numbers for that half / the game. **Edit sheet** reopens it.
 - **Sheet:** every possession in order for both teams, with how it ended, offensive rebounds,
   points, kills and the running score. Subs and technicals are shown where they happened.
   - Tap a row to change the stat or team, delete the play, or insert a missed play before it.
