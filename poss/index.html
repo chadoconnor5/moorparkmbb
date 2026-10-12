@@ -2950,6 +2950,129 @@ document.addEventListener('input', e => { if (e.target.classList && e.target.cla
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('sh-cl') && SHEET) { e.preventDefault();
   const ins = [...document.querySelectorAll('.sh-cl')], i = ins.indexOf(e.target); if (i < ins.length - 1) { ins[i + 1].focus(); ins[i + 1].select(); } else document.querySelector('[data-act="cl-next"]').click(); } });
 
+
+/* ---------- the game tracker's box score, filled from the stat sheet ----------
+   Same table as the game tracker's Box Score tab (BX_COLS there): starters, then a BENCH divider;
+   advanced columns, then the counting stats; green / red at the same thresholds; under 25% of the
+   minutes greyed; the TM Team row and a TEAM line with the team's own rates. +/- is the tracker's
+   on-floor +/-. Fouls drawn aren't on the sheet, so FD is left out. Formulas are the game tracker's. */
+const SB_COLS = [['min', 'MIN'], ['minPctVal', 'MIN%'], ['ortg', 'ORTG'], ['usgPct', 'USG'], ['shotPct', 'SHOT%'], ['efgPct', 'EFG'], ['tsPct', 'TS%'], ['ftRate', 'FTR'],
+  ['orPct', 'OR%'], ['drPct', 'DR%'], ['astPct', 'AST%'], ['toPct', 'TO%'], ['stlPct', 'STL%'], ['blkPct', 'BLK%'],
+  ['fg2', '2PT'], ['fg3', '3PT'], ['ft', 'FT'], ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'], ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'], ['pf', 'PF'], ['pts', 'PTS'], ['pm', '+/-']];
+function sbHi(v, good, bad) { return v == null ? '' : v >= good ? 'bs-hi' : v <= bad ? 'bs-lo' : ''; }
+function sbLo(v, good, bad) { return v == null ? '' : v <= good ? 'bs-hi' : v >= bad ? 'bs-lo' : ''; }
+function sbClass(r, k) {
+  switch (k) {
+    case 'pts': return sbHi(r.pts, 20, 5);       case 'pm': return sbHi(r.pm, 5, -5);
+    case 'ortg': return sbHi(r.ortg, 115, 90);    case 'efgPct': return sbHi(r.efgPct, 55, 40);
+    case 'tsPct': return sbHi(r.tsPct, 60, 45);   case 'usgPct': return sbHi(r.usgPct, 25, 12);
+    case 'orPct': return sbHi(r.orPct, 12, 4);    case 'drPct': return sbHi(r.drPct, 25, 10);
+    case 'astPct': return sbHi(r.astPct, 20, 5);  case 'toPct': return sbLo(r.toPct, 12, 22);
+    case 'stlPct': return sbHi(r.stlPct, 8, 2);   case 'blkPct': return sbHi(r.blkPct, 8, 2);
+    case 'ast': return sbHi(r.ast, 5, 1);         case 'tov': return sbLo(r.tov, 1, 3);
+    case 'stl': return sbHi(r.stl, 2, 0);         case 'blk': return sbHi(r.blk, 2, 0);
+  }
+  return '';
+}
+function sbVal(r, k) {
+  switch (k) {
+    case 'min': return r.min > 0 ? r.min + "'" : '—';
+    case 'fg2': return r.fg2m + '-' + r.fg2a; case 'fg3': return r.fg3m + '-' + r.fg3a; case 'ft': return r.ftm + '-' + r.fta;
+    case 'pm': return r.pm == null ? '—' : sgn(r.pm);
+    case 'ortg': case 'usgPct': case 'efgPct': case 'tsPct': case 'ftRate': case 'orPct': case 'drPct':
+    case 'astPct': case 'toPct': case 'stlPct': case 'blkPct': case 'minPctVal': case 'shotPct': return r[k] == null ? '—' : (k === 'ortg' ? Math.round(r[k]) : (+r[k]).toFixed(1));
+    default: return r[k] == null ? '—' : r[k];
+  }
+}
+// A team's sheet line in the game tracker's shape (2s split out, possessions shared by both teams).
+function sbTeam(S) {
+  const line = t => { const s = sheetTeamLine(S[t]); s.fg2m = s.fgm - s.fg3m; s.fg2a = s.fga - s.fg3a; s.reb = s.oreb + s.dreb; return s; };
+  const L = { a: line('a'), b: line('b') }, cp = s => (s.fga - s.oreb) + s.tov + 0.475 * s.fta, poss = (cp(L.a) + cp(L.b)) / 2;
+  ['a', 'b'].forEach(t => { const s = L[t], o = L[other(t)]; s.possessions = poss; s.ortg = poss > 0 ? 100 * s.pts / poss : 0;
+    s.efgPct = s.fga ? 100 * (s.fgm + 0.5 * s.fg3m) / s.fga : 0; s.tsPct = (s.fga + 0.475 * s.fta) ? 50 * s.pts / (s.fga + 0.475 * s.fta) : 0;
+    s.tovPct = poss > 0 ? 100 * s.tov / poss : 0; s.orebPct = (s.oreb + o.dreb) ? 100 * s.oreb / (s.oreb + o.dreb) : 0; s.drebPct = (s.dreb + o.oreb) ? 100 * s.dreb / (s.dreb + o.oreb) : 0;
+    s.ftr = s.fga ? 100 * s.fta / s.fga : 0; });
+  return L;
+}
+function sbRows(S, t, gameMin, TS, pmOf) {
+  const tS = TS[t], oS = TS[other(t)], p1 = v => (v != null && isFinite(v)) ? +v.toFixed(1) : null;
+  return S[t].rows.map(r0 => {
+    const s = Object.assign({}, r0); SH_NUM.forEach(k => { s[k] = +s[k] || 0; });
+    s.fg2m = s.fgm - s.fg3m; s.fg2a = s.fga - s.fg3a; s.reb = s.oreb + s.dreb;
+    const minExact = s.min, minPct = gameMin > 0 ? minExact / gameMin : 0;
+    s.minPctVal = minExact > 0 ? p1(minPct * 100) : null;
+    s.shotPct = (minPct > 0 && tS.fga > 0) ? p1(100 * s.fga / (minPct * tS.fga)) : null;
+    s.efgPct = s.fga > 0 ? p1((s.fgm + 0.5 * s.fg3m) / s.fga * 100) : null;
+    s.tsPct = (s.fga + 0.475 * s.fta) > 0 ? p1(0.5 * s.pts / (s.fga + 0.475 * s.fta) * 100) : null;
+    s.ftRate = s.fga > 0 ? p1(100 * s.fta / s.fga) : null;
+    const tFgaPoss = tS.fga + 0.475 * tS.fta + tS.tov;
+    s.usgPct = (minExact > 0 && tFgaPoss > 0) ? p1(100 * (s.fga + 0.475 * s.fta + s.tov) * gameMin / (minExact * tFgaPoss)) : null;
+    s.orPct = (minPct > 0 && (tS.oreb + oS.dreb) > 0) ? p1(100 * s.oreb / (minPct * (tS.oreb + oS.dreb))) : null;
+    s.drPct = (minPct > 0 && (tS.dreb + oS.oreb) > 0) ? p1(100 * s.dreb / (minPct * (tS.dreb + oS.oreb))) : null;
+    s.astPct = (minPct > 0 && (tS.fgm - s.fgm) > 0) ? p1(100 * s.ast / ((tS.fgm - s.fgm) * minPct)) : null;
+    const toD = s.fga + 0.475 * s.fta + s.ast + s.tov;
+    s.toPct = toD > 0 ? p1(100 * s.tov / toD) : null;
+    s.stlPct = minPct > 0 && tS.possessions > 0 ? p1(100 * s.stl / (minPct * tS.possessions)) : null;
+    s.blkPct = minPct > 0 ? p1(100 * s.blk / (minPct * Math.max(1, oS.fg2a))) : null;
+    s.ortg = shIndivOrtg(s, minExact, gameMin, tS, oS);
+    s.pm = pmOf(r0.num);
+    return s; });
+}
+function sbTable(g, S, t, gameMin, pmOf, hideLow) {
+  const TS = sbTeam(S), ts = TS[t], os = TS[other(t)], T = S[t];
+  let rows = sbRows(S, t, gameMin, TS, pmOf).filter(r => r.min > 0 || r.fga || r.fta || r.reb || r.ast || r.tov || r.pf || r.stl || r.blk)
+    .sort((x, y) => (y.starter - x.starter) || (y.min - x.min));
+  const lowOf = r => r.minPctVal != null && r.min > 0 && r.minPctVal < 25;
+  const hidden = hideLow ? rows.filter(lowOf).length : 0; if (hideLow) rows = rows.filter(r => !lowOf(r));
+  const split = rows.some(r => r.starter); let bench = false;
+  const body = rows.map(r => { let div = '';
+    if (split && !r.starter && !bench) { bench = true; div = `<tr class="bench-divider"><td>BENCH</td><td colspan="${SB_COLS.length}"></td></tr>`; }
+    const low = lowOf(r);
+    return `${div}<tr class="${low ? 'low-min' : ''}" ${low ? `title="${Math.round(r.minPctVal)}% of the available minutes"` : ''}><td>${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name || '')}</td>${SB_COLS.map(([k]) => `<td class="${sbClass(r, k)}">${sbVal(r, k)}</td>`).join('')}</tr>`; }).join('');
+  const tr = T.teamReb, teamRow = tr && (tr.oreb || tr.dreb) ? `<tr class="team-row"><td>Team</td>${SB_COLS.map(([k]) => `<td>${k === 'oreb' ? tr.oreb : k === 'dreb' ? tr.dreb : k === 'reb' ? tr.oreb + tr.dreb : ''}</td>`).join('')}</tr>` : '';
+  const p1 = v => v == null || !isFinite(v) ? '—' : (+v).toFixed(1);
+  const team = { min: Math.round(gameMin) + "'", minPctVal: '—', usgPct: '—', shotPct: '—', ortg: ts.possessions > 0 ? Math.round(ts.ortg) : '—',
+    efgPct: ts.fga ? p1(ts.efgPct) : '—', tsPct: (ts.fga + ts.fta) ? p1(ts.tsPct) : '—', ftRate: ts.fga ? p1(ts.ftr) : '—',
+    orPct: (ts.oreb + os.dreb) ? p1(ts.orebPct) : '—', drPct: (ts.dreb + os.oreb) ? p1(ts.drebPct) : '—', astPct: ts.fgm ? p1(100 * ts.ast / ts.fgm) : '—',
+    toPct: ts.possessions > 0 ? p1(ts.tovPct) : '—', stlPct: os.possessions > 0 ? p1(100 * ts.stl / os.possessions) : '—', blkPct: os.fg2a ? p1(100 * ts.blk / os.fg2a) : '—' };
+  const totVal = k => team[k] != null ? team[k] : sbVal(Object.assign({}, ts, { pm: ts.pts - os.pts }), k);
+  const header = teamName(g, t);
+  return `<div class="box-team-header ${t}">${logo(header, 20)}${esc(header.toUpperCase())}<span>${Math.round(ts.possessions)} POSS</span>${hidden ? `<span class="muted" style="margin-left:auto;font-weight:600;letter-spacing:0">${hidden} under 25% of minutes hidden</span>` : ''}</div>
+    <div class="box-wrap"><table class="box-table"><thead><tr><th>PLAYER</th>${SB_COLS.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
+      <tbody>${body}${teamRow}<tr class="totals-row"><td>TEAM</td>${SB_COLS.map(([k]) => `<td>${totVal(k)}</td>`).join('')}</tr></tbody></table></div>`;
+}
+
+function shIndivOrtg(s, MP, tMP5, tS, oS) {
+  if (!(MP > 0 && tMP5 > 0 && (s.fga > 0 || s.fta > 0 || s.tov > 0 || s.ast > 0 || s.oreb > 0))) return null;
+  const tFGM = tS.fgm, tFGA = tS.fga, tFG3M = tS.fg3m, tFTM = tS.ftm, tFTA = tS.fta, tPTS = tS.pts, tTOV = tS.tov, tAST = tS.ast;
+  const tOREB = tS.oreb, oDREB = oS.dreb;
+  const qAST_1 = tFGM > 0 ? (MP / tMP5) * (1.14 * ((tAST - s.ast) / tFGM)) : 0;
+  const adjAST = tAST * (MP / tMP5) - s.ast, adjFGM = tFGM * (MP / tMP5) - s.fgm;
+  const qAST = qAST_1 + (adjFGM > 0 ? (adjAST / adjFGM) * (1 - MP / tMP5) : 0);
+  const fgRatio = s.fga > 0 ? (s.pts - s.ftm) / (2 * s.fga) : 0;
+  const FG_Part = s.fgm * (1 - 0.5 * fgRatio * qAST);
+  const AST_Part = (tFGA - s.fga) > 0 ? 0.5 * ((tPTS - tFTM - (s.pts - s.ftm)) / (2 * (tFGA - s.fga))) * s.ast : 0;
+  const FT_Part = s.fta > 0 ? (1 - Math.pow(1 - s.ftm / s.fta, 2)) * 0.4 * s.fta : 0;
+  const tScPoss = tFGM + (tFTA > 0 ? (1 - Math.pow(1 - tFTM / tFTA, 2)) * tFTA * 0.4 : 0);
+  const tORBpct = (tOREB + oDREB) > 0 ? tOREB / (tOREB + oDREB) : 0;
+  const tPlayPct = (tFGA + tFTA * 0.4 + tTOV) > 0 ? tScPoss / (tFGA + tFTA * 0.4 + tTOV) : 0;
+  const den = (1 - tORBpct) * tPlayPct + tORBpct * (1 - tPlayPct);
+  const tORBWt = den > 0 ? ((1 - tORBpct) * tPlayPct) / den : 0;
+  const ORB_Part = s.oreb * tORBWt * tPlayPct;
+  const teamOrbAdj = tScPoss > 0 ? (tOREB / tScPoss) * tORBWt * tPlayPct : 0;
+  const ScPoss = (FG_Part + AST_Part + FT_Part) * (1 - teamOrbAdj) + ORB_Part;
+  const FGxPoss = (s.fga - s.fgm) * (1 - 1.07 * tORBpct);
+  const FTxPoss = s.fta > 0 ? Math.pow(1 - s.ftm / s.fta, 2) * 0.4 * s.fta : 0;
+  const TotPoss = ScPoss + FGxPoss + FTxPoss + s.tov;
+  if (!(TotPoss > 0)) return null;
+  const PProd_FG = 2 * (s.fgm + 0.5 * s.fg3m) * (1 - 0.5 * fgRatio * qAST);
+  const PProd_AST = (tFGM - s.fgm) > 0
+    ? 2 * ((tFGM - s.fgm + 0.5 * (tFG3M - s.fg3m)) / (tFGM - s.fgm)) * 0.5 * ((tPTS - tFTM - (s.pts - s.ftm)) / (2 * Math.max(tFGA - s.fga, 1))) * s.ast : 0;
+  const PProd_ORB = tScPoss > 0 ? s.oreb * tORBWt * tPlayPct * (tPTS / tScPoss) : 0;
+  const PProd = (PProd_FG + PProd_AST + s.ftm) * (1 - teamOrbAdj) + PProd_ORB;
+  return Math.round(100 * PProd / TotPoss);
+}
+
 /* ---------- the full report: with a stat sheet, the halftime / post-game report becomes three parts ----------
    TEAM (four factors and team advanced from the sheet, possessions, points off turnovers, second-chance
    points, kills and stops from the tracker), PLAYERS (every player's box and advanced numbers from the sheet,
@@ -2998,24 +3121,13 @@ function fullReport(g, D, half) {
       return { poss: Math.floor((u.oPoss + u.dPoss) / 2), ortg: u.oPoss ? 100 * u.pf / u.oPoss : null, drtg: u.dPoss ? 100 * u.pa / u.dPoss : null, net: net(on), off: off.op >= 3 && off.dp >= 3 ? net(off) : null, pm: u.pf - u.pa, stops: u.stops }; }; };
   const OO = { a: onOff('a'), b: onOff('b') };
   // Minutes cut for the player tables: 25% of the half / game (5:00 at the half, 10:00 for the game, +25% of each OT).
-  const minCut = 0.25 * (half ? 20 : 40 + 5 * otCount(g)), only25 = UI.repMin === '25';
+  const gameMin = half ? 20 : 40 + 5 * otCount(g), minCut = 0.25 * gameMin, only25 = UI.repMin === '25';
+  const pmA = num => { const o = OO.a(idOf('a', num)); return o ? o.pm : null; };
   const played = r => r.min || r.fga || r.fta || r.pts || r.oreb || r.dreb || r.ast || r.tov;
   const rowsAll = t => S[t].rows.filter(played);
   const rowsOf = t => S[t].rows.filter(r => played(r) && (!only25 || (+r.min || 0) >= minCut)).map(r => ({ r, x: sheetAdv(r, L[t], L[other(t)]), o: OO[t](idOf(t, r.num)) })).sort((p, q) => q.x.gmsc - p.x.gmsc);
   const nm = r => `${r.num ? `<span class="pnum">#${esc(r.num)}</span> ` : ''}${esc(r.name || '')}`;
   const tc = t => t === 'a' ? 'var(--us)' : 'var(--them-text)';
-  const players = t => { const R = rowsOf(t), hid = only25 ? rowsAll(t).length - R.length : 0;
-    const impact = `<table class="tbl zebra sh-out"><thead><tr><th class="l">Player</th><th>MIN</th><th>PTS</th><th>GmSc</th><th>TS%</th><th>USG%</th><th>ON POSS</th><th>ORTG</th><th>DRTG</th><th>NET</th><th>ON/OFF</th><th>+/-</th></tr></thead><tbody>
-      ${R.map(({ r, x, o }) => { const oo = o && o.net != null && o.off != null ? o.net - o.off : null;
-        return `<tr><td class="l">${nm(r)}</td><td>${r.min ?? '—'}</td><td><b>${r.pts ?? 0}</b></td><td><b>${F(x.gmsc)}</b></td><td>${P(x.ts)}</td><td>${P(x.usg)}</td><td>${o ? o.poss : '—'}</td><td>${o ? F(o.ortg) : '—'}</td><td>${o ? F(o.drtg) : '—'}</td>
-          <td class="${o && o.net != null ? pmCls(o.net) : ''}">${o ? SG(o.net) : '—'}</td><td class="${oo == null ? '' : pmCls(oo)}">${SG(oo)}</td><td class="${o ? pmCls(o.pm) : ''}">${o ? sgn(o.pm) : '—'}</td></tr>`; }).join('')}</tbody></table>`;
-    const box = `<table class="tbl zebra sh-out"><thead><tr><th class="l">Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3P</th><th>FT</th><th>OR-DR</th><th>AST</th><th>TO</th><th>STL</th><th>BLK</th><th>PF</th></tr></thead><tbody>
-      ${R.map(({ r }) => `<tr><td class="l">${nm(r)}${r.starter ? '' : ' <span class="tiny muted">bench</span>'}</td><td>${r.min ?? '—'}</td><td><b>${r.pts ?? 0}</b></td><td>${r.fgm ?? 0}-${r.fga ?? 0}</td><td>${r.fg3m ?? 0}-${r.fg3a ?? 0}</td><td>${r.ftm ?? 0}-${r.fta ?? 0}</td><td>${r.oreb ?? 0}-${r.dreb ?? 0}</td><td>${r.ast ?? 0}</td><td>${r.tov ?? 0}</td><td>${r.stl ?? 0}</td><td>${r.blk ?? 0}</td><td class="${(r.pf || 0) >= (half ? 3 : 5) ? 'tf-dbl' : (r.pf || 0) >= (half ? 2 : 4) ? 'tf-bonus' : ''}">${r.pf ?? 0}</td></tr>`).join('')}</tbody></table>`;
-    const adv = `<table class="tbl zebra sh-out"><thead><tr><th class="l">Player</th><th>eFG%</th><th>AST%</th><th>TOV%</th><th>OREB%</th><th>DREB%</th><th>STL%</th><th>BLK%</th><th>DEF STOPS ON</th></tr></thead><tbody>
-      ${R.map(({ r, x, o }) => `<tr><td class="l">${nm(r)}</td><td>${P(x.efg)}</td><td>${P(x.ast)}</td><td>${P(x.tov)}</td><td>${P(x.orb)}</td><td>${P(x.drb)}</td><td>${P(x.stl)}</td><td>${P(x.blk)}</td><td>${o ? o.stops : '—'}</td></tr>`).join('')}</tbody></table>`;
-    return `<div class="card"><h3><span style="color:${tc(t)}">${esc(teamName(g, t))}</span> <span class="muted">· impact: sheet + on-floor from the tracker, best game score first${hid ? ` · ${hid} under ${minCut} min hidden` : ''}</span></h3><div class="tbl-wrap">${impact}</div>
-      <h3 style="margin-top:12px"><span style="color:${tc(t)}">${esc(teamName(g, t))}</span> <span class="muted">· box</span></h3><div class="tbl-wrap">${box}</div>
-      <h3 style="margin-top:12px"><span style="color:${tc(t)}">${esc(teamName(g, t))}</span> <span class="muted">· advanced</span></h3><div class="tbl-wrap">${adv}</div></div>`; };
   // Key takeaways, most useful first.
   const T = [], add = (cls, txt) => T.push(`<div class="ins ${cls}"><span>${txt}</span></div>`);
   const nmT = r => esc(r.name || '#' + r.num);
@@ -3045,10 +3157,10 @@ function fullReport(g, D, half) {
     <div class="card"><h3>Team analytics <span class="muted">· sheet; possessions, points off turnovers, second-chance points and kills from the tracker</span></h3>${teamTbl}</div>
     ${halves}
     <div class="card"><h3>Stops, kills &amp; killshots <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3>${killsCard(g, D, scope)}</div>
-    <div class="rp-sec"><span>Players</span><span class="muted">impact · box · advanced</span>
+    <div class="rp-sec"><span>Players</span><span class="muted">box score · starters / bench</span>
       <span class="row" style="gap:6px;margin-left:auto"><button class="btn btn-sm ${only25 ? '' : 'btn-primary'}" data-act="rep-min" data-m="all">All players</button><button class="btn btn-sm ${only25 ? 'btn-primary' : ''}" data-act="rep-min" data-m="25">25%+ of minutes (${minCut}+ min)</button></span></div>
-    ${players('a')}${players('b')}
-    <div class="small muted" style="margin:-6px 0 14px">ON POSS / ORTG / DRTG / NET = the team's possessions and points per 100 with him on the floor (tracker). ON/OFF = net with him on minus net with him off. Game score = PTS + 0.4·FGM − 0.7·FGA − 0.4·(FTA − FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·AST + 0.7·BLK − 0.4·PF − TO. USG%, AST%, OREB%, DREB%, STL% and BLK% use minutes.</div>
+    <div class="card sb-card">${sbTable(g, S, 'a', gameMin, pmA, only25)}${sbTable(g, S, 'b', gameMin, () => null, only25)}
+      <div class="small muted">The game tracker's box score, from the ${half ? 'halftime' : 'final'} stat sheet. +/- is Moorpark's on-floor +/- from the tracker. Grey = under 25% of the minutes.</div></div>
     ${sec('Lineups', 'best fives · combos · every five')}
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, luScope)}</div>
     ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 2-, 3- and 4-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
