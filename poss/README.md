@@ -14,7 +14,7 @@ With no game going, the **Live** tab shows the game tracker's New game screen:
 - pick the scouting report;
 - then tap **Create game →**.
 
-Games → **+ New game** brings the screen back.
+Games → **+ New game** brings the screen back. Every tab opens without a game too; the ones that need one say so.
 
 ## Logging
 - **Team stats:** tap the stat, then a team logo at the top.
@@ -66,8 +66,10 @@ show the current five for each team: possessions on offense / defense, ORtg, DRt
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
   plus fouls, subs, technicals and timeouts. Filter by team. Tap any line to fix it.
-- **Schedule:** the game tracker's schedule. Start a game from a row, or open the one already
-  tracked.
+- **Schedule:** the game tracker's Schedule tab, same look, same shared schedule.
+  - Edit rows, Paste schedule, + Add game, Save schedule.
+  - **Start game** opens the New game screen filled in for that row.
+  - A tracked game shows its score, Open and Sheet.
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
   - Opponent rosters are shared with the game tracker.
   - Position and the note show on the player's card on the Live screen.
