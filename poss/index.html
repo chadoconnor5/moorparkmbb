@@ -681,6 +681,17 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .psheet .lvg{color:#6b7280;font-weight:800;font-size:10.5px}
 .psheet tr.gtr td:not(.tm){opacity:.55}
 .psheet tr.gtl td{background:var(--surface)!important;color:var(--muted);text-align:left;height:26px;font-size:12px;padding:2px 8px;border-top:2px solid var(--muted)}
+.skunk{margin-left:5px;font-size:10px;font-weight:800;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#22c55e;color:#04210f}
+.skunk.dead{background:#ef4444;color:#fff}
+.ks-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ks{background:var(--card);border-radius:11px;padding:10px 12px}
+.ks-lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.ks-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ks-nums div{display:flex;flex-direction:column;align-items:center}
+.ks-nums b{font-size:20px;font-variant-numeric:tabular-nums}
+.ks-nums span{font-size:10.5px;color:var(--muted);font-weight:600}
+.psheet td.kill{font-size:13px}
+@media (max-width:700px){.ks-grid{grid-template-columns:1fr}}
 
 </style>
 </head>
@@ -710,7 +721,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.22';
+const VERSION = 'v2026.10.12.23';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -914,16 +925,21 @@ function derive(g) {
     if (ENDERS.has(e.k)) open.done = true;
     open.score = { ...score };
   }
-  // Numbering, endings and kills, period by period.
-  const byPer = {};
-  poss.forEach(p => { (byPer[p.per] = byPer[p.per] || []).push(p); });
-  Object.values(byPer).forEach(list => {
-    const n = { a: 0, b: 0 }, streak = { a: 0, b: 0 };   // streak[t] = t's defensive stops in a row
-    list.forEach((p, i) => {
-      p.seq = i + 1; p.n = ++n[p.team];
-      p.end = endingOf(p);
-      const d = other(p.team); p.stop = p.pts === 0; p.kill = false;
-      if (p.stop) { if (++streak[d] === 3) { p.kill = true; streak[d] = 0; } } else streak[d] = 0;
+  /* Numbering, endings, kills and skunks, period by period — the game tracker's kill rules:
+     a stop is a finished possession with no points, EXCEPT one that ended on missed free throws
+     (the defence fouled to get there); a technical breaks the fouling side's run; the count
+     starts over each half / OT. Every 3 straight stops is a KILL (6 = two kills); reaching 6 is a
+     SKUNK and 9 a DEAD SKUNK, counted on top of the kills. streak[t] = t's stops in a row. */
+  const pers = [...new Set(items.map(x => x.kind === 'poss' ? x.p.per : x.e && x.e.per).filter(Boolean))];
+  pers.forEach(per => {
+    const n = { a: 0, b: 0 }, streak = { a: 0, b: 0 }; let seq = 0;
+    items.forEach(x => {
+      if (x.kind === 'tech' && x.e.per === per) { streak[x.e.team] = 0; return; }
+      if (x.kind !== 'poss' || x.p.per !== per) return;
+      const p = x.p, d = other(p.team);
+      p.seq = ++seq; p.n = ++n[p.team]; p.end = endingOf(p);
+      p.stop = p.pts === 0 && p.end.col !== 'xFT'; p.kill = p.skunk = p.dead = false;
+      if (p.stop) { const k = ++streak[d]; p.kill = k % 3 === 0; p.skunk = k === 6; p.dead = k === 9; } else streak[d] = 0;
       p.streak = { ...streak };
     });
   });
@@ -1006,12 +1022,34 @@ function endingOf(p) {
 const END_COLS = [['2', '2'], ['3', '3'], ['FT', 'FT'], ['x2', '✗2'], ['x3', '✗3'], ['xFT', '✗FT'], ['TO', 'TO'], ['STL', 'STL'], ['CHG', 'CHG'], ['OFF', 'OFF']];
 
 function perSums(D, per) {
-  const s = { poss: { a: 0, b: 0 }, pts: { a: 0, b: 0 }, kills: { a: 0, b: 0 }, streak: { a: 0, b: 0 } };
-  D.poss.filter(p => !per || p.per === per).forEach(p => { s.poss[p.team]++; s.pts[p.team] += p.pts; if (p.kill) s.kills[other(p.team)]++; s.streak = p.streak; });
+  const s = { poss: { a: 0, b: 0 }, pts: { a: 0, b: 0 }, kills: { a: 0, b: 0 }, skunks: { a: 0, b: 0 }, dead: { a: 0, b: 0 }, streak: { a: 0, b: 0 } };
+  D.poss.filter(p => !per || p.per === per).forEach(p => { const d = other(p.team); s.poss[p.team]++; s.pts[p.team] += p.pts;
+    if (p.kill) s.kills[d]++; if (p.skunk) s.skunks[d]++; if (p.dead) s.dead[d]++; s.streak = p.streak; });
   D.items.filter(x => x.kind === 'tech' && (!per || x.e.per === per)).forEach(x => { s.pts[other(x.e.team)] += x.e.ftm || 0; });
   return s;
 }
 const ppp = (pts, n) => n ? (pts / n).toFixed(2) : '—';
+/* KILLSHOTS — the game tracker's rule: a run is every point one side scores before the other side
+   scores again (technical FTs included), carrying across the half. 10-0 is a killshot; 15 and 20
+   are counted on top of it, so a 22-0 run is one 10-0, one 15-0 and one 20-0. */
+const RUN_MARKS = [10, 15, 20];
+function scoringRuns(g) {
+  const runs = [], sc = { a: 0, b: 0 }, five = { a: [], b: [] }; let cur = null;
+  g.ev.forEach(e => {
+    if (e.t === 'sub') { five[e.team] = e.five.slice(); return; }
+    const t = e.t === 'play' ? e.team : e.t === 'tech' ? other(e.team) : null;
+    const v = e.t === 'play' ? (PTS[e.k] || 0) : e.t === 'tech' ? (e.ftm || 0) : 0;
+    if (!t || !v) return;
+    if (!cur || cur.team !== t) { cur = { team: t, pts: 0, from: { ...sc }, startPer: e.per, five: five.a.slice() }; runs.push(cur); }
+    cur.pts += v; sc[t] += v; cur.to = { ...sc }; cur.endPer = e.per;
+  });
+  return runs;
+}
+function killshotCounts(g) {
+  const c = { a: { 10: 0, 15: 0, 20: 0 }, b: { 10: 0, 15: 0, 20: 0 } };
+  scoringRuns(g).forEach(r => RUN_MARKS.forEach(m => { if (r.pts >= m) c[r.team][m]++; }));
+  return c;
+}
 // The game's possession count: the two teams' counts averaged, rounded down to a whole number, so it
 // goes up once both teams have had the ball. PPP always uses each team's own count.
 const possAvg = s => String(Math.floor((s.poss.a + s.poss.b) / 2));
@@ -1071,8 +1109,8 @@ function scorebar(g, D) {
   const per = g.per, S = perSums(D, per), G = perSums(D, null);
   const dots = t => { const ot = otCount(g), s30 = S30_TOS + ot, uf = tosUsed(g, t, 'full'), us = tosUsed(g, t, 's30');
     return `<span class="to-dots" title="Timeouts left">${Array.from({ length: s30 }, (_, i) => `<span class="to-dot ${i < us ? 'used' : ''}"></span>`).join('')}<span style="width:4px"></span>${Array.from({ length: FULL_TOS }, (_, i) => `<span class="to-dot full ${i < uf ? 'used' : ''}"></span>`).join('')}</span>`; };
-  const kills = t => { const st = S.streak[t] || 0;
-    return `<span class="kills">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < st ? 'on' : ''}"></span>`).join('')}</span>`; };
+  const kills = t => { const st = S.streak[t] || 0, pip = st % 3;
+    return `<span class="kills" title="Kills this half (3 straight stops). Skunk = 6, dead skunk = 9.">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < pip ? 'on' : ''}"></span>`).join('')}${st >= 9 ? '<span class="skunk dead">DEAD SKUNK</span>' : st >= 6 ? '<span class="skunk">SKUNK</span>' : ''}</span>`; };
   const bonus = t => { const n = teamFouls(g, other(t), per); return n >= 10 ? '<span class="bonus-tag dbl">DBL BONUS</span>' : n >= 7 ? '<span class="bonus-tag">BONUS</span>' : ''; };
   return `<div class="scorebar">
     <div class="sb-team a"><div class="sb-id"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div>
@@ -1082,6 +1120,7 @@ function scorebar(g, D) {
       <div class="sb-score">${G.pts.a}</div></div>
     <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div><div class="sb-clock">Poss ${possAvg(S)}</div>
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
+      ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
       <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button></div></div>
@@ -1194,7 +1233,7 @@ function sheetTable(g, D, per) {
     const toCol = ['TO', 'STL', 'CHG', 'OFF'].includes(en.col) ? '<td class="m">●' + (en.col !== 'TO' && en.col !== 'STL' ? `<span class="tiny">${en.col}</span>` : '') + '</td>' : '<td></td>';
     h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''} ${p.gt ? 'gtr' : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
 ${['2', '3', 'FT', 'x2', 'x3', 'xFT'].map(c).join('')}${toCol}
-      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td><td class="lv">${p.gt ? '<span class="lvg">GT</span>' : `<span class="lv-${p.lev}">${(LEV_LABEL[p.lev] || '')[0] || ''}</span>${p.clutch ? '<span class="lvc">C</span>' : ''}`}</td></tr>`;
+      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.dead ? 'DS' : p.skunk ? 'S' : p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td><td class="lv">${p.gt ? '<span class="lvg">GT</span>' : `<span class="lv-${p.lev}">${(LEV_LABEL[p.lev] || '')[0] || ''}</span>${p.clutch ? '<span class="lvc">C</span>' : ''}`}</td></tr>`;
   }
   return h + '</tbody></table>';
 }
@@ -1204,13 +1243,24 @@ function summaryTable(g, D) {
     <tr><th></th><th>PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th><th>PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th></tr></thead>
     <tbody>${g.periods.map(p => row(PER_NAME(p), perSums(D, p))).join('')}${g.periods.length > 1 ? row('Game', perSums(D, null), 'tot') : ''}</tbody></table>`;
 }
+function killsCard(g, D) {
+  const S = perSums(D, null), K = killshotCounts(g), runs = scoringRuns(g).filter(r => r.pts >= 10);
+  const tile = t => `<div class="ks ${t}"><div class="ks-lbl" style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</div>
+    <div class="ks-nums"><div><b>${S.kills[t]}</b><span>Kills</span></div><div><b>${S.skunks[t]}</b><span>Skunks</span></div><div><b>${S.dead[t]}</b><span>Dead skunks</span></div>
+    ${RUN_MARKS.map(m => `<div><b>${K[t][m]}</b><span>${m}-0</span></div>`).join('')}</div></div>`;
+  return `<div class="ks-grid">${tile('a')}${tile('b')}</div>
+    ${runs.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt"><thead><tr><th>RUN</th><th>BY</th><th>FROM</th><th>TO</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
+      ${runs.map(r => `<tr><td><b>${r.pts}-0</b></td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.startPer)}</td><td>${esc(r.endPer)}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
+        <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.five).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No 10-0 runs yet.</div>'}`;
+}
 function sheetView(g) {
   const D = derive(g), per = UI.sheetPer && g.periods.includes(UI.sheetPer) ? UI.sheetPer : g.per;
   return `<div class="page-head"><h2>Possession sheet</h2><div class="row" style="gap:6px">${g.periods.map(p => `<button class="btn btn-sm ${p === per ? 'btn-primary' : ''}" data-act="sheet-per" data-p="${p}">${p}</button>`).join('')}</div>
       <span class="row" style="gap:6px;margin-left:auto"><button class="btn btn-sm" data-act="export-def" title="def_ CSV for internal_data/def_logs">⬇ Leaderboard: defense</button><button class="btn btn-sm" data-act="export-off" title="off_ CSV for internal_data/def_logs">⬇ Leaderboard: offense</button><button class="btn btn-sm" data-act="print">Print / PDF</button></span></div>
     <div class="card"><h3>${esc(PER_NAME(per))} — every possession in order <span class="muted">· tap a row to fix it</span></h3><div class="tbl-wrap">${sheetTable(g, D, per)}</div>
-      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (3 straight stops). LEV = leverage going into the possession: H high, M medium, L low; C = clutch; GT = garbage time. Worked out from possessions left (no clock): estimated until the game is final, exact after. Tap a row to set garbage time by hand.</div></div>
+      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (every 3 straight stops), S = skunk (6), DS = dead skunk (9). LEV = leverage going into the possession: H high, M medium, L low; C = clutch; GT = garbage time. Worked out from possessions left (no clock): estimated until the game is final, exact after. Tap a row to set garbage time by hand.</div></div>
     <div class="card"><h3>Summary</h3><div class="tbl-wrap">${summaryTable(g, D)}</div></div>
+    <div class="card"><h3>Kills &amp; killshots <span class="muted">· the game</span></h3>${killsCard(g, D)}</div>
     <div class="print-only">${g.periods.filter(p => p !== per).map(p => `<div class="card"><h3>${esc(PER_NAME(p))}</h3>${sheetTable(g, D, p)}</div>`).join('')}</div>`;
 }
 

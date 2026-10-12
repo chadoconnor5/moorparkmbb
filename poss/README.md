@@ -71,8 +71,17 @@ unchanged: counted defensive possessions per five, opponent 2P/3P/FT, turnovers,
 second-chance and points-off-turnover points, and the garbage flag. Points in the paint aren't tracked.
 Hudl's per-game lineup export still supplies offense and minutes.
 
-**Kills:** 3 defensive stops in a row, for each team. The count restarts after a kill, a score, or
-a new period.
+**Kills, skunks, killshots** (the game tracker's rules):
+- A **stop** is a finished possession with no points, except one that ended on missed free throws.
+  A technical breaks the fouling team's run. The count starts over each half / OT.
+- **Kill** = every 3 straight stops (6 = two kills). **Skunk** = the run reaches 6. **Dead skunk** = it
+  reaches 9. Counted on top of the kills. The scoreboard shows kills this half, pips toward the next
+  kill, and a SKUNK / DEAD SKUNK tag while the run is alive.
+- **Killshots:** a run is every point one side scores before the other scores again (technical FTs
+  included), across halves. 10-0, 15-0 and 20-0 are counted, nested (a 22-0 is one of each). The
+  current run (6+) shows under Poss.
+- Sheet → **Kills & killshots**: both teams' kills, skunks, dead skunks and 10/15/20-0 runs, and every
+  run of 10+ with the score and Moorpark's five when it started.
 
 ## Lineups
 ⇄ Sub sets both teams' fives on one screen. The starting fives are asked for when a game starts
