@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MBB Poss">
+<meta name="theme-color" content="#2f5aa8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="../game/icon-180.png">
+<title>Moorpark Possession Tracking</title>
+<style>
+/* The jamboree possession sheet, digitized: the same yellow bars, blue STOP / KILL columns and
+   grid, so a coach who charted on paper reads this without learning anything new. */
+:root{
+  --ink:#1f2937; --mut:#6b7280; --line:#c4c9d1; --line2:#9aa3af; --bg:#f3f4f6; --card:#fff;
+  --yellow:#ffe14d; --yellow2:#fff6c2; --blue:#2f5aa8; --blue2:#dbe6f7; --blue3:#eef3fb;
+  --red:#c62828; --good:#15803d; --row-light:#eef0f3; --row-dark:#d2d7df;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.wrap{max-width:900px;margin:0 auto;padding:10px 12px 60px}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.top h1{margin:0;font-size:20px;color:var(--blue);font-weight:800;letter-spacing:.01em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top h1 small{display:block;font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.top img{width:38px;height:38px;object-fit:contain}
+.btn{background:#fff;border:1px solid var(--line2);border-radius:9px;padding:9px 13px;font-weight:600;font-size:14px}
+.btn:active{filter:brightness(.92)}
+.btn-blue{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-red{color:var(--red);border-color:#e7b4b4}
+.btn-sm{padding:6px 10px;font-size:13px}
+.card{background:var(--card);border:1.5px solid var(--ink);border-radius:4px;margin-bottom:12px;overflow:hidden}
+.bar{background:var(--yellow);border-bottom:1.5px solid var(--ink);text-align:center;font-weight:800;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;padding:6px 8px;display:flex;align-items:center;justify-content:center;gap:10px}
+.bar .r{margin-left:auto;letter-spacing:0;text-transform:none;font-weight:600}
+.pad{padding:10px 12px}
+.muted{color:var(--mut)} .small{font-size:12.5px}
+
+/* scorebug */
+.bug{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:10px 12px}
+.side{text-align:center}
+.side .nm{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.side.a .nm{color:var(--blue)} .side.b .nm{color:var(--red)}
+.side .sc{font-size:46px;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
+.side .ppp{font-size:12.5px;color:var(--mut)}
+.mid{text-align:center}
+.per{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+.per button{border:1.5px solid var(--ink);background:#fff;border-radius:6px;padding:6px 10px;font-weight:800;font-size:14px}
+.per button.on{background:var(--ink);color:#fff}
+.mid .possn{margin-top:6px;font-size:13px;color:var(--mut)}
+.mid .possn b{color:var(--ink);font-size:17px}
+.streak{display:flex;gap:5px;justify-content:center;margin-top:6px;align-items:center;font-size:12px;color:var(--mut)}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--blue);display:inline-block}
+.dot.on{background:var(--blue)}
+.mpk-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
+.mpk-btns button{border:1.5px solid var(--blue);background:var(--blue3);color:var(--blue);border-radius:8px;min-width:48px;padding:8px 0;font-weight:800;font-size:17px}
+.mpk-btns button.minus{border-color:var(--line2);background:#fff;color:var(--mut);min-width:40px}
+.bonus{display:inline-block;margin-top:3px;font-size:11px;font-weight:800;letter-spacing:.08em;padding:2px 7px;border-radius:4px;background:var(--yellow);color:#7a5b00}
+.bonus.dbl{background:var(--red);color:#fff}
+
+/* entry */
+.entry{display:grid;grid-template-columns:230px 1fr;gap:12px;padding:12px}
+.numbox{border:1.5px solid var(--ink);border-radius:6px;height:56px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:8px}
+.numbox.empty{color:#b8bec7;font-size:18px;font-weight:700}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.keys button{height:50px;border:1px solid var(--line2);background:#f8f9fb;border-radius:8px;font-size:21px;font-weight:700}
+.recent{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;min-height:30px}
+.recent button{border:1px solid var(--line2);background:#fff;border-radius:6px;padding:4px 9px;font-weight:700;font-size:14px}
+.recent button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.res{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.res button{height:66px;border-radius:10px;border:1.5px solid var(--ink);font-size:22px;font-weight:800;background:#fff}
+.res .make{background:#fff6c2}
+.res .miss{background:#fde8e8;color:var(--red)}
+.res .stop{background:var(--blue2);color:var(--blue)}
+.res .wide{grid-column:span 3}
+.res button small{display:block;font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.04em}
+.togs{display:flex;gap:8px;margin-top:8px}
+.togs button{flex:1;height:48px;border-radius:9px;border:1.5px dashed var(--line2);background:#fff;font-weight:700;font-size:15px}
+.togs button.on{border-style:solid;border-color:var(--ink);background:var(--ink);color:#fff}
+.lastline{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13.5px}
+.lastline .txt{flex:1;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* the sheet grid */
+.logwrap{max-height:430px;overflow:auto}
+table.sheet{border-collapse:collapse;width:100%;font-size:14px;table-layout:fixed}
+.sheet th{background:var(--yellow);border:1px solid var(--ink);font-size:11px;font-weight:800;padding:4px 2px;position:sticky;top:0;z-index:1}
+.sheet th.st{background:var(--blue2);color:var(--blue)}
+.sheet th.kl{background:var(--blue);color:#fff}
+.sheet th.x{color:var(--red)}
+.sheet td{border:1px solid var(--line);text-align:center;padding:0;height:34px;font-weight:700}
+.sheet tbody tr:nth-child(odd) td{background:var(--row-light)} .sheet tbody tr:nth-child(even) td{background:var(--row-dark)}
+.sheet th:nth-child(1){width:48px} .sheet th:nth-child(2){width:74px} .sheet th:nth-child(12){width:50px} .sheet th:nth-child(13){width:50px}
+.sheet td.pn{font-weight:800}
+.sheet td.m{font-size:18px;line-height:1}
+.sheet td.mx{color:var(--red)} .sheet td.ms{color:var(--blue)}
+.sheet td.pts{width:46px;font-size:16px}
+.sheet td.kill{width:44px;color:var(--blue);font-size:17px}
+.sheet tr.killrow td.kill{background:var(--blue)!important;color:#fff}
+.sheet tr.sub td{background:#fff!important;font-size:11.5px;letter-spacing:.06em;color:var(--mut);height:28px;font-weight:800}
+.sheet tr.hl td{background:#fef9c3!important}
+.sheet tbody tr:not(.sub){cursor:pointer}
+.sheet .tiny{font-size:10px;color:var(--mut);font-weight:700}
+.empty-log{padding:22px;text-align:center;color:var(--mut)}
+
+/* fouls + timeouts */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tf{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tf .lbl{width:84px;font-size:12px;font-weight:800;letter-spacing:.04em}
+.boxes{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;flex:1}
+.boxes span{height:26px;border:1px solid var(--line2);border-radius:3px;font-size:9px;color:var(--mut);padding:1px 2px;position:relative;background:#fff}
+.boxes span.b7,.boxes span.b10{background:var(--blue2)}
+.boxes span.on::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--ink)}
+.tf .add{width:44px;height:34px;border-radius:7px;border:1.5px solid var(--ink);background:#fff;font-weight:800;font-size:18px}
+.tf .minus{width:34px;height:34px;border-radius:7px;border:1px solid var(--line2);background:#fff;color:var(--mut);font-weight:800}
+.trouble{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px}
+.pf{display:flex;align-items:center;border:1px solid var(--line2);border-radius:7px;background:#fff;overflow:hidden}
+.pf .go{flex:1;text-align:left;border:0;background:none;padding:7px 8px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf .go b{display:inline-block;min-width:20px}
+.pf .ct{font-weight:800;font-size:15px;padding:0 8px;font-variant-numeric:tabular-nums}
+.pf .dn{border:0;border-left:1px solid var(--line);background:#f8f9fb;color:var(--mut);width:30px;align-self:stretch;font-weight:800}
+.pf.f3{background:#fff6c2} .pf.f4{background:#fde2b8} .pf.f5{background:#f8caca}
+.pf.f5 .go{text-decoration:line-through}
+.to-team{margin-bottom:10px}
+.to-team .lbl{font-size:12px;font-weight:800;letter-spacing:.04em;margin-bottom:4px}
+.to-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.to-row .k{font-size:11px;color:var(--mut);font-weight:700;width:52px}
+.tob{width:36px;height:36px;border:1.5px solid var(--ink);border-radius:5px;background:#fff;font-size:20px;font-weight:800;padding:0}
+.tob.on{background:var(--ink);color:#fff}
+.tob.ot{border-style:dashed}
+
+/* summary */
+.sum{width:100%;border-collapse:collapse;font-size:14px}
+.sum th,.sum td{border:1px solid var(--line);padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums}
+.sum th{background:var(--blue);color:#fff;font-size:11.5px;letter-spacing:.06em}
+.sum th.y{background:var(--yellow);color:var(--ink)}
+.sum td:first-child,.sum th:first-child{text-align:left;font-weight:800}
+.sum tbody tr:nth-child(odd) td{background:var(--row-light)} .sum tbody tr:nth-child(even) td{background:var(--row-dark)}
+.sum tr.tot td{background:#fff!important;font-weight:800;border-top:2px solid var(--ink)}
+.sum td.ppp{font-weight:800}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;z-index:50;overflow:auto}
+.modal{background:#fff;border-radius:12px;max-width:640px;width:100%;padding:16px 18px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.modal h2{margin:0 0 10px;font-size:19px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11.5px;font-weight:800;letter-spacing:.08em;color:var(--mut);text-transform:uppercase;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line2);border-radius:8px;background:#fff}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;border:1.5px solid var(--line2);background:#fff;border-radius:8px;padding:9px;font-weight:700}
+.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.foot .big{flex:1;min-height:56px;font-size:18px;font-weight:800}
+.glist{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+.gitem{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+.gitem.cur{border-color:var(--blue);background:var(--blue3)}
+.gitem .t{flex:1}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+.ver{font-size:11px;color:var(--mut);text-align:center;margin-top:16px}
+.print-only{display:none}
+
+@media (max-width:700px){
+  .entry{grid-template-columns:1fr}
+  .two{grid-template-columns:1fr}
+}
+@media print{
+  body{background:#fff}
+  .no-print,.ov,.toast{display:none!important}
+  .print-only{display:block}
+  .logwrap{max-height:none;overflow:visible}
+  .card{break-inside:avoid}
+  .sheet th{position:static}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="modal"></div>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+const VERSION = 'v2026.10.12.1';
+const LS_GAMES = 'pl_games', LS_CUR = 'pl_cur', LS_ROSTER = 'pl_roster';
+const FULL_TOS = 3, S30_TOS = 4;          // regulation allotment per team, per game; +1 30-sec per OT
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('Could not save — storage is full or blocked'); return false; } };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const slug = s => String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+let games = lsGet(LS_GAMES, []);
+let curId = lsGet(LS_CUR, null);
+let P = { num: '', and1: false, oreb: 0, hl: null };   // the possession being entered
+const cur = () => games.find(g => g.id === curId) || null;
+const save = () => { lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
+
+/* ---------- roster: our own, else the game tracker's (same site, same storage) ---------- */
+function roster() {
+  const own = lsGet(LS_ROSTER, null);
+  if (Array.isArray(own) && own.length) return own;
+  const gt = lsGet('gt_roster', []);
+  return (Array.isArray(gt) ? gt : []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name }));
+}
+const rosterSorted = () => roster().slice().sort((a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || a.name.localeCompare(b.name));
+function oppNames() {
+  const s = new Set();
+  lsGet('gt_opp_rosters', []).forEach(o => o && o.name && s.add(o.name));
+  lsGet('gt_schedule', []).forEach(r => r && r.opp && !/^tbd$/i.test(r.opp) && s.add(r.opp));
+  games.forEach(g => g.opp && s.add(g.opp));
+  return [...s].sort();
+}
+
+/* ---------- periods ---------- */
+const PER_NAME = p => p === '1H' ? '1st Half' : p === '2H' ? '2nd Half' : 'Overtime ' + p.slice(2);
+const otCount = g => g.periods.filter(p => p.startsWith('OT')).length;
+// Team fouls reset at halftime and carry from the 2nd half into every overtime.
+const foulBucket = p => p === '1H' ? '1H' : '2H+';
+
+/* ---------- possession results ---------- */
+// res: '2' '3' 'FT' 'x2' 'x3' 'xFT' 'TO'; ft = free throws made on an FT trip; and1 adds one;
+// stl marks a turnover that was a steal. Points are derived, never typed.
+const ptsOf = e => e.res === '2' ? 2 + (e.and1 ? 1 : 0) : e.res === '3' ? 3 + (e.and1 ? 1 : 0) : e.res === 'FT' ? (e.ft || 0) : 0;
+const RES_LABEL = { '2': '2', '3': '3', 'FT': 'FT', 'x2': '✗2', 'x3': '✗3', 'xFT': '✗FT', 'TO': 'TO' };
+function describe(e) {
+  const r = e.res === 'FT' ? `${e.ft} FT` : e.res === 'TO' ? (e.stl ? 'Steal' : 'Turnover') : RES_LABEL[e.res] + (e.and1 ? ' +1' : '');
+  const p = ptsOf(e);
+  return `${e.num ? '#' + e.num + ' ' : ''}${r}${p ? ' · ' + p + ' pts' : ' · stop'}${e.oreb ? ` · ${e.oreb} OREB` : ''}`;
+}
+
+/* Every possession of a period with its derived columns: number, points, stop, kill.
+   KILL = three consecutive defensive stops; the count restarts after each kill and after any score,
+   and at the start of every period. */
+function periodRows(g, per) {
+  let streak = 0, n = 0;
+  return g.ev.filter(e => e.t === 'poss' && e.per === per).map(e => {
+    const pts = ptsOf(e), stop = pts === 0;
+    let kill = false;
+    if (stop) { streak++; if (streak === 3) { kill = true; streak = 0; } } else streak = 0;
+    return { e, n: ++n, pts, stop, kill, streak };
+  });
+}
+function perStats(g, per) {
+  const rows = periodRows(g, per);
+  const opp = rows.reduce((s, r) => s + r.pts, 0);
+  const mpk = g.ev.filter(e => e.t === 'mpk' && e.per === per).reduce((s, e) => s + e.pts, 0);
+  const streak = rows.length ? rows[rows.length - 1].streak : 0;
+  return { rows, poss: rows.length, opp, mpk, kills: rows.filter(r => r.kill).length,
+           stops: rows.filter(r => r.stop).length, oreb: rows.reduce((s, r) => s + (r.e.oreb || 0), 0), streak };
+}
+function gameStats(g) {
+  const per = g.periods.map(p => Object.assign({ per: p }, perStats(g, p)));
+  const tot = per.reduce((t, s) => { ['poss', 'opp', 'mpk', 'kills', 'stops', 'oreb'].forEach(k => t[k] += s[k]); return t; },
+                         { poss: 0, opp: 0, mpk: 0, kills: 0, stops: 0, oreb: 0 });
+  return { per, tot };
+}
+const ppp = (pts, poss) => poss ? (pts / poss).toFixed(2) : '—';
+
+function teamFouls(g, team, per) {
+  const b = foulBucket(per);
+  return g.ev.filter(e => e.t === 'foul' && e.team === team && foulBucket(e.per) === b).length;
+}
+const playerFouls = (g, name) => g.ev.filter(e => e.t === 'foul' && e.team === 'a' && e.player === name).length;
+// Opponent fouls put us in the bonus, ours put them in it.
+const bonusTag = n => n >= 10 ? '<span class="bonus dbl">DOUBLE BONUS</span>' : n >= 7 ? '<span class="bonus">BONUS</span>' : '';
+
+/* ---------- rendering ---------- */
+function render() {
+  const g = cur();
+  if (!g) { renderHome(); return; }
+  const per = g.per;
+  const st = perStats(g, per);
+  const G = gameStats(g);
+  const oppLogo = `../game/logos/${slug(g.opp)}.png`;
+  const tfA = teamFouls(g, 'a', per), tfB = teamFouls(g, 'b', per);
+  const recent = [];
+  for (let i = g.ev.length - 1; i >= 0 && recent.length < 12; i--) { const n = g.ev[i].num; if (g.ev[i].t === 'poss' && n && !recent.includes(n)) recent.push(n); }
+  const last = [...g.ev].reverse().find(e => e.t === 'poss' || e.t === 'mpk' || e.t === 'foul');
+  const lastTxt = !last ? 'Nothing logged yet' : last.t === 'poss' ? `Last: ${PER_NAME(last.per)} poss ${periodRows(g, last.per).find(r => r.e.id === last.id).n} — ${describe(last)}`
+    : last.t === 'mpk' ? `Last: Moorpark ${last.pts > 0 ? '+' : ''}${last.pts}` : `Last: foul on ${last.team === 'a' ? (last.player || 'Moorpark (team)') : esc(g.opp)}`;
+
+  $('#app').innerHTML = `
+  <div class="top no-print">
+    <img src="../game/logos/moorpark.png" alt="" onerror="this.style.display='none'">
+    <h1>Possession Tracking<small>${esc(PER_NAME(per))} · Defense · vs ${esc(g.opp)}</small></h1>
+    <button class="btn btn-sm" data-act="games">Games</button>
+    <button class="btn btn-sm" data-act="menu">⋯</button>
+  </div>
+
+  <div class="card no-print">
+    <div class="bug">
+      <div class="side a"><div class="nm">Moorpark</div><div class="sc">${G.tot.mpk}</div>
+        <div class="ppp">${ppp(st.mpk, st.poss)} PPP this ${per.startsWith('OT') ? 'OT' : 'half'}</div>
+        <div class="mpk-btns"><button class="minus" data-act="mpk" data-p="-1">−1</button><button data-act="mpk" data-p="1">+1</button><button data-act="mpk" data-p="2">+2</button><button data-act="mpk" data-p="3">+3</button></div>
+        <div>${bonusTag(tfB)}</div></div>
+      <div class="mid">
+        <div class="per">${g.periods.map(p => `<button class="${p === per ? 'on' : ''}" data-act="per" data-p="${p}">${p}</button>`).join('')}<button data-act="next-per" title="Start the next period">+</button></div>
+        <div class="possn">Opp poss <b>${st.poss}</b></div>
+        <div class="streak">Stops ${[0, 1, 2].map(i => `<span class="dot ${i < st.streak ? 'on' : ''}"></span>`).join('')}</div>
+        <div class="possn">Kills <b>${st.kills}</b></div>
+      </div>
+      <div class="side b"><div class="nm">${esc(g.opp)}</div><div class="sc">${G.tot.opp}</div>
+        <div class="ppp">${ppp(st.opp, st.poss)} PPP this ${per.startsWith('OT') ? 'OT' : 'half'}</div>
+        <div style="height:6px"></div>
+        <div>${bonusTag(tfA)}</div></div>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <div class="bar">Possession ${st.poss + 1} — how did it end?</div>
+    <div class="entry">
+      <div>
+        <div class="numbox ${P.num ? '' : 'empty'}">${P.num ? '#' + esc(P.num) : 'Player # (optional)'}</div>
+        <div class="keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button data-act="key" data-k="${k}">${k}</button>`).join('')}</div>
+        <div class="recent">${recent.map(n => `<button class="${n === P.num ? 'on' : ''}" data-act="num" data-n="${esc(n)}">#${esc(n)}</button>`).join('')}</div>
+      </div>
+      <div>
+        <div class="res">
+          <button class="make" data-act="res" data-r="2">2<small>MADE 2</small></button>
+          <button class="make" data-act="res" data-r="3">3<small>MADE 3</small></button>
+          <button class="make" data-act="ft">FT<small>FT TRIP · POINTS</small></button>
+          <button class="miss" data-act="res" data-r="x2">✗2<small>MISSED 2 · DREB</small></button>
+          <button class="miss" data-act="res" data-r="x3">✗3<small>MISSED 3 · DREB</small></button>
+          <button class="miss" data-act="res" data-r="xFT">✗FT<small>0 FT MADE</small></button>
+          <button class="stop" data-act="res" data-r="TO">TO<small>DEAD BALL</small></button>
+          <button class="stop" data-act="res" data-r="STL">STL<small>STEAL</small></button>
+          <button class="stop" data-act="res" data-r="CHG">CHG<small>CHARGE</small></button>
+        </div>
+        <div class="togs">
+          <button class="${P.and1 ? 'on' : ''}" data-act="and1">And-one +1</button>
+          <button class="${P.oreb ? 'on' : ''}" data-act="oreb">Their off. reb${P.oreb ? ' · ' + P.oreb : ''}</button>
+        </div>
+        <div class="lastline"><span class="txt">${lastTxt}</span><button class="btn btn-sm" data-act="undo">↶ Undo</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="bar">${esc(PER_NAME(per))} · Defense <span class="r">${st.opp} pts · ${st.stops} stops · ${st.oreb} OREB</span></div>
+    <div class="logwrap" id="logwrap">${sheetTable(g, per)}</div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <div class="bar">${per === '1H' ? 'First half' : 'Second half + OT'} fouls</div>
+      <div class="pad">
+        ${foulRow('Team — MPK', tfA, 'a')}
+        ${foulRow('Team — OPP', tfB, 'b')}
+        <div class="small muted" style="margin:-2px 0 8px">Shaded 7 = bonus (1-and-1) · 10 = double bonus. Fouls carry from the 2nd half into overtime.</div>
+        <div style="font-size:12px;font-weight:800;color:var(--blue);letter-spacing:.06em">MOORPARK FOUL TROUBLE <span class="muted" style="font-weight:600;letter-spacing:0">— tap a player: adds his foul and a team foul</span></div>
+        <div class="trouble">${rosterSorted().map(r => { const n = playerFouls(g, r.name); return `<div class="pf f${Math.min(n, 5)}">
+          <button class="go" data-act="pfoul" data-n="${esc(r.name)}"><b>${esc(r.num)}</b> ${esc(r.name.split(' ').slice(-1)[0])}</button><span class="ct">${n}</span>
+          <button class="dn" data-act="pfoul-x" data-n="${esc(r.name)}" title="Take one off">−</button></div>`; }).join('') || '<div class="muted small">No roster yet — ⋯ → Roster.</div>'}</div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="bar">Timeouts <span class="r small">game</span></div>
+        <div class="pad">${toRows(g, 'a', 'Moorpark')}${toRows(g, 'b', g.opp)}
+          <div class="small muted">Dashed = the extra 30-second timeout each overtime grants.</div></div>
+      </div>
+      <div class="card">
+        <div class="bar">Kills · ${esc(PER_NAME(per))}</div>
+        <div class="pad"><div class="boxes" style="grid-template-columns:repeat(12,1fr)">${Array.from({ length: Math.max(12, st.kills) }, (_, i) => `<span class="${i < st.kills ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
+        <div class="small muted" style="margin-top:6px">KILL = 3 consecutive defensive stops.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="bar">Summary</div>
+    <div class="pad">${summaryTable(g)}
+      <div class="small muted" style="margin-top:6px">PPP = points ÷ possessions. Moorpark's possessions are the same count as the opponent's.</div></div>
+  </div>
+
+  <div class="print-only">${g.periods.filter(p => p !== per).map(p => `<div class="card"><div class="bar">${esc(PER_NAME(p))} · Defense</div>${sheetTable(g, p)}</div>`).join('')}</div>
+  <div class="ver no-print">${VERSION} · ${esc(g.date)} · ${esc({ H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || '')}${g.site ? ' · ' + esc(g.site) : ''}${g.by ? ' · charted by ' + esc(g.by) : ''}</div>`;
+  const lw = $('#logwrap'); if (lw) lw.scrollTop = lw.scrollHeight;
+}
+
+function sheetTable(g, per) {
+  const rows = periodRows(g, per);
+  if (!rows.length) return '<div class="empty-log">No possessions yet this period. Each tap above logs one row of the sheet.</div>';
+  const cols = ['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO'];
+  let html = `<table class="sheet"><thead><tr><th>POSS</th><th>PLAYER #</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${RES_LABEL[c]}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th></tr></thead><tbody>`;
+  let sub = 0, subK = 0;
+  rows.forEach((r, i) => {
+    const e = r.e;
+    const cell = c => {
+      if (e.res !== c) return '<td></td>';
+      if (c === 'FT') return `<td class="m">${e.ft}</td>`;
+      return `<td class="m ${c[0] === 'x' ? 'mx' : ''}">●${(c === '2' || c === '3') && e.and1 ? '<span class="tiny">+1</span>' : ''}</td>`;
+    };
+    const reb = e.res[0] === 'x' ? '●' : '', stl = e.res === 'TO' && e.stl ? '●' : '';
+    html += `<tr class="${r.kill ? 'killrow' : ''} ${P.hl === e.id ? 'hl' : ''}" data-act="edit" data-id="${e.id}"><td class="pn">${r.n}</td><td class="pl">${e.num ? esc(e.num) : ''}${e.oreb ? `<div class="tiny">${e.oreb} OREB</div>` : ''}</td>${cols.map(cell).join('')}
+      <td class="m ms">${reb}</td><td class="m ms">${stl}${e.res === 'TO' && e.chg ? '<span class="tiny">CHG</span>' : ''}</td><td class="pts">${r.pts || (r.stop ? '<span class="tiny">0</span>' : '')}</td><td class="kill">${r.kill ? 'K' : ''}</td></tr>`;
+    sub += r.pts; subK += r.kill ? 1 : 0;
+    if ((i + 1) % 25 === 0 || i === rows.length - 1) {
+      const a = Math.floor(i / 25) * 25 + 1;
+      html += `<tr class="sub"><td colspan="11">SUBTOTAL ${a}–${i + 1} — OPP POINTS / KILLS →</td><td class="pts">${sub}</td><td class="kill">${subK}</td></tr>`;
+      sub = 0; subK = 0;
+    }
+  });
+  return html + '</tbody></table>';
+}
+
+function foulRow(label, n, team) {
+  return `<div class="tf"><span class="lbl">${label}</span><div class="boxes">${Array.from({ length: 10 }, (_, i) =>
+    `<span class="${i + 1 === 7 ? 'b7' : i + 1 === 10 ? 'b10' : ''} ${i < n ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
+    ${n > 10 ? `<b>${n}</b>` : ''}<button class="minus" data-act="tfoul-x" data-t="${team}">−</button><button class="add" data-act="tfoul" data-t="${team}">+</button></div>`;
+}
+
+function toRows(g, team, name) {
+  const t = g.tos[team], ot = otCount(g);
+  const box = (kind, i, extra) => `<button class="tob ${extra ? 'ot' : ''} ${i < t[kind] ? 'on' : ''}" data-act="to" data-t="${team}" data-k="${kind}" data-i="${i}">${i < t[kind] ? '✕' : ''}</button>`;
+  return `<div class="to-team"><div class="lbl" style="color:${team === 'a' ? 'var(--blue)' : 'var(--red)'}">${esc(String(name).toUpperCase())}</div>
+    <div class="to-row"><span class="k">FULL</span>${Array.from({ length: FULL_TOS }, (_, i) => box('full', i)).join('')}</div>
+    <div class="to-row"><span class="k">30 SEC</span>${Array.from({ length: S30_TOS + ot }, (_, i) => box('s30', i, i >= S30_TOS)).join('')}</div></div>`;
+}
+
+function summaryTable(g) {
+  const G = gameStats(g);
+  const row = (lbl, s, cls) => `<tr class="${cls || ''}"><td>${lbl}</td><td>${s.mpk}</td><td>${s.poss}</td><td class="ppp">${ppp(s.mpk, s.poss)}</td><td>${s.opp}</td><td>${s.poss}</td><td class="ppp">${ppp(s.opp, s.poss)}</td><td>${s.stops}</td><td>${s.kills}</td></tr>`;
+  return `<table class="sum"><thead><tr><th class="y"></th><th colspan="3">MOORPARK</th><th colspan="3">${esc(String(g.opp).toUpperCase())}</th><th class="y" colspan="2">DEFENSE</th></tr>
+    <tr><th class="y"></th><th>PTS</th><th>POSS</th><th>PPP</th><th>PTS</th><th>POSS</th><th>PPP</th><th class="y">STOPS</th><th class="y">KILLS</th></tr></thead>
+    <tbody>${G.per.map(s => row(PER_NAME(s.per), s)).join('')}${G.per.length > 1 ? row('Game', G.tot, 'tot') : ''}</tbody></table>`;
+}
+
+function renderHome() {
+  $('#app').innerHTML = `
+  <div class="top"><img src="../game/logos/moorpark.png" alt="" onerror="this.style.display='none'"><h1>Possession Tracking<small>Moorpark College Men's Basketball</small></h1></div>
+  <div class="card"><div class="bar">Start</div><div class="pad">
+    <p class="muted" style="margin-top:0">The jamboree possession sheet on the iPad: one tap per opponent possession. Stops, kills, points per possession, team fouls and the bonus are counted for you.</p>
+    <button class="btn btn-blue" style="width:100%;min-height:56px;font-size:18px" data-act="new">+ New game</button>
+    ${games.length ? `<h3 style="margin:16px 0 8px;font-size:14px">Saved games</h3>${gameList()}` : ''}
+  </div></div>
+  <div class="ver">${VERSION}</div>`;
+}
+function gameList() {
+  return `<div class="glist">${games.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created - a.created).map(g => {
+    const G = gameStats(g);
+    return `<div class="gitem ${g.id === curId ? 'cur' : ''}"><div class="t"><b>${esc(g.opp)}</b> <span class="muted small">${esc(g.date)} · ${esc(g.loc)}</span><br>
+      <span class="small">Moorpark ${G.tot.mpk} – ${G.tot.opp} · ${G.tot.poss} poss · ${G.tot.kills} kills</span></div>
+      <button class="btn btn-sm" data-act="open" data-id="${g.id}">Open</button><button class="btn btn-sm btn-red" data-act="del" data-id="${g.id}">Delete</button></div>`;
+  }).join('')}</div>`;
+}
+
+/* ---------- modals ---------- */
+const closeModal = () => { $('#modal').innerHTML = ''; if (P.hl) { P.hl = null; render(); } };
+function modal(html) { $('#modal').innerHTML = `<div class="ov" data-act="ov"><div class="modal">${html}</div></div>`; }
+
+function newGameModal(g) {
+  const ed = !!g;
+  g = g || { opp: '', date: today(), loc: 'H', site: '', by: '' };
+  modal(`<h2>${ed ? 'Game details' : 'New game'}</h2>
+    <div class="field"><label>Opponent</label><input id="f-opp" list="f-opps" value="${esc(g.opp)}" placeholder="Opponent" autocomplete="off"><datalist id="f-opps">${oppNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+    <div class="field"><label>Date</label><input id="f-date" type="date" value="${esc(g.date)}"></div>
+    <div class="field"><label>Location</label><div class="seg" id="f-loc">${['H', 'A', 'N'].map(l => `<button type="button" class="${g.loc === l ? 'on' : ''}" data-l="${l}">${{ H: 'Home', A: 'Away', N: 'Neutral' }[l]}</button>`).join('')}</div></div>
+    <div class="field"><label>Site</label><input id="f-site" value="${esc(g.site)}" placeholder="Gym (optional)"></div>
+    <div class="field"><label>Charted by</label><input id="f-by" value="${esc(g.by)}" placeholder="Name (optional)"></div>
+    <div class="foot"><button class="btn big" data-act="close">Cancel</button><button class="btn btn-blue big" data-act="${ed ? 'save-game' : 'create'}">${ed ? 'Save' : 'Start ▶'}</button></div>`);
+  $('#f-loc').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (!b) return; $('#f-loc').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+}
+const readGameForm = () => ({ opp: $('#f-opp').value.trim(), date: $('#f-date').value || today(),
+  loc: ($('#f-loc .on') || {}).dataset ? $('#f-loc .on').dataset.l : 'H', site: $('#f-site').value.trim(), by: $('#f-by').value.trim() });
+
+function editModal(id) {
+  const g = cur(), e = g.ev.find(x => x.id === id); if (!e) return;
+  const r = periodRows(g, e.per).find(x => x.e.id === id);
+  const D = { num: e.num || '', res: e.res === 'TO' ? (e.chg ? 'CHG' : e.stl ? 'STL' : 'TO') : e.res, ft: e.ft || 1, and1: !!e.and1, oreb: e.oreb || 0 };
+  const paint = () => {
+    modal(`<h2>${esc(PER_NAME(e.per))} · possession ${r.n}</h2>
+      <div class="field"><label>Player #</label><input id="e-num" inputmode="numeric" value="${esc(D.num)}" placeholder="—"></div>
+      <div class="field"><label>Result</label><div class="res">${['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO', 'STL', 'CHG'].map(k =>
+        `<button class="${D.res === k ? 'make' : ''}" style="height:52px;${D.res === k ? 'background:var(--ink);color:#fff' : ''}" data-e="res" data-v="${k}">${RES_LABEL[k] || k}</button>`).join('')}</div></div>
+      ${D.res === 'FT' ? `<div class="field"><label>Free throws made</label><div class="seg">${[1, 2, 3].map(n => `<button class="${D.ft === n ? 'on' : ''}" data-e="ft" data-v="${n}">${n}</button>`).join('')}</div></div>` : ''}
+      ${D.res === '2' || D.res === '3' ? `<div class="field"><label>And-one</label><div class="seg"><button class="${!D.and1 ? 'on' : ''}" data-e="and1" data-v="0">No</button><button class="${D.and1 ? 'on' : ''}" data-e="and1" data-v="1">Yes +1</button></div></div>` : ''}
+      <div class="field"><label>Their offensive rebounds</label><div class="seg">${[0, 1, 2, 3, 4].map(n => `<button class="${D.oreb === n ? 'on' : ''}" data-e="oreb" data-v="${n}">${n}</button>`).join('')}</div></div>
+      <div class="foot"><button class="btn btn-red" data-e="del" style="margin-right:auto">Delete row</button><button class="btn" data-e="ins">Insert row above</button></div>
+      <div class="foot"><button class="btn big" data-act="close">Cancel</button><button class="btn btn-blue big" data-e="save">Save</button></div>`);
+    $('#modal .modal').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-e]'); if (!b) return;
+      D.num = $('#e-num').value.replace(/\D/g, '').slice(0, 2);
+      const k = b.dataset.e, v = b.dataset.v;
+      if (k === 'res') { D.res = v; paint(); }
+      else if (k === 'ft') { D.ft = +v; paint(); }
+      else if (k === 'and1') { D.and1 = v === '1'; paint(); }
+      else if (k === 'oreb') { D.oreb = +v; paint(); }
+      else if (k === 'del') { if (confirm('Delete this possession?')) { g.ev = g.ev.filter(x => x.id !== id && x.link !== id); save(); closeModal(); render(); toast('Row deleted'); } }
+      else if (k === 'ins') {
+        const i = g.ev.indexOf(e);
+        g.ev.splice(i, 0, { id: uid(), t: 'poss', per: e.per, num: '', res: 'x2', ft: 0, and1: false, stl: false, chg: false, oreb: 0 });
+        save(); closeModal(); render(); toast('Blank ✗2 row inserted — tap it to set it'); }
+      else if (k === 'save') {
+        Object.assign(e, possFrom(D.res, D.res === 'FT' ? D.ft : 0, D.and1), { num: D.num, oreb: D.oreb });
+        // Keep a charge's foul on them in step with the row.
+        const fi = g.ev.findIndex(x => x.link === id);
+        if (e.chg && fi < 0) g.ev.splice(g.ev.indexOf(e) + 1, 0, { id: uid(), t: 'foul', per: e.per, team: 'b', num: e.num, link: id });
+        if (!e.chg && fi >= 0) g.ev.splice(fi, 1);
+        save(); closeModal(); render(); toast('Possession ' + r.n + ' updated'); }
+    });
+  };
+  paint();
+}
+
+function ftModal() {
+  modal(`<h2>Free-throw trip — how many made?</h2>
+    <div class="res">${[1, 2, 3].map(n => `<button class="make" style="height:90px;font-size:34px" data-act="ft-n" data-n="${n}">${n}</button>`).join('')}</div>
+    <p class="small muted">None made → close this and tap ✗FT. An and-one free throw goes on the basket (And-one +1), not here.</p>
+    <div class="foot"><button class="btn big" data-act="close">Cancel</button></div>`);
+}
+
+function menuModal() {
+  const g = cur();
+  modal(`<h2>Menu</h2>
+    <div class="glist" style="max-height:none">
+      <button class="btn" data-act="details">Game details (opponent, date, location, charted by)</button>
+      <button class="btn" data-act="roster">Moorpark roster</button>
+      <button class="btn" data-act="print">Print / save as PDF</button>
+      <button class="btn" data-act="export">Export this game (file)</button>
+      <button class="btn" data-act="import">Import a game file</button>
+      ${g && g.periods.length > 1 ? `<button class="btn btn-red" data-act="drop-per">Remove the last period (${esc(g.periods[g.periods.length - 1])}) if it's empty</button>` : ''}
+    </div>
+    <div class="foot"><button class="btn big" data-act="close">Close</button></div>`);
+}
+
+function rosterModal() {
+  const own = lsGet(LS_ROSTER, null);
+  const txt = roster().map(r => `${r.num} ${r.name}`).join('\n');
+  modal(`<h2>Moorpark roster</h2>
+    <p class="small muted" style="margin-top:0">${own && own.length ? 'Your own list for this tracker.' : 'Taken from the game tracker on this iPad.'} One player per line: number, then name.</p>
+    <div class="field"><textarea id="r-txt" rows="14">${esc(txt)}</textarea></div>
+    <div class="foot">${own && own.length ? '<button class="btn" data-act="roster-reset" style="margin-right:auto">Use the game tracker\'s</button>' : ''}<button class="btn big" data-act="close">Cancel</button><button class="btn btn-blue big" data-act="roster-save">Save</button></div>`);
+}
+
+function gamesModal() {
+  modal(`<h2>Games</h2>${games.length ? gameList() : '<p class="muted">No games yet.</p>'}
+    <div class="foot"><button class="btn big" data-act="close">Close</button><button class="btn btn-blue big" data-act="new">+ New game</button></div>`);
+}
+
+/* ---------- actions ---------- */
+function possFrom(res, ft, and1) {
+  if (res === 'STL') return { res: 'TO', stl: true, chg: false, ft: 0, and1: false };
+  if (res === 'CHG') return { res: 'TO', stl: false, chg: true, ft: 0, and1: false };
+  if (res === 'TO') return { res: 'TO', stl: false, chg: false, ft: 0, and1: false };
+  return { res, ft: res === 'FT' ? ft : 0, and1: (res === '2' || res === '3') && !!and1, stl: false, chg: false };
+}
+function logPoss(res, ft) {
+  const g = cur();
+  const e = Object.assign({ id: uid(), t: 'poss', per: g.per, num: P.num, oreb: P.oreb }, possFrom(res, ft, P.and1));
+  g.ev.push(e);
+  // A charge is a foul on them too.
+  if (e.chg) g.ev.push({ id: uid(), t: 'foul', per: g.per, team: 'b', num: P.num, link: e.id });
+  P = { num: '', and1: false, oreb: 0, hl: null };
+  save(); render();
+  const r = periodRows(g, g.per).slice(-1)[0];
+  toast(`Poss ${r.n}: ${describe(e)}${r.kill ? ' · KILL!' : ''}`);
+}
+
+function undo() {
+  const g = cur(); if (!g || !g.ev.length) { toast('Nothing to undo'); return; }
+  const e = g.ev.pop();
+  if (e.t === 'foul' && e.link) { const i = g.ev.findIndex(x => x.id === e.link); if (i >= 0) g.ev.splice(i, 1); }
+  save(); render();
+  toast('Undid: ' + (e.t === 'poss' ? describe(e) : e.t === 'mpk' ? `Moorpark ${e.pts > 0 ? '+' : ''}${e.pts}` : 'foul'));
+}
+
+function exportGame() {
+  const g = cur(); if (!g) return;
+  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-log', version: 1, game: g }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function importGame() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = () => { const f = inp.files[0]; if (!f) return; f.text().then(t => {
+    let d; try { d = JSON.parse(t); } catch (e) { toast('Not a game file'); return; }
+    const g = d && d.game; if (!g || !Array.isArray(g.ev)) { toast('Not a possession-log game file'); return; }
+    if (games.some(x => x.id === g.id) && !confirm('This game is already here. Replace it with the file?')) return;
+    games = games.filter(x => x.id !== g.id).concat(g); curId = g.id; save(); closeModal(); render(); toast('Imported ' + g.opp);
+  }); };
+  inp.click();
+}
+
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, g = cur();
+  switch (act) {
+    case 'ov': if (ev.target === b) closeModal(); break;
+    case 'close': closeModal(); break;
+    case 'new': newGameModal(); break;
+    case 'create': case 'save-game': {
+      const f = readGameForm(); if (!f.opp) { toast('Type the opponent first'); return; }
+      if (act === 'create') {
+        const ng = Object.assign({ id: uid(), created: Date.now(), per: '1H', periods: ['1H'], ev: [], tos: { a: { full: 0, s30: 0 }, b: { full: 0, s30: 0 } } }, f);
+        games.push(ng); curId = ng.id; P = { num: '', and1: false, oreb: 0, hl: null };
+      } else Object.assign(g, f);
+      save(); closeModal(); render(); break; }
+    case 'games': gamesModal(); break;
+    case 'open': curId = b.dataset.id; P = { num: '', and1: false, oreb: 0, hl: null }; save(); closeModal(); render(); break;
+    case 'del': { const d = games.find(x => x.id === b.dataset.id);
+      if (d && confirm(`Delete the ${d.opp} game (${d.date})? This can't be undone.`)) { games = games.filter(x => x !== d); if (curId === d.id) curId = null; save(); closeModal(); render(); } break; }
+    case 'menu': menuModal(); break;
+    case 'details': newGameModal(g); break;
+    case 'roster': rosterModal(); break;
+    case 'roster-save': {
+      const list = $('#r-txt').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^#?(\d{1,2})\s+(.+)$/); return m ? { num: m[1], name: m[2].trim() } : { num: '', name: l }; });
+      lsSet(LS_ROSTER, list); closeModal(); render(); toast('Roster saved'); break; }
+    case 'roster-reset': localStorage.removeItem(LS_ROSTER); closeModal(); render(); toast('Using the game tracker roster'); break;
+    case 'print': closeModal(); setTimeout(() => window.print(), 100); break;
+    case 'export': exportGame(); break;
+    case 'import': importGame(); break;
+    case 'drop-per': {
+      const p = g.periods[g.periods.length - 1];
+      if (g.ev.some(e => e.per === p)) { toast(`${p} has plays in it — delete them first`); return; }
+      g.periods.pop(); if (g.per === p) g.per = g.periods[g.periods.length - 1]; save(); closeModal(); render(); break; }
+    case 'per': g.per = b.dataset.p; P.num = ''; save(); render(); break;
+    case 'next-per': {
+      const nx = g.periods.length === 1 ? '2H' : 'OT' + (otCount(g) + 1);
+      if (!confirm(`Start ${PER_NAME(nx)}?`)) return;
+      g.periods.push(nx); g.per = nx; save(); render(); toast(PER_NAME(nx) + ' started'); break; }
+    case 'key': {
+      const k = b.dataset.k;
+      if (k === 'C') P.num = ''; else if (k === '⌫') P.num = P.num.slice(0, -1); else if (P.num.length < 2) P.num += k; else P.num = k;
+      render(); break; }
+    case 'num': P.num = P.num === b.dataset.n ? '' : b.dataset.n; render(); break;
+    case 'and1': P.and1 = !P.and1; render(); break;
+    case 'oreb': P.oreb = (P.oreb + 1) % 5; render(); break;
+    case 'res': logPoss(b.dataset.r, 0); break;
+    case 'ft': ftModal(); break;
+    case 'ft-n': closeModal(); logPoss('FT', +b.dataset.n); break;
+    case 'undo': undo(); break;
+    case 'mpk': g.ev.push({ id: uid(), t: 'mpk', per: g.per, pts: +b.dataset.p }); save(); render(); break;
+    case 'tfoul': g.ev.push({ id: uid(), t: 'foul', per: g.per, team: b.dataset.t }); save(); render(); break;
+    case 'tfoul-x': case 'pfoul-x': {
+      const team = act === 'tfoul-x' ? b.dataset.t : 'a', name = act === 'pfoul-x' ? b.dataset.n : null;
+      const bucket = foulBucket(g.per);
+      for (let i = g.ev.length - 1; i >= 0; i--) {
+        const e = g.ev[i];
+        if (e.t === 'foul' && e.team === team && (name ? e.player === name : foulBucket(e.per) === bucket) && !e.link) { g.ev.splice(i, 1); save(); render(); return; }
+      }
+      toast('No foul to take off'); break; }
+    case 'pfoul': {
+      const n = playerFouls(g, b.dataset.n);
+      g.ev.push({ id: uid(), t: 'foul', per: g.per, team: 'a', player: b.dataset.n }); save(); render();
+      toast(`${b.dataset.n}: ${n + 1} foul${n ? 's' : ''}${n + 1 >= 5 ? ' — FOULED OUT' : ''}`); break; }
+    case 'to': {
+      const t = g.tos[b.dataset.t], k = b.dataset.k, i = +b.dataset.i;
+      t[k] = t[k] > i ? i : i + 1; save(); render(); break; }
+    case 'edit': P.hl = b.dataset.id; render(); editModal(b.dataset.id); break;
+  }
+});
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+render();
+</script>
+</body>
+</html>
