@@ -94,9 +94,15 @@ the live screen (numbers are enough).
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 
-**Lineups tab**, for the game or the current period, for both teams. For every five:
+**Lineups tab**, for the game or the current period, for both teams, as **5-man, 4-man, 3-man or 2-man**
+combos (a combo is on the floor for every possession of every five that contains it). For each:
 - possessions, points for–against, +/-, ORtg, DRtg, net;
-- tap a five to see how its possessions ended at each end.
+- offense: eFG%, TO% (per actual possession), OREB%, FT rate;
+- defense: the opponent's eFG%, TO% and FT rate, and DREB%;
+- tap a row to see how its possessions ended at each end.
+
+Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
+rate start lowest-first). Filter All / Clutch / No garbage time.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
