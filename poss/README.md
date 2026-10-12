@@ -108,6 +108,15 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
   - Opponent rosters are shared with the game tracker.
   - Position and the note show on the player's card on the Live screen.
+- **Report:** **Halftime** and **Post-game**:
+  - the score with each team's possessions, PPP and kills;
+  - the period-by-period summary (post-game);
+  - four factors;
+  - the stops, kills & killshots card (biggest run, most stops in a row, skunks, 10/15/20-0, every
+    run of 3+ stops and 10+ points);
+  - both teams' lineups;
+  - clutch and garbage-time scoring (post-game);
+  - Print / PDF.
 - **Sheet:** every possession in order for both teams, with how it ended, offensive rebounds,
   points, kills and the running score. Subs and technicals are shown where they happened.
   - Tap a row to change the stat or team, delete the play, or insert a missed play before it.
