@@ -101,7 +101,8 @@ combos (a combo is on the floor for every possession of every five that contains
 - defense: the opponent's eFG%, TO% and FT rate, and DREB%;
 - tap a row to see how its possessions ended at each end.
 
-Filter All / Clutch / No garbage time.
+Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
+rate start lowest-first). Filter All / Clutch / No garbage time.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,

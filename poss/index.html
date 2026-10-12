@@ -719,6 +719,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lutx th,.lutx td{white-space:nowrap}
 .lutx td:first-child{max-width:140px;white-space:normal}
 .lutx td:first-child .tiny{white-space:normal;line-height:1.25}
+.lutx th.sortable{cursor:pointer;user-select:none}
+.lutx th.sortable.on{color:#facc15}
 
 </style>
 </head>
@@ -749,7 +751,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.30';
+const VERSION = 'v2026.10.12.31';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1410,22 +1412,35 @@ function reportView(g) {
 }
 
 /* ---------- lineups view ---------- */
+/* Sortable: tap a header to sort by it (biggest first; lower-is-better columns like DRtg and TO%
+   smallest first), tap again to flip. Blanks sort last either way. */
+const LU_COLS = [['five', 'FIVE', ''], ['poss', 'POSS', ''], ['pts', 'PTS', ''], ['pm', '+/-', ''], ['ortg', 'ORTG', ''], ['drtg', 'DRTG', '', 1], ['net', 'NET', ''],
+  ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1]];
 function lineupTable(g, D, t, scope, filter, k) {
   k = k || 5;
   const L = lineupUnits(g, D, t, scope || (UI.luScope === 'game' ? 'game' : g.per), filter || UI.luFilter, k), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
   if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
   const P = v => v == null ? '—' : v + '%';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([c]) => `<td>${E[c] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
+  const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
+    const num = v => typeof v === 'number' ? v : null;
+    return { u, f, v: { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
+      ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? o - d : null, oefg: O.efg, oto: O.to, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
+      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(100 * u.d.dreb / (u.d.dreb + u.d.oreb)) : null, dftr: X.ftr } }; });
+  const S = UI.luSort || { key: 'poss', dir: -1 };
+  rows.sort((x, y) => { const a = x.v[S.key], b = y.v[S.key];
+    if (a == null && b == null) return y.v.poss - x.v.poss; if (a == null) return 1; if (b == null) return -1;
+    const c = typeof a === 'string' ? a.localeCompare(b, undefined, { numeric: true }) : a - b;
+    return (c * S.dir) || (y.v.poss - x.v.poss); });
+  const th = ([key, label, cls]) => `<th class="${cls} sortable ${S.key === key ? 'on' : ''}" data-act="lu-sort" data-s="${key}">${key === 'five' ? (k === 5 ? 'FIVE' : k + '-MAN') : label}${S.key === key ? (S.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
   return `<table class="tbl zebra lut lutx"><thead>
     <tr class="grp"><th></th><th colspan="6"></th><th colspan="4" class="go">OFFENSE</th><th colspan="4" class="gd">DEFENSE</th></tr>
-    <tr><th>${k === 5 ? 'FIVE' : k + '-MAN'}</th><th>POSS</th><th>PTS</th><th>+/-</th><th>ORTG</th><th>DRTG</th><th>NET</th>
-      <th class="go">eFG%</th><th class="go">TO%</th><th class="go">OREB%</th><th class="go">FTR</th><th class="gd">eFG%</th><th class="gd">TO%</th><th class="gd">DREB%</th><th class="gd">FTR</th></tr></thead><tbody>
-    ${L.units.map(u => { const key = t + ':' + k + ':' + fiveKey(u.five), o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? o - d : null, f = fiveSorted(g, t, u.five);
-      const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), dreb = (u.d.dreb + u.d.oreb) ? Math.round(100 * u.d.dreb / (u.d.dreb + u.d.oreb)) : null;
+    <tr>${LU_COLS.map(th).join('')}</tr></thead><tbody>
+    ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
       return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
-        <td>${Math.floor((u.oPoss + u.dPoss) / 2)}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${o}</td><td>${d}</td><td class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</td>
-        <td class="go">${P(O.efg)}</td><td class="go">${P(O.to)}</td><td class="go">${P(O.orb)}</td><td class="go">${P(O.ftr)}</td>
-        <td class="gd">${P(X.efg)}</td><td class="gd">${P(X.to)}</td><td class="gd">${P(dreb)}</td><td class="gd">${P(X.ftr)}</td></tr>
+        <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg ?? '—'}</td><td>${v.drtg ?? '—'}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sgn(v.net)}</td>
+        <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}</td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
+        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}</td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td></tr>
         ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="15"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
           ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table></td></tr>` : ''}`; }).join('')}
   </tbody></table>`;
@@ -1974,6 +1989,8 @@ document.addEventListener('click', ev => {
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
     case 'lu-filter': UI.luFilter = b.dataset.f; render(); break;
     case 'lu-k': UI.luK = +b.dataset.k; UI.luOpen = null; render(); break;
+    case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
+      UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
     case 'export-def': exportLeaderboard(g, 'def'); break;
     case 'export-off': exportLeaderboard(g, 'off'); break;
