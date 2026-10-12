@@ -142,6 +142,20 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
   - Opponent rosters are shared with the game tracker.
   - Position and the note show on the player's card on the Live screen.
+- **Halftime stat sheet:** **End 1H** brings up the stat-sheet screen over the halftime report: add a photo of the
+  printout if you have it (check / Clarify, then Save), or **Skip → halftime report**.
+- **Two reports.** With a stat sheet for that half / the game, the report is the **full report**:
+  - **Key takeaways:** our edge and theirs in the four factors, each side's best player, most-used, the
+    biggest on/off, the best five, foul trouble, points off turnovers / second-chance points, kills and bench.
+  - **Team:** four factors; team analytics (points, tracked possessions and PPP, sheet ORtg, points off
+    turnovers, second-chance points, bench points, eFG%, TS%, 3P%, 3PA rate, FT% and rate, TO%, OREB%,
+    assisted %, AST/TO, STL%, BLK%, kills, fouls); by half (post-game, when the halftime sheet was read too);
+    stops, kills & killshots.
+  - **Players**, each team: impact (MIN, PTS, game score, TS%, USG%, and from the tracker his on-floor
+    possessions, ORtg, DRtg, net, on/off and +/-), the box, and advanced (eFG%, AST%, TOV%, OREB%, DREB%,
+    STL%, BLK%, defensive stops with him on). Per-minute rates need 3+ minutes.
+  - **Lineups:** best fives, best combos (post-game), every five for both teams.
+  Without a sheet the report is the one below, with an **Add stat sheet** button.
 - **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
   to the 2nd-half starting fives), and **Final** brings up the Post-game report. Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
