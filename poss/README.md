@@ -41,7 +41,7 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
 - **No clock.**
 - **Possession pill** (under the period): moves only when you tap it — at the tip, at the start of the
   2nd half, after a jump ball. Plays, subs and timeouts never move it. Tapped mid-half it asks: **Held
-  ball: turnover** (logs a turnover on the team that had it, shown as "held ball") or **Just switch**.
+  ball: steal** (a steal for the team that gets the ball, ending the other team's possession; shown as "steal (held ball)") or **Just switch**.
 - **Huddle** opens after every timeout (and from **📋 Huddle** on the scoreboard), the game tracker's
   timeout sheet by possessions:
   - the score, fouls and timeouts left; up to four talk points (turnovers and the points off them,

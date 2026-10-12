@@ -775,7 +775,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.37';
+const VERSION = 'v2026.10.12.38';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1276,7 +1276,7 @@ function feedText(g, x) {
 function feedText0(g, x) {
   if (x.kind === 'poss') {
     const p = x.p, t = p.team;
-    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'turnover (held ball)' : STAT_LABEL[e.k].toLowerCase()}`);
+    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'steal (held ball)' : STAT_LABEL[e.k].toLowerCase()}`);
     const tail = p.dreb ? ' · def reb' : '';
     return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
@@ -1817,7 +1817,7 @@ function techModal() {
 
 /* POSSESSION PILL (as the game tracker): changes ONLY when tapped — no play, sub, timeout or new
    period moves it. Tap it at the tip, at the start of the 2nd half, after a jump ball. Tapped
-   mid-half it asks whether it was a held ball (a turnover on the team that had it) or just a switch. */
+   mid-half it asks whether it was a held ball (a steal for the team that gets it) or just a switch. */
 function possPill(g) {
   if (g.final) return '';
   const ball = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
@@ -1828,8 +1828,8 @@ function possPill(g) {
 function heldBallModal(off) {
   const g = cur();
   modal(`<h2>Jump ball → ${esc(teamName(g, other(off)))} ball</h2>
-    <p class="muted" style="margin-bottom:6px">A held ball with the arrow going to ${esc(teamName(g, other(off)))} is a turnover on ${esc(teamName(g, off))} — it ends their possession. Just switch only moves the pill.</p>
-    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-lg" data-act="hb-switch">Just switch</button><button class="btn btn-primary btn-lg" data-act="hb-held" data-t="${off}">Held ball: turnover</button></div>`);
+    <p class="muted" style="margin-bottom:6px">A held ball with the arrow going to ${esc(teamName(g, other(off)))} is a steal for ${esc(teamName(g, other(off)))} — it ends ${esc(teamName(g, off))}'s possession. Just switch only moves the pill.</p>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-lg" data-act="hb-switch">Just switch</button><button class="btn btn-primary btn-lg" data-act="hb-held" data-t="${off}">Held ball: steal</button></div>`);
 }
 
 /* TIMEOUT SHEET ("Huddle") — the game tracker's, by possessions instead of the clock. Opens on every
@@ -2158,7 +2158,7 @@ document.addEventListener('click', ev => {
       if (bl && derive(g).poss.some(p => p.per === g.per)) heldBallModal(bl);
       else { g.ball = bl === 'a' ? 'b' : 'a'; save(); render(); } break; }
     case 'hb-switch': g.ball = other(g.ball); save(); closeModal(); render(); break;
-    case 'hb-held': { const t = b.dataset.t; UI.reb = null; UI.stat = null; push(g, { t: 'play', team: t, player: 'TEAM', k: 'to', held: true }); g.ball = other(t); save(); closeModal(); render(); toast(`Held ball — ${teamName(g, t)} turnover, ${teamName(g, other(t))} ball`); break; }
+    case 'hb-held': { const t = b.dataset.t; UI.reb = null; UI.stat = null; push(g, { t: 'play', team: other(t), player: 'TEAM', k: 'stl', held: true }); g.ball = other(t); save(); closeModal(); render(); toast(`Held ball — ${teamName(g, other(t))} steal and ball`); break; }
     case 'adjust': adjustModal(); break;
     case 'adj-foul': {
       const t = b.dataset.t;
