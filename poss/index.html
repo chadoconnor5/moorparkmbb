@@ -804,7 +804,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.45';
+const VERSION = 'v2026.10.12.46';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3097,8 +3097,8 @@ function shIndivOrtg(s, MP, tMP5, tS, oS) {
 
 /* WHO'S BEHIND THE FOUR FACTORS — from the sheet: for each stat behind a factor, the player with the biggest
    share of his team's total, sorted into what hurts Moorpark and what helps. Named only when the share is real
-   (25%+ of the team's total, and at least 2 of it; 3 for defensive boards). Shooting = share of the team's
-   field-goal points; our misses = share of our missed shots. */
+   (25%+ of the team's total, and at least 2 of it; 3 for defensive boards). Shooting names the fewest
+   players who make up half of the team's missed shots (or of its field-goal points), most first. */
 function factorDrivers(g, S, gameMin, pmA) {
   const TS = sbTeam(S), R = { a: sbRows(S, 'a', gameMin, TS, pmA), b: sbRows(S, 'b', gameMin, TS, () => null) };
   const nm = r => `${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name || '')}`, P = v => v == null ? '—' : (+v).toFixed(1) + '%';
@@ -3109,6 +3109,11 @@ function factorDrivers(g, S, gameMin, pmA) {
   // Rates as in the Four factors table (each team's own possession estimate).
   TS.a.stov = Math.min(TS.b.stl, TS.a.tov); TS.b.stov = Math.min(TS.a.stl, TS.b.tov);   // turnovers on the other team's steals
   const fa = ffCalc(TS.a, TS.b), fb = ffCalc(TS.b, TS.a), A = TS.a, B = TS.b, opp = esc(g.opp), hurt = [], help = [];
+  // The fewest players who make up half of team t's total of f (most first): "who got us to 50% quickest".
+  const half_ = (t, f) => { const tot = R[t].reduce((x, r) => x + f(r), 0); if (!tot) return null; const out = []; let n = 0;
+    for (const r of R[t].filter(r => f(r) > 0).sort((x, y) => f(y) - f(x))) { out.push(r); n += f(r); if (n * 2 >= tot) break; }
+    return { rs: out, n, tot, sh: Math.round(100 * n / tot) }; };
+  const group = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${x.rs.map(r => `${nm(r)} ${r.fgm}-${r.fga}`).join(', ')} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
   const line = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${nm(x.r)} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
   const H = (...a) => line(hurt, 'bad', ...a), G = (...a) => line(help, 'good', ...a);
   // Each factor goes one way: if we're losing it to them, its players are under Hurting us; if we're winning
@@ -3116,11 +3121,11 @@ function factorDrivers(g, S, gameMin, pmA) {
   const lose = (a, b, lowGood) => a != null && b != null && (lowGood ? a > b : a < b), win = (a, b, lowGood) => a != null && b != null && (lowGood ? a < b : a > b);
   // Shooting (eFG%)
   if (lose(fa.efg, fb.efg)) {
-    H('Their shooting', lead('b', fgPts, 4), x => `of their FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `eFG ${P(fb.efg)} vs our ${P(fa.efg)}`);
-    H('Our shooting', lead('a', miss, 3), x => `of our missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`, `our eFG ${P(fa.efg)} vs their ${P(fb.efg)}`);
+    group(hurt, 'bad', 'Their shooting', half_('b', fgPts), x => `of their FG points between ${x.rs.length > 1 ? 'them' : 'him'} (${x.n} of ${x.tot})`, `eFG ${P(fb.efg)} vs our ${P(fa.efg)}`);
+    group(hurt, 'bad', 'Our shooting', half_('a', miss), x => `of our missed shots between ${x.rs.length > 1 ? 'them' : 'him'} (${x.n} of ${x.tot})`, `our eFG ${P(fa.efg)} vs their ${P(fb.efg)}`);
   } else if (win(fa.efg, fb.efg)) {
-    G('Our shooting', lead('a', fgPts, 4), x => `of our FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `our eFG ${P(fa.efg)} vs their ${P(fb.efg)}`);
-    G('Their shooting', lead('b', miss, 3), x => `of their missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`);
+    group(help, 'good', 'Our shooting', half_('a', fgPts), x => `of our FG points between ${x.rs.length > 1 ? 'them' : 'him'} (${x.n} of ${x.tot})`, `our eFG ${P(fa.efg)} vs their ${P(fb.efg)}`);
+    group(help, 'good', 'Their shooting', half_('b', miss), x => `of their missed shots between ${x.rs.length > 1 ? 'them' : 'him'} (${x.n} of ${x.tot})`);
   }
   // Turnovers (TO%, lower is better). Unforced ones lead when they're half or more of the turnovers (3+).
   const unf = (T, f, arr, cls, who) => { const un = T.tov - T.stov; if (un >= 3 && un / T.tov >= 0.5)

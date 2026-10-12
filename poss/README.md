@@ -155,8 +155,9 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
   - **Who's behind the four factors:** a factor we're losing to them (worse eFG%, TO%, OREB% or FT rate) lists
     its players under **Hurting us**; one we're winning, under **Helping us** — for each stat behind it, the
     player with the biggest share of his team's total (e.g. "#33 Mowers — 25% of their defensive boards
-    (4 of 16) · our OREB% 20.0%", "#10 Alhammouri — 67% of their steals"). Shooting = share of the team's FG
-    points; our misses = share of our missed shots. Named only at 25%+ of the total and at least 2 (3 for
+    (4 of 16) · our OREB% 20.0%", "#10 Alhammouri — 67% of their steals"). Shooting names the fewest players
+    who make up half of the team's missed shots (or field-goal points), most first, e.g. "Kubel 0-5, Castaniero
+    2-6, Finney 1-4 — 60% of our missed shots between them (12 of 20)". Named only at 25%+ of the total and at least 2 (3 for
     defensive boards).
   - **Team:** four factors; team analytics (points, tracked possessions and PPP, sheet ORtg, points off
     turnovers, second-chance points, bench points, eFG%, TS%, 3P%, 3PA rate, FT% and rate, TO%, OREB%,
