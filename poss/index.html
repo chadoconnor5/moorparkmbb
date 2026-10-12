@@ -726,6 +726,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lutx th{font-size:10px;letter-spacing:.02em}
 .lutx td:first-child{max-width:118px;min-width:96px}
 .lutx td:first-child b{font-size:12px;white-space:nowrap}
+.lutx th,.lutx td{padding:6px 2px}
+.lutx td:first-child{max-width:104px;min-width:90px;padding-left:5px}
+.lutx td:first-child b{font-size:11.5px}
 
 </style>
 </head>
@@ -756,7 +759,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.32';
+const VERSION = 'v2026.10.12.33';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1096,7 +1099,9 @@ function killshotCounts(g) {
 // The game's possession count: the two teams' counts averaged, rounded down to a whole number, so it
 // goes up once both teams have had the ball. PPP always uses each team's own count.
 const possAvg = s => String(Math.floor((s.poss.a + s.poss.b) / 2));
-const rtg = (pts, n) => n ? Math.round(100 * pts / n) : '—';
+const rtg = (pts, n) => n ? Math.round(1000 * pts / n) / 10 : '—';   // points per 100, one decimal
+const f1 = v => typeof v === 'number' ? v.toFixed(1) : v;                    // 123.4
+const sg1 = v => (v > 0 ? '+' : '') + v.toFixed(1);                          // +12.3 / -4.0
 
 /* ---------- fouls and timeouts ---------- */
 const FOULING = e => (e.t === 'foul') || (e.t === 'tech' && !e.coach) || (e.t === 'play' && (e.k === 'chg' || e.k === 'offf'));
@@ -1233,10 +1238,10 @@ function lpmCard(g, D, t) {
   const f = D.five[t];
   if (f.length !== 5) return '';
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
-  const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? o - d : null, pm = u.pf - u.pa;
+  const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null, pm = u.pf - u.pa;
   return `<div class="lpm"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span></div>
-    <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${o}</b></div><div><span>DRtg</span><b>${d}</b></div>
-    <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
+    <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
+    <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
     ${fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
 }
 
@@ -1374,7 +1379,7 @@ function combosCard(g, D, scope) {
     ${[2, 3, 4].map(k => { const L = bestCombos(g, D, t, k, scope);
       return `<div class="small muted" style="margin:6px 0 2px;font-weight:700;letter-spacing:.06em">${k}-MAN</div>` + (L.length ? L.map((u, i) => `<div class="bl-row"><div class="bl-rank">${i + 1}</div>
         <div class="bl-five"><b>${esc(u.ids.slice().sort((x, y) => byNum(pInfo(g, t, x), pInfo(g, t, y))).map(id => name(t, id)).join(' · '))}</b>${u.same ? `<div class="tiny muted">+${u.same} more ${k}-man combo${u.same > 1 ? 's' : ''} with the same numbers</div>` : ''}</div>
-        <div class="bl-st"><b class="${pmCls(Math.round(u.net))}">${sgn(Math.round(u.net))}</b><span>net</span></div><div class="bl-st"><b class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</b><span>+/-</span></div><div class="bl-st"><b>${u.poss}</b><span>poss</span></div></div>`).join('')
+        <div class="bl-st"><b class="${pmCls(Math.round(10 * u.net) / 10)}">${sg1(Math.round(10 * u.net) / 10)}</b><span>net</span></div><div class="bl-st"><b class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</b><span>+/-</span></div><div class="bl-st"><b>${u.poss}</b><span>poss</span></div></div>`).join('')
         : `<div class="small muted">No ${k}-man combo with ${COMBO_MIN}+ possessions.</div>`); }).join('')}</div>`;
   return `<div class="ks-grid">${side('a')}${side('b')}</div><div class="small muted" style="margin-top:6px">Ranked by net rating among combos on the floor together for ${COMBO_MIN}+ possessions. One game is a small sample: under ~40 possessions a net rating can be off by ±25 or more by chance.</div>`;
 }
@@ -1383,7 +1388,7 @@ function bestCard(g, D, scope) {
     return `<div class="bl ${t}"><div class="ks-lbl" style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))} <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">· ${B.min}+ possessions</span></div>
       ${B.list.length ? B.list.map((u, i) => { const f = fiveSorted(g, t, u.five);
         return `<div class="bl-row"><div class="bl-rank">${i + 1}</div><div class="bl-five"><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></div>
-          <div class="bl-st"><b class="${pmCls(Math.round(u.net))}">${sgn(Math.round(u.net))}</b><span>net</span></div><div class="bl-st"><b class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</b><span>+/-</span></div><div class="bl-st"><b>${u.poss}</b><span>poss</span></div></div>`; }).join('')
+          <div class="bl-st"><b class="${pmCls(Math.round(10 * u.net) / 10)}">${sg1(Math.round(10 * u.net) / 10)}</b><span>net</span></div><div class="bl-st"><b class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</b><span>+/-</span></div><div class="bl-st"><b>${u.poss}</b><span>poss</span></div></div>`; }).join('')
         : '<div class="small muted">Not enough possessions yet.</div>'}</div>`; };
   return `<div class="ks-grid">${side('a')}${side('b')}</div>`;
 }
@@ -1430,7 +1435,7 @@ function lineupTable(g, D, t, scope, filter, k) {
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
     return { u, f, v: { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
-      ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? o - d : null, oefg: O.efg, oto: O.to, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
+      ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
       ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr } }; });
   const S = UI.luSort || { key: 'poss', dir: -1 };
   rows.sort((x, y) => { const a = x.v[S.key], b = y.v[S.key];
@@ -1443,7 +1448,7 @@ function lineupTable(g, D, t, scope, filter, k) {
     <tr>${LU_COLS.map(th).join('')}</tr></thead><tbody>
     ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
       return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
-        <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg ?? '—'}</td><td>${v.drtg ?? '—'}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sgn(v.net)}</td>
+        <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg == null ? '—' : f1(v.ortg)}</td><td>${v.drtg == null ? '—' : f1(v.drtg)}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sg1(v.net)}</td>
         <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}</td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
         <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}</td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td></tr>
         ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="15"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
