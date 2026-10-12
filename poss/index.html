@@ -668,6 +668,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .redit input{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:7px 8px;font:inherit;font-size:15px}
 .schd td{vertical-align:middle}
 @media (max-width:860px){.rost{grid-template-columns:1fr}.rlist{flex-direction:row;flex-wrap:wrap}}
+.tbtn .tn.show{white-space:normal;line-height:1.15;font-size:15px;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
 </style>
 </head>
@@ -697,7 +698,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.12';
+const VERSION = 'v2026.10.12.13';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -788,7 +789,20 @@ const SEED_SCHEDULE = [
 ];
 const schedule = () => { const s = lsGet('gt_schedule', null); return (Array.isArray(s) && s.length ? s : SEED_SCHEDULE).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')); };
 const isTBD = n => !n || /^tbd/i.test(n);
-const logo = (name, px) => `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="../game/logos/${slug(name)}.png" alt="" onerror="this.remove()">`;
+/* Team logos: the game tracker's set and name matching (copied from game/index.html), so both apps show the same ones. */
+const LOGO_FILES = new Set(["alameda", "allan_hancock", "american_river", "antelope_valley", "bakersfield", "barstow", "butte", "cabrillo", "canada", "canyons", "cerritos", "cerro_coso", "chabot", "chaffey", "citrus", "coalinga", "columbia", "compton", "contra_costa", "copper_mountain", "cosumnes_river", "cuesta", "cuyamaca", "cypress", "de_anza", "desert", "diablo_valley", "east_los_angeles", "el_camino", "feather_river", "folsom_lake", "foothill", "fresno", "fullerton", "gavilan", "glendale", "golden_west", "grossmont", "hartnell", "imperial_valley", "irvine_valley", "la_harbor", "la_pierce", "la_southwest", "la_trade_tech", "la_valley", "las_positas", "lassen", "lemoore", "long_beach", "los_angeles_city", "los_medanos", "mack_attack_prep", "marin", "mendocino", "merced", "merritt", "miracosta", "modesto", "monterey_peninsula", "moorpark", "mt_san_antonio", "mt_san_jacinto", "napa_valley", "ohlone", "orange_coast", "oxnard", "palo_verde", "palomar", "pasadena_city", "porterville", "redwoods", "reedley", "rio_hondo", "riverside", "sacramento_city", "saddleback", "san_bernardino_valley", "san_diego_city", "san_diego_mesa", "san_diego_miramar", "san_francisco", "san_joaquin_delta", "san_jose", "san_mateo", "santa_ana", "santa_barbara", "santa_monica", "santa_rosa", "santiago_canyon", "sequoias", "shasta", "sierra", "siskiyous", "skyline", "solano", "southwestern", "ventura", "victor_valley", "west_la", "west_valley", "yuba"]);
+const LOGO_ALIAS = { fresno_city: 'fresno', mira_costa: 'miracosta', mt_sac: 'mt_san_antonio', mt_san_antonio_college: 'mt_san_antonio',
+  la_city: 'los_angeles_city', lacc: 'los_angeles_city', elac: 'east_los_angeles', la_trade: 'la_trade_tech', west_los_angeles: 'west_la',
+  pierce: 'la_pierce', santa_monica_college: 'santa_monica', smc: 'santa_monica', sbcc: 'santa_barbara', santa_barbara_city: 'santa_barbara',
+  san_bernardino: 'san_bernardino_valley', sbvc: 'san_bernardino_valley', av: 'antelope_valley', mack_attack: 'mack_attack_prep',
+  miramar: 'san_diego_miramar', sd_miramar: 'san_diego_miramar', san_diego_miramar_college: 'san_diego_miramar' };
+function logoSlug(name) {
+  let k = String(name || '').toLowerCase().replace(/&/g, 'and').replace(/\b(college|cc|community)\b/g, ' ').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (LOGO_ALIAS[k]) k = LOGO_ALIAS[k];
+  return LOGO_FILES.has(k) ? k : null;
+}
+const logoSrc = name => { const k = logoSlug(name); return k ? `../game/logos/${k}.png` : null; };
+const logo = (name, px) => { const src = logoSrc(name); return src ? `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="${src}" alt="" onerror="this.remove()">` : ''; };
 
 /* ---------- periods ---------- */
 const PER_NAME = p => p === '1H' ? '1st Half' : p === '2H' ? '2nd Half' : 'Overtime ' + p.slice(2);
@@ -1020,7 +1034,7 @@ function liveView(g) {
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${playerCards(g, D, 'a')}</div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}">
-        <img src="../game/logos/${slug(teamName(g, t))}.png" alt="" onerror="this.remove();this.parentNode.querySelector('.tn').style.display='inline'"><span class="tn">${esc(teamName(g, t))}</span>${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
+        ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
