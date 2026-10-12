@@ -46,7 +46,7 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   timeout sheet by possessions:
   - the score, fouls and timeouts left; up to four talk points (turnovers and the points off them,
     offensive boards, their scoring rate, runs, empty trips, stops in a row, bonus, foul trouble);
-  - the **last 16 possessions** (both teams, about 5:00) against the whole game: PPP, eFG%, TO%,
+  - the **last 20 possessions** (both teams; Moorpark's tempo the last 5 seasons averages 78.7 a team per 40:00, so 5:00 is ~10 a team) against the whole game: PPP, eFG%, TO%,
     OREB%, DREB%, FT rate, 3PA rate, highlighted ▲▼ when one has moved well away on enough tries;
   - momentum: current run, stops in a row, kills this half;
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
