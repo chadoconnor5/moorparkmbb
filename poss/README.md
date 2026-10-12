@@ -27,6 +27,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   for a foul with no player.
 - **Foul trouble** lights the cards: 1st half, 2 fouls yellow, 3–4 red; 2nd half / OT, 3 yellow, 4 red; 5
   fouls (or 2 technicals) = OUT (red, name struck through).
+- **Fouled out:** the 5th foul (or 2nd technical) opens the sub screen straight away, with no Cancel; it
+  stays up (even after a reload) until a replacement is picked. He can't be put back in. **Edit his
+  fouls** on that screen lists each one (period, score): **Wrong player** moves it to the right player,
+  **Delete** removes it. Back to 4 and he stays in.
 - **🚩 Flag last play** (under the buttons), or the 🚩 on any feed / Play-by-Play line, marks a play to look
   at later. Flagged plays are highlighted, marked on the Sheet, and listed under Play-by-Play → Flagged.
 - **Tech:** pick team, player or coach, and how many of the two free throws went in.
@@ -91,7 +95,8 @@ Hudl's per-game lineup export still supplies offense and minutes.
   10+ scoring run, with the half, the score and Moorpark's five when it started.
 
 ## Lineups
-⇄ Sub sets both teams' fives on one screen. The starting fives are asked for when a game starts
+⇄ Sub sets both teams' fives on one screen: each team's **On the floor** five on top, the **Bench**
+below. Tap a player on the floor to take him out, tap a bench player to put him in. The starting fives are asked for when a game starts
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).
 
