@@ -649,14 +649,10 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tbtn{min-height:64px;border-radius:12px;font-weight:800;font-size:17px;letter-spacing:0;border:2px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}
 .tbtn.a{background:rgba(79,195,247,.14);color:var(--us);border-color:rgba(79,195,247,.45)}
 .tbtn.b{background:rgba(224,162,111,.14);color:var(--them-text);border-color:rgba(224,162,111,.45)}
-.tbtn.hot.a{background:#2b8fc0;color:#fff;border-color:#4fc3f7} .tbtn.hot.b{background:#b8743f;color:#fff;border-color:#fdba74}
 .tbtn.dim{opacity:.25}
 .tbtn{position:relative;display:flex;align-items:center;justify-content:center;min-height:78px}
 .tbtn img{height:56px;max-width:85%;object-fit:contain;pointer-events:none}
 .tbtn .tn{display:none}
-.tbtn .rb{position:absolute;bottom:4px;left:0;right:0;font-size:10.5px;font-weight:800;letter-spacing:.08em}
-.tbtn.hot.a,.tbtn.hot.b{background:#e5e7eb;border-color:#facc15;box-shadow:0 0 0 2px rgba(250,204,21,.6)}
-.tbtn.hot .rb{color:#111}
 .pbtn .pnote{display:block;font-size:11.5px;font-weight:500;color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:38px;margin-top:1px}
 .pbp-feed{max-height:none;font-size:13.5px;border-top:0;padding-top:0}
 .pbp-feed div{padding:7px 10px;cursor:pointer}
@@ -668,6 +664,16 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .redit input{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:7px 8px;font:inherit;font-size:15px}
 .schd td{vertical-align:middle}
 @media (max-width:860px){.rost{grid-template-columns:1fr}.rlist{flex-direction:row;flex-wrap:wrap}}
+.tbtn .tn.show{white-space:normal;line-height:1.15;font-size:15px;text-align:center;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tbtn{flex-direction:column;gap:4px;padding:6px 8px}
+.tbtn .rb{font-size:12px;font-weight:800;letter-spacing:.08em;color:#facc15;line-height:1}
+.tbtn{min-height:92px}
+.tbtn img{height:56px}
+.tbtn .rb{position:absolute;bottom:6px;left:0;right:0}
+.tbtn{padding-bottom:22px}
+.tbtn .tn.show{margin-top:0}
+/* The opponent's box is Moorpark's style (a light tint, a softer border) in the opponent's own colour. */
+.tbtn.b[style*="--tc"]{background:color-mix(in srgb,var(--tc) 14%,transparent);border-color:color-mix(in srgb,var(--tc) 45%,transparent)}
 
 </style>
 </head>
@@ -697,7 +703,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.12';
+const VERSION = 'v2026.10.12.17';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -788,7 +794,23 @@ const SEED_SCHEDULE = [
 ];
 const schedule = () => { const s = lsGet('gt_schedule', null); return (Array.isArray(s) && s.length ? s : SEED_SCHEDULE).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')); };
 const isTBD = n => !n || /^tbd/i.test(n);
-const logo = (name, px) => `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="../game/logos/${slug(name)}.png" alt="" onerror="this.remove()">`;
+/* Team logos: the game tracker's set and name matching (copied from game/index.html), so both apps show the same ones. */
+const LOGO_FILES = new Set(["alameda", "allan_hancock", "american_river", "antelope_valley", "bakersfield", "barstow", "butte", "cabrillo", "canada", "canyons", "cerritos", "cerro_coso", "chabot", "chaffey", "citrus", "coalinga", "columbia", "compton", "contra_costa", "copper_mountain", "cosumnes_river", "cuesta", "cuyamaca", "cypress", "de_anza", "desert", "diablo_valley", "east_los_angeles", "el_camino", "feather_river", "folsom_lake", "foothill", "fresno", "fullerton", "gavilan", "glendale", "golden_west", "grossmont", "hartnell", "imperial_valley", "irvine_valley", "la_harbor", "la_pierce", "la_southwest", "la_trade_tech", "la_valley", "las_positas", "lassen", "lemoore", "long_beach", "los_angeles_city", "los_medanos", "mack_attack_prep", "marin", "mendocino", "merced", "merritt", "miracosta", "modesto", "monterey_peninsula", "moorpark", "mt_san_antonio", "mt_san_jacinto", "napa_valley", "ohlone", "orange_coast", "oxnard", "palo_verde", "palomar", "pasadena_city", "porterville", "redwoods", "reedley", "rio_hondo", "riverside", "sacramento_city", "saddleback", "san_bernardino_valley", "san_diego_city", "san_diego_mesa", "san_diego_miramar", "san_francisco", "san_joaquin_delta", "san_jose", "san_mateo", "santa_ana", "santa_barbara", "santa_monica", "santa_rosa", "santiago_canyon", "sequoias", "shasta", "sierra", "siskiyous", "skyline", "solano", "southwestern", "ventura", "victor_valley", "west_la", "west_valley", "yuba"]);
+const LOGO_ALIAS = { fresno_city: 'fresno', mira_costa: 'miracosta', mt_sac: 'mt_san_antonio', mt_san_antonio_college: 'mt_san_antonio',
+  la_city: 'los_angeles_city', lacc: 'los_angeles_city', elac: 'east_los_angeles', la_trade: 'la_trade_tech', west_los_angeles: 'west_la',
+  pierce: 'la_pierce', santa_monica_college: 'santa_monica', smc: 'santa_monica', sbcc: 'santa_barbara', santa_barbara_city: 'santa_barbara',
+  san_bernardino: 'san_bernardino_valley', sbvc: 'san_bernardino_valley', av: 'antelope_valley', mack_attack: 'mack_attack_prep',
+  miramar: 'san_diego_miramar', sd_miramar: 'san_diego_miramar', san_diego_miramar_college: 'san_diego_miramar' };
+function logoSlug(name) {
+  let k = String(name || '').toLowerCase().replace(/&/g, 'and').replace(/\b(college|cc|community)\b/g, ' ').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (LOGO_ALIAS[k]) k = LOGO_ALIAS[k];
+  return LOGO_FILES.has(k) ? k : null;
+}
+/* School main colours (game tracker's list): the team buttons are boxed in them. */
+const TEAM_COLORS = {"alameda": "#004A88", "allan_hancock": "#0033A0", "american_river": "#003058", "antelope_valley": "#8B1C40", "bakersfield": "#D21028", "barstow": "#002269", "butte": "#BD8A00", "cabrillo": "#3861E3", "canada": "#205C40", "canyons": "#FFBA21", "cerritos": "#002E66", "cerro_coso": "#13294B", "chabot": "#CF8900", "chaffey": "#990000", "citrus": "#004371", "coalinga": "#3B5B9E", "columbia": "#DA291C", "compton": "#A8123E", "contra_costa": "#003E7E", "copper_mountain": "#0097A9", "cosumnes_river": "#F26E21", "cuesta": "#008445", "cuyamaca": "#79BDE9", "cypress": "#FED41F", "de_anza": "#6A0221", "desert": "#A50B2D", "diablo_valley": "#445F4A", "east_los_angeles": "#004522", "el_camino": "#001489", "feather_river": "#1F693C", "folsom_lake": "#0084AC", "foothill": "#A61E2F", "fresno": "#D0103A", "fullerton": "#0F406B", "gavilan": "#EE1D24", "glendale": "#A32035", "golden_west": "#003000", "grossmont": "#00685E", "hartnell": "#860038", "imperial_valley": "#240000", "irvine_valley": "#004789", "la_harbor": "#FFC52E", "la_pierce": "#BF2116", "la_southwest": "#00A0DD", "la_trade_tech": "#552385", "la_valley": "#00523F", "las_positas": "#981E32", "lassen": "#F06724", "lemoore": "#2C3668", "long_beach": "#EE3324", "los_angeles_city": "#305589", "los_medanos": "#FFC72C", "mack_attack_prep": "#E3120B", "marin": "#C4B483", "mendocino": "#001648", "merced": "#00205C", "merritt": "#003DA5", "miracosta": "#1A3D6D", "modesto": "#001F60", "monterey_peninsula": "#860038", "moorpark": "#B9D9EB", "mt_san_antonio": "#9C182F", "mt_san_jacinto": "#B2292E", "napa_valley": "#048543", "ohlone": "#008A59", "orange_coast": "#FE5000", "oxnard": "#00AA4F", "palo_verde": "#04056C", "palomar": "#A80100", "pasadena_city": "#8E1C26", "porterville": "#A71F23", "redwoods": "#98272C", "reedley": "#F88F1F", "rio_hondo": "#3A3A3C", "riverside": "#F26624", "sacramento_city": "#8B2332", "saddleback": "#A32235", "san_bernardino_valley": "#0053A1", "san_diego_city": "#B30938", "san_diego_mesa": "#0C223F", "san_diego_miramar": "#8DB7E1", "san_francisco": "#E32526", "san_joaquin_delta": "#D5BE8E", "san_jose": "#FFC627", "san_mateo": "#2F1A45", "santa_ana": "#AB0E24", "santa_barbara": "#A6192E", "santa_monica": "#2079CD", "santa_rosa": "#1E1656", "santiago_canyon": "#263D99", "sequoias": "#24337A", "shasta": "#1A5733", "sierra": "#AF2124", "siskiyous": "#122B55", "skyline": "#CC3835", "solano": "#22529D", "southwestern": "#9B2743", "ventura": "#FF6602", "victor_valley": "#9F2944", "west_la": "#005697", "west_valley": "#14335F", "yuba": "#C5B37C"};
+const teamColor = name => TEAM_COLORS[logoSlug(name)] || null;
+const logoSrc = name => { const k = logoSlug(name); return k ? `../game/logos/${k}.png` : null; };
+const logo = (name, px) => { const src = logoSrc(name); return src ? `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="${src}" alt="" onerror="this.remove()">` : ''; };
 
 /* ---------- periods ---------- */
 const PER_NAME = p => p === '1H' ? '1st Half' : p === '2H' ? '2nd Half' : 'Overtime ' + p.slice(2);
@@ -881,8 +903,9 @@ function perSums(D, per) {
   return s;
 }
 const ppp = (pts, n) => n ? (pts / n).toFixed(2) : '—';
-// The game's possession count: the two teams' counts averaged.
-const possAvg = s => { const v = (s.poss.a + s.poss.b) / 2; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
+// The game's possession count: the two teams' counts averaged, rounded down to a whole number, so it
+// goes up once both teams have had the ball. PPP always uses each team's own count.
+const possAvg = s => String(Math.floor((s.poss.a + s.poss.b) / 2));
 const rtg = (pts, n) => n ? Math.round(100 * pts / n) : '—';
 
 /* ---------- fouls and timeouts ---------- */
@@ -1019,12 +1042,12 @@ function liveView(g) {
   return `${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${playerCards(g, D, 'a')}</div>
-    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}">
-        <img src="../game/logos/${slug(teamName(g, t))}.png" alt="" onerror="this.remove();this.parentNode.querySelector('.tn').style.display='inline'"><span class="tn">${esc(teamName(g, t))}</span>${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
+    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
+        ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
-        <button class="btn" data-act="undo" ${g.ev.length ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
+        <button class="btn" data-act="undo" ${g.ev.length && !g.ev[g.ev.length - 1].lock ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
       <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
     </div>
     <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>
@@ -1169,8 +1192,9 @@ function createGame() {
   const g = { id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], box: {}, opp: d.opp, date: d.date || today(),
     loc: { home: 'H', away: 'A', neutral: 'N' }[d.site] || 'H', conf: d.conf, schedId: d.schedId, dressed: d.dressed.slice(),
     oppRoster: gtOppRoster(d.oppName || d.opp), scoutKey: d.scoutKey || null };
-  g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'a', five: d.starters.slice() });
-  if (d.oppStarters.length === 5) g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'b', five: d.oppStarters.map(n => 'o:' + n) });
+  // Starting fives are locked: Undo and Delete never take them back (change them with ⇄ Sub).
+  g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'a', five: d.starters.slice(), lock: true });
+  if (d.oppStarters.length === 5) g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'b', five: d.oppStarters.map(n => 'o:' + n), lock: true });
   games.push(g); curId = g.id; SD = null; UI.redo = []; save(); render();
   toast('Game created', 'good');
   if (d.oppStarters.length !== 5 && g.oppRoster.length >= 5) { SUB = null; subModal(`${g.opp} starting five`); }
@@ -1362,7 +1386,7 @@ function subModal(title) {
 }
 function subConfirm() {
   const g = cur(), D = derive(g);
-  ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, { t: 'sub', team: t, five: f }); });
+  ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, Object.assign({ t: 'sub', team: t, five: f }, D.five[t].length ? {} : { lock: true })); });
   SUB = null; save(); closeModal(); render();
 }
 
@@ -1527,7 +1551,9 @@ document.addEventListener('click', ev => {
       if (PLAYER_STATS.has(UI.stat)) { toast('Fouls go to the player — tap his card'); return; }
       logStat(b.dataset.team, 'TEAM'); break;
     case 'ed-t': { const e = g.ev.find(x => x.id === b.dataset.id); e.team = b.dataset.t; save(); editModal(e.id); render(); break; }
-    case 'undo': { UI.reb = null; if (!g.ev.length) return; UI.redo.push(g.ev.pop()); save(); render(); break; }
+    case 'undo': { UI.reb = null; const last = g.ev[g.ev.length - 1];
+      if (!last || last.lock) { toast('Nothing to undo — the starting fives stay (change them with ⇄ Sub)'); return; }
+      UI.redo.push(g.ev.pop()); save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
     case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else if (s.size < 5) s.add(p); else { toast('Five are on — take one off first'); return; } subModal(); break; }
@@ -1572,7 +1598,8 @@ document.addEventListener('click', ev => {
     case 'edit': editModal(b.dataset.id); break;
     case 'ed-k': { const e = g.ev.find(x => x.id === b.dataset.id); e.k = b.dataset.k; save(); editModal(e.id); render(); break; }
     case 'ed-p': { const e = g.ev.find(x => x.id === b.dataset.id); e.player = b.dataset.p === 'TEAM' && e.t === 'foul' ? null : b.dataset.p; save(); editModal(e.id); render(); break; }
-    case 'ed-del': if (confirm('Delete this play?')) { g.ev = g.ev.filter(x => x.id !== b.dataset.id); save(); closeModal(); render(); } break;
+    case 'ed-del': if (g.ev.find(x => x.id === b.dataset.id)?.lock) { toast('A starting five can\'t be deleted — change it with ⇄ Sub', 'bad'); return; }
+      if (confirm('Delete this play?')) { g.ev = g.ev.filter(x => x.id !== b.dataset.id); save(); closeModal(); render(); } break;
     case 'ed-ins': UI.ins = b.dataset.id; UI.tab = 'live'; closeModal(); render(); toast('Tap the stat, then the player — it goes in before that play'); break;
 
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
@@ -1750,7 +1777,7 @@ function ffResults(g, sc) {
     return `<tr><td>${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${P(a)}${sub ? `<span class="sub">${sub(L.a, L.b)}</span>` : ''}</td><td class="${w === 'b' ? 'win b' : ''}">${P(b)}${sub ? `<span class="sub">${sub(L.b, L.a)}</span>` : ''}</td></tr>`;
   };
   const v = (t, k) => t[k] == null ? '–' : t[k];
-  const D = derive(g), cnt = per => (s => (s.poss.a + s.poss.b) / 2)(perSums(D, per));
+  const D = derive(g), cnt = per => (s => Math.floor((s.poss.a + s.poss.b) / 2))(perSums(D, per));
   const sheet = sc === 'G' ? cnt(null) : sc === '1H' ? cnt('1H') : g.periods.filter(p => p !== '1H').reduce((x, p) => x + cnt(p), 0);
   return `<table class="ffr"><thead><tr><th></th><th>MOORPARK</th><th>${esc(String(g.opp).toUpperCase())}</th></tr></thead><tbody>
     <tr class="grp"><td colspan="3">Four factors</td></tr>
@@ -1768,7 +1795,7 @@ function ffResults(g, sc) {
     <tr><td>Possessions (est.)</td><td>${A.poss.toFixed(1)}</td><td>${B.poss.toFixed(1)}</td></tr>
     <tr><td>PPP</td><td class="${A.ppp != null && B.ppp != null && A.ppp > B.ppp ? 'win a' : ''}">${A.ppp == null ? '—' : A.ppp.toFixed(2)}</td><td class="${A.ppp != null && B.ppp != null && B.ppp > A.ppp ? 'win b' : ''}">${B.ppp == null ? '—' : B.ppp.toFixed(2)}</td></tr>
   </tbody></table>
-  <div class="small muted" style="margin-top:6px">Possessions = FGA − OREB + TO + 0.475 × FTA. Tracked possessions (average of both teams): ${Number.isInteger(sheet) ? sheet : sheet.toFixed(1)} for ${sc === 'G' ? 'the game' : sc === '1H' ? 'the 1st half' : 'the 2nd half + OT'}.</div>`;
+  <div class="small muted" style="margin-top:6px">Possessions = FGA − OREB + TO + 0.475 × FTA. Tracked possessions (average of both teams): ${sheet} for ${sc === 'G' ? 'the game' : sc === '1H' ? 'the 1st half' : 'the 2nd half + OT'}.</div>`;
 }
 function renderFF() {
   const g = cur(); if (!g) return;
