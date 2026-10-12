@@ -697,7 +697,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.11';
+const VERSION = 'v2026.10.12.12';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -918,8 +918,9 @@ function render() {
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
   const g = cur();
   const v = $('#view');
-  if (!g && !['games', 'sched', 'rosters', 'live'].includes(UI.tab)) UI.tab = 'live';
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
+  const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
+  if (!g && ['pbp', 'sheet', 'lineups', 'ff'].includes(UI.tab)) { v.className = 'page mid'; v.innerHTML = noGame; return; }
   if (UI.tab === 'games') v.innerHTML = gamesView();
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); }
   else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
@@ -1188,20 +1189,95 @@ function pbpView(g) {
   return `<div class="page-head"><h2>Play-by-play</h2><div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['a', 'Moorpark'], ['b', g.opp]].map(([k, l]) => `<button class="btn btn-sm ${f === k ? 'btn-primary' : ''}" data-act="pbp-team" data-t="${k}">${esc(l)}</button>`).join('')}</div></div>${secs.join('')}`;
 }
 
-/* ---------- schedule ---------- */
+/* ---------- schedule: the game tracker's Schedule tab, same store (gt_schedule) ---------- */
+const SITE_LABEL = { home: 'vs', away: '@', neutral: 'vs (N)' };
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function seasonYear(month) {
+  const now = new Date(); const start = now.getMonth() + 1 >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  return month >= 7 ? start : start + 1;
+}
+function parseScheduleText(text) {
+  const out = [];
+  for (let line of String(text || '').split(/\r?\n/)) {
+    line = line.trim(); if (!line) continue;
+    let m, mo = null, dy = null, yr = null;
+    if ((m = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/))) { mo = +m[1]; dy = +m[2]; yr = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : null; }
+    else if ((m = line.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/i))) { mo = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()) + 1; dy = +m[2]; }
+    if (!mo || !dy || mo > 12 || dy > 31) continue;            // a heading or a blank month row
+    line = line.replace(m[0], ' ');
+    const y = yr || seasonYear(mo);
+    const date = `${y}-${String(mo).padStart(2, '0')}-${String(dy).padStart(2, '0')}`;
+    let time = '';
+    const tm = line.match(/\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))/i);
+    if (tm) { time = tm[1].replace(/\./g, '').toUpperCase().replace(/(\d)(AM|PM)/, '$1 $2'); line = line.replace(tm[0], ' '); }
+    let site = 'home';
+    if (/(^|\s)(@|at)\s/i.test(' ' + line + ' ')) site = 'away';
+    if (/\(n\)|neutral/i.test(line)) site = 'neutral';
+    const conf = /\*|\bconf(erence)?\b/i.test(line);
+    const scrim = /scrimmage|\bscrim\b|exhibition/i.test(line);
+    line = line.replace(/\(?\s*(scrimmage|scrim|exhibition)\s*\)?/gi, ' ');
+    let opp = line
+      .replace(/\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|sday|nesday|rsday|urday)?\b\.?,?/gi, ' ')
+      .replace(/\b[WLT]\s*,?\s*\d{2,3}\s*[-–]\s*\d{2,3}\b/g, ' ')                  // a result already played
+      .replace(/\(n\)|neutral|\*|\bconf(erence)?\b|\bTBA\b|\bTBD\b/gi, ' ')
+      .replace(/(^|\s)(vs\.?|v\.|@|at)(?=\s)/gi, ' ')
+      .replace(/[|,;\t]+/g, ' ').replace(/\s+/g, ' ').trim()
+      .replace(/^[-–:]+|[-–:]+$/g, '').trim();
+    if (!opp) continue;
+    out.push({ id: 'sch_' + Date.now() + '_' + out.length, date, time, opp, site, conf, scrim });
+  }
+  return out;
+}
+
+const SCH = { rows: null, paste: false };
+function schRows() { if (!SCH.rows) SCH.rows = schedule().map(r => Object.assign({}, r)); return SCH.rows; }
+function collectSched() {
+  document.querySelectorAll('[data-sr]').forEach(el => { const r = SCH.rows[+el.dataset.sr]; if (r) r[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; });
+}
+const gameForRow = r => games.find(x => x.schedId === r.id) || games.find(x => !x.schedId && x.date === r.date && (x.opp || '').toLowerCase() === (r.opp || '').toLowerCase()) || null;
 function schedView() {
-  const rows = schedule();
-  return `<div class="page-head"><h2>Schedule</h2><span class="small muted" style="margin-left:auto">Edit it on the game tracker's Schedule tab — it shows here.</span></div>
-    <div class="card"><div class="tbl-wrap"><table class="tbl zebra schd"><thead><tr><th>DATE</th><th>OPPONENT</th><th>SITE</th><th></th><th></th></tr></thead><tbody>
-    ${rows.map(r => { const gm = games.find(x => x.schedId === r.id), tbd = isTBD(r.opp);
-      const d = r.date ? new Date(r.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-      const S = gm ? perSums(derive(gm), null) : null;
-      return `<tr><td style="white-space:nowrap">${esc(d)}${r.time ? `<div class="tiny muted">${esc(r.time)}</div>` : ''}</td>
-        <td><span class="row" style="gap:8px">${tbd ? '' : logo(r.opp, 22)}<b>${esc(r.opp)}</b></span>${r.event ? `<div class="tiny muted">${esc(r.event)}</div>` : ''}</td>
-        <td>${{ home: 'Home', away: 'Away', neutral: 'Neutral' }[r.site] || ''}${r.conf ? ' · <b>Conf</b>' : ''}${r.scrim ? ' · Scrim' : ''}</td>
-        <td>${S ? `${S.pts.a}–${S.pts.b}` : ''}</td>
-        <td style="text-align:right">${gm ? `<button class="btn btn-sm" data-act="open" data-id="${gm.id}">Open</button>` : tbd ? '<span class="tiny muted">opponent TBD</span>' : `<button class="btn btn-sm btn-good" data-act="sched-start" data-id="${esc(r.id)}">Start</button>`}</td></tr>`; }).join('')}
-    </tbody></table></div></div>`;
+  const rows = schRows(), td = today();
+  const nextIdx = rows.map((r, i) => ({ r, i })).filter(x => x.r.date >= td && !gameForRow(x.r)).sort((a, b) => a.r.date.localeCompare(b.r.date))[0];
+  const body = rows.map((r, i) => {
+    const gm = gameForRow(r), S = gm ? perSums(derive(gm), null) : null;
+    const status = gm ? `<span class="res ${S.pts.a > S.pts.b ? 'w' : S.pts.a < S.pts.b ? 'l' : ''}">${S.pts.a}–${S.pts.b}</span><button class="btn btn-sm btn-good" data-act="open" data-id="${gm.id}">${gm.id === curId ? 'Live' : 'Open'}</button>`
+      : `<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
+    return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
+      <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
+      <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
+      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logo(r.opp, 22) : '<span class="tlogo" style="--lg:22px;width:22px"></span>'}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
+      <td style="width:64px;text-align:center">${gm ? `<button class="btn btn-sm sch-box" data-act="sch-sheet" data-id="${gm.id}">Sheet</button>` : ''}</td>
+      <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}"></td>
+      <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
+      <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="scrim" ${r.scrim ? 'checked' : ''}></td>
+      <td style="white-space:nowrap">${status}</td>
+      <td style="width:36px"><button class="prow-x" data-act="sch-del" data-i="${i}" title="Remove">✕</button></td></tr>`;
+  }).join('');
+  const names = [...new Set([...oppStore().map(o => o.name), ...rows.map(r => r.opp).filter(n => n && !isTBD(n))])].sort((a, b) => a.localeCompare(b));
+  return `<div class="page-head"><h2>Schedule</h2><span class="muted small">${rows.length} games</span>
+      <span style="margin-left:auto"></span>
+      <button class="btn btn-sm" data-act="sch-paste">Paste schedule</button>
+      <button class="btn btn-good" data-act="sch-add">+ Add game</button></div>
+    <datalist id="opp-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    ${SCH.paste ? `<div class="card"><h3>Paste schedule <span class="muted">one game per line, as it reads on the athletics site — e.g. <code>Fri, Nov 7 vs Ventura 7:00 PM</code>, <code>11/12 at Oxnard*</code> (* = conference)</span></h3>
+      <textarea id="sch-paste-text" rows="8" style="width:100%"></textarea>
+      <div class="row" style="margin-top:8px;gap:8px"><button class="btn btn-primary btn-sm" data-act="sch-paste-read">Add these games</button><button class="btn btn-sm" data-act="sch-paste">Close</button></div></div>` : ''}
+    <div class="card" style="padding:0">
+      <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th style="text-align:center!important">Sheet</th><th>Time</th><th style="text-align:center!important">Conf</th><th style="text-align:center!important">Scrim</th><th>Result</th><th></th></tr>
+        ${body || '<tr><td class="l muted" colspan="9" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
+      <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Shared with the game tracker. Changes save when you tap Save.</span>
+        <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
+    </div>`;
+}
+function schSave(quiet) {
+  collectSched();
+  const rows = SCH.rows.filter(r => r.date || r.opp).map(r => Object.assign(r, { opp: String(r.opp || '').trim() }));
+  if (rows.find(r => !r.date || !r.opp)) { toast('Every game needs a date and an opponent', 'bad'); return false; }
+  rows.sort((a, b) => a.date.localeCompare(b.date));
+  lsSet('gt_schedule', rows.map(r => Object.assign({}, r)));
+  SCH.rows = null;
+  if (!quiet) toast('Schedule saved — ' + rows.length + ' games', 'good');
+  return true;
 }
 
 /* ---------- rosters (shared with the game tracker) ----------
@@ -1391,9 +1467,10 @@ function toast(msg, kind) {
 }
 
 document.addEventListener('click', ev => {
+  const go = ev.target.closest('[data-tab-go]'); if (go) { UI.tab = go.dataset.tabGo; render(); return; }
   const b = ev.target.closest('[data-act],[data-tab]'); if (!b) return;
   if (b.dataset.tab && !b.dataset.act) {
-    if (b.dataset.tab === 'scout') { if (cur()) openScout(); return; }
+    if (b.dataset.tab === 'scout') { openScout(); return; }
     UI.tab = b.dataset.tab; UI.stat = null; render(); return;
   }
   const act = b.dataset.act, g = cur();
@@ -1510,10 +1587,24 @@ document.addEventListener('click', ev => {
       tb.appendChild(tmp.firstElementChild); tb.lastElementChild.querySelector('input').focus(); break; }
     case 'rr-del': b.closest('tr').remove(); break;
     case 'r-save': saveRosterEdit(); render(); break;
-    case 'sched-start': {
-      const r = schedule().find(x => x.id === b.dataset.id); if (!r) return;
-      const ng = { id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], oppRoster: gtOppRoster(r.opp), box: {}, opp: r.opp, date: r.date || today(), loc: { home: 'H', away: 'A', neutral: 'N' }[r.site] || 'H', schedId: r.id };
-      games.push(ng); curId = ng.id; UI.tab = 'live'; UI.redo = []; save(); render(); SUB = null; subModal('Starting fives'); break; }
+    case 'sch-add': collectSched(); SCH.rows.push({ id: 'sch_' + Date.now(), date: '', time: '', opp: '', site: 'home', conf: false }); render(); { const d = document.querySelectorAll('[data-f="date"][data-sr]'); if (d.length) d[d.length - 1].focus(); } break;
+    case 'sch-del': { collectSched(); const r = SCH.rows[+b.dataset.i]; if (r && (!r.opp || confirm('Remove ' + r.date + ' ' + r.opp + ' from the schedule? (A game already tracked is kept.)'))) { SCH.rows.splice(+b.dataset.i, 1); render(); } break; }
+    case 'sch-save': schSave(); render(); break;
+    case 'sch-paste': collectSched(); SCH.paste = !SCH.paste; render(); if (SCH.paste) $('#sch-paste-text').focus(); break;
+    case 'sch-paste-read': { collectSched(); const got = parseScheduleText($('#sch-paste-text').value);
+      if (!got.length) { toast('No games found — each line needs a date and an opponent', 'bad'); break; }
+      const have = new Set(SCH.rows.map(r => r.date + '|' + String(r.opp).toLowerCase()));
+      const add = got.filter(r => !have.has(r.date + '|' + r.opp.toLowerCase()));
+      SCH.rows.push(...add); SCH.rows.sort((x, y) => (x.date || '9').localeCompare(y.date || '9')); SCH.paste = false;
+      toast(`Added ${add.length} game${add.length === 1 ? '' : 's'} — check them, then Save schedule`, 'good'); render(); break; }
+    case 'sch-sheet': curId = b.dataset.id; save(); UI.tab = 'sheet'; render(); break;
+    case 'sch-start': {
+      collectSched(); const r = SCH.rows[+b.dataset.i]; if (!r) return;
+      if (!r.date || !r.opp) { toast('Give the game a date and opponent first', 'bad'); return; }
+      if (isTBD(r.opp)) { toast('Type in who you are playing first (replace TBD)', 'bad'); return; }
+      if (!schSave(true)) return;
+      const row = schedule().find(x => x.id === r.id) || r;
+      curId = null; SD = null; newDraft(); applySched(row); save(); UI.tab = 'live'; render(); break; }
     case 'lu-open': UI.luOpen = UI.luOpen === b.dataset.k ? null : b.dataset.k; render(); break;
 
     case 'ff-scope': FF.scope = b.dataset.s; FF.team = 'a'; FF.i = 0; FF.fresh = true; renderFF(); break;
