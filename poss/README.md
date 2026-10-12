@@ -82,7 +82,7 @@ Hudl's per-game lineup export still supplies offense and minutes.
   current run (6+) shows under Poss.
 - **Stops in a row** are kept like runs: every run of stops for both teams (same stop rules, restarts
   each half), with the game's longest.
-- Sheet → **Stops, kills & killshots**: each team's most stops in a row, runs of 3+ stops, kills,
+- Sheet → **Stops, kills & killshots**: each team's biggest run, most stops in a row, runs of 3+ stops, kills,
   skunks, dead skunks and 10/15/20-0 runs. Lists every run of 3+ stops (longest first) and every
   10+ scoring run, with the half, the score and Moorpark's five when it started.
 
