@@ -6,10 +6,12 @@ It reads the game tracker's Moorpark roster, opponent rosters, schedule and scou
 same iPad, but never writes to them.
 
 ## Logging
-- **Team stats:** tap the stat, then the team button at the top (Moorpark / the opponent).
+- **Team stats:** tap the stat, then a team logo at the top.
   - Shots: 2PT Make / Miss, 3PT Make / Miss, FT Make / Miss.
-  - Rebounds: Off Reb / Def Reb.
   - Turnovers: Turnover, Steal. For a steal, tap the team that stole it.
+- **Rebounds** have no buttons. After any miss, both logos light up for the rebound: the shooting
+  team's logo = offensive rebound, the other logo = defensive rebound. If there was no rebound
+  (out of bounds, the first of two FTs), just tap the next stat.
 - **Fouls go to the player:** tap Foul, Charge or Off Foul, then his card. "Team / bench foul" is
   for a foul with no player.
 - **Tech:** pick team, player or coach, and how many of the two free throws went in.

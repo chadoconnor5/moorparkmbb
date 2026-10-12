@@ -651,6 +651,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tbtn.b{background:rgba(224,162,111,.14);color:var(--them-text);border-color:rgba(224,162,111,.45)}
 .tbtn.hot.a{background:#2b8fc0;color:#fff;border-color:#4fc3f7} .tbtn.hot.b{background:#b8743f;color:#fff;border-color:#fdba74}
 .tbtn.dim{opacity:.25}
+.tbtn{position:relative;display:flex;align-items:center;justify-content:center;min-height:78px}
+.tbtn img{height:56px;max-width:85%;object-fit:contain;pointer-events:none}
+.tbtn .tn{display:none}
+.tbtn .rb{position:absolute;bottom:4px;left:0;right:0;font-size:10.5px;font-weight:800;letter-spacing:.08em}
+.tbtn.hot.a,.tbtn.hot.b{background:#e5e7eb;border-color:#facc15;box-shadow:0 0 0 2px rgba(250,204,21,.6)}
+.tbtn.hot .rb{color:#111}
 
 </style>
 </head>
@@ -677,7 +683,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.8';
+const VERSION = 'v2026.10.12.9';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -696,7 +702,7 @@ let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
 const cur = () => games.find(g => g.id === curId) || null;
 const save = () => { lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
-const UI = { tab: 'live', stat: null, ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
+const UI = { tab: 'live', stat: null, reb: null, ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
 /* ---------- rosters ---------- */
 // Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage).
@@ -952,14 +958,16 @@ function liveView(g) {
   const st = UI.stat;
   const status = UI.ins ? `Inserting before the selected play — ${st ? STAT_LABEL[st] + ': ' + (STAT_HINT[st] || 'tap the player') : 'tap a stat, then the team or player'} <button class="btn btn-sm" data-act="ins-cancel">Cancel</button>`
     : st ? `<b>${STAT_LABEL[st]}</b> — ${PLAYER_STATS.has(st) ? STAT_HINT[st] : STAT_HINT_TEAM[st]} <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
+    : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb · or tap the next stat`
     : 'Tap the stat, then the team — fouls: then the player';
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
   return `${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${playerCards(g, D, 'a')}</div>
-    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${st && !PLAYER_STATS.has(st) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}">${esc(teamName(g, t))}</button>`).join('')}</div>
+    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}">
+        <img src="../game/logos/${slug(teamName(g, t))}.png" alt="" onerror="this.remove();this.parentNode.querySelector('.tn').style.display='inline'"><span class="tn">${esc(teamName(g, t))}</span>${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
-      <div class="sgrid">${STATS.map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
+      <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
         <button class="btn" data-act="undo" ${g.ev.length ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
       <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
@@ -1144,6 +1152,8 @@ function push(g, e) {
 }
 function logStat(team, player) {
   const g = cur(), k = UI.stat; UI.stat = null;
+  // After a miss the logos wait for the rebound: the shooting team's logo = offensive, the other = defensive.
+  UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null;
   if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
   else push(g, { t: 'play', team, player, k });
   save(); render();
@@ -1208,7 +1218,7 @@ document.addEventListener('click', ev => {
     case 'stat': {
       const k = b.dataset.k;
       if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
-      UI.stat = UI.stat === k ? null : k; render(); break; }
+      UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
     case 'stat-cancel': UI.stat = null; render(); break;
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
@@ -1216,11 +1226,12 @@ document.addEventListener('click', ev => {
       if (!PLAYER_STATS.has(UI.stat)) { toast('Tap the team button at the top'); return; }
       logStat(b.dataset.team, b.dataset.p); break;
     case 'teambtn':
+      if (!UI.stat && UI.reb) { UI.stat = b.dataset.team === UI.reb ? 'oreb' : 'dreb'; logStat(b.dataset.team, 'TEAM'); return; }
       if (!UI.stat) { toast('Tap the stat first, then the team'); return; }
       if (PLAYER_STATS.has(UI.stat)) { toast('Fouls go to the player — tap his card'); return; }
       logStat(b.dataset.team, 'TEAM'); break;
     case 'ed-t': { const e = g.ev.find(x => x.id === b.dataset.id); e.team = b.dataset.t; save(); editModal(e.id); render(); break; }
-    case 'undo': { if (!g.ev.length) return; UI.redo.push(g.ev.pop()); save(); render(); break; }
+    case 'undo': { UI.reb = null; if (!g.ev.length) return; UI.redo.push(g.ev.pop()); save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
     case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else if (s.size < 5) s.add(p); else { toast('Five are on — take one off first'); return; } subModal(); break; }

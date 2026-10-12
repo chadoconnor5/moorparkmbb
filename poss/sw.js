@@ -1,7 +1,7 @@
 /* Offline support for the possession tracker, the same way the game tracker does it: the page
    network first (5 seconds, then the cached copy, so one bar of signal never hangs it), logos
    and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
-const CACHE = 'pl-v3';
+const CACHE = 'pl-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png', '../game/logos/moorpark.png',
                '../game/vendor/pdf.min.mjs', '../game/vendor/pdf.worker.min.mjs'];
 
