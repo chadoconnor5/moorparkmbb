@@ -2595,8 +2595,11 @@ function shAssign(V, lay) {
   const r = { _q: {} }, post = lay.post, pre = lay.min ? 1 : 0, want = pre + 3 + post.length, val = x => x && x.v;
   const note = (keys, x, extra) => keys.forEach(k => { r._q[k] = { conf: x ? x.conf : 0, bbox: x ? x.bbox : null, fixed: !!(x && x.fixed) || !!extra }; });
   let P, rest, mT = null;
-  if (V.length === want || V.length === want - pre) {
-    const p0 = V.length === want ? pre : 0; if (p0) mT = V[0];
+  // One number short: MIN is missing only if the row starts with a pair; otherwise the gap is at the end
+  // (e.g. PTS unreadable), so read from the front and let PTS be worked out.
+  const short = V.length === want - 1, noMin = pre && V.length === want - pre && /-/.test(V[0] && V[0].v);
+  if (V.length === want || noMin || (short && pre && V.length >= 4 && !/-/.test(V[0].v) && /-/.test(V[1].v))) {
+    const p0 = V.length === want || (short && !noMin) ? pre : 0; if (p0) mT = V[0];
     P = [V[p0], V[p0 + 1], V[p0 + 2]]; rest = V.slice(p0 + 3);
   } else {
     const i0 = V.findIndex(x => /-/.test(x.v)); if (i0 < 0) return null;
@@ -2868,8 +2871,8 @@ function sheetTeamLine(T) { const s = Object.assign(sheetSum(T), T.totals || {})
 function sheetAdv(p, tm, op) {
   const pct = (a, b) => b > 0 ? 100 * a / b : null, n = v => +v || 0;
   const tmPoss = tm.fga - tm.oreb + tm.tov + 0.475 * tm.fta, opPoss = op.fga - op.oreb + op.tov + 0.475 * op.fta;
-  // Per-minute rates (USG%, AST%, OREB%, DREB%, STL%, BLK%) only from 3+ minutes: one rebound in 1 minute isn't 171%.
-  const m = n(p.min), tmMin = tm.min || 0, share = m >= 3 && tmMin ? m / (tmMin / 5) : null;
+  // Per-minute rates (USG%, AST%, OREB%, DREB%, STL%, BLK%) only from 5+ minutes: one rebound in 1 minute isn't 171%.
+  const m = n(p.min), tmMin = tm.min || 0, share = m >= 5 && tmMin ? m / (tmMin / 5) : null;
   const tsa = n(p.fga) + 0.44 * n(p.fta);
   return { efg: pct(n(p.fgm) + 0.5 * n(p.fg3m), n(p.fga)), ts: pct(n(p.pts), 2 * tsa),
     usg: share ? pct(tsa + n(p.tov), share * (tm.fga + 0.44 * tm.fta + tm.tov)) : null,

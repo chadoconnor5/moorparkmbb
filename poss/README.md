@@ -153,7 +153,7 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
     stops, kills & killshots.
   - **Players**, each team: impact (MIN, PTS, game score, TS%, USG%, and from the tracker his on-floor
     possessions, ORtg, DRtg, net, on/off and +/-), the box, and advanced (eFG%, AST%, TOV%, OREB%, DREB%,
-    STL%, BLK%, defensive stops with him on). Per-minute rates need 3+ minutes.
+    STL%, BLK%, defensive stops with him on). Per-minute rates need 5+ minutes.
   - **Lineups:** best fives, best combos (post-game), every five for both teams.
   Without a sheet the report is the one below, with an **Add stat sheet** button.
 - **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
