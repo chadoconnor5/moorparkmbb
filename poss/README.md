@@ -226,6 +226,11 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
 - **Scouting:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
+- **Saved reports** (Games tab): a copy of each halftime and post-game report as it was, kept on the iPad apart
+  from the game, so it stays even if the game is edited or deleted. They save themselves at **Start 2nd half**,
+  at **Final** and whenever a stat sheet is saved; **💾 Save report** on the report saves one any time. One halftime
+  and one post-game copy per game (the newest kept). **Open** shows it as saved with Print / PDF; **Delete**
+  removes it.
 
 Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened.
 The page is built from the game tracker's stylesheet, copied into `poss/index.html`. If the game
