@@ -147,6 +147,17 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
 - **Two reports.** With a stat sheet for that half / the game, the report is the **full report**:
   - **Key takeaways:** our edge and theirs in the four factors, each side's best player, most-used, the
     biggest on/off, the best five, foul trouble, points off turnovers / second-chance points, kills and bench.
+  - **Turnovers, forced vs unforced:** steal TO% (the other team's steals per possession) and non-steal TO%
+    (travels, bad passes out, charges, offensive fouls, violations: the ones we do to ourselves). The two add up
+    to TO%. In the full report's team analytics, its own card in the report without a sheet, under each five's
+    TO% on the Lineups tab (NS), and in the Huddle. Not in the Four factors table. When we're losing the turnover
+    battle and half or more of ours (3+) weren't steals, that leads Hurting us (theirs lead Helping us when we're winning it).
+  - **Who's behind the four factors:** a factor we're losing to them (worse eFG%, TO%, OREB% or FT rate) lists
+    its players under **Hurting us**; one we're winning, under **Helping us** — for each stat behind it, the
+    player with the biggest share of his team's total (e.g. "#33 Mowers — 25% of their defensive boards
+    (4 of 16) · our OREB% 20.0%", "#10 Alhammouri — 67% of their steals"). Shooting = share of the team's FG
+    points; our misses = share of our missed shots. Named only at 25%+ of the total and at least 2 (3 for
+    defensive boards).
   - **Team:** four factors; team analytics (points, tracked possessions and PPP, sheet ORtg, points off
     turnovers, second-chance points, bench points, eFG%, TS%, 3P%, 3PA rate, FT% and rate, TO%, OREB%,
     assisted %, AST/TO, STL%, BLK%, kills, fouls); by half (post-game, when the halftime sheet was read too);
@@ -156,6 +167,8 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
     TO, STL, BLK, PF, PTS and Moorpark's on-floor +/- from the tracker; the same green / red marks; under 25% of
     the minutes greyed; the TM Team row and a TEAM line. **All players / 25%+ of minutes** hides the greyed
     players (5:00 at the half, 10:00 for the game, plus 25% of each OT). Takeaways always use everyone.
+  - **On the floor** (tracker), each team: minutes, possessions on, ORTG / DRTG / net with him on, on/off, +/-,
+    defensive stops with him on — best on/off first.
   - **Lineups:** best fives, best combos (post-game), every five for both teams.
   Without a sheet the report is the one below, with an **Add stat sheet** button.
 - **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
