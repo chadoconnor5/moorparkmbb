@@ -1,40 +1,68 @@
-# Possession Tracking (digital jamboree sheet)
+# Possession Tracker
 
-`chadoconnor5.github.io/moorparkmbb/poss/` — the paper possession sheet on the iPad, portrait.
-Separate from the game tracker (`/game/`); it reads the game tracker's roster and opponent
-names on the same iPad but never writes to them.
+`chadoconnor5.github.io/moorparkmbb/poss/`: possession-by-possession tracking for both teams,
+built in the game tracker's design (`/game/`) and for the iPad in portrait. It is a separate app.
+It reads the game tracker's Moorpark roster, opponent rosters, schedule and scouting PDFs on the
+same iPad, but never writes to them.
 
-- **One tap per opponent possession**, at the end of it: 2, 3, FT (then how many made), ✗2, ✗3,
-  ✗FT, TO (dead ball), STL (steal), CHG (charge, also a foul on them). Player # is optional:
-  type it on the pad or tap a recent number first. **And-one +1** and **Their off. reb** apply
-  to the next possession you log.
-- Stops, **kills** (3 stops in a row; the count restarts after each kill, any score, and each
-  period), points per possession and the sheet's subtotals are worked out for you.
-- **Moorpark score**: +1 / +2 / +3 (−1 to fix) under the score — it gives Moorpark's PPP. Our
-  possessions are the same count as theirs, as on the paper sheet.
-- **Fouls**: team fouls per half (2nd half carries into OT), + / − for each team, with BONUS at 7
-  and DOUBLE BONUS at 10. A charge adds one to theirs. **Moorpark fouls**: tap a player for his foul
-  and a team foul (− takes one off); blue edge = on the floor, red at 5 fouls or 2 technicals.
-- **T — Technical**: team, player or coach, free throws made (0–2). On a player it is always his
-  foul and a team foul; on a coach, neither (a second on the same coach flags the ejection). The
-  free throws count in the score and PPP but are not a possession; the sheet shows a red T line.
-  No game clock anywhere — nothing in this tracker asks for a time.
-- **Timeouts**: 3 full + 4 thirty-second per team for the game, plus one 30 per overtime.
-- **Subs / lineups**: ⇄ Sub, tap players on and off until five are lit, Confirm (at the top).
-  A new game and each new period open it for the starting five. "Counts from possession" steps
-  back to credit a sub you entered late. Every possession and Moorpark basket carries the five on
-  the floor; the sheet shows a blue line where the five changes, and **Lineups** counts how each
-  five's possessions ended (2, 3, FT, ✗2, ✗3, ✗FT, TO, STL, CHG) with their points, PPP and kills —
-  for the game or the current period.
-- **📊 Four factors**: type each team's totals from the printed box score (FGM, FGA, 3PM, 3PA, FTM,
-  FTA, OREB, DREB, AST, TO) on the number pad — **1st half** at halftime, **Full game** at the end;
-  **2nd half** is the difference. Out come eFG%, TO%, OREB%, DREB%, FT rate, 3PA rate, AST rate,
-  FG/3P/FT%, points, possessions (FGA − OREB + TO + 0.475 × FTA, as in the game tracker) and PPP.
-- **📄 Scout**: the scouting report PDF. Uses the same PDFs as the game tracker on this iPad (the
-  opponent's opens first); Add PDF… stores a new one for offline use.
-- **Periods**: 1H, + starts 2H, then OT1, OT2… Tap a period to look at or fix its sheet.
-- Tap any row of the sheet to change it, delete it or insert a missed one above it. ↶ Undo takes
-  back the last thing logged.
-- ⋯ menu: game details, roster, print / PDF (every period's sheet, lineups, four factors, summary), export / import.
+## Logging
+- **Team stats:** tap the stat, then the team button at the top (Moorpark / the opponent).
+  - Shots: 2PT Make / Miss, 3PT Make / Miss, FT Make / Miss.
+  - Rebounds: Off Reb / Def Reb.
+  - Turnovers: Turnover, Steal. For a steal, tap the team that stole it.
+- **Fouls go to the player:** tap Foul, Charge or Off Foul, then his card. "Team / bench foul" is
+  for a foul with no player.
+- **Tech:** pick team, player or coach, and how many of the two free throws went in.
+  - On a player it is his foul and a team foul.
+  - On a coach it is neither. A second on the same coach flags the ejection.
+  - The free throws count in the score, PPP and +/-, but are not a possession.
+- **Timeout:** pick the team, full or 30. **± Fouls / TOs** fixes the counts.
+- **No clock.**
 
-Games are saved on the iPad (localStorage `pl_games`) and it works offline once opened.
+## How possessions are counted
+A possession ends three ways:
+
+- **Points:** a made 2 or 3, or the last free throw of a trip.
+  - A make followed by free throws from the same team is the and-one; free throws in a row are
+    one trip.
+  - A trip counts as FT if any went in, ✗FT if none did.
+- **Turnover:** Turnover, Steal, Charge, Off Foul.
+- **Rebound:** a defensive rebound.
+
+An **offensive rebound** keeps the possession going, after a missed shot or a missed free throw.
+A 1-of-2 trip, an offensive rebound and a second shot is all one possession.
+
+The **Poss** number on the scoreboard is the two teams' counts averaged: (Moorpark + opponent) ÷ 2.
+Each team's own count shows under it.
+
+**Kills:** 3 defensive stops in a row, for each team. The count restarts after a kill, a score, or
+a new period.
+
+## Lineups
+⇄ Sub sets both teams' fives on one screen. The starting fives are asked for when a game starts
+and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
+the live screen (numbers are enough).
+
+The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
+show the current five for each team: possessions on offense / defense, ORtg, DRtg, net and +/-.
+
+**Lineups tab**, for the game or the current period, for both teams. For every five:
+- possessions on offense / defense, points for–against, +/-, ORtg, DRtg, net;
+- tap a five to see how its possessions ended at each end.
+
+## Other tabs
+- **Sheet:** every possession in order for both teams, with how it ended, offensive rebounds,
+  points, kills and the running score. Subs and technicals are shown where they happened.
+  - Tap a row to change the stat or team, delete the play, or insert a missed play before it.
+  - Summary by period. Print / PDF.
+- **Four factors:** type the printed box score totals on the number pad.
+  - 1st half at halftime, Full game at the end. 2nd half is the difference.
+  - Gives eFG%, TO%, OREB%, DREB%, FT rate, 3PA / AST rate, shooting, possessions and PPP, with
+    the game tracker's formulas.
+- **Scouting:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
+  opens first.
+- **Games:** new game, open, export / import, delete, the Moorpark roster.
+
+Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened.
+The page is built from the game tracker's stylesheet, copied into `poss/index.html`. If the game
+tracker's look changes, copy its `<style>` block across again.

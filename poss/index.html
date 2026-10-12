@@ -5,887 +5,1282 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MBB Poss">
-<meta name="theme-color" content="#2f5aa8">
+<meta name="theme-color" content="#0d0f14">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="../game/icon-180.png">
-<title>Moorpark Possession Tracking</title>
+<title>Moorpark Possession Tracker</title>
 <style>
-/* The jamboree possession sheet, digitized: the same yellow bars, blue STOP / KILL columns and
-   grid, so a coach who charted on paper reads this without learning anything new. */
+/* The game tracker's styles (game/index.html), so both apps look and work the same. */
+
+/* Quiet, broadcast-style dark theme: one neutral ramp, two team colours used sparingly,
+   colour reserved for meaning (team, make/miss, warnings) rather than decoration. */
 :root{
-  --ink:#1f2937; --mut:#6b7280; --line:#c4c9d1; --line2:#9aa3af; --bg:#f3f4f6; --card:#fff;
-  --yellow:#ffe14d; --yellow2:#fff6c2; --blue:#2f5aa8; --blue2:#dbe6f7; --blue3:#eef3fb;
-  --red:#c62828; --good:#15803d; --row-light:#eef0f3; --row-dark:#d2d7df;
+  --bg:#0d0f14; --surface:#14171e; --card:#1a1e26; --card2:#222731; --hover:#262c37;
+  --border:rgba(255,255,255,.06); --border2:rgba(255,255,255,.11);
+  --primary:#7c93e6; --primary-bg:rgba(124,147,230,.14);
+  /* Moorpark: the Columbia blue from the leaderboard. */
+  /* Alternating table rows - every striped table uses these two. */
+  --row-light:#eef0f3; --row-dark:#d2d7df;
+  --us:#4fc3f7; --us-d:#2b8fc0; --us-bg:rgba(79,195,247,.12);
+  --them:#e0a26f; --them-d:#9a6436; --them-bg:rgba(224,162,111,.12); --them-text:#fdba74; --them-hdr:#3d1f0a;
+  --good:#5cbf95; --bad:#e2736d; --warn:#dcb05a; --info:#7fb5d6; --purple:#9d8fe0; --gold:#d8b860;
+  --text:#f8fafc; --text2:#d5dae3; --muted:#a3acbb;
+  --r:10px; --rl:14px;
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25);
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
-.wrap{max-width:900px;margin:0 auto;padding:10px 12px 60px}
-.top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.top h1{margin:0;font-size:20px;color:var(--blue);font-weight:800;letter-spacing:.01em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.top h1 small{display:block;font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.14em;text-transform:uppercase}
-.top img{width:38px;height:38px;object-fit:contain}
-.btn{background:#fff;border:1px solid var(--line2);border-radius:9px;padding:9px 13px;font-weight:600;font-size:14px}
-.btn:active{filter:brightness(.92)}
-.btn-blue{background:var(--blue);border-color:var(--blue);color:#fff}
-.btn-red{color:var(--red);border-color:#e7b4b4}
-.btn-sm{padding:6px 10px;font-size:13px}
-.card{background:var(--card);border:1.5px solid var(--ink);border-radius:4px;margin-bottom:12px;overflow:hidden}
-.bar{background:var(--yellow);border-bottom:1.5px solid var(--ink);text-align:center;font-weight:800;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;padding:6px 8px;display:flex;align-items:center;justify-content:center;gap:10px}
-.bar .r{margin-left:auto;letter-spacing:0;text-transform:none;font-weight:600}
-.pad{padding:10px 12px}
-.muted{color:var(--mut)} .small{font-size:12.5px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Inter,sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom)}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* Dark page: native controls (dropdown lists, date pickers) open dark too, so their white
+   text never lands on a white list. */
+:root{color-scheme:dark}
+select option,select optgroup{background:var(--card);color:var(--text)}
+input,select,textarea{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:8px 10px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-bg)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--card2);padding:1px 5px;border-radius:4px}
+table{border-collapse:collapse}
+.hidden{display:none!important}
+.muted{color:var(--muted)} .small{font-size:12px} .tiny{font-size:11px}
+.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
 
-/* scorebug */
-.bug{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:10px 12px}
-.side{text-align:center}
-.side .nm{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
-.side.a .nm{color:var(--blue)} .side.b .nm{color:var(--red)}
-.side .sc{font-size:46px;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
-.side .ppp{font-size:12.5px;color:var(--mut)}
-.mid{text-align:center}
-.per{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
-.per button{border:1.5px solid var(--ink);background:#fff;border-radius:6px;padding:6px 10px;font-weight:800;font-size:14px}
-.per button.on{background:var(--ink);color:#fff}
-.mid .possn{margin-top:6px;font-size:13px;color:var(--mut)}
-.mid .possn b{color:var(--ink);font-size:17px}
-.streak{display:flex;gap:5px;justify-content:center;margin-top:6px;align-items:center;font-size:12px;color:var(--mut)}
-.dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--blue);display:inline-block}
-.dot.on{background:var(--blue)}
-.mpk-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
-.mpk-btns button{border:1.5px solid var(--blue);background:var(--blue3);color:var(--blue);border-radius:8px;min-width:48px;padding:8px 0;font-weight:800;font-size:17px}
-.mpk-btns button.minus{border-color:var(--line2);background:#fff;color:var(--mut);min-width:40px}
-.bonus{display:inline-block;margin-top:3px;font-size:11px;font-weight:800;letter-spacing:.08em;padding:2px 7px;border-radius:4px;background:var(--yellow);color:#7a5b00}
-.bonus.dbl{background:var(--red);color:#fff}
+/* nav */
+.nav{position:sticky;top:0;z-index:50;height:52px;background:rgba(13,15,20,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.nav-in{max-width:1320px;height:100%;margin:0 auto;padding:0 16px;display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav-in::-webkit-scrollbar{display:none}
+.brand{font-weight:700;font-size:15px;margin-right:14px;white-space:nowrap;letter-spacing:-.01em}
+.brand span{color:var(--muted);font-weight:500}
+.brand .brand-us{color:var(--us)}
+.tab{padding:7px 11px;border-radius:8px;font-weight:500;color:var(--muted);white-space:nowrap;font-size:13.5px}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--card2);color:var(--text)}
+.tab.scout-tab.active{background:var(--primary-bg);color:var(--primary)}
+.nav-right{margin-left:auto;display:flex;gap:2px;align-items:center}
+.offline-dot{font-size:11px;padding:3px 9px;border-radius:99px;color:var(--muted);white-space:nowrap;margin-left:6px;background:var(--card)}
+.offline-dot::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:1px}
+.offline-dot.ready::before{background:var(--good)}
+.tname{color:var(--tc)}
+.box-table tbody .tname,.cmp-light tr:not(.cmp-h) .tname{color:var(--tcl)}
+/* timeout sheet */
+.modal.huddle{max-width:1000px;padding:18px 20px}
+.huddle-overlay{padding:2vh 10px}
+.hud-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:6px 4px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.hud-team{display:flex;align-items:center;justify-content:center;gap:12px;text-align:center}
+.hud-team > div{display:flex;flex-direction:column;align-items:center}
+.hud-score{font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.hud-team.a .hud-score{color:var(--us)} .hud-team.b .hud-score{color:var(--them-text)}
+.hud-meta{font-size:12px;color:var(--text2);margin-top:4px;display:flex;gap:6px;align-items:center}
+.hud-meta{justify-content:center}
+.hud-mid{text-align:center} .hud-cap{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--warn)}
+.hud-clock{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.hud-pts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.hud-pts .ins{font-size:14.5px;font-weight:600;color:var(--text)}
+.hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hud-grid .card{margin-bottom:12px}
+/* Huddle: tap a row to mark it light yellow; tap it again (or another row) to clear. */
+.modal.huddle tr.hl td:not(.l5-moved){background:#fef9c3!important}
+.hud-floor{margin-bottom:12px} .hud-floor td,.hud-floor th{padding:6px 7px}
+.l5-tbl td{vertical-align:top} .l5-tbl td .tiny{color:#6b7280;font-weight:500}
+.l5-tbl td.l5-game{color:#6b7280;border-right:1px solid #c4c9d1}
+.zebra td.l5-moved{background:#fde68a!important;color:#78350f} .zebra td.l5-moved .tiny{color:#92400e}
+/* light grey / slightly darker grey rows with dark text (same as the box score) */
+.zebra tr:nth-child(even) td{background:var(--row-light)} .zebra tr:nth-child(odd) td{background:var(--row-dark)}
+.zebra td{color:#1f2937;border-top-color:#c4c9d1}
+.zebra td .muted,.zebra td.muted{color:#6b7280} .zebra .pnum{color:#4b5563}
+.zebra td.pos{color:#15803d;font-weight:700} .zebra td.neg{color:#b91c1c;font-weight:700}
+.zebra td.tf-bonus{color:#b45309;font-weight:800} .zebra td.tf-dbl{color:#b91c1c;font-weight:800}
+.zebra td.win.a{color:#0b6fa4} .zebra td.win.b{color:var(--them-d)}
+.hud-big{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.hud-big span:first-child{color:var(--text2);font-size:12.5px} .hud-big b{font-size:16px;text-align:right}
+.hud-big .k-good{color:#22c55e} .hud-big .k-bad{color:#ef4444}
+@media (max-width:760px){.hud-pts,.hud-grid{grid-template-columns:1fr}}
+.rot-svg{width:100%;height:auto;display:block}
+.rot-team{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:6px 0 2px}
+.rot-team.a{color:var(--us)} .rot-team.b{color:var(--them-text)}
+.alert-bar{justify-content:flex-start;flex-wrap:nowrap}
+.alert-bar .al-ic{font-size:16px}
+.alert-bar .al-h{font-size:14px;letter-spacing:.02em;white-space:nowrap}
+.alert-bar .al-s{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.alert-bar.al-red{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.55)} .alert-bar.al-red .al-h{color:#fca5a5}
+.alert-bar.al-amber{background:rgba(250,204,21,.09);border-color:rgba(250,204,21,.5)} .alert-bar.al-amber .al-h{color:#fde68a}
+.alert-bar.al-blue{background:rgba(79,195,247,.1);border-color:rgba(79,195,247,.5)} .alert-bar.al-blue .al-h{color:#7dd3fc}
+.adj-team{margin-bottom:14px}
+.adj-row{display:grid;grid-template-columns:1fr 52px 48px 52px;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border)}
+.adj-row b{text-align:center;font-size:20px;font-variant-numeric:tabular-nums}
+.adj-row .btn{font-size:20px;padding:6px 0}
+.app-ver{font-size:10.5px;color:var(--muted);margin-left:6px;white-space:nowrap}
 
-/* entry */
-.entry{display:grid;grid-template-columns:230px 1fr;gap:12px;padding:12px}
-.numbox{border:1.5px solid var(--ink);border-radius:6px;height:56px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:8px}
-.numbox.empty{color:#b8bec7;font-size:18px;font-weight:700}
-.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.keys button{height:50px;border:1px solid var(--line2);background:#f8f9fb;border-radius:8px;font-size:21px;font-weight:700}
-.recent{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;min-height:30px}
-.recent button{border:1px solid var(--line2);background:#fff;border-radius:6px;padding:4px 9px;font-weight:700;font-size:14px}
-.recent button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.res{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.res button{height:66px;border-radius:10px;border:1.5px solid var(--ink);font-size:22px;font-weight:800;background:#fff}
-.res .make{background:#fff6c2}
-.res .miss{background:#fde8e8;color:var(--red)}
-.res .stop{background:var(--blue2);color:var(--blue)}
-.res .wide{grid-column:span 3}
-.res button small{display:block;font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.04em}
-.togs{display:flex;gap:8px;margin-top:8px}
-.togs button{flex:1;height:48px;border-radius:9px;border:1.5px dashed var(--line2);background:#fff;font-weight:700;font-size:15px}
-.togs button.on{border-style:solid;border-color:var(--ink);background:var(--ink);color:#fff}
-.lastline{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13.5px}
-.lastline .txt{flex:1;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page{padding:14px 16px 40px;max-width:1320px;margin:0 auto}
+.page.narrow{max-width:860px}
+.page.mid{max-width:1120px}
+.page-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.page-head h2{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:9px;font-weight:600;background:var(--card2);border:1px solid var(--border2);white-space:nowrap;font-size:13.5px;transition:background .12s}
+.btn:hover{background:var(--hover)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-primary{background:var(--primary);border-color:transparent;color:#0d0f14}
+.btn-primary:hover{background:#90a4ec}
+.btn-good{background:var(--us);border-color:transparent;color:#06222f}
+.btn-good:hover{background:#73d0f9}
+.btn-bad{background:transparent;border-color:rgba(226,115,109,.45);color:var(--bad)}
+.btn-bad:hover{background:rgba(226,115,109,.1)}
+.btn-warn{background:transparent;border-color:rgba(220,176,90,.45);color:var(--warn)}
+.btn-warn:hover{background:rgba(220,176,90,.1)}
+.btn-sm{padding:5px 10px;font-size:12.5px;border-radius:8px}
+.btn-lg{padding:12px 20px;font-size:15px}
+/* Set time: Cancel and Set as big, half-width touch targets. */
+.foot-big .btn{flex:1;min-height:64px;font-size:20px;font-weight:700}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:14px}
+.card h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#fff;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h3 .muted{text-transform:none;letter-spacing:0;font-weight:400}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr!important}}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
 
-/* the sheet grid */
-.logwrap{max-height:430px;overflow:auto}
-table.sheet{border-collapse:collapse;width:100%;font-size:14px;table-layout:fixed}
-.sheet th{background:var(--yellow);border:1px solid var(--ink);font-size:11px;font-weight:800;padding:4px 2px;position:sticky;top:0;z-index:1}
-.sheet th.st{background:var(--blue2);color:var(--blue)}
-.sheet th.kl{background:var(--blue);color:#fff}
-.sheet th.x{color:var(--red)}
-.sheet td{border:1px solid var(--line);text-align:center;padding:0;height:34px;font-weight:700}
-.sheet tbody tr:nth-child(odd) td{background:var(--row-light)} .sheet tbody tr:nth-child(even) td{background:var(--row-dark)}
-.sheet th:nth-child(1){width:48px} .sheet th:nth-child(2){width:74px} .sheet th:nth-child(12){width:50px} .sheet th:nth-child(13){width:50px}
-.sheet td.pn{font-weight:800}
-.sheet td.m{font-size:18px;line-height:1}
-.sheet td.mx{color:var(--red)} .sheet td.ms{color:var(--blue)}
-.sheet td.pts{width:46px;font-size:16px}
-.sheet td.kill{width:44px;color:var(--blue);font-size:17px}
-.sheet tr.killrow td.kill{background:var(--blue)!important;color:#fff}
-.sheet tr.sub td{background:#fff!important;font-size:11.5px;letter-spacing:.06em;color:var(--mut);height:28px;font-weight:800}
-.sheet tr.hl td{background:#fef9c3!important}
-.sheet tbody tr:not(.sub){cursor:pointer}
-.sheet .tiny{font-size:10px;color:var(--mut);font-weight:700}
-.empty-log{padding:22px;text-align:center;color:var(--mut)}
-
-/* fouls + timeouts */
-.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.tf{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.tf .lbl{width:84px;font-size:12px;font-weight:800;letter-spacing:.04em}
-.boxes{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;flex:1}
-.boxes span{height:26px;border:1px solid var(--line2);border-radius:3px;font-size:9px;color:var(--mut);padding:1px 2px;position:relative;background:#fff}
-.boxes span.b7,.boxes span.b10{background:var(--blue2)}
-.boxes span.on::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--ink)}
-.tf .add{width:44px;height:34px;border-radius:7px;border:1.5px solid var(--ink);background:#fff;font-weight:800;font-size:18px}
-.tf .minus{width:34px;height:34px;border-radius:7px;border:1px solid var(--line2);background:#fff;color:var(--mut);font-weight:800}
-.to-team{margin-bottom:10px}
-.to-team .lbl{font-size:12px;font-weight:800;letter-spacing:.04em;margin-bottom:4px}
-.to-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
-.to-row .k{font-size:11px;color:var(--mut);font-weight:700;width:52px}
-.tob{width:36px;height:36px;border:1.5px solid var(--ink);border-radius:5px;background:#fff;font-size:20px;font-weight:800;padding:0}
-.tob.on{background:var(--ink);color:#fff}
-.tob.ot{border-style:dashed}
-
-/* summary */
-.sum{width:100%;border-collapse:collapse;font-size:14px}
-.sum th,.sum td{border:1px solid var(--line);padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums}
-.sum th{background:var(--blue);color:#fff;font-size:11.5px;letter-spacing:.06em}
-.sum th.y{background:var(--yellow);color:var(--ink)}
-.sum td:first-child,.sum th:first-child{text-align:left;font-weight:800}
-.sum tbody tr:nth-child(odd) td{background:var(--row-light)} .sum tbody tr:nth-child(even) td{background:var(--row-dark)}
-.sum tr.tot td{background:#fff!important;font-weight:800;border-top:2px solid var(--ink)}
-.sum td.ppp{font-weight:800}
+/* toast */
+#toasts{position:fixed;bottom:16px;left:16px;z-index:300;display:flex;flex-direction:column;gap:6px;align-items:flex-start;pointer-events:none}
+.toast{background:rgba(34,39,49,.96);border:1px solid var(--border2);padding:7px 14px;border-radius:99px;font-weight:500;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;backdrop-filter:blur(8px)}
+.toast.good::before,.toast.bad::before,.toast.warn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:8px;vertical-align:1px}
+.toast.good::before{background:var(--good)} .toast.bad::before{background:var(--bad)} .toast.warn::before{background:var(--warn)}
 
 /* modal */
-.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;z-index:50;overflow:auto}
-.modal{background:#fff;border-radius:12px;max-width:640px;width:100%;padding:16px 18px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
-.modal h2{margin:0 0 10px;font-size:19px}
-.field{margin-bottom:10px}
-.field label{display:block;font-size:11.5px;font-weight:800;letter-spacing:.08em;color:var(--mut);text-transform:uppercase;margin-bottom:4px}
-.field input,.field select,.field textarea{width:100%;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line2);border-radius:8px;background:#fff}
-.seg{display:flex;gap:6px}
-.seg button{flex:1;border:1.5px solid var(--line2);background:#fff;border-radius:8px;padding:9px;font-weight:700}
-.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
-.foot .big{flex:1;min-height:56px;font-size:18px;font-weight:800}
-.glist{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
-.gitem{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:9px 10px}
-.gitem.cur{border-color:var(--blue);background:var(--blue3)}
-.gitem .t{flex:1}
-.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
-.toast.on{opacity:1}
-.ver{font-size:11px;color:var(--mut);text-align:center;margin-top:16px}
-.print-only{display:none}
+.overlay{position:fixed;inset:0;background:rgba(5,6,9,.6);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:5vh 12px;overflow-y:auto}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:600px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal h2{font-size:18px;font-weight:700;margin-bottom:12px;letter-spacing:-.01em}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+
+/* scoreboard */
+.scorebar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px 22px;margin-bottom:8px}
+.sb-team{display:flex;align-items:center;gap:18px}
+.sb-team.a{justify-content:flex-end;text-align:right}
+.sb-team.b{justify-content:flex-start;text-align:left}
+.sb-id{display:flex;flex-direction:column;gap:5px}
+.sb-team.a .sb-id{align-items:flex-end} .sb-team.b .sb-id{align-items:flex-start}
+.sb-name{font-weight:700;font-size:15px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.sb-name::before{content:'';width:8px;height:8px;border-radius:50%}
+.sb-team.a .sb-name::before{background:var(--us)} .sb-team.b .sb-name::before{background:var(--them)}
+.sb-score{font-size:52px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em;min-width:72px}
+.sb-team.a .sb-score{text-align:right}
+.sb-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text2);align-items:center}
+.sb-team.a .sb-meta{justify-content:flex-end}
+.sb-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:170px;padding:0 26px;border-left:1px solid var(--border);border-right:1px solid var(--border);margin:0 26px}
+.sb-period{font-weight:600;color:#fff;text-transform:uppercase;font-size:11px;letter-spacing:.12em}
+.sb-clock{font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.01em}
+.sb-cap{font-size:10.5px;color:var(--muted)}
+.sb-settime{margin-top:4px;padding:4px 10px;font-size:12px}
+.poss-btn{margin:2px 0 4px;padding:4px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.08em;border:1.5px solid;display:inline-flex;align-items:center;gap:7px;max-width:100%;white-space:nowrap}
+.poss-btn .pn{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.poss-btn .pb{font-size:13px}
+.poss-btn.a{color:#4fc3f7;border-color:#4fc3f7;background:rgba(79,195,247,.12)}
+.poss-btn.b{color:var(--them-text);border-color:var(--them-text);background:color-mix(in srgb,var(--them-text) 14%,transparent)}
+.poss-btn.none{color:var(--text2);border-color:var(--border2);background:var(--card)}
+/* Both sides stay the same shape: a team name is one line (cut with … if it truly can't
+   fit), and the fouls / kills lines never wrap. */
+.sb-team,.sb-id{min-width:0}
+.sb-name{white-space:nowrap;min-width:0;max-width:100%}
+.sb-name .sb-nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sb-meta{flex-wrap:nowrap;white-space:nowrap}
+@media (max-width:1000px){
+  .scorebar{padding:10px 14px}
+  .sb-team{gap:10px}
+  .sb-mid{margin:0 10px;padding:0 10px;min-width:0}
+  .sb-score{font-size:44px;min-width:54px}
+  .sb-name{font-size:14px;gap:6px}
+  .sb-name .tlogo{--lg:28px!important}
+  .sb-settime{padding:4px 7px;font-size:11px}
+}
+.to-dots{display:inline-flex;gap:3px;align-items:center}
+.to-dot{width:7px;height:7px;border-radius:50%;background:#facc15}
+.to-dot.full{border-radius:2px;width:9px}
+.to-dot.used{background:transparent;border:1px solid var(--border2)}
+/* Team fouls on the scoreboard: yellow at 5-6 (the bonus is close), orange at the bonus
+   (7-9), red at the double bonus (10+). */
+.tf-warn{color:#facc15;font-weight:800} .tf-bonus{color:#fb923c;font-weight:800} .tf-dbl{color:#ef4444;font-weight:800}
+.bonus{font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:rgba(220,176,90,.16);color:var(--warn);letter-spacing:.04em}
+.bonus.dbl{background:rgba(226,115,109,.16);color:var(--bad)}
+.kills{display:inline-flex;align-items:center;gap:4px;color:var(--text2)}
+.kills b{font-size:13px;color:var(--text);margin-right:2px}
+.kpip{width:8px;height:8px;border-radius:50%;background:var(--card2);display:inline-block}
+.kpip.on{background:#22c55e}
+/* 3+ kills in a half: ours green, theirs red. */
+.kills b.k-good{color:#22c55e} .kills b.k-bad{color:#ef4444}
+
+.levbar{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;padding:8px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);margin-bottom:8px;font-size:12.5px;color:var(--text2)}
+.lev{font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px;letter-spacing:.05em}
+.lev-high{background:rgba(226,115,109,.16);color:#efa29d} .lev-med{background:rgba(220,176,90,.15);color:var(--warn)} .lev-low{background:var(--card2);color:var(--text2)}
+.lev-comp{background:rgba(220,140,90,.18);color:#efb48a} .lev-clutch{background:rgba(216,184,96,.2);color:var(--gold)} .lev-gt{background:var(--card2);color:var(--muted)}
+.gt-meter{width:160px;min-width:40px;flex:0 1 160px;height:5px;border-radius:9px;background:var(--card2);overflow:hidden}
+/* the bar stays one line: everything holds its size except the description, which truncates */
+.levbar:not(.alert-bar){flex-wrap:nowrap;white-space:nowrap}
+.levbar > *{flex-shrink:0}
+.levbar > .lev-desc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.levbar > .gt-meter{flex-shrink:1}
+.gt-meter > div{height:100%;background:var(--warn)}
+
+/* tracker layout */
+.tracker{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,340px) minmax(0,1fr);gap:10px;align-items:start}
+/* Phones: stats on top, the two teams side by side underneath. */
+@media (max-width:699px){.tracker{grid-template-columns:1fr 1fr}.stat-col{grid-column:1 / -1;order:-1}}
+/* iPad upright (700-1000 wide): keep three columns - players either side of a narrower stat
+   column - so a stat and its player are always on the same screen, no scrolling. */
+@media (max-width:1000px) and (min-width:700px){
+  .tracker{grid-template-columns:minmax(0,1fr) minmax(236px,270px) minmax(0,1fr);gap:8px}
+  .col{padding:8px}
+  .pbtn{padding:8px 10px;font-size:14.5px;min-height:52px}
+  .pbtn .pline{font-size:11px}
+  .pbtn .pname{padding-right:40px}
+  .pbtn .onote{display:none}
+  .sbtn{padding:11px 4px;font-size:13.5px}
+  .ctrls .btn{padding:9px 4px;font-size:12.5px}
+  .tracker .lpm2.two{grid-template-columns:minmax(0,1fr)}
+  .status{font-size:13px}
+}
+.col{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px;display:flex;flex-direction:column;gap:7px}
+.col-head{min-height:36px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 2px 4px}
+.pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+.pgrid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.col{min-width:0}
+.pbtn{min-width:0;position:relative;text-align:left;padding:9px 14px;border-radius:11px;background:var(--card);border:1px solid var(--border);font-weight:600;font-size:15.5px;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:background .1s,opacity .12s,box-shadow .12s}
+.col.a .pbtn{box-shadow:inset 3px 0 0 var(--us-d)}
+.col.b .pbtn{box-shadow:inset 3px 0 0 var(--them-d)}
+.pbtn:hover{background:var(--hover)}
+.pnum{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.pbtn .pname{display:flex;align-items:baseline;gap:8px;min-width:0;padding-right:44px}
+.pbtn .plabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.pbtn .onote{font-size:11.5px;font-weight:500;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 0;min-width:0}
+.pbtn.team .pname{padding-right:0}
+.pbtn .pline{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px;padding-right:38px}
+.pbtn .pf{position:absolute;top:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted)}
+.pbtn .pf.f-trouble{background:#ff1f1f;color:#fff;font-weight:900;padding:2px 7px;border-radius:5px;top:6px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.sub-acts{display:flex;gap:8px;margin-top:14px} .sub-acts .btn-lg{flex:1}
+.sub-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:-1px;z-index:3;background:var(--surface);padding:4px 0 8px}
+.sub-head h2{margin:0}
+.sub-top{display:flex;gap:8px} .sub-top .btn-lg{min-width:170px}
+.clockin.xl{gap:26px;padding:20px}
+.clockin.xl .keypad{grid-template-columns:repeat(3,120px);gap:12px}
+.clockin.xl .keypad button{height:88px;font-size:34px;border-radius:14px}
+.clockin.xl input{font-size:52px;width:230px}
+.sub-chg{display:flex;flex-wrap:wrap;gap:6px 12px;margin:-2px 0 8px;font-size:13px;font-weight:700}
+.sub-chg .o{color:#fca5a5} .sub-chg .i{color:#86efac}
+.pbtn .stint{position:absolute;bottom:8px;right:10px;font-size:10.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+/* foul trouble: the whole card, amber then red */
+.tracker .col .pbtn.ft-warn{background:rgba(250,204,21,.13);border-color:rgba(250,204,21,.75);box-shadow:inset 4px 0 0 #facc15}
+.tracker .col .pbtn.ft-danger{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.85);box-shadow:inset 4px 0 0 #ef4444}
+.pbtn.ft-warn .pf,.pbtn.ft-danger .pf{font-weight:900;padding:2px 7px;border-radius:5px;top:6px}
+.pbtn.ft-warn .pf{background:#facc15;color:#111} .pbtn.ft-danger .pf{background:#ef4444;color:#fff}
+.pbtn.ft-warn .pline,.pbtn.ft-danger .pline,.pbtn.ft-warn .stint,.pbtn.ft-danger .stint{color:var(--text2)}
+.pbtn.team{min-height:40px;font-size:13px;color:var(--text2);background:transparent;border-style:dashed;box-shadow:none!important}
+.pbtn.dim{opacity:.22;pointer-events:none}
+.pbtn.hot{background:var(--card2);border-color:var(--border2)}
+.abandon-link{align-self:center;margin-top:6px;font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding:4px 8px}
+.abandon-link:hover{color:var(--bad)}
+.skipbig{width:100%;padding:12px;font-size:15px}
+.bench-mini{font-size:11.5px;color:var(--muted);padding:2px}
+.lpm{background:var(--card);border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.lpm2{display:grid;gap:6px}
+.lpm2.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lpm2.two .lpm{padding:8px 10px}
+.lpm2.two .lpm-row{font-size:12.5px}
+.lpm2.two .lpm-head{letter-spacing:.06em}
+.lpm-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin:2px 0 6px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.lpm-stats div{display:flex;flex-direction:column;align-items:center;line-height:1.2}
+.lpm-stats span{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lpm-stats b{font-size:13.5px;font-variant-numeric:tabular-nums}
+.lpm-stats b.pos{color:var(--good)} .lpm-stats b.neg{color:var(--bad)}
+.sub-sides{display:grid;grid-template-columns:1fr;gap:18px}
+.sub-sides.two{grid-template-columns:1fr 1fr}
+@media (max-width:760px){.sub-sides.two{grid-template-columns:1fr}}
+.sub-sides .sub-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.sub-team{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.sub-team.a{color:var(--us)} .sub-team.b{color:var(--them-text)}
+.lpm-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#fff;padding-bottom:5px;margin-bottom:2px;border-bottom:1px solid var(--border)}
+.lpm-head .lpm-val{font-size:15px;letter-spacing:0}
+.lpm-team.a{color:var(--us)} .lpm-team.b{color:var(--them-text)}
+.lpm-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
+.lpm-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lpm-val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted)}
+.lpm-val.pos{color:var(--good)} .lpm-val.neg{color:var(--bad)}
+
+.stat-col .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sbtn{padding:12px 6px;border-radius:10px;font-weight:700;font-size:14.5px;color:#fff;border:none;transition:filter .1s,opacity .12s;text-align:center}
+.sbtn:hover{filter:brightness(1.15)}
+/* The practice tracker's swatches, button for button: every stat its own solid colour so the
+   grid reads at a glance from arm's length. Off Foul (game-only) gets a colour of its own. */
+.sb-2fg_make{background:#1e40af} .sb-2fg_miss{background:#9f1239}
+.sb-3fg_make{background:#b45309} .sb-3fg_miss{background:#5b21b6}
+.sb-ft_make{background:#155e75}  .sb-ft_miss{background:#701a75}
+.sb-dreb{background:#134e4a}     .sb-oreb{background:#431407}
+.sb-ast{background:#3b0764}      .sb-tov{background:#450a0a}
+.sb-blk{background:#172554}      .sb-stl{background:#422006}
+.sb-foul{background:#1e3a5f}     .sb-offf{background:#3f6212}     .sb-chg{background:#0f5132}     .sb-tech{background:#7c2d12}
+.sbtn.dim{opacity:.2;pointer-events:none}
+.sbtn.on{outline:2px solid #fff;outline-offset:1px;opacity:1}
+.status{min-height:44px;padding:8px 12px;border-radius:11px;background:var(--card);font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text2);text-align:center;justify-content:center}
+.tech-coaches{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:2px}
+.tech-coaches .btn{white-space:normal;line-height:1.2;min-height:42px;text-align:left;justify-content:flex-start}
+.status.wait{background:var(--primary-bg);color:var(--text);justify-content:space-between;text-align:left}
+.ctrls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.ctrls .btn{padding:10px 6px}
+.feed{font-size:12px;max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;border-top:1px solid var(--border);padding-top:6px}
+.feed div{padding:4px 8px;border-radius:6px;color:var(--text2)}
+.feed .a{border-left:2px solid var(--us-d)} .feed .b{border-left:2px solid var(--them-d)}
+.feed .s{color:var(--muted)}
+.feed div{display:flex;align-items:center;gap:6px} .feed div > span{flex:1;min-width:0}
+.flagbtn{background:none;border:0;padding:2px 4px;font-size:13px;opacity:.28;filter:grayscale(1);flex-shrink:0}
+.flagbtn.on{opacity:1;filter:none}
+.feed div.flagged,.pbp-row.flagged{background:rgba(239,68,68,.10)}
+.ctrls .flag-last{grid-column:1 / -1}
+.ctrls .flag-last.on{border-color:#ef4444;color:#fca5a5}
+.pbp-note{width:100%;margin-top:4px;font-size:12px;padding:4px 8px}
+.banner{background:var(--surface);border:1px solid var(--border2);border-radius:var(--rl);padding:22px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:center}
+.banner h2{font-size:18px;font-weight:600;width:100%}
+
+/* sub / clock modals */
+.sub-sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#fff;margin:16px 0 8px}
+.sub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+.sub-p{padding:11px 12px;border-radius:11px;background:var(--card);border:1px solid var(--border);font-weight:600;text-align:left;min-height:54px;transition:background .1s}
+.sub-p:hover{background:var(--hover)}
+.sub-p .pnum{color:var(--muted);font-weight:500;margin-right:4px}
+.sub-p .tiny{display:block;font-weight:400;color:var(--muted);margin-top:2px}
+.sub-p.out{border-color:rgba(226,115,109,.5);background:rgba(226,115,109,.08)}
+.sub-p.pending{border-color:var(--warn);background:rgba(220,176,90,.1)}
+.sub-p.in{border:2px solid #22c55e;background:rgba(34,197,94,.22);color:#fff}
+.sub-p.in .tiny{color:#bbf7d0}
+.sub-p:disabled{opacity:.3}
+.sub-p.dq{border-color:#ef4444;background:rgba(239,68,68,.16);color:#fca5a5}
+.sub-p.dq .tiny{color:#ef4444;font-weight:700}
+.sub-p.dq:disabled{opacity:.8}
+.sub-bench.waiting .sub-p:not(:disabled){border-color:rgba(92,191,149,.45)}
+.pairs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pair{background:var(--card);border-radius:99px;padding:4px 6px 4px 12px;font-weight:500;display:flex;gap:8px;align-items:center;font-size:13px}
+.pair b.o{color:var(--bad);font-weight:600} .pair b.i{color:var(--good);font-weight:600}
+.clockin{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center;background:var(--card);border-radius:12px;padding:14px}
+.clockin input{font-size:30px;font-weight:600;width:150px;text-align:center;font-variant-numeric:tabular-nums;padding:8px;background:var(--surface)}
+.clockin input.need{border-color:rgba(226,115,109,.6)}
+/* The mm:ss box is a display only: not tappable, never focused, so the iPad keyboard can't
+   open - the number pad beside it does the typing. */
+.clockin input[readonly]{pointer-events:none;caret-color:transparent;-webkit-user-select:none;user-select:none}
+.keypad{display:grid;grid-template-columns:repeat(3,54px);gap:6px}
+.keypad button{height:42px;border-radius:9px;background:var(--card2);font-weight:600;font-size:17px}
+.keypad button:hover{background:var(--hover)}
+/* Bigger pads where the clock is typed mid-game (Sub, Timeout, Set time). */
+.clockin.big .keypad{grid-template-columns:repeat(3,92px);gap:10px}
+.clockin.big .keypad button{height:68px;font-size:28px;border-radius:12px}
+.clockin.big input{font-size:40px;width:190px}
+.clk-prev{font-weight:500;margin-top:8px;font-size:13px;color:var(--text2);text-align:center}
+.clk-err{color:var(--bad);font-weight:500;margin-top:4px;font-size:12.5px;text-align:center;max-width:220px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+.tbl{width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+.tbl th{background:var(--card);color:#fff;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 9px;text-align:right;white-space:nowrap;position:sticky;top:0}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl td{padding:7px 9px;text-align:right;border-top:1px solid var(--border);white-space:nowrap}
+@media (hover:hover){.tbl:not(.zebra):not(.cmp-light) tr:hover td{background:rgba(255,255,255,.015)}}
+.tbl tr.tot td{font-weight:600;background:var(--card)}
+.tbl tr.cur td{background:var(--primary-bg)}
+.tbl tr.dnp td{color:var(--muted)}
+.tbl th.grp{text-align:center;border-left:1px solid var(--border2)}
+.tbl td.gl{border-left:1px solid var(--border2)}
+/* season lineups: light grey / slightly darker grey rows, dark text */
+.season-lu .lu-tbl td{color:#1f2937;border-top-color:#c4c9d1}
+.season-lu .lu-tbl tr:nth-child(odd) td{background:var(--row-light)} .season-lu .lu-tbl tr:nth-child(even) td{background:var(--row-dark)}
+.season-lu .lu-tbl td.pos{color:#15803d;font-weight:700} .season-lu .lu-tbl td.neg{color:#b91c1c;font-weight:700}
+.season-lu .lu-tbl td.gl{border-left-color:#b8bec8}
+.tbl td.l{text-align:left}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.cmp-tbl td,.cmp-tbl th{padding:7px 12px}
+.cmp-tbl th.cmp-a,.cmp-tbl th.cmp-b{text-align:right;text-transform:none;letter-spacing:0;font-size:12.5px}
+.cmp-tbl th.cmp-a{color:var(--us)} .cmp-tbl th.cmp-b{color:var(--them-text)}
+.cmp-tbl th .tlogo{vertical-align:-4px}
+.cmp-tbl td.cmp-a,.cmp-tbl td.cmp-b{width:24%;color:var(--text2)}
+.cmp-tbl td.win{font-weight:800;color:var(--text)}
+.cmp-tbl td.cmp-a.win{color:var(--us)} .cmp-tbl td.cmp-b.win{color:var(--them-text)}
+/* Team comparison: the box score's light rows, light grey and a slightly darker grey alternating within
+   each section, black text; the better side's number bold in a dark team colour. */
+.cmp-light tr:not(.cmp-h) td{background:var(--row-light);color:#000;border-top:1px solid #c9ced6}
+.cmp-light tr.alt:not(.cmp-h) td{background:var(--row-dark)}
+.cmp-light td.cmp-a,.cmp-light td.cmp-b{color:#1f2937}
+.cmp-light td.cmp-a.win,.cmp-tbl.cmp-light td.win.a{color:#0b6fa4} .cmp-light td.cmp-b.win,.cmp-tbl.cmp-light td.win.b{color:var(--them-d)}
+.cmp-tbl tr.cmp-h td{background:var(--card);color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 12px;text-align:left}
+.ff{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.ff .k{background:var(--card);border-radius:10px;padding:10px 12px}
+.ff .k .lbl{font-size:10.5px;color:#fff;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.ff .k .v{font-size:18px;font-weight:600;display:flex;justify-content:space-between;gap:8px;margin-top:3px;font-variant-numeric:tabular-nums}
+.ff .k .v .a{color:var(--us)} .ff .k .v .b{color:var(--them-text)}
+.ff4-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:900px){.ff4-grid{grid-template-columns:1fr 1fr}}
+.ff4{background:var(--card);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.ff4-head{display:flex;flex-direction:column}
+.ff4-head b{font-size:14px} .ff4-head span{font-size:11px;color:var(--text2)}
+.ff4-row{display:grid;grid-template-columns:72px 1fr;align-items:center;gap:8px;font-size:12px}
+.ff4-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.ff4-team.a{color:var(--us)} .ff4-team.b{color:var(--them-text)}
+.ffbar{position:relative;height:22px;background:var(--card2);border-radius:6px;overflow:hidden}
+.ffbar-fill{height:100%;border-radius:6px}
+.ffbar-fill.a{background:var(--us)} .ffbar-fill.b{background:var(--them)}
+.ffbar span{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.ff4-edge{font-size:11.5px;font-weight:700;color:var(--text2)}
+.ff4-edge.a{color:var(--us)} .ff4-edge.b{color:var(--them-text)}
+.ks-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ks{background:var(--card);border-radius:12px;padding:12px 14px;border-left:4px solid var(--us)}
+.ks.b{border-left-color:var(--them)}
+.ks-lbl{font-size:12px;font-weight:700;margin-bottom:6px}
+.ks-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.ks-nums b{display:block;font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.ks-nums span{font-size:11px;color:var(--text2);font-weight:600}
+.insights{display:flex;flex-direction:column;gap:6px}
+.ins{padding:9px 12px;border-radius:10px;background:var(--card);font-weight:500;display:flex;align-items:center;gap:10px;color:var(--text2)}
+.ins::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.ins.bad::before{background:var(--bad)} .ins.warn::before{background:var(--warn)} .ins.good::before{background:var(--good)} .ins.info::before{background:var(--info)}
+.chart svg{width:100%;height:auto;display:block}
+.pbp-row{display:grid;grid-template-columns:44px 52px 1fr 66px auto;gap:10px;align-items:center;padding:7px 14px;border-top:1px solid var(--border);font-size:13px}
+.pbp-row:first-child{border-top:none}
+.pbp-row > span:nth-child(3)::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:8px;vertical-align:1px;background:var(--muted)}
+.pbp-row.a > span:nth-child(3)::before{background:var(--us)} .pbp-row.b > span:nth-child(3)::before{background:var(--them)}
+.pbp-row.s{color:var(--text2)}
+.pbp-row .acts{display:flex;gap:4px}
+.tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;margin-left:5px;letter-spacing:.03em}
+
+/* setup */
+.setup{max-width:820px;margin:0 auto}
+.setup-head{text-align:center;margin:8px 0 20px}
+.setup-head h1{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.setup-head p{color:var(--muted);margin-top:4px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-size:11px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:.08em}
+.chk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px}
+/* Column by column (top to bottom, then the next column) - read like a numbered roster sheet. */
+.chk-grid.down{display:block;column-width:200px;column-gap:7px}
+.chk-grid.down > .chk{break-inside:avoid;margin-bottom:7px}
+.chk{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:transparent;border:1px solid var(--border);cursor:pointer;user-select:none;color:var(--muted);transition:background .1s;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
+.chk.on{background:var(--card);text-decoration:none}
+.chk:hover{background:var(--hover)}
+.chk.on{color:var(--text)}
+.chk.starter{background:var(--us-bg);border-color:rgba(79,195,247,.45);color:var(--text)}
+.chk .st{margin-left:auto;font-size:11px;font-weight:500;color:var(--muted)}
+.chk.on .st{color:var(--text2)}
+.chk.starter .st{color:var(--us)}
+.chk.starter.them{background:var(--them-bg);border-color:var(--them-d)}
+.chk.starter.them .st{color:var(--them-text)}
+
+/* opponents */
+.opp-list{display:flex;flex-direction:column;gap:6px}
+.opp-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--card);border:1px solid transparent}
+.opp-item.sel{border-color:var(--primary)}
+.opp-tbl input{width:100%;padding:5px 7px;font-size:13px;background:transparent;border-color:transparent}
+.opp-tbl input:hover{border-color:var(--border2)}
+.opp-tbl input:focus{background:var(--card)}
+.opp-tbl td{padding:3px 4px}
+.opp-tbl th{text-align:left!important;padding-left:12px}
+.opp-tbl input::placeholder{color:var(--muted);opacity:.45}
+.prow-x{width:30px;height:30px;border-radius:8px;color:var(--muted)}
+.prow-x:hover{background:var(--card2);color:var(--bad)}
+.sch-tbl select{width:100%;padding:5px 6px;font-size:13px;background:transparent;border-color:transparent}
+.sch-tbl select:hover{border-color:var(--border2)}
+.sch-tbl input[type=checkbox]{width:auto}
+.res{font-weight:600;font-size:13px;margin-right:6px}
+.sch-tbl input.tbd{color:var(--warn)}
+.tlogo{width:var(--lg);height:var(--lg);object-fit:contain;flex-shrink:0;display:inline-block;vertical-align:middle}
+.tlogo-ph{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--card2);color:var(--text2);font-size:calc(var(--lg) * .34);font-weight:800}
+.sb-name .tlogo{margin-right:2px}
+.sb-team .sb-name::before{display:none}
+.bx-team .tlogo{margin-right:8px;vertical-align:-6px}
+.box-team-header .tlogo{margin-right:-4px}
+.sch-opp{display:flex;align-items:center;gap:8px}
+.sch-opp input{flex:1;min-width:0}
+.sch-box{padding:3px 10px}
+.sch-event{padding-left:38px!important;font-size:11px;color:var(--text2);padding-left:8px;text-align:left}
+.res.w{color:var(--good)} .res.l{color:var(--bad)}
+.opp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.opp-chip{background:var(--card);border-radius:99px;padding:4px 11px;font-size:12.5px}
+
+/* box score — the practice tracker's box score, matched: its panel colours, score box,
+   pill tabs, team bars and light Torvik-style rows. */
+.bx-panel{background:#1a1f2e;border:1px solid #2d3347;border-radius:16px;padding:20px 24px}
+.bx-titlebar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.bx-title{font-size:16px;font-weight:800;color:#f8fafc}
+.bx-panel select{background:#242938;font-size:12.5px;padding:5px 8px}
+.bs-scorebox{text-align:center;padding:4px 0 18px;border-bottom:1px solid #2d3347;margin-bottom:16px}
+.bs-scorebox-title{font-size:22px;font-weight:800;color:#f8fafc}
+.bs-scorebox-date{font-size:12px;color:#fff;margin:2px 0 14px}
+.bs-score-table{margin:0 auto;font-size:13px;width:auto;border-collapse:collapse}
+.bs-score-table th{padding:5px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#f8fafc;border-bottom:2px solid #2d3347;text-align:center;background:#242938}
+.bs-score-table th:first-child{text-align:left;min-width:90px}
+.bs-score-table td{padding:7px 14px;text-align:center;font-weight:700;font-size:15px;color:#94a3b8;border-bottom:1px solid #2d3347;font-variant-numeric:tabular-nums}
+.bs-score-table tbody tr:nth-child(odd) td{background:#242938} .bs-score-table tbody tr:nth-child(even) td{background:#1a1f2e}
+.bs-score-table tr:last-child td{border-bottom:none}
+.bs-score-table td.bx-team{text-align:left;font-size:15px}
+.bx-team.a{color:#4fc3f7} .bx-team.b{color:var(--them-text)}
+.bs-final-col{font-size:18px!important;font-weight:900!important;color:#f8fafc!important;border-left:2px solid #2d3347}
+.bs-tab-row{display:flex;gap:6px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #2d3347}
+.bs-tab-pill{padding:5px 14px;border-radius:99px;background:#242938;color:#cbd5e1;font-weight:700;font-size:12px;border:1px solid #2d3347}
+.bs-tab-pill.active{background:#4f6ef7;border-color:#4f6ef7;color:#fff}
+.box-team-header{padding:6px 10px;font-size:11px;font-weight:800;letter-spacing:.1em;display:flex;align-items:center;gap:12px}
+.box-team-header span{color:#f8fafc;font-size:11px}
+.box-team-header.a{background:#1e3a5f;color:#4fc3f7} .box-team-header.b{background:var(--them-hdr);color:var(--them-text)}
+.box-wrap{overflow-x:auto;margin-bottom:22px;border-radius:0 0 10px 10px}
+.box-table{width:100%;font-size:11px;white-space:nowrap;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+.box-table thead th{padding:5px 4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#f8fafc;background:#242938;text-align:center;border-bottom:2px solid #2d3347}
+.box-table tbody td{padding:5px 4px;text-align:center;color:#000;border-bottom:1px solid #000}
+.box-table tbody tr:nth-child(odd) td{background:var(--row-dark)} .box-table tbody tr:nth-child(even) td{background:var(--row-light)}
+
+.box-table td:first-child,.box-table th:first-child{text-align:left;min-width:96px;position:sticky;left:0;z-index:2;font-weight:600;padding-left:8px}
+.box-table thead th:first-child{z-index:3}
+.box-table td.bs-hi{color:#15803d;font-weight:700} .box-table td.bs-lo{color:#b91c1c;font-weight:700}
+.box-table tr.low-min td{color:#8a93a3;font-weight:400}
+.box-table tr.low-min td.bs-hi,.box-table tr.low-min td.bs-lo{color:#8a93a3;font-weight:400}
+.box-table tr.low-min td:first-child{color:#8a93a3;font-weight:500}
+.box-table tr.bench-divider td{padding:3px 8px;background:#2d3347!important;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.14em;text-align:left;border-top:2px solid #000;border-bottom:2px solid #000}
+.box-table tr.team-row td{color:#475569;font-style:italic}
+.box-table tr.totals-row td{padding:5px 4px;font-weight:700;color:#0f172a;border-top:2px solid #94a3b8;background:#e2e8f0!important}
+.bx-on{color:#15803d;font-size:9px}
+
+/* reports */
+.rep-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px 22px;margin-bottom:14px}
+.rep-team{display:flex;align-items:center;gap:14px}
+.rep-team.b{justify-content:flex-end}
+.rep-name{font-weight:700;font-size:15px}
+.rep-score{font-size:46px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.rep-score.a{color:var(--us)} .rep-score.b{color:var(--them-text)}
+.rep-mid{text-align:center;display:flex;flex-direction:column;align-items:center}
+.rep-label{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.rep-tbl td,.rep-tbl th{padding:6px 9px}
+.rep-box .box-wrap:last-child{margin-bottom:0}
+.trend-us{background:var(--us-bg);color:var(--us)} .trend-them{background:var(--them-bg);color:var(--them-text)}
+.half-tbl td:not(.l),.half-tbl th{text-align:right}
+.rep-tbl td.win{font-weight:800} .rep-tbl td.win.a{color:var(--us)} .rep-tbl td.win.b{color:var(--them-text)}
+@media (max-width:760px){.rep-head{grid-template-columns:1fr}.rep-team.b{justify-content:flex-start}}
+@media print{
+  :root{--bg:#fff;--surface:#fff;--card:#f1f3f6;--card2:#e5e7eb;--text:#000;--text2:#222;--muted:#555;--border:#ccc;--border2:#bbb;--us:#0b6fa4;--them-text:#9a3412}
+  html,body{background:#fff;color:#000}
+  .nav,.no-print,#scorebar,.banner,.scout-float,#toasts{display:none!important}
+  .page{padding:0;max-width:none}
+  .card,.rep-head{break-inside:avoid;border-color:#ccc;box-shadow:none}
+  .card h3,.tbl th,.cmp-tbl tr.cmp-h td,.bs-score-table th,.bs-final-col{color:#000!important;background:#eee!important}
+  .bs-score-table td{background:#fff!important;color:#000}
+  .ins{background:#f6f6f6;color:#000}
+  :root{color-scheme:light}
+  .tname{color:var(--tcl)!important}
+  .box-table thead th{background:#ddd!important;color:#000!important}
+  .box-team-header{background:#eee!important;color:#000!important}
+  .box-table tbody td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+/* scouting */
+.scout-pages{height:calc(100vh - 52px - 96px);height:calc(100dvh - 52px - 96px);overflow:auto;-webkit-overflow-scrolling:touch;background:#2a2e37;border-radius:12px;padding:14px}
+.scout-page{margin:0 auto 14px;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.4);border-radius:2px}
+.scout-page canvas{display:block}
+.scout-empty{color:var(--text2);padding:40px;text-align:center}
+.scout-float{position:fixed;right:18px;bottom:18px;z-index:60;padding:11px 18px;border-radius:99px;background:var(--text);color:var(--bg);font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+
+/* ---- possession tracker additions ---- */
 .hidden{display:none!important}
-.trouble{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px}
-.pf{display:flex;align-items:center;border:1px solid var(--line2);border-radius:7px;background:#fff;overflow:hidden}
-.pf .go{flex:1;text-align:left;border:0;background:none;padding:8px 8px;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pf .go b{display:inline-block;min-width:22px}
-.pf .ct{font-weight:800;font-size:15px;padding:0 8px;font-variant-numeric:tabular-nums}
-.pf .ct .t{font-size:11px;color:var(--red);margin-left:2px}
-.pf .dn{border:0;border-left:1px solid var(--line);background:#f8f9fb;color:var(--mut);width:32px;align-self:stretch;font-weight:800}
-.pf.on{border-color:var(--blue);box-shadow:inset 3px 0 0 var(--blue)}
-.pf.f3{background:#fff6c2} .pf.f4{background:#fde2b8} .pf.f5{background:#f8caca}
-.pf.f5 .go{text-decoration:line-through}
-.togs button.tech{border-style:solid;border-color:var(--red);color:var(--red);flex:.7}
-.sheet tr.tech td{background:#fff!important;height:26px;font-size:11.5px;font-weight:800;color:var(--red);text-align:left;padding:2px 8px;border-top:2px solid var(--red)}
-/* four factors from the printed box score */
-#ff{position:fixed;inset:0;z-index:41;background:var(--bg);overflow:auto}
-#ff .wrap{padding-top:10px}
-.ff-in{display:grid;grid-template-columns:1fr 250px;gap:12px;padding:12px}
-.ffg{width:100%;border-collapse:collapse}
-.ffg th{font-size:12px;letter-spacing:.06em;padding:4px;text-align:center}
-.ffg th.a{color:var(--blue)} .ffg th.b{color:var(--red)}
-.ffg td{padding:3px}
-.ffg td.l{font-weight:800;font-size:14px;width:70px}
-.ffc{width:100%;height:44px;border:1.5px solid var(--line2);border-radius:8px;background:#fff;font-size:21px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}
-.ffc.sel{border-color:var(--ink);box-shadow:0 0 0 3px var(--yellow)}
-.ffc.bad{color:var(--red);border-color:var(--red)}
-.ffg tr.calc td{font-size:14px;color:var(--mut);text-align:center;font-weight:700}
-.ffk{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;align-content:start}
-.ffk button{height:62px;border:1px solid var(--line2);background:#f8f9fb;border-radius:10px;font-size:24px;font-weight:800}
-.ffk .nx{grid-column:span 3;background:var(--blue);color:#fff;border-color:var(--blue);font-size:19px}
-.ffk .cur{grid-column:span 3;height:auto;background:none;border:0;font-size:13px;font-weight:700;color:var(--mut);text-align:center;padding:2px}
-.ffr{width:100%;border-collapse:collapse;font-size:15px}
-.ffr th,.ffr td{border:1px solid var(--line);padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums}
-.ffr th{background:var(--blue);color:#fff;font-size:12px;letter-spacing:.06em}
-.ffr td:first-child,.ffr th:first-child{text-align:left;font-weight:800}
-.ffr tr.grp td{background:var(--yellow)!important;font-size:11.5px;letter-spacing:.12em;text-align:left;font-weight:800;padding:5px 10px}
-.ffr tbody tr:nth-child(odd) td{background:var(--row-light)} .ffr tbody tr:nth-child(even) td{background:var(--row-dark)}
-.ffr td.win{font-weight:800}
-.ffr td.win.a{color:#0b4fa8} .ffr td.win.b{color:var(--red)}
-.ffr .sub{display:block;font-size:11px;color:var(--mut);font-weight:600}
-@media (max-width:700px){.ff-in{grid-template-columns:1fr}}
-/* scouting report: drawn with the game tracker's pdf.js, from the PDFs it keeps on this iPad */
-#scout{position:fixed;inset:0;z-index:40;background:#2a2e37;display:flex;flex-direction:column}
-.sc-head{display:flex;gap:6px;align-items:center;padding:8px 10px;background:#fff;border-bottom:1.5px solid var(--ink);flex-wrap:wrap}
-.sc-head select{flex:1;min-width:120px;font:inherit;font-size:15px;padding:7px 8px;border:1px solid var(--line2);border-radius:8px;background:#fff}
-.sc-back{min-height:46px;font-size:16px;font-weight:800}
+.print-only{display:none}
+.row{display:flex;align-items:center}
+.small{font-size:12.5px} .tiny{font-size:10.5px} .muted{color:var(--muted)}
+.bonus-tag{font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:1px 6px;border-radius:4px;background:#facc15;color:#1a1300}
+.bonus-tag.dbl{background:#ef4444;color:#fff}
+.sb-meta .pos{color:var(--good)} .pline .pos{color:var(--good)} .pline .neg{color:var(--bad)}
+.status.on{background:var(--primary-bg);color:#fff}
+.field label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.field input,.field textarea{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:9px;padding:9px 10px;font:inherit;font-size:16px}
+.modal.sub-modal{max-width:900px}
+/* the sheet: light alternating rows like the box score */
+table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collapse;font-size:13.5px}
+.psheet th,.lut th,.sumt th,.lut-in th{background:var(--card2);color:var(--text);font-size:11px;font-weight:700;letter-spacing:.05em;padding:6px 4px;text-align:center;white-space:nowrap}
+.psheet th.x{color:var(--bad)} .psheet th.st{color:var(--info)} .psheet th.kl{background:#2b8fc0;color:#fff}
+.psheet td{text-align:center;padding:0 4px;height:32px;font-weight:700;color:#1f2937;border-top:1px solid #c4c9d1}
+.psheet tbody tr:nth-child(odd) td{background:var(--row-dark)} .psheet tbody tr:nth-child(even) td{background:var(--row-light)}
+.psheet tbody tr[data-act]{cursor:pointer}
+.psheet td.pn{font-weight:800}
+.psheet td.tm{color:#fff;font-size:11.5px;font-weight:800;letter-spacing:.04em}
+.psheet td.tm.a{background:#2b8fc0!important} .psheet td.tm.b{background:#b8743f!important}
+.psheet td.m{font-size:16px} .psheet td.mx{color:#b91c1c} .psheet td.ms{color:#0b6fa4}
+.psheet td .tiny{font-size:10px;color:#4b5563;font-weight:700;margin-left:1px}
+.psheet td.sc{font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap}
+.psheet tr.kill-a td.kill{background:#2b8fc0!important;color:#fff}
+.psheet tr.kill-b td.kill{background:#b8743f!important;color:#fff}
+.psheet tr.lu td,.psheet tr.tch td{background:var(--surface)!important;text-align:left;height:26px;font-size:12px;padding:2px 8px}
+.psheet tr.lu.a td{color:var(--us);border-top:2px solid var(--us)} .psheet tr.lu.b td{color:var(--them-text);border-top:2px solid var(--them)}
+.psheet tr.tch td{color:var(--bad);border-top:2px solid var(--bad)}
+.lut td,.sumt td{padding:7px 8px;text-align:right;color:#1f2937;border-top:1px solid #c4c9d1;font-variant-numeric:tabular-nums}
+.lut td:first-child,.lut th:first-child,.sumt td:first-child,.sumt th:first-child{text-align:left}
+.lut tr.unit{cursor:pointer}
+.lut tr.unit.now td:first-child{box-shadow:inset 4px 0 0 #2b8fc0}
+.lut tr.drillwrap > td{background:#fff!important;padding:6px}
+.lut-in td{padding:4px 5px;text-align:center;color:#1f2937;font-size:12.5px}
+.lut-in tr:nth-child(odd) td{background:var(--row-light)} .lut-in tr:nth-child(even) td{background:var(--row-dark)}
+.lut-in td.sd{font-weight:800;font-size:11px} .lut-in td.sd.a{color:#0b6fa4} .lut-in td.sd.b{color:#9a6436}
+.sumt tr.tot td{font-weight:800;border-top:2px solid #6b7280}
+/* scouting overlay */
+#scout{position:fixed;inset:0;z-index:150;background:#2a2e37;display:flex;flex-direction:column}
+.sc-head{display:flex;gap:6px;align-items:center;padding:8px 10px;background:var(--surface);border-bottom:1px solid var(--border2);flex-wrap:wrap}
+.sc-head select{flex:1;min-width:120px;font:inherit;font-size:15px;padding:7px 8px;border:1px solid var(--border2);border-radius:8px;background:var(--card);color:var(--text)}
 #sc-pages{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}
 .sc-page{margin:0 auto 12px;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.4)}
 .sc-page canvas{display:block}
 .sc-empty{color:#e5e7eb;padding:40px;text-align:center}
-/* lineups */
-.floor{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap}
-.floor .k{font-size:11.5px;font-weight:800;letter-spacing:.1em;color:var(--blue)}
-.floor .p{background:var(--blue3);border:1px solid #b9cbe9;border-radius:6px;padding:4px 8px;font-weight:700;font-size:14px}
-.floor .warn{color:#8a6100;font-weight:700}
-.floor .sub{margin-left:auto;min-height:44px;min-width:110px;font-size:16px;font-weight:800}
-.sheet tr.lu td{background:#fff!important;height:24px;font-size:11.5px;font-weight:700;color:var(--blue);text-align:left;padding:2px 8px;border-top:2px solid var(--blue)}
-.subtop{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-.subtop h2{flex:1;margin:0}
-.subtop .btn{min-height:54px;min-width:130px;font-size:18px;font-weight:800}
-.btn:disabled{opacity:.4}
-.pick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.pick button{min-height:58px;border:1.5px solid var(--line2);border-radius:10px;background:#fff;font-size:15px;font-weight:700;text-align:left;padding:6px 10px}
-.pick button b{display:block;font-size:19px}
-.pick button.on{background:var(--blue);border-color:var(--blue);color:#fff}
-.from{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}
-.from button{width:46px;height:42px;border-radius:8px;border:1.5px solid var(--ink);background:#fff;font-size:20px;font-weight:800}
-.from .n{font-size:22px;font-weight:800;min-width:34px;text-align:center}
-.lut{width:100%;border-collapse:collapse;font-size:13.5px}
-.lut th,.lut td{border:1px solid var(--line);padding:6px 6px;text-align:right;font-variant-numeric:tabular-nums}
-.lut th{background:var(--blue);color:#fff;font-size:11px;letter-spacing:.04em}
-.lut td:first-child,.lut th:first-child{text-align:left}
-.lut td:first-child{font-weight:600;font-size:12.5px;line-height:1.3}
-.lut tbody tr:nth-child(odd) td{background:var(--row-light)} .lut tbody tr:nth-child(even) td{background:var(--row-dark)}
-.lut tr.now td:first-child{box-shadow:inset 4px 0 0 var(--blue)}
-.lut td.mx{color:var(--red);font-weight:700} .lut td.ms{color:var(--blue);font-weight:700}
-.lut .tiny{font-size:10.5px;font-weight:500}
-.scope{display:flex;gap:4px;margin-left:auto}
-.scope button{border:1.5px solid var(--ink);background:#fff;border-radius:6px;padding:3px 9px;font-weight:800;font-size:12px;letter-spacing:0}
-.scope button.on{background:var(--ink);color:#fff}
+/* four factors entry */
+.ff-in{display:grid;grid-template-columns:1fr 250px;gap:14px}
+.ffg{width:100%;border-collapse:collapse}
+.ffg th{font-size:12px;letter-spacing:.06em;padding:4px;text-align:center}
+.ffg th.a{color:var(--us)} .ffg th.b{color:var(--them-text)}
+.ffg td{padding:3px} .ffg td.l{font-weight:700;font-size:14px;width:70px}
+.ffc{width:100%;height:44px;border:1px solid var(--border2);border-radius:9px;background:var(--card);font-size:21px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}
+.ffc.sel{border-color:#facc15;box-shadow:0 0 0 2px rgba(250,204,21,.5)}
+.ffc.bad{color:var(--bad);border-color:var(--bad)}
+.ffg tr.calc td{font-size:14px;color:var(--muted);text-align:center;font-weight:700}
+.ffk{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;align-content:start}
+.ffk button{height:62px;background:var(--card2);border-radius:11px;font-size:24px;font-weight:700}
+.ffk .nx{grid-column:span 3;background:var(--us);color:#06222f;font-size:19px}
+.ffk .cur{grid-column:span 3;height:auto;background:none;font-size:13px;font-weight:600;color:var(--muted);padding:2px}
+.ffr{width:100%;border-collapse:collapse;font-size:15px}
+.ffr th{background:var(--card2);color:var(--text);font-size:11.5px;letter-spacing:.06em;padding:7px 10px;text-align:right}
+.ffr td{padding:8px 10px;text-align:right;color:#1f2937;border-top:1px solid #c4c9d1;font-variant-numeric:tabular-nums}
+.ffr td:first-child,.ffr th:first-child{text-align:left;font-weight:700}
+.ffr tbody tr:nth-child(odd) td{background:var(--row-light)} .ffr tbody tr:nth-child(even) td{background:var(--row-dark)}
+.ffr tr.grp td{background:var(--card2)!important;color:var(--gold);font-size:11px;letter-spacing:.12em;font-weight:700;padding:5px 10px;text-transform:uppercase}
+.ffr td.win{font-weight:800} .ffr td.win.a{color:#0b6fa4} .ffr td.win.b{color:#9a6436}
+.ffr .sub{display:block;font-size:11px;color:#6b7280;font-weight:600}
+@media (max-width:700px){.ff-in{grid-template-columns:1fr}}
+@media print{.print-only{display:block}.tracker,.page-head .btn{display:none!important}}
+.teambtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.tbtn{min-height:64px;border-radius:12px;font-weight:800;font-size:17px;letter-spacing:0;border:2px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}
+.tbtn.a{background:rgba(79,195,247,.14);color:var(--us);border-color:rgba(79,195,247,.45)}
+.tbtn.b{background:rgba(224,162,111,.14);color:var(--them-text);border-color:rgba(224,162,111,.45)}
+.tbtn.hot.a{background:#2b8fc0;color:#fff;border-color:#4fc3f7} .tbtn.hot.b{background:#b8743f;color:#fff;border-color:#fdba74}
+.tbtn.dim{opacity:.25}
 
-@media (max-width:700px){
-  .entry{grid-template-columns:1fr}
-  .two{grid-template-columns:1fr}
-}
-@media print{
-  body{background:#fff}
-  .no-print,.ov,.toast{display:none!important}
-  .print-only{display:block}
-  .logwrap{max-height:none;overflow:visible}
-  .card{break-inside:avoid}
-  .sheet th{position:static}
-}
 </style>
 </head>
 <body>
-<div class="wrap" id="app"></div>
+<nav class="nav"><div class="nav-in">
+  <div class="brand"><b class="brand-us">Moorpark</b> <span>Possession Tracker</span></div>
+  <button class="tab" data-tab="live">Live</button>
+  <button class="tab" data-tab="sheet">Sheet</button>
+  <button class="tab" data-tab="lineups">Lineups</button>
+  <button class="tab" data-tab="ff">Four factors</button>
+  <button class="tab scout-tab" data-tab="scout">Scouting</button>
+  <button class="tab" data-tab="games">Games</button>
+</div></nav>
+<div id="view" class="page"></div>
 <div id="scout" class="hidden">
   <div class="sc-head"><b>Scouting report</b><select id="sc-sel"></select>
     <button class="btn btn-sm" data-act="sc-add">Add PDF…</button>
     <button class="btn btn-sm" data-act="sc-zoom" data-z="-1">−</button><button class="btn btn-sm" data-act="sc-zoom" data-z="0">Fit</button><button class="btn btn-sm" data-act="sc-zoom" data-z="1">+</button>
-    <button class="btn btn-blue sc-back" data-act="scout">◀ Back to sheet</button></div>
+    <button class="btn btn-good" data-act="sc-close">◀ Back to game</button></div>
   <div id="sc-pages"></div>
 </div>
 <input type="file" id="sc-file" accept="application/pdf,.pdf" class="hidden">
-<div id="ff" class="hidden"></div>
-<div id="modal"></div>
-<div class="toast" id="toast"></div>
+<div id="modal-root"></div>
+<div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.6';
-const LS_GAMES = 'pl_games', LS_CUR = 'pl_cur', LS_ROSTER = 'pl_roster';
-const FULL_TOS = 3, S30_TOS = 4;          // regulation allotment per team, per game; +1 30-sec per OT
+const VERSION = 'v2026.10.12.8';
+const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
+const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('Could not save — storage is full or blocked'); return false; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('Could not save — storage is full or blocked', 'bad'); return false; } };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const slug = s => String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+const other = t => t === 'a' ? 'b' : 'a';
+const sgn = v => v > 0 ? '+' + v : String(v);
+const pmCls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
 
 let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
-let P = { num: '', and1: false, oreb: 0, hl: null };   // the possession being entered
 const cur = () => games.find(g => g.id === curId) || null;
 const save = () => { lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
+const UI = { tab: 'live', stat: null, ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
-/* ---------- roster: our own, else the game tracker's (same site, same storage) ---------- */
+/* ---------- rosters ---------- */
+// Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage).
 function roster() {
   const own = lsGet(LS_ROSTER, null);
   if (Array.isArray(own) && own.length) return own;
-  const gt = lsGet('gt_roster', []);
-  return (Array.isArray(gt) ? gt : []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name }));
+  return (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name }));
 }
-const rosterSorted = () => roster().slice().sort((a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || a.name.localeCompare(b.name));
+const byNum = (a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || String(a.name).localeCompare(b.name);
+const lastName = n => String(n).split(' ').slice(-1)[0];
+// Players are keyed by name for Moorpark and by 'o:<num>' for the opponent.
+function teamPlayers(g, t) {
+  return t === 'a' ? roster().slice().sort(byNum).map(r => ({ id: r.name, num: r.num, name: r.name }))
+    : (g.oppRoster || []).slice().sort(byNum).map(r => ({ id: 'o:' + r.num, num: r.num, name: r.name || '' }));
+}
+function pInfo(g, t, id) {
+  if (!id || id === 'TEAM') return { id: 'TEAM', num: '', name: 'Team' };
+  return teamPlayers(g, t).find(p => p.id === id) || { id, num: t === 'b' ? String(id).slice(2) : '', name: t === 'a' ? id : '' };
+}
+const pShort = (g, t, id) => { const p = pInfo(g, t, id); if (p.id === 'TEAM') return 'Team'; return (p.num ? '#' + p.num + ' ' : '') + (p.name ? lastName(p.name) : ''); };
+const fiveKey = f => f.slice().sort().join('|');
+const fiveSorted = (g, t, f) => f.slice().sort((x, y) => byNum(pInfo(g, t, x), pInfo(g, t, y)));
+const teamName = (g, t) => t === 'a' ? 'Moorpark' : g.opp;
+const teamAbbr = (g, t) => t === 'a' ? 'MPK' : (g.opp || 'OPP').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
 function oppNames() {
   const s = new Set();
-  lsGet('gt_opp_rosters', []).forEach(o => o && o.name && s.add(o.name));
-  lsGet('gt_schedule', []).forEach(r => r && r.opp && !/^tbd$/i.test(r.opp) && s.add(r.opp));
+  (lsGet('gt_opp_rosters', []) || []).forEach(o => o && o.name && s.add(o.name));
+  (lsGet('gt_schedule', []) || []).forEach(r => r && r.opp && !/^tbd$/i.test(r.opp) && s.add(r.opp));
   games.forEach(g => g.opp && s.add(g.opp));
   return [...s].sort();
 }
+function gtOppRoster(name) {
+  const o = (lsGet('gt_opp_rosters', []) || []).find(x => x && x.name && x.name.toLowerCase() === String(name).toLowerCase());
+  return o ? (o.players || []).filter(p => p.num !== '' && p.num != null).map(p => ({ num: String(p.num), name: p.name || '' })) : [];
+}
+const logo = (name, px) => `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="../game/logos/${slug(name)}.png" alt="" onerror="this.remove()">`;
 
 /* ---------- periods ---------- */
 const PER_NAME = p => p === '1H' ? '1st Half' : p === '2H' ? '2nd Half' : 'Overtime ' + p.slice(2);
 const otCount = g => g.periods.filter(p => p.startsWith('OT')).length;
-// Team fouls reset at halftime and carry from the 2nd half into every overtime.
-const foulBucket = p => p === '1H' ? '1H' : '2H+';
+const foulBucket = p => p === '1H' ? '1H' : '2H+';     // team fouls reset at half, carry into OT
 
-/* ---------- possession results ---------- */
-// res: '2' '3' 'FT' 'x2' 'x3' 'xFT' 'TO'; ft = free throws made on an FT trip; and1 adds one;
-// stl marks a turnover that was a steal. Points are derived, never typed.
-const ptsOf = e => e.res === '2' ? 2 + (e.and1 ? 1 : 0) : e.res === '3' ? 3 + (e.and1 ? 1 : 0) : e.res === 'FT' ? (e.ft || 0) : 0;
-const RES_LABEL = { '2': '2', '3': '3', 'FT': 'FT', 'x2': '✗2', 'x3': '✗3', 'xFT': '✗FT', 'TO': 'TO' };
-function describe(e) {
-  const r = e.res === 'FT' ? `${e.ft} FT` : e.res === 'TO' ? (e.stl ? 'Steal' : 'Turnover') : RES_LABEL[e.res] + (e.and1 ? ' +1' : '');
-  const p = ptsOf(e);
-  return `${e.num ? '#' + e.num + ' ' : ''}${r}${p ? ' · ' + p + ' pts' : ' · stop'}${e.oreb ? ` · ${e.oreb} OREB` : ''}`;
-}
+/* ---------- the play log ----------
+   g.ev is the game in order. Kinds:
+     play  {team, player, k}   k: 2m 2x 3m 3x ftm ftx oreb dreb to stl chg offf
+     foul  {team, player}      a personal foul (player null = team only)
+     tech  {team, coach, player, ftm}
+     sub   {team, five}
+     to    {team, kind: full|s30}
+   Possessions are worked out from the plays, never typed:
+     · a play opens or continues the possession of the team with the ball (a steal and a
+       defensive rebound are the defence's plays, so they belong to the other side);
+     · free throws after a make by the same team are the and-one; free throws in a row are one trip;
+     · an offensive rebound keeps the possession going — after a missed shot or a missed FT;
+     · a defensive rebound, a turnover, a steal, a charge or an offensive foul ends it;
+     · anything else by the same team after a finished possession starts a new one. */
+const PTS = { '2m': 2, '3m': 3, ftm: 1 };
+const isFT = k => k === 'ftm' || k === 'ftx';
+const ENDERS = new Set(['to', 'stl', 'chg', 'offf']);
+const offOf = e => (e.k === 'stl' || e.k === 'dreb') ? other(e.team) : e.team;
 
-/* Every possession of a period with its derived columns: number, points, stop, kill.
-   KILL = three consecutive defensive stops; the count restarts after each kill and after any score,
-   and at the start of every period. */
-function periodRows(g, per) {
-  let streak = 0, n = 0;
-  return g.ev.filter(e => e.t === 'poss' && e.per === per).map(e => {
-    const pts = ptsOf(e), stop = pts === 0;
-    let kill = false;
-    if (stop) { streak++; if (streak === 3) { kill = true; streak = 0; } } else streak = 0;
-    return { e, n: ++n, pts, stop, kill, streak };
-  });
-}
-function perStats(g, per) {
-  const rows = periodRows(g, per);
-  const opp = rows.reduce((s, r) => s + r.pts, 0) + techPts(g, per, 'b');
-  const mpk = g.ev.filter(e => e.t === 'mpk' && e.per === per).reduce((s, e) => s + e.pts, 0) + techPts(g, per, 'a');
-  const streak = rows.length ? rows[rows.length - 1].streak : 0;
-  return { rows, poss: rows.length, opp, mpk, kills: rows.filter(r => r.kill).length,
-           stops: rows.filter(r => r.stop).length, oreb: rows.reduce((s, r) => s + (r.e.oreb || 0), 0), streak };
-}
-function gameStats(g) {
-  const per = g.periods.map(p => Object.assign({ per: p }, perStats(g, p)));
-  const tot = per.reduce((t, s) => { ['poss', 'opp', 'mpk', 'kills', 'stops', 'oreb'].forEach(k => t[k] += s[k]); return t; },
-                         { poss: 0, opp: 0, mpk: 0, kills: 0, stops: 0, oreb: 0 });
-  return { per, tot };
-}
-const ppp = (pts, poss) => poss ? (pts / poss).toFixed(2) : '—';
-
-/* ---------- lineups: every possession and every Moorpark basket carries the five on the floor ---------- */
-const rosterMap = () => Object.fromEntries(roster().map(r => [r.name, r]));
-const jn = (name, M) => parseInt(((M || rosterMap())[name] || {}).num) || 999;
-const lastName = n => String(n).split(' ').slice(-1)[0];
-const shortName = (n, M) => { const r = (M || rosterMap())[n]; return (r && r.num ? '#' + r.num + ' ' : '') + lastName(n); };
-const fiveKey = f => f.slice().sort().join('|');
-const fiveSorted = (f, M) => { M = M || rosterMap(); return f.slice().sort((a, b) => jn(a, M) - jn(b, M) || a.localeCompare(b)); };
-const fiveNums = f => { const M = rosterMap(); return fiveSorted(f, M).map(n => (M[n] && M[n].num) ? n && M[n].num : lastName(n)).join(' · '); };
-let LU_SCOPE = 'game';
-
-// How each five's possessions ended — the sheet's own columns, counted per five.
-const END_COLS = [['2', '2'], ['3', '3'], ['FT', 'FT'], ['x2', '✗2'], ['x3', '✗3'], ['xFT', '✗FT'], ['TO', 'TO'], ['STL', 'STL'], ['CHG', 'CHG']];
-const endOf = e => e.res === 'TO' ? (e.chg ? 'CHG' : e.stl ? 'STL' : 'TO') : e.res;
-function lineupStats(g, scope) {
-  const pers = scope === 'game' ? g.periods : [g.per];
-  const units = {};
-  pers.forEach(per => periodRows(g, per).forEach(r => {
-    const f = r.e.five; if (!f || !f.length) return;
-    const k = fiveKey(f);
-    const u = units[k] = units[k] || { five: f, poss: 0, opp: 0, kills: 0, end: {} };
-    u.poss++; u.opp += r.pts; u.kills += r.kill ? 1 : 0;
-    const x = endOf(r.e); u.end[x] = (u.end[x] || 0) + 1;
-  }));
-  return Object.values(units).sort((a, b) => b.poss - a.poss);
-}
-
-function lineupCard(g) {
-  const units = lineupStats(g, LU_SCOPE), M = rosterMap(), nowKey = g.five ? fiveKey(g.five) : '';
-  const scopeBtns = `<span class="scope no-print"><button class="${LU_SCOPE === 'game' ? 'on' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="${LU_SCOPE === 'per' ? 'on' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button></span>`;
-  if (!units.length) return `<div class="card"><div class="bar">Lineups ${scopeBtns}</div><div class="pad muted">No possessions with a five on the floor yet${LU_SCOPE === 'per' ? ' this period' : ''}. Set the five with ⇄ Sub.</div></div>`;
-  const rows = units.map(u => { const f = fiveSorted(u.five, M);
-    return `<tr class="${fiveKey(u.five) === nowKey ? 'now' : ''}"><td><b>${f.map(n => esc((M[n] && M[n].num) || '—')).join(' · ')}</b><div class="tiny muted">${f.map(n => esc(lastName(n))).join(', ')}</div></td>
-    <td><b>${u.poss}</b></td>${END_COLS.map(([k]) => `<td class="${k[0] === 'x' ? 'mx' : ['TO', 'STL', 'CHG'].includes(k) ? 'ms' : ''}">${u.end[k] || ''}</td>`).join('')}
-    <td><b>${u.opp}</b></td><td><b>${ppp(u.opp, u.poss)}</b></td><td>${u.kills || ''}</td></tr>`; }).join('');
-  return `<div class="card"><div class="bar">Lineups — how their possessions ended ${scopeBtns}</div><div class="pad" style="overflow-x:auto">
-    <table class="lut"><thead><tr><th>FIVE ON THE FLOOR</th><th>POSS</th>${END_COLS.map(([k, l]) => `<th>${l}</th>`).join('')}<th>OPP PTS</th><th>PPP</th><th>KILLS</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="small muted" style="margin-top:6px">Blue edge = the five on the floor now. PPP = their points per possession while that five played.</div>
-  </div></div>`;
-}
-
-function floorStrip(g) {
-  const M = rosterMap();
-  return `<div class="card no-print"><div class="floor"><span class="k">ON THE FLOOR</span>
-    ${g.five && g.five.length ? fiveSorted(g.five, M).map(n => `<span class="p">${esc(shortName(n, M))}</span>`).join('') : '<span class="warn">No five set — possessions won\'t count toward lineups</span>'}
-    <button class="btn btn-blue sub" data-act="sub">⇄ Sub</button></div></div>`;
-}
-
-/* Pick the five: tap players on / off until five are lit, then Confirm (at the top, so it is never
-   under anything). "From possession" lets a late sub count back to when it really happened. */
-let SUB = null;
-function subModal(title) {
-  const g = cur(), st = perStats(g, g.per);
-  if (!SUB) SUB = { sel: new Set(g.five || []), from: st.poss + 1, title: title || 'Sub — who is on the floor?' };
-  const M = rosterMap(), n = SUB.sel.size;
-  modal(`<div class="subtop"><h2>${esc(SUB.title)}</h2><button class="btn" data-act="sub-cancel">Cancel</button><button class="btn btn-blue" data-act="sub-ok" ${n === 5 ? '' : 'disabled'}>Confirm${n === 5 ? '' : ` (${n}/5)`}</button></div>
-    ${st.poss ? `<div class="from"><span class="small" style="font-weight:800;letter-spacing:.06em">COUNTS FROM ${esc(g.per)} POSSESSION</span><button data-act="sub-from" data-d="-1">−</button><span class="n">${SUB.from}</span><button data-act="sub-from" data-d="1">+</button>
-      <span class="small muted">${SUB.from === st.poss + 1 ? '(the next one)' : `back-dates possessions ${SUB.from}–${st.poss}`}</span></div>` : ''}
-    <div class="pick">${rosterSorted().map(r => `<button class="${SUB.sel.has(r.name) ? 'on' : ''}" data-act="sub-p" data-n="${esc(r.name)}"><b>${esc(r.num || '—')}</b>${esc(r.name)}</button>`).join('') || '<div class="muted">No roster — ⋯ → Moorpark roster.</div>'}</div>`);
-}
-function subConfirm() {
-  const g = cur(), five = [...SUB.sel];
-  const rows = periodRows(g, g.per);
-  if (SUB.from <= rows.length) {
-    const start = g.ev.indexOf(rows[SUB.from - 1].e);
-    for (let i = start; i < g.ev.length; i++) { const e = g.ev[i]; if (e.per === g.per && (e.t === 'poss' || e.t === 'mpk')) e.five = five.slice(); }
+function derive(g) {
+  const five = { a: [], b: [] }, score = { a: 0, b: 0 };
+  const poss = [], items = [];
+  let open = null;
+  const snap = () => ({ a: five.a.slice(), b: five.b.slice() });
+  for (const e of g.ev) {
+    if (e.t === 'sub') { five[e.team] = e.five.slice(); items.push({ kind: 'sub', e }); continue; }
+    if (e.t === 'tech') {
+      const sh = other(e.team); score[sh] += e.ftm || 0;
+      items.push({ kind: 'tech', e, score: { ...score }, five: snap() }); continue;
+    }
+    if (e.t !== 'play') { items.push({ kind: e.t, e }); continue; }
+    const off = offOf(e);
+    if (e.k === 'dreb') {                      // ends the shooting team's possession
+      if (open && open.team === off && open.per === e.per && !open.done) { open.dreb = true; open.done = true; }
+      items.push({ kind: 'dreb', e, p: open && open.team === off ? open : null }); continue;
+    }
+    let join = false;
+    if (open && open.team === off && open.per === e.per && !open.done) {
+      const lk = open.plays[open.plays.length - 1].k;
+      if (e.k === 'oreb') join = true;
+      else if (isFT(e.k) && (isFT(lk) || lk === '2m' || lk === '3m')) join = true;
+      else if (lk === 'oreb') join = true;
+    }
+    if (!join) { open = { team: off, per: e.per, plays: [], five: snap(), pts: 0, oreb: 0, dreb: false, done: false, id: e.id }; poss.push(open); items.push({ kind: 'poss', p: open }); }
+    open.plays.push(e);
+    const pts = PTS[e.k] || 0; open.pts += pts; score[off] += pts;
+    if (e.k === 'oreb') open.oreb++;
+    if (ENDERS.has(e.k)) open.done = true;
+    open.score = { ...score };
   }
-  g.five = five; SUB = null; save(); closeModal(); render(); toast('On the floor: ' + fiveNums(five));
+  // Numbering, endings and kills, period by period.
+  const byPer = {};
+  poss.forEach(p => { (byPer[p.per] = byPer[p.per] || []).push(p); });
+  Object.values(byPer).forEach(list => {
+    const n = { a: 0, b: 0 }, streak = { a: 0, b: 0 };   // streak[t] = t's defensive stops in a row
+    list.forEach((p, i) => {
+      p.seq = i + 1; p.n = ++n[p.team];
+      p.end = endingOf(p);
+      const d = other(p.team); p.stop = p.pts === 0; p.kill = false;
+      if (p.stop) { if (++streak[d] === 3) { p.kill = true; streak[d] = 0; } } else streak[d] = 0;
+      p.streak = { ...streak };
+    });
+  });
+  return { poss, items, score, five };
 }
+// How a possession ended — the sheet's columns.
+function endingOf(p) {
+  const pl = p.plays.filter(x => x.k !== 'oreb');
+  let i = pl.length - 1;
+  while (i >= 0 && isFT(pl[i].k)) i--;
+  const fts = pl.slice(i + 1), base = i >= 0 ? pl[i] : null;
+  const ftm = fts.filter(x => x.k === 'ftm').length;
+  if (base && (base.k === '2m' || base.k === '3m')) return { col: base.k[0], and1: ftm, ft: fts.length ? `${ftm}/${fts.length}` : '' };
+  if (fts.length) return { col: ftm ? 'FT' : 'xFT', ft: `${ftm}/${fts.length}` };
+  if (!base) return { col: '' };
+  return { col: { '2x': 'x2', '3x': 'x3', to: 'TO', stl: 'STL', chg: 'CHG', offf: 'OFF' }[base.k] || '' };
+}
+const END_COLS = [['2', '2'], ['3', '3'], ['FT', 'FT'], ['x2', '✗2'], ['x3', '✗3'], ['xFT', '✗FT'], ['TO', 'TO'], ['STL', 'STL'], ['CHG', 'CHG'], ['OFF', 'OFF']];
 
-// A Moorpark player's fouls: personal fouls plus technicals charged to him (a player technical is
-// also a personal foul). Two technicals put him out of the game.
-const playerFouls = (g, name) => g.ev.filter(e => (e.t === 'foul' || e.t === 'tech') && e.team === 'a' && e.player === name).length;
-const playerTechs = (g, name) => g.ev.filter(e => e.t === 'tech' && e.team === 'a' && e.player === name).length;
-// Technical free throws score but are not a possession: they count in the score and PPP, not on the sheet.
-const techPts = (g, per, shooter) => g.ev.filter(e => e.t === 'tech' && e.per === per && e.team !== shooter).reduce((s, e) => s + (e.ftm || 0), 0);
-function teamFouls(g, team, per) {
-  const b = foulBucket(per);
-  return g.ev.filter(e => (e.t === 'foul' || (e.t === 'tech' && e.tf)) && e.team === team && foulBucket(e.per) === b).length;
+function perSums(D, per) {
+  const s = { poss: { a: 0, b: 0 }, pts: { a: 0, b: 0 }, kills: { a: 0, b: 0 }, streak: { a: 0, b: 0 } };
+  D.poss.filter(p => !per || p.per === per).forEach(p => { s.poss[p.team]++; s.pts[p.team] += p.pts; if (p.kill) s.kills[other(p.team)]++; s.streak = p.streak; });
+  D.items.filter(x => x.kind === 'tech' && (!per || x.e.per === per)).forEach(x => { s.pts[other(x.e.team)] += x.e.ftm || 0; });
+  return s;
 }
-// Opponent fouls put us in the bonus, ours put them in it.
-const bonusTag = n => n >= 10 ? '<span class="bonus dbl">DOUBLE BONUS</span>' : n >= 7 ? '<span class="bonus">BONUS</span>' : '';
+const ppp = (pts, n) => n ? (pts / n).toFixed(2) : '—';
+// The game's possession count: the two teams' counts averaged.
+const possAvg = s => { const v = (s.poss.a + s.poss.b) / 2; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
+const rtg = (pts, n) => n ? Math.round(100 * pts / n) : '—';
+
+/* ---------- fouls and timeouts ---------- */
+const FOULING = e => (e.t === 'foul') || (e.t === 'tech' && !e.coach) || (e.t === 'play' && (e.k === 'chg' || e.k === 'offf'));
+function teamFouls(g, t, per) { const b = foulBucket(per); return g.ev.filter(e => FOULING(e) && e.team === t && foulBucket(e.per) === b).length; }
+const playerFouls = (g, t, id) => g.ev.filter(e => FOULING(e) && e.team === t && e.player === id).length;
+const playerTechs = (g, t, id) => g.ev.filter(e => e.t === 'tech' && e.team === t && e.player === id).length;
+const tosUsed = (g, t, kind) => g.ev.filter(e => e.t === 'to' && e.team === t && e.kind === kind).length;
+
+/* ---------- lineups ---------- */
+// Each five's possessions at both ends: points for and against, +/-, ratings, and how they ended.
+function lineupUnits(g, D, t, scope) {
+  const pers = scope === 'game' ? null : scope, units = {}, players = {};
+  const U = f => units[fiveKey(f)] = units[fiveKey(f)] || { five: f, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, oEnd: {}, dEnd: {} };
+  const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
+  D.poss.forEach(p => {
+    if (pers && p.per !== pers) return;
+    const f = p.five[t]; if (!f || f.length !== 5) return;
+    const u = U(f), mine = p.team === t;
+    if (mine) { u.oPoss++; u.pf += p.pts; u.oEnd[p.end.col] = (u.oEnd[p.end.col] || 0) + 1; credit(f, p.pts, 0); }
+    else { u.dPoss++; u.pa += p.pts; u.dEnd[p.end.col] = (u.dEnd[p.end.col] || 0) + 1; if (p.kill) u.kills++; credit(f, 0, p.pts); }
+  });
+  D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers)).forEach(x => {
+    const f = x.five[t]; if (!f || f.length !== 5) return;
+    const pts = x.e.ftm || 0, u = U(f);
+    if (x.e.team === t) { u.pa += pts; credit(f, 0, pts); } else { u.pf += pts; credit(f, pts, 0); }
+  });
+  return { units: Object.values(units).sort((x, y) => (y.oPoss + y.dPoss) - (x.oPoss + x.dPoss)), players };
+}
 
 /* ---------- rendering ---------- */
 function render() {
+  document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
   const g = cur();
-  if (!g) { renderHome(); return; }
-  const per = g.per;
-  const st = perStats(g, per);
-  const G = gameStats(g);
-  const oppLogo = `../game/logos/${slug(g.opp)}.png`;
-  const tfA = teamFouls(g, 'a', per), tfB = teamFouls(g, 'b', per);
-  const recent = [];
-  for (let i = g.ev.length - 1; i >= 0 && recent.length < 12; i--) { const n = g.ev[i].num; if (g.ev[i].t === 'poss' && n && !recent.includes(n)) recent.push(n); }
-  const last = [...g.ev].reverse().find(e => ['poss', 'mpk', 'foul', 'tech'].includes(e.t));
-  const lastTxt = !last ? 'Nothing logged yet' : last.t === 'poss' ? `Last: ${PER_NAME(last.per)} poss ${periodRows(g, last.per).find(r => r.e.id === last.id).n} — ${describe(last)}`
-    : last.t === 'mpk' ? `Last: Moorpark ${last.pts > 0 ? '+' : ''}${last.pts}` : last.t === 'tech' ? `Last: ${techText(g, last)}`
-    : `Last: foul on ${last.team === 'a' ? esc(last.player || 'Moorpark') : esc(g.opp)}`;
-
-  $('#app').innerHTML = `
-  <div class="top no-print">
-    <img src="../game/logos/moorpark.png" alt="" onerror="this.style.display='none'">
-    <h1>Possession Tracking<small>${esc(PER_NAME(per))} · Defense · vs ${esc(g.opp)}</small></h1>
-    <button class="btn btn-sm" data-act="ff">📊 Four factors</button>
-    <button class="btn btn-sm" data-act="scout">📄 Scout</button>
-    <button class="btn btn-sm" data-act="games">Games</button>
-    <button class="btn btn-sm" data-act="menu">⋯</button>
-  </div>
-
-  <div class="card no-print">
-    <div class="bug">
-      <div class="side a"><div class="nm">Moorpark</div><div class="sc">${G.tot.mpk}</div>
-        <div class="ppp">${ppp(st.mpk, st.poss)} PPP this ${per.startsWith('OT') ? 'OT' : 'half'}</div>
-        <div class="mpk-btns"><button class="minus" data-act="mpk" data-p="-1">−1</button><button data-act="mpk" data-p="1">+1</button><button data-act="mpk" data-p="2">+2</button><button data-act="mpk" data-p="3">+3</button></div>
-        <div>${bonusTag(tfB)}</div></div>
-      <div class="mid">
-        <div class="per">${g.periods.map(p => `<button class="${p === per ? 'on' : ''}" data-act="per" data-p="${p}">${p}</button>`).join('')}<button data-act="next-per" title="Start the next period">+</button></div>
-        <div class="possn">Opp poss <b>${st.poss}</b></div>
-        <div class="streak">Stops ${[0, 1, 2].map(i => `<span class="dot ${i < st.streak ? 'on' : ''}"></span>`).join('')}</div>
-        <div class="possn">Kills <b>${st.kills}</b></div>
-      </div>
-      <div class="side b"><div class="nm">${esc(g.opp)}</div><div class="sc">${G.tot.opp}</div>
-        <div class="ppp">${ppp(st.opp, st.poss)} PPP this ${per.startsWith('OT') ? 'OT' : 'half'}</div>
-        <div style="height:6px"></div>
-        <div>${bonusTag(tfA)}</div></div>
-    </div>
-  </div>
-
-  ${floorStrip(g)}
-  <div class="card no-print">
-    <div class="bar">Possession ${st.poss + 1} — how did it end?</div>
-    <div class="entry">
-      <div>
-        <div class="numbox ${P.num ? '' : 'empty'}">${P.num ? '#' + esc(P.num) : 'Player # (optional)'}</div>
-        <div class="keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button data-act="key" data-k="${k}">${k}</button>`).join('')}</div>
-        <div class="recent">${recent.map(n => `<button class="${n === P.num ? 'on' : ''}" data-act="num" data-n="${esc(n)}">#${esc(n)}</button>`).join('')}</div>
-      </div>
-      <div>
-        <div class="res">
-          <button class="make" data-act="res" data-r="2">2<small>MADE 2</small></button>
-          <button class="make" data-act="res" data-r="3">3<small>MADE 3</small></button>
-          <button class="make" data-act="ft">FT<small>FT TRIP · POINTS</small></button>
-          <button class="miss" data-act="res" data-r="x2">✗2<small>MISSED 2 · DREB</small></button>
-          <button class="miss" data-act="res" data-r="x3">✗3<small>MISSED 3 · DREB</small></button>
-          <button class="miss" data-act="res" data-r="xFT">✗FT<small>0 FT MADE</small></button>
-          <button class="stop" data-act="res" data-r="TO">TO<small>DEAD BALL</small></button>
-          <button class="stop" data-act="res" data-r="STL">STL<small>STEAL</small></button>
-          <button class="stop" data-act="res" data-r="CHG">CHG<small>CHARGE</small></button>
-        </div>
-        <div class="togs">
-          <button class="${P.and1 ? 'on' : ''}" data-act="and1">And-one +1</button>
-          <button class="${P.oreb ? 'on' : ''}" data-act="oreb">Their off. reb${P.oreb ? ' · ' + P.oreb : ''}</button>
-          <button class="tech" data-act="tech">T — Technical</button>
-        </div>
-        <div class="lastline"><span class="txt">${lastTxt}</span><button class="btn btn-sm" data-act="undo">↶ Undo</button></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="bar">${esc(PER_NAME(per))} · Defense <span class="r">${st.opp} pts · ${st.stops} stops · ${st.oreb} OREB</span></div>
-    <div class="logwrap" id="logwrap">${sheetTable(g, per)}</div>
-  </div>
-
-  <div class="two">
-    <div class="card">
-      <div class="bar">${per === '1H' ? 'First half' : 'Second half + OT'} fouls</div>
-      <div class="pad">
-        ${foulRow('Team — MPK', tfA, 'a')}
-        ${foulRow('Team — OPP', tfB, 'b')}
-        <div class="small muted" style="margin:-2px 0 8px">Shaded 7 = bonus (1-and-1) · 10 = double bonus. Fouls carry from the 2nd half into overtime. A charge adds one to theirs.</div>
-        <div style="font-size:12px;font-weight:800;color:var(--blue);letter-spacing:.06em">MOORPARK FOULS <span class="muted" style="font-weight:600;letter-spacing:0">— tap a player: his foul + a team foul · − takes one off</span></div>
-        <div class="trouble">${rosterSorted().map(r => { const n = playerFouls(g, r.name), t = playerTechs(g, r.name), out = n >= 5 || t >= 2;
-          return `<div class="pf f${out ? 5 : Math.min(n, 4)} ${g.five && g.five.includes(r.name) ? 'on' : ''}">
-          <button class="go" data-act="pfoul" data-n="${esc(r.name)}"><b>${esc(r.num)}</b> ${esc(lastName(r.name))}</button><span class="ct">${n}${t ? `<span class="t">T${t > 1 ? t : ''}</span>` : ''}</span>
-          <button class="dn" data-act="pfoul-x" data-n="${esc(r.name)}" title="Take one off">−</button></div>`; }).join('') || '<div class="muted small">No roster yet — ⋯ → Moorpark roster.</div>'}</div>
-        <div class="small muted" style="margin-top:5px">Blue edge = on the floor. Out at 5 fouls or 2 technicals.</div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <div class="bar">Timeouts <span class="r small">game</span></div>
-        <div class="pad">${toRows(g, 'a', 'Moorpark')}${toRows(g, 'b', g.opp)}
-          <div class="small muted">Dashed = the extra 30-second timeout each overtime grants.</div></div>
-      </div>
-      <div class="card">
-        <div class="bar">Kills · ${esc(PER_NAME(per))}</div>
-        <div class="pad"><div class="boxes" style="grid-template-columns:repeat(12,1fr)">${Array.from({ length: Math.max(12, st.kills) }, (_, i) => `<span class="${i < st.kills ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
-        <div class="small muted" style="margin-top:6px">KILL = 3 consecutive defensive stops.</div></div>
-      </div>
-    </div>
-  </div>
-
-  ${lineupCard(g)}
-  <div class="card">
-    <div class="bar">Summary</div>
-    <div class="pad">${summaryTable(g)}
-      <div class="small muted" style="margin-top:6px">PPP = points ÷ possessions. Moorpark's possessions are the same count as the opponent's.</div></div>
-  </div>
-
-  <div class="print-only">${g.periods.filter(p => p !== per).map(p => `<div class="card"><div class="bar">${esc(PER_NAME(p))} · Defense</div>${sheetTable(g, p)}</div>`).join('')}${['1H', '2H', 'G'].filter(k => ffLine(g, k)).map(k => `<div class="card"><div class="bar">Four factors · ${{ '1H': '1st half', '2H': '2nd half', G: 'Full game' }[k]}</div><div class="pad">${ffResults(g, k)}</div></div>`).join('')}</div>
-  <div class="ver no-print">${VERSION} · ${esc(g.date)} · ${esc({ H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || '')}${g.site ? ' · ' + esc(g.site) : ''}${g.by ? ' · charted by ' + esc(g.by) : ''}</div>`;
-  const lw = $('#logwrap'); if (lw) lw.scrollTop = lw.scrollHeight;
+  const v = $('#view');
+  if (!g && UI.tab !== 'games') UI.tab = 'games';
+  v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
+  if (UI.tab === 'games') v.innerHTML = gamesView();
+  else if (UI.tab === 'live') v.innerHTML = liveView(g);
+  else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
+  else if (UI.tab === 'lineups') v.innerHTML = lineupsView(g);
+  else if (UI.tab === 'ff') { v.innerHTML = '<div id="ff"></div>'; renderFF(); }
+  document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
 }
 
-function sheetTable(g, per) {
-  const rows = periodRows(g, per);
-  const techs = g.ev.filter(e => e.t === 'tech' && e.per === per);
-  if (!rows.length && !techs.length) return '<div class="empty-log">No possessions yet this period. Each tap above logs one row of the sheet.</div>';
-  let ti = 0;
-  const techRows = upto => { let h = ''; while (ti < techs.length && (upto == null || g.ev.indexOf(techs[ti]) < upto)) h += `<tr class="tech"><td colspan="13">T · ${esc(techText(g, techs[ti++]))}</td></tr>`; return h; };
+function scorebar(g, D) {
+  const per = g.per, S = perSums(D, per), G = perSums(D, null);
+  const dots = t => { const ot = otCount(g), s30 = S30_TOS + ot, uf = tosUsed(g, t, 'full'), us = tosUsed(g, t, 's30');
+    return `<span class="to-dots" title="Timeouts left">${Array.from({ length: s30 }, (_, i) => `<span class="to-dot ${i < us ? 'used' : ''}"></span>`).join('')}<span style="width:4px"></span>${Array.from({ length: FULL_TOS }, (_, i) => `<span class="to-dot full ${i < uf ? 'used' : ''}"></span>`).join('')}</span>`; };
+  const kills = t => { const st = S.streak[t] || 0;
+    return `<span class="kills">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < st ? 'on' : ''}"></span>`).join('')}</span>`; };
+  const bonus = t => { const n = teamFouls(g, other(t), per); return n >= 10 ? '<span class="bonus-tag dbl">DBL BONUS</span>' : n >= 7 ? '<span class="bonus-tag">BONUS</span>' : ''; };
+  return `<div class="scorebar">
+    <div class="sb-team a"><div class="sb-id"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div>
+      <div class="sb-meta"><span>Fouls ${teamFouls(g, 'a', per)}</span>${dots('a')}</div>
+      <div class="sb-meta">${bonus('a')}${kills('a')}</div>
+      <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
+      <div class="sb-score">${G.pts.a}</div></div>
+    <div class="sb-mid"><div class="sb-period">${esc(PER_NAME(per))}</div><div class="sb-clock">Poss ${possAvg(S)}</div>
+      <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
+      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button></div></div>
+    <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
+      <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
+      <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
+      <div class="sb-meta">${kills('b')}${bonus('b')}</div>
+      <div class="sb-meta">${ppp(S.pts.b, S.poss.b)} PPP</div></div></div>
+  </div>`;
+}
+
+const STATS = [['2m', '2PT Make', '2fg_make'], ['2x', '2PT Miss', '2fg_miss'], ['3m', '3PT Make', '3fg_make'], ['3x', '3PT Miss', '3fg_miss'],
+  ['ftm', 'FT Make', 'ft_make'], ['ftx', 'FT Miss', 'ft_miss'], ['oreb', 'Off Reb', 'oreb'], ['dreb', 'Def Reb', 'dreb'],
+  ['to', 'Turnover', 'tov'], ['stl', 'Steal', 'stl'], ['chg', 'Charge', 'chg'], ['offf', 'Off Foul', 'offf'], ['foul', 'Foul', 'foul'], ['tech', 'Tech', 'tech']];
+const STAT_LABEL = Object.fromEntries(STATS.map(s => [s[0], s[1]]));
+// Team stats go to a team (the buttons at the top); fouls go to the player.
+const PLAYER_STATS = new Set(['foul', 'chg', 'offf']);
+const STAT_HINT_TEAM = { '2m': 'tap the team that scored', '3m': 'tap the team that scored', '2x': 'tap the team that missed', '3x': 'tap the team that missed',
+  ftm: 'tap the shooting team', ftx: 'tap the shooting team', oreb: 'tap the team that got it', dreb: 'tap the team that got it', to: 'tap the team that turned it over', stl: 'tap the team that stole it' };
+const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 'tap who rebounded', chg: 'tap who was charged', offf: 'tap who fouled', foul: 'tap who fouled', to: 'tap who turned it over' };
+
+function playerCards(g, D, t) {
+  const f = D.five[t];
+  const list = f.length ? fiveSorted(g, t, f).map(id => pInfo(g, t, id)) : teamPlayers(g, t);
+  const L = lineupUnits(g, D, t, 'game');
+  const card = p => { const pf = playerFouls(g, t, p.id), te = playerTechs(g, t, p.id), pm = (L.players[p.id] || { pm: 0 }).pm;
+    const cls = pf >= 5 || te >= 2 ? 'ft-danger' : pf === 4 ? 'ft-warn' : '';
+    return `<button class="pbtn ${cls} ${UI.stat && PLAYER_STATS.has(UI.stat) ? 'hot' : ''} ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
+      <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
+      <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
+      <span class="pf">${pf} PF</span></button>`; };
+  return `${!f.length ? `<div class="small muted" style="padding:2px 4px 6px">${t === 'b' && !list.length ? 'No roster — tap Roster, or log with Team.' : 'Five not set — ⇄ Sub. Whole roster shown.'}</div>` : ''}
+    <div class="pgrid">${list.map(card).join('')}<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button></div>`;
+}
+
+function lpmCard(g, D, t) {
+  const f = D.five[t];
+  if (f.length !== 5) return '';
+  const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
+  const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? o - d : null, pm = u.pf - u.pa;
+  return `<div class="lpm"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span></div>
+    <div class="lpm-stats"><div><span>Poss</span><b>${u.oPoss}/${u.dPoss}</b></div><div><span>ORtg</span><b>${o}</b></div><div><span>DRtg</span><b>${d}</b></div>
+    <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
+    ${fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
+}
+
+function feedText(g, x) {
+  if (x.kind === 'poss') {
+    const p = x.p, t = p.team;
+    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${STAT_LABEL[e.k].toLowerCase()}`);
+    const tail = p.dreb ? ' · def reb' : '';
+    return { cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
+  }
+  const e = x.e;
+  if (x.kind === 'sub') return { cls: 's', html: `⇄ ${esc(teamName(g, e.team))}: ${esc(fiveSorted(g, e.team, e.five).map(id => pShort(g, e.team, id)).join(', '))}`, id: e.id };
+  if (x.kind === 'tech') return { cls: 's', html: `<span style="color:var(--bad)">T</span> · ${esc(techText(g, e))}`, sc: `${x.score.a}–${x.score.b}`, id: e.id };
+  if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb`, id: e.id };
+  if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
+  if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout`, id: e.id };
+  return { cls: 's', html: '', id: e.id };
+}
+
+function liveView(g) {
+  const D = derive(g);
+  const st = UI.stat;
+  const status = UI.ins ? `Inserting before the selected play — ${st ? STAT_LABEL[st] + ': ' + (STAT_HINT[st] || 'tap the player') : 'tap a stat, then the team or player'} <button class="btn btn-sm" data-act="ins-cancel">Cancel</button>`
+    : st ? `<b>${STAT_LABEL[st]}</b> — ${PLAYER_STATS.has(st) ? STAT_HINT[st] : STAT_HINT_TEAM[st]} <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
+    : 'Tap the stat, then the team — fouls: then the player';
+  const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
+  return `${scorebar(g, D)}
+  <div class="tracker">
+    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${playerCards(g, D, 'a')}</div>
+    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${st && !PLAYER_STATS.has(st) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}">${esc(teamName(g, t))}</button>`).join('')}</div>
+      <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
+      <div class="sgrid">${STATS.map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
+      <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
+        <button class="btn" data-act="undo" ${g.ev.length ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
+      <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
+    </div>
+    <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="opp-roster">Roster</button></div>
+      ${playerCards(g, D, 'b')}
+      <div class="lpm2">${lpmCard(g, D, 'a')}${lpmCard(g, D, 'b')}</div></div>
+  </div>`;
+}
+
+/* ---------- sheet: every possession in order, both teams ---------- */
+function sheetTable(g, D, per) {
+  const rows = D.items.filter(x => (x.kind === 'poss' && x.p.per === per) || ((x.kind === 'sub' || x.kind === 'tech') && x.e.per === per));
+  if (!rows.some(x => x.kind === 'poss')) return '<div class="muted small" style="padding:14px">No possessions this period yet.</div>';
   const cols = ['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO'];
-  let html = `<table class="sheet"><thead><tr><th>POSS</th><th>PLAYER #</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${RES_LABEL[c]}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th></tr></thead><tbody>`;
-  let sub = 0, subK = 0;
-  const M = rosterMap();
-  let prevKey = null;
-  rows.forEach((r, i) => {
-    const e = r.e;
-    html += techRows(g.ev.indexOf(e));
-    const k = e.five && e.five.length ? fiveKey(e.five) : '';
-    if (k !== prevKey && (k || prevKey !== null)) html += `<tr class="lu"><td colspan="13">${i ? '⇄ ' : ''}${k ? fiveSorted(e.five, M).map(n => esc(shortName(n, M))).join(' · ') : 'No five set'}</td></tr>`;
-    prevKey = k;
-    const cell = c => {
-      if (e.res !== c) return '<td></td>';
-      if (c === 'FT') return `<td class="m">${e.ft}</td>`;
-      return `<td class="m ${c[0] === 'x' ? 'mx' : ''}">●${(c === '2' || c === '3') && e.and1 ? '<span class="tiny">+1</span>' : ''}</td>`;
+  let h = `<table class="psheet"><thead><tr><th>#</th><th>TEAM</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${{ x2: '✗2', x3: '✗3', xFT: '✗FT' }[c] || c}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th><th>SCORE</th></tr></thead><tbody>`;
+  for (const x of rows) {
+    if (x.kind === 'sub') { h += `<tr class="lu ${x.e.team}"><td colspan="14">⇄ ${esc(teamName(g, x.e.team))}: ${esc(fiveSorted(g, x.e.team, x.e.five).map(id => pShort(g, x.e.team, id)).join(' · '))}</td></tr>`; continue; }
+    if (x.kind === 'tech') { h += `<tr class="tch"><td colspan="14">T · ${esc(techText(g, x.e))} · ${x.score.a}–${x.score.b}</td></tr>`; continue; }
+    const p = x.p, en = p.end, last = p.plays.filter(e => e.k !== 'oreb' && e.k !== 'dreb').slice(-1)[0] || p.plays[0];
+    const c = col => {
+      if (en.col !== col && !((col === 'FT') && en.ft && (en.col === '2' || en.col === '3') && en.and1)) return '<td></td>';
+      if (col === 'FT' || col === 'xFT') return `<td class="m ${col === 'xFT' ? 'mx' : ''}">${esc(en.ft || '●')}</td>`;
+      if (col === 'TO') return '<td class="m">●</td>';
+      return `<td class="m ${col[0] === 'x' ? 'mx' : ''}">●${(col === '2' || col === '3') && en.and1 ? '<span class="tiny">+1</span>' : ''}</td>`;
     };
-    const reb = e.res[0] === 'x' ? '●' : '', stl = e.res === 'TO' && e.stl ? '●' : '';
-    html += `<tr class="${r.kill ? 'killrow' : ''} ${P.hl === e.id ? 'hl' : ''}" data-act="edit" data-id="${e.id}"><td class="pn">${r.n}</td><td class="pl">${e.num ? esc(e.num) : ''}${e.oreb ? `<div class="tiny">${e.oreb} OREB</div>` : ''}</td>${cols.map(cell).join('')}
-      <td class="m ms">${reb}</td><td class="m ms">${stl}${e.res === 'TO' && e.chg ? '<span class="tiny">CHG</span>' : ''}</td><td class="pts">${r.pts || (r.stop ? '<span class="tiny">0</span>' : '')}</td><td class="kill">${r.kill ? 'K' : ''}</td></tr>`;
-    sub += r.pts; subK += r.kill ? 1 : 0;
-    if ((i + 1) % 25 === 0 || i === rows.length - 1) {
-      const a = Math.floor(i / 25) * 25 + 1;
-      if (i === rows.length - 1) html += techRows(null);
-      html += `<tr class="sub"><td colspan="11">SUBTOTAL ${a}–${i + 1} — OPP POINTS / KILLS →</td><td class="pts">${sub}</td><td class="kill">${subK}</td></tr>`;
-      sub = 0; subK = 0;
-    }
-  });
-  return html + techRows(null) + '</tbody></table>';
+    const toCol = ['TO', 'STL', 'CHG', 'OFF'].includes(en.col) ? '<td class="m">●' + (en.col !== 'TO' && en.col !== 'STL' ? `<span class="tiny">${en.col}</span>` : '') + '</td>' : '<td></td>';
+    h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
+${['2', '3', 'FT', 'x2', 'x3', 'xFT'].map(c).join('')}${toCol}
+      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td></tr>`;
+  }
+  return h + '</tbody></table>';
+}
+function summaryTable(g, D) {
+  const row = (lbl, s, cls) => `<tr class="${cls || ''}"><td>${lbl}</td><td>${s.pts.a}</td><td>${s.poss.a}</td><td><b>${ppp(s.pts.a, s.poss.a)}</b></td><td>${s.kills.a}</td><td>${s.pts.b}</td><td>${s.poss.b}</td><td><b>${ppp(s.pts.b, s.poss.b)}</b></td><td>${s.kills.b}</td></tr>`;
+  return `<table class="tbl zebra sumt"><thead><tr><th></th><th colspan="4" style="color:var(--us)">MOORPARK</th><th colspan="4" style="color:var(--them-text)">${esc(String(g.opp).toUpperCase())}</th></tr>
+    <tr><th></th><th>PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th><th>PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th></tr></thead>
+    <tbody>${g.periods.map(p => row(PER_NAME(p), perSums(D, p))).join('')}${g.periods.length > 1 ? row('Game', perSums(D, null), 'tot') : ''}</tbody></table>`;
+}
+function sheetView(g) {
+  const D = derive(g), per = UI.sheetPer && g.periods.includes(UI.sheetPer) ? UI.sheetPer : g.per;
+  return `<div class="page-head"><h2>Possession sheet</h2><div class="row" style="gap:6px">${g.periods.map(p => `<button class="btn btn-sm ${p === per ? 'btn-primary' : ''}" data-act="sheet-per" data-p="${p}">${p}</button>`).join('')}</div>
+      <button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div>
+    <div class="card"><h3>${esc(PER_NAME(per))} — every possession in order <span class="muted">· tap a row to fix it</span></h3><div class="tbl-wrap">${sheetTable(g, D, per)}</div>
+      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (3 straight stops): blue = Moorpark's, orange = theirs.</div></div>
+    <div class="card"><h3>Summary</h3><div class="tbl-wrap">${summaryTable(g, D)}</div></div>
+    <div class="print-only">${g.periods.filter(p => p !== per).map(p => `<div class="card"><h3>${esc(PER_NAME(p))}</h3>${sheetTable(g, D, p)}</div>`).join('')}</div>`;
 }
 
-function foulRow(label, n, team) {
-  return `<div class="tf"><span class="lbl">${label}</span><div class="boxes">${Array.from({ length: 10 }, (_, i) =>
-    `<span class="${i + 1 === 7 ? 'b7' : i + 1 === 10 ? 'b10' : ''} ${i < n ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
-    ${n > 10 ? `<b>${n}</b>` : ''}<button class="minus" data-act="tfoul-x" data-t="${team}">−</button><button class="add" data-act="tfoul" data-t="${team}">+</button></div>`;
+/* ---------- lineups view ---------- */
+function lineupTable(g, D, t) {
+  const L = lineupUnits(g, D, t, UI.luScope === 'game' ? 'game' : g.per), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
+  if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
+  const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([k]) => `<td>${E[k] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
+  return `<table class="tbl zebra lut"><thead><tr><th>FIVE</th><th>POSS O/D</th><th>PTS</th><th>+/-</th><th>ORTG</th><th>DRTG</th><th>NET</th></tr></thead><tbody>
+    ${L.units.map(u => { const k = t + ':' + fiveKey(u.five), o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? o - d : null, f = fiveSorted(g, t, u.five);
+      return `<tr class="unit ${fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(k)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
+        <td>${u.oPoss} / ${u.dPoss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${o}</td><td>${d}</td><td class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</td></tr>
+        ${UI.luOpen === k ? `<tr class="drillwrap"><td colspan="7"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
+          ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table></td></tr>` : ''}`; }).join('')}
+  </tbody></table>`;
+}
+function lineupsView(g) {
+  const D = derive(g);
+  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope !== 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button></div></div>
+    <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· tap a five for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a')}</div></div>
+    <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'b')}</div></div>
+    <div class="small muted">POSS O/D = possessions on offense / defense. ORTG / DRTG = points per 100 possessions. +/- includes technical free throws.</div>`;
 }
 
-function toRows(g, team, name) {
-  const t = g.tos[team], ot = otCount(g);
-  const box = (kind, i, extra) => `<button class="tob ${extra ? 'ot' : ''} ${i < t[kind] ? 'on' : ''}" data-act="to" data-t="${team}" data-k="${kind}" data-i="${i}">${i < t[kind] ? '✕' : ''}</button>`;
-  return `<div class="to-team"><div class="lbl" style="color:${team === 'a' ? 'var(--blue)' : 'var(--red)'}">${esc(String(name).toUpperCase())}</div>
-    <div class="to-row"><span class="k">FULL</span>${Array.from({ length: FULL_TOS }, (_, i) => box('full', i)).join('')}</div>
-    <div class="to-row"><span class="k">30 SEC</span>${Array.from({ length: S30_TOS + ot }, (_, i) => box('s30', i, i >= S30_TOS)).join('')}</div></div>`;
-}
-
-function summaryTable(g) {
-  const G = gameStats(g);
-  const row = (lbl, s, cls) => `<tr class="${cls || ''}"><td>${lbl}</td><td>${s.mpk}</td><td>${s.poss}</td><td class="ppp">${ppp(s.mpk, s.poss)}</td><td>${s.opp}</td><td>${s.poss}</td><td class="ppp">${ppp(s.opp, s.poss)}</td><td>${s.stops}</td><td>${s.kills}</td></tr>`;
-  return `<table class="sum"><thead><tr><th class="y"></th><th colspan="3">MOORPARK</th><th colspan="3">${esc(String(g.opp).toUpperCase())}</th><th class="y" colspan="2">DEFENSE</th></tr>
-    <tr><th class="y"></th><th>PTS</th><th>POSS</th><th>PPP</th><th>PTS</th><th>POSS</th><th>PPP</th><th class="y">STOPS</th><th class="y">KILLS</th></tr></thead>
-    <tbody>${G.per.map(s => row(PER_NAME(s.per), s)).join('')}${G.per.length > 1 ? row('Game', G.tot, 'tot') : ''}</tbody></table>`;
-}
-
-function renderHome() {
-  $('#app').innerHTML = `
-  <div class="top"><img src="../game/logos/moorpark.png" alt="" onerror="this.style.display='none'"><h1>Possession Tracking<small>Moorpark College Men's Basketball</small></h1></div>
-  <div class="card"><div class="bar">Start</div><div class="pad">
-    <p class="muted" style="margin-top:0">The jamboree possession sheet on the iPad: one tap per opponent possession. Stops, kills, points per possession, team fouls and the bonus are counted for you.</p>
-    <button class="btn btn-blue" style="width:100%;min-height:56px;font-size:18px" data-act="new">+ New game</button>
-    ${games.length ? `<h3 style="margin:16px 0 8px;font-size:14px">Saved games</h3>${gameList()}` : ''}
-  </div></div>
-  <div class="ver">${VERSION}</div>`;
-}
-function gameList() {
-  return `<div class="glist">${games.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created - a.created).map(g => {
-    const G = gameStats(g);
-    return `<div class="gitem ${g.id === curId ? 'cur' : ''}"><div class="t"><b>${esc(g.opp)}</b> <span class="muted small">${esc(g.date)} · ${esc(g.loc)}</span><br>
-      <span class="small">Moorpark ${G.tot.mpk} – ${G.tot.opp} · ${G.tot.poss} poss · ${G.tot.kills} kills</span></div>
-      <button class="btn btn-sm" data-act="open" data-id="${g.id}">Open</button><button class="btn btn-sm btn-red" data-act="del" data-id="${g.id}">Delete</button></div>`;
-  }).join('')}</div>`;
+/* ---------- games ---------- */
+function gamesView() {
+  const list = games.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created - a.created);
+  return `<div class="page-head"><h2>Games</h2><button class="btn btn-good" data-act="new" style="margin-left:auto">+ New game</button></div>
+    ${list.length ? list.map(g => { const D = derive(g), S = perSums(D, null);
+      return `<div class="card row" style="gap:10px;align-items:center;${g.id === curId ? 'border-color:var(--us)' : ''}"><div style="flex:1"><b>${esc(g.opp)}</b> <span class="muted small">${esc(g.date)} · ${esc({ H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || '')}</span><br>
+        <span class="small">Moorpark ${S.pts.a} – ${S.pts.b} · ${possAvg(S)} possessions</span></div>
+        <button class="btn btn-sm" data-act="open" data-id="${g.id}">Open</button><button class="btn btn-sm" data-act="export" data-id="${g.id}">Export</button><button class="btn btn-sm btn-bad" data-act="del" data-id="${g.id}">Delete</button></div>`; }).join('')
+      : '<div class="card muted">No games yet. + New game to start.</div>'}
+    <div class="row" style="gap:8px;margin-top:6px"><button class="btn btn-sm" data-act="import">Import a game file</button><button class="btn btn-sm" data-act="roster">Moorpark roster</button>${cur() ? '<button class="btn btn-sm" data-act="details">This game\'s details</button>' : ''}</div>
+    <div class="small muted" style="margin-top:14px">${VERSION} · saved on this iPad</div>`;
 }
 
 /* ---------- modals ---------- */
-const closeModal = () => { $('#modal').innerHTML = ''; if (P.hl) { P.hl = null; render(); } };
-function modal(html) { $('#modal').innerHTML = `<div class="ov" data-act="ov"><div class="modal">${html}</div></div>`; }
+const closeModal = () => { $('#modal-root').innerHTML = ''; };
+const modal = (html, cls) => { $('#modal-root').innerHTML = `<div class="overlay" data-act="overlay"><div class="modal ${cls || ''}">${html}</div></div>`; };
 
 function newGameModal(g) {
-  const ed = !!g;
-  g = g || { opp: '', date: today(), loc: 'H', site: '', by: '' };
+  const ed = !!g; g = g || { opp: '', date: today(), loc: 'H' };
   modal(`<h2>${ed ? 'Game details' : 'New game'}</h2>
-    <div class="field"><label>Opponent</label><input id="f-opp" list="f-opps" value="${esc(g.opp)}" placeholder="Opponent" autocomplete="off"><datalist id="f-opps">${oppNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+    <div class="field"><label>Opponent</label><input id="f-opp" list="f-opps" value="${esc(g.opp)}" autocomplete="off"><datalist id="f-opps">${oppNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
     <div class="field"><label>Date</label><input id="f-date" type="date" value="${esc(g.date)}"></div>
-    <div class="field"><label>Location</label><div class="seg" id="f-loc">${['H', 'A', 'N'].map(l => `<button type="button" class="${g.loc === l ? 'on' : ''}" data-l="${l}">${{ H: 'Home', A: 'Away', N: 'Neutral' }[l]}</button>`).join('')}</div></div>
-    <div class="field"><label>Site</label><input id="f-site" value="${esc(g.site)}" placeholder="Gym (optional)"></div>
-    <div class="field"><label>Charted by</label><input id="f-by" value="${esc(g.by)}" placeholder="Name (optional)"></div>
-    <div class="foot"><button class="btn big" data-act="close">Cancel</button><button class="btn btn-blue big" data-act="${ed ? 'save-game' : 'create'}">${ed ? 'Save' : 'Start ▶'}</button></div>`);
-  $('#f-loc').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (!b) return; $('#f-loc').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+    <div class="field"><label>Location</label><div class="row" style="gap:6px" id="f-loc">${['H', 'A', 'N'].map(l => `<button type="button" class="btn ${g.loc === l ? 'btn-primary' : ''}" data-l="${l}" style="flex:1">${{ H: 'Home', A: 'Away', N: 'Neutral' }[l]}</button>`).join('')}</div></div>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="${ed ? 'save-game' : 'create'}">${ed ? 'Save' : 'Start ▶'}</button></div>`);
+  $('#f-loc').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (!b) return; $('#f-loc').querySelectorAll('button').forEach(x => x.classList.toggle('btn-primary', x === b)); });
 }
-const readGameForm = () => ({ opp: $('#f-opp').value.trim(), date: $('#f-date').value || today(),
-  loc: ($('#f-loc .on') || {}).dataset ? $('#f-loc .on').dataset.l : 'H', site: $('#f-site').value.trim(), by: $('#f-by').value.trim() });
+
+/* Subs: both teams' fives on one screen. Tap players until five are lit on each side, Confirm. */
+let SUB = null;
+function subModal(title) {
+  const g = cur(), D = derive(g);
+  if (!SUB) SUB = { a: new Set(D.five.a), b: new Set(D.five.b), title: title || 'Sub — who is on the floor?' };
+  const side = t => { const ps = teamPlayers(g, t), n = SUB[t].size;
+    return `<div><div class="sub-team ${t}">${esc(teamName(g, t))} <span class="small muted" style="margin-left:auto">${n}/5</span></div>
+      <div class="sub-grid" style="margin-top:8px">${ps.map(p => `<button class="sub-p ${SUB[t].has(p.id) ? 'in' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('') || `<div class="muted small">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div></div>`; };
+  const okA = SUB.a.size === 5 || SUB.a.size === 0, okB = SUB.b.size === 5 || SUB.b.size === 0;
+  modal(`<div class="sub-head"><h2>${esc(SUB.title)}</h2><div class="sub-top"><button class="btn btn-lg" data-act="sub-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="sub-ok" ${okA && okB ? '' : 'disabled'}>Confirm</button></div></div>
+    <div class="sub-sides two">${side('a')}${side('b')}</div>`, 'sub-modal');
+}
+function subConfirm() {
+  const g = cur(), D = derive(g);
+  ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, { t: 'sub', team: t, five: f }); });
+  SUB = null; save(); closeModal(); render();
+}
+
+let TECH = null;
+function techText(g, e) {
+  const on = e.coach ? teamName(g, e.team) + ' coach' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
+  return `Technical on ${on} — ${teamName(g, other(e.team))} ${e.ftm}/2 FT`;
+}
+function techModal() {
+  const g = cur(), T = TECH, D = derive(g);
+  const ps = D.five[T.team].length ? fiveSorted(g, T.team, D.five[T.team]).map(id => pInfo(g, T.team, id)) : teamPlayers(g, T.team);
+  modal(`<div class="sub-head"><h2>Technical foul</h2><div class="sub-top"><button class="btn btn-lg" data-act="tech-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="tech-ok">Log it</button></div></div>
+    <div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn ${T.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="tech-team" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>
+    <div class="field"><label>On</label><div class="row" style="gap:6px"><button class="btn ${!T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="0">A player — his foul + team foul</button><button class="btn ${T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="1">The coach — no foul counted</button></div></div>
+    ${!T.coach ? `<div class="field"><label>Which player (optional for ${esc(g.opp)})</label><div class="sub-grid">${ps.map(p => `<button class="sub-p ${T.player === p.id ? 'in' : ''}" data-act="tech-p" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div></div>` : ''}
+    <div class="field"><label>Free throws made by ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px">${[0, 1, 2].map(n => `<button class="btn btn-lg ${T.ftm === n ? 'btn-primary' : ''}" style="flex:1;font-size:20px" data-act="tech-ft" data-n="${n}">${n}</button>`).join('')}</div></div>`);
+}
+
+function timeoutModal() {
+  const g = cur();
+  const left = (t, k) => (k === 'full' ? FULL_TOS : S30_TOS + otCount(g)) - tosUsed(g, t, k);
+  modal(`<h2>Timeout</h2>${['a', 'b'].map(t => `<div class="field"><label>${esc(teamName(g, t))}</label><div class="row" style="gap:6px">
+      <button class="btn btn-lg" style="flex:1" data-act="to-log" data-t="${t}" data-k="full" ${left(t, 'full') > 0 ? '' : 'disabled'}>Full · ${left(t, 'full')} left</button>
+      <button class="btn btn-lg" style="flex:1" data-act="to-log" data-t="${t}" data-k="s30" ${left(t, 's30') > 0 ? '' : 'disabled'}>30 sec · ${left(t, 's30')} left</button></div></div>`).join('')}
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button></div>`);
+}
+
+function adjustModal() {
+  const g = cur();
+  const row = (t) => `<div class="field"><label>${esc(teamName(g, t))}</label>
+    <div class="row" style="gap:8px;align-items:center"><span style="width:110px">Team fouls <b>${teamFouls(g, t, g.per)}</b></span><button class="btn" data-act="adj-foul" data-t="${t}" data-d="-1">−</button><button class="btn" data-act="adj-foul" data-t="${t}" data-d="1">+</button></div>
+    <div class="row" style="gap:8px;align-items:center;margin-top:6px"><span style="width:110px">Full TOs used <b>${tosUsed(g, t, 'full')}</b></span><button class="btn" data-act="adj-to" data-t="${t}" data-k="full" data-d="-1">−</button><button class="btn" data-act="adj-to" data-t="${t}" data-k="full" data-d="1">+</button></div>
+    <div class="row" style="gap:8px;align-items:center;margin-top:6px"><span style="width:110px">30s used <b>${tosUsed(g, t, 's30')}</b></span><button class="btn" data-act="adj-to" data-t="${t}" data-k="s30" data-d="-1">−</button><button class="btn" data-act="adj-to" data-t="${t}" data-k="s30" data-d="1">+</button></div></div>`;
+  modal(`<h2>Fix fouls / timeouts</h2>${row('a')}${row('b')}<div class="modal-foot"><button class="btn btn-lg" data-act="close">Done</button></div>`);
+}
 
 function editModal(id) {
   const g = cur(), e = g.ev.find(x => x.id === id); if (!e) return;
-  const r = periodRows(g, e.per).find(x => x.e.id === id);
-  const D = { num: e.num || '', res: e.res === 'TO' ? (e.chg ? 'CHG' : e.stl ? 'STL' : 'TO') : e.res, ft: e.ft || 1, and1: !!e.and1, oreb: e.oreb || 0 };
-  const paint = () => {
-    modal(`<h2>${esc(PER_NAME(e.per))} · possession ${r.n}</h2>
-      <div class="field"><label>Player #</label><input id="e-num" inputmode="numeric" value="${esc(D.num)}" placeholder="—"></div>
-      <div class="field"><label>Result</label><div class="res">${['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO', 'STL', 'CHG'].map(k =>
-        `<button class="${D.res === k ? 'make' : ''}" style="height:52px;${D.res === k ? 'background:var(--ink);color:#fff' : ''}" data-e="res" data-v="${k}">${RES_LABEL[k] || k}</button>`).join('')}</div></div>
-      ${D.res === 'FT' ? `<div class="field"><label>Free throws made</label><div class="seg">${[1, 2, 3].map(n => `<button class="${D.ft === n ? 'on' : ''}" data-e="ft" data-v="${n}">${n}</button>`).join('')}</div></div>` : ''}
-      ${D.res === '2' || D.res === '3' ? `<div class="field"><label>And-one</label><div class="seg"><button class="${!D.and1 ? 'on' : ''}" data-e="and1" data-v="0">No</button><button class="${D.and1 ? 'on' : ''}" data-e="and1" data-v="1">Yes +1</button></div></div>` : ''}
-      <div class="field"><label>Their offensive rebounds</label><div class="seg">${[0, 1, 2, 3, 4].map(n => `<button class="${D.oreb === n ? 'on' : ''}" data-e="oreb" data-v="${n}">${n}</button>`).join('')}</div></div>
-      <div class="foot"><button class="btn btn-red" data-e="del" style="margin-right:auto">Delete row</button><button class="btn" data-e="ins">Insert row above</button></div>
-      <div class="foot"><button class="btn big" data-act="close">Cancel</button><button class="btn btn-blue big" data-e="save">Save</button></div>`);
-    $('#modal .modal').addEventListener('click', ev => {
-      const b = ev.target.closest('[data-e]'); if (!b) return;
-      D.num = $('#e-num').value.replace(/\D/g, '').slice(0, 2);
-      const k = b.dataset.e, v = b.dataset.v;
-      if (k === 'res') { D.res = v; paint(); }
-      else if (k === 'ft') { D.ft = +v; paint(); }
-      else if (k === 'and1') { D.and1 = v === '1'; paint(); }
-      else if (k === 'oreb') { D.oreb = +v; paint(); }
-      else if (k === 'del') { if (confirm('Delete this possession?')) { g.ev = g.ev.filter(x => x.id !== id && x.link !== id); save(); closeModal(); render(); toast('Row deleted'); } }
-      else if (k === 'ins') {
-        const i = g.ev.indexOf(e);
-        g.ev.splice(i, 0, { id: uid(), t: 'poss', per: e.per, num: '', res: 'x2', ft: 0, and1: false, stl: false, chg: false, oreb: 0, five: e.five ? e.five.slice() : null });
-        save(); closeModal(); render(); toast('Blank ✗2 row inserted — tap it to set it'); }
-      else if (k === 'save') {
-        Object.assign(e, possFrom(D.res, D.res === 'FT' ? D.ft : 0, D.and1), { num: D.num, oreb: D.oreb });
-        // Keep a charge's foul on them in step with the row.
-        const fi = g.ev.findIndex(x => x.link === id);
-        if (e.chg && fi < 0) g.ev.splice(g.ev.indexOf(e) + 1, 0, { id: uid(), t: 'foul', per: e.per, team: 'b', num: e.num, link: id });
-        if (!e.chg && fi >= 0) g.ev.splice(fi, 1);
-        save(); closeModal(); render(); toast('Possession ' + r.n + ' updated'); }
-    });
-  };
-  paint();
+  const isPlay = e.t === 'play' || e.t === 'foul';
+  const byPlayer = e.t === 'foul' || (e.t === 'play' && PLAYER_STATS.has(e.k));
+  const ps = byPlayer ? teamPlayers(g, e.team) : [];
+  modal(`<h2>Fix this play</h2>
+    ${isPlay ? `<div class="small muted" style="margin-bottom:8px">${esc(teamName(g, e.team))} · ${esc(pShort(g, e.team, e.player))} · ${esc(STAT_LABEL[e.k] || 'Foul')}</div>
+      ${e.t === 'play' ? `<div class="field"><label>Stat</label><div class="sgrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${STATS.filter(s => s[0] !== 'foul' && s[0] !== 'tech' && PLAYER_STATS.has(s[0]) === byPlayer).map(([k, l, c]) => `<button class="sbtn sb-${c} ${e.k === k ? 'on' : ''}" data-act="ed-k" data-id="${id}" data-k="${k}">${l}</button>`).join('')}</div></div>` : ''}
+      ${!byPlayer ? `<div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn btn-lg ${e.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="ed-t" data-id="${id}" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>` : ''}
+      ${byPlayer ? `<div class="field"><label>Player</label><div class="sub-grid">${ps.map(p => `<button class="sub-p ${e.player === p.id ? 'in' : ''}" data-act="ed-p" data-id="${id}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}<button class="sub-p ${e.player === 'TEAM' || !e.player ? 'in' : ''}" data-act="ed-p" data-id="${id}" data-p="TEAM">Team</button></div></div>` : ''}` : `<div class="muted">${esc(feedText(g, { kind: e.t, e, score: { a: 0, b: 0 } }).html.replace(/<[^>]+>/g, ''))}</div>`}
+    <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-bad" data-act="ed-del" data-id="${id}">Delete</button>
+      <span class="row" style="gap:8px"><button class="btn" data-act="ed-ins" data-id="${id}">Insert a play before this</button><button class="btn btn-good btn-lg" data-act="close">Done</button></span></div>`);
 }
 
-/* Technical: on a player it is always his foul and a team foul; on a coach it is neither.
-   Then how many of the two free throws went in. One event, so Undo takes all of it back. */
-let TECH = null;
-function techText(g, e) {
-  const team = e.team === 'a' ? 'Moorpark' : g.opp;
-  const on = e.coach ? team + ' coach' : e.team === 'a' ? shortName(e.player) : team;
-  return `Technical on ${on} — ${e.team === 'a' ? g.opp : 'Moorpark'} ${e.ftm}/2 FT`;
-}
-const coachTechs = (g, team) => g.ev.filter(e => e.t === 'tech' && e.team === team && e.coach).length;
-function techModal() {
-  const g = cur(), T = TECH, M = rosterMap();
-  const onFloor = g.five ? fiveSorted(g.five, M) : [];
-  const others = rosterSorted().map(r => r.name).filter(n => !onFloor.includes(n));
-  const pbtn = n => `<button class="${T.player === n ? 'on' : ''}" data-act="tech-p" data-n="${esc(n)}"><b>${esc((M[n] && M[n].num) || '—')}</b>${esc(lastName(n))}</button>`;
-  const ready = T.coach || T.team === 'b' || T.player;
-  modal(`<div class="subtop"><h2>Technical foul</h2><button class="btn" data-act="tech-cancel">Cancel</button><button class="btn btn-blue" data-act="tech-ok" ${ready ? '' : 'disabled'}>Log it</button></div>
-    <div class="field"><label>Team</label><div class="seg"><button class="${T.team === 'b' ? 'on' : ''}" data-act="tech-team" data-t="b">${esc(g.opp)}</button><button class="${T.team === 'a' ? 'on' : ''}" data-act="tech-team" data-t="a">Moorpark</button></div></div>
-    <div class="field"><label>On</label><div class="seg"><button class="${!T.coach ? 'on' : ''}" data-act="tech-coach" data-v="0">A player — his foul + team foul</button><button class="${T.coach ? 'on' : ''}" data-act="tech-coach" data-v="1">The coach — no foul counted</button></div></div>
-    ${T.team === 'a' && !T.coach ? `<div class="field"><label>Which Moorpark player</label><div class="pick">${onFloor.map(pbtn).join('')}</div>
-      ${others.length ? `<div class="pick" style="margin-top:8px;opacity:.85">${others.map(pbtn).join('')}</div>` : ''}</div>` : ''}
-    <div class="field"><label>Free throws made by ${T.team === 'a' ? esc(g.opp) : 'Moorpark'}</label><div class="seg">${[0, 1, 2].map(n => `<button class="${T.ftm === n ? 'on' : ''}" data-act="tech-ft" data-n="${n}" style="min-height:52px;font-size:20px">${n}</button>`).join('')}</div></div>`);
-}
-
-function ftModal() {
-  modal(`<h2>Free-throw trip — how many made?</h2>
-    <div class="res">${[1, 2, 3].map(n => `<button class="make" style="height:90px;font-size:34px" data-act="ft-n" data-n="${n}">${n}</button>`).join('')}</div>
-    <p class="small muted">None made → close this and tap ✗FT. An and-one free throw goes on the basket (And-one +1), not here.</p>
-    <div class="foot"><button class="btn big" data-act="close">Cancel</button></div>`);
-}
-
-function menuModal() {
+function oppRosterModal() {
   const g = cur();
-  modal(`<h2>Menu</h2>
-    <div class="glist" style="max-height:none">
-      <button class="btn" data-act="details">Game details (opponent, date, location, charted by)</button>
-      <button class="btn" data-act="roster">Moorpark roster</button>
-      <button class="btn" data-act="print">Print / save as PDF</button>
-      <button class="btn" data-act="export">Export this game (file)</button>
-      <button class="btn" data-act="import">Import a game file</button>
-      ${g && g.periods.length > 1 ? `<button class="btn btn-red" data-act="drop-per">Remove the last period (${esc(g.periods[g.periods.length - 1])}) if it's empty</button>` : ''}
-    </div>
-    <div class="foot"><button class="btn big" data-act="close">Close</button></div>`);
+  modal(`<h2>${esc(g.opp)} roster</h2><p class="small muted" style="margin-bottom:8px">One player per line: number, then name (name optional). Numbers are enough to track.</p>
+    <div class="field"><textarea id="r-txt" rows="14" style="width:100%">${esc((g.oppRoster || []).slice().sort(byNum).map(r => `${r.num} ${r.name || ''}`.trim()).join('\n'))}</textarea></div>
+    <div class="modal-foot">${gtOppRoster(g.opp).length ? '<button class="btn" data-act="opp-from-gt" style="margin-right:auto">Use the game tracker\'s roster</button>' : ''}<button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="opp-save">Save</button></div>`);
 }
-
 function rosterModal() {
   const own = lsGet(LS_ROSTER, null);
-  const txt = roster().map(r => `${r.num} ${r.name}`).join('\n');
-  modal(`<h2>Moorpark roster</h2>
-    <p class="small muted" style="margin-top:0">${own && own.length ? 'Your own list for this tracker.' : 'Taken from the game tracker on this iPad.'} One player per line: number, then name.</p>
-    <div class="field"><textarea id="r-txt" rows="14">${esc(txt)}</textarea></div>
-    <div class="foot">${own && own.length ? '<button class="btn" data-act="roster-reset" style="margin-right:auto">Use the game tracker\'s</button>' : ''}<button class="btn big" data-act="close">Cancel</button><button class="btn btn-blue big" data-act="roster-save">Save</button></div>`);
+  modal(`<h2>Moorpark roster</h2><p class="small muted" style="margin-bottom:8px">${own && own.length ? 'This tracker\'s own list.' : 'Taken from the game tracker on this iPad.'} One player per line: number, then name.</p>
+    <div class="field"><textarea id="r-txt" rows="14" style="width:100%">${esc(roster().slice().sort(byNum).map(r => `${r.num} ${r.name}`).join('\n'))}</textarea></div>
+    <div class="modal-foot">${own && own.length ? '<button class="btn" data-act="roster-reset" style="margin-right:auto">Use the game tracker\'s</button>' : ''}<button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="roster-save">Save</button></div>`);
 }
+const parseLines = txt => txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^#?(\d{1,2})\s*(.*)$/); return m ? { num: m[1], name: m[2].trim() } : { num: '', name: l }; });
 
-function gamesModal() {
-  modal(`<h2>Games</h2>${games.length ? gameList() : '<p class="muted">No games yet.</p>'}
-    <div class="foot"><button class="btn big" data-act="close">Close</button><button class="btn btn-blue big" data-act="new">+ New game</button></div>`);
+/* ---------- logging ---------- */
+function push(g, e) {
+  e.id = e.id || uid(); e.per = e.per || g.per;
+  if (UI.ins) { const i = g.ev.findIndex(x => x.id === UI.ins); if (i >= 0) { g.ev.splice(i, 0, e); UI.ins = null; UI.redo = []; return; } UI.ins = null; }
+  g.ev.push(e); UI.redo = [];
 }
-
-/* ---------- actions ---------- */
-function possFrom(res, ft, and1) {
-  if (res === 'STL') return { res: 'TO', stl: true, chg: false, ft: 0, and1: false };
-  if (res === 'CHG') return { res: 'TO', stl: false, chg: true, ft: 0, and1: false };
-  if (res === 'TO') return { res: 'TO', stl: false, chg: false, ft: 0, and1: false };
-  return { res, ft: res === 'FT' ? ft : 0, and1: (res === '2' || res === '3') && !!and1, stl: false, chg: false };
-}
-function logPoss(res, ft) {
-  const g = cur();
-  const e = Object.assign({ id: uid(), t: 'poss', per: g.per, num: P.num, oreb: P.oreb, five: g.five ? g.five.slice() : null }, possFrom(res, ft, P.and1));
-  g.ev.push(e);
-  // A charge is a foul on them too.
-  if (e.chg) g.ev.push({ id: uid(), t: 'foul', per: g.per, team: 'b', num: P.num, link: e.id });
-  P = { num: '', and1: false, oreb: 0, hl: null };
+function logStat(team, player) {
+  const g = cur(), k = UI.stat; UI.stat = null;
+  if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
+  else push(g, { t: 'play', team, player, k });
   save(); render();
-  const r = periodRows(g, g.per).slice(-1)[0];
-  toast(`Poss ${r.n}: ${describe(e)}${r.kill ? ' · KILL!' : ''}`);
+  if (k === 'foul' || k === 'chg' || k === 'offf') {
+    const n = playerFouls(g, team, player); if (player !== 'TEAM' && n >= 4) toast(`${pShort(g, team, player)}: ${n} fouls${n >= 5 ? ' — FOULED OUT' : ''}`, n >= 5 ? 'bad' : 'warn');
+  }
 }
 
-function undo() {
-  const g = cur(); if (!g || !g.ev.length) { toast('Nothing to undo'); return; }
-  const e = g.ev.pop();
-  if (e.t === 'foul' && e.link) { const i = g.ev.findIndex(x => x.id === e.link); if (i >= 0) g.ev.splice(i, 1); }
-  save(); render();
-  toast('Undid: ' + (e.t === 'poss' ? describe(e) : e.t === 'mpk' ? `Moorpark ${e.pts > 0 ? '+' : ''}${e.pts}` : e.t === 'tech' ? techText(g, e) : 'foul'));
-}
-
-function exportGame() {
-  const g = cur(); if (!g) return;
-  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-log', version: 1, game: g }, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
+function exportGame(g) {
+  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, game: g }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 function importGame() {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
   inp.onchange = () => { const f = inp.files[0]; if (!f) return; f.text().then(t => {
-    let d; try { d = JSON.parse(t); } catch (e) { toast('Not a game file'); return; }
-    const g = d && d.game; if (!g || !Array.isArray(g.ev)) { toast('Not a possession-log game file'); return; }
+    let d; try { d = JSON.parse(t); } catch (e) { toast('Not a game file', 'bad'); return; }
+    const g = d && d.game; if (!g || !Array.isArray(g.ev) || d.version !== 2) { toast('Not a possession-tracker game file', 'bad'); return; }
     if (games.some(x => x.id === g.id) && !confirm('This game is already here. Replace it with the file?')) return;
-    games = games.filter(x => x.id !== g.id).concat(g); curId = g.id; save(); closeModal(); render(); toast('Imported ' + g.opp);
+    games = games.filter(x => x.id !== g.id).concat(g); curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp, 'good');
   }); };
   inp.click();
 }
 
-let toastT;
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
+function toast(msg, kind) {
+  const t = document.createElement('div'); t.className = 'toast ' + (kind || ''); t.textContent = msg;
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), 2600);
+}
 
 document.addEventListener('click', ev => {
-  const b = ev.target.closest('[data-act]'); if (!b) return;
+  const b = ev.target.closest('[data-act],[data-tab]'); if (!b) return;
+  if (b.dataset.tab && !b.dataset.act) {
+    if (b.dataset.tab === 'scout') { if (cur()) openScout(); return; }
+    UI.tab = b.dataset.tab; UI.stat = null; render(); return;
+  }
   const act = b.dataset.act, g = cur();
   switch (act) {
-    case 'ov': if (ev.target === b) { SUB = null; closeModal(); } break;
-    case 'close': closeModal(); break;
+    case 'overlay': if (ev.target === b) { SUB = null; TECH = null; closeModal(); } break;
+    case 'close': closeModal(); render(); break;
     case 'new': newGameModal(); break;
-    case 'create': case 'save-game': {
-      const f = readGameForm(); if (!f.opp) { toast('Type the opponent first'); return; }
-      if (act === 'create') {
-        const ng = Object.assign({ id: uid(), created: Date.now(), per: '1H', periods: ['1H'], ev: [], tos: { a: { full: 0, s30: 0 }, b: { full: 0, s30: 0 } } }, f);
-        games.push(ng); curId = ng.id; P = { num: '', and1: false, oreb: 0, hl: null };
-      } else Object.assign(g, f);
-      save(); closeModal(); render();
-      if (act === 'create' && rosterSorted().length >= 5) { SUB = null; subModal('Starting five'); }
-      break; }
-    case 'games': gamesModal(); break;
-    case 'open': curId = b.dataset.id; P = { num: '', and1: false, oreb: 0, hl: null }; save(); closeModal(); render(); break;
-    case 'del': { const d = games.find(x => x.id === b.dataset.id);
-      if (d && confirm(`Delete the ${d.opp} game (${d.date})? This can't be undone.`)) { games = games.filter(x => x !== d); if (curId === d.id) curId = null; save(); closeModal(); render(); } break; }
-    case 'menu': menuModal(); break;
     case 'details': newGameModal(g); break;
-    case 'roster': rosterModal(); break;
-    case 'roster-save': {
-      const list = $('#r-txt').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^#?(\d{1,2})\s+(.+)$/); return m ? { num: m[1], name: m[2].trim() } : { num: '', name: l }; });
-      lsSet(LS_ROSTER, list); closeModal(); render(); toast('Roster saved'); break; }
-    case 'roster-reset': localStorage.removeItem(LS_ROSTER); closeModal(); render(); toast('Using the game tracker roster'); break;
-    case 'print': closeModal(); setTimeout(() => window.print(), 100); break;
-    case 'export': exportGame(); break;
+    case 'create': case 'save-game': {
+      const opp = $('#f-opp').value.trim(); if (!opp) { toast('Type the opponent first', 'bad'); return; }
+      const f = { opp, date: $('#f-date').value || today(), loc: ($('#f-loc .btn-primary') || { dataset: { l: 'H' } }).dataset.l };
+      if (act === 'create') {
+        const ng = Object.assign({ id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], oppRoster: gtOppRoster(opp), box: {} }, f);
+        games.push(ng); curId = ng.id; UI.tab = 'live'; UI.redo = []; save(); closeModal(); render(); SUB = null; subModal('Starting fives');
+      } else { if (g.opp !== f.opp && !(g.oppRoster || []).length) g.oppRoster = gtOppRoster(f.opp); Object.assign(g, f); save(); closeModal(); render(); }
+      break; }
+    case 'open': curId = b.dataset.id; UI.tab = 'live'; UI.redo = []; save(); render(); break;
+    case 'export': exportGame(games.find(x => x.id === b.dataset.id)); break;
     case 'import': importGame(); break;
-    case 'drop-per': {
-      const p = g.periods[g.periods.length - 1];
-      if (g.ev.some(e => e.per === p)) { toast(`${p} has plays in it — delete them first`); return; }
-      g.periods.pop(); if (g.per === p) g.per = g.periods[g.periods.length - 1]; save(); closeModal(); render(); break; }
-    case 'per': g.per = b.dataset.p; P.num = ''; save(); render(); break;
-    case 'next-per': {
-      const nx = g.periods.length === 1 ? '2H' : 'OT' + (otCount(g) + 1);
-      if (!confirm(`Start ${PER_NAME(nx)}?`)) return;
-      g.periods.push(nx); g.per = nx; save(); render(); SUB = null; subModal(`Starting five — ${PER_NAME(nx)}`); break; }
-    case 'key': {
+    case 'del': { const d = games.find(x => x.id === b.dataset.id);
+      if (d && confirm(`Delete the ${d.opp} game (${d.date})? This can't be undone.`)) { games = games.filter(x => x !== d); if (curId === d.id) curId = null; save(); render(); } break; }
+    case 'roster': rosterModal(); break;
+    case 'roster-save': lsSet(LS_ROSTER, parseLines($('#r-txt').value)); closeModal(); render(); toast('Roster saved', 'good'); break;
+    case 'roster-reset': localStorage.removeItem(LS_ROSTER); closeModal(); render(); break;
+    case 'opp-roster': oppRosterModal(); break;
+    case 'opp-save': g.oppRoster = parseLines($('#r-txt').value).filter(r => r.num); save(); closeModal(); render(); break;
+    case 'opp-from-gt': $('#r-txt').value = gtOppRoster(g.opp).map(r => `${r.num} ${r.name}`.trim()).join('\n'); break;
+
+    case 'stat': {
       const k = b.dataset.k;
-      if (k === 'C') P.num = ''; else if (k === '⌫') P.num = P.num.slice(0, -1); else if (P.num.length < 2) P.num += k; else P.num = k;
-      render(); break; }
-    case 'num': P.num = P.num === b.dataset.n ? '' : b.dataset.n; render(); break;
-    case 'and1': P.and1 = !P.and1; render(); break;
-    case 'oreb': P.oreb = (P.oreb + 1) % 5; render(); break;
-    case 'res': logPoss(b.dataset.r, 0); break;
-    case 'ft': ftModal(); break;
-    case 'ft-n': closeModal(); logPoss('FT', +b.dataset.n); break;
-    case 'undo': undo(); break;
-    case 'tech': TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); break;
+      if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
+      UI.stat = UI.stat === k ? null : k; render(); break; }
+    case 'stat-cancel': UI.stat = null; render(); break;
+    case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
+    case 'player':
+      if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
+      if (!PLAYER_STATS.has(UI.stat)) { toast('Tap the team button at the top'); return; }
+      logStat(b.dataset.team, b.dataset.p); break;
+    case 'teambtn':
+      if (!UI.stat) { toast('Tap the stat first, then the team'); return; }
+      if (PLAYER_STATS.has(UI.stat)) { toast('Fouls go to the player — tap his card'); return; }
+      logStat(b.dataset.team, 'TEAM'); break;
+    case 'ed-t': { const e = g.ev.find(x => x.id === b.dataset.id); e.team = b.dataset.t; save(); editModal(e.id); render(); break; }
+    case 'undo': { if (!g.ev.length) return; UI.redo.push(g.ev.pop()); save(); render(); break; }
+    case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
+    case 'sub': SUB = null; subModal(); break;
+    case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else if (s.size < 5) s.add(p); else { toast('Five are on — take one off first'); return; } subModal(); break; }
+    case 'sub-ok': subConfirm(); break;
+    case 'sub-cancel': SUB = null; closeModal(); break;
+    case 'timeout': timeoutModal(); break;
+    case 'to-log': push(g, { t: 'to', team: b.dataset.t, kind: b.dataset.k }); save(); closeModal(); render(); toast(`${teamName(g, b.dataset.t)} ${b.dataset.k === 'full' ? 'full' : '30-second'} timeout`); break;
+    case 'adjust': adjustModal(); break;
+    case 'adj-foul': {
+      const t = b.dataset.t;
+      if (b.dataset.d === '1') push(g, { t: 'foul', team: t, player: null });
+      else { const bk = foulBucket(g.per); for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i]; if (e.t === 'foul' && e.team === t && foulBucket(e.per) === bk) { g.ev.splice(i, 1); break; } } }
+      save(); adjustModal(); render(); break; }
+    case 'adj-to': {
+      const t = b.dataset.t, k = b.dataset.k;
+      if (b.dataset.d === '1') push(g, { t: 'to', team: t, kind: k });
+      else { for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i]; if (e.t === 'to' && e.team === t && e.kind === k) { g.ev.splice(i, 1); break; } } }
+      save(); adjustModal(); render(); break; }
+    case 'end-per': {
+      const nx = g.per === '1H' ? '2H' : 'OT' + (otCount(g) + 1);
+      if (g.per !== g.periods[g.periods.length - 1]) { g.per = g.periods[g.periods.length - 1]; save(); render(); return; }
+      if (!confirm(`End ${PER_NAME(g.per)} and start ${PER_NAME(nx)}?`)) return;
+      g.periods.push(nx); g.per = nx; UI.stat = null; save(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
+    case 'scout': openScout(); break;
+    case 'sc-close': $('#scout').classList.add('hidden'); break;
+    case 'sc-add': $('#sc-file').click(); break;
+    case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
+
     case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; techModal(); break;
-    case 'tech-p': TECH.player = TECH.player === b.dataset.n ? null : b.dataset.n; techModal(); break;
-    case 'tech-ft': TECH.ftm = +b.dataset.n; techModal(); break;
     case 'tech-coach': TECH.coach = b.dataset.v === '1'; if (TECH.coach) TECH.player = null; techModal(); break;
+    case 'tech-p': TECH.player = TECH.player === b.dataset.p ? null : b.dataset.p; techModal(); break;
+    case 'tech-ft': TECH.ftm = +b.dataset.n; techModal(); break;
     case 'tech-cancel': TECH = null; closeModal(); break;
     case 'tech-ok': {
-      if (!(TECH.coach || TECH.team === 'b' || TECH.player)) return;
-      const e = Object.assign({ id: uid(), t: 'tech', per: g.per, five: g.five ? g.five.slice() : null }, TECH, { tf: !TECH.coach });
-      if (e.team === 'b' || e.coach) e.player = null;
-      g.ev.push(e); TECH = null; save(); closeModal(); render();
-      const out = e.player && (playerTechs(g, e.player) >= 2 || playerFouls(g, e.player) >= 5);
-      const cOut = e.coach && coachTechs(g, e.team) >= 2;
-      toast(techText(g, e) + (out ? ' — ' + lastName(e.player) + ' IS OUT' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : '')); break; }
-    case 'pfoul': {
-      const n = playerFouls(g, b.dataset.n);
-      g.ev.push({ id: uid(), t: 'foul', per: g.per, team: 'a', player: b.dataset.n }); save(); render();
-      toast(`${lastName(b.dataset.n)}: ${n + 1} foul${n ? 's' : ''}${n + 1 >= 5 ? ' — FOULED OUT' : ''}`); break; }
-    case 'pfoul-x': {
-      for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i]; if (e.t === 'foul' && e.team === 'a' && e.player === b.dataset.n) { g.ev.splice(i, 1); save(); render(); return; } }
-      toast('No personal foul to take off — undo a technical with ↶ Undo'); break; }
-    case 'sub': SUB = null; subModal(); break;
-    case 'sub-p': { const n = b.dataset.n; if (SUB.sel.has(n)) SUB.sel.delete(n); else if (SUB.sel.size < 5) SUB.sel.add(n); else { toast('Five are on — take one off first'); return; } subModal(); break; }
-    case 'sub-from': { const mx = perStats(g, g.per).poss + 1; SUB.from = Math.min(mx, Math.max(1, SUB.from + +b.dataset.d)); subModal(); break; }
-    case 'sub-ok': if (SUB && SUB.sel.size === 5) subConfirm(); break;
-    case 'sub-cancel': SUB = null; closeModal(); break;
-    case 'lu-scope': LU_SCOPE = b.dataset.s; render(); break;
-    case 'ff': if ($('#ff').classList.contains('hidden')) { FF.scope = g.periods.length > 1 && g.box && g.box['1H'] && filled(g.box['1H'].a) ? 'G' : '1H'; FF.team = 'a'; FF.i = 0; FF.fresh = true; renderFF(); $('#ff').classList.remove('hidden'); $('#ff').scrollTop = 0; }
-      else { $('#ff').classList.add('hidden'); render(); } break;
+      if (!TECH.coach && TECH.team === 'a' && !TECH.player) { toast('Pick the Moorpark player (or The coach)', 'bad'); return; }
+      const D = derive(g), e = Object.assign({ t: 'tech' }, TECH); if (e.coach) e.player = null;
+      push(g, e); TECH = null; save(); closeModal(); render();
+      const out = e.player && (playerTechs(g, e.team, e.player) >= 2 || playerFouls(g, e.team, e.player) >= 5);
+      const cOut = e.coach && g.ev.filter(x => x.t === 'tech' && x.coach && x.team === e.team).length >= 2;
+      toast(techText(g, e) + (out ? ' — OUT OF THE GAME' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : ''), out || cOut ? 'bad' : ''); break; }
+
+    case 'edit': editModal(b.dataset.id); break;
+    case 'ed-k': { const e = g.ev.find(x => x.id === b.dataset.id); e.k = b.dataset.k; save(); editModal(e.id); render(); break; }
+    case 'ed-p': { const e = g.ev.find(x => x.id === b.dataset.id); e.player = b.dataset.p === 'TEAM' && e.t === 'foul' ? null : b.dataset.p; save(); editModal(e.id); render(); break; }
+    case 'ed-del': if (confirm('Delete this play?')) { g.ev = g.ev.filter(x => x.id !== b.dataset.id); save(); closeModal(); render(); } break;
+    case 'ed-ins': UI.ins = b.dataset.id; UI.tab = 'live'; closeModal(); render(); toast('Tap the stat, then the player — it goes in before that play'); break;
+
+    case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
+    case 'print': setTimeout(() => window.print(), 50); break;
+    case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'lu-open': UI.luOpen = UI.luOpen === b.dataset.k ? null : b.dataset.k; render(); break;
+
     case 'ff-scope': FF.scope = b.dataset.s; FF.team = 'a'; FF.i = 0; FF.fresh = true; renderFF(); break;
     case 'ff-cell': FF.team = b.dataset.t; FF.i = FF_STATS.findIndex(x => x[0] === b.dataset.k); FF.fresh = true; renderFF(); break;
     case 'ff-key': {
       const t = ffBox(g, FF.scope)[FF.team], k = FF_STATS[FF.i][0], key = b.dataset.k, cv = t[k] == null ? '' : String(t[k]);
-      let nv = key === 'C' ? '' : key === '⌫' ? (FF.fresh ? '' : cv.slice(0, -1)) : (FF.fresh ? key : (cv + key).slice(0, 3));
+      const nv = key === 'C' ? '' : key === '⌫' ? (FF.fresh ? '' : cv.slice(0, -1)) : (FF.fresh ? key : (cv + key).slice(0, 3));
       t[k] = nv === '' ? null : +nv; FF.fresh = false; save(); renderFF(); break; }
     case 'ff-next': ffMove(1); renderFF(); break;
     case 'ff-clear': if (confirm('Clear every number on this sheet?')) { g.box[FF.scope] = { a: {}, b: {} }; FF.team = 'a'; FF.i = 0; FF.fresh = true; save(); renderFF(); } break;
-    case 'scout': if ($('#scout').classList.contains('hidden')) openScout(); else $('#scout').classList.add('hidden'); break;
-    case 'sc-add': $('#sc-file').click(); break;
-    case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
-    case 'mpk': g.ev.push({ id: uid(), t: 'mpk', per: g.per, pts: +b.dataset.p, five: g.five ? g.five.slice() : null }); save(); render(); break;
-    case 'tfoul': g.ev.push({ id: uid(), t: 'foul', per: g.per, team: b.dataset.t }); save(); render(); break;
-    case 'tfoul-x': {
-      const team = b.dataset.t, bucket = foulBucket(g.per);
-      for (let i = g.ev.length - 1; i >= 0; i--) {
-        const e = g.ev[i];
-        if (e.t === 'foul' && e.team === team && foulBucket(e.per) === bucket && !e.link) { g.ev.splice(i, 1); save(); render(); return; }
-      }
-      toast('No foul to take off'); break; }
-    case 'to': {
-      const t = g.tos[b.dataset.t], k = b.dataset.k, i = +b.dataset.i;
-      t[k] = t[k] > i ? i : i + 1; save(); render(); break; }
-    case 'edit': P.hl = b.dataset.id; render(); editModal(b.dataset.id); break;
   }
 });
 
@@ -1012,7 +1407,7 @@ function ffBad(t, k) {
 }
 function ffResults(g, sc) {
   const L = ffLine(g, sc);
-  if (!L) return `<div class="pad muted">${sc === '2H' ? 'Enter the 1st-half sheet and the full-game sheet — the 2nd half is the difference.' : 'Type the totals in above and the four factors show here.'}</div>`;
+  if (!L) return `<div class="muted">${sc === '2H' ? 'Enter the 1st-half sheet and the full-game sheet — the 2nd half is the difference.' : 'Type the totals in above and the four factors show here.'}</div>`;
   const A = ffCalc(L.a, L.b), B = ffCalc(L.b, L.a);
   const P = v => v == null ? '—' : Math.round(v) + '%';
   const row = (lbl, k, hi, sub) => {
@@ -1020,7 +1415,8 @@ function ffResults(g, sc) {
     return `<tr><td>${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${P(a)}${sub ? `<span class="sub">${sub(L.a, L.b)}</span>` : ''}</td><td class="${w === 'b' ? 'win b' : ''}">${P(b)}${sub ? `<span class="sub">${sub(L.b, L.a)}</span>` : ''}</td></tr>`;
   };
   const v = (t, k) => t[k] == null ? '–' : t[k];
-  const sheet = sc === 'G' ? gameStats(g).tot.poss : sc === '1H' ? perStats(g, '1H').poss : g.periods.filter(p => p !== '1H').reduce((x, p) => x + perStats(g, p).poss, 0);
+  const D = derive(g), cnt = per => (s => (s.poss.a + s.poss.b) / 2)(perSums(D, per));
+  const sheet = sc === 'G' ? cnt(null) : sc === '1H' ? cnt('1H') : g.periods.filter(p => p !== '1H').reduce((x, p) => x + cnt(p), 0);
   return `<table class="ffr"><thead><tr><th></th><th>MOORPARK</th><th>${esc(String(g.opp).toUpperCase())}</th></tr></thead><tbody>
     <tr class="grp"><td colspan="3">Four factors</td></tr>
     ${row('eFG%', 'efg', true, t => `${v(t, 'fgm')}/${v(t, 'fga')} FG · ${v(t, 'fg3m')} 3PM`)}
@@ -1037,31 +1433,31 @@ function ffResults(g, sc) {
     <tr><td>Possessions (est.)</td><td>${A.poss.toFixed(1)}</td><td>${B.poss.toFixed(1)}</td></tr>
     <tr><td>PPP</td><td class="${A.ppp != null && B.ppp != null && A.ppp > B.ppp ? 'win a' : ''}">${A.ppp == null ? '—' : A.ppp.toFixed(2)}</td><td class="${A.ppp != null && B.ppp != null && B.ppp > A.ppp ? 'win b' : ''}">${B.ppp == null ? '—' : B.ppp.toFixed(2)}</td></tr>
   </tbody></table>
-  <div class="small muted" style="margin-top:6px">Possessions = FGA − OREB + TO + 0.475 × FTA. Your possession sheet has ${sheet} for ${sc === 'G' ? 'the game' : sc === '1H' ? 'the 1st half' : 'the 2nd half + OT'}.</div>`;
+  <div class="small muted" style="margin-top:6px">Possessions = FGA − OREB + TO + 0.475 × FTA. Tracked possessions (average of both teams): ${Number.isInteger(sheet) ? sheet : sheet.toFixed(1)} for ${sc === 'G' ? 'the game' : sc === '1H' ? 'the 1st half' : 'the 2nd half + OT'}.</div>`;
 }
 function renderFF() {
   const g = cur(); if (!g) return;
   const sc = FF.scope, edit = sc !== '2H', B = edit ? ffBox(g, sc) : null;
   const cell = (t, k) => { const v = B[t][k]; return `<button class="ffc ${FF.team === t && FF_STATS[FF.i][0] === k ? 'sel' : ''} ${ffBad(B[t], k) ? 'bad' : ''}" data-act="ff-cell" data-t="${t}" data-k="${k}">${v == null ? '' : v}</button>`; };
   const pts = t => { const x = B[t]; return filled(x) ? 2 * (+x.fgm || 0) + (+x.fg3m || 0) + (+x.ftm || 0) : '–'; };
-  $('#ff').innerHTML = `<div class="wrap">
-    <div class="top"><h1>Four factors<small>From the printed box score · vs ${esc(g.opp)}</small></h1>
-      <div class="per">${[['1H', '1st half'], ['G', 'Full game'], ['2H', '2nd half']].map(([k, l]) => `<button class="${sc === k ? 'on' : ''}" data-act="ff-scope" data-s="${k}">${l}</button>`).join('')}</div>
-      <button class="btn btn-blue" data-act="ff" style="min-height:46px;font-weight:800">◀ Back</button></div>
-    ${edit ? `<div class="card"><div class="bar">${sc === '1H' ? 'Halftime print-out — 1st half totals' : 'Final print-out — full game totals'}<span class="r"><button class="btn btn-sm btn-red" data-act="ff-clear">Clear</button></span></div>
+  $('#ff').innerHTML = `<div>
+    <div class="page-head"><h2>Four factors <span class="muted small">from the printed box score</span></h2>
+      <div class="row" style="gap:6px;margin-left:auto">${[['1H', '1st half'], ['G', 'Full game'], ['2H', '2nd half']].map(([k, l]) => `<button class="btn btn-sm ${sc === k ? 'btn-primary' : ''}" data-act="ff-scope" data-s="${k}">${l}</button>`).join('')}</div></div>
+    ${edit ? `<div class="card"><h3 style="display:flex;align-items:center">${sc === '1H' ? 'Halftime print-out — 1st half totals' : 'Final print-out — full game totals'}<button class="btn btn-sm btn-bad" data-act="ff-clear" style="margin-left:auto">Clear</button></h3>
       <div class="ff-in"><table class="ffg"><thead><tr><th></th><th class="a">MOORPARK</th><th class="b">${esc(String(g.opp).toUpperCase())}</th></tr></thead><tbody>
         ${FF_STATS.map(([k, l]) => `<tr><td class="l">${l}</td><td>${cell('a', k)}</td><td>${cell('b', k)}</td></tr>`).join('')}
-        <tr class="calc"><td class="l" style="color:var(--mut)">PTS</td><td>${pts('a')}</td><td>${pts('b')}</td></tr></tbody></table>
+        <tr class="calc"><td class="l" style="color:var(--muted)">PTS</td><td>${pts('a')}</td><td>${pts('b')}</td></tr></tbody></table>
         <div class="ffk"><div class="cur">${FF.team === 'a' ? 'Moorpark' : esc(g.opp)} · ${FF_STATS[FF.i][1]}</div>
           ${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button data-act="ff-key" data-k="${k}">${k}</button>`).join('')}
           <button class="nx" data-act="ff-next">Next ▶</button></div></div></div>` : ''}
-    <div class="card"><div class="bar">${{ '1H': '1st half', G: 'Full game', '2H': '2nd half (full game − 1st half)' }[sc]}</div><div class="pad">${ffResults(g, sc)}</div></div>
+    <div class="card"><h3>${{ '1H': '1st half', G: 'Full game', '2H': '2nd half (full game − 1st half)' }[sc]}</h3>${ffResults(g, sc)}</div>
   </div>`;
 }
 function ffMove(d) {
   const n = FF_STATS.length, idx = (FF.team === 'a' ? 0 : n) + FF.i + d, w = ((idx % (2 * n)) + 2 * n) % (2 * n);
   FF.team = w < n ? 'a' : 'b'; FF.i = w % n; FF.fresh = true;
 }
+
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
