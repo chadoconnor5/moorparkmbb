@@ -147,6 +147,11 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
 - **Two reports.** With a stat sheet for that half / the game, the report is the **full report**:
   - **Key takeaways:** our edge and theirs in the four factors, each side's best player, most-used, the
     biggest on/off, the best five, foul trouble, points off turnovers / second-chance points, kills and bench.
+  - **Turnovers, forced vs unforced:** steal TO% (the other team's steals per possession) and non-steal TO%
+    (travels, bad passes out, charges, offensive fouls, violations: the ones we do to ourselves). The two add up
+    to TO%. In the full report's team analytics, its own card in the report without a sheet, under each five's
+    TO% on the Lineups tab (NS), and in the Huddle. Not in the Four factors table. When unforced turnovers are
+    half or more of a team's turnovers (3+), they show under Hurting us (ours) / Helping us (theirs).
   - **Who's behind the four factors:** for each stat behind a factor, the player with the biggest share of his
     team's total, sorted into **Hurting us** / **Helping us** (e.g. "#33 Mowers — 25% of their defensive boards
     (4 of 16) · our OREB% 20.0%", "#10 Alhammouri — 67% of their steals"). Shooting = share of the team's FG

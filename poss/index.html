@@ -804,7 +804,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.44';
+const VERSION = 'v2026.10.12.45';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1165,11 +1165,11 @@ const tosUsed = (g, t, kind) => g.ev.filter(e => e.t === 'to' && e.team === t &&
 /* The box of one possession, from its plays: shots, FTs, turnovers, offensive rebounds, and whether
    it ended on the defence's rebound. */
 function possBox(p) {
-  const b = { fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: p.dreb ? 1 : 0 };
+  const b = { fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: p.dreb ? 1 : 0 };
   p.plays.forEach(e => { const k = e.k;
     if (/^[23][mx]$/.test(k)) { b.fga++; if (k[1] === 'm') { b.fgm++; if (k[0] === '3') b.fg3m++; } }
     else if (k === 'ftm' || k === 'ftx') b.fta++;
-    else if (k === 'to' || k === 'stl' || k === 'chg' || k === 'offf') b.tov++;
+    else if (k === 'to' || k === 'stl' || k === 'chg' || k === 'offf') { b.tov++; if (k === 'stl') b.stov++; }
     else if (k === 'oreb') b.oreb++; });
   return b;
 }
@@ -1180,7 +1180,7 @@ function lineupUnits(g, D, t, scope, filter, k) {
   k = k || 5;
   const pers = scope === 'game' ? null : scope, units = {}, players = {};
   const keep = p => !filter || filter === 'all' || (filter === 'clutch' ? p.clutch : !p.gt);
-  const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: 0 });
+  const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 });
   const combos = f => k === 5 ? [f] : kSubsets(f.slice().sort(), k);
   const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
   const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
@@ -1206,7 +1206,7 @@ function lineupUnits(g, D, t, scope, filter, k) {
 // Four factors for one end. o = that end's offence counts; other = the other side's (for rebounding).
 function ff4(o, other, poss) {
   const pct = (a, b) => b ? Math.round(1000 * a / b) / 10 : null;   // one decimal: 63.6
-  return { efg: pct(o.fgm + 0.5 * o.fg3m, o.fga), to: pct(o.tov, poss), orb: pct(o.oreb, o.oreb + o.dreb), ftr: pct(o.fta, o.fga) };
+  return { efg: pct(o.fgm + 0.5 * o.fg3m, o.fga), to: pct(o.tov, poss), nsto: pct(o.tov - (o.stov || 0), poss), orb: pct(o.oreb, o.oreb + o.dreb), ftr: pct(o.fta, o.fga) };
 }
 
 /* ---------- rendering ---------- */
@@ -1494,6 +1494,7 @@ function reportView(g) {
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
     ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 2-, 3- and 4-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
     <div class="card"><h3>Four factors <span class="muted">· ${(() => { const B = ffBox(g, half ? '1H' : 'G'); return filled(B.a) || filled(B.b) ? 'from the stat sheet' : 'from the tracked plays'; })()}</span></h3>${ffResults(g, half ? '1H' : 'G')}</div>
+    ${toSplitCard(g, half ? '1H' : 'G')}
     <div class="card"><h3>Stops, kills &amp; killshots <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3>${killsCard(g, D, scope)}</div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', half ? '1H' : 'game', 'all')}</div></div>
     <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', half ? '1H' : 'game', 'all')}</div></div>
@@ -1526,7 +1527,7 @@ function lineupTable(g, D, t, scope, filter, k) {
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
     return { u, f, v: { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
-      ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
+      ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, onsto: O.nsto, dnsto: X.nsto, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
       ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null } }; });
   const S = UI.luSort || { key: 'poss', dir: -1 };
   rows.sort((x, y) => { const a = x.v[S.key], b = y.v[S.key];
@@ -1540,8 +1541,8 @@ function lineupTable(g, D, t, scope, filter, k) {
     ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
       return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
         <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg == null ? '—' : f1(v.ortg)}</td><td>${v.drtg == null ? '—' : f1(v.drtg)}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sg1(v.net)}</td>
-        <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}</td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
-        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}</td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td><td class="gd"><b>${v.stops}</b><div class="tiny muted">${P(v.stopPct)}</div></td></tr>
+        <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}<div class="tiny muted" title="Non-steal TO%">NS ${P(v.onsto)}</div></td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
+        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}<div class="tiny muted" title="Non-steal TO%">NS ${P(v.dnsto)}</div></td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td><td class="gd"><b>${v.stops}</b><div class="tiny muted">${P(v.stopPct)}</div></td></tr>
         ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="16"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
           ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table></td></tr>` : ''}`; }).join('')}
   </tbody></table>`;
@@ -1553,7 +1554,7 @@ function lineupsView(g) {
       <div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<button class="btn btn-sm ${UI.luFilter === k ? 'btn-primary' : ''}" data-act="lu-filter" data-f="${k}">${l}</button>`).join('')}</div></div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5)}</div></div>
     ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
-    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
+    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
@@ -1899,9 +1900,9 @@ function heldBallModal(off) {
 // 80.0, 76.2 = 78.7 a team; 5:00 is 1/8 of that, 9.8 a team, so ~20 possessions both teams.
 const HUDDLE_N = 20;
 function huddleBox(D, list, t) {
-  const z = { n: 0, pts: 0, fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, tov: 0, oreb: 0, oppDreb: 0, oppOreb: 0, dreb: 0, pot: 0 };
+  const z = { n: 0, pts: 0, fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, tov: 0, stov: 0, oreb: 0, oppDreb: 0, oppOreb: 0, dreb: 0, pot: 0 };
   list.forEach(p => { const b = possBox(p);
-    if (p.team === t) { z.n++; z.pts += p.pts; z.fga += b.fga; z.fgm += b.fgm; z.fg3m += b.fg3m; z.fta += b.fta; z.tov += b.tov; z.oreb += b.oreb; z.oppDreb += b.dreb;
+    if (p.team === t) { z.n++; z.pts += p.pts; z.fga += b.fga; z.fgm += b.fgm; z.fg3m += b.fg3m; z.fta += b.fta; z.tov += b.tov; z.stov += b.stov; z.oreb += b.oreb; z.oppDreb += b.dreb;
       z.fg3a += p.plays.filter(e => e.k === '3m' || e.k === '3x').length; }
     else { z.dreb += b.dreb; z.oppOreb += b.oreb; } });
   // Points the other side scored on the possession right after one of t's turnovers.
@@ -1942,6 +1943,7 @@ function huddleOpen(g, calledBy, kind) {
     { lbl: 'PPP', f: s => ({ v: s.n ? s.pts / s.n : null, show: s.n ? (s.pts / s.n).toFixed(2) : '—', sub: s.n ? `${s.pts} pts / ${s.n} poss` : '' }), gate: w => w.n >= 5, gap: 0.3 },
     { lbl: 'eFG%', f: s => ({ v: pct(s.fgm + 0.5 * s.fg3m, s.fga), show: P(pct(s.fgm + 0.5 * s.fg3m, s.fga)), sub: s.fga ? `${s.fgm}/${s.fga} FG · ${s.fg3m} 3PM` : '' }), gate: w => w.fga >= 5, gap: 15 },
     { lbl: 'TO%', f: s => ({ v: pct(s.tov, s.n), show: P(pct(s.tov, s.n)), sub: s.tov ? `${s.tov} TO → ${s.pot} pts for ${s === W.a || s === GB.a ? 'them' : 'us'}` : '' }), gate: w => w.tov >= 3, gap: 10 },
+    { lbl: 'Non-steal TO%', f: s => ({ v: pct(s.tov - s.stov, s.n), show: P(pct(s.tov - s.stov, s.n)), sub: s.tov ? `${s.tov - s.stov} of ${s.tov} not steals` : '' }), gate: w => w.tov >= 3, gap: 10 },
     { lbl: 'OREB%', f: s => ({ v: pct(s.oreb, s.oreb + s.oppDreb), show: P(pct(s.oreb, s.oreb + s.oppDreb)), sub: s.oreb + s.oppDreb ? `${s.oreb}/${s.oreb + s.oppDreb}` : '' }), gate: w => w.oreb + w.oppDreb >= 4, gap: 20 },
     { lbl: 'DREB%', f: s => ({ v: pct(s.dreb, s.dreb + s.oppOreb), show: P(pct(s.dreb, s.dreb + s.oppOreb)), sub: s.dreb + s.oppOreb ? `${s.dreb}/${s.dreb + s.oppOreb}` : '' }), gate: w => w.dreb + w.oppOreb >= 4, gap: 20 },
     { lbl: 'FT rate', f: s => ({ v: pct(s.fta, s.fga), show: P(pct(s.fta, s.fga)), sub: s.fga ? `${s.fta} FTA` : '' }), gate: w => w.fga >= 5, gap: 20 },
@@ -2437,7 +2439,7 @@ const FF = { scope: '1H', team: 'a', i: 0, fresh: true };
 const ffBox = (g, sc) => { g.box = g.box || {}; return g.box[sc] = g.box[sc] || { a: {}, b: {} }; };
 const ffPers = (g, sc) => sc === 'G' ? g.periods : sc === '1H' ? ['1H'] : g.periods.filter(p => p !== '1H');
 function ffTracked(g, sc) {
-  const pers = ffPers(g, sc), z = () => Object.fromEntries(FF_STATS.map(([k]) => [k, 0])), T = { a: z(), b: z() };
+  const pers = ffPers(g, sc), z = () => Object.assign(Object.fromEntries(FF_STATS.map(([k]) => [k, 0])), { stov: 0 }), T = { a: z(), b: z() };
   g.ev.forEach(e => {
     if (!pers.includes(e.per)) return;
     if (e.t === 'tech') { const s = T[other(e.team)]; s.fta += 2; s.ftm += e.ftm || 0; return; }
@@ -2449,7 +2451,7 @@ function ffTracked(g, sc) {
       case 'ftm': s.ftm++; s.fta++; break; case 'ftx': s.fta++; break;
       case 'oreb': s.oreb++; break; case 'dreb': s.dreb++; break;
       case 'to': case 'chg': case 'offf': s.tov++; break;
-      case 'stl': T[other(e.team)].tov++; break;
+      case 'stl': T[other(e.team)].tov++; T[other(e.team)].stov++; break;   // stov = turnovers on steals
     }
   });
   return T;
@@ -2461,7 +2463,7 @@ function ffLine(g, sc) {
   const T = ffTracked(g, sc), B = ffBox(g, sc), G = ffBox(g, 'G'), H = ffBox(g, '1H');
   const pick = (t, k) => B[t][k] != null ? B[t][k] : sc === '2H' && G[t][k] != null && H[t][k] != null ? G[t][k] - H[t][k] : T[t][k];
   const L = { a: {}, b: {} };
-  ['a', 'b'].forEach(t => FF_STATS.forEach(([k]) => { L[t][k] = pick(t, k); }));
+  ['a', 'b'].forEach(t => { FF_STATS.forEach(([k]) => { L[t][k] = pick(t, k); }); L[t].stov = pick(t, 'stov'); });
   return FF_STATS.some(([k]) => L.a[k] || L.b[k]) ? L : null;
 }
 function ffCalc(s, o) {
@@ -2470,7 +2472,9 @@ function ffCalc(s, o) {
   const poss = n('fga') - n('oreb') + n('tov') + 0.475 * n('fta');
   const pts = 2 * n('fgm') + n('fg3m') + n('ftm');
   return { pts, poss, ppp: poss > 0 ? pts / poss : null,
-    efg: pct(n('fgm') + 0.5 * n('fg3m'), n('fga')), to: pct(n('tov'), poss), orb: pct(n('oreb'), n('oreb') + m('dreb')),
+    efg: pct(n('fgm') + 0.5 * n('fg3m'), n('fga')), to: pct(n('tov'), poss),
+    // Turnovers split: on steals (forced) and not (unforced: travels, bad passes out, charges, violations).
+    sto: pct(Math.min(n('stov'), n('tov')), poss), nsto: pct(Math.max(0, n('tov') - n('stov')), poss), orb: pct(n('oreb'), n('oreb') + m('dreb')),
     drb: pct(n('dreb'), n('dreb') + m('oreb')), ftr: pct(n('fta'), n('fga')), tpr: pct(n('fg3a'), n('fga')),
     fg: pct(n('fgm'), n('fga')), fg3: pct(n('fg3m'), n('fg3a')), ft: pct(n('ftm'), n('fta')) };
 }
@@ -2533,6 +2537,21 @@ function ffMove(d) {
   FF.team = w < n ? 'a' : 'b'; FF.i = w % n; FF.fresh = true;
 }
 
+
+/* Turnovers, forced or not: steal TO% (their steals per our possession) and non-steal TO% (travels, bad
+   passes out, charges, offensive fouls, violations — the ones we do to ourselves), for both teams. */
+function toSplitCard(g, sc) {
+  const L = ffLine(g, sc); if (!L) return '';
+  const A = ffCalc(L.a, L.b), B = ffCalc(L.b, L.a), P = v => v == null ? '—' : v.toFixed(1) + '%';
+  const st = x => Math.min(+x.stov || 0, +x.tov || 0), ns = x => Math.max(0, (+x.tov || 0) - (+x.stov || 0));
+  const row = (lbl, a, b, hiGood) => { const w = a == null || b == null || a === b ? '' : (a > b) === hiGood ? 'a' : 'b';
+    return `<tr><td>${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${a == null ? '—' : typeof a === 'number' && lbl.includes('%') ? P(a) : a}</td><td class="${w === 'b' ? 'win b' : ''}">${b == null ? '—' : typeof b === 'number' && lbl.includes('%') ? P(b) : b}</td></tr>`; };
+  return `<div class="card"><h3>Turnovers: forced vs unforced <span class="muted">· steals vs everything else</span></h3>
+    <table class="ffr"><thead><tr><th></th><th>MOORPARK</th><th>${esc(String(g.opp).toUpperCase())}</th></tr></thead><tbody>
+      ${row('Turnovers', +L.a.tov || 0, +L.b.tov || 0, false)}${row('On steals (forced)', st(L.a), st(L.b), false)}${row('Not steals (unforced)', ns(L.a), ns(L.b), false)}
+      ${row('TO%', A.to, B.to, false)}${row('Steal TO%', A.sto, B.sto, false)}${row('Non-steal TO%', A.nsto, B.nsto, false)}</tbody></table>
+    <div class="small muted" style="margin-top:6px">Steal TO% = turnovers on the other team's steals per possession. Non-steal TO% = travels, bad passes out of bounds, charges, offensive fouls and violations per possession. The two add up to TO%.</div></div>`;
+}
 
 /* ---------- stat sheet photo: read it on the iPad, check it, build the advanced report ----------
    Offline: Tesseract (poss/vendor/tess) reads the photo of the halftime or final box score. The
@@ -2801,7 +2820,8 @@ function sheetSave() {
   // The totals go to the Four factors tab as printout numbers (the players' sum if no totals line).
   const B = ffBox(g, S.sc);
   ['a', 'b'].forEach(t => { const tot = Object.assign(sheetSum(S[t]), S[t].totals || {});
-    Object.assign(B[t], { fgm: tot.fgm, fga: tot.fga, fg3m: tot.fg3m, fg3a: tot.fg3a, ftm: tot.ftm, fta: tot.fta, oreb: tot.oreb, dreb: tot.dreb, tov: tot.tov }); });
+    const ot = Object.assign(sheetSum(S[other(t)]), S[other(t)].totals || {});
+    Object.assign(B[t], { fgm: tot.fgm, fga: tot.fga, fg3m: tot.fg3m, fg3a: tot.fg3a, ftm: tot.ftm, fta: tot.fta, oreb: tot.oreb, dreb: tot.dreb, tov: tot.tov, stov: Math.min(ot.stl || 0, tot.tov || 0) }); });
   save(); SHEET = null; closeModal(); UI.tab = 'report'; UI.rep = S.sc === '1H' ? 'half' : 'post'; render(); window.scrollTo(0, 0); toast('Stat sheet saved — advanced numbers are in the report', 'good');
 }
 
@@ -3087,6 +3107,7 @@ function factorDrivers(g, S, gameMin, pmA) {
   const lead = (t, f, minN) => { const tot = R[t].reduce((x, r) => x + f(r), 0); if (!tot) return null;
     const r = R[t].slice().sort((x, y) => f(y) - f(x))[0], n = f(r); return n >= minN && n / tot >= 0.25 ? { r, n, tot, sh: Math.round(100 * n / tot) } : null; };
   // Rates as in the Four factors table (each team's own possession estimate).
+  TS.a.stov = Math.min(TS.b.stl, TS.a.tov); TS.b.stov = Math.min(TS.a.stl, TS.b.tov);   // turnovers on the other team's steals
   const fa = ffCalc(TS.a, TS.b), fb = ffCalc(TS.b, TS.a), A = TS.a, B = TS.b, opp = esc(g.opp), hurt = [], help = [];
   const line = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${nm(x.r)} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
   const H = (...a) => line(hurt, 'bad', ...a), G = (...a) => line(help, 'good', ...a);
@@ -3094,7 +3115,11 @@ function factorDrivers(g, S, gameMin, pmA) {
   H('Their shooting', lead('b', fgPts, 4), x => `of their FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `${opp} ${P(fb.efg)} eFG`);
   H('Our shooting', lead('a', miss, 3), x => `of our missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`, `Moorpark ${P(fa.efg)} eFG`);
   G('Our shooting', lead('a', fgPts, 4), x => `of our FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`);
-  // Turnovers (TO%)
+  // Turnovers (TO%). Unforced ones (not steals: travels, bad passes out, charges, violations) named when they
+  // are most of the team's turnovers (half or more, 3+).
+  const unf = (T, f, arr, cls, who) => { const un = T.tov - T.stov; if (un >= 3 && un / T.tov >= 0.5)
+    arr.push(`<div class="ins ${cls}"><span><b>${who} turnovers</b> · unforced — <b>${Math.round(100 * un / T.tov)}%</b> weren't steals (${un} of ${T.tov}) · non-steal TO% ${P(f.nsto)} of the ${P(f.to)} TO%</span></div>`); };
+  unf(A, fa, hurt, 'bad', 'Our'); unf(B, fb, help, 'good', 'Their');
   H('Our turnovers', lead('b', r => r.stl, 2), x => `of their steals (${x.n} of ${x.tot}) — ${x.n} of our ${A.tov} turnovers`, `our TO% ${P(fa.to)}`);
   H('Our turnovers', lead('a', r => r.tov, 2), x => `of our turnovers (${x.n} of ${x.tot})`);
   G('Their turnovers', lead('a', r => r.stl, 2), x => `of our steals (${x.n} of ${x.tot}) — ${x.n} of their ${B.tov} turnovers`, `their TO% ${P(fb.to)}`);
@@ -3128,7 +3153,7 @@ function fullReport(g, D, half) {
   const TR = { a: tracked('a'), b: tracked('b') };
   const teamAdv = t => { const s = L[t], o = L[other(t)], ps = possOf(s);
     return { pts: s.pts, poss: ps, ortg: ps ? 100 * s.pts / ps : null, efg: pct(s.fgm + 0.5 * s.fg3m, s.fga), ts: pct(s.pts, 2 * (s.fga + 0.44 * s.fta)),
-      to: pct(s.tov, ps), orb: pct(s.oreb, s.oreb + o.dreb), ftr: pct(s.fta, s.fga), tpr: pct(s.fg3a, s.fga), fg3: pct(s.fg3m, s.fg3a), ft: pct(s.ftm, s.fta),
+      to: pct(s.tov, ps), sto: pct(Math.min(o.stl, s.tov), ps), nsto: pct(Math.max(0, s.tov - o.stl), ps), orb: pct(s.oreb, s.oreb + o.dreb), ftr: pct(s.fta, s.fga), tpr: pct(s.fg3a, s.fga), fg3: pct(s.fg3m, s.fg3a), ft: pct(s.ftm, s.fta),
       ast: pct(s.ast, s.fgm), at: s.tov ? s.ast / s.tov : null, stl: pct(s.stl, possOf(o)), blk: pct(s.blk, o.fga - o.fg3a),
       bench: S[t].rows.filter(r => !r.starter).reduce((x, r) => x + (+r.pts || 0), 0), pf: s.pf,
       tposs: Ps.poss[t], ppp: Ps.poss[t] ? Ps.pts[t] / Ps.poss[t] : null, pot: TR[t].pot, scp: TR[t].scp, kills: Ps.kills[t] }; };
@@ -3141,7 +3166,7 @@ function fullReport(g, D, half) {
     ${grp('Scoring')}${tr('Points', 'pts', N, true)}${tr('Possessions (tracked)', 'tposs', N, true)}${tr('PPP (tracked)', 'ppp', D2, true)}${tr('ORtg (sheet est.)', 'ortg', F, true)}
       ${tr('Points off turnovers', 'pot', N, true)}${tr('Second-chance points', 'scp', N, true)}${tr('Bench points', 'bench', N, true)}
     ${grp('Shooting')}${tr('eFG%', 'efg', P, true)}${tr('TS%', 'ts', P, true)}${tr('3P%', 'fg3', P, true)}${tr('3PA rate', 'tpr', P, true)}${tr('FT%', 'ft', P, true)}${tr('FT rate', 'ftr', P, true)}
-    ${grp('Ball &amp; glass')}${tr('TO%', 'to', P, false)}${tr('OREB%', 'orb', P, true)}${tr('Assisted (AST / FGM)', 'ast', P, true)}${tr('AST / TO', 'at', D2, true)}
+    ${grp('Ball &amp; glass')}${tr('TO%', 'to', P, false)}${tr('Steal TO% (forced)', 'sto', P, false)}${tr('Non-steal TO% (unforced)', 'nsto', P, false)}${tr('OREB%', 'orb', P, true)}${tr('Assisted (AST / FGM)', 'ast', P, true)}${tr('AST / TO', 'at', D2, true)}
     ${grp('Defense')}${tr('STL% (per their poss)', 'stl', P, true)}${tr('BLK% (of their 2PA)', 'blk', P, true)}${tr('Kills', 'kills', N, true)}${tr('Fouls', 'pf', N, false)}</tbody></table>`;
   // By half (post-game, when the halftime sheet was read too): the 2nd half is the final minus the half.
   let halves = '';
@@ -3195,6 +3220,8 @@ function fullReport(g, D, half) {
   if (bl) add('good', `Best five: ${esc(fiveSorted(g, 'a', bl.five).map(id => pShort(g, 'a', id)).join(', '))} — net ${SG(bl.net)} on ${bl.poss} poss.`);
   const ft = RA.filter(v => (v.r.pf || 0) >= (half ? 2 : 4)).map(v => `${nmT(v.r)} (${v.r.pf})`);
   if (ft.length) add('warn', `Foul trouble: ${ft.join(', ')}.`);
+  { const un = Math.max(0, L.a.tov - L.b.stl); if (L.a.tov >= 4) add(un / L.a.tov >= 0.6 ? 'bad' : un / L.a.tov <= 0.4 ? 'warn' : 'warn',
+      un / L.a.tov >= 0.6 ? `Our turnovers are mostly self-inflicted: ${un} of ${L.a.tov} weren't steals (non-steal TO% ${P(A.nsto)}).` : `Our turnovers are mostly forced: ${L.a.tov - un} of ${L.a.tov} were steals (steal TO% ${P(A.sto)}).`); }
   if (A.pot !== B.pot) add(A.pot > B.pot ? 'good' : 'bad', `Points off turnovers ${A.pot}–${B.pot}; second-chance ${A.scp}–${B.scp}.`);
   add(A.kills >= B.kills ? 'good' : 'bad', `Kills ${A.kills}–${B.kills}; bench points ${A.bench}–${B.bench}.`);
   const sec = (title, sub) => `<div class="rp-sec"><span>${title}</span><span class="muted">${sub}</span></div>`;
