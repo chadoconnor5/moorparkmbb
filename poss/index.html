@@ -703,7 +703,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.16';
+const VERSION = 'v2026.10.12.17';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -903,8 +903,9 @@ function perSums(D, per) {
   return s;
 }
 const ppp = (pts, n) => n ? (pts / n).toFixed(2) : '—';
-// The game's possession count: the two teams' counts averaged.
-const possAvg = s => { const v = (s.poss.a + s.poss.b) / 2; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
+// The game's possession count: the two teams' counts averaged, rounded down to a whole number, so it
+// goes up once both teams have had the ball. PPP always uses each team's own count.
+const possAvg = s => String(Math.floor((s.poss.a + s.poss.b) / 2));
 const rtg = (pts, n) => n ? Math.round(100 * pts / n) : '—';
 
 /* ---------- fouls and timeouts ---------- */
@@ -1776,7 +1777,7 @@ function ffResults(g, sc) {
     return `<tr><td>${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${P(a)}${sub ? `<span class="sub">${sub(L.a, L.b)}</span>` : ''}</td><td class="${w === 'b' ? 'win b' : ''}">${P(b)}${sub ? `<span class="sub">${sub(L.b, L.a)}</span>` : ''}</td></tr>`;
   };
   const v = (t, k) => t[k] == null ? '–' : t[k];
-  const D = derive(g), cnt = per => (s => (s.poss.a + s.poss.b) / 2)(perSums(D, per));
+  const D = derive(g), cnt = per => (s => Math.floor((s.poss.a + s.poss.b) / 2))(perSums(D, per));
   const sheet = sc === 'G' ? cnt(null) : sc === '1H' ? cnt('1H') : g.periods.filter(p => p !== '1H').reduce((x, p) => x + cnt(p), 0);
   return `<table class="ffr"><thead><tr><th></th><th>MOORPARK</th><th>${esc(String(g.opp).toUpperCase())}</th></tr></thead><tbody>
     <tr class="grp"><td colspan="3">Four factors</td></tr>
@@ -1794,7 +1795,7 @@ function ffResults(g, sc) {
     <tr><td>Possessions (est.)</td><td>${A.poss.toFixed(1)}</td><td>${B.poss.toFixed(1)}</td></tr>
     <tr><td>PPP</td><td class="${A.ppp != null && B.ppp != null && A.ppp > B.ppp ? 'win a' : ''}">${A.ppp == null ? '—' : A.ppp.toFixed(2)}</td><td class="${A.ppp != null && B.ppp != null && B.ppp > A.ppp ? 'win b' : ''}">${B.ppp == null ? '—' : B.ppp.toFixed(2)}</td></tr>
   </tbody></table>
-  <div class="small muted" style="margin-top:6px">Possessions = FGA − OREB + TO + 0.475 × FTA. Tracked possessions (average of both teams): ${Number.isInteger(sheet) ? sheet : sheet.toFixed(1)} for ${sc === 'G' ? 'the game' : sc === '1H' ? 'the 1st half' : 'the 2nd half + OT'}.</div>`;
+  <div class="small muted" style="margin-top:6px">Possessions = FGA − OREB + TO + 0.475 × FTA. Tracked possessions (average of both teams): ${sheet} for ${sc === 'G' ? 'the game' : sc === '1H' ? 'the 1st half' : 'the 2nd half + OT'}.</div>`;
 }
 function renderFF() {
   const g = cur(); if (!g) return;

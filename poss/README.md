@@ -45,7 +45,7 @@ A possession ends three ways:
 An **offensive rebound** keeps the possession going, after a missed shot or a missed free throw.
 A 1-of-2 trip, an offensive rebound and a second shot is all one possession.
 
-The **Poss** number on the scoreboard is the two teams' counts averaged: (Moorpark + opponent) ÷ 2.
+The **Poss** number on the scoreboard is the two teams' counts averaged, (Moorpark + opponent) ÷ 2, rounded down to a whole number.
 Each team's own count shows under it.
 
 **Kills:** 3 defensive stops in a row, for each team. The count restarts after a kill, a score, or
