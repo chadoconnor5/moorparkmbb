@@ -57,10 +57,10 @@ and at each new period. The opponent's roster comes from the game tracker; edit 
 the live screen (numbers are enough).
 
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
-show the current five for each team: possessions on offense / defense, ORtg, DRtg, net and +/-.
+show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 
 **Lineups tab**, for the game or the current period, for both teams. For every five:
-- possessions on offense / defense, points for–against, +/-, ORtg, DRtg, net;
+- possessions, points for–against, +/-, ORtg, DRtg, net;
 - tap a five to see how its possessions ended at each end.
 
 ## Other tabs
