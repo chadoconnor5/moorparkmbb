@@ -748,6 +748,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lpm.best-on{box-shadow:0 0 0 2px var(--warn) inset}
 .best-tag{margin:6px 0 4px;padding:6px 9px;border-radius:8px;background:rgba(220,176,90,.16);color:var(--warn);font-weight:800;font-size:13px;letter-spacing:.02em}
 .best-tag span{display:block;font-weight:600;font-size:11.5px;color:var(--text2);margin-top:1px}
+.lutx{font-size:11px} .lutx th{font-size:9.5px;letter-spacing:0}
 
 </style>
 </head>
@@ -778,7 +779,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.39';
+const VERSION = 'v2026.10.12.40';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1156,7 +1157,7 @@ function lineupUnits(g, D, t, scope, filter, k) {
   const keep = p => !filter || filter === 'all' || (filter === 'clutch' ? p.clutch : !p.gt);
   const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: 0 });
   const combos = f => k === 5 ? [f] : kSubsets(f.slice().sort(), k);
-  const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
+  const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
   const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
   D.poss.forEach(p => {
     if (pers && p.per !== pers) return;
@@ -1166,7 +1167,7 @@ function lineupUnits(g, D, t, scope, filter, k) {
     combos(f).forEach(c => { const u = U(c), side = mine ? u.o : u.d;
       Object.keys(bx).forEach(x => { side[x] += bx[x]; });
       if (mine) { u.oPoss++; u.pf += p.pts; u.oEnd[p.end.col] = (u.oEnd[p.end.col] || 0) + 1; }
-      else { u.dPoss++; u.pa += p.pts; u.dEnd[p.end.col] = (u.dEnd[p.end.col] || 0) + 1; if (p.kill) u.kills++; } });
+      else { u.dPoss++; u.pa += p.pts; u.dEnd[p.end.col] = (u.dEnd[p.end.col] || 0) + 1; if (p.kill) u.kills++; if (p.stop) u.stops++; } });
     if (mine) credit(f, p.pts, 0); else credit(f, 0, p.pts);
   });
   D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers) && (!filter || filter === 'all')).forEach(x => {
@@ -1473,10 +1474,22 @@ function reportView(g) {
 /* Sortable: tap a header to sort by it (biggest first; lower-is-better columns like DRtg and TO%
    smallest first), tap again to flip. Blanks sort last either way. */
 const LU_COLS = [['five', 'FIVE', ''], ['poss', 'POSS', ''], ['pts', 'PTS', ''], ['pm', '+/-', ''], ['ortg', 'ORTG', ''], ['drtg', 'DRTG', '', 1], ['net', 'NET', ''],
-  ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1]];
+  ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1], ['stops', 'STOPS', 'gd']];
+/* Season: Moorpark's units from every tracked game added together (players are keyed by name, so a
+   five is the same five in every game). */
+function seasonUnits(t, filter, k) {
+  const units = {};
+  games.forEach(gm => { if (!gm.ev || !gm.ev.length) return;
+    lineupUnits(gm, derive(gm), t, 'game', filter, k).units.forEach(u => { const key = fiveKey(u.five);
+      const m = units[key] = units[key] || { five: u.five, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, games: 0, oEnd: {}, dEnd: {}, o: {}, d: {} };
+      ['oPoss', 'dPoss', 'pf', 'pa', 'kills', 'stops'].forEach(x => { m[x] += u[x]; }); m.games++;
+      [['oEnd', u.oEnd], ['dEnd', u.dEnd], ['o', u.o], ['d', u.d]].forEach(([x, src]) => Object.keys(src).forEach(c => { m[x][c] = (m[x][c] || 0) + src[c]; })); }); });
+  return { units: Object.values(units).sort((x, y) => (y.oPoss + y.dPoss) - (x.oPoss + x.dPoss)), players: {} };
+}
 function lineupTable(g, D, t, scope, filter, k) {
   k = k || 5;
-  const L = lineupUnits(g, D, t, scope || (UI.luScope === 'game' ? 'game' : g.per), filter || UI.luFilter, k), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
+  const sc = scope || (UI.luScope === 'game' ? 'game' : UI.luScope === 'season' ? 'season' : g.per);
+  const L = sc === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, sc, filter || UI.luFilter, k), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
   if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
   const P = v => v == null ? '—' : v.toFixed(1) + '%';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([c]) => `<td>${E[c] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
@@ -1484,7 +1497,7 @@ function lineupTable(g, D, t, scope, filter, k) {
     const num = v => typeof v === 'number' ? v : null;
     return { u, f, v: { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
       ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
-      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr } }; });
+      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null } }; });
   const S = UI.luSort || { key: 'poss', dir: -1 };
   rows.sort((x, y) => { const a = x.v[S.key], b = y.v[S.key];
     if (a == null && b == null) return y.v.poss - x.v.poss; if (a == null) return 1; if (b == null) return -1;
@@ -1492,25 +1505,25 @@ function lineupTable(g, D, t, scope, filter, k) {
     return (c * S.dir) || (y.v.poss - x.v.poss); });
   const th = ([key, label, cls]) => `<th class="${cls} sortable ${S.key === key ? 'on' : ''}" data-act="lu-sort" data-s="${key}">${key === 'five' ? (k === 5 ? 'FIVE' : k + '-MAN') : label}${S.key === key ? (S.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
   return `<table class="tbl zebra lut lutx"><thead>
-    <tr class="grp"><th></th><th colspan="6"></th><th colspan="4" class="go">OFFENSE</th><th colspan="4" class="gd">DEFENSE</th></tr>
+    <tr class="grp"><th></th><th colspan="6"></th><th colspan="4" class="go">OFFENSE</th><th colspan="5" class="gd">DEFENSE</th></tr>
     <tr>${LU_COLS.map(th).join('')}</tr></thead><tbody>
     ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
       return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
         <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg == null ? '—' : f1(v.ortg)}</td><td>${v.drtg == null ? '—' : f1(v.drtg)}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sg1(v.net)}</td>
         <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}</td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
-        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}</td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td></tr>
-        ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="15"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
+        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}</td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td><td class="gd"><b>${v.stops}</b><div class="tiny muted">${P(v.stopPct)}</div></td></tr>
+        ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="16"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
           ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table></td></tr>` : ''}`; }).join('')}
   </tbody></table>`;
 }
 function lineupsView(g) {
   const D = derive(g);
-  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope !== 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button></div>
+  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}</div>
       <div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<button class="btn btn-sm ${UI.luFilter === k ? 'btn-primary' : ''}" data-act="lu-filter" data-f="${k}">${l}</button>`).join('')}</div></div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5)}</div></div>
-    <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>
-    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. +/- includes technical free throws; the four factors don't.</div>`;
+    ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */

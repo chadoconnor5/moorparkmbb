@@ -123,11 +123,14 @@ shows at the top of their column and on their lineup card, and a sub that puts i
 combos (a combo is on the floor for every possession of every five that contains it). For each:
 - possessions, points for–against, +/-, ORtg, DRtg, net;
 - offense: eFG%, TO% (per actual possession), OREB%, FT rate;
-- defense: the opponent's eFG%, TO% and FT rate, and DREB%;
+- defense: the opponent's eFG%, TO% and FT rate, DREB%, and **STOPS**: the opponent's possessions that
+  ended with no points while that unit was on (missed free throws don't count, as with kills), with the
+  stop % (stops per defensive possession) under it. Kills can run across lineups; stops belong to the
+  unit that got them. Sort by STOPS to see who gets the most;
 - tap a row to see how its possessions ended at each end.
 
 Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
-rate start lowest-first). Filter All / Clutch / No garbage time.
+rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds up Moorpark's lineups and combos from every game tracked on the iPad.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
