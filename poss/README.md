@@ -48,6 +48,29 @@ A 1-of-2 trip, an offensive rebound and a second shot is all one possession.
 The **Poss** number on the scoreboard is the two teams' counts averaged, (Moorpark + opponent) ÷ 2, rounded down to a whole number.
 Each team's own count shows under it.
 
+## Leverage, clutch, garbage time (no clock)
+The game tracker's rules, with **possessions left** standing in for the clock (possessions left x this
+game's seconds per possession; 40:00 / regulation possessions):
+- **Leverage:** HIGH within 3 · MEDIUM 4–12 and catchable · LOW 13+, or more than the trailing team
+  can close at 3 points a trip on the trips it has left.
+- **Clutch:** the last 5:00 of regulation or any overtime, within 5, never LOW.
+- **Garbage time:** 30+ any time · 25+ at 8:00 or less · 20+ at 5:00 · 15+ at 3:00 · 10+ at 1:00.
+  Sticky from the first possession that meets it, regulation only.
+
+Live, the 2nd half is assumed to run as long as the 1st (a half is ~69 possessions until there is
+one), so the band under **Poss** is an estimate. Once the game is **Final** (End 2H → Final, or
+start OT) every possession is graded exactly. The Sheet shows the band per row (H / M / L, C =
+clutch, GT = garbage) and where garbage time starts. Tap a row to start garbage time there, turn it
+off, or put it back to automatic. Lineups can be filtered to Clutch or No garbage time.
+
+## Leaderboard export
+Sheet → **⬇ Leaderboard: defense** and **⬇ Leaderboard: offense** download the same CSVs
+`defensive_logger.html` wrote (`def_<date>__<opp>__<venue>.csv`, `off_…__OFF.csv`). Drop them in
+`Neural Network - Codex Optimized/internal_data/def_logs/`; `compute_moorpark_lineups.py` reads them
+unchanged: counted defensive possessions per five, opponent 2P/3P/FT, turnovers, rebounds,
+second-chance and points-off-turnover points, and the garbage flag. Points in the paint aren't tracked.
+Hudl's per-game lineup export still supplies offense and minutes.
+
 **Kills:** 3 defensive stops in a row, for each team. The count restarts after a kill, a score, or
 a new period.
 

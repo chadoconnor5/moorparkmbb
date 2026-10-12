@@ -675,6 +675,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 /* The opponent's box is Moorpark's style (a light tint, a softer border) in the opponent's own colour. */
 .tbtn.b[style*="--tc"]{background:color-mix(in srgb,var(--tc) 14%,transparent);border-color:color-mix(in srgb,var(--tc) 45%,transparent)}
 .ffc.trk{color:var(--muted);font-weight:600}
+.psheet td.lv{white-space:nowrap;font-size:12px}
+.psheet .lv-high{color:#b91c1c;font-weight:800} .psheet .lv-med{color:#b45309;font-weight:800} .psheet .lv-low{color:#6b7280}
+.psheet .lvc{margin-left:3px;background:#d8b860;color:#1a1300;border-radius:3px;padding:0 3px;font-size:10px;font-weight:800}
+.psheet .lvg{color:#6b7280;font-weight:800;font-size:10.5px}
+.psheet tr.gtr td:not(.tm){opacity:.55}
+.psheet tr.gtl td{background:var(--surface)!important;color:var(--muted);text-align:left;height:26px;font-size:12px;padding:2px 8px;border-top:2px solid var(--muted)}
 
 </style>
 </head>
@@ -704,7 +710,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.21';
+const VERSION = 'v2026.10.12.22';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -723,7 +729,8 @@ let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
 const cur = () => games.find(g => g.id === curId) || null;
 const save = () => { lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
-const UI = { tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
+const D0 = g => derive(g).score;
+const UI = { luFilter: 'all', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
 /* ---------- rosters ---------- */
 // Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage).
@@ -920,8 +927,70 @@ function derive(g) {
       p.streak = { ...streak };
     });
   });
+  gradePossessions(g, poss);
   return { poss, items, score, five };
 }
+
+/* ---------- leverage, clutch and garbage time, from possessions (no clock) ----------
+   The game tracker's rules, with possessions left standing in for the clock:
+     LEVERAGE  HIGH within 3 · MEDIUM 4-12 and still catchable · LOW 13+, or more than the
+               trailing side can close at 3 points a trip on the trips it has left
+     CLUTCH    the last 5:00 of regulation or any overtime, within 5, never LOW
+     GARBAGE   30+ any time · 25+ at 8:00 or less · 20+ at 5:00 · 15+ at 3:00 · 10+ at 1:00 —
+               sticky from the first possession that meets it, regulation only
+   "Time left" = possessions left (both teams, this one included) x this game's seconds per
+   possession. Once regulation is over the count is exact; before that the 2nd half is
+   assumed to run as long as the 1st (and a half as ~69 possessions until there is one). */
+const SPT_DEFAULT = 17.5;
+const gtReq = minRem => minRem <= 1 ? 10 : minRem <= 3 ? 15 : minRem <= 5 ? 20 : minRem <= 8 ? 25 : 30;
+function levTier(d, trailLeft) { if (d >= 13 || d > 3 * trailLeft) return 'low'; if (d <= 3) return 'high'; return 'med'; }
+function regPlan(g, poss) {
+  const reg = poss.filter(p => p.per === '1H' || p.per === '2H'), n1 = reg.filter(p => p.per === '1H').length;
+  const done = !!g.final || g.periods.some(p => p.startsWith('OT'));
+  const half = Math.round(1200 / SPT_DEFAULT);
+  const N = done ? reg.length : g.periods.includes('2H') ? n1 + Math.max(reg.length - n1 + 1, n1 || half) : Math.max(n1 + 1, half) * 2;
+  return { reg, N: Math.max(N, 1), spt: 2400 / Math.max(N, 1), exact: done };
+}
+function grade(margin, team, left, spt, ot) {
+  const d = Math.abs(margin), trailing = margin > 0 ? 'b' : margin < 0 ? 'a' : null;
+  const trailLeft = !trailing ? Infinity : team == null ? Math.ceil(left / 2) : team === trailing ? Math.ceil(left / 2) : Math.floor(left / 2);
+  const tier = levTier(d, trailLeft), secs = left * spt;
+  return { tier, clutch: tier !== 'low' && d <= 5 && (ot || secs <= 300), gtHit: !ot && d >= gtReq(secs / 60), secs, lead: d };
+}
+function gradePossessions(g, poss) {
+  const P = regPlan(g, poss);
+  poss.forEach(p => { p.before = { a: p.score.a - (p.team === 'a' ? p.pts : 0), b: p.score.b - (p.team === 'b' ? p.pts : 0) }; });
+  let cut = null;
+  P.reg.forEach((p, i) => {
+    const left = Math.max(P.N - i, 1), r = grade(p.before.a - p.before.b, p.team, left, P.spt, false);
+    Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: P.exact, gt: false });
+    if (cut == null && r.gtHit) cut = i;
+  });
+  // A manual start overrides the automatic one; "No garbage time" turns it off.
+  if (g.gtFrom) { const i = P.reg.findIndex(p => p.id === g.gtFrom); cut = i >= 0 ? i : cut; }
+  if (g.gtOff) cut = null;
+  if (cut != null) { P.reg.slice(cut).forEach(p => { p.gt = true; }); P.reg[cut].gtStart = true; }
+  g.periods.filter(x => x.startsWith('OT')).forEach(per => {
+    const list = poss.filter(p => p.per === per), done = !!g.final || g.periods.indexOf(per) < g.periods.length - 1;
+    const N = done ? list.length : Math.max(list.length + 1, Math.round(300 / P.spt));
+    list.forEach((p, i) => { const r = grade(p.before.a - p.before.b, p.team, Math.max(N - i, 1), P.spt, true);
+      Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: done, gt: false }); });
+  });
+}
+// Where the game stands for the next possession (the live screen).
+function gradeNow(g, D) {
+  if (g.final) return null;
+  const S = D.score, m = S.a - S.b;
+  if (g.per.startsWith('OT')) {
+    const list = D.poss.filter(p => p.per === g.per), P = regPlan(g, D.poss);
+    return grade(m, null, Math.max(Math.round(300 / P.spt) - list.length, 1), P.spt, true);
+  }
+  const P = regPlan(g, D.poss), r = grade(m, null, Math.max(P.N - P.reg.length, 1), P.spt, false);
+  r.gt = !g.gtOff && (P.reg.some(p => p.gt) || r.gtHit);
+  return r;
+}
+const fmtSecs = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const LEV_LABEL = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' };
 // How a possession ended — the sheet's columns.
 function endingOf(p) {
   const pl = p.plays.filter(x => x.k !== 'oreb');
@@ -957,18 +1026,20 @@ const tosUsed = (g, t, kind) => g.ev.filter(e => e.t === 'to' && e.team === t &&
 
 /* ---------- lineups ---------- */
 // Each five's possessions at both ends: points for and against, +/-, ratings, and how they ended.
-function lineupUnits(g, D, t, scope) {
+function lineupUnits(g, D, t, scope, filter) {
   const pers = scope === 'game' ? null : scope, units = {}, players = {};
+  const keep = p => !filter || filter === 'all' || (filter === 'clutch' ? p.clutch : !p.gt);
   const U = f => units[fiveKey(f)] = units[fiveKey(f)] || { five: f, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, oEnd: {}, dEnd: {} };
   const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
   D.poss.forEach(p => {
     if (pers && p.per !== pers) return;
+    if (!keep(p)) return;
     const f = p.five[t]; if (!f || f.length !== 5) return;
     const u = U(f), mine = p.team === t;
     if (mine) { u.oPoss++; u.pf += p.pts; u.oEnd[p.end.col] = (u.oEnd[p.end.col] || 0) + 1; credit(f, p.pts, 0); }
     else { u.dPoss++; u.pa += p.pts; u.dEnd[p.end.col] = (u.dEnd[p.end.col] || 0) + 1; if (p.kill) u.kills++; credit(f, 0, p.pts); }
   });
-  D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers)).forEach(x => {
+  D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers) && (!filter || filter === 'all')).forEach(x => {
     const f = x.five[t]; if (!f || f.length !== 5) return;
     const pts = x.e.ftm || 0, u = U(f);
     if (x.e.team === t) { u.pa += pts; credit(f, 0, pts); } else { u.pf += pts; credit(f, pts, 0); }
@@ -1009,8 +1080,10 @@ function scorebar(g, D) {
       <div class="sb-meta">${bonus('a')}${kills('a')}</div>
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
-    <div class="sb-mid"><div class="sb-period">${esc(PER_NAME(per))}</div><div class="sb-clock">Poss ${possAvg(S)}</div>
+    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div><div class="sb-clock">Poss ${possAvg(S)}</div>
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
+      ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
+        return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
       <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button></div></div>
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
@@ -1090,7 +1163,7 @@ function liveView(g) {
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
-        <button class="btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
+        <button class="btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button></div>
       <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
@@ -1105,11 +1178,13 @@ function sheetTable(g, D, per) {
   const rows = D.items.filter(x => (x.kind === 'poss' && x.p.per === per) || ((x.kind === 'sub' || x.kind === 'tech') && x.e.per === per));
   if (!rows.some(x => x.kind === 'poss')) return '<div class="muted small" style="padding:14px">No possessions this period yet.</div>';
   const cols = ['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO'];
-  let h = `<table class="psheet"><thead><tr><th>#</th><th>TEAM</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${{ x2: '✗2', x3: '✗3', xFT: '✗FT' }[c] || c}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th><th>SCORE</th></tr></thead><tbody>`;
+  let h = `<table class="psheet"><thead><tr><th>#</th><th>TEAM</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${{ x2: '✗2', x3: '✗3', xFT: '✗FT' }[c] || c}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th><th>SCORE</th><th>LEV</th></tr></thead><tbody>`;
   for (const x of rows) {
-    if (x.kind === 'sub') { h += `<tr class="lu ${x.e.team}"><td colspan="14">⇄ ${esc(teamName(g, x.e.team))}: ${esc(fiveSorted(g, x.e.team, x.e.five).map(id => pShort(g, x.e.team, id)).join(' · '))}</td></tr>`; continue; }
-    if (x.kind === 'tech') { h += `<tr class="tch"><td colspan="14">T · ${esc(techText(g, x.e))} · ${x.score.a}–${x.score.b}</td></tr>`; continue; }
-    const p = x.p, en = p.end, last = p.plays.filter(e => e.k !== 'oreb' && e.k !== 'dreb').slice(-1)[0] || p.plays[0];
+    if (x.kind === 'sub') { h += `<tr class="lu ${x.e.team}"><td colspan="15">⇄ ${esc(teamName(g, x.e.team))}: ${esc(fiveSorted(g, x.e.team, x.e.five).map(id => pShort(g, x.e.team, id)).join(' · '))}</td></tr>`; continue; }
+    if (x.kind === 'tech') { h += `<tr class="tch"><td colspan="15">T · ${esc(techText(g, x.e))} · ${x.score.a}–${x.score.b}</td></tr>`; continue; }
+    const p = x.p;
+    if (p.gtStart) { h += `<tr class="gtl"><td colspan="15">🗑 Garbage time from here — ${p.before.a}–${p.before.b}, up ${Math.abs(p.before.a - p.before.b)} with ${p.exact ? '' : '~'}${fmtSecs(p.secsLeft)} left${g.gtFrom ? ' (set by hand)' : p.exact ? '' : ' (estimated until the game ends)'}</td></tr>`; }
+    const en = p.end, last = p.plays.filter(e => e.k !== 'oreb' && e.k !== 'dreb').slice(-1)[0] || p.plays[0];
     const c = col => {
       if (en.col !== col && !((col === 'FT') && en.ft && (en.col === '2' || en.col === '3') && en.and1)) return '<td></td>';
       if (col === 'FT' || col === 'xFT') return `<td class="m ${col === 'xFT' ? 'mx' : ''}">${esc(en.ft || '●')}</td>`;
@@ -1117,9 +1192,9 @@ function sheetTable(g, D, per) {
       return `<td class="m ${col[0] === 'x' ? 'mx' : ''}">●${(col === '2' || col === '3') && en.and1 ? '<span class="tiny">+1</span>' : ''}</td>`;
     };
     const toCol = ['TO', 'STL', 'CHG', 'OFF'].includes(en.col) ? '<td class="m">●' + (en.col !== 'TO' && en.col !== 'STL' ? `<span class="tiny">${en.col}</span>` : '') + '</td>' : '<td></td>';
-    h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
+    h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''} ${p.gt ? 'gtr' : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
 ${['2', '3', 'FT', 'x2', 'x3', 'xFT'].map(c).join('')}${toCol}
-      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td></tr>`;
+      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td><td class="lv">${p.gt ? '<span class="lvg">GT</span>' : `<span class="lv-${p.lev}">${(LEV_LABEL[p.lev] || '')[0] || ''}</span>${p.clutch ? '<span class="lvc">C</span>' : ''}`}</td></tr>`;
   }
   return h + '</tbody></table>';
 }
@@ -1132,16 +1207,16 @@ function summaryTable(g, D) {
 function sheetView(g) {
   const D = derive(g), per = UI.sheetPer && g.periods.includes(UI.sheetPer) ? UI.sheetPer : g.per;
   return `<div class="page-head"><h2>Possession sheet</h2><div class="row" style="gap:6px">${g.periods.map(p => `<button class="btn btn-sm ${p === per ? 'btn-primary' : ''}" data-act="sheet-per" data-p="${p}">${p}</button>`).join('')}</div>
-      <button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div>
+      <span class="row" style="gap:6px;margin-left:auto"><button class="btn btn-sm" data-act="export-def" title="def_ CSV for internal_data/def_logs">⬇ Leaderboard: defense</button><button class="btn btn-sm" data-act="export-off" title="off_ CSV for internal_data/def_logs">⬇ Leaderboard: offense</button><button class="btn btn-sm" data-act="print">Print / PDF</button></span></div>
     <div class="card"><h3>${esc(PER_NAME(per))} — every possession in order <span class="muted">· tap a row to fix it</span></h3><div class="tbl-wrap">${sheetTable(g, D, per)}</div>
-      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (3 straight stops): blue = Moorpark's, orange = theirs.</div></div>
+      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (3 straight stops). LEV = leverage going into the possession: H high, M medium, L low; C = clutch; GT = garbage time. Worked out from possessions left (no clock): estimated until the game is final, exact after. Tap a row to set garbage time by hand.</div></div>
     <div class="card"><h3>Summary</h3><div class="tbl-wrap">${summaryTable(g, D)}</div></div>
     <div class="print-only">${g.periods.filter(p => p !== per).map(p => `<div class="card"><h3>${esc(PER_NAME(p))}</h3>${sheetTable(g, D, p)}</div>`).join('')}</div>`;
 }
 
 /* ---------- lineups view ---------- */
 function lineupTable(g, D, t) {
-  const L = lineupUnits(g, D, t, UI.luScope === 'game' ? 'game' : g.per), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
+  const L = lineupUnits(g, D, t, UI.luScope === 'game' ? 'game' : g.per, UI.luFilter), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
   if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([k]) => `<td>${E[k] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
   return `<table class="tbl zebra lut"><thead><tr><th>FIVE</th><th>POSS</th><th>PTS</th><th>+/-</th><th>ORTG</th><th>DRTG</th><th>NET</th></tr></thead><tbody>
@@ -1154,7 +1229,8 @@ function lineupTable(g, D, t) {
 }
 function lineupsView(g) {
   const D = derive(g);
-  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope !== 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button></div></div>
+  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope !== 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button></div>
+      <div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<button class="btn btn-sm ${UI.luFilter === k ? 'btn-primary' : ''}" data-act="lu-filter" data-f="${k}">${l}</button>`).join('')}</div></div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· tap a five for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a')}</div></div>
     <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'b')}</div></div>
     <div class="small muted">POSS = possessions with that five on the floor (both ends averaged). ORTG / DRTG = points per 100 possessions. +/- includes technical free throws.</div>`;
@@ -1477,6 +1553,9 @@ function editModal(id) {
       ${e.t === 'play' ? `<div class="field"><label>Stat</label><div class="sgrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${STATS.filter(s => s[0] !== 'foul' && s[0] !== 'tech' && PLAYER_STATS.has(s[0]) === byPlayer).map(([k, l, c]) => `<button class="sbtn sb-${c} ${e.k === k ? 'on' : ''}" data-act="ed-k" data-id="${id}" data-k="${k}">${l}</button>`).join('')}</div></div>` : ''}
       ${!byPlayer ? `<div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn btn-lg ${e.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="ed-t" data-id="${id}" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>` : ''}
       ${byPlayer ? `<div class="field"><label>Player</label><div class="sub-grid">${ps.map(p => `<button class="sub-p ${e.player === p.id ? 'in' : ''}" data-act="ed-p" data-id="${id}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}<button class="sub-p ${e.player === 'TEAM' || !e.player ? 'in' : ''}" data-act="ed-p" data-id="${id}" data-p="TEAM">Team</button></div></div>` : ''}` : `<div class="muted">${esc(feedText(g, { kind: e.t, e, score: { a: 0, b: 0 } }).html.replace(/<[^>]+>/g, ''))}</div>`}
+    ${(() => { const D = derive(g), p = D.poss.find(x => x.plays.some(y => y.id === id)); if (!p || p.per.startsWith('OT')) return '';
+      return `<div class="field"><label>Garbage time ${g.gtOff ? '(off for this game)' : g.gtFrom ? '(set by hand)' : '(automatic)'}</label><div class="row" style="gap:6px;flex-wrap:wrap">
+        <button class="btn" data-act="gt-here" data-id="${p.id}">Starts at this possession</button><button class="btn" data-act="gt-off">No garbage time</button>${g.gtOff || g.gtFrom ? '<button class="btn" data-act="gt-auto">Automatic</button>' : ''}</div></div>`; })()}
     <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-bad" data-act="ed-del" data-id="${id}">Delete</button>
       <span class="row" style="gap:8px"><button class="btn" data-act="ed-ins" data-id="${id}">Insert a play before this</button><button class="btn btn-good btn-lg" data-act="close">Done</button></span></div>`);
 }
@@ -1517,6 +1596,53 @@ function logStat(team, player) {
   }
 }
 
+/* Leaderboard export: the same CSVs defensive_logger.html wrote, so compute_moorpark_lineups.py
+   reads them unchanged. def_ = their possessions (Moorpark on defense), off_ = ours. Drop both in
+   Neural Network - Codex Optimized/internal_data/def_logs/. Points in the paint aren't tracked. */
+const LOG_COLS_DEF = ['date', 'opponent', 'venue', 'poss', 'poss_end', 'half', 'clock', 'mp_score', 'opp_score', 'lead', 'garbage', 'lineup', 'event', 'shot_type', 'result', 'assisted', 'pip', 'scp', 'pot', 'foul_type', 'bonus', 'ftm', 'fta', 'to_type', 'pts', 'notes'];
+function logRows(g, side) {
+  const D = derive(g), team = side === 'def' ? 'b' : 'a', rows = [], venue = { H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || 'Home';
+  const five = f => (f || []).slice().sort((x, y) => byNum(pInfo(g, 'a', x), pInfo(g, 'a', y))).map(id => { const p = pInfo(g, 'a', id); return `#${p.num} ${p.name}`; }).join(' / ');
+  let n = 0, prevTO = false;
+  D.poss.forEach(p => {
+    const lostBall = ['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col);
+    if (p.team !== team) { prevTO = lostBall; return; }
+    n++;
+    const end = ({ '2': 'made_fg', '3': 'made_fg', FT: 'made_ft', x2: 'dreb', x3: 'dreb', xFT: 'dreb', STL: 'steal', TO: 'turnover', CHG: 'turnover', OFF: 'turnover' })[p.end.col] || '';
+    const base = { date: g.date, opponent: g.opp, venue, poss: n, poss_end: end, half: p.per === '1H' ? 1 : p.per === '2H' ? 2 : p.per,
+      mp_score: p.before.a, opp_score: p.before.b, lead: p.before.a - p.before.b, garbage: p.gt ? 1 : '', lineup: five(p.five.a) };
+    if (side === 'off') base.side = 'off';
+    const pot = prevTO ? 1 : '';
+    let afterOreb = false, ft = null;
+    const flushFT = () => { if (ft) { rows.push(Object.assign({}, base, { event: 'foul', foul_type: 'shooting', ftm: ft.m, fta: ft.a, pts: ft.m })); ft = null; } };
+    p.plays.forEach(e => {
+      if (e.k === 'ftm' || e.k === 'ftx') { ft = ft || { m: 0, a: 0 }; ft.a++; if (e.k === 'ftm') ft.m++; return; }
+      flushFT();
+      if (e.k === 'oreb') { rows.push(Object.assign({}, base, { event: 'oreb', pts: 0 })); afterOreb = true; return; }
+      if (/^[23][mx]$/.test(e.k)) {
+        const made = e.k[1] === 'm', v = made ? +e.k[0] : 0;
+        rows.push(Object.assign({}, base, { event: 'shot', shot_type: e.k[0] + 'pa', result: made ? 'made' : 'missed', scp: afterOreb && made ? 1 : '', pot: made ? pot : '', pts: v }));
+        return;
+      }
+      const tt = { to: 'deadball', stl: 'steal', chg: 'offfoul', offf: 'offfoul' }[e.k];
+      if (tt) rows.push(Object.assign({}, base, { event: 'turnover', to_type: tt, pts: 0 }));
+    });
+    flushFT();
+    if (p.dreb) rows.push(Object.assign({}, base, { event: 'dreb', pts: 0 }));
+    prevTO = lostBall;
+  });
+  return rows;
+}
+function exportLeaderboard(g, side) {
+  const cols = side === 'off' ? ['date', 'opponent', 'venue', 'side'].concat(LOG_COLS_DEF.slice(3)) : LOG_COLS_DEF;
+  const q = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = [cols.join(',')].concat(logRows(g, side).map(r => cols.map(c => q(r[c])).join(','))).join('\n');
+  const venue = { H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || 'Home';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = side === 'off' ? `off_${g.date}__${g.opp}__${venue}__OFF.csv` : `def_${g.date}__${g.opp}__${venue}.csv`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 function exportGame(g) {
   const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, game: g }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
@@ -1625,10 +1751,24 @@ document.addEventListener('click', ev => {
       save(); adjustModal(); render(); break; }
     case 'end-per': {
       const nx = g.per === '1H' ? '2H' : 'OT' + (otCount(g) + 1);
+      if (g.final) { if (confirm('Reopen the game? It stops being final.')) { g.final = false; save(); render(); } return; }
+      if (g.per !== '1H' && g.per === g.periods[g.periods.length - 1]) {
+        modal(`<h2>End ${esc(PER_NAME(g.per))}</h2><p class="muted" style="margin-bottom:6px">Score ${D0(g).a}–${D0(g).b}.</p>
+          <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-lg" data-act="start-ot">Start ${esc(PER_NAME(nx))}</button><button class="btn btn-good btn-lg" data-act="go-final">Final — game over</button></div>`);
+        return;
+      }
       if (g.per !== g.periods[g.periods.length - 1]) { g.per = g.periods[g.periods.length - 1]; save(); render(); return; }
       if (!confirm(`End ${PER_NAME(g.per)} and start ${PER_NAME(nx)}?`)) return;
       g.periods.push(nx); g.per = nx; UI.stat = null; save(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
     case 'scout': openScout(); break;
+    case 'go-final': g.final = true; UI.stat = null; UI.reb = null; save(); closeModal(); render(); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
+    case 'gt-here': g.gtFrom = b.dataset.id; g.gtOff = false; save(); closeModal(); render(); toast('Garbage time starts at that possession'); break;
+    case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
+    case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
+    case 'lu-filter': UI.luFilter = b.dataset.f; render(); break;
+    case 'export-def': exportLeaderboard(g, 'def'); break;
+    case 'export-off': exportLeaderboard(g, 'off'); break;
     case 'sc-close': $('#scout').classList.add('hidden'); break;
     case 'sc-add': $('#sc-file').click(); break;
     case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
