@@ -156,6 +156,25 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
   - both teams' lineups;
   - clutch and garbage-time scoring (post-game);
   - Print / PDF.
+- **📷 Read stat sheet** (Report and Four factors tabs): take a photo of the halftime or final box score
+  printout, both teams in view, flat and straight on. It is read on the iPad, **no internet needed**
+  (Tesseract, saved with the app), in a few seconds.
+  - Built for the PrestoSports box (Player · MIN · FGM-A · 3PM-A · FTM-A · OREB · DREB · REB · AST · STL · BLK
+    · TO · PF · PTS, Starters / Reserves, TM Team, TOTALS). The column order is read off the header line.
+  - A tilted photo is straightened first. Common slips (a lost dash in 3-5, a 4 read as "a") are fixed
+    from where the number sits in the row.
+  - **Check screen**, before anything is saved: every box can be edited.
+    - A row turns red when its points don't match FG / 3P / FT.
+    - A PTS box turns amber when it was misread and filled in from FG / 3P / FT.
+    - The players' sums are checked against the sheet's TOTALS, and minutes against 100 (half) or
+      200 (+25 per OT).
+    - ⇅ Swap teams if Moorpark landed on the wrong side.
+  - **Save → report** adds an **Individual & team advanced** section to the Halftime / Post-game report:
+    - talk points (best game score each side, most-used Moorpark player and his TS%, bench points);
+    - team: points, possessions, ORtg, eFG%, TS%, assisted %, AST/TO, STL%, BLK%, bench points, fouls;
+    - each player: the box, then game score, eFG%, TS%, USG%, AST%, TOV%, OREB%, DREB%, STL%, BLK%,
+      plus Moorpark's on-floor +/- from the tracker.
+  - The sheet's totals also become the Four factors numbers for that half / the game. **Edit sheet** reopens it.
 - **Sheet:** every possession in order for both teams, with how it ended, offensive rebounds,
   points, kills and the running score. Subs and technicals are shown where they happened.
   - Tap a row to change the stat or team, delete the play, or insert a missed play before it.

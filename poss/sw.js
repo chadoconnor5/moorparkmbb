@@ -1,12 +1,17 @@
 /* Offline support for the possession tracker, the same way the game tracker does it: the page
    network first (5 seconds, then the cached copy, so one bar of signal never hangs it), logos
    and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
-const CACHE = 'pl-v4';
+const CACHE = 'pl-v5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png', '../game/logos/moorpark.png',
                '../game/vendor/pdf.min.mjs', '../game/vendor/pdf.worker.min.mjs'];
+// The stat-sheet photo reader (Tesseract, ~11 MB), saved up front so it works with no signal. Best effort:
+// a failed download never blocks the app from installing; it is fetched again on first use.
+const TESS = ['vendor/tess/tesseract.min.js', 'vendor/tess/worker.min.js', 'vendor/tess/tesseract-core-simd-lstm.wasm.js',
+              'vendor/tess/tesseract-core-lstm.wasm.js', 'vendor/tess/eng.traineddata.gz'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).then(() => Promise.all(TESS.map(u => c.add(u).catch(() => {})))))
+    .then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
