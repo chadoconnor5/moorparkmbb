@@ -13,7 +13,12 @@ names on the same iPad but never writes to them.
 - **Moorpark score**: +1 / +2 / +3 (−1 to fix) under the score — it gives Moorpark's PPP. Our
   possessions are the same count as theirs, as on the paper sheet.
 - **Fouls**: team fouls per half (2nd half carries into OT), + / − for each team, with BONUS at 7
-  and DOUBLE BONUS at 10. A charge adds one to theirs.
+  and DOUBLE BONUS at 10. A charge adds one to theirs. **Moorpark fouls**: tap a player for his foul
+  and a team foul (− takes one off); blue edge = on the floor, red at 5 fouls or 2 technicals.
+- **T — Technical**: team, player or coach, free throws made (0–2). On a player it is always his
+  foul and a team foul; on a coach, neither (a second on the same coach flags the ejection). The
+  free throws count in the score and PPP but are not a possession; the sheet shows a red T line.
+  No game clock anywhere — nothing in this tracker asks for a time.
 - **Timeouts**: 3 full + 4 thirty-second per team for the game, plus one 30 per overtime.
 - **Subs / lineups**: ⇄ Sub, tap players on and off until five are lit, Confirm (at the top).
   A new game and each new period open it for the starting five. "Counts from possession" steps

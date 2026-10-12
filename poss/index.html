@@ -151,6 +151,18 @@ table.sheet{border-collapse:collapse;width:100%;font-size:14px;table-layout:fixe
 .ver{font-size:11px;color:var(--mut);text-align:center;margin-top:16px}
 .print-only{display:none}
 .hidden{display:none!important}
+.trouble{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px}
+.pf{display:flex;align-items:center;border:1px solid var(--line2);border-radius:7px;background:#fff;overflow:hidden}
+.pf .go{flex:1;text-align:left;border:0;background:none;padding:8px 8px;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf .go b{display:inline-block;min-width:22px}
+.pf .ct{font-weight:800;font-size:15px;padding:0 8px;font-variant-numeric:tabular-nums}
+.pf .ct .t{font-size:11px;color:var(--red);margin-left:2px}
+.pf .dn{border:0;border-left:1px solid var(--line);background:#f8f9fb;color:var(--mut);width:32px;align-self:stretch;font-weight:800}
+.pf.on{border-color:var(--blue);box-shadow:inset 3px 0 0 var(--blue)}
+.pf.f3{background:#fff6c2} .pf.f4{background:#fde2b8} .pf.f5{background:#f8caca}
+.pf.f5 .go{text-decoration:line-through}
+.togs button.tech{border-style:solid;border-color:var(--red);color:var(--red);flex:.7}
+.sheet tr.tech td{background:#fff!important;height:26px;font-size:11.5px;font-weight:800;color:var(--red);text-align:left;padding:2px 8px;border-top:2px solid var(--red)}
 /* four factors from the printed box score */
 #ff{position:fixed;inset:0;z-index:41;background:var(--bg);overflow:auto}
 #ff .wrap{padding-top:10px}
@@ -247,7 +259,7 @@ table.sheet{border-collapse:collapse;width:100%;font-size:14px;table-layout:fixe
 <div class="toast" id="toast"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.5';
+const VERSION = 'v2026.10.12.6';
 const LS_GAMES = 'pl_games', LS_CUR = 'pl_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;          // regulation allotment per team, per game; +1 30-sec per OT
 
@@ -312,8 +324,8 @@ function periodRows(g, per) {
 }
 function perStats(g, per) {
   const rows = periodRows(g, per);
-  const opp = rows.reduce((s, r) => s + r.pts, 0);
-  const mpk = g.ev.filter(e => e.t === 'mpk' && e.per === per).reduce((s, e) => s + e.pts, 0);
+  const opp = rows.reduce((s, r) => s + r.pts, 0) + techPts(g, per, 'b');
+  const mpk = g.ev.filter(e => e.t === 'mpk' && e.per === per).reduce((s, e) => s + e.pts, 0) + techPts(g, per, 'a');
   const streak = rows.length ? rows[rows.length - 1].streak : 0;
   return { rows, poss: rows.length, opp, mpk, kills: rows.filter(r => r.kill).length,
            stops: rows.filter(r => r.stop).length, oreb: rows.reduce((s, r) => s + (r.e.oreb || 0), 0), streak };
@@ -395,9 +407,15 @@ function subConfirm() {
   g.five = five; SUB = null; save(); closeModal(); render(); toast('On the floor: ' + fiveNums(five));
 }
 
+// A Moorpark player's fouls: personal fouls plus technicals charged to him (a player technical is
+// also a personal foul). Two technicals put him out of the game.
+const playerFouls = (g, name) => g.ev.filter(e => (e.t === 'foul' || e.t === 'tech') && e.team === 'a' && e.player === name).length;
+const playerTechs = (g, name) => g.ev.filter(e => e.t === 'tech' && e.team === 'a' && e.player === name).length;
+// Technical free throws score but are not a possession: they count in the score and PPP, not on the sheet.
+const techPts = (g, per, shooter) => g.ev.filter(e => e.t === 'tech' && e.per === per && e.team !== shooter).reduce((s, e) => s + (e.ftm || 0), 0);
 function teamFouls(g, team, per) {
   const b = foulBucket(per);
-  return g.ev.filter(e => e.t === 'foul' && e.team === team && foulBucket(e.per) === b).length;
+  return g.ev.filter(e => (e.t === 'foul' || (e.t === 'tech' && e.tf)) && e.team === team && foulBucket(e.per) === b).length;
 }
 // Opponent fouls put us in the bonus, ours put them in it.
 const bonusTag = n => n >= 10 ? '<span class="bonus dbl">DOUBLE BONUS</span>' : n >= 7 ? '<span class="bonus">BONUS</span>' : '';
@@ -413,9 +431,10 @@ function render() {
   const tfA = teamFouls(g, 'a', per), tfB = teamFouls(g, 'b', per);
   const recent = [];
   for (let i = g.ev.length - 1; i >= 0 && recent.length < 12; i--) { const n = g.ev[i].num; if (g.ev[i].t === 'poss' && n && !recent.includes(n)) recent.push(n); }
-  const last = [...g.ev].reverse().find(e => e.t === 'poss' || e.t === 'mpk' || e.t === 'foul');
+  const last = [...g.ev].reverse().find(e => ['poss', 'mpk', 'foul', 'tech'].includes(e.t));
   const lastTxt = !last ? 'Nothing logged yet' : last.t === 'poss' ? `Last: ${PER_NAME(last.per)} poss ${periodRows(g, last.per).find(r => r.e.id === last.id).n} — ${describe(last)}`
-    : last.t === 'mpk' ? `Last: Moorpark ${last.pts > 0 ? '+' : ''}${last.pts}` : `Last: foul on ${last.team === 'a' ? 'Moorpark' : esc(g.opp)}`;
+    : last.t === 'mpk' ? `Last: Moorpark ${last.pts > 0 ? '+' : ''}${last.pts}` : last.t === 'tech' ? `Last: ${techText(g, last)}`
+    : `Last: foul on ${last.team === 'a' ? esc(last.player || 'Moorpark') : esc(g.opp)}`;
 
   $('#app').innerHTML = `
   <div class="top no-print">
@@ -470,6 +489,7 @@ function render() {
         <div class="togs">
           <button class="${P.and1 ? 'on' : ''}" data-act="and1">And-one +1</button>
           <button class="${P.oreb ? 'on' : ''}" data-act="oreb">Their off. reb${P.oreb ? ' · ' + P.oreb : ''}</button>
+          <button class="tech" data-act="tech">T — Technical</button>
         </div>
         <div class="lastline"><span class="txt">${lastTxt}</span><button class="btn btn-sm" data-act="undo">↶ Undo</button></div>
       </div>
@@ -488,6 +508,12 @@ function render() {
         ${foulRow('Team — MPK', tfA, 'a')}
         ${foulRow('Team — OPP', tfB, 'b')}
         <div class="small muted" style="margin:-2px 0 8px">Shaded 7 = bonus (1-and-1) · 10 = double bonus. Fouls carry from the 2nd half into overtime. A charge adds one to theirs.</div>
+        <div style="font-size:12px;font-weight:800;color:var(--blue);letter-spacing:.06em">MOORPARK FOULS <span class="muted" style="font-weight:600;letter-spacing:0">— tap a player: his foul + a team foul · − takes one off</span></div>
+        <div class="trouble">${rosterSorted().map(r => { const n = playerFouls(g, r.name), t = playerTechs(g, r.name), out = n >= 5 || t >= 2;
+          return `<div class="pf f${out ? 5 : Math.min(n, 4)} ${g.five && g.five.includes(r.name) ? 'on' : ''}">
+          <button class="go" data-act="pfoul" data-n="${esc(r.name)}"><b>${esc(r.num)}</b> ${esc(lastName(r.name))}</button><span class="ct">${n}${t ? `<span class="t">T${t > 1 ? t : ''}</span>` : ''}</span>
+          <button class="dn" data-act="pfoul-x" data-n="${esc(r.name)}" title="Take one off">−</button></div>`; }).join('') || '<div class="muted small">No roster yet — ⋯ → Moorpark roster.</div>'}</div>
+        <div class="small muted" style="margin-top:5px">Blue edge = on the floor. Out at 5 fouls or 2 technicals.</div>
       </div>
     </div>
     <div>
@@ -518,7 +544,10 @@ function render() {
 
 function sheetTable(g, per) {
   const rows = periodRows(g, per);
-  if (!rows.length) return '<div class="empty-log">No possessions yet this period. Each tap above logs one row of the sheet.</div>';
+  const techs = g.ev.filter(e => e.t === 'tech' && e.per === per);
+  if (!rows.length && !techs.length) return '<div class="empty-log">No possessions yet this period. Each tap above logs one row of the sheet.</div>';
+  let ti = 0;
+  const techRows = upto => { let h = ''; while (ti < techs.length && (upto == null || g.ev.indexOf(techs[ti]) < upto)) h += `<tr class="tech"><td colspan="13">T · ${esc(techText(g, techs[ti++]))}</td></tr>`; return h; };
   const cols = ['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO'];
   let html = `<table class="sheet"><thead><tr><th>POSS</th><th>PLAYER #</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${RES_LABEL[c]}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th></tr></thead><tbody>`;
   let sub = 0, subK = 0;
@@ -526,6 +555,7 @@ function sheetTable(g, per) {
   let prevKey = null;
   rows.forEach((r, i) => {
     const e = r.e;
+    html += techRows(g.ev.indexOf(e));
     const k = e.five && e.five.length ? fiveKey(e.five) : '';
     if (k !== prevKey && (k || prevKey !== null)) html += `<tr class="lu"><td colspan="13">${i ? '⇄ ' : ''}${k ? fiveSorted(e.five, M).map(n => esc(shortName(n, M))).join(' · ') : 'No five set'}</td></tr>`;
     prevKey = k;
@@ -540,11 +570,12 @@ function sheetTable(g, per) {
     sub += r.pts; subK += r.kill ? 1 : 0;
     if ((i + 1) % 25 === 0 || i === rows.length - 1) {
       const a = Math.floor(i / 25) * 25 + 1;
+      if (i === rows.length - 1) html += techRows(null);
       html += `<tr class="sub"><td colspan="11">SUBTOTAL ${a}–${i + 1} — OPP POINTS / KILLS →</td><td class="pts">${sub}</td><td class="kill">${subK}</td></tr>`;
       sub = 0; subK = 0;
     }
   });
-  return html + '</tbody></table>';
+  return html + techRows(null) + '</tbody></table>';
 }
 
 function foulRow(label, n, team) {
@@ -646,6 +677,29 @@ function editModal(id) {
   paint();
 }
 
+/* Technical: on a player it is always his foul and a team foul; on a coach it is neither.
+   Then how many of the two free throws went in. One event, so Undo takes all of it back. */
+let TECH = null;
+function techText(g, e) {
+  const team = e.team === 'a' ? 'Moorpark' : g.opp;
+  const on = e.coach ? team + ' coach' : e.team === 'a' ? shortName(e.player) : team;
+  return `Technical on ${on} — ${e.team === 'a' ? g.opp : 'Moorpark'} ${e.ftm}/2 FT`;
+}
+const coachTechs = (g, team) => g.ev.filter(e => e.t === 'tech' && e.team === team && e.coach).length;
+function techModal() {
+  const g = cur(), T = TECH, M = rosterMap();
+  const onFloor = g.five ? fiveSorted(g.five, M) : [];
+  const others = rosterSorted().map(r => r.name).filter(n => !onFloor.includes(n));
+  const pbtn = n => `<button class="${T.player === n ? 'on' : ''}" data-act="tech-p" data-n="${esc(n)}"><b>${esc((M[n] && M[n].num) || '—')}</b>${esc(lastName(n))}</button>`;
+  const ready = T.coach || T.team === 'b' || T.player;
+  modal(`<div class="subtop"><h2>Technical foul</h2><button class="btn" data-act="tech-cancel">Cancel</button><button class="btn btn-blue" data-act="tech-ok" ${ready ? '' : 'disabled'}>Log it</button></div>
+    <div class="field"><label>Team</label><div class="seg"><button class="${T.team === 'b' ? 'on' : ''}" data-act="tech-team" data-t="b">${esc(g.opp)}</button><button class="${T.team === 'a' ? 'on' : ''}" data-act="tech-team" data-t="a">Moorpark</button></div></div>
+    <div class="field"><label>On</label><div class="seg"><button class="${!T.coach ? 'on' : ''}" data-act="tech-coach" data-v="0">A player — his foul + team foul</button><button class="${T.coach ? 'on' : ''}" data-act="tech-coach" data-v="1">The coach — no foul counted</button></div></div>
+    ${T.team === 'a' && !T.coach ? `<div class="field"><label>Which Moorpark player</label><div class="pick">${onFloor.map(pbtn).join('')}</div>
+      ${others.length ? `<div class="pick" style="margin-top:8px;opacity:.85">${others.map(pbtn).join('')}</div>` : ''}</div>` : ''}
+    <div class="field"><label>Free throws made by ${T.team === 'a' ? esc(g.opp) : 'Moorpark'}</label><div class="seg">${[0, 1, 2].map(n => `<button class="${T.ftm === n ? 'on' : ''}" data-act="tech-ft" data-n="${n}" style="min-height:52px;font-size:20px">${n}</button>`).join('')}</div></div>`);
+}
+
 function ftModal() {
   modal(`<h2>Free-throw trip — how many made?</h2>
     <div class="res">${[1, 2, 3].map(n => `<button class="make" style="height:90px;font-size:34px" data-act="ft-n" data-n="${n}">${n}</button>`).join('')}</div>
@@ -705,7 +759,7 @@ function undo() {
   const e = g.ev.pop();
   if (e.t === 'foul' && e.link) { const i = g.ev.findIndex(x => x.id === e.link); if (i >= 0) g.ev.splice(i, 1); }
   save(); render();
-  toast('Undid: ' + (e.t === 'poss' ? describe(e) : e.t === 'mpk' ? `Moorpark ${e.pts > 0 ? '+' : ''}${e.pts}` : 'foul'));
+  toast('Undid: ' + (e.t === 'poss' ? describe(e) : e.t === 'mpk' ? `Moorpark ${e.pts > 0 ? '+' : ''}${e.pts}` : e.t === 'tech' ? techText(g, e) : 'foul'));
 }
 
 function exportGame() {
@@ -779,6 +833,27 @@ document.addEventListener('click', ev => {
     case 'ft': ftModal(); break;
     case 'ft-n': closeModal(); logPoss('FT', +b.dataset.n); break;
     case 'undo': undo(); break;
+    case 'tech': TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); break;
+    case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; techModal(); break;
+    case 'tech-p': TECH.player = TECH.player === b.dataset.n ? null : b.dataset.n; techModal(); break;
+    case 'tech-ft': TECH.ftm = +b.dataset.n; techModal(); break;
+    case 'tech-coach': TECH.coach = b.dataset.v === '1'; if (TECH.coach) TECH.player = null; techModal(); break;
+    case 'tech-cancel': TECH = null; closeModal(); break;
+    case 'tech-ok': {
+      if (!(TECH.coach || TECH.team === 'b' || TECH.player)) return;
+      const e = Object.assign({ id: uid(), t: 'tech', per: g.per, five: g.five ? g.five.slice() : null }, TECH, { tf: !TECH.coach });
+      if (e.team === 'b' || e.coach) e.player = null;
+      g.ev.push(e); TECH = null; save(); closeModal(); render();
+      const out = e.player && (playerTechs(g, e.player) >= 2 || playerFouls(g, e.player) >= 5);
+      const cOut = e.coach && coachTechs(g, e.team) >= 2;
+      toast(techText(g, e) + (out ? ' — ' + lastName(e.player) + ' IS OUT' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : '')); break; }
+    case 'pfoul': {
+      const n = playerFouls(g, b.dataset.n);
+      g.ev.push({ id: uid(), t: 'foul', per: g.per, team: 'a', player: b.dataset.n }); save(); render();
+      toast(`${lastName(b.dataset.n)}: ${n + 1} foul${n ? 's' : ''}${n + 1 >= 5 ? ' — FOULED OUT' : ''}`); break; }
+    case 'pfoul-x': {
+      for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i]; if (e.t === 'foul' && e.team === 'a' && e.player === b.dataset.n) { g.ev.splice(i, 1); save(); render(); return; } }
+      toast('No personal foul to take off — undo a technical with ↶ Undo'); break; }
     case 'sub': SUB = null; subModal(); break;
     case 'sub-p': { const n = b.dataset.n; if (SUB.sel.has(n)) SUB.sel.delete(n); else if (SUB.sel.size < 5) SUB.sel.add(n); else { toast('Five are on — take one off first'); return; } subModal(); break; }
     case 'sub-from': { const mx = perStats(g, g.per).poss + 1; SUB.from = Math.min(mx, Math.max(1, SUB.from + +b.dataset.d)); subModal(); break; }
