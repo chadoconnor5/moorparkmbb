@@ -721,6 +721,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lutx td:first-child .tiny{white-space:normal;line-height:1.25}
 .lutx th.sortable{cursor:pointer;user-select:none}
 .lutx th.sortable.on{color:#facc15}
+.lutx{font-size:11.5px}
+.lutx th,.lutx td{padding:6px 3px}
+.lutx th{font-size:10px;letter-spacing:.02em}
+.lutx td:first-child{max-width:118px;min-width:96px}
+.lutx td:first-child b{font-size:12px;white-space:nowrap}
 
 </style>
 </head>
@@ -751,7 +756,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.31';
+const VERSION = 'v2026.10.12.32';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1145,7 +1150,7 @@ function lineupUnits(g, D, t, scope, filter, k) {
 }
 // Four factors for one end. o = that end's offence counts; other = the other side's (for rebounding).
 function ff4(o, other, poss) {
-  const pct = (a, b) => b ? Math.round(100 * a / b) : null;
+  const pct = (a, b) => b ? Math.round(1000 * a / b) / 10 : null;   // one decimal: 63.6
   return { efg: pct(o.fgm + 0.5 * o.fg3m, o.fga), to: pct(o.tov, poss), orb: pct(o.oreb, o.oreb + o.dreb), ftr: pct(o.fta, o.fga) };
 }
 
@@ -1420,13 +1425,13 @@ function lineupTable(g, D, t, scope, filter, k) {
   k = k || 5;
   const L = lineupUnits(g, D, t, scope || (UI.luScope === 'game' ? 'game' : g.per), filter || UI.luFilter, k), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
   if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
-  const P = v => v == null ? '—' : v + '%';
+  const P = v => v == null ? '—' : v.toFixed(1) + '%';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([c]) => `<td>${E[c] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
     return { u, f, v: { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
       ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? o - d : null, oefg: O.efg, oto: O.to, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
-      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(100 * u.d.dreb / (u.d.dreb + u.d.oreb)) : null, dftr: X.ftr } }; });
+      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr } }; });
   const S = UI.luSort || { key: 'poss', dir: -1 };
   rows.sort((x, y) => { const a = x.v[S.key], b = y.v[S.key];
     if (a == null && b == null) return y.v.poss - x.v.poss; if (a == null) return 1; if (b == null) return -1;
@@ -2209,9 +2214,9 @@ function ffResults(g, sc) {
   const L = ffLine(g, sc);
   if (!L) return `<div class="muted">Nothing logged ${sc === 'G' ? 'yet' : 'in this half yet'}.</div>`;
   const A = ffCalc(L.a, L.b), B = ffCalc(L.b, L.a);
-  const P = v => v == null ? '—' : Math.round(v) + '%';
+  const P = v => v == null ? '—' : v.toFixed(1) + '%';
   const row = (lbl, k, hi, sub) => {
-    const a = A[k], b = B[k], w = a == null || b == null || Math.round(a) === Math.round(b) ? '' : (a > b) === hi ? 'a' : 'b';
+    const a = A[k], b = B[k], w = a == null || b == null || a.toFixed(1) === b.toFixed(1) ? '' : (a > b) === hi ? 'a' : 'b';
     return `<tr><td>${lbl}</td><td class="${w === 'a' ? 'win a' : ''}">${P(a)}${sub ? `<span class="sub">${sub(L.a, L.b)}</span>` : ''}</td><td class="${w === 'b' ? 'win b' : ''}">${P(b)}${sub ? `<span class="sub">${sub(L.b, L.a)}</span>` : ''}</td></tr>`;
   };
   const v = (t, k) => t[k] == null ? '–' : t[k];
