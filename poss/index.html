@@ -595,12 +595,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .psheet tbody tr[data-act]{cursor:pointer}
 .psheet td.pn{font-weight:800}
 .psheet td.tm{color:#fff;font-size:11.5px;font-weight:800;letter-spacing:.04em}
-.psheet td.tm.a{background:#2b8fc0!important} .psheet td.tm.b{background:#b8743f!important}
+.psheet td.tm.a{background:#2b8fc0!important} .psheet td.tm.b{background:var(--them)!important;color:#111}
 .psheet td.m{font-size:16px} .psheet td.mx{color:#b91c1c} .psheet td.ms{color:#0b6fa4}
 .psheet td .tiny{font-size:10px;color:#4b5563;font-weight:700;margin-left:1px}
 .psheet td.sc{font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap}
 .psheet tr.kill-a td.kill{background:#2b8fc0!important;color:#fff}
-.psheet tr.kill-b td.kill{background:#b8743f!important;color:#fff}
+.psheet tr.kill-b td.kill{background:var(--them)!important;color:#111}
 .psheet tr.lu td,.psheet tr.tch td{background:var(--surface)!important;text-align:left;height:26px;font-size:12px;padding:2px 8px}
 .psheet tr.lu.a td{color:var(--us);border-top:2px solid var(--us)} .psheet tr.lu.b td{color:var(--them-text);border-top:2px solid var(--them)}
 .psheet tr.tch td{color:var(--bad);border-top:2px solid var(--bad)}
@@ -703,9 +703,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.18';
+const VERSION = 'v2026.10.12.19';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
-const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
+const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -808,6 +808,45 @@ function logoSlug(name) {
 }
 /* School main colours (game tracker's list): the team buttons are boxed in them. */
 const TEAM_COLORS = {"alameda": "#004A88", "allan_hancock": "#0033A0", "american_river": "#003058", "antelope_valley": "#8B1C40", "bakersfield": "#D21028", "barstow": "#002269", "butte": "#BD8A00", "cabrillo": "#3861E3", "canada": "#205C40", "canyons": "#FFBA21", "cerritos": "#002E66", "cerro_coso": "#13294B", "chabot": "#CF8900", "chaffey": "#990000", "citrus": "#004371", "coalinga": "#3B5B9E", "columbia": "#DA291C", "compton": "#A8123E", "contra_costa": "#003E7E", "copper_mountain": "#0097A9", "cosumnes_river": "#F26E21", "cuesta": "#008445", "cuyamaca": "#79BDE9", "cypress": "#FED41F", "de_anza": "#6A0221", "desert": "#A50B2D", "diablo_valley": "#445F4A", "east_los_angeles": "#004522", "el_camino": "#001489", "feather_river": "#1F693C", "folsom_lake": "#0084AC", "foothill": "#A61E2F", "fresno": "#D0103A", "fullerton": "#0F406B", "gavilan": "#EE1D24", "glendale": "#A32035", "golden_west": "#003000", "grossmont": "#00685E", "hartnell": "#860038", "imperial_valley": "#240000", "irvine_valley": "#004789", "la_harbor": "#FFC52E", "la_pierce": "#BF2116", "la_southwest": "#00A0DD", "la_trade_tech": "#552385", "la_valley": "#00523F", "las_positas": "#981E32", "lassen": "#F06724", "lemoore": "#2C3668", "long_beach": "#EE3324", "los_angeles_city": "#305589", "los_medanos": "#FFC72C", "mack_attack_prep": "#E3120B", "marin": "#C4B483", "mendocino": "#001648", "merced": "#00205C", "merritt": "#003DA5", "miracosta": "#1A3D6D", "modesto": "#001F60", "monterey_peninsula": "#860038", "moorpark": "#B9D9EB", "mt_san_antonio": "#9C182F", "mt_san_jacinto": "#B2292E", "napa_valley": "#048543", "ohlone": "#008A59", "orange_coast": "#FE5000", "oxnard": "#00AA4F", "palo_verde": "#04056C", "palomar": "#A80100", "pasadena_city": "#8E1C26", "porterville": "#A71F23", "redwoods": "#98272C", "reedley": "#F88F1F", "rio_hondo": "#3A3A3C", "riverside": "#F26624", "sacramento_city": "#8B2332", "saddleback": "#A32235", "san_bernardino_valley": "#0053A1", "san_diego_city": "#B30938", "san_diego_mesa": "#0C223F", "san_diego_miramar": "#8DB7E1", "san_francisco": "#E32526", "san_joaquin_delta": "#D5BE8E", "san_jose": "#FFC627", "san_mateo": "#2F1A45", "santa_ana": "#AB0E24", "santa_barbara": "#A6192E", "santa_monica": "#2079CD", "santa_rosa": "#1E1656", "santiago_canyon": "#263D99", "sequoias": "#24337A", "shasta": "#1A5733", "sierra": "#AF2124", "siskiyous": "#122B55", "skyline": "#CC3835", "solano": "#22529D", "southwestern": "#9B2743", "ventura": "#FF6602", "victor_valley": "#9F2944", "west_la": "#005697", "west_valley": "#14335F", "yuba": "#C5B37C"};
+/* The opponent's colour on their name, cards and stripes, shaded to read on the dark panels:
+   the game tracker's palette code, copied so both apps colour a school the same way. */
+function hexRgb(h) { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); }
+function rgbHex(c) { return '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''); }
+function lum(c) { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(c[0]) + .7152 * f(c[1]) + .0722 * f(c[2]); }
+function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+const mixRgb = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+/* Brighten only as far as it takes to read on the dark panels - in HSL, raising lightness and
+   keeping the hue and saturation, so a navy turns into a clear blue rather than a grey. */
+function rgbHsl([r, g, b]) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; } return [h, s, l]; }
+function hslRgb([h, s, l]) { if (!s) return [l * 255, l * 255, l * 255]; const q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < .5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; }; return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255]; }
+function liftTo(c, bg, ratio) { const [h, s0, l0] = rgbHsl(c); const s = Math.max(s0, .55); let l = l0, out = c;
+  while (contrast(out, bg) < ratio && l < .95) { l += .02; out = hslRgb([h, s, l]); } return out; }
+function teamPalette(name) {
+  const k = logoSlug(name) || String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const hex = TEAM_COLORS[k];
+  if (!hex) return null;
+  let base = hexRgb(hex); const bg = hexRgb('#1a1e26');
+  let fill = liftTo(base, bg, 3), text = liftTo(base, bg, 4.5);
+  /* Too close to Moorpark's Columbia blue to tell apart at a glance (San Diego Miramar,
+     Cuyamaca): keep their hue but take it deeper until the two sides separate, staying
+     readable on the panel. Only if no shade does both does it fall back to white. */
+  const us = hexRgb('#4fc3f7'), far = c => Math.hypot(...c.map((v, i) => v - us[i])) >= 90;
+  if (!far(fill)) {
+    const [h, s0, l0] = rgbHsl(fill); const s = Math.max(s0, .5); let found = null;
+    for (let l = l0; l >= .2; l -= .02) { const c = hslRgb([h, s, l]); if (far(c) && contrast(c, bg) >= 3) { found = c; break; } }
+    if (found) { fill = found; text = liftTo(found, bg, 4.5); if (!far(text)) text = found; base = found; }
+    else { fill = [229, 231, 235]; text = fill; }
+  }
+  return { fill: rgbHex(fill), text: rgbHex(text), stripe: rgbHex(fill), hdr: rgbHex(mixRgb(base, [13, 15, 20], lum(base) > .4 ? .72 : .45)),
+           bg: `rgba(${fill.map(Math.round).join(',')},.12)` };
+}
+function applyTeamColors(g) {
+  const p = g ? teamPalette(g.opp) : null, r = document.documentElement.style;
+  if (!p) { ['--them', '--them-d', '--them-bg', '--them-text', '--them-hdr'].forEach(v => r.removeProperty(v)); return; }
+  r.setProperty('--them', p.fill); r.setProperty('--them-d', p.stripe); r.setProperty('--them-bg', p.bg); r.setProperty('--them-text', p.text); r.setProperty('--them-hdr', p.hdr);
+}
 const teamColor = name => TEAM_COLORS[logoSlug(name)] || null;
 const logoSrc = name => { const k = logoSlug(name); return k ? `../game/logos/${k}.png` : null; };
 const logo = (name, px) => { const src = logoSrc(name); return src ? `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="${src}" alt="" onerror="this.remove()">` : ''; };
@@ -940,6 +979,7 @@ function lineupUnits(g, D, t, scope) {
 function render() {
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
   const g = cur();
+  applyTeamColors(g);
   const v = $('#view');
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
@@ -991,7 +1031,7 @@ const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 't
 
 function playerCards(g, D, t) {
   const f = D.five[t];
-  const list = f.length ? fiveSorted(g, t, f).map(id => pInfo(g, t, id)) : teamPlayers(g, t);
+  const list = f.length ? fiveSorted(g, t, f).map(id => pInfo(g, t, id)) : [];
   const L = lineupUnits(g, D, t, 'game');
   const card = p => { const pf = playerFouls(g, t, p.id), te = playerTechs(g, t, p.id), pm = (L.players[p.id] || { pm: 0 }).pm;
     const cls = pf >= 5 || te >= 2 ? 'ft-danger' : pf === 4 ? 'ft-warn' : '';
@@ -1000,7 +1040,9 @@ function playerCards(g, D, t) {
       ${p.pos || p.note ? `<span class="pnote">${esc([p.pos, p.note].filter(Boolean).join(' · '))}</span>` : ''}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${pf} PF</span></button>`; };
-  return `${!f.length ? `<div class="small muted" style="padding:2px 4px 6px">${t === 'b' && !list.length ? 'No roster — tap Roster, or log with Team.' : 'Five not set — ⇄ Sub. Whole roster shown.'}</div>` : ''}
+  const noRoster = !teamPlayers(g, t).length;
+  return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
+      : `<button class="btn btn-good btn-lg" style="width:100%;margin-bottom:7px" data-act="sub">Set ${esc(teamName(g, t))}'s five</button>`) : ''}
     <div class="pgrid">${list.map(card).join('')}<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button></div>`;
 }
 
@@ -1154,7 +1196,7 @@ function setupView() {
         <div class="field"><label>Site</label><select id="su-site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${d.site === x ? 'selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
         <div class="field"><label>Conference game</label><select id="su-conf"><option value="0">No</option><option value="1" ${d.conf ? 'selected' : ''}>Yes</option></select></div>
       </div>
-      <div class="small muted">Timeouts: 3 full + 4 × 30s a team (each OT adds a 30). Bonus at 7 team fouls, double bonus at 10. No clock.</div>
+      <div class="small muted">Timeouts: 4 full + 2 × 30s a team (each OT adds a 30). Bonus at 7 team fouls, double bonus at 10. No clock.</div>
     </div>
     <div class="card"><h3>Moorpark — tap to start, tap again to sit out <span class="muted">${d.starters.length}/5 starters · ${d.dressed.length} dressed</span>
       <button class="btn btn-sm" data-act="go-roster-m" style="margin-left:auto">Edit roster / notes</button></h3>

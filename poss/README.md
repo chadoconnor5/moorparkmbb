@@ -29,7 +29,7 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - On a player it is his foul and a team foul.
   - On a coach it is neither. A second on the same coach flags the ejection.
   - The free throws count in the score, PPP and +/-, but are not a possession.
-- **Timeout:** pick the team, full or 30. **± Fouls / TOs** fixes the counts.
+- **Timeout:** pick the team, full or 30. 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
 - **No clock.**
 
 ## How possessions are counted
