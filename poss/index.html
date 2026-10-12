@@ -3111,30 +3111,47 @@ function factorDrivers(g, S, gameMin, pmA) {
   const fa = ffCalc(TS.a, TS.b), fb = ffCalc(TS.b, TS.a), A = TS.a, B = TS.b, opp = esc(g.opp), hurt = [], help = [];
   const line = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${nm(x.r)} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
   const H = (...a) => line(hurt, 'bad', ...a), G = (...a) => line(help, 'good', ...a);
+  // Each factor goes one way: if we're losing it to them, its players are under Hurting us; if we're winning
+  // it, under Helping us. A factor that is even is left out.
+  const lose = (a, b, lowGood) => a != null && b != null && (lowGood ? a > b : a < b), win = (a, b, lowGood) => a != null && b != null && (lowGood ? a < b : a > b);
   // Shooting (eFG%)
-  H('Their shooting', lead('b', fgPts, 4), x => `of their FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `${opp} ${P(fb.efg)} eFG`);
-  H('Our shooting', lead('a', miss, 3), x => `of our missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`, `Moorpark ${P(fa.efg)} eFG`);
-  G('Our shooting', lead('a', fgPts, 4), x => `of our FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`);
-  // Turnovers (TO%). Unforced ones (not steals: travels, bad passes out, charges, violations) named when they
-  // are most of the team's turnovers (half or more, 3+).
+  if (lose(fa.efg, fb.efg)) {
+    H('Their shooting', lead('b', fgPts, 4), x => `of their FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `eFG ${P(fb.efg)} vs our ${P(fa.efg)}`);
+    H('Our shooting', lead('a', miss, 3), x => `of our missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`, `our eFG ${P(fa.efg)} vs their ${P(fb.efg)}`);
+  } else if (win(fa.efg, fb.efg)) {
+    G('Our shooting', lead('a', fgPts, 4), x => `of our FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `our eFG ${P(fa.efg)} vs their ${P(fb.efg)}`);
+    G('Their shooting', lead('b', miss, 3), x => `of their missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`);
+  }
+  // Turnovers (TO%, lower is better). Unforced ones lead when they're half or more of the turnovers (3+).
   const unf = (T, f, arr, cls, who) => { const un = T.tov - T.stov; if (un >= 3 && un / T.tov >= 0.5)
     arr.push(`<div class="ins ${cls}"><span><b>${who} turnovers</b> · unforced — <b>${Math.round(100 * un / T.tov)}%</b> weren't steals (${un} of ${T.tov}) · non-steal TO% ${P(f.nsto)} of the ${P(f.to)} TO%</span></div>`); };
-  unf(A, fa, hurt, 'bad', 'Our'); unf(B, fb, help, 'good', 'Their');
-  H('Our turnovers', lead('b', r => r.stl, 2), x => `of their steals (${x.n} of ${x.tot}) — ${x.n} of our ${A.tov} turnovers`, `our TO% ${P(fa.to)}`);
-  H('Our turnovers', lead('a', r => r.tov, 2), x => `of our turnovers (${x.n} of ${x.tot})`);
-  G('Their turnovers', lead('a', r => r.stl, 2), x => `of our steals (${x.n} of ${x.tot}) — ${x.n} of their ${B.tov} turnovers`, `their TO% ${P(fb.to)}`);
-  G('Their turnovers', lead('b', r => r.tov, 2), x => `of their turnovers (${x.n} of ${x.tot})`);
-  // The glass (OREB%)
-  H('Our offensive glass', lead('b', r => r.dreb, 3), x => `of their defensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)}`);
-  H('Their offensive glass', lead('b', r => r.oreb, 2), x => `of their offensive boards (${x.n} of ${x.tot})`, `their OREB% ${P(fb.orb)}`);
-  G('Our offensive glass', lead('a', r => r.oreb, 2), x => `of our offensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)}`);
-  G('Their offensive glass', lead('a', r => r.dreb, 3), x => `of our defensive boards (${x.n} of ${x.tot})`, `their OREB% ${P(fb.orb)}`);
+  if (lose(fa.to, fb.to, true)) {
+    unf(A, fa, hurt, 'bad', 'Our');
+    H('Our turnovers', lead('b', r => r.stl, 2), x => `of their steals (${x.n} of ${x.tot}) — ${x.n} of our ${A.tov} turnovers`, `our TO% ${P(fa.to)} vs their ${P(fb.to)}`);
+    H('Our turnovers', lead('a', r => r.tov, 2), x => `of our turnovers (${x.n} of ${x.tot})`);
+  } else if (win(fa.to, fb.to, true)) {
+    unf(B, fb, help, 'good', 'Their');
+    G('Their turnovers', lead('a', r => r.stl, 2), x => `of our steals (${x.n} of ${x.tot}) — ${x.n} of their ${B.tov} turnovers`, `their TO% ${P(fb.to)} vs our ${P(fa.to)}`);
+    G('Their turnovers', lead('b', r => r.tov, 2), x => `of their turnovers (${x.n} of ${x.tot})`);
+  }
+  // The glass (OREB%: ours against theirs)
+  if (lose(fa.orb, fb.orb)) {
+    H('Our offensive glass', lead('b', r => r.dreb, 3), x => `of their defensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)} vs their ${P(fb.orb)}`);
+    H('Their offensive glass', lead('b', r => r.oreb, 2), x => `of their offensive boards (${x.n} of ${x.tot})`);
+  } else if (win(fa.orb, fb.orb)) {
+    G('Our offensive glass', lead('a', r => r.oreb, 2), x => `of our offensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)} vs their ${P(fb.orb)}`);
+    G('Their offensive glass', lead('a', r => r.dreb, 3), x => `of our defensive boards (${x.n} of ${x.tot})`);
+  }
   // Free throws (FT rate)
-  H('Their free throws', lead('b', r => r.fta, 2), x => `of their FTA (${x.n} of ${x.tot}, ${x.r.ftm}-${x.r.fta})`, `their FT rate ${P(fb.ftr)}`);
-  H('Their free throws', lead('a', r => r.pf, 2), x => `of our fouls (${x.n} of ${x.tot})`);
-  G('Our free throws', lead('a', r => r.fta, 2), x => `of our FTA (${x.n} of ${x.tot}, ${x.r.ftm}-${x.r.fta})`, `our FT rate ${P(fa.ftr)}`);
+  if (lose(fa.ftr, fb.ftr)) {
+    H('Their free throws', lead('b', r => r.fta, 2), x => `of their FTA (${x.n} of ${x.tot}, ${x.r.ftm}-${x.r.fta})`, `their FT rate ${P(fb.ftr)} vs our ${P(fa.ftr)}`);
+    H('Their free throws', lead('a', r => r.pf, 2), x => `of our fouls (${x.n} of ${x.tot})`);
+  } else if (win(fa.ftr, fb.ftr)) {
+    G('Our free throws', lead('a', r => r.fta, 2), x => `of our FTA (${x.n} of ${x.tot}, ${x.r.ftm}-${x.r.fta})`, `our FT rate ${P(fa.ftr)} vs their ${P(fb.ftr)}`);
+    G('Our free throws', lead('b', r => r.pf, 2), x => `of their fouls (${x.n} of ${x.tot})`);
+  }
   if (!hurt.length && !help.length) return '';
-  return `<div class="card"><h3>Who's behind the four factors <span class="muted">· biggest share of each stat, from the stat sheet</span></h3>
+  return `<div class="card"><h3>Who's behind the four factors <span class="muted">· factors we're losing / winning, and who has the biggest share of each stat</span></h3>
     <div class="ff-who"><div><div class="ff-who-h neg">Hurting us</div>${hurt.join('') || '<div class="muted small">Nothing stands out.</div>'}</div>
       <div><div class="ff-who-h pos">Helping us</div>${help.join('') || '<div class="muted small">Nothing stands out.</div>'}</div></div></div>`;
 }
@@ -3220,7 +3237,8 @@ function fullReport(g, D, half) {
   if (bl) add('good', `Best five: ${esc(fiveSorted(g, 'a', bl.five).map(id => pShort(g, 'a', id)).join(', '))} — net ${SG(bl.net)} on ${bl.poss} poss.`);
   const ft = RA.filter(v => (v.r.pf || 0) >= (half ? 2 : 4)).map(v => `${nmT(v.r)} (${v.r.pf})`);
   if (ft.length) add('warn', `Foul trouble: ${ft.join(', ')}.`);
-  { const un = Math.max(0, L.a.tov - L.b.stl); if (L.a.tov >= 4) add(un / L.a.tov >= 0.6 ? 'bad' : un / L.a.tov <= 0.4 ? 'warn' : 'warn',
+  // Only when turnovers are hurting us (our TO% worse than theirs): are they forced or our own doing?
+  { const un = Math.max(0, L.a.tov - L.b.stl); if (L.a.tov >= 4 && A.to != null && B.to != null && A.to > B.to) add(un / L.a.tov >= 0.6 ? 'bad' : un / L.a.tov <= 0.4 ? 'warn' : 'warn',
       un / L.a.tov >= 0.6 ? `Our turnovers are mostly self-inflicted: ${un} of ${L.a.tov} weren't steals (non-steal TO% ${P(A.nsto)}).` : `Our turnovers are mostly forced: ${L.a.tov - un} of ${L.a.tov} were steals (steal TO% ${P(A.sto)}).`); }
   if (A.pot !== B.pot) add(A.pot > B.pot ? 'good' : 'bad', `Points off turnovers ${A.pot}–${B.pot}; second-chance ${A.scp}–${B.scp}.`);
   add(A.kills >= B.kills ? 'good' : 'bad', `Kills ${A.kills}–${B.kills}; bench points ${A.bench}–${B.bench}.`);

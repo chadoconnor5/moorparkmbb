@@ -150,10 +150,11 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
   - **Turnovers, forced vs unforced:** steal TO% (the other team's steals per possession) and non-steal TO%
     (travels, bad passes out, charges, offensive fouls, violations: the ones we do to ourselves). The two add up
     to TO%. In the full report's team analytics, its own card in the report without a sheet, under each five's
-    TO% on the Lineups tab (NS), and in the Huddle. Not in the Four factors table. When unforced turnovers are
-    half or more of a team's turnovers (3+), they show under Hurting us (ours) / Helping us (theirs).
-  - **Who's behind the four factors:** for each stat behind a factor, the player with the biggest share of his
-    team's total, sorted into **Hurting us** / **Helping us** (e.g. "#33 Mowers — 25% of their defensive boards
+    TO% on the Lineups tab (NS), and in the Huddle. Not in the Four factors table. When we're losing the turnover
+    battle and half or more of ours (3+) weren't steals, that leads Hurting us (theirs lead Helping us when we're winning it).
+  - **Who's behind the four factors:** a factor we're losing to them (worse eFG%, TO%, OREB% or FT rate) lists
+    its players under **Hurting us**; one we're winning, under **Helping us** — for each stat behind it, the
+    player with the biggest share of his team's total (e.g. "#33 Mowers — 25% of their defensive boards
     (4 of 16) · our OREB% 20.0%", "#10 Alhammouri — 67% of their steals"). Shooting = share of the team's FG
     points; our misses = share of our missed shots. Named only at 25%+ of the total and at least 2 (3 for
     defensive boards).
