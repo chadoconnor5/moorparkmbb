@@ -1143,10 +1143,10 @@ function lineupTable(g, D, t) {
   const L = lineupUnits(g, D, t, UI.luScope === 'game' ? 'game' : g.per), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
   if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([k]) => `<td>${E[k] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
-  return `<table class="tbl zebra lut"><thead><tr><th>FIVE</th><th>POSS O/D</th><th>PTS</th><th>+/-</th><th>ORTG</th><th>DRTG</th><th>NET</th></tr></thead><tbody>
+  return `<table class="tbl zebra lut"><thead><tr><th>FIVE</th><th>POSS</th><th>PTS</th><th>+/-</th><th>ORTG</th><th>DRTG</th><th>NET</th></tr></thead><tbody>
     ${L.units.map(u => { const k = t + ':' + fiveKey(u.five), o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? o - d : null, f = fiveSorted(g, t, u.five);
       return `<tr class="unit ${fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(k)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
-        <td>${u.oPoss} / ${u.dPoss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${o}</td><td>${d}</td><td class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</td></tr>
+        <td>${Math.floor((u.oPoss + u.dPoss) / 2)}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</td><td>${o}</td><td>${d}</td><td class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sgn(net)}</td></tr>
         ${UI.luOpen === k ? `<tr class="drillwrap"><td colspan="7"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
           ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table></td></tr>` : ''}`; }).join('')}
   </tbody></table>`;
@@ -1156,7 +1156,7 @@ function lineupsView(g) {
   return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope !== 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button></div></div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· tap a five for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a')}</div></div>
     <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'b')}</div></div>
-    <div class="small muted">POSS O/D = possessions on offense / defense. ORTG / DRTG = points per 100 possessions. +/- includes technical free throws.</div>`;
+    <div class="small muted">POSS = possessions with that five on the floor (both ends averaged). ORTG / DRTG = points per 100 possessions. +/- includes technical free throws.</div>`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
