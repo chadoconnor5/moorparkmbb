@@ -772,6 +772,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rp-sec{display:flex;align-items:baseline;gap:10px;margin:22px 2px 10px;padding-bottom:6px;border-bottom:2px solid var(--border2)} .rp-sec span:first-child{font-size:20px;font-weight:800;letter-spacing:.04em;text-transform:uppercase} .rp-sec .muted{font-size:13px}
 .sh-cta{display:flex;align-items:center;gap:10px;border-color:var(--good)}
 .lutx th,.lutx td{padding-left:1px;padding-right:1px} .lutx td:first-child{padding-left:5px}
+.ff-who{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ff-who>div{display:flex;flex-direction:column;gap:6px}.ff-who-h{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}.ff-who .ins{font-size:13.5px;color:var(--text)}
 
 </style>
 </head>
@@ -803,7 +804,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.43';
+const VERSION = 'v2026.10.12.44';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3073,6 +3074,45 @@ function shIndivOrtg(s, MP, tMP5, tS, oS) {
   return Math.round(100 * PProd / TotPoss);
 }
 
+
+/* WHO'S BEHIND THE FOUR FACTORS — from the sheet: for each stat behind a factor, the player with the biggest
+   share of his team's total, sorted into what hurts Moorpark and what helps. Named only when the share is real
+   (25%+ of the team's total, and at least 2 of it; 3 for defensive boards). Shooting = share of the team's
+   field-goal points; our misses = share of our missed shots. */
+function factorDrivers(g, S, gameMin, pmA) {
+  const TS = sbTeam(S), R = { a: sbRows(S, 'a', gameMin, TS, pmA), b: sbRows(S, 'b', gameMin, TS, () => null) };
+  const nm = r => `${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name || '')}`, P = v => v == null ? '—' : (+v).toFixed(1) + '%';
+  const fgPts = r => 2 * r.fgm + r.fg3m, miss = r => r.fga - r.fgm;
+  // The player with the biggest share of team t's total of f, if it's big enough.
+  const lead = (t, f, minN) => { const tot = R[t].reduce((x, r) => x + f(r), 0); if (!tot) return null;
+    const r = R[t].slice().sort((x, y) => f(y) - f(x))[0], n = f(r); return n >= minN && n / tot >= 0.25 ? { r, n, tot, sh: Math.round(100 * n / tot) } : null; };
+  // Rates as in the Four factors table (each team's own possession estimate).
+  const fa = ffCalc(TS.a, TS.b), fb = ffCalc(TS.b, TS.a), A = TS.a, B = TS.b, opp = esc(g.opp), hurt = [], help = [];
+  const line = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${nm(x.r)} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
+  const H = (...a) => line(hurt, 'bad', ...a), G = (...a) => line(help, 'good', ...a);
+  // Shooting (eFG%)
+  H('Their shooting', lead('b', fgPts, 4), x => `of their FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`, `${opp} ${P(fb.efg)} eFG`);
+  H('Our shooting', lead('a', miss, 3), x => `of our missed shots (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG)`, `Moorpark ${P(fa.efg)} eFG`);
+  G('Our shooting', lead('a', fgPts, 4), x => `of our FG points (${x.n} of ${x.tot}, ${x.r.fgm}-${x.r.fga} FG, ${x.r.fg3m} 3PM)`);
+  // Turnovers (TO%)
+  H('Our turnovers', lead('b', r => r.stl, 2), x => `of their steals (${x.n} of ${x.tot}) — ${x.n} of our ${A.tov} turnovers`, `our TO% ${P(fa.to)}`);
+  H('Our turnovers', lead('a', r => r.tov, 2), x => `of our turnovers (${x.n} of ${x.tot})`);
+  G('Their turnovers', lead('a', r => r.stl, 2), x => `of our steals (${x.n} of ${x.tot}) — ${x.n} of their ${B.tov} turnovers`, `their TO% ${P(fb.to)}`);
+  G('Their turnovers', lead('b', r => r.tov, 2), x => `of their turnovers (${x.n} of ${x.tot})`);
+  // The glass (OREB%)
+  H('Our offensive glass', lead('b', r => r.dreb, 3), x => `of their defensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)}`);
+  H('Their offensive glass', lead('b', r => r.oreb, 2), x => `of their offensive boards (${x.n} of ${x.tot})`, `their OREB% ${P(fb.orb)}`);
+  G('Our offensive glass', lead('a', r => r.oreb, 2), x => `of our offensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)}`);
+  G('Their offensive glass', lead('a', r => r.dreb, 3), x => `of our defensive boards (${x.n} of ${x.tot})`, `their OREB% ${P(fb.orb)}`);
+  // Free throws (FT rate)
+  H('Their free throws', lead('b', r => r.fta, 2), x => `of their FTA (${x.n} of ${x.tot}, ${x.r.ftm}-${x.r.fta})`, `their FT rate ${P(fb.ftr)}`);
+  H('Their free throws', lead('a', r => r.pf, 2), x => `of our fouls (${x.n} of ${x.tot})`);
+  G('Our free throws', lead('a', r => r.fta, 2), x => `of our FTA (${x.n} of ${x.tot}, ${x.r.ftm}-${x.r.fta})`, `our FT rate ${P(fa.ftr)}`);
+  if (!hurt.length && !help.length) return '';
+  return `<div class="card"><h3>Who's behind the four factors <span class="muted">· biggest share of each stat, from the stat sheet</span></h3>
+    <div class="ff-who"><div><div class="ff-who-h neg">Hurting us</div>${hurt.join('') || '<div class="muted small">Nothing stands out.</div>'}</div>
+      <div><div class="ff-who-h pos">Helping us</div>${help.join('') || '<div class="muted small">Nothing stands out.</div>'}</div></div></div>`;
+}
 /* ---------- the full report: with a stat sheet, the halftime / post-game report becomes three parts ----------
    TEAM (four factors and team advanced from the sheet, possessions, points off turnovers, second-chance
    points, kills and stops from the tracker), PLAYERS (every player's box and advanced numbers from the sheet,
@@ -3128,6 +3168,13 @@ function fullReport(g, D, half) {
   const rowsOf = t => S[t].rows.filter(r => played(r) && (!only25 || (+r.min || 0) >= minCut)).map(r => ({ r, x: sheetAdv(r, L[t], L[other(t)]), o: OO[t](idOf(t, r.num)) })).sort((p, q) => q.x.gmsc - p.x.gmsc);
   const nm = r => `${r.num ? `<span class="pnum">#${esc(r.num)}</span> ` : ''}${esc(r.name || '')}`;
   const tc = t => t === 'a' ? 'var(--us)' : 'var(--them-text)';
+  // On the floor, each player the sheet lists who played: tracker numbers with him on, best on/off first.
+  const onOffTbl = t => { const rows = rowsAll(t).filter(r => !only25 || (+r.min || 0) >= minCut).map(r => ({ r, o: OO[t](idOf(t, r.num)) })).filter(v => v.o)
+      .sort((x, y) => ((y.o.net != null && y.o.off != null ? y.o.net - y.o.off : -999) - (x.o.net != null && x.o.off != null ? x.o.net - x.o.off : -999)));
+    if (!rows.length) return '';
+    return `<div class="box-team-header ${t}">${logo(teamName(g, t), 20)}${esc(teamName(g, t).toUpperCase())}</div><div class="box-wrap"><table class="box-table"><thead><tr><th>PLAYER</th><th>MIN</th><th>ON POSS</th><th>ORTG</th><th>DRTG</th><th>NET</th><th>ON/OFF</th><th>+/-</th><th>STOPS</th></tr></thead><tbody>
+      ${rows.map(({ r, o }) => { const oo = o.net != null && o.off != null ? o.net - o.off : null; const c = v => v == null ? '' : v >= 5 ? 'bs-hi' : v <= -5 ? 'bs-lo' : '';
+        return `<tr><td>${nm(r)}</td><td>${r.min ? r.min + "'" : '—'}</td><td>${o.poss}</td><td>${F(o.ortg)}</td><td>${F(o.drtg)}</td><td class="${c(o.net)}">${SG(o.net)}</td><td class="${c(oo)}">${SG(oo)}</td><td class="${c(o.pm)}">${sgn(o.pm)}</td><td>${o.stops}</td></tr>`; }).join('')}</tbody></table></div>`; };
   // Key takeaways, most useful first.
   const T = [], add = (cls, txt) => T.push(`<div class="ins ${cls}"><span>${txt}</span></div>`);
   const nmT = r => esc(r.name || '#' + r.num);
@@ -3152,6 +3199,7 @@ function fullReport(g, D, half) {
   add(A.kills >= B.kills ? 'good' : 'bad', `Kills ${A.kills}–${B.kills}; bench points ${A.bench}–${B.bench}.`);
   const sec = (title, sub) => `<div class="rp-sec"><span>${title}</span><span class="muted">${sub}</span></div>`;
   return `<div class="card"><h3 style="display:flex;align-items:center">Key takeaways <span class="muted" style="margin-left:6px">· stat sheet + tracker</span><button class="btn btn-sm" data-act="sh-edit" data-s="${sc}" style="margin-left:auto">Edit sheet</button></h3><div class="hud-pts">${T.join('')}</div></div>
+    ${factorDrivers(g, S, gameMin, pmA)}
     ${sec('Team', 'four factors · team advanced · stops &amp; kills')}
     <div class="card"><h3>Four factors <span class="muted">· from the stat sheet</span></h3>${ffResults(g, sc)}</div>
     <div class="card"><h3>Team analytics <span class="muted">· sheet; possessions, points off turnovers, second-chance points and kills from the tracker</span></h3>${teamTbl}</div>
@@ -3161,6 +3209,8 @@ function fullReport(g, D, half) {
       <span class="row" style="gap:6px;margin-left:auto"><button class="btn btn-sm ${only25 ? '' : 'btn-primary'}" data-act="rep-min" data-m="all">All players</button><button class="btn btn-sm ${only25 ? 'btn-primary' : ''}" data-act="rep-min" data-m="25">25%+ of minutes (${minCut}+ min)</button></span></div>
     <div class="card sb-card">${sbTable(g, S, 'a', gameMin, pmA, only25)}${sbTable(g, S, 'b', gameMin, () => null, only25)}
       <div class="small muted">The game tracker's box score, from the ${half ? 'halftime' : 'final'} stat sheet. +/- is Moorpark's on-floor +/- from the tracker. Grey = under 25% of the minutes.</div></div>
+    <div class="card"><h3>On the floor <span class="muted">· from the tracker: the team's numbers with him on, and on/off</span></h3>${onOffTbl('a')}${onOffTbl('b')}
+      <div class="small muted">ON POSS = possessions on the floor (both ends averaged). ORTG / DRTG = the team's points scored / allowed per 100 with him on. ON/OFF = net with him on minus net with him off (blank under 3 possessions off). STOPS = defensive stops with him on.</div></div>
     ${sec('Lineups', 'best fives · combos · every five')}
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, luScope)}</div>
     ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 2-, 3- and 4-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
