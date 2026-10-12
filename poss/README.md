@@ -27,6 +27,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   for a foul with no player.
 - **Foul trouble** lights the cards: 1st half, 2 fouls yellow, 3–4 red; 2nd half / OT, 3 yellow, 4 red; 5
   fouls (or 2 technicals) = OUT (red, name struck through).
+- **Fouled out:** the 5th foul (or 2nd technical) opens the sub screen straight away, with no Cancel; it
+  stays up (even after a reload) until a replacement is picked. He can't be put back in. **Edit his
+  fouls** on that screen lists each one (period, score): **Wrong player** moves it to the right player,
+  **Delete** removes it. Back to 4 and he stays in.
 - **🚩 Flag last play** (under the buttons), or the 🚩 on any feed / Play-by-Play line, marks a play to look
   at later. Flagged plays are highlighted, marked on the Sheet, and listed under Play-by-Play → Flagged.
 - **Tech:** pick team, player or coach, and how many of the two free throws went in.
@@ -35,6 +39,18 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - The free throws count in the score, PPP and +/-, but are not a possession.
 - **Timeout:** pick the team, full or 30. 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
 - **No clock.**
+- **Possession pill** (under the period): moves only when you tap it — at the tip, at the start of the
+  2nd half, after a jump ball. Plays, subs and timeouts never move it. Tapped mid-half it asks: **Held
+  ball: steal** (a steal for the team that gets the ball, ending the other team's possession; shown as "steal (held ball)") or **Just switch**.
+- **Huddle** opens after every timeout (and from **📋 Huddle** on the scoreboard), the game tracker's
+  timeout sheet by possessions:
+  - the score, fouls and timeouts left; up to four talk points (turnovers and the points off them,
+    offensive boards, their scoring rate, runs, empty trips, stops in a row, bonus, foul trouble);
+  - the **last 20 possessions** (both teams; Moorpark's tempo the last 5 seasons averages 78.7 a team per 40:00, so 5:00 is ~10 a team) against the whole game: PPP, eFG%, TO%,
+    OREB%, DREB%, FT rate, 3PA rate, highlighted ▲▼ when one has moved well away on enough tries;
+  - momentum: current run, stops in a row, kills this half;
+  - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
+  - Tap a row to mark it yellow.
 
 ## How possessions are counted
 A possession ends three ways:
@@ -91,7 +107,8 @@ Hudl's per-game lineup export still supplies offense and minutes.
   10+ scoring run, with the half, the score and Moorpark's five when it started.
 
 ## Lineups
-⇄ Sub sets both teams' fives on one screen. The starting fives are asked for when a game starts
+⇄ Sub sets both teams' fives on one screen: each team's **On the floor** five on top, one per line in number order, the **Bench** (two across)
+below. Tap a player on the floor to take him out, tap a bench player to put him in. The starting fives are asked for when a game starts
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).
 
