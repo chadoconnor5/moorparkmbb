@@ -738,7 +738,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.28';
+const VERSION = 'v2026.10.12.29';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1308,7 +1308,7 @@ function bestLineups(g, D, t, scope, n) {
   while (min > 1 && !units.some(u => u.poss >= min)) min--;
   return { min, list: units.filter(u => u.poss >= min).sort((x, y) => y.net - x.net || (y.pf - y.pa) - (x.pf - x.pa)).slice(0, n || 3) };
 }
-/* Best 2- and 3-man combos: every pair / trio inside the five on the floor shares that possession, so
+/* Best 2-, 3- and 4-man combos: every pair / trio inside the five on the floor shares that possession, so
    a combo's sample adds up across the lineups it was part of. 20+ possessions together to qualify. */
 const COMBO_MIN = 20;
 function kSubsets(arr, k) { const out = []; const rec = (i, cur) => { if (cur.length === k) { out.push(cur.slice()); return; } for (let j = i; j < arr.length; j++) { cur.push(arr[j]); rec(j + 1, cur); cur.pop(); } }; rec(0, []); return out; }
@@ -1327,7 +1327,7 @@ function bestCombos(g, D, t, k, scope) {
 function combosCard(g, D, scope) {
   const name = (t, id) => { const p = pInfo(g, t, id); return (p.num ? '#' + p.num + ' ' : '') + (p.name ? lastName(p.name) : ''); };
   const side = t => `<div class="bl ${t}"><div class="ks-lbl" style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</div>
-    ${[3, 2].map(k => { const L = bestCombos(g, D, t, k, scope);
+    ${[2, 3, 4].map(k => { const L = bestCombos(g, D, t, k, scope);
       return `<div class="small muted" style="margin:6px 0 2px;font-weight:700;letter-spacing:.06em">${k}-MAN</div>` + (L.length ? L.map((u, i) => `<div class="bl-row"><div class="bl-rank">${i + 1}</div>
         <div class="bl-five"><b>${esc(u.ids.slice().sort((x, y) => byNum(pInfo(g, t, x), pInfo(g, t, y))).map(id => name(t, id)).join(' · '))}</b>${u.same ? `<div class="tiny muted">+${u.same} more ${k}-man combo${u.same > 1 ? 's' : ''} with the same numbers</div>` : ''}</div>
         <div class="bl-st"><b class="${pmCls(Math.round(u.net))}">${sgn(Math.round(u.net))}</b><span>net</span></div><div class="bl-st"><b class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</b><span>+/-</span></div><div class="bl-st"><b>${u.poss}</b><span>poss</span></div></div>`).join('')
@@ -1359,7 +1359,7 @@ function reportView(g) {
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
-    ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 3-man and 2-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
+    ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 2-, 3- and 4-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
     <div class="card"><h3>Four factors <span class="muted">· from the tracked plays</span></h3>${ffResults(g, half ? '1H' : 'G')}</div>
     <div class="card"><h3>Stops, kills &amp; killshots <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3>${killsCard(g, D, scope)}</div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', half ? '1H' : 'game', 'all')}</div></div>
