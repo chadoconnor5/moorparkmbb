@@ -39,6 +39,18 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - The free throws count in the score, PPP and +/-, but are not a possession.
 - **Timeout:** pick the team, full or 30. 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
 - **No clock.**
+- **Possession pill** (under the period): moves only when you tap it — at the tip, at the start of the
+  2nd half, after a jump ball. Plays, subs and timeouts never move it. Tapped mid-half it asks: **Held
+  ball: turnover** (logs a turnover on the team that had it, shown as "held ball") or **Just switch**.
+- **Huddle** opens after every timeout (and from **📋 Huddle** on the scoreboard), the game tracker's
+  timeout sheet by possessions:
+  - the score, fouls and timeouts left; up to four talk points (turnovers and the points off them,
+    offensive boards, their scoring rate, runs, empty trips, stops in a row, bonus, foul trouble);
+  - the **last 16 possessions** (both teams, about 5:00) against the whole game: PPP, eFG%, TO%,
+    OREB%, DREB%, FT rate, 3PA rate, highlighted ▲▼ when one has moved well away on enough tries;
+  - momentum: current run, stops in a row, kills this half;
+  - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
+  - Tap a row to mark it yellow.
 
 ## How possessions are counted
 A possession ends three ways:

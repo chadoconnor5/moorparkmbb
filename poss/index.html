@@ -736,6 +736,15 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sub-head .sub-top{flex-wrap:wrap}
 .sub-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
 .sub-grid.sub-floor{grid-template-columns:1fr}
+.poss-btn{margin:2px 0 4px;padding:4px 14px;border-radius:99px;font-size:12px;font-weight:800;letter-spacing:.08em;border:1.5px solid;display:inline-flex;align-items:center;gap:7px;max-width:100%;white-space:nowrap}
+.poss-btn .pn{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.poss-btn .pb{font-size:13px}
+.poss-btn.a{color:#4fc3f7;border-color:#4fc3f7;background:rgba(79,195,247,.12)}
+.poss-btn.b{color:var(--them-text);border-color:var(--them-text);background:color-mix(in srgb,var(--them-text) 14%,transparent)}
+.poss-btn.none{color:var(--text2);border-color:var(--border2);background:var(--card)}
+.modal.huddle tr.hl td:not(.l5-moved){background:#fef9c3!important}
+.hud-five{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin:-4px 0 8px}
+.hud-five b{color:var(--text)}
 
 </style>
 </head>
@@ -766,7 +775,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.36';
+const VERSION = 'v2026.10.12.37';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1207,12 +1216,12 @@ function scorebar(g, D) {
       <div class="sb-meta">${bonus('a')}${kills('a')}</div>
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
-    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div><div class="sb-clock">Poss ${possAvg(S)}</div>
+    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
       ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
-      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button></div></div>
+      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
@@ -1267,7 +1276,7 @@ function feedText(g, x) {
 function feedText0(g, x) {
   if (x.kind === 'poss') {
     const p = x.p, t = p.team;
-    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${STAT_LABEL[e.k].toLowerCase()}`);
+    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'turnover (held ball)' : STAT_LABEL[e.k].toLowerCase()}`);
     const tail = p.dreb ? ' · def reb' : '';
     return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
@@ -1806,6 +1815,114 @@ function techModal() {
     <div class="field"><label>Free throws made by ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px">${[0, 1, 2].map(n => `<button class="btn btn-lg ${T.ftm === n ? 'btn-primary' : ''}" style="flex:1;font-size:20px" data-act="tech-ft" data-n="${n}">${n}</button>`).join('')}</div></div>`);
 }
 
+/* POSSESSION PILL (as the game tracker): changes ONLY when tapped — no play, sub, timeout or new
+   period moves it. Tap it at the tip, at the start of the 2nd half, after a jump ball. Tapped
+   mid-half it asks whether it was a held ball (a turnover on the team that had it) or just a switch. */
+function possPill(g) {
+  if (g.final) return '';
+  const ball = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
+  if (!ball) return `<button class="poss-btn none" data-act="ball-flip">JUMP BALL · TAP</button>`;
+  const nm = esc(teamName(g, ball).toUpperCase());
+  return `<button class="poss-btn ${ball}" data-act="ball-flip">${ball === 'a' ? `<span class="pb">◀</span><span class="pn">${nm}</span> BALL` : `<span class="pn">${nm}</span> BALL<span class="pb">▶</span>`}</button>`;
+}
+function heldBallModal(off) {
+  const g = cur();
+  modal(`<h2>Jump ball → ${esc(teamName(g, other(off)))} ball</h2>
+    <p class="muted" style="margin-bottom:6px">A held ball with the arrow going to ${esc(teamName(g, other(off)))} is a turnover on ${esc(teamName(g, off))} — it ends their possession. Just switch only moves the pill.</p>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-lg" data-act="hb-switch">Just switch</button><button class="btn btn-primary btn-lg" data-act="hb-held" data-t="${off}">Held ball: turnover</button></div>`);
+}
+
+/* TIMEOUT SHEET ("Huddle") — the game tracker's, by possessions instead of the clock. Opens on every
+   timeout and any time from 📋 Huddle: the score, fouls and timeouts; up to four talk points; each
+   last 16 possessions (both teams, ~5:00 of game time) against the whole game (four factors, PPP); momentum (run, empty trips,
+   stops in a row, kills); both fives on the floor with fouls and +/-. Tap a row to mark it. */
+const HUDDLE_N = 16;   // both teams together: ~8 trips each, about 5:00
+function huddleBox(D, list, t) {
+  const z = { n: 0, pts: 0, fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, tov: 0, oreb: 0, oppDreb: 0, oppOreb: 0, dreb: 0, pot: 0 };
+  list.forEach(p => { const b = possBox(p);
+    if (p.team === t) { z.n++; z.pts += p.pts; z.fga += b.fga; z.fgm += b.fgm; z.fg3m += b.fg3m; z.fta += b.fta; z.tov += b.tov; z.oreb += b.oreb; z.oppDreb += b.dreb;
+      z.fg3a += p.plays.filter(e => e.k === '3m' || e.k === '3x').length; }
+    else { z.dreb += b.dreb; z.oppOreb += b.oreb; } });
+  // Points the other side scored on the possession right after one of t's turnovers.
+  list.forEach(p => { if (p.team !== t || !['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col)) return; const i = D.poss.indexOf(p), nx = D.poss[i + 1];
+    if (nx && nx.team !== t && nx.per === p.per) z.pot += nx.pts; });
+  return z;
+}
+function huddleOpen(g, calledBy, kind) {
+  const D = derive(g), per = g.per, S = perSums(D, per), G = perSums(D, null);
+  const winList = D.poss.slice(-HUDDLE_N);
+  const W = { a: huddleBox(D, winList, 'a'), b: huddleBox(D, winList, 'b') }, GB = { a: huddleBox(D, D.poss, 'a'), b: huddleBox(D, D.poss, 'b') };
+  const h1 = per === '1H';
+  const empty = t => { let n = 0; const ps = D.poss.filter(p => p.team === t && p.per === per); for (let i = ps.length - 1; i >= 0 && ps[i].pts === 0 && ps[i].done; i--) n++; return n; };
+  const R = scoringRuns(g), run = R[R.length - 1];
+  // Talk points, most pressing first (four at most).
+  const pts = [], add = (w, good, t) => pts.push({ w, good, t });
+  const a = W.a, b = W.b, opp = g.opp;
+  if (a.tov >= 3) add(a.tov, false, `${a.tov} turnovers in our last ${a.n} trips → ${a.pot} points for them.`);
+  if (b.tov >= 3) add(b.tov - 0.5, true, `They've turned it over ${b.tov} times in their last ${b.n} trips.`);
+  if (b.oreb >= 2) add(b.oreb + 0.5, false, `They have ${b.oreb} offensive boards in their last ${b.n} trips.`);
+  if (a.oreb >= 3) add(a.oreb - 1, true, `${a.oreb} offensive boards for us in our last ${a.n} trips.`);
+  if (b.n >= 5 && b.pts / b.n >= 1.3) add(b.pts / b.n * 3, false, `They're scoring ${ppp(b.pts, b.n)} a trip over their last ${b.n}.`);
+  if (run && run.team === 'b' && run.pts >= 6) add(run.pts / 2, false, `They're on a ${run.pts}-0 run.`);
+  if (run && run.team === 'a' && run.pts >= 8) add(run.pts / 3, true, `We're on a ${run.pts}-0 run.`);
+  const eA = empty('a'); if (eA >= 3) add(eA, false, `${eA} straight empty trips for us.`);
+  const stA = S.streak.a || 0; if (stA >= 3) add(stA - 0.5, true, `${stA} stops in a row.`);
+  const fa = teamFouls(g, 'a', per), fb = teamFouls(g, 'b', per);
+  if (fa >= 7) add(4, false, `They're in the ${fa >= 10 ? 'double ' : ''}bonus (${fa} fouls on us).`);
+  else if (fa === 6) add(3, false, 'One more foul puts them in the bonus.');
+  if (fb >= 7) add(3, true, `We're in the ${fb >= 10 ? 'double ' : ''}bonus (${fb} fouls on them).`);
+  const trouble = pf => pf >= (h1 ? 2 : 3);
+  D.five.a.forEach(id => { const pf = playerFouls(g, 'a', id); if (trouble(pf)) add(pf, false, `${pShort(g, 'a', id)} has ${pf} fouls.`); });
+  D.five.b.forEach(id => { const pf = playerFouls(g, 'b', id); if (trouble(pf)) add(pf - 0.5, true, `${pShort(g, 'b', id)} has ${pf} fouls.`); });
+  pts.sort((x, y) => y.w - x.w); pts.length = Math.min(pts.length, 4);
+  // Last 10 vs the game: a row lights up when it has moved well away from the game on enough attempts.
+  const pct = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
+  const rows = [
+    { lbl: 'PPP', f: s => ({ v: s.n ? s.pts / s.n : null, show: s.n ? (s.pts / s.n).toFixed(2) : '—', sub: s.n ? `${s.pts} pts / ${s.n} poss` : '' }), gate: w => w.n >= 5, gap: 0.3 },
+    { lbl: 'eFG%', f: s => ({ v: pct(s.fgm + 0.5 * s.fg3m, s.fga), show: P(pct(s.fgm + 0.5 * s.fg3m, s.fga)), sub: s.fga ? `${s.fgm}/${s.fga} FG · ${s.fg3m} 3PM` : '' }), gate: w => w.fga >= 5, gap: 15 },
+    { lbl: 'TO%', f: s => ({ v: pct(s.tov, s.n), show: P(pct(s.tov, s.n)), sub: s.tov ? `${s.tov} TO → ${s.pot} pts for ${s === W.a || s === GB.a ? 'them' : 'us'}` : '' }), gate: w => w.tov >= 3, gap: 10 },
+    { lbl: 'OREB%', f: s => ({ v: pct(s.oreb, s.oreb + s.oppDreb), show: P(pct(s.oreb, s.oreb + s.oppDreb)), sub: s.oreb + s.oppDreb ? `${s.oreb}/${s.oreb + s.oppDreb}` : '' }), gate: w => w.oreb + w.oppDreb >= 4, gap: 20 },
+    { lbl: 'DREB%', f: s => ({ v: pct(s.dreb, s.dreb + s.oppOreb), show: P(pct(s.dreb, s.dreb + s.oppOreb)), sub: s.dreb + s.oppOreb ? `${s.dreb}/${s.dreb + s.oppOreb}` : '' }), gate: w => w.dreb + w.oppOreb >= 4, gap: 20 },
+    { lbl: 'FT rate', f: s => ({ v: pct(s.fta, s.fga), show: P(pct(s.fta, s.fga)), sub: s.fga ? `${s.fta} FTA` : '' }), gate: w => w.fga >= 5, gap: 20 },
+    { lbl: '3PA rate', f: s => ({ v: pct(s.fg3a, s.fga), show: P(pct(s.fg3a, s.fga)), sub: s.fga ? `${s.fg3a}/${s.fga} FGA` : '' }), gate: w => w.fga >= 5, gap: 20 }];
+  const cell = (r, t) => { const w = r.f(W[t]), gm = r.f(GB[t]);
+    const moved = w.v != null && gm.v != null && r.gate(W[t]) && Math.abs(w.v - gm.v) >= r.gap;
+    return `<td class="${moved ? 'l5-moved' : ''}"><b>${w.show}${moved ? (w.v > gm.v ? ' ▲' : ' ▼') : ''}</b>${w.sub ? `<div class="tiny">${esc(w.sub)}</div>` : ''}</td><td class="l5-game">${gm.show}</td>`; };
+  const cmp = `<table class="tbl rep-tbl zebra l5-tbl"><tr><th></th><th>Moorpark <span class="tiny">last ${a.n}</span></th><th class="tiny">game</th><th>${esc(opp)} <span class="tiny">last ${b.n}</span></th><th class="tiny">game</th></tr>
+    ${rows.map(r => `<tr><td class="l">${r.lbl}</td>${cell(r, 'a')}${cell(r, 'b')}</tr>`).join('')}</table>`;
+  // On the floor: fouls (same colours as the cards), +/-; this five's numbers.
+  const floor = t => { const f = D.five[t]; if (f.length !== 5) return `<div class="muted small">${esc(teamName(g, t))}'s five isn't set.</div>`;
+    const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
+    const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null;
+    return `<div class="hud-five"><span>This five: <b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b> poss</span><span>ORtg <b>${f1(o)}</b></span><span>DRtg <b>${f1(d)}</b></span><span>Net <b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></span><span>+/- <b class="${pmCls(u.pf - u.pa)}">${sgn(u.pf - u.pa)}</b></span></div>
+      <div class="tbl-wrap"><table class="tbl rep-tbl zebra"><tr><th>Player</th><th>Pos</th><th>PF</th><th>+/-</th><th>Note</th></tr>
+      ${fiveSorted(g, t, f).map(id => { const p = pInfo(g, t, id), pf = playerFouls(g, t, id), pm = (L.players[id] || { pm: 0 }).pm;
+        const c = pf >= 5 ? 'tf-dbl' : h1 ? (pf >= 3 ? 'tf-dbl' : pf === 2 ? 'tf-bonus' : '') : (pf >= 4 ? 'tf-dbl' : pf === 3 ? 'tf-bonus' : '');
+        return `<tr><td class="l">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</td><td>${esc(p.pos || '')}</td><td class="${c}">${pf}</td><td class="${pmCls(pm)}">${sgn(pm)}</td><td class="l small">${esc(p.note || '')}</td></tr>`; }).join('')}</table></div>`; };
+  const dots = t => { const L = { full: FULL_TOS - tosUsed(g, t, 'full'), s30: S30_TOS + otCount(g) - tosUsed(g, t, 's30') };
+    return `${'<span class="to-dot"></span>'.repeat(Math.max(0, L.s30))}<span style="width:4px;display:inline-block"></span>${'<span class="to-dot full"></span>'.repeat(Math.max(0, L.full))}`; };
+  const fouls = t => { const n = teamFouls(g, t, per), c = n >= 10 ? 'tf-dbl' : n >= 7 ? 'tf-bonus' : n >= 5 ? 'tf-warn' : ''; return `<b class="${c}">${n}</b>`; };
+  const caller = calledBy ? `${esc(teamName(g, calledBy))} ${kind === 's30' ? '30-second' : 'full'} timeout` : 'Huddle';
+  const runTxt = run && run.pts ? `${teamName(g, run.team)} ${run.pts}-0` : '—';
+  $('#modal-root').innerHTML = `<div class="overlay huddle-overlay" data-act="overlay"><div class="modal huddle">
+    <div class="hud-top">
+      <div class="hud-team a">${logo('Moorpark', 34)}<div><div class="hud-score">${G.pts.a}</div><div class="hud-meta">Fouls ${fouls('a')} · <span class="to-dots">${dots('a')}</span></div></div></div>
+      <div class="hud-mid"><div class="hud-cap">${caller}</div><div class="hud-clock">${esc(PER_NAME(per))} · Poss ${possAvg(S)}</div></div>
+      <div class="hud-team b"><div><div class="hud-score">${G.pts.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logo(opp, 34)}</div>
+    </div>
+    <div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
+    <div class="card hud-floor"><h3>Last ${HUDDLE_N} possessions (~5:00) vs the game <span class="muted">${a.pts}–${b.pts} · ${a.n} ours, ${b.n} theirs · ▲▼ highlighted = moved well away from the game on enough attempts</span></h3>
+      <div class="tbl-wrap">${cmp}</div></div>
+    <div class="card hud-floor"><h3>Momentum</h3>
+      <div class="hud-big"><span>Current run</span><b>${esc(runTxt)}</b></div>
+      <div class="hud-big"><span>Stops in a row (on defense)</span><b>Moorpark ${S.streak.a || 0} · ${esc(opp)} ${S.streak.b || 0}</b></div>
+      <div class="hud-big"><span>Kills this half</span><b>${S.kills.a} – ${S.kills.b}</b></div></div>
+    <div class="card hud-floor"><h3>Moorpark on the floor</h3>${floor('a')}</div>
+    <div class="card hud-floor"><h3>${esc(opp)} on the floor</h3>${floor('b')}</div>
+    <div class="modal-foot"><button class="btn btn-good btn-lg" data-act="close">Back to the game</button></div>
+  </div></div>`;
+}
+
 function timeoutModal() {
   const g = cur();
   const left = (t, k) => (k === 'full' ? FULL_TOS : S30_TOS + otCount(g)) - tosUsed(g, t, k);
@@ -1946,6 +2063,10 @@ function toast(msg, kind) {
 }
 
 document.addEventListener('click', ev => {
+  const hr = ev.target.closest('.huddle tr');
+  if (hr && hr.querySelector('td') && !ev.target.closest('button')) {
+    const on = hr.classList.contains('hl'); hr.closest('.huddle').querySelectorAll('tr.hl').forEach(r => r.classList.remove('hl')); if (!on) hr.classList.add('hl'); return;
+  }
   const go = ev.target.closest('[data-tab-go]'); if (go) { UI.tab = go.dataset.tabGo; render(); return; }
   const b = ev.target.closest('[data-act],[data-tab]'); if (!b) return;
   if (b.dataset.tab && !b.dataset.act) {
@@ -2028,7 +2149,14 @@ document.addEventListener('click', ev => {
     case 'fl-done': FOULS = null; SUB = null; closeModal(); render(); break;
     case 'sub-cancel': SUB = null; closeModal(); break;
     case 'timeout': timeoutModal(); break;
-    case 'to-log': push(g, { t: 'to', team: b.dataset.t, kind: b.dataset.k }); save(); closeModal(); render(); toast(`${teamName(g, b.dataset.t)} ${b.dataset.k === 'full' ? 'full' : '30-second'} timeout`); break;
+    case 'to-log': push(g, { t: 'to', team: b.dataset.t, kind: b.dataset.k }); save(); closeModal(); render(); huddleOpen(g, b.dataset.t, b.dataset.k); break;
+    case 'huddle': huddleOpen(g); break;
+    case 'ball-flip': { const bl = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
+      // Mid-half a jump ball going to the other side may be a held ball (a turnover); the tip and a new half just set it.
+      if (bl && derive(g).poss.some(p => p.per === g.per)) heldBallModal(bl);
+      else { g.ball = bl === 'a' ? 'b' : 'a'; save(); render(); } break; }
+    case 'hb-switch': g.ball = other(g.ball); save(); closeModal(); render(); break;
+    case 'hb-held': { const t = b.dataset.t; UI.reb = null; UI.stat = null; push(g, { t: 'play', team: t, player: 'TEAM', k: 'to', held: true }); g.ball = other(t); save(); closeModal(); render(); toast(`Held ball — ${teamName(g, t)} turnover, ${teamName(g, other(t))} ball`); break; }
     case 'adjust': adjustModal(); break;
     case 'adj-foul': {
       const t = b.dataset.t;
