@@ -703,7 +703,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.17';
+const VERSION = 'v2026.10.12.18';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 3, S30_TOS = 4;            // per team, per game; +1 thirty-second per overtime
 
@@ -1047,8 +1047,9 @@ function liveView(g) {
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
-        <button class="btn" data-act="undo" ${g.ev.length && !g.ev[g.ev.length - 1].lock ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
+        <button class="btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">End ${esc(g.per)}</button></div>
       <div class="feed">${items.map(f => `<div class="${f.cls} ${UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}</div>`).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
+      <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
     <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>
       ${playerCards(g, D, 'b')}
@@ -1451,6 +1452,10 @@ function rosterModal() {
 }
 const parseLines = txt => txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^#?(\d{1,2})\s*(.*)$/); return m ? { num: m[1], name: m[2].trim() } : { num: '', name: l }; });
 
+/* A team's first five is its starting five: never undone or deleted (games from before the lock
+   flag existed included). Change it with Sub. */
+const isLocked = (g, e) => !!e && (e.lock || (e.t === 'sub' && !g.ev.some(x => x !== e && x.t === 'sub' && x.team === e.team && g.ev.indexOf(x) < g.ev.indexOf(e))));
+
 /* ---------- logging ---------- */
 function push(g, e) {
   e.id = e.id || uid(); e.per = e.per || g.per;
@@ -1514,6 +1519,9 @@ document.addEventListener('click', ev => {
     case 'go-roster-m': readSetup(); UI.rosterSel = 'MPK'; UI.tab = 'rosters'; render(); break;
     case 'su-scout-add': readSetup(); $('#sc-file').dataset.for = 'setup'; $('#sc-file').click(); break;
     case 'su-create': createGame(); break;
+    case 'abandon':
+      if (!confirm(`Abandon the ${g.opp} game? Everything logged in it is deleted and you go back to New game.`)) return;
+      games = games.filter(x => x !== g); curId = null; SD = null; UI.stat = null; UI.reb = null; UI.redo = []; save(); UI.tab = 'live'; render(); toast('Game abandoned'); break;
     case 'details': newGameModal(g); break;
     case 'create': case 'save-game': {
       const opp = $('#f-opp').value.trim(); if (!opp) { toast('Type the opponent first', 'bad'); return; }
@@ -1552,7 +1560,7 @@ document.addEventListener('click', ev => {
       logStat(b.dataset.team, 'TEAM'); break;
     case 'ed-t': { const e = g.ev.find(x => x.id === b.dataset.id); e.team = b.dataset.t; save(); editModal(e.id); render(); break; }
     case 'undo': { UI.reb = null; const last = g.ev[g.ev.length - 1];
-      if (!last || last.lock) { toast('Nothing to undo — the starting fives stay (change them with ⇄ Sub)'); return; }
+      if (!last || isLocked(g, last)) { toast('Nothing to undo — the starting fives stay (change them with ⇄ Sub)'); return; }
       UI.redo.push(g.ev.pop()); save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
@@ -1598,7 +1606,7 @@ document.addEventListener('click', ev => {
     case 'edit': editModal(b.dataset.id); break;
     case 'ed-k': { const e = g.ev.find(x => x.id === b.dataset.id); e.k = b.dataset.k; save(); editModal(e.id); render(); break; }
     case 'ed-p': { const e = g.ev.find(x => x.id === b.dataset.id); e.player = b.dataset.p === 'TEAM' && e.t === 'foul' ? null : b.dataset.p; save(); editModal(e.id); render(); break; }
-    case 'ed-del': if (g.ev.find(x => x.id === b.dataset.id)?.lock) { toast('A starting five can\'t be deleted — change it with ⇄ Sub', 'bad'); return; }
+    case 'ed-del': if (isLocked(g, g.ev.find(x => x.id === b.dataset.id))) { toast('A starting five can\'t be deleted — change it with ⇄ Sub', 'bad'); return; }
       if (confirm('Delete this play?')) { g.ev = g.ev.filter(x => x.id !== b.dataset.id); save(); closeModal(); render(); } break;
     case 'ed-ins': UI.ins = b.dataset.id; UI.tab = 'live'; closeModal(); render(); toast('Tap the stat, then the player — it goes in before that play'); break;
 
