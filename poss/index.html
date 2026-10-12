@@ -804,7 +804,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.46';
+const VERSION = 'v2026.10.12.47';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3098,7 +3098,8 @@ function shIndivOrtg(s, MP, tMP5, tS, oS) {
 /* WHO'S BEHIND THE FOUR FACTORS — from the sheet: for each stat behind a factor, the player with the biggest
    share of his team's total, sorted into what hurts Moorpark and what helps. Named only when the share is real
    (25%+ of the team's total, and at least 2 of it; 3 for defensive boards). Shooting names the fewest
-   players who make up half of the team's missed shots (or of its field-goal points), most first. */
+   players who make up half of the team's missed shots (or of its field-goal points), most first; rebounds the
+   same way (half of the team's offensive / defensive boards). */
 function factorDrivers(g, S, gameMin, pmA) {
   const TS = sbTeam(S), R = { a: sbRows(S, 'a', gameMin, TS, pmA), b: sbRows(S, 'b', gameMin, TS, () => null) };
   const nm = r => `${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name || '')}`, P = v => v == null ? '—' : (+v).toFixed(1) + '%';
@@ -3110,10 +3111,12 @@ function factorDrivers(g, S, gameMin, pmA) {
   TS.a.stov = Math.min(TS.b.stl, TS.a.tov); TS.b.stov = Math.min(TS.a.stl, TS.b.tov);   // turnovers on the other team's steals
   const fa = ffCalc(TS.a, TS.b), fb = ffCalc(TS.b, TS.a), A = TS.a, B = TS.b, opp = esc(g.opp), hurt = [], help = [];
   // The fewest players who make up half of team t's total of f (most first): "who got us to 50% quickest".
-  const half_ = (t, f) => { const tot = R[t].reduce((x, r) => x + f(r), 0); if (!tot) return null; const out = []; let n = 0;
+  const half_ = (t, f, minTot) => { const tot = R[t].reduce((x, r) => x + f(r), 0); if (!tot || tot < (minTot || 0)) return null; const out = []; let n = 0;
     for (const r of R[t].filter(r => f(r) > 0).sort((x, y) => f(y) - f(x))) { out.push(r); n += f(r); if (n * 2 >= tot) break; }
     return { rs: out, n, tot, sh: Math.round(100 * n / tot) }; };
-  const group = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${x.rs.map(r => `${nm(r)} ${r.fgm}-${r.fga}`).join(', ')} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
+  // stat(r) = what's shown beside each name (FG for shooting by default).
+  const group = (arr, cls, f, x, what, tail, stat) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${x.rs.map(r => `${nm(r)} ${stat ? stat(r) : r.fgm + '-' + r.fga}`).join(', ')} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
+  const by = (n, k) => x => x.rs.length > 1 ? 'them' : 'him';
   const line = (arr, cls, f, x, what, tail) => { if (x) arr.push(`<div class="ins ${cls}"><span><b>${f}</b> · ${nm(x.r)} — <b>${x.sh}%</b> ${what(x)}${tail ? ` · ${tail}` : ''}</span></div>`); };
   const H = (...a) => line(hurt, 'bad', ...a), G = (...a) => line(help, 'good', ...a);
   // Each factor goes one way: if we're losing it to them, its players are under Hurting us; if we're winning
@@ -3141,11 +3144,11 @@ function factorDrivers(g, S, gameMin, pmA) {
   }
   // The glass (OREB%: ours against theirs)
   if (lose(fa.orb, fb.orb)) {
-    H('Our offensive glass', lead('b', r => r.dreb, 3), x => `of their defensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)} vs their ${P(fb.orb)}`);
-    H('Their offensive glass', lead('b', r => r.oreb, 2), x => `of their offensive boards (${x.n} of ${x.tot})`);
+    group(hurt, 'bad', 'Our offensive glass', half_('b', r => r.dreb, 6), x => `of their defensive boards between ${by()(x)} (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)} vs their ${P(fb.orb)}`, r => r.dreb);
+    group(hurt, 'bad', 'Their offensive glass', half_('b', r => r.oreb, 4), x => `of their offensive boards between ${by()(x)} (${x.n} of ${x.tot})`, '', r => r.oreb);
   } else if (win(fa.orb, fb.orb)) {
-    G('Our offensive glass', lead('a', r => r.oreb, 2), x => `of our offensive boards (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)} vs their ${P(fb.orb)}`);
-    G('Their offensive glass', lead('a', r => r.dreb, 3), x => `of our defensive boards (${x.n} of ${x.tot})`);
+    group(help, 'good', 'Our offensive glass', half_('a', r => r.oreb, 4), x => `of our offensive boards between ${by()(x)} (${x.n} of ${x.tot})`, `our OREB% ${P(fa.orb)} vs their ${P(fb.orb)}`, r => r.oreb);
+    group(help, 'good', 'Their offensive glass', half_('a', r => r.dreb, 6), x => `of our defensive boards between ${by()(x)} (${x.n} of ${x.tot})`, '', r => r.dreb);
   }
   // Free throws (FT rate)
   if (lose(fa.ftr, fb.ftr)) {
