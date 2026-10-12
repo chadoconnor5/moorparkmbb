@@ -77,10 +77,14 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
   points, kills and the running score. Subs and technicals are shown where they happened.
   - Tap a row to change the stat or team, delete the play, or insert a missed play before it.
   - Summary by period. Print / PDF.
-- **Four factors:** type the printed box score totals on the number pad.
-  - 1st half at halftime, Full game at the end. 2nd half is the difference.
-  - Gives eFG%, TO%, OREB%, DREB%, FT rate, 3PA / AST rate, shooting, possessions and PPP, with
-    the game tracker's formulas.
+- **Four factors:** worked out from the tracked plays, so nothing needs typing at halftime.
+  - Sources: makes and misses, FTs (technical FTs included), the rebound taps, turnovers, steals,
+    charges and offensive fouls.
+  - Views: 1st half, 2nd half (with OT) and full game.
+  - Gives eFG%, TO%, OREB%, DREB%, FT rate, 3PA rate, shooting, possessions and PPP, with the game
+    tracker's formulas. No assists.
+  - Tap a box to type the official printout's number over a tracked one; **Back to tracked**
+    undoes the typed numbers.
 - **Scouting:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.

@@ -674,6 +674,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tbtn .tn.show{margin-top:0}
 /* The opponent's box is Moorpark's style (a light tint, a softer border) in the opponent's own colour. */
 .tbtn.b[style*="--tc"]{background:color-mix(in srgb,var(--tc) 14%,transparent);border-color:color-mix(in srgb,var(--tc) 45%,transparent)}
+.ffc.trk{color:var(--muted);font-weight:600}
 
 </style>
 </head>
@@ -703,7 +704,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.20';
+const VERSION = 'v2026.10.12.21';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1688,10 +1689,11 @@ document.addEventListener('click', ev => {
     case 'ff-cell': FF.team = b.dataset.t; FF.i = FF_STATS.findIndex(x => x[0] === b.dataset.k); FF.fresh = true; renderFF(); break;
     case 'ff-key': {
       const t = ffBox(g, FF.scope)[FF.team], k = FF_STATS[FF.i][0], key = b.dataset.k, cv = t[k] == null ? '' : String(t[k]);
+      // C = back to the tracked number; ⌫ on a fresh box clears it too.
       const nv = key === 'C' ? '' : key === '⌫' ? (FF.fresh ? '' : cv.slice(0, -1)) : (FF.fresh ? key : (cv + key).slice(0, 3));
       t[k] = nv === '' ? null : +nv; FF.fresh = false; save(); renderFF(); break; }
     case 'ff-next': ffMove(1); renderFF(); break;
-    case 'ff-clear': if (confirm('Clear every number on this sheet?')) { g.box[FF.scope] = { a: {}, b: {} }; FF.team = 'a'; FF.i = 0; FF.fresh = true; save(); renderFF(); } break;
+    case 'ff-clear': if (confirm('Drop the typed numbers and go back to the tracked ones?')) { g.box[FF.scope] = { a: {}, b: {} }; FF.team = 'a'; FF.i = 0; FF.fresh = true; save(); renderFF(); } break;
   }
 });
 
@@ -1785,21 +1787,42 @@ $('#sc-file').addEventListener('change', async e => {
   toast('Saved ' + f.name + ' for offline use'); SC.key = null; openScout();
 });
 
-/* ---------- four factors from the printed box score ----------
-   At halftime (and after the game) the stat crew hands over a print-out. Type each team's
-   totals in here and the four factors come out, with the same formulas as the game tracker:
-   possessions = FGA − OREB + TO + 0.475 × FTA. The full-game sheet minus the halftime sheet
-   gives the 2nd half. */
-const FF_STATS = [['fgm', 'FGM'], ['fga', 'FGA'], ['fg3m', '3PM'], ['fg3a', '3PA'], ['ftm', 'FTM'], ['fta', 'FTA'], ['oreb', 'OREB'], ['dreb', 'DREB'], ['ast', 'AST'], ['tov', 'TO']];
+/* ---------- four factors: from the tracked plays, the printout only if you want it ----------
+   Every input comes from what was logged (makes / misses, FTs, the rebound taps, turnovers,
+   steals, charges, offensive fouls, technical FTs). Tap a box to type the official printout's
+   number over the tracked one; Clear goes back to the tracked numbers. Same formulas as the game
+   tracker: possessions = FGA − OREB + TO + 0.475 × FTA. No assists. */
+const FF_STATS = [['fgm', 'FGM'], ['fga', 'FGA'], ['fg3m', '3PM'], ['fg3a', '3PA'], ['ftm', 'FTM'], ['fta', 'FTA'], ['oreb', 'OREB'], ['dreb', 'DREB'], ['tov', 'TO']];
 const FF = { scope: '1H', team: 'a', i: 0, fresh: true };
 const ffBox = (g, sc) => { g.box = g.box || {}; return g.box[sc] = g.box[sc] || { a: {}, b: {} }; };
+const ffPers = (g, sc) => sc === 'G' ? g.periods : sc === '1H' ? ['1H'] : g.periods.filter(p => p !== '1H');
+function ffTracked(g, sc) {
+  const pers = ffPers(g, sc), z = () => Object.fromEntries(FF_STATS.map(([k]) => [k, 0])), T = { a: z(), b: z() };
+  g.ev.forEach(e => {
+    if (!pers.includes(e.per)) return;
+    if (e.t === 'tech') { const s = T[other(e.team)]; s.fta += 2; s.ftm += e.ftm || 0; return; }
+    if (e.t !== 'play') return;
+    const s = T[e.team];
+    switch (e.k) {
+      case '2m': s.fgm++; s.fga++; break; case '2x': s.fga++; break;
+      case '3m': s.fgm++; s.fga++; s.fg3m++; s.fg3a++; break; case '3x': s.fga++; s.fg3a++; break;
+      case 'ftm': s.ftm++; s.fta++; break; case 'ftx': s.fta++; break;
+      case 'oreb': s.oreb++; break; case 'dreb': s.dreb++; break;
+      case 'to': case 'chg': case 'offf': s.tov++; break;
+      case 'stl': T[other(e.team)].tov++; break;
+    }
+  });
+  return T;
+}
 const filled = t => FF_STATS.some(([k]) => t[k] != null);
+// The numbers used: a typed printout number where there is one, else the tracked count. For the
+// 2nd half with no typed number of its own, full-game minus 1st-half printout numbers when both exist.
 function ffLine(g, sc) {
-  if (sc !== '2H') { const B = ffBox(g, sc); return (filled(B.a) || filled(B.b)) ? B : null; }
-  const H = g.box && g.box['1H'], G = g.box && g.box.G;
-  if (!H || !G || !filled(G.a)) return null;
-  const d = (x, y) => Object.fromEntries(FF_STATS.map(([k]) => [k, x[k] == null ? null : x[k] - (y[k] || 0)]));
-  return { a: d(G.a, H.a), b: d(G.b, H.b) };
+  const T = ffTracked(g, sc), B = ffBox(g, sc), G = ffBox(g, 'G'), H = ffBox(g, '1H');
+  const pick = (t, k) => B[t][k] != null ? B[t][k] : sc === '2H' && G[t][k] != null && H[t][k] != null ? G[t][k] - H[t][k] : T[t][k];
+  const L = { a: {}, b: {} };
+  ['a', 'b'].forEach(t => FF_STATS.forEach(([k]) => { L[t][k] = pick(t, k); }));
+  return FF_STATS.some(([k]) => L.a[k] || L.b[k]) ? L : null;
 }
 function ffCalc(s, o) {
   const n = k => +s[k] || 0, m = k => +o[k] || 0;
@@ -1808,7 +1831,7 @@ function ffCalc(s, o) {
   const pts = 2 * n('fgm') + n('fg3m') + n('ftm');
   return { pts, poss, ppp: poss > 0 ? pts / poss : null,
     efg: pct(n('fgm') + 0.5 * n('fg3m'), n('fga')), to: pct(n('tov'), poss), orb: pct(n('oreb'), n('oreb') + m('dreb')),
-    drb: pct(n('dreb'), n('dreb') + m('oreb')), ftr: pct(n('fta'), n('fga')), tpr: pct(n('fg3a'), n('fga')), ast: pct(n('ast'), n('fgm')),
+    drb: pct(n('dreb'), n('dreb') + m('oreb')), ftr: pct(n('fta'), n('fga')), tpr: pct(n('fg3a'), n('fga')),
     fg: pct(n('fgm'), n('fga')), fg3: pct(n('fg3m'), n('fg3a')), ft: pct(n('ftm'), n('fta')) };
 }
 // Things a mistyped number produces, so a slip shows before the numbers are read out.
@@ -1819,7 +1842,7 @@ function ffBad(t, k) {
 }
 function ffResults(g, sc) {
   const L = ffLine(g, sc);
-  if (!L) return `<div class="muted">${sc === '2H' ? 'Enter the 1st-half sheet and the full-game sheet — the 2nd half is the difference.' : 'Type the totals in above and the four factors show here.'}</div>`;
+  if (!L) return `<div class="muted">Nothing logged ${sc === 'G' ? 'yet' : 'in this half yet'}.</div>`;
   const A = ffCalc(L.a, L.b), B = ffCalc(L.b, L.a);
   const P = v => v == null ? '—' : Math.round(v) + '%';
   const row = (lbl, k, hi, sub) => {
@@ -1838,7 +1861,6 @@ function ffResults(g, sc) {
     ${row('FT rate', 'ftr', true, t => `${v(t, 'fta')} FTA`)}
     <tr class="grp"><td colspan="3">Shot profile</td></tr>
     ${row('3PA rate', 'tpr', true, t => `${v(t, 'fg3a')}/${v(t, 'fga')} FGA`)}
-    ${row('AST rate', 'ast', true, t => `${v(t, 'ast')}/${v(t, 'fgm')} FGM · AST:TO ${t.tov ? ((+t.ast || 0) / t.tov).toFixed(1) : '—'}`)}
     ${row('FG%', 'fg', true)}${row('3P%', 'fg3', true)}${row('FT%', 'ft', true)}
     <tr class="grp"><td colspan="3">Efficiency</td></tr>
     <tr><td>Points</td><td>${A.pts}</td><td>${B.pts}</td></tr>
@@ -1849,20 +1871,21 @@ function ffResults(g, sc) {
 }
 function renderFF() {
   const g = cur(); if (!g) return;
-  const sc = FF.scope, edit = sc !== '2H', B = edit ? ffBox(g, sc) : null;
-  const cell = (t, k) => { const v = B[t][k]; return `<button class="ffc ${FF.team === t && FF_STATS[FF.i][0] === k ? 'sel' : ''} ${ffBad(B[t], k) ? 'bad' : ''}" data-act="ff-cell" data-t="${t}" data-k="${k}">${v == null ? '' : v}</button>`; };
-  const pts = t => { const x = B[t]; return filled(x) ? 2 * (+x.fgm || 0) + (+x.fg3m || 0) + (+x.ftm || 0) : '–'; };
+  const sc = FF.scope, B = ffBox(g, sc), L = ffLine(g, sc) || { a: {}, b: {} }, typed = filled(B.a) || filled(B.b);
+  const cell = (t, k) => { const own = B[t][k] != null, v = L[t][k];
+    return `<button class="ffc ${own ? '' : 'trk'} ${FF.team === t && FF_STATS[FF.i][0] === k ? 'sel' : ''} ${ffBad(L[t], k) ? 'bad' : ''}" data-act="ff-cell" data-t="${t}" data-k="${k}">${v == null ? '' : v}</button>`; };
+  const pts = t => { const x = L[t]; return 2 * (+x.fgm || 0) + (+x.fg3m || 0) + (+x.ftm || 0); };
   $('#ff').innerHTML = `<div>
-    <div class="page-head"><h2>Four factors <span class="muted small">from the printed box score</span></h2>
-      <div class="row" style="gap:6px;margin-left:auto">${[['1H', '1st half'], ['G', 'Full game'], ['2H', '2nd half']].map(([k, l]) => `<button class="btn btn-sm ${sc === k ? 'btn-primary' : ''}" data-act="ff-scope" data-s="${k}">${l}</button>`).join('')}</div></div>
-    ${edit ? `<div class="card"><h3 style="display:flex;align-items:center">${sc === '1H' ? 'Halftime print-out — 1st half totals' : 'Final print-out — full game totals'}<button class="btn btn-sm btn-bad" data-act="ff-clear" style="margin-left:auto">Clear</button></h3>
+    <div class="page-head"><h2>Four factors <span class="muted small">from the tracked plays</span></h2>
+      <div class="row" style="gap:6px;margin-left:auto">${[['1H', '1st half'], ['2H', '2nd half'], ['G', 'Full game']].map(([k, l]) => `<button class="btn btn-sm ${sc === k ? 'btn-primary' : ''}" data-act="ff-scope" data-s="${k}">${l}</button>`).join('')}</div></div>
+    <div class="card"><h3>${{ '1H': '1st half', G: 'Full game', '2H': '2nd half + OT' }[sc]}</h3>${ffResults(g, sc)}</div>
+    <div class="card"><h3 style="display:flex;align-items:center">Totals <span class="muted" style="margin-left:6px">grey = tracked · tap a box to type the printout's number</span>${typed ? '<button class="btn btn-sm btn-bad" data-act="ff-clear" style="margin-left:auto">Back to tracked</button>' : ''}</h3>
       <div class="ff-in"><table class="ffg"><thead><tr><th></th><th class="a">MOORPARK</th><th class="b">${esc(String(g.opp).toUpperCase())}</th></tr></thead><tbody>
         ${FF_STATS.map(([k, l]) => `<tr><td class="l">${l}</td><td>${cell('a', k)}</td><td>${cell('b', k)}</td></tr>`).join('')}
         <tr class="calc"><td class="l" style="color:var(--muted)">PTS</td><td>${pts('a')}</td><td>${pts('b')}</td></tr></tbody></table>
         <div class="ffk"><div class="cur">${FF.team === 'a' ? 'Moorpark' : esc(g.opp)} · ${FF_STATS[FF.i][1]}</div>
           ${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button data-act="ff-key" data-k="${k}">${k}</button>`).join('')}
-          <button class="nx" data-act="ff-next">Next ▶</button></div></div></div>` : ''}
-    <div class="card"><h3>${{ '1H': '1st half', G: 'Full game', '2H': '2nd half (full game − 1st half)' }[sc]}</h3>${ffResults(g, sc)}</div>
+          <button class="nx" data-act="ff-next">Next ▶</button></div></div></div>
   </div>`;
 }
 function ffMove(d) {
