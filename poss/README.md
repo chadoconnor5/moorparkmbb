@@ -142,6 +142,22 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
   - Opponent rosters are shared with the game tracker.
   - Position and the note show on the player's card on the Live screen.
+- **Halftime stat sheet:** **End 1H** brings up the stat-sheet screen over the halftime report: add a photo of the
+  printout if you have it (check / Clarify, then Save), or **Skip → halftime report**.
+- **Two reports.** With a stat sheet for that half / the game, the report is the **full report**:
+  - **Key takeaways:** our edge and theirs in the four factors, each side's best player, most-used, the
+    biggest on/off, the best five, foul trouble, points off turnovers / second-chance points, kills and bench.
+  - **Team:** four factors; team analytics (points, tracked possessions and PPP, sheet ORtg, points off
+    turnovers, second-chance points, bench points, eFG%, TS%, 3P%, 3PA rate, FT% and rate, TO%, OREB%,
+    assisted %, AST/TO, STL%, BLK%, kills, fouls); by half (post-game, when the halftime sheet was read too);
+    stops, kills & killshots.
+  - **Players:** the game tracker's box score for both teams, filled from the sheet: starters, then BENCH;
+    MIN, MIN%, ORTG, USG, SHOT%, EFG, TS%, FTR, OR%, DR%, AST%, TO%, STL%, BLK%, 2PT, 3PT, FT, OR, DR, REB, AST,
+    TO, STL, BLK, PF, PTS and Moorpark's on-floor +/- from the tracker; the same green / red marks; under 25% of
+    the minutes greyed; the TM Team row and a TEAM line. **All players / 25%+ of minutes** hides the greyed
+    players (5:00 at the half, 10:00 for the game, plus 25% of each OT). Takeaways always use everyone.
+  - **Lineups:** best fives, best combos (post-game), every five for both teams.
+  Without a sheet the report is the one below, with an **Add stat sheet** button.
 - **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
   to the 2nd-half starting fives), and **Final** brings up the Post-game report. Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
