@@ -773,6 +773,10 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sh-cta{display:flex;align-items:center;gap:10px;border-color:var(--good)}
 .lutx th,.lutx td{padding-left:1px;padding-right:1px} .lutx td:first-child{padding-left:5px}
 .ff-who{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ff-who>div{display:flex;flex-direction:column;gap:6px}.ff-who-h{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}.ff-who .ins{font-size:13.5px;color:var(--text)}
+/* saved reports: shown as saved, nothing in them is tappable */
+.snap button,.snap .ht-banner,.snap .page-head .row,.snap .sh-cta{display:none!important}
+.snap [data-act]{pointer-events:none}
+@media print{.snap-head{display:none!important}}
 
 </style>
 </head>
@@ -804,7 +808,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.47';
+const VERSION = 'v2026.10.12.48';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1218,7 +1222,8 @@ function render() {
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
   if (!g && ['pbp', 'sheet', 'lineups', 'ff', 'report'].includes(UI.tab)) { v.className = 'page mid'; v.innerHTML = noGame; return; }
-  if (UI.tab === 'games') v.innerHTML = gamesView();
+  if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); }
+  else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); }
   else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
   else if (UI.tab === 'lineups') v.innerHTML = lineupsView(g);
@@ -1485,7 +1490,7 @@ function reportView(g) {
   return `${half && g.half ? `<div class="card ht-banner"><div><b>Halftime</b> · ${G.pts.a}–${G.pts.b}</div><button class="btn btn-good btn-lg" data-act="start-2h">Start 2nd half → starting fives</button></div>` : ''}
     <div class="page-head"><h2>${half ? 'Halftime report' : 'Post-game report'}</h2>
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
-      <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="print">Print / PDF</button></div>
+      <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button><button class="btn btn-sm" data-act="print">Print / PDF</button></div>
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
@@ -1796,6 +1801,8 @@ function gamesView() {
         <button class="btn btn-sm" data-act="open" data-id="${g.id}">${g.id === curId ? 'Live ▸' : 'Open'}</button><button class="btn btn-sm" data-act="export" data-id="${g.id}">Export</button><button class="btn btn-sm btn-bad" data-act="del" data-id="${g.id}">Delete</button></div>`; }).join('')
       : '<div class="card muted">No games yet. + New game to start.</div>'}
     <div class="row" style="gap:8px;margin-top:6px"><button class="btn btn-sm" data-act="import">Import a game file</button><button class="btn btn-sm" data-act="roster">Moorpark roster</button>${cur() ? '<button class="btn btn-sm" data-act="details">This game\'s details</button>' : ''}</div>
+    <div class="page-head" style="margin-top:18px"><h2>Saved reports</h2><span class="small muted" style="margin-left:8px">kept even if a game is edited or deleted</span></div>
+    <div id="saved-reports"><div class="muted small">Loading…</div></div>
     <div class="small muted" style="margin-top:14px">${VERSION} · saved on this iPad</div>`;
 }
 
@@ -2256,9 +2263,9 @@ document.addEventListener('click', ev => {
       if (!confirm(`End ${PER_NAME(g.per)}?`)) return;
       // Halftime: straight to the halftime report; its button starts the 2nd half.
       g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); UI.tab = 'report'; UI.rep = 'half'; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
-    case 'start-2h': g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
+    case 'start-2h': snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
     case 'scout': openScout(); break;
-    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); snapReport(g, 'post', true); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
     case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
     case 'gt-here': g.gtFrom = b.dataset.id; g.gtOff = false; save(); closeModal(); render(); toast('Garbage time starts at that possession'); break;
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
@@ -2268,6 +2275,10 @@ document.addEventListener('click', ev => {
     case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
+    case 'rep-save': { const half = UI.rep === 'half' || (UI.rep == null && !g.final && g.per === '1H'); snapReport(g, half ? 'half' : 'post'); break; }
+    case 'rp-open': UI.savedId = b.dataset.id; UI.tab = 'saved'; render(); window.scrollTo(0, 0); break;
+    case 'rp-back': UI.tab = 'games'; render(); break;
+    case 'rp-del': if (confirm('Delete this saved report?')) rpDel(b.dataset.id).then(() => { render(); toast('Saved report deleted'); }); break;
     case 'rep-min': { const y = window.scrollY; UI.repMin = b.dataset.m; try { localStorage.setItem('pt2_repmin', UI.repMin); } catch (e) {} render(); window.scrollTo(0, y); break; }
     case 'export-def': exportLeaderboard(g, 'def'); break;
     case 'export-off': exportLeaderboard(g, 'off'); break;
@@ -2823,6 +2834,7 @@ function sheetSave() {
     const ot = Object.assign(sheetSum(S[other(t)]), S[other(t)].totals || {});
     Object.assign(B[t], { fgm: tot.fgm, fga: tot.fga, fg3m: tot.fg3m, fg3a: tot.fg3a, ftm: tot.ftm, fta: tot.fta, oreb: tot.oreb, dreb: tot.dreb, tov: tot.tov, stov: Math.min(ot.stl || 0, tot.tov || 0) }); });
   save(); SHEET = null; closeModal(); UI.tab = 'report'; UI.rep = S.sc === '1H' ? 'half' : 'post'; render(); window.scrollTo(0, 0); toast('Stat sheet saved — advanced numbers are in the report', 'good');
+  snapReport(g, S.sc === '1H' ? 'half' : 'post', true);
 }
 
 const SH_PAIR = { fgm: 'fga', fga: 'fgm', fg3m: 'fg3a', fg3a: 'fg3m', ftm: 'fta', fta: 'ftm' };
@@ -3269,6 +3281,52 @@ function fullReport(g, D, half) {
     ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 2-, 3- and 4-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'a', luScope, 'all')}</div></div>
     <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', luScope, 'all')}</div></div>`;
+}
+
+/* ---------- saved reports ----------
+   A copy of the halftime / post-game report as it was, kept on the iPad (IndexedDB 'pt2_reports'), apart from
+   the game, so it stays even if the game is edited or deleted. Saved by itself at Start 2nd half, at Final and
+   whenever a stat sheet is saved; 💾 Save report saves one any time. One halftime and one post-game copy per
+   game, the newest kept. Listed on the Games tab; Open shows it as saved, with Print / PDF. */
+const RP_DB = 'pt2_reports';
+function rpDb() {
+  return new Promise((res, rej) => { const q = indexedDB.open(RP_DB, 1);
+    q.onupgradeneeded = () => q.result.createObjectStore('reports', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+}
+async function rpTx(mode, fn) { const db = await rpDb(); return new Promise((res, rej) => { const tx = db.transaction('reports', mode), st = tx.objectStore('reports'), r = fn(st);
+  tx.oncomplete = () => res(r && 'result' in r ? r.result : undefined); tx.onerror = () => rej(tx.error); }); }
+const rpAll = () => rpTx('readonly', st => st.getAll());
+const rpGet = id => rpTx('readonly', st => st.get(id));
+const rpDel = id => rpTx('readwrite', st => st.delete(id));
+async function snapReport(g, kind, quiet) {
+  if (!g) return;
+  try {
+    const keep = UI.rep; UI.rep = kind; const html = reportView(g); UI.rep = keep;
+    const D = derive(g), S = perSums(D, kind === 'half' ? '1H' : null);
+    const rec = { id: g.id + ':' + kind, gameId: g.id, kind, opp: g.opp, date: g.date, loc: g.loc, score: { a: S.pts.a, b: S.pts.b },
+      sheet: !!(g.sheet && g.sheet[kind === 'half' ? '1H' : 'G']), at: new Date().toISOString(), html };
+    await rpTx('readwrite', st => st.put(rec));
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    if (!quiet) toast(`${kind === 'half' ? 'Halftime' : 'Post-game'} report saved — Games → Saved reports`, 'good');
+  } catch (e) { toast('Could not save the report: ' + e.message, 'bad'); }
+}
+const rpWhen = iso => { const d = new Date(iso); return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+async function paintSaved() {
+  const el = document.getElementById('saved-reports'); if (!el) return;
+  let list = []; try { list = await rpAll(); } catch (e) { el.innerHTML = '<div class="muted small">Saved reports aren\'t available in this browser.</div>'; return; }
+  list.sort((x, y) => (y.date || '').localeCompare(x.date || '') || (x.kind === 'half' ? 1 : -1) - (y.kind === 'half' ? 1 : -1) || y.at.localeCompare(x.at));
+  el.innerHTML = list.length ? list.map(r => `<div class="card row" style="gap:10px;align-items:center"><div style="flex:1"><b>${r.kind === 'half' ? 'Halftime' : 'Post-game'}</b> · ${esc(r.loc === 'A' ? '@' : 'vs')} ${esc(r.opp)} <span class="muted small">${esc(r.date || '')}</span><br>
+      <span class="small">Moorpark ${r.score.a} – ${r.score.b}${r.sheet ? ' · full report (stat sheet)' : ''} · saved ${esc(rpWhen(r.at))}</span></div>
+      <button class="btn btn-sm btn-good" data-act="rp-open" data-id="${esc(r.id)}">Open</button><button class="btn btn-sm btn-bad" data-act="rp-del" data-id="${esc(r.id)}">Delete</button></div>`).join('')
+    : '<div class="card muted small">No saved reports yet. Halftime and post-game reports save themselves at Start 2nd half and at Final.</div>';
+}
+async function paintSnap() {
+  const el = document.getElementById('snap'); if (!el) return;
+  const r = await rpGet(UI.savedId).catch(() => null);
+  if (!r) { el.innerHTML = '<div class="card muted">That report is gone.</div>'; return; }
+  applyTeamColors({ opp: r.opp });   // the opponent's colours, even if the game itself was deleted
+  el.innerHTML = `<div class="page-head snap-head"><button class="btn btn-sm" data-act="rp-back">◀ Saved reports</button><div class="small muted" style="margin-left:6px">${r.kind === 'half' ? 'Halftime' : 'Post-game'} · ${esc(r.opp)} · ${esc(r.date || '')} · saved ${esc(rpWhen(r.at))}</div>
+    <button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div><div class="snap">${r.html}</div>`;
 }
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
