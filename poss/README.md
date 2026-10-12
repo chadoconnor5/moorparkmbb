@@ -115,6 +115,10 @@ the live screen (numbers are enough).
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 
+**Their best five (2nd half and OT only):** the opponent five with the best net rating so far, among
+fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
+shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
+
 **Lineups tab**, for the game or the current period, for both teams, as **5-man, 4-man, 3-man or 2-man**
 combos (a combo is on the floor for every possession of every five that contains it). For each:
 - possessions, points for–against, +/-, ORtg, DRtg, net;

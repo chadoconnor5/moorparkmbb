@@ -745,6 +745,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .modal.huddle tr.hl td:not(.l5-moved){background:#fef9c3!important}
 .hud-five{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin:-4px 0 8px}
 .hud-five b{color:var(--text)}
+.lpm.best-on{box-shadow:0 0 0 2px var(--warn) inset}
+.best-tag{margin:6px 0 4px;padding:6px 9px;border-radius:8px;background:rgba(220,176,90,.16);color:var(--warn);font-weight:800;font-size:13px;letter-spacing:.02em}
+.best-tag span{display:block;font-weight:600;font-size:11.5px;color:var(--text2);margin-top:1px}
 
 </style>
 </head>
@@ -775,7 +778,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.38';
+const VERSION = 'v2026.10.12.39';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1259,12 +1262,24 @@ function playerCards(g, D, t) {
     <div class="pgrid">${list.map(card).join('')}<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button></div>`;
 }
 
+/* Their best five (2nd half and OT only): the opponent five with the best net rating over the game,
+   among fives with 8+ possessions. Tagged on their lineup card whenever it is on the floor. */
+function theirBest(g, D) {
+  if (g.per === '1H') return null;
+  const u = lineupUnits(g, D, 'b', 'game', 'all').units.map(u => Object.assign({ poss: Math.floor((u.oPoss + u.dPoss) / 2),
+    net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null }, u)).filter(u => u.net != null && u.poss >= 8)
+    .sort((x, y) => y.net - x.net || (y.pf - y.pa) - (x.pf - x.pa))[0];
+  return u || null;
+}
+const theirBestOn = (g, D) => { const B = theirBest(g, D); return B && D.five.b.length === 5 && fiveKey(B.five) === fiveKey(D.five.b) ? B : null; };
 function lpmCard(g, D, t) {
   const f = D.five[t];
   if (f.length !== 5) return '';
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
   const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null, pm = u.pf - u.pa;
-  return `<div class="lpm"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span></div>
+  const best = t === 'b' ? theirBestOn(g, D) : null;
+  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span></div>
+    ${best ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * best.net) / 10)} · ${best.poss} poss</span></div>` : ''}
     <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
     ${fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
@@ -1314,7 +1329,7 @@ function liveView(g) {
       <div class="feed">${items.map(f => feedRow(g, f)).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
-    <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>
+    <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>${(() => { const B = theirBestOn(g, D); return B ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * B.net) / 10)} · ${B.poss} poss</span></div>` : ''; })()}
       ${playerCards(g, D, 'b')}
       <div class="lpm2">${lpmCard(g, D, 'a')}${lpmCard(g, D, 'b')}</div></div>
   </div>`;
@@ -1782,6 +1797,7 @@ function subConfirm() {
   const g = cur(), D = derive(g);
   ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, Object.assign({ t: 'sub', team: t, five: f }, D.five[t].length ? {} : { lock: true })); });
   SUB = null; save(); closeModal(); render();
+  const B = theirBestOn(g, derive(g)); if (B && fiveKey(B.five) !== fiveKey(D.five.b)) toast(`★ ${g.opp}'s best five is on (net ${sg1(Math.round(10 * B.net) / 10)} on ${B.poss} poss)`, 'warn');
 }
 
 /* Edit one player's fouls (from the fouled-out screen): move a foul to the right player, or delete it. */
