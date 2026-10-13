@@ -777,6 +777,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .snap button,.snap .ht-banner,.snap .page-head .row,.snap .sh-cta{display:none!important}
 .snap [data-act]{pointer-events:none}
 @media print{.snap-head{display:none!important}}
+/* The possession pill is as wide as its longest label for this game (Moorpark / this opponent / jump ball), so
+   tapping it never changes its width or moves the logos, and a short opponent name keeps it compact. */
+.pp-stack{display:inline-grid;justify-items:center}
+.pp-stack>span{grid-area:1/1;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.pp-stack>.pp-ghost{visibility:hidden}
 
 </style>
 </head>
@@ -808,7 +813,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.12.48';
+const VERSION = 'v2026.10.13.49';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1888,9 +1893,10 @@ function techModal() {
 function possPill(g) {
   if (g.final) return '';
   const ball = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
-  if (!ball) return `<button class="poss-btn none" data-act="ball-flip">JUMP BALL · TAP</button>`;
-  const nm = esc(teamName(g, ball).toUpperCase());
-  return `<button class="poss-btn ${ball}" data-act="ball-flip">${ball === 'a' ? `<span class="pb">◀</span><span class="pn">${nm}</span> BALL` : `<span class="pn">${nm}</span> BALL<span class="pb">▶</span>`}</button>`;
+  const lbl = t => { const nm = esc(teamName(g, t).toUpperCase()); return t === 'a' ? `<span class="pb">◀</span><span class="pn">${nm}</span> BALL` : `<span class="pn">${nm}</span> BALL<span class="pb">▶</span>`; };
+  // All three labels share one grid cell; only the current one shows, so the pill keeps the widest one's width.
+  const opts = [['a', lbl('a')], ['b', lbl('b')], ['', 'JUMP BALL · TAP']];
+  return `<button class="poss-btn ${ball || 'none'}" data-act="ball-flip"><span class="pp-stack">${opts.map(([k, h]) => `<span class="${k === (ball || '') ? 'pp-on' : 'pp-ghost'}"${k === (ball || '') ? '' : ' aria-hidden="true"'}>${h}</span>`).join('')}</span></button>`;
 }
 function heldBallModal(off) {
   const g = cur();
