@@ -777,11 +777,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .snap button,.snap .ht-banner,.snap .page-head .row,.snap .sh-cta{display:none!important}
 .snap [data-act]{pointer-events:none}
 @media print{.snap-head{display:none!important}}
-/* The possession pill is as wide as its longest label for this game (Moorpark / this opponent / jump ball), so
-   tapping it never changes its width or moves the logos, and a short opponent name keeps it compact. */
-.pp-stack{display:inline-grid;justify-items:center}
-.pp-stack>span{grid-area:1/1;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-.pp-stack>.pp-ghost{visibility:hidden}
+/* The possession pill fits its own text, but sits in a slot as wide as this game's widest pill (Moorpark /
+   this opponent / jump ball), so changing it never moves the logos; a short opponent name keeps the slot compact. */
+.pp-slot{display:inline-grid;justify-items:center;align-items:center;white-space:nowrap;padding:0 10px}
+.pp-slot .poss-btn,.pp-slot .poss-btn *{white-space:nowrap}
+.pp-slot>*{grid-area:1/1}
+.pp-slot>.pp-ghost{visibility:hidden;pointer-events:none}
 
 </style>
 </head>
@@ -1894,9 +1895,9 @@ function possPill(g) {
   if (g.final) return '';
   const ball = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
   const lbl = t => { const nm = esc(teamName(g, t).toUpperCase()); return t === 'a' ? `<span class="pb">◀</span><span class="pn">${nm}</span> BALL` : `<span class="pn">${nm}</span> BALL<span class="pb">▶</span>`; };
-  // All three labels share one grid cell; only the current one shows, so the pill keeps the widest one's width.
-  const opts = [['a', lbl('a')], ['b', lbl('b')], ['', 'JUMP BALL · TAP']];
-  return `<button class="poss-btn ${ball || 'none'}" data-act="ball-flip"><span class="pp-stack">${opts.map(([k, h]) => `<span class="${k === (ball || '') ? 'pp-on' : 'pp-ghost'}"${k === (ball || '') ? '' : ' aria-hidden="true"'}>${h}</span>`).join('')}</span></button>`;
+  const pill = (k, cls, act) => `<${act ? 'button' : 'span'} class="poss-btn ${k || 'none'} ${cls}"${act ? ' data-act="ball-flip"' : ' aria-hidden="true"'}>${k ? lbl(k) : 'JUMP BALL · TAP'}</${act ? 'button' : 'span'}>`;
+  // The real pill fits its text; hidden copies of the other two hold the slot at the widest one's width.
+  return `<span class="pp-slot">${['a', 'b', ''].filter(k => k !== (ball || '')).map(k => pill(k, 'pp-ghost')).join('')}${pill(ball || '', '', true)}</span>`;
 }
 function heldBallModal(off) {
   const g = cur();

@@ -39,8 +39,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - The free throws count in the score, PPP and +/-, but are not a possession.
 - **Timeout:** pick the team, full or 30. 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
 - **No clock.**
-- **Possession pill** (under the period; as wide as this game's longest label, so a long opponent name like Mack
-  Attack Prep gets a wider pill and a short one like Cuesta a compact one, and tapping it never moves the logos): moves only when you tap it — at the tip, at the start of the
+- **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
+  game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
+  so changing the ball never moves the logos): moves only when you tap it — at the tip, at the start of the
   2nd half, after a jump ball. Plays, subs and timeouts never move it. Tapped mid-half it asks: **Held
   ball: steal** (a steal for the team that gets the ball, ending the other team's possession; shown as "steal (held ball)") or **Just switch**.
 - **Huddle** opens after every timeout (and from **📋 Huddle** on the scoreboard), the game tracker's
