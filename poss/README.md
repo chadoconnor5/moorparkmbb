@@ -22,7 +22,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - Turnovers: Turnover, Steal. For a steal, tap the team that stole it.
 - **Rebounds** have no buttons. After any miss, both logos light up for the rebound: the shooting
   team's logo = offensive rebound, the other logo = defensive rebound. If there was no rebound
-  (out of bounds, the first of two FTs), just tap the next stat.
+  (the first of two FTs, out of bounds, end of the half), tap **No rebound** (it reads "No rebound (1st of 2)"
+  after a missed FT), or just tap the next stat.
 - **Fouls go to the player:** tap Foul, Charge or Off Foul, then his card. "Team / bench foul" is
   for a foul with no player.
 - **Foul trouble** lights the cards: 1st half, 2 fouls yellow, 3–4 red; 2nd half / OT, 3 yellow, 4 red; 5

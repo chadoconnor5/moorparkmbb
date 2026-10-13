@@ -783,6 +783,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .pp-slot .poss-btn,.pp-slot .poss-btn *{white-space:nowrap}
 .pp-slot>*{grid-area:1/1}
 .pp-slot>.pp-ghost{visibility:hidden;pointer-events:none}
+.no-reb{margin-left:8px;font-weight:800}
 
 </style>
 </head>
@@ -814,7 +815,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.13.49';
+const VERSION = 'v2026.10.13.50';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1350,7 +1351,7 @@ function liveView(g) {
   const st = UI.stat;
   const status = UI.ins ? `Inserting before the selected play — ${st ? STAT_LABEL[st] + ': ' + (STAT_HINT[st] || 'tap the player') : 'tap a stat, then the team or player'} <button class="btn btn-sm" data-act="ins-cancel">Cancel</button>`
     : st ? `<b>${STAT_LABEL[st]}</b> — ${PLAYER_STATS.has(st) ? STAT_HINT[st] : STAT_HINT_TEAM[st]} <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
-    : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb · or tap the next stat`
+    : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb <button class="btn btn-sm btn-warn no-reb" data-act="no-reb">No rebound${UI.rebFt ? ' (1st of 2)' : ''}</button>`
     : 'Tap the stat, then the team — fouls: then the player';
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
   return `${scorebar(g, D)}
@@ -2062,7 +2063,7 @@ function push(g, e) {
 function logStat(team, player) {
   const g = cur(), k = UI.stat; UI.stat = null;
   // After a miss the logos wait for the rebound: the shooting team's logo = offensive, the other = defensive.
-  UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null;
+  UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null; UI.rebFt = k === 'ftx';
   if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
   else push(g, { t: 'play', team, player, k });
   save(); render();
@@ -2196,6 +2197,8 @@ document.addEventListener('click', ev => {
       if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
     case 'stat-cancel': UI.stat = null; render(); break;
+    // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
+    case 'no-reb': UI.reb = null; UI.rebFt = false; render(); break;
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
