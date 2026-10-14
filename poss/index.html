@@ -804,6 +804,24 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .eoh-cell{background:var(--surface);border-radius:10px;padding:8px 10px}
 .eoh-cell span{display:block;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .eoh-cell b{display:block;font-size:17px;margin-top:2px} .eoh-cell i{font-style:normal;font-size:12px;color:var(--text2)}
+/* opponent file (Scouting screen, Last time tab) */
+#sc-fileview{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--bg,#0d0f14)}
+#scout.file-mode #sc-pages{display:none} #scout:not(.file-mode) #sc-fileview{display:none}
+#scout.file-mode .sc-head select,#scout.file-mode .sc-head [data-act="sc-zoom"],#scout.file-mode .sc-head [data-act="sc-add"]{display:none}
+.sc-seg{display:inline-flex;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-left:6px}
+.sc-seg button{padding:7px 12px;font-weight:700;font-size:14px;background:transparent;color:var(--text2);border:0}
+.sc-seg button.on{background:var(--us);color:#0b1220}
+.of-page{padding-top:12px}
+.of-head{display:flex;align-items:center;gap:12px} .of-head h2{margin:0}
+.of-games{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+.of-g{padding:8px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border2);font-size:13px;color:var(--text)}
+.of-g.on{border-color:var(--us);box-shadow:inset 0 0 0 1px var(--us)} .of-g b{font-size:15px}
+.of-g .l{color:var(--bad);font-weight:800} .of-g .w{color:var(--good);font-weight:800}
+.of-five{background:var(--surface);border-radius:10px;padding:9px 11px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
+.of-five b{font-size:14px} .of-five .tiny{display:block} .of-five .n{font-weight:800;font-size:17px;text-align:right}
+.of-badge{margin-left:6px;padding:1px 6px;border-radius:99px;background:#facc15;color:#111;font-size:9.5px;font-weight:800;letter-spacing:.06em;vertical-align:middle}
+.of-banner{display:flex;align-items:center;gap:12px;border-radius:12px;padding:10px 12px;border:1px solid var(--warn);background:rgba(220,176,90,.1);margin:-2px 0 12px}
+.of-banner .ic{font-size:20px}
 
 </style>
 </head>
@@ -823,11 +841,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </div></nav>
 <div id="view" class="page"></div>
 <div id="scout" class="hidden">
-  <div class="sc-head"><b>Scouting report</b><select id="sc-sel"></select>
+  <div class="sc-head"><b>Scouting</b><span id="sc-tabs"></span><select id="sc-sel"></select>
     <button class="btn btn-sm" data-act="sc-add">Add PDF…</button>
     <button class="btn btn-sm" data-act="sc-zoom" data-z="-1">−</button><button class="btn btn-sm" data-act="sc-zoom" data-z="0">Fit</button><button class="btn btn-sm" data-act="sc-zoom" data-z="1">+</button>
     <button class="btn btn-good" data-act="sc-close">◀ Back to game</button></div>
   <div id="sc-pages"></div>
+  <div id="sc-fileview"></div>
 </div>
 <input type="file" id="sc-file" accept="application/pdf,.pdf" class="hidden">
 <input type="file" id="sh-file" accept="image/*" class="hidden">
@@ -835,7 +854,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.53';
+const VERSION = 'v2026.10.14.54';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1312,6 +1331,7 @@ function render() {
   else if (UI.tab === 'sched') v.innerHTML = schedView();
   else if (UI.tab === 'rosters') v.innerHTML = rostersView();
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
+  scoutBadge();
   // A fouled-out player on the floor: straight to the sub screen, which can't be closed until he's replaced.
   if (g && UI.tab === 'live' && !g.final && !$('#modal-root').innerHTML && outOnFloor(g, derive(g)).length) { SUB = null; UI.stat = null; subModal(); }
 }
@@ -1683,6 +1703,7 @@ function setupView() {
       <div class="field"><label>From the schedule</label><select id="su-sched"><option value="">— not on the schedule —</option>${schedule().filter(r => !isTBD(r.opp) && (!games.some(gm => gm.schedId === r.id) || r.id === d.schedId)).map(r => `<option value="${esc(r.id)}" ${d.schedId === r.id ? 'selected' : ''}>${esc(r.date)} ${SITE[r.site] || ''} ${esc(r.opp)}${r.conf ? ' *' : ''}</option>`).join('')}</select></div>
       <div class="grid2">
         <div class="field"><label>Opponent</label><input id="su-opp" value="${esc(d.opp)}" placeholder="e.g. Ventura" autocomplete="off" list="su-opps"><datalist id="su-opps">${oppNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+        ${ofBanner(d.opp || d.oppName)}
         <div class="field"><label>Date</label><input id="su-date" type="date" value="${esc(d.date)}"></div>
         <div class="field"><label>Site</label><select id="su-site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${d.site === x ? 'selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></div>
         <div class="field"><label>Conference game</label><select id="su-conf"><option value="0">No</option><option value="1" ${d.conf ? 'selected' : ''}>Yes</option></select></div>
@@ -1798,8 +1819,9 @@ function schedView() {
   const nextIdx = rows.map((r, i) => ({ r, i })).filter(x => x.r.date >= td && !gameForRow(x.r)).sort((a, b) => a.r.date.localeCompare(b.r.date))[0];
   const body = rows.map((r, i) => {
     const gm = gameForRow(r), S = gm ? perSums(derive(gm), null) : null;
-    const status = gm ? `<span class="res ${S.pts.a > S.pts.b ? 'w' : S.pts.a < S.pts.b ? 'l' : ''}">${S.pts.a}–${S.pts.b}</span><button class="btn btn-sm btn-good" data-act="open" data-id="${gm.id}">${gm.id === curId ? 'Live' : 'Open'}</button>`
-      : `<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
+    const ofB = !isTBD(r.opp) && ofSummary(r.opp) && !(gm && gm.final) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(r.opp)}" title="${esc(ofSummary(r.opp).text)}">📁 Last time</button> ` : '';
+    const status = gm ? ofB + `<span class="res ${S.pts.a > S.pts.b ? 'w' : S.pts.a < S.pts.b ? 'l' : ''}">${S.pts.a}–${S.pts.b}</span><button class="btn btn-sm btn-good" data-act="open" data-id="${gm.id}">${gm.id === curId ? 'Live' : 'Open'}</button>`
+      : `${ofB}<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
     return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
       <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
       <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
@@ -1857,7 +1879,7 @@ function rostersView() {
         ${opps.map(n => `<button class="btn ${sel === n ? 'btn-primary' : ''}" data-act="r-sel" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
         <button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
       <div class="card"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
-        <span class="row" style="gap:6px;margin-left:auto">${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
+        <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         <div class="tbl-wrap"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
         <div class="small muted" style="margin-top:8px">${isM ? 'Notes show on the player cards. Saved in this tracker.' : 'Shared with the game tracker. Pos and the note show on the player cards on the Live screen.'}</div></div>
     </div>`;
@@ -2352,6 +2374,9 @@ document.addEventListener('click', ev => {
       push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); break; }
     case 'huddle': huddleOpen(g); break;
     case 'sh-open': sheetOpen(b.dataset.s); break;
+    case 'of-open': ev.stopPropagation(); openOppFile(b.dataset.n); break;
+    case 'of-sel': OF.sel = b.dataset.g; scoutTabs(); break;
+    case 'sc-mode': OF.mode = b.dataset.m; scoutTabs(); if (OF.mode === 'pdf' && SC.doc) layoutScout(); break;
     case 'sh-edit': sheetEdit(b.dataset.s || SHEET.sc); break;
     case 'sh-photo': $('#sh-file').click(); break;
     case 'sh-sc': SHEET.sc = b.dataset.s; sheetModal(); break;
@@ -2504,12 +2529,16 @@ function oppScoutKey(g) {
   const o = lsGet('gt_opp_rosters', []).find(x => x && x.name && x.name.toLowerCase() === String(g.opp).toLowerCase());
   return o && o.scoutKey || null;
 }
-async function openScout() {
+async function openScout(fromFile) {
   const g = cur(); $('#scout').classList.remove('hidden');
+  // The opponent file: this game's opponent, unless opened for another team (Schedule / Rosters / New game).
+  if (!fromFile) { OF.opp = g ? g.opp : null; OF.sel = null; OF.mode = OF.opp && oppGames(OF.opp).length ? 'file' : 'pdf'; }
+  scoutTabs();
   let keys = [];
   try { keys = await idbKeys(); } catch (e) { toast('This browser blocks offline file storage'); }
   const recs = await Promise.all(keys.map(async k => ({ k, r: await idbGet(k) })));
-  const pref = [g && g.scoutKey, g && oppScoutKey(g), SC.key].find(k => k && keys.includes(k)) || '';
+  const same = !OF.opp || !g || normOpp(OF.opp) === normOpp(g.opp);
+  const pref = [same && g && g.scoutKey, OF.opp && oppScoutKey({ opp: OF.opp }), same && SC.key].find(k => k && keys.includes(k)) || '';
   $('#sc-sel').innerHTML = recs.length ? `${pref ? '' : '<option value="">— pick a report —</option>'}${recs.map(x => `<option value="${esc(x.k)}" ${x.k === pref ? 'selected' : ''}>${esc(x.r && x.r.name || x.k)}</option>`).join('')}`
     : '<option value="">No PDFs on this iPad yet — Add PDF…</option>';
   if (pref !== SC.key || !SC.doc) showScout(pref);
@@ -3461,6 +3490,132 @@ async function paintSnap() {
   el.innerHTML = `<div class="page-head snap-head"><button class="btn btn-sm" data-act="rp-back">◀ Saved reports</button><div class="small muted" style="margin-left:6px">${r.kind === 'half' ? 'Halftime' : 'Post-game'} · ${esc(r.opp)} · ${esc(r.date || '')} · saved ${esc(rpWhen(r.at))}</div>
     <button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div><div class="snap">${r.html}</div>`;
 }
+
+
+/* ---------- opponent file: "Last time vs …" ----------
+   Every game on this iPad against an opponent (matched by name), plus the stat sheets read for them: what decided it,
+   their lineups, their players, their tendencies. Lives in the Scouting screen as a second tab (it opens first when
+   there's a file); also opened from the Schedule tab, the New game screen and the Rosters tab. Nothing to enter. */
+const OF = { opp: null, sel: null, mode: 'pdf' };
+const normOpp = n => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// Past games against them (an unfinished game in progress doesn't count), oldest first.
+function oppGames(name) {
+  if (!name) return [];
+  return games.filter(x => x.ev && x.ev.some(e => e.t === 'play') && normOpp(x.opp) === normOpp(name) && !(x.id === curId && !x.final))
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.created - b.created);
+}
+function oppResult(g) { const S = perSums(derive(g), null); return { a: S.pts.a, b: S.pts.b, poss: possAvg(S), wl: S.pts.a > S.pts.b ? 'W' : S.pts.a < S.pts.b ? 'L' : 'T' }; }
+const ofDate = d => { if (!d) return ''; const x = new Date(d + 'T12:00:00'); return isNaN(x) ? d : x.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
+const ofSite = l => ({ H: 'Home', A: 'Away', N: 'Neutral' }[l] || '');
+const ofLine = g => { const r = oppResult(g); return `${ofDate(g.date)} · ${ofSite(g.loc)} · ${r.wl} ${r.a}–${r.b}`; };
+// The last game's one-liner for the Schedule / New game screens.
+function ofSummary(name) { const L = oppGames(name); if (!L.length) return null; const g = L[L.length - 1], r = oppResult(g); return { n: L.length, g, r, text: `${r.wl} ${r.a}–${r.b} on ${ofDate(g.date)}` }; }
+
+// Team lines (tracked, with steal turnovers) added up over games.
+function ofTeamLines(gs) {
+  const z = () => ({ fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, tov: 0, stov: 0 }), T = { a: z(), b: z() };
+  gs.forEach(g => { const L = ffLine(g, 'G'); if (!L) return; ['a', 'b'].forEach(t => Object.keys(T[t]).forEach(k => { T[t][k] += +L[t][k] || 0; })); });
+  return T;
+}
+// Their fives over the games: possessions, their net (their points − ours per 100), +/-.
+function ofFives(gs) {
+  const U = {};
+  gs.forEach(g => { lineupUnits(g, derive(g), 'b', 'game', 'all', 5).units.forEach(u => { const k = fiveKey(u.five);
+    const m = U[k] = U[k] || { five: u.five, g, oPoss: 0, dPoss: 0, pf: 0, pa: 0 }; ['oPoss', 'dPoss', 'pf', 'pa'].forEach(x => { m[x] += u[x]; }); m.g = g; }); });
+  return Object.values(U).map(u => Object.assign(u, { poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null, pm: u.pf - u.pa }));
+}
+// Their players from the stat sheets (final sheet if read, else halftime), added up by number.
+function ofPlayers(gs) {
+  const P = {}, tm = { a: [], b: [] };
+  gs.forEach(g => { const S = g.sheet && (g.sheet.G || g.sheet['1H']); if (!S) return;
+    tm.a.push(sheetTeamLine(S.a)); tm.b.push(sheetTeamLine(S.b));
+    S.b.rows.forEach(r => { const k = String(r.num || r.name); const m = P[k] = P[k] || Object.assign({ num: r.num, name: r.name, games: 0 }, Object.fromEntries(SH_NUM.map(x => [x, 0])));
+      SH_NUM.forEach(x => { m[x] += +r[x] || 0; }); if (r.name) m.name = r.name; m.games++; }); });
+  if (!tm.b.length) return null;
+  const sum = L => L.reduce((o, l) => { Object.keys(l).forEach(k => { o[k] = (o[k] || 0) + (+l[k] || 0); }); return o; }, {});
+  const A = sum(tm.a), B = sum(tm.b);
+  return Object.values(P).filter(r => r.min || r.fga || r.pts).map(r => ({ r, x: sheetAdv(r, B, A) })).sort((p, q) => q.r.pts - p.r.pts || q.x.gmsc - p.x.gmsc);
+}
+// Their timeouts, and how many came right after one of our runs (6-0 or better).
+function ofTimeouts(gs) {
+  let n = 0, afterRun = 0;
+  gs.forEach(g => { let run = { t: null, pts: 0 };
+    g.ev.forEach(e => {
+      const t = e.t === 'play' ? e.team : e.t === 'tech' ? other(e.team) : null, v = e.t === 'play' ? (PTS[e.k] || 0) : e.t === 'tech' ? (e.ftm || 0) : 0;
+      if (t && v) { run = run.t === t ? { t, pts: run.pts + v } : { t, pts: v }; }
+      if (e.t === 'to' && e.team === 'b') { n++; if (run.t === 'a' && run.pts >= 6) afterRun++; } }); });
+  return { n, afterRun };
+}
+
+function oppFileHtml(name) {
+  const L = oppGames(name);
+  if (!L.length) return `<div class="card muted">No tracked games against ${esc(name)} yet.</div>`;
+  if (!OF.sel || (OF.sel !== 'all' && !L.some(g => g.id === OF.sel))) OF.sel = L[L.length - 1].id;
+  const gs = OF.sel === 'all' ? L : L.filter(g => g.id === OF.sel), one = gs.length === 1 ? gs[0] : null, last = gs[gs.length - 1];
+  const P = v => v == null || isNaN(v) ? '—' : v.toFixed(1) + '%', F = v => v == null ? '—' : v.toFixed(1), SG = v => v == null ? '—' : sg1(Math.round(10 * v) / 10);
+  const chips = L.map(g => `<button class="of-g ${OF.sel === g.id ? 'on' : ''}" data-act="of-sel" data-g="${g.id}"><b>${esc(ofDate(g.date))}</b> · ${esc(ofSite(g.loc))} · <span class="${oppResult(g).wl === 'W' ? 'w' : 'l'}">${oppResult(g).wl} ${oppResult(g).a}–${oppResult(g).b}</span> · ${oppResult(g).poss} poss</button>`).join('')
+    + (L.length > 1 ? `<button class="of-g ${OF.sel === 'all' ? 'on' : ''}" data-act="of-sel" data-g="all"><b>All games</b> · ${L.length}</button>` : '');
+  const head = `<div class="card"><div class="of-head">${logo(name, 36)}<h2>Last time vs ${esc(name)}</h2><span class="muted small" style="margin-left:auto">${L.length} tracked game${L.length > 1 ? 's' : ''}</span></div><div class="of-games">${chips}</div></div>`;
+  // What decided it: the full report's "who's behind the four factors" when that game has a stat sheet; otherwise
+  // the four factors we lost and won, from the tracked plays.
+  const T = ofTeamLines(gs), fa = ffCalc(T.a, T.b), fb = ffCalc(T.b, T.a);
+  let decided = '';
+  const sh = one && one.sheet && (one.sheet.G || one.sheet['1H']);
+  if (sh) { const gameMin = one.sheet.G ? 40 + 5 * otCount(one) : 20; decided = factorDrivers(one, sh, gameMin, () => null).replace("Who's behind the four factors", 'What decided it'); }
+  if (!decided) {
+    const facs = [['Shooting', 'eFG%', fa.efg, fb.efg, false], ['Turnovers', 'TO%', fa.to, fb.to, true], ['The glass', 'OREB%', fa.orb, fb.orb, false], ['Free throws', 'FT rate', fa.ftr, fb.ftr, false]];
+    const hurt = facs.filter(f => f[2] != null && f[3] != null && (f[4] ? f[2] > f[3] : f[2] < f[3])), won = facs.filter(f => f[2] != null && f[3] != null && (f[4] ? f[2] < f[3] : f[2] > f[3]));
+    const line = (f, cls) => `<div class="ins ${cls}"><span><b>${f[0]}</b> · our ${f[1]} ${P(f[2])} vs their ${P(f[3])}</span></div>`;
+    decided = `<div class="card"><h3>What decided it <span class="muted">· four factors from the tracked plays${gs.length > 1 ? ', all games' : ''} — read a stat sheet for the players behind them</span></h3>
+      <div class="ff-who"><div><div class="ff-who-h neg">Hurt us</div>${hurt.map(f => line(f, 'bad')).join('') || '<div class="muted small">Nothing.</div>'}</div><div><div class="ff-who-h pos">Worked for us</div>${won.map(f => line(f, 'good')).join('') || '<div class="muted small">Nothing.</div>'}</div></div></div>`;
+  }
+  // Their run and our best five, per game.
+  const extras = gs.map(g => { const D = derive(g), R = scoringRuns(g).filter(r => r.team === 'b').sort((x, y) => y.pts - x.pts)[0], B = bestLineups(g, D, 'a', 'game', 1).list[0];
+    return `${gs.length > 1 ? `<div class="small muted" style="margin-top:6px">${esc(ofLine(g))}</div>` : ''}
+      ${R && R.pts >= 6 ? `<div class="ins bad"><span><b>Their biggest run</b> · ${R.pts}-0 (${R.from.a}–${R.from.b} → ${R.to.a}–${R.to.b}), against ${esc(fiveSorted(g, 'a', R.five).map(id => pShort(g, 'a', id)).join(', ') || '—')}</span></div>` : ''}
+      ${B ? `<div class="ins good"><span><b>Our best five</b> · ${esc(fiveSorted(g, 'a', B.five).map(id => pShort(g, 'a', id)).join(', '))} — net ${SG(B.net)} on ${B.poss} poss</span></div>` : ''}`; }).join('');
+  // Their lineups.
+  const FV = ofFives(gs), nm5 = u => fiveSorted(u.g, 'b', u.five).map(id => pInfo(u.g, 'b', id)), lbl = u => nm5(u).map(p => esc(p.num || '—')).join(' · '), names = u => esc(nm5(u).map(p => p.name ? lastName(p.name) : '#' + p.num).join(', '));
+  const five = (u, val, cls) => `<div class="of-five"><div><b>${lbl(u)}</b><span class="tiny muted">${names(u)}</span></div><div class="n ${cls || ''}">${val}</div><div class="small muted">${u.poss} poss<br>${sgn(u.pm)}</div></div>`;
+  const used = FV.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), best = FV.filter(u => u.net != null && u.poss >= 5).sort((x, y) => y.net - x.net).slice(0, 3);
+  const lineups = FV.length ? `<div class="card"><h3>Their lineups <span class="muted">· most used / best against us (their net)</span></h3><div class="ff-who">
+      <div><div class="ff-who-h" style="color:var(--them-text)">Most used</div>${used.map(u => five(u, '', '')).join('')}</div>
+      <div><div class="ff-who-h" style="color:var(--them-text)">Best against us</div>${best.map(u => five(u, SG(u.net), u.net > 0 ? 'neg' : 'pos')).join('') || '<div class="muted small">No five with 5+ possessions.</div>'}</div></div></div>`
+    : `<div class="card"><h3>Their lineups</h3><div class="muted small">Their fives weren't tracked (no roster for them in those games).</div></div>`;
+  // Their players.
+  const PL = ofPlayers(gs), store = (oppStore().find(o => normOpp(o.name) === normOpp(name)) || {}).players || [];
+  const note = num => { const p = store.find(x => String(x.num) === String(num)); return p && p.note ? esc(p.note) : ''; };
+  const players = PL ? `<div class="card"><h3>Their players <span class="muted">· from the stat sheet${gs.length > 1 ? 's, all games' : ''}</span></h3><div class="tbl-wrap"><table class="tbl zebra sh-out"><thead><tr><th class="l">Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3P</th><th>FT</th><th>REB</th><th>TO</th><th>USG%</th><th>TS%</th><th class="l">Note</th></tr></thead><tbody>
+      ${PL.map(({ r, x }) => `<tr><td class="l">${r.num ? `<span class="pnum">#${esc(r.num)}</span> ` : ''}${esc(r.name || '')}</td><td>${r.min || '—'}</td><td><b>${r.pts}</b></td><td>${r.fgm}-${r.fga}</td><td>${r.fg3m}-${r.fg3a}</td><td>${r.ftm}-${r.fta}</td><td>${r.oreb + r.dreb}</td><td>${r.tov}</td><td>${P(x.usg)}</td><td>${P(x.ts)}</td><td class="l small">${note(r.num)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="small muted" style="margin-top:6px">Notes are your notes for them on the Rosters tab.</div></div>`
+    : `<div class="card"><h3>Their players</h3><div class="muted small">No stat sheet was read for ${gs.length > 1 ? 'these games' : 'this game'} — photograph the halftime or final sheet next time and their players show here.</div></div>`;
+  // Their tendencies.
+  const per = gs.reduce((x, g) => x + g.periods.filter(p => !p.startsWith('OT')).length, 0) || 1, Pt = gs.map(g => perSums(derive(g), null));
+  const possB = Pt.reduce((x, s) => x + s.poss.b, 0), ptsB = Pt.reduce((x, s) => x + s.pts.b, 0), kills = Pt.reduce((x, s) => x + s.kills.b, 0);
+  const runB = Math.max(0, ...gs.map(g => Math.max(0, ...scoringRuns(g).filter(r => r.team === 'b').map(r => r.pts))));
+  const TO = ofTimeouts(gs), row = (l, v) => `<div class="hud-big"><span>${l}</span><b>${v}</b></div>`;
+  const tend = `<div class="card"><h3>Their tendencies <span class="muted">· tracked${gs.length > 1 ? ', all games' : ''}</span></h3><div class="ff-who"><div>
+      ${row('Pace', `${Math.round(possB / per)} poss / half`)}${row('Their PPP', ppp(ptsB, possB))}${row('Their TO% / non-steal', `${P(fb.to)} / ${P(fb.nsto)}`)}${row('Their eFG% / FT rate', `${P(fb.efg)} / ${P(fb.ftr)}`)}</div><div>
+      ${row('Kills against us', `${kills}`)}${row('Their biggest run', runB ? runB + '-0' : '—')}${row('Their OREB%', P(fb.orb))}${row('Their timeouts', TO.n ? `${TO.n}${TO.afterRun ? ` · ${TO.afterRun} right after our 6-0+ runs` : ''}` : '—')}</div></div></div>`;
+  return head + decided + (extras ? `<div class="card"><h3>Runs &amp; best five</h3>${extras}</div>` : '') + lineups + players + tend;
+}
+
+// The Scouting screen: two tabs — Last time (when there's a file) and the scouting PDF.
+function scoutTabs() {
+  const has = OF.opp && oppGames(OF.opp).length;
+  if (!has) OF.mode = 'pdf';
+  $('#sc-tabs').innerHTML = has ? `<span class="seg sc-seg"><button class="${OF.mode === 'file' ? 'on' : ''}" data-act="sc-mode" data-m="file">Last time vs ${esc(OF.opp)}</button><button class="${OF.mode === 'pdf' ? 'on' : ''}" data-act="sc-mode" data-m="pdf">Scouting PDF</button></span>` : '';
+  document.getElementById('scout').classList.toggle('file-mode', OF.mode === 'file');
+  const fv = $('#sc-fileview'); if (OF.mode === 'file') { fv.innerHTML = `<div class="page mid of-page">${oppFileHtml(OF.opp)}</div>`; fv.scrollTop = 0; } else fv.innerHTML = '';
+}
+// From anywhere: open the file for a team (the Scouting screen, on its Last time tab).
+function openOppFile(name) { OF.opp = name; OF.sel = null; OF.mode = 'file'; openScout(true); }
+// The badge on the Scouting tab when this game's opponent has a file.
+function scoutBadge() { const b = document.querySelector('.nav .scout-tab'); if (!b) return; const g = cur(), n = g ? oppGames(g.opp).length : 0;
+  b.innerHTML = `Scouting${n ? '<span class="of-badge">LAST TIME</span>' : ''}`; }
+// The New game screen's line under the opponent.
+function ofBanner(name) { const s = ofSummary(name); if (!s) return '';
+  return `<div class="of-banner"><span class="ic">📁</span><div><b>We've played ${esc(name)} ${s.n === 1 ? 'once' : s.n + ' times'} this season</b> · ${esc(ofLine(s.g))}</div><button class="btn btn-sm" data-act="of-open" data-n="${esc(name)}" style="margin-left:auto">Open file</button></div>`; }
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();

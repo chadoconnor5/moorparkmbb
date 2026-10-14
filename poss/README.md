@@ -235,7 +235,17 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
     tracker's formulas. No assists.
   - Tap a box to type the official printout's number over a tracked one; **Back to tracked**
     undoes the typed numbers.
-- **Scouting:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
+- **Scouting:** two tabs. **Last time vs <opponent>** (when we've tracked them before; it opens first) and the
+  scouting PDF.
+  - The **opponent file** is built from every game on this iPad against that team, plus their stat sheets — nothing
+    to enter: what decided it (the full report's hurting / helping lines when a sheet was read, else the four
+    factors), their biggest run and our best five, their lineups (most used, best against us), their players (sheet
+    numbers and your notes) and their tendencies (pace, PPP, TO% / non-steal, eFG% / FT rate, kills, biggest run,
+    timeouts after our runs). Two or more games → a chip per game plus All games.
+  - Opened from: the Scouting tab (a LAST TIME badge shows when there's a file), 📄 Scout on the live screen,
+    **📁 Last time** on the Schedule row, the New game screen (a line under the opponent with Open file) and the
+    opponent's page on the Rosters tab.
+- **Scouting PDF:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
 - **Saved reports** (Games tab): a copy of each halftime and post-game report as it was, kept on the iPad apart
