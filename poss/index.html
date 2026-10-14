@@ -784,8 +784,14 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .pp-slot>*{grid-area:1/1}
 .pp-slot>.pp-ghost{visibility:hidden;pointer-events:none}
 .no-reb{margin-left:8px;font-weight:800}
-.to-clock{width:120px;font-size:26px;font-weight:800;text-align:center;padding:8px;border-radius:10px;background:var(--surface);border:2px solid var(--border2);color:var(--text)}
-.to-clock.bad{border-color:var(--bad)}
+/* the clock keypad: big enough to hit without looking */
+.modal.to-modal{max-width:640px}
+.cpad{max-width:460px;margin:0 auto}
+.cpad-disp{font-size:72px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.02em;padding:6px 0 10px;line-height:1}
+.cpad-disp.empty{color:var(--muted)} .cpad-disp.bad{color:var(--bad)}
+.cpad-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cpad-k{height:84px;border-radius:16px;font-size:38px;font-weight:800;background:var(--card);border:1px solid var(--border2);color:var(--text);touch-action:manipulation}
+.cpad-k:active{background:var(--hover)} .cpad-k.fn{font-size:24px;color:var(--text2)}
 
 </style>
 </head>
@@ -1127,6 +1133,17 @@ function parseClock(txt, perLen) {
   const v = m * 60 + s; return s < 60 && v <= perLen ? v : null;
 }
 const perLen = per => per.startsWith('OT') ? 300 : 1200;
+/* The clock keypad: digits fill from the right like a scoreboard (7, 4, 2 → 7:42; 5, 0 → 0:50). No text box,
+   so the iPad keyboard never comes up. */
+const padSecs = (d, len) => { if (!d) return null; const x = d.padStart(3, '0'), m = +x.slice(0, -2), sec = +x.slice(-2), v = m * 60 + sec; return sec < 60 && v <= len ? v : null; };
+const padShow = d => { const x = (d || '').padStart(3, '0'); return `${+x.slice(0, -2)}:${x.slice(-2)}`; };
+function clockPad(d, len, act) {
+  const bad = d && padSecs(d, len) == null;
+  return `<div class="cpad"><div class="cpad-disp ${d ? '' : 'empty'} ${bad ? 'bad' : ''}">${padShow(d)}</div>
+    ${bad ? `<div class="small neg" style="text-align:center;margin:-4px 0 6px">That isn't a time in this period (up to ${fmtSecs(len)})</div>` : ''}
+    <div class="cpad-keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button class="cpad-k ${k === 'C' || k === '⌫' ? 'fn' : ''}" data-act="${act}" data-k="${k}">${k === 'C' ? 'Clear' : k}</button>`).join('')}</div></div>`;
+}
+const padKey = (d, k) => k === 'C' ? '' : k === '⌫' ? (d || '').slice(0, -1) : ((d || '') + k).replace(/^0+(?=\d)/, '').slice(-4);
 /* CLOCK CHECKPOINTS — the game clock entered at a timeout. For each possession after one (same period), the time
    left = that clock minus the possessions since, at this period's own pace up to the checkpoint (seconds elapsed /
    possessions so far); before any checkpoint the estimate from possessions stands. Returns Map(possession → info). */
@@ -2052,16 +2069,12 @@ let TOM = null;   // { t, k, clock } while the timeout screen is open
 function timeoutModal() {
   const g = cur(); TOM = TOM || { t: null, k: null, clock: '' };
   const left = (t, k) => (k === 'full' ? FULL_TOS : S30_TOS + otCount(g)) - tosUsed(g, t, k);
-  const sel = (t, k) => TOM.t === t && TOM.k === k;
-  const secs = parseClock(TOM.clock, perLen(g.per)), bad = TOM.clock && secs == null;
+  const sel = (t, k) => TOM.t === t && TOM.k === k, len = perLen(g.per), secs = padSecs(TOM.clock, len);
   modal(`<h2>Timeout</h2>${['a', 'b'].map(t => `<div class="field"><label>${esc(teamName(g, t))}</label><div class="row" style="gap:6px">
       <button class="btn btn-lg ${sel(t, 'full') ? 'btn-primary' : ''}" style="flex:1" data-act="to-pick" data-t="${t}" data-k="full" ${left(t, 'full') > 0 ? '' : 'disabled'}>Full · ${left(t, 'full')} left</button>
       <button class="btn btn-lg ${sel(t, 's30') ? 'btn-primary' : ''}" style="flex:1" data-act="to-pick" data-t="${t}" data-k="s30" ${left(t, 's30') > 0 ? '' : 'disabled'}>30 sec · ${left(t, 's30')} left</button></div></div>`).join('')}
-    <div class="field"><label>Game clock · time left in the ${esc(PER_NAME(g.per).toLowerCase())}</label>
-      <div class="row" style="gap:8px;align-items:center"><input id="to-clock" class="to-clock ${bad ? 'bad' : ''}" inputmode="numeric" placeholder="7:42" value="${esc(TOM.clock)}" autocomplete="off">
-      <span class="small ${bad ? 'neg' : 'muted'}">${bad ? `Can't read that — type it like 7:42 (up to ${fmtSecs(perLen(g.per))})` : 'Type 742 or 7:42. Sharpens leverage, clutch and garbage time.'}</span></div></div>
-    <div class="modal-foot"><button class="btn btn-lg" data-act="to-cancel">Cancel</button><button class="btn btn-lg" data-act="to-log" data-skip="1" ${TOM.t ? '' : 'disabled'}>Skip clock</button><button class="btn btn-good btn-lg" data-act="to-log" ${TOM.t && secs != null ? '' : 'disabled'}>Log timeout → Huddle</button></div>`);
-  const f = document.getElementById('to-clock'); if (f && TOM.t) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+    <div class="field"><label>Game clock · time left in the ${esc(PER_NAME(g.per).toLowerCase())}</label>${clockPad(TOM.clock, len, 'to-key')}</div>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="to-cancel">Cancel</button><button class="btn btn-lg" data-act="to-log" data-skip="1" ${TOM.t ? '' : 'disabled'}>Skip clock</button><button class="btn btn-good btn-lg" data-act="to-log" ${TOM.t && secs != null ? '' : 'disabled'}>Log timeout → Huddle</button></div>`, 'to-modal');
 }
 
 function adjustModal() {
@@ -2073,16 +2086,18 @@ function adjustModal() {
   modal(`<h2>Fix fouls / timeouts</h2>${row('a')}${row('b')}<div class="modal-foot"><button class="btn btn-lg" data-act="close">Done</button></div>`);
 }
 
+let EDC = null;   // the clock being fixed on a timeout: { id, d }
 function editModal(id) {
   const g = cur(), e = g.ev.find(x => x.id === id); if (!e) return;
   const isPlay = e.t === 'play' || e.t === 'foul';
   const byPlayer = e.t === 'foul' || (e.t === 'play' && PLAYER_STATS.has(e.k));
   const ps = byPlayer ? teamPlayers(g, e.team) : [];
   if (e.t === 'to') {
+    if (!EDC || EDC.id !== id) EDC = { id, d: e.clock != null ? String(Math.floor(e.clock / 60)) + String(e.clock % 60).padStart(2, '0') : '' };
     modal(`<h2>Timeout</h2><div class="small muted" style="margin-bottom:8px">${esc(teamName(g, e.team))} · ${e.kind === 'full' ? 'full' : '30-second'} · ${esc(PER_NAME(e.per))}</div>
-      <div class="field"><label>Game clock (time left in the ${esc(PER_NAME(e.per).toLowerCase())})</label><input id="ed-clock" class="to-clock" inputmode="numeric" placeholder="7:42" value="${e.clock != null ? fmtSecs(e.clock) : ''}"></div>
+      <div class="field"><label>Game clock (time left in the ${esc(PER_NAME(e.per).toLowerCase())})</label>${clockPad(EDC.d, perLen(e.per), 'edc-key')}</div>
       <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-bad" data-act="ed-del" data-id="${id}">Delete</button>
-        <span class="row" style="gap:8px"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="ed-clock" data-id="${id}">Save</button></span></div>`);
+        <span class="row" style="gap:8px"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="ed-clock" data-id="${id}" ${!EDC.d || padSecs(EDC.d, perLen(e.per)) != null ? '' : 'disabled'}>Save</button></span></div>`, 'to-modal');
     return;
   }
   modal(`<h2>Fix this play</h2>
@@ -2291,8 +2306,9 @@ document.addEventListener('click', ev => {
     case 'sub-cancel': SUB = null; closeModal(); break;
     case 'timeout': TOM = null; timeoutModal(); break;
     case 'to-pick': TOM.t = b.dataset.t; TOM.k = b.dataset.k; timeoutModal(); break;
+    case 'to-key': TOM.clock = padKey(TOM.clock, b.dataset.k); timeoutModal(); break;
     case 'to-cancel': TOM = null; closeModal(); break;
-    case 'to-log': { if (!TOM || !TOM.t) return; const secs = b.dataset.skip ? null : parseClock(TOM.clock, perLen(g.per));
+    case 'to-log': { if (!TOM || !TOM.t) return; const secs = b.dataset.skip ? null : padSecs(TOM.clock, perLen(g.per));
       const e = { t: 'to', team: TOM.t, kind: TOM.k }; if (secs != null) e.clock = secs;
       push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); break; }
     case 'huddle': huddleOpen(g); break;
@@ -2375,8 +2391,9 @@ document.addEventListener('click', ev => {
       toast(techText(g, e) + (out ? ' — OUT OF THE GAME' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : ''), out || cOut ? 'bad' : ''); break; }
 
     case 'edit': editModal(b.dataset.id); break;
-    case 'ed-clock': { const e = g.ev.find(x => x.id === b.dataset.id), v = $('#ed-clock').value.trim(), secs = parseClock(v, perLen(e.per));
-      if (v && secs == null) { toast('Type the clock like 7:42', 'bad'); return; } if (secs == null) delete e.clock; else e.clock = secs; save(); closeModal(); render(); break; }
+    case 'edc-key': EDC.d = padKey(EDC.d, b.dataset.k); editModal(EDC.id); break;
+    case 'ed-clock': { const e = g.ev.find(x => x.id === b.dataset.id), secs = padSecs(EDC.d, perLen(e.per));
+      if (secs == null) delete e.clock; else e.clock = secs; EDC = null; save(); closeModal(); render(); break; }
     case 'ed-k': { const e = g.ev.find(x => x.id === b.dataset.id); e.k = b.dataset.k; save(); editModal(e.id); render(); break; }
     case 'ed-p': { const e = g.ev.find(x => x.id === b.dataset.id); e.player = b.dataset.p === 'TEAM' && e.t === 'foul' ? null : b.dataset.p; save(); editModal(e.id); render(); break; }
     case 'ed-del': if (isLocked(g, g.ev.find(x => x.id === b.dataset.id))) { toast('A starting five can\'t be deleted — change it with ⇄ Sub', 'bad'); return; }
@@ -3405,14 +3422,6 @@ async function paintSnap() {
   el.innerHTML = `<div class="page-head snap-head"><button class="btn btn-sm" data-act="rp-back">◀ Saved reports</button><div class="small muted" style="margin-left:6px">${r.kind === 'half' ? 'Halftime' : 'Post-game'} · ${esc(r.opp)} · ${esc(r.date || '')} · saved ${esc(rpWhen(r.at))}</div>
     <button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div><div class="snap">${r.html}</div>`;
 }
-// Timeout screen: the clock box updates the buttons as you type (no redraw), Enter logs the timeout.
-document.addEventListener('input', e => { if (e.target.id !== 'to-clock' || !TOM) return; TOM.clock = e.target.value;
-  const g = cur(), ok = parseClock(TOM.clock, perLen(g.per)) != null, bad = TOM.clock.trim() && !ok;
-  e.target.classList.toggle('bad', !!bad);
-  const hint = e.target.nextElementSibling; if (hint) { hint.className = 'small ' + (bad ? 'neg' : 'muted');
-    hint.textContent = bad ? `Can't read that — type it like 7:42 (up to ${fmtSecs(perLen(g.per))})` : 'Type 742 or 7:42. Sharpens leverage, clutch and garbage time.'; }
-  const go = document.querySelector('[data-act="to-log"]:not([data-skip])'); if (go) go.disabled = !(TOM.t && ok); });
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'to-clock') { e.preventDefault(); const go = document.querySelector('[data-act="to-log"]:not([data-skip])'); if (go && !go.disabled) go.click(); } });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();

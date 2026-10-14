@@ -38,9 +38,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - On a player it is his foul and a team foul.
   - On a coach it is neither. A second on the same coach flags the ejection.
   - The free throws count in the score, PPP and +/-, but are not a possession.
-- **Timeout:** pick the team, full or 30, and type the **game clock** (time left in the half: 742 or 7:42), then
-  **Log timeout → Huddle**; **Skip clock** if you don't have it. The clock shows in the Huddle header, the feed and
-  Play-by-Play (tap the timeout line to fix it). Each clock is a checkpoint: from then on leverage, clutch and garbage
+- **Timeout:** pick the team, full or 30, and tap the **game clock** (time left in the half) on the big keypad: digits fill
+  from the right (7, 4, 2 → 7:42; 5, 0 → 0:50), no iPad keyboard. Then **Log timeout → Huddle**; **Skip clock** if you don't have it. The clock shows in the Huddle header, the feed and
+  Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
   time use the real time left (that clock, less the possessions since at this half's pace) instead of the estimate
   from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
 - **No clock.**
