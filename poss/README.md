@@ -164,11 +164,14 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
    possessions each way: adjusted ORtg, DRtg, net and four factors at both ends. It says when newer
    games aren't in the file.
 
-**Halftime: season fives for what's hurting us.** For each four factor we're losing in the 1st half
-(shooting, turnovers, rebounding, FT rate), the halftime report lists up to two season fives that have
-been best at it: ranked by the opponent-adjusted season margin on that factor (ours minus theirs;
-turnovers = forced minus committed), with 25+ possessions each way, everyone dressed and not fouled
-out, and a positive margin. No five qualifies, none is listed.
+**Halftime: lineups for what's hurting us, today and season.** For each four factor we're losing in
+the 1st half (shooting, turnovers, rebounding, FT rate), the halftime report shows two columns side by side:
+- **Today:** this half's fives, as played, with 6+ possessions each way: who is going today.
+- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted) with 25+ possessions each way.
+
+Each lists its top two by the margin on that factor (ours minus theirs; turnovers = forced minus
+committed), only with a positive margin and everyone dressed and not fouled out. ★ BOTH marks a five in
+the top two of both columns; ON NOW marks the five on the floor. No five qualifies, none is listed.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,

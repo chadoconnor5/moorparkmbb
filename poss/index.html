@@ -847,6 +847,24 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .adj-tbl td,.adj-tbl th{text-align:center;white-space:nowrap}
 .adj-tbl td:first-child,.adj-tbl th:first-child{text-align:left}
 
+/* Halftime lineups: today | season */
+.fx-sec{padding:10px 0;border-top:1px solid var(--border)}
+.fix-card h3+.fx-sec{border-top:0;padding-top:4px}
+.fx-h{margin-bottom:6px}
+.fx-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fx-col{background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.fx-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;margin-bottom:4px}
+.fx-lbl span{font-weight:500;letter-spacing:0;color:var(--muted);margin-left:4px}
+.fx-lbl.today{color:var(--warn)} .fx-lbl.season{color:var(--us)}
+.fx-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px dashed var(--border)}
+.fx-lbl+.fx-row{border-top:0}
+.fx-five b{font-size:14px}
+.fx-v{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.fx-v span{font-size:10px;color:var(--muted);white-space:nowrap}
+.fx-both{margin-left:6px;font-size:9.5px;font-weight:800;color:var(--warn);border:1px solid var(--warn);border-radius:999px;padding:0 5px}
+.fx-on{margin-left:6px;font-size:9.5px;font-weight:800;color:var(--good,#4c9);border:1px solid currentColor;border-radius:999px;padding:0 5px}
+.fx-none{padding:6px 0}
+
 </style>
 </head>
 <body>
@@ -878,7 +896,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.56';
+const VERSION = 'v2026.10.14.57';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1789,24 +1807,38 @@ function seasonFixCard(g, D) {
   const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
   const losing = FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
   if (!losing.length) return '';
-  const A = luAdj();
-  const head = `<h3>Season fives for what's hurting us <span class="muted">· opponent-adjusted, ${ADJ_MIN}+ possessions each way</span></h3>`;
-  if (!A || !A.factorsAdjusted) return `<div class="card">${head}<div class="small muted">We're losing ${losing.map(x => x[1].toLowerCase()).join(', ')} this half. Load the opponent-adjusted season lineups (Lineups → Season → ⬆ Adjusted) and this card suggests the fives that have been best at ${losing.length > 1 ? 'them' : 'it'}.</div></div>`;
   const ok = id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id);
-  const U = adjUnits(A).filter(u => u.oT >= ADJ_MIN && u.dT >= ADJ_MIN && u.players.every(p => ok(p.name)));
-  const nm = u => fiveSorted(g, 'a', u.players.map(p => p.name)).map(id => pShort(g, 'a', id)).join(', ');
-  const P = v => v == null ? '—' : v.toFixed(1);
+  const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
+  const P = v => v == null ? '—' : v.toFixed(1), S1 = v => sg1(Math.round(10 * v) / 10);
+  // TODAY: this half's fives, raw, TODAY_MIN+ possessions each way.
+  const T = lineupUnits(g, D, 'a', '1H', 'all').units.filter(u => u.oPoss >= TODAY_MIN && u.dPoss >= TODAY_MIN && u.five.every(ok)).map(u => {
+    const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), d = (x, y) => x == null || y == null ? null : x - y;
+    return { five: u.five, poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null,
+      F: { efg: O.efg, oefg: X.efg, tov: O.to, otov: X.to, orb: O.orb, oorb: X.orb, ftr: O.ftr, oftr: X.ftr },
+      m: { efg: d(O.efg, X.efg), to: d(X.to, O.to), orb: d(O.orb, X.orb), ftr: d(O.ftr, X.ftr) } }; });
+  // SEASON: the loaded opponent-adjusted file, ADJ_MIN+ possessions each way.
+  const A = luAdj(), haveA = A && A.factorsAdjusted;
+  const SU = haveA ? adjUnits(A).filter(u => u.oT >= ADJ_MIN && u.dT >= ADJ_MIN && u.players.every(p => ok(p.name))).map(u => Object.assign(u, { five: u.players.map(p => p.name), poss: Math.floor((u.oT + u.dT) / 2) })) : [];
+  const top = (list, k) => list.filter(u => u.m[k] != null && u.m[k] > 0).sort((x, y) => y.m[k] - x.m[k]).slice(0, 2);
+  const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
+  const names = f => fiveSorted(g, 'a', f).map(id => lastName(pInfo(g, 'a', id).name || id)).join(', ');
+  const row = (u, k, ours, theirs, both) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
+      <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}</div></div>
+      <div class="fx-v"><b class="pos">${S1(u.m[k])}</b><span>${k === 'to' ? `forced ${P(u.F[theirs])} · ours ${P(u.F[ours])}` : `${P(u.F[ours])} · them ${P(u.F[theirs])}`}</span></div>
+      <div class="fx-v"><b>${u.poss}</b><span>poss</span></div></div>`;
   const sec = ([k, lbl, short, hi, ours, theirs]) => {
-    const best = U.filter(u => u.m[k] != null && u.m[k] > 0).sort((x, y) => y.m[k] - x.m[k]).slice(0, 2);
-    const us = a[k], them = b[k];
-    return `<div class="fix-sec"><div class="fix-h"><b>${lbl}</b> <span class="muted small">this half: ${short} ${P(us)} vs ${P(them)}</span></div>
-      ${best.length ? best.map((u, i) => `<div class="fix-row"><span class="fix-rk">${i + 1}</span><span class="fix-five">${esc(nm(u))}</span>
-        <span class="fix-v"><b class="${pmCls(Math.round(10 * u.m[k]) / 10)}">${sg1(Math.round(10 * u.m[k]) / 10)}</b><span>${k === 'to' ? `forced ${P(u.F[theirs])} · ours ${P(u.F[ours])}` : `${P(u.F[ours])} · them ${P(u.F[theirs])}`}</span></span>
-        <span class="fix-v"><b>${u.oT + u.dT}</b><span>poss</span></span><span class="fix-v"><b class="${pmCls(u.net)}">${u.net == null ? '—' : sg1(u.net)}</b><span>adj net</span></span></div>`).join('')
-        : `<div class="small muted">No available five with ${ADJ_MIN}+ possessions each way has won this factor over the season.</div>`}</div>`; };
-  return `<div class="card fix-card">${head}${losing.map(sec).join('')}
-    <div class="tiny muted" style="margin-top:6px">Ranked by the season margin on that factor, ours minus theirs, each game adjusted for the opponent's own opponent-adjusted factors (turnovers: forced minus committed). Only fives whose five players are all dressed and not fouled out. File ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games.</div></div>`;
+    const t = top(T, k), s = top(SU, k), sKeys = new Set(s.map(u => fiveKey(u.five))), tKeys = new Set(t.map(u => fiveKey(u.five)));
+    return `<div class="fx-sec"><div class="fx-h"><b>${lbl}</b> <span class="muted small">this half: ${short} ${P(a[k])} vs ${P(b[k])}</span></div>
+      <div class="fx-cols">
+        <div class="fx-col"><div class="fx-lbl today">TODAY <span>1st half · ${TODAY_MIN}+ poss each way</span></div>
+          ${t.map(u => row(u, k, ours, theirs, sKeys.has(fiveKey(u.five)))).join('') || '<div class="small muted fx-none">No five has won it today with enough possessions.</div>'}</div>
+        <div class="fx-col"><div class="fx-lbl season">SEASON <span>opp-adjusted · ${ADJ_MIN}+ poss each way</span></div>
+          ${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>'
+            : s.map(u => row(u, k, ours, theirs, tKeys.has(fiveKey(u.five)))).join('') || '<div class="small muted fx-none">No available five has won it over the season.</div>'}</div></div></div>`; };
+  return `<div class="card fix-card"><h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>${losing.map(sec).join('')}
+    <div class="tiny muted" style="margin-top:6px">Ranked by the margin on that factor, ours minus theirs (turnovers: forced minus committed). Today = this half's fives as played; Season = every game, each adjusted for the opponent's own opponent-adjusted factors${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. ★ BOTH = in the top two for today and the season. Only fives with everyone dressed and not fouled out, and a positive margin.</div></div>`;
 }
+const TODAY_MIN = 6;
 function lineupsView(g) {
   const D = derive(g);
   return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
