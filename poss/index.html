@@ -823,6 +823,18 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .of-banner{display:flex;align-items:center;gap:12px;border-radius:12px;padding:10px 12px;border:1px solid var(--warn);background:rgba(220,176,90,.1);margin:-2px 0 12px}
 .of-banner .ic{font-size:20px}
 
+/* Lineup tip: button top right of our +/- card, and its modal */
+.tip-btn{margin-left:6px;flex:none;white-space:nowrap;align-self:center;font:inherit;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:none;padding:4px 9px;border-radius:999px;border:1px solid var(--warn);background:rgba(220,176,90,.16);color:var(--warn);cursor:pointer;animation:tipPulse 2s ease-in-out infinite}
+@keyframes tipPulse{50%{box-shadow:0 0 0 3px rgba(220,176,90,.25)}}
+.tip-modal{max-width:460px}
+.tip-five{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+.tip-five span{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-weight:800;font-size:15px}
+.tip-swap{font-size:13px;font-weight:700}
+.tip-tbl{width:100%}
+.tip-tbl td,.tip-tbl th{text-align:center;padding:5px 8px}
+.tip-tbl td:first-child{text-align:left}
+.tip-tbl tr.grp td{font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);padding-top:9px}
+
 </style>
 </head>
 <body>
@@ -854,7 +866,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.54';
+const VERSION = 'v2026.10.14.55';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1402,13 +1414,53 @@ function theirBest(g, D) {
   return u || null;
 }
 const theirBestOn = (g, D) => { const B = theirBest(g, D); return B && D.five.b.length === 5 && fiveKey(B.five) === fiveKey(D.five.b) ? B : null; };
+/* LINEUP TIP (our card, the last 25% of the game = the last 10:00 of regulation, or OT): when the five on the floor
+   is at a net of 0 or worse, a button suggests our five with the best four factors in this game, among fives with
+   8+ possessions and nobody fouled out. Four-factor edge = Dean Oliver's weights on (ours - theirs) with that five on:
+   eFG% 40, TO% 25 (lower is better), OReb% 20, FT rate 15. No five that qualifies and wins the factors: no button. */
+const TIP_MIN = 8;
+function ffEdge(u) {
+  const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), d = (a, b) => a == null || b == null ? 0 : a - b;
+  return { O, X, edge: 0.4 * d(O.efg, X.efg) - 0.25 * d(O.to, X.to) + 0.2 * d(O.orb, X.orb) + 0.15 * d(O.ftr, X.ftr) };
+}
+function lineupTip(g, D) {
+  if (g.final || g.per === '1H' || D.five.a.length !== 5) return null;
+  const N = gradeNow(g, D); if (!N || N.gt || (!g.per.startsWith('OT') && N.secs > 600)) return null;
+  const now = fiveKey(D.five.a), all = lineupUnits(g, D, 'a', 'game', 'all').units.map(u => Object.assign({ poss: Math.floor((u.oPoss + u.dPoss) / 2),
+    net: u.oPoss && u.dPoss ? Math.round(10 * (100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss)) / 10 : null }, u, ffEdge(u)));
+  const cur = all.find(u => fiveKey(u.five) === now);
+  if (!cur || cur.net == null || cur.net > 0) return null;
+  const best = all.filter(u => fiveKey(u.five) !== now && u.poss >= TIP_MIN && u.edge > 0 && u.edge > cur.edge && !u.five.some(id => isOut(g, 'a', id)))
+    .sort((x, y) => y.edge - x.edge || y.poss - x.poss)[0];
+  return best ? { cur, best } : null;
+}
+function tipModal() {
+  const g = cur(), T = lineupTip(g, derive(g)); if (!T) { closeModal(); return; }
+  const P = v => v == null ? '—' : v.toFixed(1) + '%', B = T.best, C = T.cur, names = u => fiveSorted(g, 'a', u.five).map(id => pShort(g, 'a', id));
+  const ins = B.five.filter(id => !C.five.includes(id)), outs = C.five.filter(id => !B.five.includes(id));
+  const row = (lbl, b, c, hi) => { const w = b == null || c == null || b.toFixed(1) === c.toFixed(1) ? '' : (b > c) === hi ? 'win' : 'lose';
+    return `<tr><td>${lbl}</td><td class="${w === 'win' ? 'pos' : w === 'lose' ? 'neg' : ''}"><b>${P(b)}</b></td><td>${P(c)}</td></tr>`; };
+  modal(`<h2>💡 Try this five</h2>
+    <div class="tip-five">${names(B).map(n => `<span>${esc(n)}</span>`).join('')}</div>
+    <div class="tip-swap"><span class="pos">IN ${esc(ins.map(id => pShort(g, 'a', id)).join(', '))}</span> · <span class="neg">OUT ${esc(outs.map(id => pShort(g, 'a', id)).join(', '))}</span></div>
+    <div class="small muted" style="margin:6px 0 8px">Our best four factors in this game among fives with ${TIP_MIN}+ possessions. The five on now is at a net of ${sg1(C.net)}.</div>
+    <table class="tbl tip-tbl"><thead><tr><th></th><th>This five</th><th>On now</th></tr></thead><tbody>
+      <tr><td>Possessions</td><td><b>${B.poss}</b></td><td>${C.poss}</td></tr>
+      <tr><td>Net</td><td class="${pmCls(B.net)}"><b>${sg1(B.net)}</b></td><td class="${pmCls(C.net)}">${sg1(C.net)}</td></tr>
+      <tr class="grp"><td colspan="3">OFFENSE</td></tr>
+      ${row('eFG%', B.O.efg, C.O.efg, true)}${row('TO%', B.O.to, C.O.to, false)}${row('OReb%', B.O.orb, C.O.orb, true)}${row('FT rate', B.O.ftr, C.O.ftr, true)}
+      <tr class="grp"><td colspan="3">DEFENSE (theirs)</td></tr>
+      ${row('eFG%', B.X.efg, C.X.efg, false)}${row('TO%', B.X.to, C.X.to, true)}${row('OReb%', B.X.orb, C.X.orb, false)}${row('FT rate', B.X.ftr, C.X.ftr, false)}
+    </tbody></table>
+    <div class="row" style="gap:8px;justify-content:center;margin-top:14px"><button class="btn btn-lg" data-act="tip-close">Close</button><button class="btn btn-good btn-lg" data-act="tip-sub">Sub this five in…</button></div>`, 'tip-modal');
+}
 function lpmCard(g, D, t) {
   const f = D.five[t];
   if (f.length !== 5) return '';
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
   const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null, pm = u.pf - u.pa;
   const best = t === 'b' ? theirBestOn(g, D) : null;
-  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span></div>
+  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span>${t === 'a' && lineupTip(g, D) ? '<button class="tip-btn" data-act="tip">💡 Try</button>' : ''}</div>
     ${best ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * best.net) / 10)} · ${best.poss} poss</span></div>` : ''}
     <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
@@ -2353,6 +2405,10 @@ document.addEventListener('click', ev => {
       UI.redo.push(g.ev.pop()); save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
+    case 'tip': tipModal(); break;
+    case 'tip-close': closeModal(); break;
+    case 'tip-sub': { const T = lineupTip(g, derive(g)); if (!T) { closeModal(); break; } const D0 = derive(g);
+      SUB = { a: new Set(T.best.five), b: new Set(D0.five.b), forced: [], title: 'Sub — suggested five (Confirm to put them in)' }; subModal(); break; }
     case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else if (s.size < 5) s.add(p); else { toast('Five are on — take one off first'); return; } subModal(); break; }
     case 'sub-ok': subConfirm(); break;
     case 'fouls': FOULS = { t: b.dataset.t, p: b.dataset.p, move: null }; foulsModal(); break;
