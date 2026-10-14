@@ -874,6 +874,15 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lev-mix.lowmaj{color:var(--bad)}
 .fx-lbl .warn{color:var(--warn)}
 
+/* 💡 Lineups to try: wide modal, Sub in on each five */
+.tip-modal{max-width:780px;width:calc(100vw - 32px)}
+.fx-sub{padding:4px 10px;font-size:12px}
+.fx-swap{font-size:11.5px;font-weight:700;margin-top:2px}
+.fx-both,.fx-on{white-space:nowrap;display:inline-block}
+.fx-subrow{grid-column:1/-1;margin-top:2px}
+.fx-subrow .fx-sub{width:100%}
+.tip-modal .fx-col{padding:8px}
+
 </style>
 </head>
 <body>
@@ -905,7 +914,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.58';
+const VERSION = 'v2026.10.14.59';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1458,43 +1467,28 @@ const theirBestOn = (g, D) => { const B = theirBest(g, D); return B && D.five.b.
    is at a net of 0 or worse, a button suggests our five with the best four factors in this game, among fives with
    8+ possessions and nobody fouled out. Four-factor edge = Dean Oliver's weights on (ours - theirs) with that five on:
    eFG% 40, TO% 25 (lower is better), OReb% 20, FT rate 15. No five that qualifies and wins the factors: no button. */
-const TIP_MIN = 8;
-function ffEdge(u) {
-  const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), d = (a, b) => a == null || b == null ? 0 : a - b;
-  return { O, X, edge: 0.4 * d(O.efg, X.efg) - 0.25 * d(O.to, X.to) + 0.2 * d(O.orb, X.orb) + 0.15 * d(O.ftr, X.ftr) };
-}
-function lineupTip(g, D) {
+/* 💡 Try: in the last 10:00 (and OT), when the five on is at a net of 0 or worse (garbage time out), the button
+   opens the same lineup card as the halftime report, built for now: the best fives overall (four-factor edge)
+   and for whatever is hurting us this half, today's beside the season's (opponent-adjusted), at a leverage
+   that opens on High. No five qualifies anywhere, no button. */
+function tipCur(g, D) {
   if (g.final || g.per === '1H' || D.five.a.length !== 5) return null;
   const N = gradeNow(g, D); if (!N || N.gt || (!g.per.startsWith('OT') && N.secs > 600)) return null;
-  // The five on now is judged on all its possessions (garbage time out); the fives suggested on High+Med
-  // possessions only, so a five that padded its numbers in a lopsided stretch isn't the answer late.
-  const units = f => lineupUnits(g, D, 'a', 'game', f).units.map(u => Object.assign({ poss: Math.floor((u.oPoss + u.dPoss) / 2),
-    net: u.oPoss && u.dPoss ? Math.round(10 * (100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss)) / 10 : null }, u, ffEdge(u)));
-  const now = fiveKey(D.five.a), all = units('hm'), cur = units('nogt').find(u => fiveKey(u.five) === now);
-  if (!cur || cur.net == null || cur.net > 0) return null;
-  const best = all.filter(u => fiveKey(u.five) !== now && u.poss >= TIP_MIN && u.edge > 0 && u.edge > cur.edge && !u.five.some(id => isOut(g, 'a', id)))
-    .sort((x, y) => y.edge - x.edge || y.poss - x.poss)[0];
-  return best ? { cur, best } : null;
+  const u = lineupUnits(g, D, 'a', 'game', 'nogt').units.find(x => fiveKey(x.five) === fiveKey(D.five.a)); if (!u) return null;
+  const net = u.oPoss && u.dPoss ? Math.round(10 * (100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss)) / 10 : null;
+  return net == null || net > 0 ? null : { five: u.five, net, poss: Math.floor((u.oPoss + u.dPoss) / 2), v: fixVals(u.o, u.d, u.oPoss, u.dPoss) };
 }
+function lineupTip(g, D) {
+  const C = tipCur(g, D); if (!C) return null;
+  const F = fixCard(g, D, TIP_OPTS, C);
+  return F.any ? { cur: C, html: F.html } : null;
+}
+const TIP_OPTS = { ffSc: '2H', todayPer: 'game', sk: 'tipScope', def: 'high', half: 'this half', overall: true, sub: true };
 function tipModal() {
-  const g = cur(), T = lineupTip(g, derive(g)); if (!T) { closeModal(); return; }
-  const P = v => v == null ? '—' : v.toFixed(1) + '%', B = T.best, C = T.cur, names = u => fiveSorted(g, 'a', u.five).map(id => pShort(g, 'a', id));
-  const ins = B.five.filter(id => !C.five.includes(id)), outs = C.five.filter(id => !B.five.includes(id));
-  const row = (lbl, b, c, hi) => { const w = b == null || c == null || b.toFixed(1) === c.toFixed(1) ? '' : (b > c) === hi ? 'win' : 'lose';
-    return `<tr><td>${lbl}</td><td class="${w === 'win' ? 'pos' : w === 'lose' ? 'neg' : ''}"><b>${P(b)}</b></td><td>${P(c)}</td></tr>`; };
-  modal(`<h2>💡 Try this five</h2>
-    <div class="tip-five">${names(B).map(n => `<span>${esc(n)}</span>`).join('')}</div>
-    <div class="tip-swap"><span class="pos">IN ${esc(ins.map(id => pShort(g, 'a', id)).join(', '))}</span> · <span class="neg">OUT ${esc(outs.map(id => pShort(g, 'a', id)).join(', '))}</span></div>
-    <div class="small muted" style="margin:6px 0 8px">Our best four factors in this game among fives with ${TIP_MIN}+ High+Med possessions (garbage time and low leverage out). The five on now is at a net of ${sg1(C.net)}.</div>
-    <table class="tbl tip-tbl"><thead><tr><th></th><th>This five</th><th>On now</th></tr></thead><tbody>
-      <tr><td>Possessions</td><td><b>${B.poss}</b></td><td>${C.poss}</td></tr>
-      <tr><td>Net</td><td class="${pmCls(B.net)}"><b>${sg1(B.net)}</b></td><td class="${pmCls(C.net)}">${sg1(C.net)}</td></tr>
-      <tr class="grp"><td colspan="3">OFFENSE</td></tr>
-      ${row('eFG%', B.O.efg, C.O.efg, true)}${row('TO%', B.O.to, C.O.to, false)}${row('OReb%', B.O.orb, C.O.orb, true)}${row('FT rate', B.O.ftr, C.O.ftr, true)}
-      <tr class="grp"><td colspan="3">DEFENSE (theirs)</td></tr>
-      ${row('eFG%', B.X.efg, C.X.efg, false)}${row('TO%', B.X.to, C.X.to, true)}${row('OReb%', B.X.orb, C.X.orb, false)}${row('FT rate', B.X.ftr, C.X.ftr, false)}
-    </tbody></table>
-    <div class="row" style="gap:8px;justify-content:center;margin-top:14px"><button class="btn btn-lg" data-act="tip-close">Close</button><button class="btn btn-good btn-lg" data-act="tip-sub">Sub this five in…</button></div>`, 'tip-modal');
+  const g = cur(), D = derive(g), T = lineupTip(g, D); if (!T) { closeModal(); return; }
+  modal(`<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">💡 Lineups to try</h2><button class="btn btn-lg" data-act="tip-close">Close</button></div>
+    <div class="small muted" style="margin:4px 0 6px">The five on now: <b>${esc(fiveSorted(g, 'a', T.cur.five).map(id => pShort(g, 'a', id)).join(', '))}</b> · net <b class="${pmCls(T.cur.net)}">${sg1(T.cur.net)}</b> on ${T.cur.poss} possessions</div>
+    ${T.html}`, 'tip-modal');
 }
 function lpmCard(g, D, t) {
   const f = D.five[t];
@@ -1768,9 +1762,10 @@ const LS_LU_ADJ = 'pt2_lu_adj';
 const LEV_SCOPES = [['hm', 'High+Med'], ['high', 'High'], ['clutch', 'Clutch'], ['all', 'All']];
 const LEV_WIDER = { clutch: 'high', high: 'hm', hm: 'all', all: null };
 const LEV_MIN = { season: { all: 25, hm: 15, high: 10, clutch: 6 }, today: { all: 6, hm: 5, high: 4, clutch: 3 } };
-const levScope = () => UI.levScope || 'hm';
+const levScope = () => UI.levScope || 'hm';   // the season table's and the halftime card's setting
 const levName = sc => (LEV_SCOPES.find(x => x[0] === sc) || [sc, sc])[1];
-const levBtns = () => `<div class="row lev-seg"><span class="small muted">Leverage</span>${LEV_SCOPES.map(([k, l]) => `<button class="btn btn-sm ${levScope() === k ? 'btn-primary' : ''}" data-act="lev-scope" data-s="${k}">${l}</button>`).join('')}</div>`;
+const levBtns = (key, def) => { key = key || 'levScope'; const cur = UI[key] || def || 'hm';
+  return `<div class="row lev-seg"><span class="small muted">Leverage</span>${LEV_SCOPES.map(([k, l]) => `<button class="btn btn-sm ${cur === k ? 'btn-primary' : ''}" data-act="lev-scope" data-k="${key}" data-s="${k}">${l}</button>`).join('')}</div>`; };
 // A five's possessions by leverage, as a small H / M / L line; flagged when most were low leverage.
 const levMix = m => m && (m.high != null || m.med != null || m.low != null) ? `<span class="lev-mix ${(m.low || 0) > 50 ? 'lowmaj' : ''}" title="Share of this five's possessions that were High / Medium / Low leverage">H ${Math.round(m.high || 0)} · M ${Math.round(m.med || 0)} · L ${Math.round(m.low || 0)}%</span>` : '';
 const luAdj = () => lsGet(LS_LU_ADJ, null);
@@ -1856,50 +1851,73 @@ function seasonNorm(g) {
   prev.forEach(x => derive(x).poss.forEach(p => { const bx = possBox(p), side = p.team === 'a' ? o : d; Object.keys(bx).forEach(k => { side[k] += bx[k]; }); if (p.team === 'a') oP++; else dP++; }));
   return { v: fixVals(o, d, oP, dP), src: `our ${prev.length}-game norm` };
 }
-function seasonFixCard(g, D) {
-  const L = ffLine(g, '1H'); if (!L) return '';
-  const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
-  const losing = FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
-  if (!losing.length) return '';
-  // Tonight's eight stats, and which end of each losing factor is off its norm (both, if both are).
-  const night = { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr };
-  const N = seasonNorm(g), bad = k => { const S = FIX_STATS[k], v = night[k], n = N.v[k]; return v == null || n == null ? 0 : S.hi ? n - v : v - n; };
-  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => bad(y) - bad(x));
-  if (!problems.length) return '';
+function seasonFixCard(g, D) { return fixCard(g, D, { ffSc: '1H', todayPer: '1H', sk: 'levScope', def: 'hm', half: 'this half' }).html; }
+/* The lineup card: halftime (1st half) and 💡 Try (the 2nd half so far, plus best-overall fives and Sub in).
+   o: ffSc = the half whose four factors decide what's hurting us; todayPer = today's fives from '1H' or the
+   whole 'game'; sk / def = the leverage setting and its default; overall / sub as above. cur = the five on
+   now (💡 Try), left out of the suggestions. Returns { html, any } (any = some five suggested). */
+function fixCard(g, D, o, cur) {
   const ok = id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id);
-  const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
-  const P = v => v == null ? '—' : v.toFixed(1);
+  const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '', skip = cur ? fiveKey(cur.five) : null;
+  const P = v => v == null ? '—' : v.toFixed(1), sc0 = () => UI[o.sk] || o.def;
   const A = luAdj(), haveA = A && A.factorsAdjusted, memo = {};
-  // Today's fives (this half) and the season's, at a leverage scope.
-  const today = sc => memo['t' + sc] = memo['t' + sc] || lineupUnits(g, D, 'a', '1H', sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok))
-    .map(u => ({ five: u.five, oP: u.oPoss, dP: u.dPoss, v: fixVals(u.o, u.d, u.oPoss, u.dPoss) }));
-  const season = sc => memo['s' + sc] = memo['s' + sc] || (!haveA || (!A.leverage && sc !== 'all') ? [] : adjUnits(A, sc).filter(u => u.players.every(p => ok(p.name))).map(u => ({ five: u.players.map(p => p.name), oP: u.oT, dP: u.dT, mix: u.mix,
-    v: { efg: u.F.efg, oefg: u.F.oefg, tov: u.F.tov, otov: u.F.otov, orb: u.F.orb, drb: u.F.oorb == null ? null : 100 - u.F.oorb, ftr: u.F.ftr, oftr: u.F.oftr } })));
-  // The top two on that one stat, among fives with enough possessions at that end and better than our norm.
-  const top = (list, k, min) => { const S = FIX_STATS[k], n = N.v[k];
-    return list.filter(u => (S.end === 'o' ? u.oP : u.dP) >= min && u.v[k] != null && (n == null || (S.hi ? u.v[k] > n : u.v[k] < n)))
-      .sort((x, y) => S.hi ? y.v[k] - x.v[k] : x.v[k] - y.v[k]).slice(0, 2); };
+  // Four-factor edge, ours minus theirs; a factor with no chances yet (no misses to rebound) counts as even.
+  const df = (x, y) => x == null || y == null ? 0 : x - y;
+  const edge = v => v.efg == null && v.oefg == null ? null
+    : 0.4 * df(v.efg, v.oefg) - 0.25 * df(v.tov, v.otov) + 0.2 * df(v.orb, v.drb == null ? null : 100 - v.drb) + 0.15 * df(v.ftr, v.oftr);
+  // Today's fives and the season's, at a leverage scope.
+  const today = sc => memo['t' + sc] = memo['t' + sc] || lineupUnits(g, D, 'a', o.todayPer, sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok) && fiveKey(u.five) !== skip)
+    .map(u => { const v = fixVals(u.o, u.d, u.oPoss, u.dPoss); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, e: edge(v), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null }; });
+  const season = sc => memo['s' + sc] = memo['s' + sc] || (!haveA || (!A.leverage && sc !== 'all') ? [] : adjUnits(A, sc).filter(u => u.players.every(p => ok(p.name)) && fiveKey(u.players.map(p => p.name)) !== skip)
+    .map(u => { const v = { efg: u.F.efg, oefg: u.F.oefg, tov: u.F.tov, otov: u.F.otov, orb: u.F.orb, drb: u.F.oorb == null ? null : 100 - u.F.oorb, ftr: u.F.ftr, oftr: u.F.oftr };
+      return { five: u.players.map(p => p.name), oP: u.oT, dP: u.dT, mix: u.mix, v, e: edge(v), net: u.net }; }));
   // The chosen scope, or the next wider one with a five that qualifies.
-  const pick = (get, k, mins) => { for (let sc = levScope(); sc; sc = LEV_WIDER[sc]) { const l = top(get(sc), k, mins[sc]); if (l.length) return { l, sc, min: mins[sc] }; } return { l: [], sc: levScope(), min: mins[levScope()] }; };
+  const pick = (get, rank, mins) => { for (let sc = sc0(); sc; sc = LEV_WIDER[sc]) { const l = rank(get(sc), mins[sc]); if (l.length) return { l, sc, min: mins[sc] }; } return { l: [], sc: sc0(), min: mins[sc0()] }; };
   const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
   const names = f => fiveSorted(g, 'a', f).map(id => lastName(pInfo(g, 'a', id).name || id)).join(', ');
-  const row = (u, k, both) => { const S = FIX_STATS[k];
-    return `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
-      <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}</div>${levMix(u.mix)}</div>
-      <div class="fx-v"><b class="pos">${P(u.v[k])}</b><span>${S.name}</span></div>
-      <div class="fx-v"><b>${S.end === 'o' ? u.oP : u.dP}</b><span>${S.end === 'o' ? 'off' : 'def'} poss</span></div></div>`; };
-  const lbl = (r, kind, S) => `${levName(r.sc)}${r.sc !== levScope() ? ` <b class="warn">(not enough ${levName(levScope())})</b>` : ''} · ${r.min}+ ${S.end === 'o' ? 'off' : 'def'} poss`;
-  const sec = k => { const S = FIX_STATS[k], T = pick(today, k, LEV_MIN.today), Sn = pick(season, k, LEV_MIN.season), t = T.l, s = Sn.l, tK = new Set(t.map(u => fiveKey(u.five))), sK = new Set(s.map(u => fiveKey(u.five)));
-    return `<div class="fx-sec"><div class="fx-h"><b>${S.what}</b> <span class="fx-stat">${S.name} <b class="neg">${P(night[k])}</b> tonight</span> <span class="muted small">· ${esc(N.src)} ${P(N.v[k])}</span></div>
-      <div class="fx-ask">→ the ${S.rank} fives</div>
-      <div class="fx-cols">
-        <div class="fx-col"><div class="fx-lbl today">TODAY <span>1st half · ${lbl(T, 'today', S)}</span></div>
-          ${t.map(u => row(u, k, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No five has been better than ${P(N.v[k])} today.</div>`}</div>
-        <div class="fx-col"><div class="fx-lbl season">SEASON <span>opp-adjusted · ${lbl(Sn, 'season', S)}</span></div>
+  const swap = f => { if (!cur) return ''; const i = f.filter(id => !cur.five.includes(id)), x = cur.five.filter(id => !f.includes(id));
+    const n = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); };
+    return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(n).join(' '))}</span> · <span class="neg">OUT ${esc(x.map(n).join(' '))}</span></div>`; };
+  const subBtn = f => o.sub && fiveKey(f) !== nowKey ? `<button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub this five in</button>` : '';
+  const row = (u, both, val, valLbl, possLbl) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
+      <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}</div>${levMix(u.mix)}${swap(u.five)}</div>
+      <div class="fx-v"><b class="pos">${val}</b><span>${valLbl}</span></div>
+      <div class="fx-v"><b>${u.p}</b><span>${possLbl}</span></div>${subBtn(u.five) ? `<div class="fx-subrow">${subBtn(u.five)}</div>` : ''}</div>`;
+  const lbl = (r, possLbl) => `${levName(r.sc)}${r.sc !== sc0() ? ` <b class="warn">(not enough ${levName(sc0())})</b>` : ''} · ${r.min}+ ${possLbl}`;
+  const cols = (T, Sn, rowT, possLbl, noneT, noneS) => { const tK = new Set(T.l.map(u => fiveKey(u.five))), sK = new Set(Sn.l.map(u => fiveKey(u.five)));
+    return `<div class="fx-cols">
+        <div class="fx-col"><div class="fx-lbl today">TODAY <span>${o.todayPer === '1H' ? '1st half' : 'this game'} · ${lbl(T, possLbl)}</span></div>
+          ${T.l.map(u => rowT(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${noneT}</div>`}</div>
+        <div class="fx-col"><div class="fx-lbl season">SEASON <span>opp-adjusted · ${lbl(Sn, possLbl)}</span></div>
           ${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>'
-            : s.map(u => row(u, k, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(N.v[k])}.</div>`}</div></div></div>`; };
-  return `<div class="card fix-card"><h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>${levBtns()}${problems.map(sec).join('')}
-    <div class="tiny muted" style="margin-top:6px">For each four factor we're losing, the end that's off our norm tonight, and the fives best at that one stat: today's as played, and the season's adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Listed only if better than the norm, with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>`;
+            : Sn.l.map(u => rowT(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${noneS}</div>`}</div></div>`; };
+  let any = false, html = '';
+  // Best overall (💡 Try): four-factor edge, better than the five on now, winning the factors.
+  if (o.overall) {
+    const rank = (list, min) => list.filter(u => u.oP >= min && u.dP >= min && u.e != null && u.e > 0 && (!cur || edge(cur.v) == null || u.e > edge(cur.v)))
+      .sort((x, y) => y.e - x.e).slice(0, 2).map(u => Object.assign({}, u, { p: Math.floor((u.oP + u.dP) / 2) }));
+    const T = pick(today, rank, LEV_MIN.today), Sn = pick(season, rank, LEV_MIN.season);
+    any = any || T.l.length > 0 || Sn.l.length > 0;
+    html += `<div class="fx-sec"><div class="fx-h"><b>Best overall</b> <span class="muted small">· four-factor edge (shooting 40, turnovers 25, rebounding 20, FT rate 15), better than the five on now</span></div>
+      ${cols(T, Sn, (u, both) => row(u, both, sg1(Math.round(10 * u.e) / 10), `4F edge · net ${u.net == null ? '—' : sg1(Math.round(10 * u.net) / 10)}`, 'poss'), 'poss each way', 'No five has beaten the five on now today.', 'No available five has.')}</div>`;
+  }
+  // What's hurting us: each losing factor's bad end, the fives best at that one stat.
+  const L = ffLine(g, o.ffSc), a = L ? ffCalc(L.a, L.b) : null, b = L ? ffCalc(L.b, L.a) : null;
+  const losing = !L ? [] : FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
+  const night = a ? { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr } : {};
+  const N = seasonNorm(g), bad = k => { const S = FIX_STATS[k], v = night[k], n = N.v[k]; return v == null || n == null ? 0 : S.hi ? n - v : v - n; };
+  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => bad(y) - bad(x));
+  problems.forEach(k => { const S = FIX_STATS[k], n = N.v[k], end = S.end === 'o' ? 'oP' : 'dP';
+    const rank = (list, min) => list.filter(u => u[end] >= min && u.v[k] != null && (n == null || (S.hi ? u.v[k] > n : u.v[k] < n)))
+      .sort((x, y) => S.hi ? y.v[k] - x.v[k] : x.v[k] - y.v[k]).slice(0, 2).map(u => Object.assign({}, u, { p: u[end] }));
+    const T = pick(today, rank, LEV_MIN.today), Sn = pick(season, rank, LEV_MIN.season), pl = `${S.end === 'o' ? 'off' : 'def'} poss`;
+    any = any || T.l.length > 0 || Sn.l.length > 0;
+    html += `<div class="fx-sec"><div class="fx-h"><b>${S.what}</b> <span class="fx-stat">${S.name} <b class="neg">${P(night[k])}</b> ${o.half}</span> <span class="muted small">· ${esc(N.src)} ${P(n)}</span></div>
+      <div class="fx-ask">→ the ${S.rank} fives</div>
+      ${cols(T, Sn, (u, both) => row(u, both, P(u.v[k]), S.name, pl), pl, `No five has been better than ${P(n)} today.`, `No available five has been better than ${P(n)}.`)}</div>`; });
+  if (!o.overall && !problems.length) return { html: '', any: false };
+  return { any, html: `<div class="card fix-card">${o.overall ? '' : `<h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>`}${levBtns(o.sk, o.def)}${html}
+    <div class="tiny muted" style="margin-top:6px">${o.overall ? 'Best overall = the four factors combined, better than the five on now. ' : ''}What's hurting us = each four factor we're losing ${o.half}, the end that's off our norm, and the fives best at that one stat. Today = as played; Season = every game, adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Only fives with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>` };
 }
 function lineupsView(g) {
   const D = derive(g);
@@ -2596,8 +2614,8 @@ document.addEventListener('click', ev => {
     case 'sub': SUB = null; subModal(); break;
     case 'tip': tipModal(); break;
     case 'tip-close': closeModal(); break;
-    case 'tip-sub': { const T = lineupTip(g, derive(g)); if (!T) { closeModal(); break; } const D0 = derive(g);
-      SUB = { a: new Set(T.best.five), b: new Set(D0.five.b), forced: [], title: 'Sub — suggested five (Confirm to put them in)' }; subModal(); break; }
+    case 'tip-sub': { const f = (b.dataset.five || '').split('|').filter(Boolean); if (f.length !== 5) { closeModal(); break; }
+      SUB = { a: new Set(f), b: new Set(derive(g).five.b), forced: [], title: 'Sub — suggested five (Confirm to put them in)' }; subModal(); break; }
     case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else if (s.size < 5) s.add(p); else { toast('Five are on — take one off first'); return; } subModal(); break; }
     case 'sub-ok': subConfirm(); break;
     case 'fouls': FOULS = { t: b.dataset.t, p: b.dataset.p, move: null }; foulsModal(); break;
@@ -2713,7 +2731,7 @@ document.addEventListener('click', ev => {
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
     case 'lu-export': exportLineups(); break;
-    case 'lev-scope': { const y = window.scrollY; UI.levScope = b.dataset.s; render(); window.scrollTo(0, y); break; }
+    case 'lev-scope': { const k = b.dataset.k || 'levScope'; UI[k] = b.dataset.s; if (k === 'tipScope') { tipModal(); break; } const y = window.scrollY; render(); window.scrollTo(0, y); break; }
     case 'lu-adj': importLineupAdj(); break;
     case 'lu-adj-clear': if (confirm('Remove the adjusted season lineups from this iPad?')) { try { localStorage.removeItem(LS_LU_ADJ); } catch (e) {} render(); } break;
     case 'pbp-team': UI.pbpTeam = b.dataset.t; render(); break;

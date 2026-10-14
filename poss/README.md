@@ -131,13 +131,16 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
 
-**💡 Try (lineup tip, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0 or
-worse, a **💡 Try** button shows at the top right of our lineup card. It suggests our five with the best
-four factors in this game, on High+Med possessions only (garbage time and low leverage out), (Dean Oliver's weights on ours minus theirs with that five on: eFG% 40, TO% 25,
-OReb% 20, FT rate 15), among fives with 8+ possessions and nobody fouled out. Tapping it shows the five,
-who comes in and out, and its factors next to the five on now; **Sub this five in…** opens the sub screen
-with it filled in, ready to confirm. If no five qualifies and wins the factors, there is no button. Not
-shown in garbage time.
+**💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
+or worse (garbage time out), a **💡 Try** button shows at the top right of our lineup card. It opens
+**Lineups to try**, the same card as the halftime report, built for now, with today's fives beside the
+season's (opponent-adjusted), at a **Leverage** setting that opens on **High**:
+- **Best overall:** the four-factor edge (ours minus theirs, weighted eFG% 40, TO% 25, OReb% 20, FT
+  rate 15), better than the five on now and winning the factors;
+- **What's hurting us** in the 2nd half so far, one stat at a time, as at halftime.
+
+Each five shows who comes **IN** and goes **OUT**, and **Sub this five in** opens the sub screen with it
+filled in, ready to confirm. Nobody fouled out or not dressed. No five qualifies, no button.
 
 **Lineups tab**, for the game or the current period, for both teams, as **5-man, 4-man, 3-man or 2-man**
 combos (a combo is on the floor for every possession of every five that contains it). For each:
