@@ -784,6 +784,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .pp-slot>*{grid-area:1/1}
 .pp-slot>.pp-ghost{visibility:hidden;pointer-events:none}
 .no-reb{margin-left:8px;font-weight:800}
+.to-clock{width:120px;font-size:26px;font-weight:800;text-align:center;padding:8px;border-radius:10px;background:var(--surface);border:2px solid var(--border2);color:var(--text)}
+.to-clock.bad{border-color:var(--bad)}
 
 </style>
 </head>
@@ -815,7 +817,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.13.50';
+const VERSION = 'v2026.10.14.51';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1079,8 +1081,10 @@ function gradePossessions(g, poss) {
   const P = regPlan(g, poss);
   poss.forEach(p => { p.before = { a: p.score.a - (p.team === 'a' ? p.pts : 0), b: p.score.b - (p.team === 'b' ? p.pts : 0) }; });
   let cut = null;
+  const CK = clockPlan(g, poss, P.spt);
   P.reg.forEach((p, i) => {
-    const left = Math.max(P.N - i, 1), r = grade(p.before.a - p.before.b, p.team, left, P.spt, false);
+    const ck = CK.get(p), spt = ck ? ck.spt : P.spt, left = ck ? Math.max(Math.round(ck.gameSecs / spt), 1) : Math.max(P.N - i, 1);
+    const r = grade(p.before.a - p.before.b, p.team, left, spt, false);
     Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: P.exact, gt: false });
     if (cut == null && r.gtHit) cut = i;
   });
@@ -1091,7 +1095,8 @@ function gradePossessions(g, poss) {
   g.periods.filter(x => x.startsWith('OT')).forEach(per => {
     const list = poss.filter(p => p.per === per), done = !!g.final || g.periods.indexOf(per) < g.periods.length - 1;
     const N = done ? list.length : Math.max(list.length + 1, Math.round(300 / P.spt));
-    list.forEach((p, i) => { const r = grade(p.before.a - p.before.b, p.team, Math.max(N - i, 1), P.spt, true);
+    list.forEach((p, i) => { const ck = CK.get(p), r = ck ? grade(p.before.a - p.before.b, p.team, Math.max(Math.round(ck.perSecs / ck.spt), 1), ck.spt, true)
+        : grade(p.before.a - p.before.b, p.team, Math.max(N - i, 1), P.spt, true);
       Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: done, gt: false }); });
   });
 }
@@ -1099,6 +1104,9 @@ function gradePossessions(g, poss) {
 function gradeNow(g, D) {
   if (g.final) return null;
   const S = D.score, m = S.a - S.b;
+  const ck = clockNow(g, D);
+  if (ck) { const ot = g.per.startsWith('OT'), r = grade(m, null, Math.max(Math.round((ot ? ck.perSecs : ck.gameSecs) / ck.spt), 1), ck.spt, ot);
+    if (!ot) r.gt = !g.gtOff && (D.poss.some(p => p.gt) || r.gtHit); r.clock = ck; return r; }
   if (g.per.startsWith('OT')) {
     const list = D.poss.filter(p => p.per === g.per), P = regPlan(g, D.poss);
     return grade(m, null, Math.max(Math.round(300 / P.spt) - list.length, 1), P.spt, true);
@@ -1108,6 +1116,41 @@ function gradeNow(g, D) {
   return r;
 }
 const fmtSecs = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+// "7:42", "742" or "7.42" → seconds left in the period (null if it can't be read or is longer than the period).
+function parseClock(txt, perLen) {
+  const t = String(txt || '').trim(); if (!t) return null;
+  let m, s;
+  if (/^\d{1,2}[:.]\d{2}$/.test(t)) [m, s] = t.split(/[:.]/).map(Number);
+  else if (/^\d{3,4}$/.test(t)) { m = +t.slice(0, -2); s = +t.slice(-2); }
+  else if (/^\d{1,2}$/.test(t)) { m = +t; s = 0; }
+  else return null;
+  const v = m * 60 + s; return s < 60 && v <= perLen ? v : null;
+}
+const perLen = per => per.startsWith('OT') ? 300 : 1200;
+/* CLOCK CHECKPOINTS — the game clock entered at a timeout. For each possession after one (same period), the time
+   left = that clock minus the possessions since, at this period's own pace up to the checkpoint (seconds elapsed /
+   possessions so far); before any checkpoint the estimate from possessions stands. Returns Map(possession → info). */
+function clockPlan(g, poss, fallbackSpt) {
+  const out = new Map(), first = p => g.ev.indexOf(p.plays[0]);
+  const cps = g.ev.map((e, i) => ({ e, i })).filter(x => x.e.t === 'to' && x.e.clock != null);
+  if (!cps.length) return out;
+  [...new Set(poss.map(p => p.per))].forEach(per => {
+    const list = poss.filter(p => p.per === per), mine = cps.filter(c => c.e.per === per); if (!mine.length) return;
+    mine.forEach(c => { c.before = list.filter(p => first(p) < c.i).length; c.spt = c.before > 0 ? (perLen(per) - c.e.clock) / c.before : fallbackSpt; });
+    list.forEach((p, idx) => { const i0 = first(p), c = mine.filter(c => c.i < i0).pop(); if (!c) return;
+      const since = idx - c.before, perSecs = Math.max(0, c.e.clock - since * c.spt);
+      out.set(p, { perSecs, gameSecs: perSecs + (per === '1H' ? 1200 : 0), spt: Math.max(5, c.spt) }); });
+  });
+  return out;
+}
+// The same for "now" (the next possession in the current period).
+function clockNow(g, D) {
+  const cps = g.ev.map((e, i) => ({ e, i })).filter(x => x.e.t === 'to' && x.e.clock != null && x.e.per === g.per); if (!cps.length) return null;
+  const c = cps[cps.length - 1], list = D.poss.filter(p => p.per === g.per), first = p => g.ev.indexOf(p.plays[0]);
+  const before = list.filter(p => first(p) < c.i).length, spt = before > 0 ? (perLen(g.per) - c.e.clock) / before : SPT_DEFAULT;
+  const perSecs = Math.max(0, c.e.clock - (list.length - before) * spt);
+  return { perSecs, gameSecs: perSecs + (g.per === '1H' ? 1200 : 0), spt: Math.max(5, spt), clock: c.e.clock, at: c.e };
+}
 const LEV_LABEL = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' };
 // How a possession ended — the sheet's columns.
 function endingOf(p) {
@@ -1338,7 +1381,7 @@ function feedText0(g, x) {
   if (x.kind === 'tech') return { cls: 's', html: `<span style="color:var(--bad)">T</span> · ${esc(techText(g, e))}`, sc: `${x.score.a}–${x.score.b}`, id: e.id };
   if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb`, id: e.id };
   if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
-  if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout`, id: e.id };
+  if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout${e.clock != null ? ' · ' + fmtSecs(e.clock) : ''}`, id: e.id };
   return { cls: 's', html: '', id: e.id };
 }
 
@@ -1925,7 +1968,7 @@ function huddleBox(D, list, t) {
     if (nx && nx.team !== t && nx.per === p.per) z.pot += nx.pts; });
   return z;
 }
-function huddleOpen(g, calledBy, kind) {
+function huddleOpen(g, calledBy, kind, clock) {
   const D = derive(g), per = g.per, S = perSums(D, per), G = perSums(D, null);
   const winList = D.poss.slice(-HUDDLE_N);
   const W = { a: huddleBox(D, winList, 'a'), b: huddleBox(D, winList, 'b') }, GB = { a: huddleBox(D, D.poss, 'a'), b: huddleBox(D, D.poss, 'b') };
@@ -1951,6 +1994,10 @@ function huddleOpen(g, calledBy, kind) {
   const trouble = pf => pf >= (h1 ? 2 : 3);
   D.five.a.forEach(id => { const pf = playerFouls(g, 'a', id); if (trouble(pf)) add(pf, false, `${pShort(g, 'a', id)} has ${pf} fouls.`); });
   D.five.b.forEach(id => { const pf = playerFouls(g, 'b', id); if (trouble(pf)) add(pf - 0.5, true, `${pShort(g, 'b', id)} has ${pf} fouls.`); });
+  // With the clock in: late and close leads the list.
+  { const N = gradeNow(g, D), lead = G.pts.a - G.pts.b;
+    if (N && N.clutch) { const left = clock != null ? clock : N.clock ? N.clock.perSecs : null;
+      add(99, lead > 0, `Clutch: ${lead > 0 ? 'up ' + lead : lead < 0 ? 'down ' + -lead : 'tied'}${left != null ? ' with ' + fmtSecs(left) + ' left' : ' late'}${fb >= 7 || fa >= 7 ? ` · ${fb >= 7 ? 'we\'re in the bonus' : ''}${fb >= 7 && fa >= 7 ? ', ' : ''}${fa >= 7 ? 'they\'re in the bonus' : ''}` : ''}.`); } }
   pts.sort((x, y) => y.w - x.w); pts.length = Math.min(pts.length, 4);
   // Last 10 vs the game: a row lights up when it has moved well away from the game on enough attempts.
   const pct = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
@@ -1985,7 +2032,7 @@ function huddleOpen(g, calledBy, kind) {
   $('#modal-root').innerHTML = `<div class="overlay huddle-overlay" data-act="overlay"><div class="modal huddle">
     <div class="hud-top">
       <div class="hud-team a">${logo('Moorpark', 34)}<div><div class="hud-score">${G.pts.a}</div><div class="hud-meta">Fouls ${fouls('a')} · <span class="to-dots">${dots('a')}</span></div></div></div>
-      <div class="hud-mid"><div class="hud-cap">${caller}</div><div class="hud-clock">${esc(PER_NAME(per))} · Poss ${possAvg(S)}</div></div>
+      <div class="hud-mid"><div class="hud-cap">${caller}</div><div class="hud-clock">${esc(PER_NAME(per))}${clock != null ? ' · ' + fmtSecs(clock) : ''} · Poss ${possAvg(S)}</div></div>
       <div class="hud-team b"><div><div class="hud-score">${G.pts.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logo(opp, 34)}</div>
     </div>
     <div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
@@ -2001,13 +2048,20 @@ function huddleOpen(g, calledBy, kind) {
   </div></div>`;
 }
 
+let TOM = null;   // { t, k, clock } while the timeout screen is open
 function timeoutModal() {
-  const g = cur();
+  const g = cur(); TOM = TOM || { t: null, k: null, clock: '' };
   const left = (t, k) => (k === 'full' ? FULL_TOS : S30_TOS + otCount(g)) - tosUsed(g, t, k);
+  const sel = (t, k) => TOM.t === t && TOM.k === k;
+  const secs = parseClock(TOM.clock, perLen(g.per)), bad = TOM.clock && secs == null;
   modal(`<h2>Timeout</h2>${['a', 'b'].map(t => `<div class="field"><label>${esc(teamName(g, t))}</label><div class="row" style="gap:6px">
-      <button class="btn btn-lg" style="flex:1" data-act="to-log" data-t="${t}" data-k="full" ${left(t, 'full') > 0 ? '' : 'disabled'}>Full · ${left(t, 'full')} left</button>
-      <button class="btn btn-lg" style="flex:1" data-act="to-log" data-t="${t}" data-k="s30" ${left(t, 's30') > 0 ? '' : 'disabled'}>30 sec · ${left(t, 's30')} left</button></div></div>`).join('')}
-    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button></div>`);
+      <button class="btn btn-lg ${sel(t, 'full') ? 'btn-primary' : ''}" style="flex:1" data-act="to-pick" data-t="${t}" data-k="full" ${left(t, 'full') > 0 ? '' : 'disabled'}>Full · ${left(t, 'full')} left</button>
+      <button class="btn btn-lg ${sel(t, 's30') ? 'btn-primary' : ''}" style="flex:1" data-act="to-pick" data-t="${t}" data-k="s30" ${left(t, 's30') > 0 ? '' : 'disabled'}>30 sec · ${left(t, 's30')} left</button></div></div>`).join('')}
+    <div class="field"><label>Game clock · time left in the ${esc(PER_NAME(g.per).toLowerCase())}</label>
+      <div class="row" style="gap:8px;align-items:center"><input id="to-clock" class="to-clock ${bad ? 'bad' : ''}" inputmode="numeric" placeholder="7:42" value="${esc(TOM.clock)}" autocomplete="off">
+      <span class="small ${bad ? 'neg' : 'muted'}">${bad ? `Can't read that — type it like 7:42 (up to ${fmtSecs(perLen(g.per))})` : 'Type 742 or 7:42. Sharpens leverage, clutch and garbage time.'}</span></div></div>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="to-cancel">Cancel</button><button class="btn btn-lg" data-act="to-log" data-skip="1" ${TOM.t ? '' : 'disabled'}>Skip clock</button><button class="btn btn-good btn-lg" data-act="to-log" ${TOM.t && secs != null ? '' : 'disabled'}>Log timeout → Huddle</button></div>`);
+  const f = document.getElementById('to-clock'); if (f && TOM.t) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
 }
 
 function adjustModal() {
@@ -2024,6 +2078,13 @@ function editModal(id) {
   const isPlay = e.t === 'play' || e.t === 'foul';
   const byPlayer = e.t === 'foul' || (e.t === 'play' && PLAYER_STATS.has(e.k));
   const ps = byPlayer ? teamPlayers(g, e.team) : [];
+  if (e.t === 'to') {
+    modal(`<h2>Timeout</h2><div class="small muted" style="margin-bottom:8px">${esc(teamName(g, e.team))} · ${e.kind === 'full' ? 'full' : '30-second'} · ${esc(PER_NAME(e.per))}</div>
+      <div class="field"><label>Game clock (time left in the ${esc(PER_NAME(e.per).toLowerCase())})</label><input id="ed-clock" class="to-clock" inputmode="numeric" placeholder="7:42" value="${e.clock != null ? fmtSecs(e.clock) : ''}"></div>
+      <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-bad" data-act="ed-del" data-id="${id}">Delete</button>
+        <span class="row" style="gap:8px"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="ed-clock" data-id="${id}">Save</button></span></div>`);
+    return;
+  }
   modal(`<h2>Fix this play</h2>
     ${isPlay ? `<div class="small muted" style="margin-bottom:8px">${esc(teamName(g, e.team))} · ${esc(pShort(g, e.team, e.player))} · ${esc(STAT_LABEL[e.k] || 'Foul')}</div>
       ${e.t === 'play' ? `<div class="field"><label>Stat</label><div class="sgrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${STATS.filter(s => s[0] !== 'foul' && s[0] !== 'tech' && PLAYER_STATS.has(s[0]) === byPlayer).map(([k, l, c]) => `<button class="sbtn sb-${c} ${e.k === k ? 'on' : ''}" data-act="ed-k" data-id="${id}" data-k="${k}">${l}</button>`).join('')}</div></div>` : ''}
@@ -2228,8 +2289,12 @@ document.addEventListener('click', ev => {
       g.ev = g.ev.filter(x => x !== e); FOULS.move = null; save(); foulsModal(); break; }
     case 'fl-done': FOULS = null; SUB = null; closeModal(); render(); break;
     case 'sub-cancel': SUB = null; closeModal(); break;
-    case 'timeout': timeoutModal(); break;
-    case 'to-log': push(g, { t: 'to', team: b.dataset.t, kind: b.dataset.k }); save(); closeModal(); render(); huddleOpen(g, b.dataset.t, b.dataset.k); break;
+    case 'timeout': TOM = null; timeoutModal(); break;
+    case 'to-pick': TOM.t = b.dataset.t; TOM.k = b.dataset.k; timeoutModal(); break;
+    case 'to-cancel': TOM = null; closeModal(); break;
+    case 'to-log': { if (!TOM || !TOM.t) return; const secs = b.dataset.skip ? null : parseClock(TOM.clock, perLen(g.per));
+      const e = { t: 'to', team: TOM.t, kind: TOM.k }; if (secs != null) e.clock = secs;
+      push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); break; }
     case 'huddle': huddleOpen(g); break;
     case 'sh-open': sheetOpen(b.dataset.s); break;
     case 'sh-edit': sheetEdit(b.dataset.s || SHEET.sc); break;
@@ -2310,6 +2375,8 @@ document.addEventListener('click', ev => {
       toast(techText(g, e) + (out ? ' — OUT OF THE GAME' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : ''), out || cOut ? 'bad' : ''); break; }
 
     case 'edit': editModal(b.dataset.id); break;
+    case 'ed-clock': { const e = g.ev.find(x => x.id === b.dataset.id), v = $('#ed-clock').value.trim(), secs = parseClock(v, perLen(e.per));
+      if (v && secs == null) { toast('Type the clock like 7:42', 'bad'); return; } if (secs == null) delete e.clock; else e.clock = secs; save(); closeModal(); render(); break; }
     case 'ed-k': { const e = g.ev.find(x => x.id === b.dataset.id); e.k = b.dataset.k; save(); editModal(e.id); render(); break; }
     case 'ed-p': { const e = g.ev.find(x => x.id === b.dataset.id); e.player = b.dataset.p === 'TEAM' && e.t === 'foul' ? null : b.dataset.p; save(); editModal(e.id); render(); break; }
     case 'ed-del': if (isLocked(g, g.ev.find(x => x.id === b.dataset.id))) { toast('A starting five can\'t be deleted — change it with ⇄ Sub', 'bad'); return; }
@@ -3338,6 +3405,14 @@ async function paintSnap() {
   el.innerHTML = `<div class="page-head snap-head"><button class="btn btn-sm" data-act="rp-back">◀ Saved reports</button><div class="small muted" style="margin-left:6px">${r.kind === 'half' ? 'Halftime' : 'Post-game'} · ${esc(r.opp)} · ${esc(r.date || '')} · saved ${esc(rpWhen(r.at))}</div>
     <button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div><div class="snap">${r.html}</div>`;
 }
+// Timeout screen: the clock box updates the buttons as you type (no redraw), Enter logs the timeout.
+document.addEventListener('input', e => { if (e.target.id !== 'to-clock' || !TOM) return; TOM.clock = e.target.value;
+  const g = cur(), ok = parseClock(TOM.clock, perLen(g.per)) != null, bad = TOM.clock.trim() && !ok;
+  e.target.classList.toggle('bad', !!bad);
+  const hint = e.target.nextElementSibling; if (hint) { hint.className = 'small ' + (bad ? 'neg' : 'muted');
+    hint.textContent = bad ? `Can't read that — type it like 7:42 (up to ${fmtSecs(perLen(g.per))})` : 'Type 742 or 7:42. Sharpens leverage, clutch and garbage time.'; }
+  const go = document.querySelector('[data-act="to-log"]:not([data-skip])'); if (go) go.disabled = !(TOM.t && ok); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'to-clock') { e.preventDefault(); const go = document.querySelector('[data-act="to-log"]:not([data-skip])'); if (go && !go.disabled) go.click(); } });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
