@@ -917,6 +917,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 
 .sub-p.pend.held{border-style:dashed;border-color:var(--border);background:var(--card);opacity:.85}
 .sub-p.pend.held .pend-tag{color:var(--text2)}
+.pend-wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}
+.pend-x{font:inherit;font-size:12px;font-weight:700;padding:0 10px;border-radius:11px;border:1px solid var(--border);background:var(--card);color:var(--bad);cursor:pointer}
 
 </style>
 </head>
@@ -949,7 +951,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.65';
+const VERSION = 'v2026.10.14.66';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2259,7 +2261,8 @@ function subModal(title) {
         /* Pending players have their own group: GOING IN now, or HOLD (e.g. the man he'd replace is shooting
            free throws and stays in) — a held player stays pending for the next dead ball. */
         const pbtn = p => { const go = SUB[t].has(p.id);
-          return `<button class="sub-p pend ${go ? '' : 'held'}" data-act="sub-hold" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}<span class="tiny pend-tag">${go ? '⏳ GOING IN · tap to hold' : '✋ HOLD · stays pending · tap to send in'}</span></button>`; };
+          // ✕ Remove: he's not coming in at all (his coach called him back) — off the pending list too.
+          return `<div class="pend-wrap"><button class="sub-p pend ${go ? '' : 'held'}" data-act="sub-hold" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}<span class="tiny pend-tag">${go ? '⏳ GOING IN · tap to hold' : '✋ HOLD · stays pending · tap to send in'}</span></button><button class="pend-x" data-act="sub-unpend" data-t="${t}" data-p="${esc(p.id)}" title="Not coming in: take him off pending">✕ Remove</button></div>`; };
         const pend = ps.filter(p => P.has(p.id));
         const on = ps.filter(p => SUB[t].has(p.id) && !P.has(p.id)), bench = ps.filter(p => !SUB[t].has(p.id) && !P.has(p.id)).sort((x, y) => isOut(g, t, x.id) - isOut(g, t, y.id));
         const going = pend.filter(p => SUB[t].has(p.id)).length;
@@ -2691,6 +2694,8 @@ document.addEventListener('click', ev => {
     // Confirm waits until each team is back to five.
     case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else s.add(p); subModal(); break; }
     case 'sub-ok': subConfirm(); break;
+    case 'sub-unpend': { const t = b.dataset.t, id = b.dataset.p; SUB[t].delete(id); if (SUB.pend) SUB.pend[t].delete(id);
+      if (g.pending) g.pending[t] = (g.pending[t] || []).filter(x => x !== id); save(); subModal(); break; }
     case 'sub-hold': { const S0 = SUB[b.dataset.t], id = b.dataset.p; if (S0.has(id)) S0.delete(id); else S0.add(id); subModal(); break; }
     case 'plug': { const D0 = derive(g), out = b.dataset.out, cand = b.dataset.p; SUB.a.delete(out); if (!SUB.a.has(cand)) {
         // His spot: if the five is already full (a pending player filled it), the plug-in replaces that one.
@@ -2704,7 +2709,7 @@ document.addEventListener('click', ev => {
       if (!confirm(e.t === 'play' ? `Delete this ${STAT_LABEL[e.k].toLowerCase()}? It also takes away the turnover.` : 'Delete this foul?')) return;
       g.ev = g.ev.filter(x => x !== e); FOULS.move = null; save(); foulsModal(); break; }
     case 'fl-done': FOULS = null; SUB = null; closeModal(); render(); break;
-    case 'sub-cancel': SUB = null; closeModal(); break;
+    case 'sub-cancel': SUB = null; closeModal(); render(); break;   // render: pending may have changed (✕ Remove)
     case 'timeout': TOM = null; timeoutModal(); break;
     case 'to-pick': TOM.t = b.dataset.t; TOM.k = b.dataset.k; timeoutModal(); break;
     case 'to-key': TOM.clock = padKey(TOM.clock, b.dataset.k); timeoutModal(); break;
