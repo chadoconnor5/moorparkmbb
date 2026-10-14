@@ -127,7 +127,7 @@ the live screen (numbers are enough).
 **⏳ Pending** (its own button, beside ⇄ Sub): mark players waiting at the table before you know who
 they're replacing. It lists each team's bench only (no one on the floor, no one fouled out); tap to
 mark **⏳ CHECKING IN**, tap again to unmark, **Clear all** to reset. A **Checking in** strip shows under
-each team's on-floor list with a **Sub now** button, and ⇄ Sub reads **⇄ Sub · 3 waiting**. When the sub
+each team's on-floor list with a **Sub now** button, ⇄ Sub reads **⇄ Sub (3)** and ⏳ Pending turns gold. When the sub
 happens, ⇄ Sub opens with them already on the floor list (gold, first) and says **tap 2 coming off**:
 tap who's coming off and Confirm. **Sub now** on the strip opens the same screen. You can still add more
 from the bench there (the count goes up: **tap 3 coming off**); Confirm unlocks when each team is back to five. Players who went in leave the pending list; anyone left out stays

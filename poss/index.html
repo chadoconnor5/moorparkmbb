@@ -892,10 +892,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sub-p.in.pend{border-color:var(--warn);background:rgba(220,176,90,.14)}
 .sub-p.in.pend .pend-tag,.sub-p.pend .pend-tag{color:var(--warn)}
 
-/* Live controls: two across, like the stat buttons */
-.ctrls.ctrls2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.ctrls.ctrls2 .flag-last{grid-column:auto}
-.ctrls.ctrls2 .btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Live controls: three across; Flag last play takes the last two spots */
+.ctrls .flag-last{grid-column:span 2}
+.ctrls .btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pend-btn.on{border-color:var(--warn);color:var(--warn)}
 
 </style>
@@ -1557,12 +1556,11 @@ function liveView(g) {
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
-        // Two across like the stat buttons, in pairs: subs, game, fix a tap, flag / end.
-        return `<div class="ctrls ctrls2">
-        <button class="btn ${n ? 'btn-good' : ''}" data-act="sub">⇄ Sub${n ? ` (${n} waiting)` : ''}</button><button class="btn pend-btn ${n ? 'on' : ''}" data-act="pend">⏳ Pending${n ? ` (${n})` : ''}</button>
-        <button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
-        <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button>
-        <button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button></div>`; })()}
+        // Three across: subs and timeout, then fix a tap and end the half, then scout and flag.
+        return `<div class="ctrls">
+        <button class="btn ${n ? 'btn-good' : ''}" data-act="sub">⇄ Sub${n ? ` (${n})` : ''}</button><button class="btn pend-btn ${n ? 'on' : ''}" data-act="pend">⏳ Pending</button><button class="btn btn-warn" data-act="timeout">Timeout</button>
+        <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button>
+        <button class="btn" data-act="scout">📄 Scout</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button></div>`; })()}
       <div class="feed">${items.map(f => feedRow(g, f)).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
