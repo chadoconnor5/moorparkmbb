@@ -924,7 +924,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.61';
+const VERSION = 'v2026.10.14.62';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1536,15 +1536,6 @@ function feedText0(g, x) {
 function feedRow(g, f) {
   return `<div class="${f.cls} ${f.flag || UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}<button class="flagbtn ${f.flag ? 'on' : ''}" data-act="flag" data-id="${f.id}" title="${f.flag ? 'Unflag' : 'Flag this play to look at later'}">🚩</button></div>`;
 }
-// What Undo would take back, on the button: "Undo: MPK 3PT Miss", so a bad tap is caught before it's undone.
-function undoWhat(g) {
-  const e = g.ev[g.ev.length - 1]; if (!e || isLocked(g, e)) return '';
-  const ab = esc(teamAbbr(g, e.team));
-  const t = e.t === 'play' ? `${ab} ${e.held ? 'held-ball steal' : STAT_LABEL[e.k]}${e.player && e.player !== 'TEAM' ? ' · ' + esc(pShort(g, e.team, e.player)) : ''}`
-    : e.t === 'foul' ? `${e.player ? esc(pShort(g, e.team, e.player)) : ab} foul`
-    : e.t === 'tech' ? `${ab} technical` : e.t === 'sub' ? `${ab} sub` : e.t === 'to' ? `${ab} timeout` : '';
-  return t ? `: <b>${t}</b>` : '';
-}
 function liveView(g) {
   const D = derive(g);
   const st = UI.stat;
@@ -1561,7 +1552,7 @@ function liveView(g) {
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       <div class="ctrls"><button class="btn ${pendCount(g, D) ? 'btn-good' : ''}" data-act="sub">⇄ Sub${pendCount(g, D) ? ` · ${pendCount(g, D)} waiting` : ''}</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
-        <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo${undoWhat(g)}</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button></div>
+        <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button></div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)); return `<div class="ctrls" style="margin-top:7px"><button class="btn pend-btn" data-act="pend">⏳ Pending${pendCount(g, D) ? ` (${pendCount(g, D)})` : ''}</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button></div>`; })()}
       <div class="feed">${items.map(f => feedRow(g, f)).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
