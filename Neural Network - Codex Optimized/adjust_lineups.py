@@ -97,6 +97,23 @@ def _opp_factor(f, k):
     return 100 - f["dreb_pct"] if k == "opp_orb_pct" else f.get(k)
 
 
+def load_players(season, team="Moorpark"):
+    """Moorpark's player season lines from the leaderboard (player_stats.json): free throws, threes,
+    fouls and minutes, for the tracker's situational lineups (best FT five, best shooting five, ...)."""
+    uaa.STATS_DIR = Path(f"{season} Team Statistics")
+    uaa._CANONICAL_TEAMS = None
+    d = uaa.find_team_stats(team)
+    p = d / "player_stats.json" if d else None
+    if not p or not p.exists():
+        return {}
+    out = {}
+    for pl in json.load(open(p)).get("players", []):
+        t = pl.get("totals") or {}
+        if pl.get("name"):
+            out[pl["name"]] = {k: t.get(k, 0) for k in ("games", "MIN", "FTM", "FTA", "3PM", "3PA", "PF", "TO", "STL")}
+    return out
+
+
 def home_court(site):
     """Moorpark's venue -> (ORtg shift, DRtg shift), as update_advanced_analytics does."""
     h = uaa.HOME_ADVANTAGE / 2
@@ -111,7 +128,8 @@ LEV_SCOPES = ("high", "med", "low", "clutch", "hm", "w")
 
 
 def _acc():
-    return {"oT": 0, "dT": 0, "pf": 0, "pa": 0, "_ao": 0.0, "_ad": 0.0, "_aoT": 0.0, "_adT": 0.0, "_ff": {}}
+    return {"oT": 0, "dT": 0, "pf": 0, "pa": 0, "stops": 0, "fouls": 0, "o": {}, "d": {},
+            "_ao": 0.0, "_ad": 0.0, "_aoT": 0.0, "_adT": 0.0, "_ff": {}}
 
 
 def adjust(data, ratings, ratings_season, factors=None):
@@ -123,8 +141,12 @@ def adjust(data, ratings, ratings_season, factors=None):
 
     def add(acc, blk, r, F, hc_o, hc_d, w=1.0):
         """One game's block of possessions (oT, dT, pf, pa, o, d) into acc, weighted by w."""
-        for k in ("oT", "dT", "pf", "pa"):
-            acc[k] += blk.get(k, 0)
+        for k in ("oT", "dT", "pf", "pa", "stops", "fouls"):
+            acc[k] += blk.get(k, 0) or 0
+        # Raw counts too (3PA, steals, ...): the situational stats that aren't opponent-adjusted.
+        for side in ("o", "d"):
+            for k, v in (blk.get(side) or {}).items():
+                acc[side][k] = acc[side].get(k, 0) + (v or 0)
         if r is None:
             return
         if F:  # four factors, each weighted by its own attempts (FGA, possessions, rebound chances)
@@ -152,6 +174,7 @@ def adjust(data, ratings, ratings_season, factors=None):
         ao = acc["_ao"] / acc["_aoT"] if acc["_aoT"] else None
         ad = acc["_ad"] / acc["_adT"] if acc["_adT"] else None
         return {"oT": acc["oT"], "dT": acc["dT"], "pf": acc["pf"], "pa": acc["pa"],
+                "stops": acc["stops"], "fouls": acc["fouls"], "o": acc["o"], "d": acc["d"],
                 "adjPossO": round(acc["_aoT"], 2), "adjPossD": round(acc["_adT"], 2),
                 "adjOrtg": rnd(ao), "adjDrtg": rnd(ad), "adjNet": rnd(ao - ad) if ao is not None and ad is not None else None,
                 "adjFF": {k: rnd(v[0] / v[1]) for k, v in acc["_ff"].items() if v[1]},
@@ -195,6 +218,7 @@ def adjust(data, ratings, ratings_season, factors=None):
         out_units.append({
             "key": x["key"], "names": [p["name"] for p in x["players"]], "players": x["players"],
             "gp": x["gp"], "secs": x["secs"], "oT": A["oT"], "dT": A["dT"], "pf": A["pf"], "pa": A["pa"],
+            "stops": A["stops"], "fouls": A["fouls"],
             "o": x["o"], "d": x["d"],
             "ortg": rnd(o), "drtg": rnd(d), "net": rnd(o - d) if o is not None and d is not None else None,
             "adjPossO": A["adjPossO"], "adjPossD": A["adjPossD"],
@@ -238,6 +262,7 @@ def main():
     if not factors:
         print(f"No adjusted four factors in '{season} Team Statistics' (run update_advanced_analytics.py --all); ratings only.")
     res = adjust(data, ratings, season, factors)
+    res["playerSeason"] = load_players(season)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(a.out, "w"), indent=1)
     print(f"Ratings: {season} ({len(ratings)} teams; league avg ORtg {res['leagueAvg']['ortg']}, DRtg {res['leagueAvg']['drtg']})")

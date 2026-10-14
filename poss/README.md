@@ -140,6 +140,40 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
 
+**🎯 Lineups (situational lineups):** a button in the live controls (and 💡 Try opens it on Best overall).
+A chip per situation; the ones whose trigger is met right now light up (●) and come first, most urgent
+first, with the reason ("Up 5 with 3:11 left: they have to foul"):
+
+| Situation | Lights up when | Fives ranked by |
+|---|---|---|
+| 🛑 Last stop | up 1-3, their ball, last 1:00 | best stop % |
+| 🎯 Closing FTs | up 1-8, last 4:00 | players' season FT% (the five, by attempts) |
+| 🔒 Ball security | up 1-10, last 4:00 | lowest TO% |
+| 🖐 Need steals | down 4+, last 4:00 | most steals per defensive possession |
+| 3️⃣ Need a 3 | down 4-9, last 4:00 | players' season 3P% |
+| 🧯 Stop the run | they're on a 6-0 run or more | best stop % |
+| ✋ Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
+| 🧱 Stop the 2s | their 2P% 8+ over our norm (10+ twos) | lowest opponent 2P% |
+| 🚫 Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
+| 🙌 Close out the glass | our DREB% 5+ under our norm | best DREB% |
+| 🩹 What's hurting us | we're losing a four factor this half | the halftime card's logic |
+| ⭐ vs their best five | their best five is on | our fives' net against that exact five, tonight |
+| 💡 Best overall | the five on is at a net of 0 or worse late | four-factor edge |
+
+Each opens to Today | Season (opponent-adjusted for the four factors; the season's raw counts for the
+rest), the leverage filter (late-game situations open on Clutch, the rest on High+Med), IN/OUT and **Sub
+this five in** on every five. The FT and 3-point situations also list the **best 5 available** shooters,
+whether or not they've played together, with **Sub these five in**. Never a five with a player who fouled
+out or isn't dressed; **Protect fouls** also leaves out anyone with 3+ fouls in the 1st half or 4+ after.
+Our norm is our earlier finished games (league average until 2 are in). The players' season lines (FT%,
+3P%, fouls, steals) come in the ⬆ Adjusted file.
+
+**Fouled out → Plug in.** The forced-sub screen suggests the three best single players to replace him, for
+the situation right now: up late → best FT%; down 4-9 late → best 3P%; down late → most steals; team foul
+trouble → fewest fouls; otherwise how the five with him in has done (season, opponent-adjusted and
+leverage-weighted, then tonight), then his +/- tonight; the same position breaks ties (SAME POS). **Plug
+in** puts him in; Confirm.
+
 **💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
 or worse (garbage time out), a **💡 Try** button shows at the top right of our lineup card. It opens
 **Lineups to try**, the same card as the halftime report, built for now, with today's fives beside the

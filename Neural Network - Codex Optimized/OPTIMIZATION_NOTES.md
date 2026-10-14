@@ -152,6 +152,9 @@ This copy keeps the original project intact and starts consolidating the working
   bucket the same way, plus `hm` (High+Med) and `w` (leverage-weighted, LEV_W: High 1, Medium
   0.6, Low 0.25), into each unit's `lev`, with `levMix` (% of possessions High/Med/Low). Files
   without `lev` (the game tracker's) give the same top-level numbers as before.
+  Situational lineups: each bucket also carries raw counts (`o`/`d` incl. 3PA and steals, `stops`,
+  `fouls`) for the stats with no opponent adjustment, and the output has `playerSeason` (Moorpark's
+  player season FT/3P/PF/STL/MIN from the ratings season's player_stats.json).
 
 ## Example commands
 
