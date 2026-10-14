@@ -137,8 +137,7 @@ pending. On a fouled-out player's forced sub, a pending player fills the spot.
 group, each **⏳ GOING IN** (the default) or **✋ HOLD**: one tap switches. Use it when the man a pending
 player would replace is shooting free throws and has to stay in: hold that sub, tap off only the others
 ("tap 1 coming off"), Confirm. The held player stays pending, so after the free throws **Sub now** brings
-him straight back. **✕ Remove** next to a checking-in player takes him off pending altogether (his coach
-called him back).
+him straight back.
 
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
