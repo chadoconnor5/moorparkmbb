@@ -6,7 +6,7 @@
    ratings add up as possession-weighted sums (adjOrtg x adjPossO). */
 const TLU_KEY = 'lb_tracker_lineups';
 const TLU_CUR_SEASON = activeSeason;   // the build's current season: tracker data belongs to it
-let tluSize = '5', tluSort = 'poss', tluDir = -1, tluMin = null;
+let tluSize = '5', tluSort = 'poss', tluDir = -1, tluMin = null, tluFF = 'adj';   // four factors: opponent-adjusted or raw
 function tluData() { try { return JSON.parse(localStorage.getItem(TLU_KEY) || 'null'); } catch (e) { return null; } }
 function tluPick() { document.getElementById('tlu-file').click(); }
 function tluClear() {
@@ -26,7 +26,7 @@ function tluLoad(input) {
   };
   rd.readAsText(f);
 }
-function tluSet(k, v) { if (k === 'size') { tluSize = v; tluMin = null; } else if (k === 'min') tluMin = Math.max(0, +v || 0); renderTrackerLineups(); }
+function tluSet(k, v) { if (k === 'size') { tluSize = v; tluMin = null; } else if (k === 'min') tluMin = Math.max(0, +v || 0); else if (k === 'ff') tluFF = v; renderTrackerLineups(); }
 function tluSortBy(k) { if (tluSort === k) tluDir = -tluDir; else { tluSort = k; tluDir = k === 'name' ? 1 : -1; } renderTrackerLineups(); }
 function __tluCombos(arr, k) {
   const out = [];
@@ -39,24 +39,29 @@ function __tluGroups(D, size) {
     const players = u.players || u.names.map(n => ({ name: n, num: '' }));
     for (const c of __tluCombos(players, size)) {
       const key = c.map(p => p.name).sort().join('|');
-      if (!g.has(key)) g.set(key, { key, players: c.slice().sort((a, b) => (+a.num || 99) - (+b.num || 99)), units: 0, gpMax: 0, secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, o: {}, d: {}, aO: 0, aOT: 0, aD: 0, aDT: 0 });
+      if (!g.has(key)) g.set(key, { key, players: c.slice().sort((a, b) => (+a.num || 99) - (+b.num || 99)), units: 0, gpMax: 0, secs: 0, oT: 0, dT: 0, pf: 0, pa: 0, o: {}, d: {}, aO: 0, aOT: 0, aD: 0, aDT: 0, aF: {}, aFW: {} });
       const x = g.get(key);
       x.units++; x.gpMax = Math.max(x.gpMax, u.gp || 0);
       for (const k of ['secs', 'oT', 'dT', 'pf', 'pa']) x[k] += u[k] || 0;
       for (const s of ['o', 'd']) for (const [k, v] of Object.entries(u[s] || {})) x[s][k] = (x[s][k] || 0) + v;
       if (u.adjOrtg != null && u.adjPossO) { x.aO += u.adjOrtg * u.adjPossO; x.aOT += u.adjPossO; }
       if (u.adjDrtg != null && u.adjPossD) { x.aD += u.adjDrtg * u.adjPossD; x.aDT += u.adjPossD; }
+      for (const [k, v] of Object.entries(u.adjFF || {})) { const w = (u.adjFFw || {})[k] || 0; if (v != null && w) { x.aF[k] = (x.aF[k] || 0) + v * w; x.aFW[k] = (x.aFW[k] || 0) + w; } }
     }
   }
   return [...g.values()].map(x => {
     const o = x.o, d = x.d, ortg = x.oT ? 100 * x.pf / x.oT : null, drtg = x.dT ? 100 * x.pa / x.dT : null;
     const ao = x.aOT ? x.aO / x.aOT : null, ad = x.aDT ? x.aD / x.aDT : null;
     const efg = s => s.fga ? 100 * ((s.fgm || 0) + 0.5 * (s.fg3m || 0)) / s.fga : null;
-    return Object.assign(x, {
+    // Opponent-adjusted four factors (weighted by each factor's own attempts) when the file has them.
+    const af = k => x.aFW[k] ? x.aF[k] / x.aFW[k] : null, useAdj = tluFF === 'adj' && Object.keys(x.aFW).length > 0;
+    const raw = {
+      efg: efg(o), tov: x.oT ? 100 * (o.tov || 0) / x.oT : null, orb: ((o.oreb || 0) + (d.dreb || 0)) ? 100 * (o.oreb || 0) / ((o.oreb || 0) + (d.dreb || 0)) : null, ftr: o.fga ? 100 * (o.fta || 0) / o.fga : null,
+      oefg: efg(d), otov: x.dT ? 100 * (d.tov || 0) / x.dT : null, drb: ((d.oreb || 0) + (o.dreb || 0)) ? 100 * (o.dreb || 0) / ((d.oreb || 0) + (o.dreb || 0)) : null, oftr: d.fga ? 100 * (d.fta || 0) / d.fga : null };
+    const adj = { efg: af('efg'), tov: af('tov'), orb: af('orb'), ftr: af('ftr'), oefg: af('oefg'), otov: af('otov'), drb: af('oorb') == null ? null : 100 - af('oorb'), oftr: af('oftr') };
+    return Object.assign(x, useAdj ? adj : raw, {
       poss: x.oT + x.dT, min: x.secs / 60, ortg, drtg, net: ortg != null && drtg != null ? ortg - drtg : null,
       adjO: ao, adjD: ad, adjNet: ao != null && ad != null ? ao - ad : null,
-      efg: efg(o), tov: x.oT ? 100 * (o.tov || 0) / x.oT : null, orb: ((o.oreb || 0) + (d.dreb || 0)) ? 100 * (o.oreb || 0) / ((o.oreb || 0) + (d.dreb || 0)) : null, ftr: o.fga ? 100 * (o.fta || 0) / o.fga : null,
-      oefg: efg(d), otov: x.dT ? 100 * (d.tov || 0) / x.dT : null, drb: ((d.oreb || 0) + (o.dreb || 0)) ? 100 * (o.dreb || 0) / ((d.oreb || 0) + (o.dreb || 0)) : null, oftr: d.fga ? 100 * (d.fta || 0) / d.fga : null,
       name: x.players.map(p => p.name).join(', '),
     });
   });
@@ -104,10 +109,11 @@ function renderTrackerLineups() {
       ${skipped.length ? `<br><span style="color:#999">Not adjusted: ${skipped.map(g => `${g.date} ${g.opponent} (${g.skipped})`).join(' · ')}</span>` : ''}</div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:0 0 8px">
       ${['1', '2', '3', '4', '5'].map(k => btn(k === '1' ? 'Players' : k + '-Man', tluSize === k, `tluSet('size','${k}')`)).join('')}
+      ${D.factorsAdjusted ? `<span style="color:#ccc;font-size:0.82rem;align-self:center;margin-left:8px">Four factors</span>${btn('Opp-adjusted', tluFF === 'adj', "tluSet('ff','adj')")}${btn('Raw', tluFF === 'raw', "tluSet('ff','raw')")}` : ''}
       <span style="color:#ccc;font-size:0.82rem;align-self:center;margin-left:8px">Min poss <input type="number" min="0" value="${minP}" onchange="tluSet('min', this.value)" style="width:56px;background:#2a2a40;border:1px solid #ffd700;color:#ffd700;border-radius:4px;padding:3px 5px"></span></div>
     <div style="background:#fff;border-radius:8px;border:1px solid #ccc;overflow-x:auto">
       <table style="border-collapse:collapse;width:100%;font-size:0.82rem;font-variant-numeric:tabular-nums"><tr>${th}</tr>${body || `<tr><td colspan="${cols.length}" style="padding:14px;text-align:center;color:#666">No ${size === 1 ? 'player' : 'group'} with ${minP}+ possessions.</td></tr>`}</table></div>
     <div style="color:#999;font-size:0.72rem;text-align:center;margin-top:6px">
-      Garbage time out. Adj: each game adjusted for the opponent's rating and home court, possession-weighted; out-of-system games and scrimmages count in the raw columns only.
+      Garbage time out. Adj: each game adjusted for the opponent's rating and home court, possession-weighted${D.factorsAdjusted && tluFF === 'adj' ? '; four factors adjusted against the opponent\'s opponent-adjusted factors, weighted by attempts' : ''}; out-of-system games and scrimmages count in the raw columns only.
       ${size === 1 ? 'Players: every possession that player was on the floor.' : size < 5 ? 'Units = how many five-man units this group was part of.' : 'GP = games this five played together.'} Click a header to sort.</div>`;
 }

@@ -835,6 +835,18 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tip-tbl td:first-child{text-align:left}
 .tip-tbl tr.grp td{font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);padding-top:9px}
 
+/* Halftime: season fives for the factors we're losing */
+.fix-sec{padding:8px 0;border-top:1px solid var(--border)}
+.fix-sec:first-of-type{border-top:0}
+.fix-h{margin-bottom:4px}
+.fix-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto auto auto;gap:10px;align-items:center;padding:4px 0}
+.fix-rk{font-weight:800;color:var(--muted);text-align:center}
+.fix-five{font-weight:700}
+.fix-v{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.fix-v span{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.adj-tbl td,.adj-tbl th{text-align:center;white-space:nowrap}
+.adj-tbl td:first-child,.adj-tbl th:first-child{text-align:left}
+
 </style>
 </head>
 <body>
@@ -866,7 +878,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.55';
+const VERSION = 'v2026.10.14.56';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1654,11 +1666,12 @@ function reportView(g) {
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
-    ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + clutchCard(g, D, half) : `
+    ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + (half ? seasonFixCard(g, D) : '') + clutchCard(g, D, half) : `
     <div class="card sh-cta"><span>📷 Have the ${half ? 'halftime' : 'final'} stat sheet? Add a photo for the full report: team, player and lineup analytics.</span><button class="btn btn-good" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">Add stat sheet</button></div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
     ${!half ? `<div class="card"><h3>Best combos <span class="muted">· 2-, 3- and 4-man, the game</span></h3>${combosCard(g, D, 'game')}</div>` : ''}
     <div class="card"><h3>Four factors <span class="muted">· ${(() => { const B = ffBox(g, half ? '1H' : 'G'); return filled(B.a) || filled(B.b) ? 'from the stat sheet' : 'from the tracked plays'; })()}</span></h3>${ffResults(g, half ? '1H' : 'G')}</div>
+    ${half ? seasonFixCard(g, D) : ''}
     ${toSplitCard(g, half ? '1H' : 'G')}
     <div class="card"><h3>Stops, kills &amp; killshots <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3>${killsCard(g, D, scope)}</div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', half ? '1H' : 'game', 'all')}</div></div>
@@ -1712,13 +1725,95 @@ function lineupTable(g, D, t, scope, filter, k) {
           ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table></td></tr>` : ''}`; }).join('')}
   </tbody></table>`;
 }
+/* ---------- season lineups, opponent-adjusted ----------
+   ⬇ Lineup file: every finished game's Moorpark fives, game by game with the opponent and site, in the
+   game tracker's format, for the leaderboard repo's adjust_lineups.py (garbage time out, as there).
+   ⬆ Adjusted loads what that script writes: each five's ratings and four factors adjusted for the
+   opponent (the four factors against the opponent's own opponent-adjusted four factors). */
+const LS_LU_ADJ = 'pt2_lu_adj', ADJ_MIN = 25;   // possessions at each end for a five to be suggested
+const luAdj = () => lsGet(LS_LU_ADJ, null);
+function lineupFile() {
+  const rows = games.filter(g => g.final && g.ev && g.ev.length).map(g => { const D = derive(g), sc = schedule().find(x => x.id === g.schedId);
+    // possBox puts the defensive rebound that ends a possession on the side that lost the ball; the file
+    // keeps each team's own rebounds on its own side.
+    const side = (x, y) => ({ fgm: x.fgm, fga: x.fga, fg3m: x.fg3m, fta: x.fta, tov: x.tov, oreb: x.oreb, dreb: y.dreb });
+    return { id: g.id, date: g.date, opponent: g.opp, site: { H: 'home', A: 'away', N: 'neutral' }[g.loc] || '', conference: !!g.conf, scrimmage: !!(sc && sc.scrim),
+      units: lineupUnits(g, D, 'a', 'game', 'nogt').units.map(u => { const f = u.five.slice().sort();
+        return { key: f.join('|'), players: f.map(id => ({ name: id, num: pInfo(g, 'a', id).num || '' })), secs: 0, oT: u.oPoss, dT: u.dPoss, pf: u.pf, pa: u.pa, o: side(u.o, u.d), d: side(u.d, u.o) }; }) }; });
+  return { app: 'moorpark-possession-tracker', kind: 'lineups', version: 1, exportedAt: new Date().toISOString(), games: rows };
+}
+function exportLineups() {
+  const d = lineupFile(); if (!d.games.length) { toast('No finished games yet', 'bad'); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' }));
+  a.download = `moorpark_lineups_${today()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function importLineupAdj() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = () => { const f = inp.files[0]; if (!f) return; const rd = new FileReader();
+    rd.onload = () => { let d; try { d = JSON.parse(rd.result); } catch (e) { toast('Not a valid JSON file', 'bad'); return; }
+      if (!d || d.kind !== 'lineups-adjusted' || !Array.isArray(d.units)) { toast('Not an adjusted lineup file (run adjust_lineups.py on the ⬇ Lineup file)', 'bad', 5000); return; }
+      if (lsSet(LS_LU_ADJ, d)) { toast(`Adjusted lineups loaded: ${d.units.length} fives`, 'good'); render(); } };
+    rd.readAsText(f); };
+  inp.click();
+}
+// The loaded file's fives with what the report needs: adjusted ratings, four factors and margins.
+function adjUnits(A) {
+  return (A ? A.units : []).filter(u => u.adjFF && u.adjOrtg != null).map(u => { const F = u.adjFF;
+    return Object.assign({}, u, { F, net: u.adjNet,
+      m: { efg: F.efg != null && F.oefg != null ? F.efg - F.oefg : null, to: F.otov != null && F.tov != null ? F.otov - F.tov : null,
+        orb: F.orb != null && F.oorb != null ? F.orb - F.oorb : null, ftr: F.ftr != null && F.oftr != null ? F.ftr - F.oftr : null } }); });
+}
+function seasonAdjCard() {
+  const A = luAdj(), fin = games.filter(g => g.final && g.ev && g.ev.length).length;
+  const tools = `<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="lu-export">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj">⬆ Adjusted</button>${A ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear</button>' : ''}</div>`;
+  const head = `<div class="row" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Season lineups, opponent-adjusted</h3>${tools}</div>`;
+  if (!A) return `<div class="card">${head}<div class="small muted" style="margin-top:8px">⬇ Lineup file → on the PC, in <code>Neural Network - Codex Optimized</code>, run <code>python3 adjust_lineups.py &lt;file&gt;</code> → ⬆ Adjusted with <code>internal_data/moorpark_lineups_adj.json</code>. Each five's ratings and four factors get adjusted for who it played: holding a team that rebounds well against good opponents counts for more. The halftime report uses it to suggest fives for the factors we're losing.</div></div>`;
+  const U = adjUnits(A).filter(u => u.oT >= 10 && u.dT >= 10).sort((x, y) => (y.oT + y.dT) - (x.oT + x.dT));
+  const nm = u => u.players.slice().sort((x, y) => (+x.num || 99) - (+y.num || 99)).map(p => p.num ? '#' + p.num : lastName(p.name)).join(' · ');
+  const P = v => v == null ? '—' : v.toFixed(1);
+  return `<div class="card">${head}
+    <div class="small muted" style="margin:6px 0 8px">File ${esc(String(A.generatedAt || '').slice(0, 10))} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted against ${esc(A.ratingsSeason || '')} ratings${A.gamesTotal < fin ? ` · <span class="neg">${fin - A.gamesTotal} newer game${fin - A.gamesTotal === 1 ? '' : 's'} not in it — export and adjust again</span>` : ''}${A.factorsAdjusted ? '' : ' · <span class="neg">four factors not adjusted in this file (rerun update_advanced_analytics.py --all, then adjust_lineups.py)</span>'}</div>
+    <div class="tbl-wrap"><table class="tbl zebra adj-tbl"><thead><tr class="grp"><th></th><th colspan="4"></th><th colspan="4" class="go">OFFENSE (adj)</th><th colspan="4" class="gd">DEFENSE (adj)</th></tr>
+      <tr><th>FIVE</th><th>POSS O/D</th><th>ADJ O</th><th>ADJ D</th><th>ADJ NET</th><th>eFG%</th><th>TO%</th><th>OREB%</th><th>FTR</th><th>eFG%</th><th>TO%</th><th>DREB%</th><th>FTR</th></tr></thead><tbody>
+      ${U.map(u => `<tr><td><b>${esc(nm(u))}</b><div class="tiny muted">${esc(u.players.slice().sort((x, y) => (+x.num || 99) - (+y.num || 99)).map(p => lastName(p.name)).join(', '))}</div></td><td>${u.oT}/${u.dT}</td><td>${P(u.adjOrtg)}</td><td>${P(u.adjDrtg)}</td><td class="${pmCls(u.adjNet)}"><b>${u.adjNet == null ? '—' : sg1(u.adjNet)}</b></td>
+        <td>${P(u.F.efg)}</td><td>${P(u.F.tov)}</td><td>${P(u.F.orb)}</td><td>${P(u.F.ftr)}</td><td>${P(u.F.oefg)}</td><td>${P(u.F.otov)}</td><td>${u.F.oorb == null ? '—' : P(100 - u.F.oorb)}</td><td>${P(u.F.oftr)}</td></tr>`).join('') || '<tr><td colspan="13" class="muted">No five with 10+ possessions at each end yet.</td></tr>'}</tbody></table></div>
+    <div class="tiny muted" style="margin-top:6px">Fives with 10+ possessions at each end. Each game is adjusted for the opponent and home court, then weighted by possessions (four factors by their own attempts). Games against teams outside the CCC system and scrimmages are left out.</div></div>`;
+}
+/* Halftime: for each of the four factors we're losing in this half, the season fives (opponent-adjusted,
+   ADJ_MIN+ possessions at each end, everyone dressed and not fouled out) best at that factor's margin,
+   ours minus theirs: shooting eFG% - eFG% allowed, turnovers forced - committed, OREB% - their OREB%,
+   FT rate - theirs. */
+const FIX_FACTORS = [['efg', 'Shooting', 'eFG%', true, 'efg', 'oefg'], ['to', 'Turnovers', 'TO%', false, 'tov', 'otov'], ['orb', 'Rebounding', 'OREB%', true, 'orb', 'oorb'], ['ftr', 'Free throws', 'FT rate', true, 'ftr', 'oftr']];
+function seasonFixCard(g, D) {
+  const L = ffLine(g, '1H'); if (!L) return '';
+  const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
+  const losing = FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
+  if (!losing.length) return '';
+  const A = luAdj();
+  const head = `<h3>Season fives for what's hurting us <span class="muted">· opponent-adjusted, ${ADJ_MIN}+ possessions each way</span></h3>`;
+  if (!A || !A.factorsAdjusted) return `<div class="card">${head}<div class="small muted">We're losing ${losing.map(x => x[1].toLowerCase()).join(', ')} this half. Load the opponent-adjusted season lineups (Lineups → Season → ⬆ Adjusted) and this card suggests the fives that have been best at ${losing.length > 1 ? 'them' : 'it'}.</div></div>`;
+  const ok = id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id);
+  const U = adjUnits(A).filter(u => u.oT >= ADJ_MIN && u.dT >= ADJ_MIN && u.players.every(p => ok(p.name)));
+  const nm = u => fiveSorted(g, 'a', u.players.map(p => p.name)).map(id => pShort(g, 'a', id)).join(', ');
+  const P = v => v == null ? '—' : v.toFixed(1);
+  const sec = ([k, lbl, short, hi, ours, theirs]) => {
+    const best = U.filter(u => u.m[k] != null && u.m[k] > 0).sort((x, y) => y.m[k] - x.m[k]).slice(0, 2);
+    const us = a[k], them = b[k];
+    return `<div class="fix-sec"><div class="fix-h"><b>${lbl}</b> <span class="muted small">this half: ${short} ${P(us)} vs ${P(them)}</span></div>
+      ${best.length ? best.map((u, i) => `<div class="fix-row"><span class="fix-rk">${i + 1}</span><span class="fix-five">${esc(nm(u))}</span>
+        <span class="fix-v"><b class="${pmCls(Math.round(10 * u.m[k]) / 10)}">${sg1(Math.round(10 * u.m[k]) / 10)}</b><span>${k === 'to' ? `forced ${P(u.F[theirs])} · ours ${P(u.F[ours])}` : `${P(u.F[ours])} · them ${P(u.F[theirs])}`}</span></span>
+        <span class="fix-v"><b>${u.oT + u.dT}</b><span>poss</span></span><span class="fix-v"><b class="${pmCls(u.net)}">${u.net == null ? '—' : sg1(u.net)}</b><span>adj net</span></span></div>`).join('')
+        : `<div class="small muted">No available five with ${ADJ_MIN}+ possessions each way has won this factor over the season.</div>`}</div>`; };
+  return `<div class="card fix-card">${head}${losing.map(sec).join('')}
+    <div class="tiny muted" style="margin-top:6px">Ranked by the season margin on that factor, ours minus theirs, each game adjusted for the opponent's own opponent-adjusted factors (turnovers: forced minus committed). Only fives whose five players are all dressed and not fouled out. File ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games.</div></div>`;
+}
 function lineupsView(g) {
   const D = derive(g);
   return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}</div>
       <div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<button class="btn btn-sm ${UI.luFilter === k ? 'btn-primary' : ''}" data-act="lu-filter" data-f="${k}">${l}</button>`).join('')}</div></div>
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5)}</div></div>
-    ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
@@ -2523,6 +2618,9 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'lu-export': exportLineups(); break;
+    case 'lu-adj': importLineupAdj(); break;
+    case 'lu-adj-clear': if (confirm('Remove the adjusted season lineups from this iPad?')) { try { localStorage.removeItem(LS_LU_ADJ); } catch (e) {} render(); } break;
     case 'pbp-team': UI.pbpTeam = b.dataset.t; render(); break;
     case 'go-roster': UI.rosterSel = g.opp; UI.tab = 'rosters'; render(); break;
     case 'r-sel': UI.rosterSel = b.dataset.n; render(); break;

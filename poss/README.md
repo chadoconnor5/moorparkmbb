@@ -152,6 +152,24 @@ combos (a combo is on the floor for every possession of every five that contains
 Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
 rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds up Moorpark's lineups and combos from every game tracked on the iPad.
 
+**Season lineups, opponent-adjusted** (Lineups → Season):
+1. **⬇ Lineup file** saves every finished game's Moorpark fives, game by game with the opponent and
+   site (garbage time out), in the game tracker's format.
+2. On the PC, in `Neural Network - Codex Optimized/`, run `python3 adjust_lineups.py <that file>`.
+   Each five's ratings are adjusted for the opponent's leaderboard rating and home court, and its four
+   factors against the opponent's opponent-adjusted four factors: holding a team that has rebounded well
+   against good opponents counts for more than holding a weak one. Scrimmages and teams outside the CCC
+   system are left out of the adjusted numbers.
+3. **⬆ Adjusted** loads `internal_data/moorpark_lineups_adj.json`. A table lists each five with 10+
+   possessions each way: adjusted ORtg, DRtg, net and four factors at both ends. It says when newer
+   games aren't in the file.
+
+**Halftime: season fives for what's hurting us.** For each four factor we're losing in the 1st half
+(shooting, turnovers, rebounding, FT rate), the halftime report lists up to two season fives that have
+been best at it: ranked by the opponent-adjusted season margin on that factor (ours minus theirs;
+turnovers = forced minus committed), with 25+ possessions each way, everyone dressed and not fouled
+out, and a positive margin. No five qualifies, none is listed.
+
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
   plus fouls, subs, technicals and timeouts. Filter by team. Tap any line to fix it.

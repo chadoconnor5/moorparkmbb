@@ -700,6 +700,28 @@ def _ff_from_game(ts: dict, os_: dict, game_min: int = 40) -> dict | None:
     }
 
 
+FF_KEYS = ("efg", "tov", "orb", "ftr")
+
+
+def _ff_side(a: dict, b: dict):
+    """Four factors for side a against side b, from one game's box totals: eFG%, TO%,
+    OReb% and FT rate (per 100), the same formulas as the season numbers."""
+    fga = a.get("FGA", 0)
+    poss = (fga - a.get("OREB", 0)) + a.get("TO", 0) + 0.475 * a.get("FTA", 0)
+    reb = a.get("OREB", 0) + b.get("DREB", 0)
+    if fga <= 0 or poss <= 0 or reb <= 0:
+        return None
+    return [round((a.get("FGM", 0) + 0.5 * a.get("3PM", 0)) / fga * 100, 2),
+            round(a.get("TO", 0) / poss * 100, 2),
+            round(a.get("OREB", 0) / reb * 100, 2),
+            round(a.get("FTA", 0) / fga * 100, 2)]
+
+
+def _ff_pair(ts: dict, os_: dict):
+    o, d = _ff_side(ts, os_), _ff_side(os_, ts)
+    return (o, d) if o and d else None
+
+
 def compute_monthly_stats(game_log: list[dict]) -> dict:
     """
     Return per-month averaged stats from game_log entries.
@@ -829,6 +851,7 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
                     "drtg": round(g_drtg, 1),
                     "possessions": round(avg_poss, 1),
                     "tempo": round(g_tempo, 1),
+                    "_ff": None if t_broken or o_broken else _ff_pair(ts, os_),
                 })
 
     seen_game_ratings = set()
@@ -846,6 +869,14 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
         seen_game_ratings.add(dedupe_key)
         deduped_game_ratings.append(game)
     game_ratings = deduped_game_ratings
+    # Per-game four factors at both ends (o = ours, d = what we allowed) for the
+    # opponent-adjusted four factors pass; kept apart from game_ratings, which ships.
+    result["game_ff"] = [
+        {"date": g["date"], "opp": g["canonical_opponent"], "o": g["_ff"][0], "d": g["_ff"][1]}
+        for g in game_ratings if g.get("_ff") and g["in_system"]
+    ]
+    for g in game_ratings:
+        g.pop("_ff", None)
 
     # Season ORTG/DRTG: average of in-system games only
     in_system_ratings = [g for g in game_ratings if g["in_system"]]
@@ -1465,6 +1496,79 @@ def compute_iterative_adjusted_ratings(teams_to_update):
     return adjusted
 
 
+def compute_iterative_adjusted_factors(teams_to_update):
+    """Opponent-adjusted four factors, the same way ORTG/DRTG are adjusted.
+
+    For each in-system game, our factor is moved by how far the opponent's defense is
+    from the league on that factor (and what we allowed by how far their offense is):
+
+        adj eFG%  = game eFG%         - opp's adjusted eFG% allowed + league eFG%
+        adj eFG% allowed = game eFG% allowed - opp's adjusted eFG%  + league eFG%
+
+    likewise TO%, OReb% (on defense: the opponent's OReb%, written out as DReb% =
+    100 - it) and FT rate. Iterated until stable, regressed toward the league with
+    REGRESSION_GAMES, damped and re-centred on the league averages like the ratings.
+    No home-court term (it is defined in points). Writes team["adj_ff"] with the same
+    key names as the raw season factors; the raw ones are left as they are.
+    """
+    team_games, seed = {}, {}
+    for team_name in all_stat_teams():
+        team_dir = find_team_stats(team_name)
+        adv_path = team_dir / "advanced_analytics.json" if team_dir else None
+        if not adv_path or not adv_path.exists():
+            continue
+        games = [g for g in json.load(open(adv_path)).get("team", {}).get("game_ff", []) if g.get("opp")]
+        if not games:
+            continue
+        team_games[team_name] = games
+        seed[team_name] = {side: [sum(g[side][i] for g in games) / len(games) for i in range(4)] for side in ("o", "d")}
+    if not seed:
+        return {}
+    lg = {side: [sum(r[side][i] for r in seed.values()) / len(seed) for i in range(4)] for side in ("o", "d")}
+    current = {t: {s: list(v) for s, v in r.items()} for t, r in seed.items()}
+    for _iteration in range(1, MAX_ITER + 1):
+        new = {}
+        for t, games in team_games.items():
+            acc = {"o": [0.0] * 4, "d": [0.0] * 4}
+            for g in games:
+                r = current.get(g["opp"])
+                for i in range(4):
+                    if r is None:  # opponent without box data: take the game as it is
+                        acc["o"][i] += g["o"][i]
+                        acc["d"][i] += g["d"][i]
+                    else:
+                        acc["o"][i] += g["o"][i] - r["d"][i] + lg["d"][i]
+                        acc["d"][i] += g["d"][i] - r["o"][i] + lg["o"][i]
+            n = len(games)
+            w = n / (n + REGRESSION_GAMES)
+            new[t] = {s: [DAMPEN * (w * acc[s][i] / n + (1 - w) * lg[s][i]) + (1 - DAMPEN) * current[t][s][i]
+                          for i in range(4)] for s in ("o", "d")}
+        for s in ("o", "d"):
+            for i in range(4):
+                shift = lg[s][i] - sum(r[s][i] for r in new.values()) / len(new)
+                for r in new.values():
+                    r[s][i] += shift
+        change = max(abs(new[t][s][i] - current[t][s][i]) for t in new for s in ("o", "d") for i in range(4))
+        current = new
+        if change < 0.005:
+            break
+    out = {}
+    for t, r in current.items():
+        o, d = r["o"], r["d"]
+        out[t] = {"efg_pct": round(o[0], 1), "tov_pct": round(o[1], 1), "oreb_pct": round(o[2], 1), "ft_rate": round(o[3], 1),
+                  "opp_efg_pct": round(d[0], 1), "opp_tov_pct": round(d[1], 1), "dreb_pct": round(100 - d[2], 1), "opp_ft_rate": round(d[3], 1)}
+    for team_name in teams_to_update:
+        if team_name not in out:
+            continue
+        adv_path = find_team_stats(team_name) / "advanced_analytics.json"
+        adv = json.load(open(adv_path))
+        adv.setdefault("team", {})["adj_ff"] = out[team_name]
+        with open(adv_path, "w") as f:
+            json.dump(adv, f, indent=2)
+    print(f"Opponent-adjusted four factors computed for {len(out)} teams")
+    return out
+
+
 def main():
     global STATS_DIR, _CANONICAL_TEAMS
     parser = argparse.ArgumentParser(description="Compute advanced analytics from player stats")
@@ -1538,6 +1642,9 @@ def main():
 
     # Pass 3: compute SOS using iterative ratings
     compute_sos(teams, ratings_override=iter_ratings)
+
+    # Pass 4: opponent-adjusted four factors
+    compute_iterative_adjusted_factors(teams)
 
 
 if __name__ == "__main__":

@@ -86,10 +86,15 @@ schedule pages. The URL format is `COMPOSITE_URL` at the top of `scrape.py`.
 
 ## Opponent-adjusted lineups (`adjust_lineups.py`)
 
-Takes the game tracker's **⬇ Lineup file** (Season page) and adjusts each five's games
-for the opponent's leaderboard rating and home court. Load the output in the tracker
-with **⬆ Adjusted**, and in the leaderboard (Moorpark → Lineups → **⬆ Load adjusted
-lineups**). Both read it in the browser only. Moorpark-internal: don't publish the output.
+Takes a tracker's **⬇ Lineup file** (game tracker: Season page; possession tracker:
+Lineups → Season) and adjusts each five's games for the opponent's leaderboard rating
+and home court, and each five's four factors against the opponent's opponent-adjusted
+four factors (so out-rebounding a team that rebounds well against good opponents counts
+for more). Run `update_advanced_analytics.py --all` first in-season so those are current.
+Load the output in the tracker with **⬆ Adjusted** (the possession tracker's halftime
+report then suggests season fives for the factors we're losing), and in the leaderboard
+(Moorpark → Lineups → **⬆ Load adjusted lineups**). All read it in the browser only.
+Moorpark-internal: don't publish the output.
 
 ```bash
 python3 adjust_lineups.py ~/Downloads/moorpark_lineups_2026-11-20.json
