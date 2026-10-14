@@ -3983,38 +3983,57 @@ function sitNorm(g) {
   const v = sitVals(o, d, oP, dP, stops, fouls); v.ft = SIT_LG.ft; v.p3 = SIT_LG.p3;
   return { v, src: `our ${prev.length}-game norm` };
 }
-/* Our players' season stats so far. Two sources: the final stat sheets photographed in this tracker (every
-   game this season with one, plus tonight's latest sheet), and the leaderboard's box scores in the
-   ⬆ Adjusted file. For each player, whichever has more of his games. Keys as the leaderboard's:
-   games MIN FGM FGA FTM FTA 3PM 3PA OREB DREB AST STL BLK TO PF PTS. */
+/* Our players' season stats so far, from QUALITY GAMES ONLY: against an opponent with a positive adjusted
+   net rating (from the ⬆ Adjusted file), decided by 15 or fewer. Blowouts and weak opponents don't count, so
+   a player's numbers aren't built on garbage time. Two sources: the final stat sheets photographed in this
+   tracker (plus tonight's latest sheet, while tonight is close against a good team), and the leaderboard's
+   box scores in the ⬆ Adjusted file; for each player, whichever has more of his quality games.
+   Keys as the leaderboard's: games MIN FGM FGA FTM FTA 3PM 3PA OREB DREB AST STL BLK TO PF PTS. */
 const PL_KEYS = { MIN: 'min', FGM: 'fgm', FGA: 'fga', FTM: 'ftm', FTA: 'fta', '3PM': 'fg3m', '3PA': 'fg3a', OREB: 'oreb', DREB: 'dreb', AST: 'ast', STL: 'stl', BLK: 'blk', TO: 'tov', PF: 'pf', PTS: 'pts' };
+const Q_MARGIN = 15;
+// Small samples are pulled toward the team's number: a prior of this many attempts (or minutes) at the team rate,
+// and a player needs at least MIN of them in quality games to be suggested on that stat.
+const PL_PRIOR = { FTA: 20, '3PA': 40, MIN: 60 }, PL_MIN = { FTA: 10, '3PA': 20, MIN: 60 };
 let PL_MEMO = null;
 function plSeason() {
-  const A = luAdj(), stamp = games.length + ':' + games.map(g => g.sheet ? Object.keys(g.sheet).join('') + (g.sheet.G || g.sheet['1H'] || {}).at : '').join('|') + ':' + (A ? A.generatedAt : '');
+  const A = luAdj(), stamp = games.length + ':' + games.map(g => (g.final ? 'f' : '') + (g.sheet ? Object.keys(g.sheet).join('') + (g.sheet.G || g.sheet['1H'] || {}).at : '')).join('|') + ':' + (A ? A.generatedAt : '');
   if (PL_MEMO && PL_MEMO.stamp === stamp) return PL_MEMO.v;
-  const sheets = {}, byNum = {};
+  const sheets = {}, byNum = {}, oppNet = {};
   roster().forEach(r => { if (r.num) byNum[String(r.num)] = r.name; });
-  games.forEach(g => { const sc = (games.find(x => x.id === curId) === g && !g.final) ? (g.sheet && (g.sheet.G || g.sheet['1H'])) : g.final && g.sheet && g.sheet.G;
+  ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) oppNet[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
+  games.forEach(g => { const live = g.id === curId && !g.final, sc = live ? (g.sheet && (g.sheet.G || g.sheet['1H'])) : g.final && g.sheet && g.sheet.G;
     const S = sc && sc.a; if (!S || !S.rows) return;
     const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+    const net = oppNet[g.date + '|' + String(g.opp).toLowerCase()], D = derive(g);
+    if (!(net > 0) || Math.abs(D.score.a - D.score.b) > Q_MARGIN) return;      // quality games only
     S.rows.forEach(r => { const id = byNum[String(r.num)] || (roster().find(x => r.name && lastName(x.name).toLowerCase() === lastName(String(r.name).replace(/,.*/, '')).toLowerCase()) || {}).name; if (!id) return;
       const x = sheets[id] = sheets[id] || { games: 0 }; x.games++; Object.entries(PL_KEYS).forEach(([K, k]) => { x[K] = (x[K] || 0) + (+r[k] || 0); }); }); });
-  const lb = (A && A.playerSeason) || {}, out = {};
+  const lb = {}; Object.entries((A && A.playerSeason) || {}).forEach(([n, x]) => { if (x && x.quality) lb[n] = x.quality; });   // older files had no quality split: not used
+  const out = {};
   new Set([...Object.keys(sheets), ...Object.keys(lb)]).forEach(id => { const a = sheets[id], b = lb[id];
     out[id] = a && (!b || (a.games || 0) >= (b.games || 0)) ? Object.assign({ src: 'sheets' }, a) : Object.assign({ src: 'leaderboard' }, b); });
+  // The team's quality-game rates, for pulling small samples toward.
+  const T = {}; Object.values(out).forEach(x => Object.keys(PL_KEYS).forEach(k => { T[k] = (T[k] || 0) + (x[k] || 0); }));
   const n = s => Object.values(out).filter(x => x.src === s).length;
-  PL_MEMO = { stamp, v: { P: out, src: n('sheets') && n('leaderboard') ? 'stat sheets + leaderboard' : n('sheets') ? 'stat sheets' : n('leaderboard') ? 'leaderboard' : '' } };
+  PL_MEMO = { stamp, v: { P: out, T, src: n('sheets') && n('leaderboard') ? 'stat sheets + leaderboard, quality games' : n('sheets') ? 'stat sheets, quality games' : n('leaderboard') ? 'leaderboard, quality games' : '' } };
   return PL_MEMO.v;
 }
-// Players' season lines combined over a five, weighted by attempts.
+// Players' quality-game lines combined over a five: made and attempts added up, pulled toward the team's rate.
 function fiveShoot(A, f, made, att) {
-  const P = plSeason().P; let m = 0, a = 0, n = 0;
+  const { P, T } = plSeason(); let m = 0, a = 0, n = 0;
   f.forEach(id => { const x = P[id]; if (x && x[att]) { m += x[made] || 0; a += x[att]; n++; } });
-  return a >= 10 && n >= 4 ? 100 * m / a : null;
+  const rate = T[att] ? (T[made] || 0) / T[att] : 0, pr = PL_PRIOR[att] || 20;
+  return a >= 10 && n >= 4 ? 100 * (m + pr * rate) / (a + pr) : null;
 }
-const plPct = (A, id, made, att) => { const x = plSeason().P[id]; return x && x[att] >= 5 ? 100 * (x[made] || 0) / x[att] : null; };
-const plPer40 = (id, ...ks) => { const x = plSeason().P[id]; return x && x.MIN >= 40 ? 40 * ks.reduce((t, k) => t + (x[k] || 0), 0) / x.MIN : null; };
-
+// One player's shooting %, quality games, regressed; null under the minimum sample.
+const plPct = (A, id, made, att) => { const { P, T } = plSeason(), x = P[id]; if (!x || (x[att] || 0) < (PL_MIN[att] || 10)) return null;
+  const rate = T[att] ? (T[made] || 0) / T[att] : 0, pr = PL_PRIOR[att] || 20; return 100 * ((x[made] || 0) + pr * rate) / (x[att] + pr); };
+// One player's per-40 rate, quality games, regressed toward the team's rate; null under the minimum minutes.
+const plPer40 = (id, ...ks) => { const { P, T } = plSeason(), x = P[id]; if (!x || (x.MIN || 0) < PL_MIN.MIN) return null;
+  const c = ks.reduce((t, k) => t + (x[k] || 0), 0), tc = ks.reduce((t, k) => t + (T[k] || 0), 0), tr = T.MIN ? tc / T.MIN : 0;
+  return 40 * (c + PL_PRIOR.MIN * tr) / (x.MIN + PL_PRIOR.MIN); };
+// The sample behind a player's number, to show next to it: "24/28 FT, 11 quality games".
+const plSample = (id, made, att) => { const x = plSeason().P[id]; if (!x) return ''; return att ? `${x[made] || 0}/${x[att] || 0} ${att === 'FTA' ? 'FT' : '3PT'}, ${x.games} quality g` : `${x.MIN || 0} min, ${x.games} quality g`; };
 /* The situations. stat = what the fives are ranked on; hi = higher is better; end = which end's
    possessions count toward the minimum; def = the leverage it opens on; on(c) = its trigger right now
    (returns the reason to show, or ''). c = the game right now (see sitCtx). */
@@ -4098,11 +4117,15 @@ function sitStatCard(g, D, S, c, sk) {
   const val = (f, v) => S.player ? fiveShoot(A, f, S.player[0], S.player[1]) : S.stat === 'edge' ? null : v[S.stat];
   const today = sc => lineupUnits(g, D, 'a', 'game', sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok))
     .map(u => { const v = sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, x: val(u.five, v) }; });
+  // Four factors: opponent-adjusted. Everything else: raw counts from games against quality opponents only
+  // (positive adjusted net), so nothing rests on possessions against bad teams.
+  const FOURF = ['efg', 'oefg', 'tov', 'otov', 'orb', 'drb', 'ftr', 'oftr'], useQ = !FOURF.includes(S.stat) && !S.player;
   const season = sc => !haveA || (!A.leverage && sc !== 'all') ? [] : adjUnits(A, sc).filter(u => u.players.every(p => ok(p.name))).map(u => {
-    const f = u.players.map(p => p.name), v = sitVals(u.o, u.d, u.oT, u.dT, u.stops, u.fouls, u.pf, u.pa), F = u.F || {};
+    const R = useQ && u.q ? u.q : u;
+    const f = u.players.map(p => p.name), v = sitVals(R.o, R.d, R.oT, R.dT, R.stops, R.fouls, R.pf, R.pa), F = u.F || {};
     // The four factors come opponent-adjusted from the file; the rest are the season's raw counts.
     Object.assign(v, { efg: F.efg, oefg: F.oefg, tov: F.tov, otov: F.otov, orb: F.orb, drb: F.oorb == null ? null : 100 - F.oorb, ftr: F.ftr, oftr: F.oftr });
-    return { five: f, oP: u.oT, dP: u.dT, mix: u.mix, v, x: val(f, v) }; });
+    return { five: f, oP: R.oT, dP: R.dT, mix: u.mix, v, x: val(f, v) }; });
   const enough = (u, min) => S.end === 'o' ? u.oP >= min : S.end === 'd' ? u.dP >= min : u.oP >= min && u.dP >= min;
   const rank = (list, min) => list.filter(u => enough(u, min) && u.x != null && (S.player || n == null || (S.hi ? u.x > n : u.x < n)))
     .sort((a, b) => S.hi ? b.x - a.x : a.x - b.x).slice(0, 2);
@@ -4126,13 +4149,13 @@ function sitStatCard(g, D, S, c, sk) {
   const topPl = S.player ? (() => { const L = teamPlayers(g, 'a').filter(p => ok(p.id)).map(p => ({ id: p.id, v: plPct(A, p.id, S.player[0], S.player[1]) })).filter(x => x.v != null).sort((a, b) => b.v - a.v).slice(0, 5);
     if (L.length < 5) return '<div class="small muted" style="margin:6px 0">Not enough players with season stats yet (final stat sheets in this tracker, or the ⬆ Adjusted file) to build a five.</div>';
     const f = L.map(x => x.id);
-    return `<div class="sit-top"><div><b>Best 5 available</b> <span class="muted small">(season stats: ${esc(plSeason().src)})</span><b>:</b> ${esc(L.map(x => `${pShort(g, 'a', x.id)} ${x.v.toFixed(0)}%`).join(', '))}${swap(f)}</div><button class="btn btn-sm btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`; })() : '';
+    return `<div class="sit-top"><div><b>Best 5 available</b> <span class="muted small">(season stats: ${esc(plSeason().src)})</span><b>:</b> ${esc(L.map(x => `${pShort(g, 'a', x.id)} ${x.v.toFixed(0)}% (${plSample(x.id, S.player[0], S.player[1])})`).join(', '))}${swap(f)}</div><button class="btn btn-sm btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`; })() : '';
   return `<div class="card fix-card">${levBtns(sk, S.def)}
     <div class="fx-h"><b>→ the ${esc(S.rank)} fives</b> <span class="muted small">· ${S.player ? 'players\' season lines' : `${esc(c.nsrc)} ${P(n)}`}</span></div>
     ${topPl}
     <div class="fx-cols">
       <div class="fx-col"><div class="fx-lbl today">TODAY <span>this game · ${lbl(T)}</span></div>${T.l.map(u => row(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.player ? (plSeason().src ? 'No five today with enough possessions.' : 'Needs players\' season stats: final stat sheets here, or the ⬆ Adjusted file.') : `No five has been better than ${P(n)} today.`}</div>`}</div>
-      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${['efg', 'oefg', 'tov', 'otov', 'orb', 'drb', 'ftr', 'oftr'].includes(S.stat) ? 'opp-adjusted' : 'season'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
+      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
     <div class="tiny muted" style="margin-top:6px">Ranked by ${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.</div></div>`;
 }
 const sitLabel = S => ({ ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100' })[S.stat] || S.stat;
@@ -4166,10 +4189,10 @@ function plugCard(g, D, outId) {
   // The moment decides the stat: the most urgent situation lit right now (as on 🎯 Lineups).
   const MODES = {
     stop: { lbl: 'steals + blocks / 40', v: id => plPer40(id, 'STL', 'BLK'), hi: true, why: c => `Up ${c.m}, their ball: ranked by steals + blocks` },
-    ft: { lbl: 'FT%', v: id => plPct(A, id, 'FTM', 'FTA'), hi: true, pct: 1, why: c => `Up ${c.m} late: ranked by FT%` },
+    ft: { lbl: 'FT%', v: id => plPct(A, id, 'FTM', 'FTA'), hi: true, pct: 1, made: 'FTM', att: 'FTA', why: c => `Up ${c.m} late: ranked by FT%` },
     ball: { lbl: 'TO / 40', v: id => plPer40(id, 'TO'), hi: false, why: c => `Up ${c.m} late: ranked by fewest turnovers` },
     steal: { lbl: 'steals / 40', v: id => plPer40(id, 'STL'), hi: true, why: c => `Down ${-c.m} late: ranked by steals` },
-    three: { lbl: '3P%', v: id => plPct(A, id, '3PM', '3PA'), hi: true, pct: 1, why: c => `Down ${-c.m} late: ranked by 3P%` },
+    three: { lbl: '3P%', v: id => plPct(A, id, '3PM', '3PA'), hi: true, pct: 1, made: '3PM', att: '3PA', why: c => `Down ${-c.m} late: ranked by 3P%` },
     foul: { lbl: 'fouls / 40', v: id => plPer40(id, 'PF'), hi: false, why: () => 'Foul trouble: ranked by fewest fouls' },
     two: { lbl: 'blocks + def reb / 40', v: id => plPer40(id, 'BLK', 'DREB'), hi: true, why: () => 'They\'re scoring inside: ranked by blocks + defensive rebounds' },
     glass: { lbl: 'def reb / 40', v: id => plPer40(id, 'DREB'), hi: true, why: () => 'They\'re winning the glass: ranked by defensive rebounds' } };
@@ -4188,7 +4211,7 @@ function plugCard(g, D, outId) {
   const sg = v => v == null ? '—' : sg1(Math.round(10 * v) / 10);
   return `<div class="plug-card"><div class="plug-h">🔁 Plug in for <b>${esc(pShort(g, 'a', outId))}</b>${outPos ? ` <span class="muted">(${esc(outPos)})</span>` : ''} <span class="muted small">· ${mode ? esc(mode.why(c)) : 'ranked by how the five with him has done'}${mode && plSeason().src ? ` (season stats: ${esc(plSeason().src)})` : ''}</span></div>
     ${top.map((r, i) => `<div class="plug-row"><span class="fix-rk">${i + 1}</span><div class="plug-who"><b>${esc(pShort(g, 'a', r.p.id))}</b>${r.p.pos ? ` <span class="muted small">${esc(r.p.pos)}</span>` : ''}${r.same ? '<span class="fx-both">SAME POS</span>' : ''}
-        <div class="tiny muted">${mode && r.skill != null ? `${mode.pct ? r.skill.toFixed(0) + '%' : r.skill.toFixed(1)} ${mode.pct ? mode.lbl.replace('%', '') : mode.lbl} · ` : ''}five with him: season ${sg(r.sNet)}${r.sP ? ` (${r.sP} poss)` : ''} · tonight ${sg(r.tNet)}${r.tP ? ` (${r.tP})` : ''} · his +/- ${sgn(r.pm)}${r.pf ? ` · ${r.pf} PF` : ''}</div></div>
+        <div class="tiny muted">${mode && r.skill != null ? `<b>${mode.pct ? r.skill.toFixed(0) + '%' : r.skill.toFixed(1)} ${mode.pct ? mode.lbl.replace('%', '') : mode.lbl}</b> (${esc(plSample(r.p.id, mode.made, mode.att))}) · ` : mode ? 'not enough quality-game sample · ' : ''}five with him: season ${sg(r.sNet)}${r.sP ? ` (${r.sP} poss)` : ''} · tonight ${sg(r.tNet)}${r.tP ? ` (${r.tP})` : ''} · his +/- ${sgn(r.pm)}${r.pf ? ` · ${r.pf} PF` : ''}</div></div>
       <button class="btn btn-good" data-act="plug" data-out="${esc(outId)}" data-p="${esc(r.p.id)}">Plug in</button></div>`).join('')}</div>`;
 }
 

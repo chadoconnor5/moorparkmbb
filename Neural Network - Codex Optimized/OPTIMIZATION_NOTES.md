@@ -154,7 +154,10 @@ This copy keeps the original project intact and starts consolidating the working
   without `lev` (the game tracker's) give the same top-level numbers as before.
   Situational lineups: each bucket also carries raw counts (`o`/`d` incl. 3PA and steals, `stops`,
   `fouls`) for the stats with no opponent adjustment, and the output has `playerSeason` (Moorpark's
-  player season FT/3P/PF/STL/MIN from the ratings season's player_stats.json).
+  player season lines). playerSeason is built from the season's box scores in the schedules folder:
+  {name: {all, quality}}, quality = games against an in-system opponent with a positive adjusted net,
+  decided by QUALITY_MARGIN (15) or fewer. Each bucket's `q` holds the same raw counts from games against
+  positive-net opponents only.
 
 ## Example commands
 

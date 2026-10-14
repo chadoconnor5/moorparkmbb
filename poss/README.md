@@ -176,10 +176,19 @@ rebounds per 40). With nothing lit: how the five with him in has done (season, o
 leverage-weighted, then tonight), then his +/- tonight. The same position breaks ties (SAME POS).
 **Plug in** puts him in; Confirm.
 
-**Players' season stats so far** (for Plug in and the FT / 3-point situations) come from two places: the
-final stat sheets photographed in this tracker (every game this season with one, plus tonight's latest
-sheet; scrimmages out), and the leaderboard's box scores in the ⬆ Adjusted file. For each player, whichever
-has more of his games; the screen says which it used.
+**Players' season stats so far** (for Plug in and the FT / 3-point situations) count **quality games only**:
+against an opponent with a positive adjusted net rating, decided by 15 or fewer, so nobody is suggested
+off blowouts or weak opponents. Box scores can't see leverage inside a game; that's the closest they get.
+They come from the final stat sheets photographed in this tracker (plus tonight's latest sheet while tonight
+is close against a good team; scrimmages out) and the leaderboard's box scores in the ⬆ Adjusted file,
+whichever has more of a player's quality games. Small samples are pulled toward the team's number (FT%: 20
+attempts at the team rate; 3P%: 40; per-40 rates: 60 minutes), and a player needs 10+ FTA, 20+ 3PA or 60+
+minutes in quality games to be suggested on that stat at all. Every suggestion shows its sample
+("24/28 FT, 11 quality g").
+
+**Season lineup numbers for the situations:** the four factors are opponent-adjusted; the rest (stop %,
+steals, fouls, opponent 2P% and 3-point attempt rate) count only games against quality opponents. Leverage
+(garbage time always out) applies to both.
 
 **💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
 or worse (garbage time out), a **💡 Try** button shows at the top right of our lineup card. It opens
