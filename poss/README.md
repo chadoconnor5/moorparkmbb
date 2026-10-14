@@ -169,10 +169,17 @@ Our norm is our earlier finished games (league average until 2 are in). The play
 3P%, fouls, steals) come in the ⬆ Adjusted file.
 
 **Fouled out → Plug in.** The forced-sub screen suggests the three best single players to replace him, for
-the situation right now: up late → best FT%; down 4-9 late → best 3P%; down late → most steals; team foul
-trouble → fewest fouls; otherwise how the five with him in has done (season, opponent-adjusted and
-leverage-weighted, then tonight), then his +/- tonight; the same position breaks ties (SAME POS). **Plug
-in** puts him in; Confirm.
+the moment: the most urgent situation lit right now picks the stat (last stop → steals + blocks per 40;
+closing FTs → FT%; ball security → fewest turnovers per 40; need steals → steals per 40; need a 3 → 3P%;
+stop fouling → fewest fouls per 40; stop the 2s → blocks + defensive rebounds per 40; glass → defensive
+rebounds per 40). With nothing lit: how the five with him in has done (season, opponent-adjusted and
+leverage-weighted, then tonight), then his +/- tonight. The same position breaks ties (SAME POS).
+**Plug in** puts him in; Confirm.
+
+**Players' season stats so far** (for Plug in and the FT / 3-point situations) come from two places: the
+final stat sheets photographed in this tracker (every game this season with one, plus tonight's latest
+sheet; scrimmages out), and the leaderboard's box scores in the ⬆ Adjusted file. For each player, whichever
+has more of his games; the screen says which it used.
 
 **💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
 or worse (garbage time out), a **💡 Try** button shows at the top right of our lineup card. It opens

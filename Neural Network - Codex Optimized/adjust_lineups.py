@@ -110,7 +110,8 @@ def load_players(season, team="Moorpark"):
     for pl in json.load(open(p)).get("players", []):
         t = pl.get("totals") or {}
         if pl.get("name"):
-            out[pl["name"]] = {k: t.get(k, 0) for k in ("games", "MIN", "FTM", "FTA", "3PM", "3PA", "PF", "TO", "STL")}
+            out[pl["name"]] = {k: t.get(k, 0) for k in ("games", "MIN", "FGM", "FGA", "FTM", "FTA", "3PM", "3PA", "OREB", "DREB",
+                                                        "AST", "STL", "BLK", "TO", "PF", "PTS")}
     return out
 
 
