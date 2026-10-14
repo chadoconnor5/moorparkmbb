@@ -133,12 +133,68 @@ tap who's coming off and Confirm. **Sub now** on the strip opens the same screen
 from the bench there (the count goes up: **tap 3 coming off**); Confirm unlocks when each team is back to five. Players who went in leave the pending list; anyone left out stays
 pending. On a fouled-out player's forced sub, a pending player fills the spot.
 
+**Holding a pending sub (free throws):** the sub screen lists pending players in their own **Checking in**
+group, each **⏳ GOING IN** (the default) or **✋ HOLD**: one tap switches. Use it when the man a pending
+player would replace is shooting free throws and has to stay in: hold that sub, tap off only the others
+("tap 1 coming off"), Confirm. The held player stays pending, so after the free throws **Sub now** brings
+him straight back.
+
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 
 **Their best five (2nd half and OT only):** the opponent five with the best net rating so far, among
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
+
+**🎯 Lineups (situational lineups):** a button in the live controls (and 💡 Try opens it on Best overall).
+A chip per situation; the ones whose trigger is met right now light up (●) and come first, most urgent
+first, with the reason ("Up 5 with 3:11 left: they have to foul"):
+
+| Situation | Lights up when | Fives ranked by |
+|---|---|---|
+| 🛑 Last stop | up 1-3, their ball, last 1:00 | best stop % |
+| 🎯 Closing FTs | up 1-8, last 4:00 | players' season FT% (the five, by attempts) |
+| 🔒 Ball security | up 1-10, last 4:00 | lowest TO% |
+| 🖐 Need steals | down 4+, last 4:00 | most steals per defensive possession |
+| 3️⃣ Need a 3 | down 4-9, last 4:00 | players' season 3P% |
+| 🧯 Stop the run | they're on a 6-0 run or more | best stop % |
+| ✋ Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
+| 🧱 Stop the 2s | their 2P% 8+ over our norm (10+ twos) | lowest opponent 2P% |
+| 🚫 Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
+| 🙌 Close out the glass | our DREB% 5+ under our norm | best DREB% |
+| 🩹 What's hurting us | we're losing a four factor this half | the halftime card's logic |
+| ⭐ vs their best five | their best five is on | our fives' net against that exact five, tonight |
+| 💡 Best overall | the five on is at a net of 0 or worse late | four-factor edge |
+
+Each opens to Today | Season (opponent-adjusted for the four factors; the season's raw counts for the
+rest), the leverage filter (late-game situations open on Clutch, the rest on High+Med), IN/OUT and **Sub
+this five in** on every five. The FT and 3-point situations also list the **best 5 available** shooters,
+whether or not they've played together, with **Sub these five in**. Never a five with a player who fouled
+out or isn't dressed; **Protect fouls** also leaves out anyone with 3+ fouls in the 1st half or 4+ after.
+Our norm is our earlier finished games (league average until 2 are in). The players' season lines (FT%,
+3P%, fouls, steals) come in the ⬆ Adjusted file.
+
+**Fouled out → Plug in.** The forced-sub screen suggests the three best single players to replace him, for
+the moment: the most urgent situation lit right now picks the stat (last stop → steals + blocks per 40;
+closing FTs → FT%; ball security → fewest turnovers per 40; need steals → steals per 40; need a 3 → 3P%;
+stop fouling → fewest fouls per 40; stop the 2s → blocks + defensive rebounds per 40; glass → defensive
+rebounds per 40). With nothing lit: how the five with him in has done (season, opponent-adjusted and
+leverage-weighted, then tonight), then his +/- tonight. The same position breaks ties (SAME POS).
+**Plug in** puts him in; Confirm.
+
+**Players' season stats so far** (for Plug in and the FT / 3-point situations) count **quality games only**:
+against an opponent with a positive adjusted net rating, decided by 15 or fewer, so nobody is suggested
+off blowouts or weak opponents. Box scores can't see leverage inside a game; that's the closest they get.
+They come from the final stat sheets photographed in this tracker (plus tonight's latest sheet while tonight
+is close against a good team; scrimmages out) and the leaderboard's box scores in the ⬆ Adjusted file,
+whichever has more of a player's quality games. Small samples are pulled toward the team's number (FT%: 20
+attempts at the team rate; 3P%: 40; per-40 rates: 60 minutes), and a player needs 10+ FTA, 20+ 3PA or 60+
+minutes in quality games to be suggested on that stat at all. Every suggestion shows its sample
+("24/28 FT, 11 quality g").
+
+**Season lineup numbers for the situations:** the four factors are opponent-adjusted; the rest (stop %,
+steals, fouls, opponent 2P% and 3-point attempt rate) count only games against quality opponents. Leverage
+(garbage time always out) applies to both.
 
 **💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
 or worse (garbage time out), a **💡 Try** button shows at the top right of our lineup card. It opens

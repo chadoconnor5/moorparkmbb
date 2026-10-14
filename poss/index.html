@@ -893,9 +893,30 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sub-p.in.pend .pend-tag,.sub-p.pend .pend-tag{color:var(--warn)}
 
 /* Live controls: three across; Flag last play takes the last two spots */
-.ctrls .flag-last{grid-column:span 2}
+.ctrls .flag-last{grid-column:auto}
 .ctrls .btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pend-btn.on{border-color:var(--warn);color:var(--warn)}
+
+/* 🎯 Lineups */
+.sit-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px}
+.sit-chip{font:inherit;font-size:13px;font-weight:700;padding:7px 11px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer}
+.sit-chip.lit{border-color:var(--warn);color:var(--warn);background:rgba(220,176,90,.12)}
+.sit-chip.lit::after{content:" ●";font-size:9px;vertical-align:middle}
+.sit-chip.sel{background:var(--us);border-color:var(--us);color:#0b1520}
+.sit-why{font-weight:800;color:var(--warn);margin:0 0 8px}
+.sit-prot{font-size:13px;font-weight:700;display:flex;gap:6px;align-items:center}
+.sit-top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;margin:4px 0 8px;border:1px dashed var(--us);border-radius:10px;font-size:13px}
+.sit-modal .fix-card{margin-top:0}
+
+/* Fouled out: plug-in suggestions on the forced-sub screen */
+.plug-card{border:1px solid var(--warn);background:rgba(220,176,90,.08);border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.plug-h{font-size:15px;margin-bottom:6px}
+.plug-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0;border-top:1px dashed var(--border)}
+.plug-h+.plug-row{border-top:0}
+.plug-who b{font-size:15px}
+
+.sub-p.pend.held{border-style:dashed;border-color:var(--border);background:var(--card);opacity:.85}
+.sub-p.pend.held .pend-tag{color:var(--text2)}
 
 </style>
 </head>
@@ -928,7 +949,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.63';
+const VERSION = 'v2026.10.14.67';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1112,6 +1133,7 @@ function derive(g) {
       const sh = other(e.team); score[sh] += e.ftm || 0;
       items.push({ kind: 'tech', e, score: { ...score }, five: snap() }); continue;
     }
+    if (e.t === 'foul') { items.push({ kind: 'foul', e, five: snap(), p: open && open.per === e.per ? open : null }); continue; }
     if (e.t !== 'play') { items.push({ kind: e.t, e }); continue; }
     const off = offOf(e);
     if (e.k === 'dreb') {                      // ends the shooting team's possession
@@ -1341,9 +1363,9 @@ const tosUsed = (g, t, kind) => g.ev.filter(e => e.t === 'to' && e.team === t &&
 /* The box of one possession, from its plays: shots, FTs, turnovers, offensive rebounds, and whether
    it ended on the defence's rebound. */
 function possBox(p) {
-  const b = { fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: p.dreb ? 1 : 0 };
+  const b = { fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: p.dreb ? 1 : 0 };
   p.plays.forEach(e => { const k = e.k;
-    if (/^[23][mx]$/.test(k)) { b.fga++; if (k[1] === 'm') { b.fgm++; if (k[0] === '3') b.fg3m++; } }
+    if (/^[23][mx]$/.test(k)) { b.fga++; if (k[0] === '3') b.fg3a++; if (k[1] === 'm') { b.fgm++; if (k[0] === '3') b.fg3m++; } }
     else if (k === 'ftm' || k === 'ftx') b.fta++;
     else if (k === 'to' || k === 'stl' || k === 'chg' || k === 'offf') { b.tov++; if (k === 'stl') b.stov++; }
     else if (k === 'oreb') b.oreb++; });
@@ -1357,9 +1379,9 @@ function lineupUnits(g, D, t, scope, filter, k) {
   const pers = scope === 'game' ? null : scope, units = {}, players = {};
   // all · nogt (no garbage time) · clutch · hm (High+Med) · high · med · low — garbage time is out of all but 'all'.
   const keep = p => !filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)));
-  const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 });
+  const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 });
   const combos = f => k === 5 ? [f] : kSubsets(f.slice().sort(), k);
-  const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
+  const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, fouls: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
   const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
   D.poss.forEach(p => {
     if (pers && p.per !== pers) return;
@@ -1372,6 +1394,9 @@ function lineupUnits(g, D, t, scope, filter, k) {
       else { u.dPoss++; u.pa += p.pts; u.dEnd[p.end.col] = (u.dEnd[p.end.col] || 0) + 1; if (p.kill) u.kills++; if (p.stop) u.stops++; } });
     if (mine) credit(f, p.pts, 0); else credit(f, 0, p.pts);
   });
+  // Personal fouls by this team while the unit was on, filtered like the possession they came in.
+  D.items.filter(x => x.kind === 'foul' && x.e.team === t && (!pers || x.e.per === pers) && (!filter || filter === 'all' || (x.p ? keep(x.p) : filter === 'nogt'))).forEach(x => {
+    const f = x.five && x.five[t]; if (!f || f.length !== 5) return; combos(f).forEach(c => { U(c).fouls++; }); });
   D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers) && (!filter || filter === 'all')).forEach(x => {
     const f = x.five[t]; if (!f || f.length !== 5) return;
     const pts = x.e.ftm || 0;
@@ -1498,12 +1523,6 @@ function lineupTip(g, D) {
   return F.any ? { cur: C, html: F.html } : null;
 }
 const TIP_OPTS = { ffSc: '2H', todayPer: 'game', sk: 'tipScope', def: 'high', half: 'this half', overall: true, sub: true };
-function tipModal() {
-  const g = cur(), D = derive(g), T = lineupTip(g, D); if (!T) { closeModal(); return; }
-  modal(`<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">💡 Lineups to try</h2><button class="btn btn-lg" data-act="tip-close">Close</button></div>
-    <div class="small muted" style="margin:4px 0 6px">The five on now: <b>${esc(fiveSorted(g, 'a', T.cur.five).map(id => pShort(g, 'a', id)).join(', '))}</b> · net <b class="${pmCls(T.cur.net)}">${sg1(T.cur.net)}</b> on ${T.cur.poss} possessions</div>
-    ${T.html}`, 'tip-modal');
-}
 function lpmCard(g, D, t) {
   const f = D.five[t];
   if (f.length !== 5) return '';
@@ -1556,11 +1575,11 @@ function liveView(g) {
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
-        // Three across: subs and timeout, then fix a tap and end the half, then scout and flag.
+        // Three across: subs and timeout; fix a tap and end the half; scout, situational lineups, flag.
         return `<div class="ctrls">
         <button class="btn ${n ? 'btn-good' : ''}" data-act="sub">⇄ Sub${n ? ` (${n})` : ''}</button><button class="btn pend-btn ${n ? 'on' : ''}" data-act="pend">⏳ Pending</button><button class="btn btn-warn" data-act="timeout">Timeout</button>
         <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button>
-        <button class="btn" data-act="scout">📄 Scout</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button></div>`; })()}
+        <button class="btn" data-act="scout">📄 Scout</button><button class="btn sit-btn" data-act="sit">🎯 Lineups</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'}</button></div>`; })()}
       <div class="feed">${items.map(f => feedRow(g, f)).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
@@ -1781,8 +1800,8 @@ function lineupFile() {
   const rows = games.filter(g => g.final && g.ev && g.ev.length).map(g => { const D = derive(g), sc = schedule().find(x => x.id === g.schedId);
     // possBox puts the defensive rebound that ends a possession on the side that lost the ball; the file
     // keeps each team's own rebounds on its own side.
-    const side = (x, y) => ({ fgm: x.fgm, fga: x.fga, fg3m: x.fg3m, fta: x.fta, tov: x.tov, oreb: x.oreb, dreb: y.dreb });
-    const blk = u => ({ oT: u.oPoss, dT: u.dPoss, pf: u.pf, pa: u.pa, o: side(u.o, u.d), d: side(u.d, u.o) });
+    const side = (x, y) => ({ fgm: x.fgm, fga: x.fga, fg3m: x.fg3m, fg3a: x.fg3a, fta: x.fta, tov: x.tov, stov: x.stov, oreb: x.oreb, dreb: y.dreb });
+    const blk = u => ({ oT: u.oPoss, dT: u.dPoss, pf: u.pf, pa: u.pa, stops: u.stops, fouls: u.fouls, o: side(u.o, u.d), d: side(u.d, u.o) });
     // The same fives split by leverage (garbage time out), so the season numbers can value tight games more.
     const LEV = ['high', 'med', 'low', 'clutch'].map(b => [b, new Map(lineupUnits(g, D, 'a', 'game', b).units.map(u => [fiveKey(u.five), u]))]);
     return { id: g.id, date: g.date, opponent: g.opp, site: { H: 'home', A: 'away', N: 'neutral' }[g.loc] || '', conference: !!g.conf, scrimmage: !!(sc && sc.scrim),
@@ -1865,7 +1884,7 @@ function seasonFixCard(g, D) { return fixCard(g, D, { ffSc: '1H', todayPer: '1H'
    whole 'game'; sk / def = the leverage setting and its default; overall / sub as above. cur = the five on
    now (💡 Try), left out of the suggestions. Returns { html, any } (any = some five suggested). */
 function fixCard(g, D, o, cur) {
-  const ok = id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id);
+  const ok = o.ok || (id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id));
   const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '', skip = cur ? fiveKey(cur.five) : null;
   const P = v => v == null ? '—' : v.toFixed(1), sc0 = () => UI[o.sk] || o.def;
   const A = luAdj(), haveA = A && A.factorsAdjusted, memo = {};
@@ -1910,7 +1929,7 @@ function fixCard(g, D, o, cur) {
       ${cols(T, Sn, (u, both) => row(u, both, sg1(Math.round(10 * u.e) / 10), `4F edge · net ${u.net == null ? '—' : sg1(Math.round(10 * u.net) / 10)}`, 'poss'), 'poss each way', 'No five has beaten the five on now today.', 'No available five has.')}</div>`;
   }
   // What's hurting us: each losing factor's bad end, the fives best at that one stat.
-  const L = ffLine(g, o.ffSc), a = L ? ffCalc(L.a, L.b) : null, b = L ? ffCalc(L.b, L.a) : null;
+  const L = o.problems === false ? null : ffLine(g, o.ffSc), a = L ? ffCalc(L.a, L.b) : null, b = L ? ffCalc(L.b, L.a) : null;
   const losing = !L ? [] : FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
   const night = a ? { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr } : {};
   const N = seasonNorm(g), bad = k => { const S = FIX_STATS[k], v = night[k], n = N.v[k]; return v == null || n == null ? 0 : S.hi ? n - v : v - n; };
@@ -2233,22 +2252,26 @@ function subModal(title) {
     SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
       title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : pend.a.size || pend.b.size ? 'Sub — tap who’s coming off' : title || 'Sub — who is on the floor?' };
   }
-  const side = t => { const ps = teamPlayers(g, t), n = SUB[t].size;
+  const side = t => { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set();
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
-          const w = on && SUB.pend && SUB.pend[t].has(p.id);
-          return `<button class="sub-p ${on ? 'in' : ''} ${w ? 'pend' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; };
-        // On the floor first, then the bench (fouled-out players last). Tap to move a player between them.
-        // Checking-in players lead the floor list, so the ones still to tap off are easy to scan.
-        const isP = p => SUB.pend && SUB.pend[t].has(p.id) ? 0 : 1;
-        const on = ps.filter(p => SUB[t].has(p.id)).sort((x, y) => isP(x) - isP(y)), bench = ps.filter(p => !SUB[t].has(p.id)).sort((x, y) => isOut(g, t, x.id) - isOut(g, t, y.id));
-        return `<div class="sub-lbl">On the floor ${n > 5 ? '' : `<span class="muted">${n}/5</span>`}${n > 5 ? ` <b class="sub-off">tap ${n - 5} coming off</b>` : ''}</div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
+          return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : ''}</button>`; };
+        /* Pending players have their own group: GOING IN now, or HOLD (e.g. the man he'd replace is shooting
+           free throws and stays in) — a held player stays pending for the next dead ball. */
+        const pbtn = p => { const go = SUB[t].has(p.id);
+          return `<button class="sub-p pend ${go ? '' : 'held'}" data-act="sub-hold" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}<span class="tiny pend-tag">${go ? '⏳ GOING IN · tap to hold' : '✋ HOLD · stays pending · tap to send in'}</span></button>`; };
+        const pend = ps.filter(p => P.has(p.id));
+        const on = ps.filter(p => SUB[t].has(p.id) && !P.has(p.id)), bench = ps.filter(p => !SUB[t].has(p.id) && !P.has(p.id)).sort((x, y) => isOut(g, t, x.id) - isOut(g, t, y.id));
+        const going = pend.filter(p => SUB[t].has(p.id)).length;
+        return `${pend.length ? `<div class="sub-lbl">Checking in <span class="muted">${going} going in${pend.length - going ? ` · ${pend.length - going} holding` : ''}</span></div><div class="sub-grid sub-floor">${pend.map(pbtn).join('')}</div>` : ''}
+          <div class="sub-lbl">On the floor ${n > 5 ? '' : `<span class="muted">${n}/5</span>`}${n > 5 ? ` <b class="sub-off">tap ${n - 5} coming off</b>` : ''}</div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
           <div class="sub-lbl">Bench</div><div class="sub-grid">${bench.map(btn).join('') || '<div class="muted small">No one on the bench.</div>'}</div>`; })()
         : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; };
   const ok = t => (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id)));
   const fx = SUB.forced.length;
   modal(`<div class="sub-head"><h2>${esc(SUB.title)}</h2><div class="sub-top">${fx ? SUB.forced.map(o => `<button class="btn btn-lg" data-act="fouls" data-t="${o.t}" data-p="${esc(o.id)}">Edit ${esc(pShort(g, o.t, o.id))}'s fouls</button>`).join('') : '<button class="btn btn-lg" data-act="sub-cancel">Cancel</button>'}<button class="btn btn-good btn-lg" data-act="sub-ok" ${ok('a') && ok('b') ? '' : 'disabled'}>Confirm</button></div></div>
     ${fx ? '<div class="small muted" style="margin:6px 0 10px">Five fouls (or two technicals) and he has to come out. Wrong player on a foul? Edit fouls to move it.</div>' : ''}
+    ${SUB.forced.filter(o => o.t === 'a').map(o => plugCard(g, D, o.id)).join('')}
     <div class="sub-sides two">${side('a')}${side('b')}</div>`, 'sub-modal');
 }
 function subConfirm() {
@@ -2657,14 +2680,21 @@ document.addEventListener('click', ev => {
       if (l.includes(id)) g.pending[t] = l.filter(x => x !== id); else l.push(id); save(); pendModal(); break; }
     case 'pend-clear': g.pending = { a: [], b: [] }; save(); pendModal(); break;
     case 'pend-done': closeModal(); render(); break;
-    case 'tip': tipModal(); break;
-    case 'tip-close': closeModal(); break;
+    case 'tip': SIT = null; sitModal('overall'); break;
+    case 'sit': SIT = null; sitModal(); break;
+    case 'sit-pick': sitModal(b.dataset.s); break;
+    case 'sit-protect': SIT.protect = !SIT.protect; sitModal(); break;
+    case 'sit-close': SIT = null; closeModal(); break;
     case 'tip-sub': { const f = (b.dataset.five || '').split('|').filter(Boolean); if (f.length !== 5) { closeModal(); break; }
       SUB = { a: new Set(f), b: new Set(derive(g).five.b), forced: [], title: 'Sub — suggested five (Confirm to put them in)' }; subModal(); break; }
     // Over five is fine (players checking in, or adding more): the screen says how many to tap off, and
     // Confirm waits until each team is back to five.
     case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else s.add(p); subModal(); break; }
     case 'sub-ok': subConfirm(); break;
+    case 'sub-hold': { const S0 = SUB[b.dataset.t], id = b.dataset.p; if (S0.has(id)) S0.delete(id); else S0.add(id); subModal(); break; }
+    case 'plug': { const D0 = derive(g), out = b.dataset.out, cand = b.dataset.p; SUB.a.delete(out); if (!SUB.a.has(cand)) {
+        // His spot: if the five is already full (a pending player filled it), the plug-in replaces that one.
+        if (SUB.a.size >= 5) { const extra = [...SUB.a].find(id => !D0.five.a.includes(id)); if (extra) SUB.a.delete(extra); } SUB.a.add(cand); } subModal(); break; }
     case 'fouls': FOULS = { t: b.dataset.t, p: b.dataset.p, move: null }; foulsModal(); break;
     case 'fl-move': FOULS.move = FOULS.move === b.dataset.id ? null : b.dataset.id; foulsModal(); break;
     case 'fl-to': { const e = g.ev.find(x => x.id === b.dataset.id); if (!e) return; const p = b.dataset.p;
@@ -2674,7 +2704,7 @@ document.addEventListener('click', ev => {
       if (!confirm(e.t === 'play' ? `Delete this ${STAT_LABEL[e.k].toLowerCase()}? It also takes away the turnover.` : 'Delete this foul?')) return;
       g.ev = g.ev.filter(x => x !== e); FOULS.move = null; save(); foulsModal(); break; }
     case 'fl-done': FOULS = null; SUB = null; closeModal(); render(); break;
-    case 'sub-cancel': SUB = null; closeModal(); break;
+    case 'sub-cancel': SUB = null; closeModal(); render(); break;   // render: pending may have changed (✕ Remove)
     case 'timeout': TOM = null; timeoutModal(); break;
     case 'to-pick': TOM.t = b.dataset.t; TOM.k = b.dataset.k; timeoutModal(); break;
     case 'to-key': TOM.clock = padKey(TOM.clock, b.dataset.k); timeoutModal(); break;
@@ -2778,7 +2808,7 @@ document.addEventListener('click', ev => {
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
     case 'lu-export': exportLineups(); break;
-    case 'lev-scope': { const k = b.dataset.k || 'levScope'; UI[k] = b.dataset.s; if (k === 'tipScope') { tipModal(); break; } const y = window.scrollY; render(); window.scrollTo(0, y); break; }
+    case 'lev-scope': { const k = b.dataset.k || 'levScope'; UI[k] = b.dataset.s; if (k.startsWith('sit_')) { sitModal(); break; } const y = window.scrollY; render(); window.scrollTo(0, y); break; }
     case 'lu-adj': importLineupAdj(); break;
     case 'lu-adj-clear': if (confirm('Remove the adjusted season lineups from this iPad?')) { try { localStorage.removeItem(LS_LU_ADJ); } catch (e) {} render(); } break;
     case 'pbp-team': UI.pbpTeam = b.dataset.t; render(); break;
@@ -3930,6 +3960,267 @@ function scoutBadge() { const b = document.querySelector('.nav .scout-tab'); if 
 // The New game screen's line under the opponent.
 function ofBanner(name) { const s = ofSummary(name); if (!s) return '';
   return `<div class="of-banner"><span class="ic">📁</span><div><b>We've played ${esc(name)} ${s.n === 1 ? 'once' : s.n + ' times'} this season</b> · ${esc(ofLine(s.g))}</div><button class="btn btn-sm" data-act="of-open" data-n="${esc(name)}" style="margin-left:auto">Open file</button></div>`; }
+
+/* ---------- 🎯 Lineups: situational lineups ----------
+   One screen with a chip per situation (closing free throws, need steals, stop the 2s, ...). Chips whose
+   trigger is met right now light up and come first. Each situation is one stat with one direction, and the
+   fives are ranked on it: today's (this game, as played) beside the season's (the ⬆ Adjusted file), at a
+   leverage that opens on the situation's default. Skill stats that belong to players (FT%, 3P%) come from
+   the players' season lines in the file, combined over the five by attempts. Garbage time is always out;
+   nobody fouled out or not dressed; "Protect fouls" also leaves out players in foul trouble. */
+const SIT_LG = { efg: 49.6, oefg: 49.6, tov: 18.6, otov: 18.6, orb: 29.7, drb: 70.3, ftr: 34, oftr: 34, o2p: 49, o3ar: 38, my3ar: 38, stl: 9, stop: 48, fouls: 28, ft: 70, p3: 33 };
+const pct1 = (a, b) => b > 0 ? 100 * a / b : null;
+// Every situational stat for one unit, from its counts (o = ours, d = theirs while it was on).
+function sitVals(o, d, oP, dP, stops, fouls, pf, pa) {
+  o = o || {}; d = d || {};
+  const v = fixVals(Object.assign({ stov: 0, fg3a: 0 }, o), Object.assign({ stov: 0, fg3a: 0 }, d), oP, dP);
+  return Object.assign(v, {
+    o2p: pct1((d.fgm || 0) - (d.fg3m || 0), (d.fga || 0) - (d.fg3a || 0)), o3ar: d.fg3a == null ? null : pct1(d.fg3a, d.fga || 0),
+    my3ar: o.fg3a == null ? null : pct1(o.fg3a, o.fga || 0), stl: d.stov == null ? null : pct1(d.stov, dP),
+    stop: stops == null ? null : pct1(stops, dP), fouls: fouls == null ? null : pct1(fouls, dP),
+    ortg: pf == null ? null : pct1(pf, oP), net: pf == null || !oP || !dP ? null : 100 * pf / oP - 100 * pa / dP });
+}
+// Our norm on each stat: earlier finished games (league-ish numbers until 2 are in).
+function sitNorm(g) {
+  const prev = games.filter(x => x.final && x.id !== g.id && x.ev && x.ev.length);
+  if (prev.length < 2) return { v: SIT_LG, src: 'league average' };
+  const z = () => ({ fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 }), o = z(), d = z(); let oP = 0, dP = 0, stops = 0, fouls = 0;
+  prev.forEach(x => { const D = derive(x); D.poss.forEach(p => { if (p.gt) return; const bx = possBox(p), s = p.team === 'a' ? o : d; Object.keys(bx).forEach(k => { s[k] += bx[k]; });
+    if (p.team === 'a') oP++; else { dP++; if (p.stop) stops++; } }); fouls += x.ev.filter(e => e.t === 'foul' && e.team === 'a').length; });
+  const v = sitVals(o, d, oP, dP, stops, fouls); v.ft = SIT_LG.ft; v.p3 = SIT_LG.p3;
+  return { v, src: `our ${prev.length}-game norm` };
+}
+/* Our players' season stats so far, from QUALITY GAMES ONLY: against an opponent with a positive adjusted
+   net rating (from the ⬆ Adjusted file), decided by 15 or fewer. Blowouts and weak opponents don't count, so
+   a player's numbers aren't built on garbage time. Two sources: the final stat sheets photographed in this
+   tracker (plus tonight's latest sheet, while tonight is close against a good team), and the leaderboard's
+   box scores in the ⬆ Adjusted file; for each player, whichever has more of his quality games.
+   Keys as the leaderboard's: games MIN FGM FGA FTM FTA 3PM 3PA OREB DREB AST STL BLK TO PF PTS. */
+const PL_KEYS = { MIN: 'min', FGM: 'fgm', FGA: 'fga', FTM: 'ftm', FTA: 'fta', '3PM': 'fg3m', '3PA': 'fg3a', OREB: 'oreb', DREB: 'dreb', AST: 'ast', STL: 'stl', BLK: 'blk', TO: 'tov', PF: 'pf', PTS: 'pts' };
+const Q_MARGIN = 15;
+// Small samples are pulled toward the team's number: a prior of this many attempts (or minutes) at the team rate,
+// and a player needs at least MIN of them in quality games to be suggested on that stat.
+const PL_PRIOR = { FTA: 20, '3PA': 40, MIN: 60 }, PL_MIN = { FTA: 10, '3PA': 20, MIN: 60 };
+let PL_MEMO = null;
+function plSeason() {
+  const A = luAdj(), stamp = games.length + ':' + games.map(g => (g.final ? 'f' : '') + (g.sheet ? Object.keys(g.sheet).join('') + (g.sheet.G || g.sheet['1H'] || {}).at : '')).join('|') + ':' + (A ? A.generatedAt : '');
+  if (PL_MEMO && PL_MEMO.stamp === stamp) return PL_MEMO.v;
+  const sheets = {}, byNum = {}, oppNet = {};
+  roster().forEach(r => { if (r.num) byNum[String(r.num)] = r.name; });
+  ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) oppNet[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
+  games.forEach(g => { const live = g.id === curId && !g.final, sc = live ? (g.sheet && (g.sheet.G || g.sheet['1H'])) : g.final && g.sheet && g.sheet.G;
+    const S = sc && sc.a; if (!S || !S.rows) return;
+    const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+    const net = oppNet[g.date + '|' + String(g.opp).toLowerCase()], D = derive(g);
+    if (!(net > 0) || Math.abs(D.score.a - D.score.b) > Q_MARGIN) return;      // quality games only
+    S.rows.forEach(r => { const id = byNum[String(r.num)] || (roster().find(x => r.name && lastName(x.name).toLowerCase() === lastName(String(r.name).replace(/,.*/, '')).toLowerCase()) || {}).name; if (!id) return;
+      const x = sheets[id] = sheets[id] || { games: 0 }; x.games++; Object.entries(PL_KEYS).forEach(([K, k]) => { x[K] = (x[K] || 0) + (+r[k] || 0); }); }); });
+  const lb = {}; Object.entries((A && A.playerSeason) || {}).forEach(([n, x]) => { if (x && x.quality) lb[n] = x.quality; });   // older files had no quality split: not used
+  const out = {};
+  new Set([...Object.keys(sheets), ...Object.keys(lb)]).forEach(id => { const a = sheets[id], b = lb[id];
+    out[id] = a && (!b || (a.games || 0) >= (b.games || 0)) ? Object.assign({ src: 'sheets' }, a) : Object.assign({ src: 'leaderboard' }, b); });
+  // The team's quality-game rates, for pulling small samples toward.
+  const T = {}; Object.values(out).forEach(x => Object.keys(PL_KEYS).forEach(k => { T[k] = (T[k] || 0) + (x[k] || 0); }));
+  const n = s => Object.values(out).filter(x => x.src === s).length;
+  PL_MEMO = { stamp, v: { P: out, T, src: n('sheets') && n('leaderboard') ? 'stat sheets + leaderboard, quality games' : n('sheets') ? 'stat sheets, quality games' : n('leaderboard') ? 'leaderboard, quality games' : '' } };
+  return PL_MEMO.v;
+}
+// Players' quality-game lines combined over a five: made and attempts added up, pulled toward the team's rate.
+function fiveShoot(A, f, made, att) {
+  const { P, T } = plSeason(); let m = 0, a = 0, n = 0;
+  f.forEach(id => { const x = P[id]; if (x && x[att]) { m += x[made] || 0; a += x[att]; n++; } });
+  const rate = T[att] ? (T[made] || 0) / T[att] : 0, pr = PL_PRIOR[att] || 20;
+  return a >= 10 && n >= 4 ? 100 * (m + pr * rate) / (a + pr) : null;
+}
+// One player's shooting %, quality games, regressed; null under the minimum sample.
+const plPct = (A, id, made, att) => { const { P, T } = plSeason(), x = P[id]; if (!x || (x[att] || 0) < (PL_MIN[att] || 10)) return null;
+  const rate = T[att] ? (T[made] || 0) / T[att] : 0, pr = PL_PRIOR[att] || 20; return 100 * ((x[made] || 0) + pr * rate) / (x[att] + pr); };
+// One player's per-40 rate, quality games, regressed toward the team's rate; null under the minimum minutes.
+const plPer40 = (id, ...ks) => { const { P, T } = plSeason(), x = P[id]; if (!x || (x.MIN || 0) < PL_MIN.MIN) return null;
+  const c = ks.reduce((t, k) => t + (x[k] || 0), 0), tc = ks.reduce((t, k) => t + (T[k] || 0), 0), tr = T.MIN ? tc / T.MIN : 0;
+  return 40 * (c + PL_PRIOR.MIN * tr) / (x.MIN + PL_PRIOR.MIN); };
+// The sample behind a player's number, to show next to it: "24/28 FT, 11 quality games".
+const plSample = (id, made, att) => { const x = plSeason().P[id]; if (!x) return ''; return att ? `${x[made] || 0}/${x[att] || 0} ${att === 'FTA' ? 'FT' : '3PT'}, ${x.games} quality g` : `${x.MIN || 0} min, ${x.games} quality g`; };
+/* The situations. stat = what the fives are ranked on; hi = higher is better; end = which end's
+   possessions count toward the minimum; def = the leverage it opens on; on(c) = its trigger right now
+   (returns the reason to show, or ''). c = the game right now (see sitCtx). */
+const SITS = [
+  { id: 'overall', name: 'Best overall', icon: '💡', stat: 'edge', hi: true, end: 'both', def: 'high', rank: 'best four factors (shooting 40, turnovers 25, rebounding 20, FT rate 15)',
+    on: c => c.tip ? `The five on is at a net of ${sg1(c.tip.net)}` : '' },
+  { id: 'hurt', name: "What's hurting us", icon: '🩹', def: 'hm', on: c => c.hurt ? 'We\'re losing a four factor this half' : '' },
+  { id: 'ft', name: 'Closing FTs', icon: '🎯', stat: 'ft', hi: true, end: 'both', def: 'clutch', player: ['FTM', 'FTA'], rank: 'best free-throw shooters (players\' season FT%)',
+    on: c => c.late && c.m >= 1 && c.m <= 8 ? `Up ${c.m} with ${c.left} left: they have to foul` : '' },
+  { id: 'ball', name: 'Ball security', icon: '🔒', stat: 'tov', hi: false, end: 'o', def: 'clutch', rank: 'lowest TO%',
+    on: c => c.late && c.m >= 1 && c.m <= 10 ? `Up ${c.m} with ${c.left} left: no turnovers` : '' },
+  { id: 'steal', name: 'Need steals', icon: '🖐', stat: 'stl', hi: true, end: 'd', def: 'clutch', rank: 'most steals per defensive possession',
+    on: c => c.late && c.m <= -4 ? `Down ${-c.m} with ${c.left} left: need extra possessions` : '' },
+  { id: 'three', name: 'Need a 3', icon: '3️⃣', stat: 'p3', hi: true, end: 'o', def: 'clutch', player: ['3PM', '3PA'], rank: 'best 3-point shooters (players\' season 3P%)',
+    on: c => c.late && c.m <= -4 && c.m >= -9 ? `Down ${-c.m} with ${c.left} left` : '' },
+  { id: 'stop', name: 'Last stop', icon: '🛑', stat: 'stop', hi: true, end: 'd', def: 'clutch', rank: 'best stop %',
+    on: c => c.secs != null && c.secs <= 60 && c.m >= 1 && c.m <= 3 && c.ball === 'b' ? `Up ${c.m}, their ball, ${c.left} left` : '' },
+  { id: 'two', name: 'Stop the 2s', icon: '🧱', stat: 'o2p', hi: false, end: 'd', def: 'hm', rank: 'lowest opponent 2P%',
+    on: c => c.night.o2p != null && c.night.o2p > c.N.o2p + 8 && c.att2 >= 10 ? `They're ${c.night.o2p.toFixed(0)}% on 2s (norm ${c.N.o2p.toFixed(0)}%)` : '' },
+  { id: 'arc', name: 'Off the 3-pt line', icon: '🚫', stat: 'o3ar', hi: false, end: 'd', def: 'hm', rank: 'fewest opponent 3-point attempts (3PA rate)',
+    on: c => c.night.o3ar != null && c.night.o3ar > c.N.o3ar + 8 && c.fga >= 12 ? `${c.night.o3ar.toFixed(0)}% of their shots are 3s (norm ${c.N.o3ar.toFixed(0)}%)` : '' },
+  { id: 'glass', name: 'Close out the glass', icon: '🙌', stat: 'drb', hi: true, end: 'd', def: 'hm', rank: 'best DREB%',
+    on: c => c.night.drb != null && c.night.drb < c.N.drb - 5 ? `DREB% ${c.night.drb.toFixed(0)} tonight (norm ${c.N.drb.toFixed(0)})` : '' },
+  { id: 'foul', name: 'Stop fouling', icon: '✋', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
+    on: c => c.tf >= 7 && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} left in the half` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
+  { id: 'run', name: 'Stop the run', icon: '🧯', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
+    on: c => c.run >= 6 ? `They're on a ${c.run}-0 run` : '' },
+  { id: 'best', name: 'vs their best five', icon: '⭐', def: 'hm', on: c => c.theirBest ? `${esc(c.oppName)}'s best five is on` : '' },
+];
+const SIT_ORDER = ['stop', 'ft', 'ball', 'steal', 'three', 'run', 'foul', 'two', 'arc', 'glass', 'hurt', 'best', 'overall'];
+// The game right now, for the triggers.
+function sitCtx(g, D) {
+  const N = sitNorm(g), R = gradeNow(g, D), ot = g.per.startsWith('OT'), S = D.score, m = S.a - S.b;
+  const secs = R ? (ot ? R.secs : R.secs) : null, late = !g.final && g.per !== '1H' && secs != null && secs <= 240;
+  const half = g.per === '1H' ? '1H' : '2H', L = ffLine(g, half);
+  const night = L ? (() => { const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
+    return { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr,
+      o2p: pct1((L.b.fgm || 0) - (L.b.fg3m || 0), (L.b.fga || 0) - (L.b.fg3a || 0)), o3ar: pct1(L.b.fg3a || 0, L.b.fga || 0) }; })() : {};
+  const runs = scoringRuns(g), lr = runs[runs.length - 1];
+  const perLeft = R && R.clock ? R.clock.perSecs : R ? (g.per === '1H' ? Math.max(0, R.secs - 1200) : R.secs) : null;
+  const hurt = !!fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, ffSc: half === '1H' ? '1H' : '2H' })).html;
+  return { N: N.v, nsrc: N.src, secs, left: secs == null ? '' : fmtSecs(secs), late, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
+    att2: L ? (L.b.fga || 0) - (L.b.fg3a || 0) : 0, fga: L ? L.b.fga || 0 : 0, tf: teamFouls(g, 'a', g.per), perLeft, hurt,
+    theirBest: theirBestOn(g, D), oppName: g.opp, tip: tipCur(g, D) };
+}
+let SIT = null;   // { id, scope (by situation), protect }
+function sitModal(id) {
+  const g = cur(), D = derive(g), c = sitCtx(g, D);
+  SIT = SIT || { scope: {}, protect: false };
+  // Lit first, the most urgent first: late-game, then runs and fouls, then tonight's problems, then the rest.
+  const lit = SIT_ORDER.map(k => SITS.find(s => s.id === k)).filter(s => s.on(c));
+  if (id) SIT.id = id; if (!SIT.id) SIT.id = (lit[0] || SITS[0]).id;
+  const S = SITS.find(s => s.id === SIT.id) || SITS[0];
+  const chips = [...lit, ...SITS.filter(s => !lit.includes(s))].map(s => `<button class="sit-chip ${s.id === S.id ? 'sel' : ''} ${lit.includes(s) ? 'lit' : ''}" data-act="sit-pick" data-s="${s.id}">${s.icon} ${esc(s.name)}</button>`).join('');
+  const why = S.on(c);
+  modal(`<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">🎯 Lineups</h2>
+      <div class="row" style="gap:8px;align-items:center"><label class="sit-prot"><input type="checkbox" data-act="sit-protect" ${SIT.protect ? 'checked' : ''}> Protect fouls</label><button class="btn btn-lg" data-act="sit-close">Close</button></div></div>
+    <div class="sit-chips">${chips}</div>
+    ${why ? `<div class="sit-why">● ${why}</div>` : ''}
+    ${sitBody(g, D, S, c)}`, 'tip-modal sit-modal');
+}
+// Players we won't suggest: fouled out, not dressed, and (Protect fouls) in foul trouble.
+function sitOk(g) {
+  const h1 = g.per === '1H';
+  return id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id) && !(SIT && SIT.protect && playerFouls(g, 'a', id) >= (h1 ? 3 : 4));
+}
+function sitBody(g, D, S, c) {
+  const sk = 'sit_' + S.id; if (!UI[sk]) UI[sk] = S.def;
+  if (S.id === 'hurt') {
+    const F = fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, sk, def: S.def, ffSc: g.per === '1H' ? '1H' : '2H', ok: sitOk(g) }), c.tip);
+    return F.html || '<div class="card muted">Nothing is hurting us this half: we\'re not losing a four factor, or the end we\'re losing is on our norm.</div>';
+  }
+  if (S.id === 'overall') return fixCard(g, D, Object.assign({}, TIP_OPTS, { sk, def: S.def, problems: false, ok: sitOk(g) }), c.tip).html || '<div class="card muted">No five qualifies.</div>';
+  if (S.id === 'best') return sitVsBest(g, D, c);
+  return sitStatCard(g, D, S, c, sk);
+}
+// One situation: today | season on one stat.
+function sitStatCard(g, D, S, c, sk) {
+  const ok = sitOk(g), A = luAdj(), haveA = A && A.factorsAdjusted, nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '', sc0 = () => UI[sk] || S.def;
+  const P = v => v == null ? '—' : v.toFixed(1), n = S.player ? SIT_LG[S.stat] : c.N[S.stat];
+  const val = (f, v) => S.player ? fiveShoot(A, f, S.player[0], S.player[1]) : S.stat === 'edge' ? null : v[S.stat];
+  const today = sc => lineupUnits(g, D, 'a', 'game', sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok))
+    .map(u => { const v = sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, x: val(u.five, v) }; });
+  // Four factors: opponent-adjusted. Everything else: raw counts from games against quality opponents only
+  // (positive adjusted net), so nothing rests on possessions against bad teams.
+  const FOURF = ['efg', 'oefg', 'tov', 'otov', 'orb', 'drb', 'ftr', 'oftr'], useQ = !FOURF.includes(S.stat) && !S.player;
+  const season = sc => !haveA || (!A.leverage && sc !== 'all') ? [] : adjUnits(A, sc).filter(u => u.players.every(p => ok(p.name))).map(u => {
+    const R = useQ && u.q ? u.q : u;
+    const f = u.players.map(p => p.name), v = sitVals(R.o, R.d, R.oT, R.dT, R.stops, R.fouls, R.pf, R.pa), F = u.F || {};
+    // The four factors come opponent-adjusted from the file; the rest are the season's raw counts.
+    Object.assign(v, { efg: F.efg, oefg: F.oefg, tov: F.tov, otov: F.otov, orb: F.orb, drb: F.oorb == null ? null : 100 - F.oorb, ftr: F.ftr, oftr: F.oftr });
+    return { five: f, oP: R.oT, dP: R.dT, mix: u.mix, v, x: val(f, v) }; });
+  const enough = (u, min) => S.end === 'o' ? u.oP >= min : S.end === 'd' ? u.dP >= min : u.oP >= min && u.dP >= min;
+  const rank = (list, min) => list.filter(u => enough(u, min) && u.x != null && (S.player || n == null || (S.hi ? u.x > n : u.x < n)))
+    .sort((a, b) => S.hi ? b.x - a.x : a.x - b.x).slice(0, 2);
+  const pick = (get, mins) => { for (let sc = sc0(); sc; sc = LEV_WIDER[sc]) { const l = rank(get(sc), mins[sc]); if (l.length) return { l, sc, min: mins[sc] }; } return { l: [], sc: sc0(), min: mins[sc0()] }; };
+  const T = pick(today, LEV_MIN.today), Sn = pick(season, LEV_MIN.season);
+  const pl = S.end === 'o' ? 'off poss' : S.end === 'd' ? 'def poss' : 'poss each way';
+  const lbl = r => `${levName(r.sc)}${r.sc !== sc0() ? ` <b class="warn">(not enough ${levName(sc0())})</b>` : ''} · ${r.min}+ ${pl}`;
+  const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
+  const names = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id), s = S.player ? plPct(A, id, S.player[0], S.player[1]) : null; return lastName(p.name || id) + (s != null ? ` ${s.toFixed(0)}%` : ''); }).join(', ');
+  const swap = f => { const cur = D.five.a; if (cur.length !== 5) return ''; const i = f.filter(id => !cur.includes(id)), x = cur.filter(id => !f.includes(id)); if (!i.length) return '';
+    const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); };
+    return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(nn).join(' '))}</span> · <span class="neg">OUT ${esc(x.map(nn).join(' '))}</span></div>`; };
+  const extra = u => S.id === 'three' && u.v.my3ar != null ? ` · 3PA rate ${u.v.my3ar.toFixed(0)}%` : S.id === 'steal' && u.v.otov != null ? ` · forces TO ${u.v.otov.toFixed(1)}%` : S.id === 'ft' && u.v.ftr != null ? ` · FT rate ${u.v.ftr.toFixed(0)}` : '';
+  const row = (u, both) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
+      <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}${extra(u)}</div>${levMix(u.mix)}${swap(u.five)}</div>
+      <div class="fx-v"><b class="pos">${P(u.x)}</b><span>${esc(sitLabel(S))}</span></div>
+      <div class="fx-v"><b>${S.end === 'o' ? u.oP : S.end === 'd' ? u.dP : Math.floor((u.oP + u.dP) / 2)}</b><span>${pl}</span></div>
+      ${fiveKey(u.five) !== nowKey ? `<div class="fx-subrow"><button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(u.five.join('|'))}">Sub this five in</button></div>` : ''}</div>`;
+  const tK = new Set(T.l.map(u => fiveKey(u.five))), sK = new Set(Sn.l.map(u => fiveKey(u.five)));
+  // Player-skill situations: the best five shooters available, whether or not they've played together.
+  const topPl = S.player ? (() => { const L = teamPlayers(g, 'a').filter(p => ok(p.id)).map(p => ({ id: p.id, v: plPct(A, p.id, S.player[0], S.player[1]) })).filter(x => x.v != null).sort((a, b) => b.v - a.v).slice(0, 5);
+    if (L.length < 5) return '<div class="small muted" style="margin:6px 0">Not enough players with season stats yet (final stat sheets in this tracker, or the ⬆ Adjusted file) to build a five.</div>';
+    const f = L.map(x => x.id);
+    return `<div class="sit-top"><div><b>Best 5 available</b> <span class="muted small">(season stats: ${esc(plSeason().src)})</span><b>:</b> ${esc(L.map(x => `${pShort(g, 'a', x.id)} ${x.v.toFixed(0)}% (${plSample(x.id, S.player[0], S.player[1])})`).join(', '))}${swap(f)}</div><button class="btn btn-sm btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`; })() : '';
+  return `<div class="card fix-card">${levBtns(sk, S.def)}
+    <div class="fx-h"><b>→ the ${esc(S.rank)} fives</b> <span class="muted small">· ${S.player ? 'players\' season lines' : `${esc(c.nsrc)} ${P(n)}`}</span></div>
+    ${topPl}
+    <div class="fx-cols">
+      <div class="fx-col"><div class="fx-lbl today">TODAY <span>this game · ${lbl(T)}</span></div>${T.l.map(u => row(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.player ? (plSeason().src ? 'No five today with enough possessions.' : 'Needs players\' season stats: final stat sheets here, or the ⬆ Adjusted file.') : `No five has been better than ${P(n)} today.`}</div>`}</div>
+      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
+    <div class="tiny muted" style="margin-top:6px">Ranked by ${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.</div></div>`;
+}
+const sitLabel = S => ({ ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100' })[S.stat] || S.stat;
+// vs their best five: our fives while that exact five of theirs was on, this game.
+function sitVsBest(g, D, c) {
+  const B = c.theirBest || theirBest(g, D); if (!B) return '<div class="card muted">Their best five shows up in the 2nd half, once a five of theirs has 8+ possessions.</div>';
+  const key = fiveKey(B.five), ok = sitOk(g), m = {};
+  D.poss.forEach(p => { if (p.gt || !p.five.a || p.five.a.length !== 5 || fiveKey(p.five.b || []) !== key) return; const k = fiveKey(p.five.a), u = m[k] = m[k] || { five: p.five.a, oP: 0, dP: 0, pf: 0, pa: 0 };
+    if (p.team === 'a') { u.oP++; u.pf += p.pts; } else { u.dP++; u.pa += p.pts; } });
+  const L = Object.values(m).filter(u => u.oP >= 3 && u.dP >= 3 && u.five.every(ok)).map(u => Object.assign(u, { net: 100 * u.pf / u.oP - 100 * u.pa / u.dP })).sort((a, b) => b.net - a.net).slice(0, 3);
+  const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
+  const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
+  return `<div class="card fix-card"><div class="fx-h"><b>→ our fives against ${esc(fiveSorted(g, 'b', B.five).map(id => pShort(g, 'b', id)).join(', '))}</b> <span class="muted small">· their net ${sg1(Math.round(10 * B.net) / 10)} on ${B.poss} poss</span></div>
+    ${L.map(u => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}"><div class="fx-five"><b>${esc(nums(u.five))}</b>${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(fiveSorted(g, 'a', u.five).map(id => lastName(pInfo(g, 'a', id).name || id)).join(', '))} · ${u.pf}–${u.pa}</div></div>
+      <div class="fx-v"><b class="${pmCls(u.net)}">${sg1(Math.round(10 * u.net) / 10)}</b><span>net vs them</span></div><div class="fx-v"><b>${Math.floor((u.oP + u.dP) / 2)}</b><span>poss</span></div>
+      ${fiveKey(u.five) !== nowKey ? `<div class="fx-subrow"><button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(u.five.join('|'))}">Sub this five in</button></div>` : ''}</div>`).join('') || '<div class="small muted">None of our fives has 3+ possessions at each end against that five yet.</div>'}
+    <div class="tiny muted" style="margin-top:6px">This game only: every possession where that exact five of theirs was on.</div></div>`;
+}
+
+/* FOULED OUT → PLUG IN: on the forced-sub screen, the best single players to replace the one who fouled
+   out, for the situation right now. Late with a lead → best FT%; late and down → best 3P% (down 4-9) or
+   steals; foul trouble / bonus → fewest fouls; otherwise how the five with him in has done: the season
+   (opponent-adjusted, leverage-weighted) and tonight, then his +/- tonight. Same position as the player
+   going out breaks ties and is shown. */
+function plugCard(g, D, outId) {
+  const base = D.five.a.filter(id => id !== outId), A = luAdj(), c = sitCtx(g, D), lit = new Set(SITS.filter(s => s.on(c)).map(s => s.id));
+  const ok = id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id) && !D.five.a.includes(id);
+  const outPos = (pInfo(g, 'a', outId).pos || '').toUpperCase();
+  const L = lineupUnits(g, D, 'a', 'game', 'nogt'), today = new Map(L.units.map(u => [fiveKey(u.five), u]));
+  const season = new Map(adjUnits(A, 'all').map(u => [fiveKey(u.players.map(p => p.name)), u]));
+  // The moment decides the stat: the most urgent situation lit right now (as on 🎯 Lineups).
+  const MODES = {
+    stop: { lbl: 'steals + blocks / 40', v: id => plPer40(id, 'STL', 'BLK'), hi: true, why: c => `Up ${c.m}, their ball: ranked by steals + blocks` },
+    ft: { lbl: 'FT%', v: id => plPct(A, id, 'FTM', 'FTA'), hi: true, pct: 1, made: 'FTM', att: 'FTA', why: c => `Up ${c.m} late: ranked by FT%` },
+    ball: { lbl: 'TO / 40', v: id => plPer40(id, 'TO'), hi: false, why: c => `Up ${c.m} late: ranked by fewest turnovers` },
+    steal: { lbl: 'steals / 40', v: id => plPer40(id, 'STL'), hi: true, why: c => `Down ${-c.m} late: ranked by steals` },
+    three: { lbl: '3P%', v: id => plPct(A, id, '3PM', '3PA'), hi: true, pct: 1, made: '3PM', att: '3PA', why: c => `Down ${-c.m} late: ranked by 3P%` },
+    foul: { lbl: 'fouls / 40', v: id => plPer40(id, 'PF'), hi: false, why: () => 'Foul trouble: ranked by fewest fouls' },
+    two: { lbl: 'blocks + def reb / 40', v: id => plPer40(id, 'BLK', 'DREB'), hi: true, why: () => 'They\'re scoring inside: ranked by blocks + defensive rebounds' },
+    glass: { lbl: 'def reb / 40', v: id => plPer40(id, 'DREB'), hi: true, why: () => 'They\'re winning the glass: ranked by defensive rebounds' } };
+  const mk = SIT_ORDER.find(k => lit.has(k) && MODES[k]), mode = mk ? Object.assign({ k: mk }, MODES[mk]) : null;
+  const rows = teamPlayers(g, 'a').filter(p => ok(p.id)).map(p => {
+    const f = [...base, p.id], k = fiveKey(f), tu = today.get(k), su = season.get(k);
+    const tNet = tu && tu.oPoss >= 3 && tu.dPoss >= 3 ? 100 * tu.pf / tu.oPoss - 100 * tu.pa / tu.dPoss : null, tP = tu ? Math.floor((tu.oPoss + tu.dPoss) / 2) : 0;
+    const sNet = su && su.oT >= 10 && su.dT >= 10 ? su.adjNet : null, sP = su ? Math.floor((su.oT + su.dT) / 2) : 0;
+    const pm = (L.players[p.id] || { pm: 0 }).pm, pos = (p.pos || '').toUpperCase(), same = !!outPos && !!pos && (pos === outPos || pos.split(/[\/-]/).some(x => outPos.split(/[\/-]/).includes(x)));
+    // How the five with him has done: season (shrunk toward 0 for a small sample) and tonight, then his +/-.
+    const fit = (sNet == null ? 0 : sNet * sP / (sP + 20)) + (tNet == null ? 0 : 0.5 * tNet * tP / (tP + 10)) + pm + (same ? 3 : 0);
+    return { p, f, tNet, tP, sNet, sP, pm, same, skill: mode ? mode.v(p.id) : null, fit, pf: playerFouls(g, 'a', p.id) };
+  });
+  rows.sort((a, b) => mode && (a.skill != null || b.skill != null) ? (a.skill == null ? 1 : b.skill == null ? -1 : (mode.hi ? b.skill - a.skill : a.skill - b.skill) || b.fit - a.fit) : b.fit - a.fit);
+  const top = rows.slice(0, 3); if (!top.length) return '';
+  const sg = v => v == null ? '—' : sg1(Math.round(10 * v) / 10);
+  return `<div class="plug-card"><div class="plug-h">🔁 Plug in for <b>${esc(pShort(g, 'a', outId))}</b>${outPos ? ` <span class="muted">(${esc(outPos)})</span>` : ''} <span class="muted small">· ${mode ? esc(mode.why(c)) : 'ranked by how the five with him has done'}${mode && plSeason().src ? ` (season stats: ${esc(plSeason().src)})` : ''}</span></div>
+    ${top.map((r, i) => `<div class="plug-row"><span class="fix-rk">${i + 1}</span><div class="plug-who"><b>${esc(pShort(g, 'a', r.p.id))}</b>${r.p.pos ? ` <span class="muted small">${esc(r.p.pos)}</span>` : ''}${r.same ? '<span class="fx-both">SAME POS</span>' : ''}
+        <div class="tiny muted">${mode && r.skill != null ? `<b>${mode.pct ? r.skill.toFixed(0) + '%' : r.skill.toFixed(1)} ${mode.pct ? mode.lbl.replace('%', '') : mode.lbl}</b> (${esc(plSample(r.p.id, mode.made, mode.att))}) · ` : mode ? 'not enough quality-game sample · ' : ''}five with him: season ${sg(r.sNet)}${r.sP ? ` (${r.sP} poss)` : ''} · tonight ${sg(r.tNet)}${r.tP ? ` (${r.tP})` : ''} · his +/- ${sgn(r.pm)}${r.pf ? ` · ${r.pf} PF` : ''}</div></div>
+      <button class="btn btn-good" data-act="plug" data-out="${esc(outId)}" data-p="${esc(r.p.id)}">Plug in</button></div>`).join('')}</div>`;
+}
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();

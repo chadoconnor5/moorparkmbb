@@ -97,6 +97,60 @@ def _opp_factor(f, k):
     return 100 - f["dreb_pct"] if k == "opp_orb_pct" else f.get(k)
 
 
+QUALITY_MARGIN = 15   # a game decided by more is left out of the quality lines (too much garbage time)
+
+
+def load_players(season, ratings, team="Moorpark"):
+    """Moorpark's player season lines from the season's box scores (the schedules folder), twice:
+    "all" games, and "quality" games only - against an in-system opponent with a positive adjusted
+    net rating, decided by QUALITY_MARGIN or fewer - so a player's FT% isn't built on blowouts of weak
+    teams. Box scores can't see leverage inside a game; that is the closest a box score gets.
+    {name: {"all": {...}, "quality": {...}}}, keys games MIN FGM FGA FTM FTA 3PM 3PA OREB DREB AST
+    STL BLK TO PF PTS."""
+    root = Path(f"{season} Teams Schedules")
+    dirs = [d for d in root.glob(f"*/{team}") if d.is_dir()]
+    if not dirs:
+        return {}
+    lg_net = 0.0
+    out = {}
+
+    def num(v):
+        try:
+            return int(str(v).strip() or 0)
+        except ValueError:
+            return 0
+
+    for f in sorted(dirs[0].glob("*/*.json")):
+        try:
+            box = json.load(open(f))
+        except (OSError, ValueError):
+            continue
+        teams = box.get("teams") or {}
+        mine = next((k for k in teams if k.lower().startswith(team.lower())), None)
+        if not mine or not teams.get(mine):
+            continue
+        opp_label = next((k for k in teams if k != mine), "")
+        opp = uaa.resolve_opponent(opp_label)
+        r = ratings.get(opp) if opp else None
+        sc = box.get("score") or {}
+        margin = abs((sc.get(mine) or 0) - (sc.get(opp_label) or 0)) if sc else 99
+        quality = r is not None and (r[0] - r[1]) > lg_net and margin <= QUALITY_MARGIN
+        for pl in teams[mine]:
+            name = re.sub(r"^#\S+\s+", "", pl.get("name") or "").strip()
+            st = pl.get("stats") or {}
+            if not name or num(st.get("MIN")) <= 0:
+                continue
+            fg, tp, ft = (str(st.get(k) or "0-0").split("-") for k in ("FGM-A", "3PM-A", "FTM-A"))
+            line = {"games": 1, "MIN": num(st.get("MIN")), "FGM": num(fg[0]), "FGA": num(fg[-1]), "3PM": num(tp[0]), "3PA": num(tp[-1]),
+                    "FTM": num(ft[0]), "FTA": num(ft[-1]), "OREB": num(st.get("OREB")), "DREB": num(st.get("DREB")), "AST": num(st.get("AST")),
+                    "STL": num(st.get("STL")), "BLK": num(st.get("BLK")), "TO": num(st.get("TO")), "PF": num(st.get("PF")), "PTS": num(st.get("PTS"))}
+            x = out.setdefault(name, {"all": {}, "quality": {}})
+            for scope in ("all", "quality") if quality else ("all",):
+                for k, v in line.items():
+                    x[scope][k] = x[scope].get(k, 0) + v
+    return out
+
+
 def home_court(site):
     """Moorpark's venue -> (ORtg shift, DRtg shift), as update_advanced_analytics does."""
     h = uaa.HOME_ADVANTAGE / 2
@@ -110,8 +164,14 @@ LEV_W = {"high": 1.0, "med": 0.6, "low": 0.25}
 LEV_SCOPES = ("high", "med", "low", "clutch", "hm", "w")
 
 
+def _raw():
+    return {"oT": 0, "dT": 0, "pf": 0, "pa": 0, "stops": 0, "fouls": 0, "o": {}, "d": {}}
+
+
 def _acc():
-    return {"oT": 0, "dT": 0, "pf": 0, "pa": 0, "_ao": 0.0, "_ad": 0.0, "_aoT": 0.0, "_adT": 0.0, "_ff": {}}
+    # q = the same raw counts from games against quality opponents only (positive adjusted net):
+    # the situational stats that aren't opponent-adjusted (stop %, steals, fouls, 2P%, 3PA rate) use it.
+    return dict(_raw(), q=_raw(), _ao=0.0, _ad=0.0, _aoT=0.0, _adT=0.0, _ff={})
 
 
 def adjust(data, ratings, ratings_season, factors=None):
@@ -123,8 +183,14 @@ def adjust(data, ratings, ratings_season, factors=None):
 
     def add(acc, blk, r, F, hc_o, hc_d, w=1.0):
         """One game's block of possessions (oT, dT, pf, pa, o, d) into acc, weighted by w."""
-        for k in ("oT", "dT", "pf", "pa"):
-            acc[k] += blk.get(k, 0)
+        quality = r is not None and r[0] - r[1] > 0
+        for tgt in (acc, acc["q"]) if quality else (acc,):
+            for k in ("oT", "dT", "pf", "pa", "stops", "fouls"):
+                tgt[k] += blk.get(k, 0) or 0
+            # Raw counts too (3PA, steals, ...): the situational stats that aren't opponent-adjusted.
+            for side in ("o", "d"):
+                for k, v in (blk.get(side) or {}).items():
+                    tgt[side][k] = tgt[side].get(k, 0) + (v or 0)
         if r is None:
             return
         if F:  # four factors, each weighted by its own attempts (FGA, possessions, rebound chances)
@@ -152,6 +218,7 @@ def adjust(data, ratings, ratings_season, factors=None):
         ao = acc["_ao"] / acc["_aoT"] if acc["_aoT"] else None
         ad = acc["_ad"] / acc["_adT"] if acc["_adT"] else None
         return {"oT": acc["oT"], "dT": acc["dT"], "pf": acc["pf"], "pa": acc["pa"],
+                "stops": acc["stops"], "fouls": acc["fouls"], "o": acc["o"], "d": acc["d"], "q": acc["q"],
                 "adjPossO": round(acc["_aoT"], 2), "adjPossD": round(acc["_adT"], 2),
                 "adjOrtg": rnd(ao), "adjDrtg": rnd(ad), "adjNet": rnd(ao - ad) if ao is not None and ad is not None else None,
                 "adjFF": {k: rnd(v[0] / v[1]) for k, v in acc["_ff"].items() if v[1]},
@@ -195,6 +262,7 @@ def adjust(data, ratings, ratings_season, factors=None):
         out_units.append({
             "key": x["key"], "names": [p["name"] for p in x["players"]], "players": x["players"],
             "gp": x["gp"], "secs": x["secs"], "oT": A["oT"], "dT": A["dT"], "pf": A["pf"], "pa": A["pa"],
+            "stops": A["stops"], "fouls": A["fouls"], "q": A["q"],
             "o": x["o"], "d": x["d"],
             "ortg": rnd(o), "drtg": rnd(d), "net": rnd(o - d) if o is not None and d is not None else None,
             "adjPossO": A["adjPossO"], "adjPossD": A["adjPossD"],
@@ -238,6 +306,8 @@ def main():
     if not factors:
         print(f"No adjusted four factors in '{season} Team Statistics' (run update_advanced_analytics.py --all); ratings only.")
     res = adjust(data, ratings, season, factors)
+    res["playerSeason"] = load_players(season, ratings)
+    res["qualityMargin"] = QUALITY_MARGIN
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(a.out, "w"), indent=1)
     print(f"Ratings: {season} ({len(ratings)} teams; league avg ORtg {res['leagueAvg']['ortg']}, DRtg {res['leagueAvg']['drtg']})")
