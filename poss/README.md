@@ -120,9 +120,19 @@ Hudl's per-game lineup export still supplies offense and minutes.
 
 ## Lineups
 ⇄ Sub sets both teams' fives on one screen: each team's **On the floor** five on top, one per line in number order, the **Bench** (two across)
-below. Tap a player on the floor to take him out, tap a bench player to put him in. The starting fives are asked for when a game starts
+below. Tap a player on the floor to take him out, tap a bench player to put him in (in any order: with more
+than five on, it says how many to tap off). The starting fives are asked for when a game starts
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).
+
+**⏳ Pending** (its own button, under ⇄ Sub): mark players waiting at the table before you know who
+they're replacing. It lists each team's bench only (no one on the floor, no one fouled out); tap to
+mark **⏳ CHECKING IN**, tap again to unmark, **Clear all** to reset. A **Checking in** strip shows under
+each team's on-floor list with a **Sub now** button, and ⇄ Sub reads **⇄ Sub · 3 waiting**. When the sub
+happens, ⇄ Sub opens with them already on the floor list (gold, first) and says **tap 2 coming off**:
+tap who's coming off and Confirm. **Sub now** on the strip opens the same screen. You can still add more
+from the bench there (the count goes up: **tap 3 coming off**); Confirm unlocks when each team is back to five. Players who went in leave the pending list; anyone left out stays
+pending. On a fouled-out player's forced sub, a pending player fills the spot.
 
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
@@ -131,13 +141,16 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
 
-**💡 Try (lineup tip, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0 or
-worse, a **💡 Try** button shows at the top right of our lineup card. It suggests our five with the best
-four factors in this game (Dean Oliver's weights on ours minus theirs with that five on: eFG% 40, TO% 25,
-OReb% 20, FT rate 15), among fives with 8+ possessions and nobody fouled out. Tapping it shows the five,
-who comes in and out, and its factors next to the five on now; **Sub this five in…** opens the sub screen
-with it filled in, ready to confirm. If no five qualifies and wins the factors, there is no button. Not
-shown in garbage time.
+**💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
+or worse (garbage time out), a **💡 Try** button shows at the top right of our lineup card. It opens
+**Lineups to try**, the same card as the halftime report, built for now, with today's fives beside the
+season's (opponent-adjusted), at a **Leverage** setting that opens on **High**:
+- **Best overall:** the four-factor edge (ours minus theirs, weighted eFG% 40, TO% 25, OReb% 20, FT
+  rate 15), better than the five on now and winning the factors;
+- **What's hurting us** in the 2nd half so far, one stat at a time, as at halftime.
+
+Each five shows who comes **IN** and goes **OUT**, and **Sub this five in** opens the sub screen with it
+filled in, ready to confirm. Nobody fouled out or not dressed. No five qualifies, no button.
 
 **Lineups tab**, for the game or the current period, for both teams, as **5-man, 4-man, 3-man or 2-man**
 combos (a combo is on the floor for every possession of every five that contains it). For each:
@@ -160,9 +173,17 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
    factors against the opponent's opponent-adjusted four factors: holding a team that has rebounded well
    against good opponents counts for more than holding a weak one. Scrimmages and teams outside the CCC
    system are left out of the adjusted numbers.
-3. **⬆ Adjusted** loads `internal_data/moorpark_lineups_adj.json`. A table lists each five with 10+
-   possessions each way: adjusted ORtg, DRtg, net and four factors at both ends. It says when newer
-   games aren't in the file.
+3. **⬆ Adjusted** loads `internal_data/moorpark_lineups_adj.json`. A table lists each five: adjusted
+   ORtg, DRtg, net and four factors at both ends, and **H · M · L**, how its possessions split by
+   leverage (red when mostly low). It says when newer games aren't in the file.
+
+**Leverage.** The file carries each five's possessions split by leverage (High / Medium / Low, and clutch;
+garbage time is out of everything), and each split is opponent-adjusted. A **Leverage** filter, on the
+season table and the halftime card, picks **High+Med** (the default), **High**, **Clutch** or **All**.
+Season **All** is leverage-weighted: a possession counts High ×1, Medium ×0.6, Low ×0.25, so a five that
+built its numbers in low-leverage minutes ranks lower. Smaller scopes need fewer possessions (season
+All 25 / High+Med 15 / High 10 / Clutch 6 at that end; today 6 / 5 / 4 / 3), and when no five qualifies
+the next wider scope is shown, saying so. The Lineups tab filters add High+Med and High.
 
 **Halftime: lineups for what's hurting us, today and season.** Each four factor we're losing in the 1st
 half is split into its two ends, and only the end that's off our norm tonight is worked on (our season
@@ -174,8 +195,10 @@ fives are ranked on that stat alone:
   (OREB%), getting to the line (FT rate) and fouling (opp FT rate).
 
 Worst problem first. Two columns side by side:
-- **Today:** this half's fives, as played, with 6+ possessions at that end;
-- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted) with 25+ possessions at that end.
+- **Today:** this half's fives, as played;
+- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted), with their H · M · L leverage mix;
+
+both at the chosen leverage (High+Med by default; see Leverage above).
 
 Each lists its top two, only fives better than the norm with everyone dressed and not fouled out.
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five

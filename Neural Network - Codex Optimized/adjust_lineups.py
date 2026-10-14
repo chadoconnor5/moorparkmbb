@@ -103,13 +103,61 @@ def home_court(site):
     return {"home": (-h, +h), "away": (+h, -h)}.get((site or "").lower(), (0.0, 0.0))
 
 
+# Leverage (from the possession tracker, which tags every possession High / Medium / Low and
+# clutch, garbage time already out): each five is also adjusted within each bucket, within
+# High+Med, and leverage-weighted, where a possession counts by how much it mattered.
+LEV_W = {"high": 1.0, "med": 0.6, "low": 0.25}
+LEV_SCOPES = ("high", "med", "low", "clutch", "hm", "w")
+
+
+def _acc():
+    return {"oT": 0, "dT": 0, "pf": 0, "pa": 0, "_ao": 0.0, "_ad": 0.0, "_aoT": 0.0, "_adT": 0.0, "_ff": {}}
+
+
 def adjust(data, ratings, ratings_season, factors=None):
     lg_o = sum(o for o, _ in ratings.values()) / len(ratings)
     lg_d = sum(d for _, d in ratings.values()) / len(ratings)
     factors = factors or {}
     lg_f = {k: sum(_opp_factor(f, k) for f in factors.values()) / len(factors)
             for _, k, _, _ in FF_ADJ} if factors else {}
-    games, units = [], {}
+
+    def add(acc, blk, r, F, hc_o, hc_d, w=1.0):
+        """One game's block of possessions (oT, dT, pf, pa, o, d) into acc, weighted by w."""
+        for k in ("oT", "dT", "pf", "pa"):
+            acc[k] += blk.get(k, 0)
+        if r is None:
+            return
+        if F:  # four factors, each weighted by its own attempts (FGA, possessions, rebound chances)
+            o, d = blk.get("o") or {}, blk.get("d") or {}
+            for key, ok, val, wt in FF_ADJ:
+                args = (o, d, blk.get("oT", 0), blk.get("dT", 0))
+                v, n = val(*args), wt(*args)
+                if v is None or not n:
+                    continue
+                a = acc["_ff"].setdefault(key, [0.0, 0.0])
+                # A rate stays a rate: a tiny sample at 0% can't adjust below 0.
+                a[0] += min(100.0, max(0.0, v - _opp_factor(F, ok) + lg_f[ok])) * n * w
+                a[1] += n * w
+        # Possession-weighted: sum (adjusted points per 100) * possessions.
+        if blk.get("oT"):
+            acc["_ao"] += (100 * blk["pf"] / blk["oT"] + hc_o - r[1] + lg_d) * blk["oT"] * w
+            acc["_aoT"] += blk["oT"] * w
+        if blk.get("dT"):
+            acc["_ad"] += (100 * blk["pa"] / blk["dT"] + hc_d - r[0] + lg_o) * blk["dT"] * w
+            acc["_adT"] += blk["dT"] * w
+
+    rnd = lambda v: None if v is None else round(v, 1)
+
+    def finish(acc):
+        ao = acc["_ao"] / acc["_aoT"] if acc["_aoT"] else None
+        ad = acc["_ad"] / acc["_adT"] if acc["_adT"] else None
+        return {"oT": acc["oT"], "dT": acc["dT"], "pf": acc["pf"], "pa": acc["pa"],
+                "adjPossO": round(acc["_aoT"], 2), "adjPossD": round(acc["_adT"], 2),
+                "adjOrtg": rnd(ao), "adjDrtg": rnd(ad), "adjNet": rnd(ao - ad) if ao is not None and ad is not None else None,
+                "adjFF": {k: rnd(v[0] / v[1]) for k, v in acc["_ff"].items() if v[1]},
+                "adjFFw": {k: round(v[1], 1) for k, v in acc["_ff"].items() if v[1]}}
+
+    games, units, any_lev = [], {}, False
     for g in data.get("games", []):
         opp = None if g.get("scrimmage") else uaa.resolve_opponent(g.get("opponent", ""))
         r = ratings.get(opp) if opp else None
@@ -118,55 +166,46 @@ def adjust(data, ratings, ratings_season, factors=None):
                       "adjusted": why is None, "skipped": why,
                       "oppOrtg": r[0] if r else None, "oppDrtg": r[1] if r else None})
         hc_o, hc_d = home_court(g.get("site"))
+        F = factors.get(opp) if r else None
         for u in g.get("units", []):
             x = units.setdefault(u["key"], {"key": u["key"], "players": u["players"], "gp": 0, "secs": 0,
-                                            "oT": 0, "dT": 0, "pf": 0, "pa": 0, "o": {}, "d": {},
-                                            "_ao": 0.0, "_ad": 0.0, "_aoT": 0, "_adT": 0, "_ff": {}})
+                                            "o": {}, "d": {}, "all": _acc(), "lev": {}})
             x["gp"] += 1
-            for k in ("secs", "oT", "dT", "pf", "pa"):
-                x[k] += u.get(k, 0)
+            x["secs"] += u.get("secs", 0)
             for side in ("o", "d"):  # four-factor counts: ours (o) and theirs (d) while this five played
                 for k, v in (u.get(side) or {}).items():
                     x[side][k] = x[side].get(k, 0) + v
-            if r is None:
-                continue
-            F = factors.get(opp)
-            if F:  # four factors, each weighted by its own attempts (FGA, possessions, rebound chances)
-                o, d = u.get("o") or {}, u.get("d") or {}
-                for key, ok, val, wt in FF_ADJ:
-                    args = (o, d, u.get("oT", 0), u.get("dT", 0))
-                    v, w = val(*args), wt(*args)
-                    if v is None or not w:
-                        continue
-                    acc = x["_ff"].setdefault(key, [0.0, 0.0])
-                    # A rate stays a rate: a tiny sample at 0% can't adjust below 0.
-                    acc[0] += min(100.0, max(0.0, v - _opp_factor(F, ok) + lg_f[ok])) * w
-                    acc[1] += w
-            # Possession-weighted: sum (adjusted points per 100) * possessions.
-            if u.get("oT"):
-                x["_ao"] += (100 * u["pf"] / u["oT"] + hc_o - r[1] + lg_d) * u["oT"]
-                x["_aoT"] += u["oT"]
-            if u.get("dT"):
-                x["_ad"] += (100 * u["pa"] / u["dT"] + hc_d - r[0] + lg_o) * u["dT"]
-                x["_adT"] += u["dT"]
+            add(x["all"], u, r, F, hc_o, hc_d)
+            lev = u.get("lev") or {}
+            if lev:
+                any_lev = True
+            for b, blk in lev.items():
+                add(x["lev"].setdefault(b, _acc()), blk, r, F, hc_o, hc_d)
+                if b in ("high", "med"):
+                    add(x["lev"].setdefault("hm", _acc()), blk, r, F, hc_o, hc_d)
+                if b in LEV_W:
+                    add(x["lev"].setdefault("w", _acc()), blk, r, F, hc_o, hc_d, LEV_W[b])
     out_units = []
     for x in units.values():
-        ao = x["_ao"] / x["_aoT"] if x["_aoT"] else None
-        ad = x["_ad"] / x["_adT"] if x["_adT"] else None
-        o = 100 * x["pf"] / x["oT"] if x["oT"] else None
-        d = 100 * x["pa"] / x["dT"] if x["dT"] else None
-        rnd = lambda v: None if v is None else round(v, 1)
+        A = finish(x["all"])
+        o = 100 * A["pf"] / A["oT"] if A["oT"] else None
+        d = 100 * A["pa"] / A["dT"] if A["dT"] else None
+        poss = {b: x["lev"][b]["oT"] + x["lev"][b]["dT"] for b in ("high", "med", "low") if b in x["lev"]}
+        tot = sum(poss.values())
         out_units.append({
             "key": x["key"], "names": [p["name"] for p in x["players"]], "players": x["players"],
-            "gp": x["gp"], "secs": x["secs"], "oT": x["oT"], "dT": x["dT"], "pf": x["pf"], "pa": x["pa"],
+            "gp": x["gp"], "secs": x["secs"], "oT": A["oT"], "dT": A["dT"], "pf": A["pf"], "pa": A["pa"],
             "o": x["o"], "d": x["d"],
             "ortg": rnd(o), "drtg": rnd(d), "net": rnd(o - d) if o is not None and d is not None else None,
-            "adjPossO": x["_aoT"], "adjPossD": x["_adT"],
-            "adjOrtg": rnd(ao), "adjDrtg": rnd(ad), "adjNet": rnd(ao - ad) if ao is not None and ad is not None else None,
+            "adjPossO": A["adjPossO"], "adjPossD": A["adjPossD"],
+            "adjOrtg": A["adjOrtg"], "adjDrtg": A["adjDrtg"], "adjNet": A["adjNet"],
             # Opponent-adjusted four factors (ours: efg tov orb ftr; theirs: oefg otov oorb oftr)
             # and the weight behind each, so groups of fives can be combined.
-            "adjFF": {k: rnd(v[0] / v[1]) for k, v in x["_ff"].items() if v[1]},
-            "adjFFw": {k: round(v[1], 1) for k, v in x["_ff"].items() if v[1]},
+            "adjFF": A["adjFF"], "adjFFw": A["adjFFw"],
+            # By leverage: high / med / low / clutch / hm (High+Med) / w (leverage-weighted),
+            # and the share of possessions that were High, Medium and Low.
+            "lev": {b: finish(x["lev"][b]) for b in LEV_SCOPES if b in x["lev"]},
+            "levMix": {b: round(100 * n / tot, 1) for b, n in poss.items()} if tot else {},
         })
     out_units.sort(key=lambda u: -(u["oT"] + u["dT"]))
     return {
@@ -174,7 +213,7 @@ def adjust(data, ratings, ratings_season, factors=None):
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": data.get("exportedAt"), "ratingsSeason": ratings_season,
         "leagueAvg": {"ortg": round(lg_o, 1), "drtg": round(lg_d, 1)}, "homeAdvantage": uaa.HOME_ADVANTAGE,
-        "factorsAdjusted": bool(factors),
+        "factorsAdjusted": bool(factors), "leverage": any_lev, "levWeights": LEV_W,
         "gamesTotal": len(games), "gamesAdjusted": sum(g["adjusted"] for g in games),
         "games": games, "units": out_units,
     }

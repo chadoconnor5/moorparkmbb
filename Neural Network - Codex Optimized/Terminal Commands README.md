@@ -91,6 +91,8 @@ Lineups → Season) and adjusts each five's games for the opponent's leaderboard
 and home court, and each five's four factors against the opponent's opponent-adjusted
 four factors (so out-rebounding a team that rebounds well against good opponents counts
 for more). Run `update_advanced_analytics.py --all` first in-season so those are current.
+From the possession tracker's file, each five is also adjusted within High / Medium / Low
+leverage, High+Med and clutch, and leverage-weighted (High ×1, Medium ×0.6, Low ×0.25).
 Load the output in the tracker with **⬆ Adjusted** (the possession tracker's halftime
 report then suggests season fives for the factors we're losing), and in the leaderboard
 (Moorpark → Lineups → **⬆ Load adjusted lineups**). All read it in the browser only.
