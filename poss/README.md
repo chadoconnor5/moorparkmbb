@@ -124,7 +124,7 @@ than five on, it says how many to tap off). The starting fives are asked for whe
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).
 
-**⏳ Pending** (its own button, under ⇄ Sub): mark players waiting at the table before you know who
+**⏳ Pending** (its own button, beside ⇄ Sub): mark players waiting at the table before you know who
 they're replacing. It lists each team's bench only (no one on the floor, no one fouled out); tap to
 mark **⏳ CHECKING IN**, tap again to unmark, **Clear all** to reset. A **Checking in** strip shows under
 each team's on-floor list with a **Sub now** button, and ⇄ Sub reads **⇄ Sub · 3 waiting**. When the sub
