@@ -883,6 +883,16 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .fx-subrow .fx-sub{width:100%}
 .tip-modal .fx-col{padding:8px}
 
+/* Pending subs */
+.ctrls .flag-last{grid-column:span 2}
+.sub-p.pend{border-color:var(--warn);background:rgba(220,176,90,.14)}
+.sub-p .pend-tag{color:var(--warn);font-weight:800;letter-spacing:.03em}
+.sub-off{color:var(--warn);margin-left:6px}
+.pend-strip{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 7px;padding:7px 10px;border-radius:10px;border:1px dashed var(--warn);background:rgba(220,176,90,.1);font-size:13px}
+.pend-strip b{color:var(--warn)}
+.sub-p.in.pend{border-color:var(--warn);background:rgba(220,176,90,.14)}
+.sub-p.in.pend .pend-tag,.sub-p.pend .pend-tag{color:var(--warn)}
+
 </style>
 </head>
 <body>
@@ -914,7 +924,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.59';
+const VERSION = 'v2026.10.14.60';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1545,19 +1555,19 @@ function liveView(g) {
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
   return `${scorebar(g, D)}
   <div class="tracker">
-    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${playerCards(g, D, 'a')}</div>
+    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
-      <div class="ctrls"><button class="btn" data-act="sub">⇄ Sub</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
+      <div class="ctrls"><button class="btn ${pendCount(g, D) ? 'btn-good' : ''}" data-act="sub">⇄ Sub${pendCount(g, D) ? ` · ${pendCount(g, D)} waiting` : ''}</button><button class="btn btn-warn" data-act="timeout">Timeout</button><button class="btn" data-act="scout">📄 Scout</button>
         <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo${undoWhat(g)}</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button></div>
-      ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)); return `<div class="ctrls" style="margin-top:7px"><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button></div>`; })()}
+      ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)); return `<div class="ctrls" style="margin-top:7px"><button class="btn pend-btn" data-act="pend">⏳ Pending${pendCount(g, D) ? ` (${pendCount(g, D)})` : ''}</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'} last play</button></div>`; })()}
       <div class="feed">${items.map(f => feedRow(g, f)).join('') || '<div class="s"><span>Nothing logged yet</span></div>'}</div>
       <button class="abandon-link" data-act="abandon">Abandon game…</button>
     </div>
     <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>${(() => { const B = theirBestOn(g, D); return B ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * B.net) / 10)} · ${B.poss} poss</span></div>` : ''; })()}
-      ${playerCards(g, D, 'b')}
+      ${pendStrip(g, D, 'b')}${playerCards(g, D, 'b')}
       <div class="lpm2">${lpmCard(g, D, 'a')}${lpmCard(g, D, 'b')}</div></div>
   </div>`;
 }
@@ -2190,21 +2200,51 @@ function newGameModal(g) {
 }
 
 /* Subs: both teams' fives on one screen. Tap players until five are lit on each side, Confirm. */
+/* PENDING SUBS: players waiting at the table, marked ahead of time without saying who they replace.
+   Saved on the game (g.pending = { a: [ids], b: [ids] }). ⇄ Sub then opens with them already in, and all
+   that's left is tapping who comes off. Anyone on the floor, fouled out or no longer dressed drops off. */
+function pending(g, t, D) {
+  D = D || derive(g); const on = new Set(D.five[t]), ids = new Set(teamPlayers(g, t).map(p => p.id));
+  return ((g.pending || {})[t] || []).filter(id => ids.has(id) && !on.has(id) && !isOut(g, t, id));
+}
+const pendCount = (g, D) => pending(g, 'a', D).length + pending(g, 'b', D).length;
+function pendModal() {
+  const g = cur(), D = derive(g); g.pending = g.pending || { a: [], b: [] };
+  const side = t => { const P = new Set(pending(g, t, D)), on = new Set(D.five[t]);
+    const bench = teamPlayers(g, t).filter(p => !on.has(p.id) && !isOut(g, t, p.id));   // the bench pool only
+    return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
+      <div class="sub-lbl">Bench <span class="muted">· ${P.size} checking in</span></div>
+      <div class="sub-grid">${bench.map(p => { const w = P.has(p.id);
+        return `<button class="sub-p ${w ? 'pend' : ''}" data-act="pend-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; }).join('') || '<div class="muted small">No one on the bench.</div>'}</div></div>`; };
+  modal(`<div class="sub-head"><h2>⏳ Pending subs — who's checking in?</h2><div class="sub-top">${pendCount(g, D) ? '<button class="btn btn-lg" data-act="pend-clear">Clear all</button>' : ''}<button class="btn btn-good btn-lg" data-act="pend-done">Done</button></div></div>
+    <div class="small muted" style="margin:6px 0 10px">Tap the bench players waiting at the table. No need to say who they're replacing: when the sub happens, ⇄ Sub opens with them in, and you tap who's coming off.</div>
+    <div class="sub-sides two">${side('a')}${side('b')}</div>`, 'sub-modal');
+}
+// On the live screen, under each team's five: who's waiting to check in.
+function pendStrip(g, D, t) {
+  const P = pending(g, t, D); if (!P.length) return '';
+  return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b></span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
+}
 let SUB = null;
 function subModal(title) {
   const g = cur(), D = derive(g);
   if (!SUB) {
     const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
-    SUB = { a: new Set(keep('a')), b: new Set(keep('b')), forced,
-      title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : title || 'Sub — who is on the floor?' };
+    // Pending players come in already; the screen then only needs who's coming off.
+    const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
+    SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
+      title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : pend.a.size || pend.b.size ? 'Sub — tap who’s coming off' : title || 'Sub — who is on the floor?' };
   }
   const side = t => { const ps = teamPlayers(g, t), n = SUB[t].size;
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
-          return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : ''}</button>`; };
+          const w = on && SUB.pend && SUB.pend[t].has(p.id);
+          return `<button class="sub-p ${on ? 'in' : ''} ${w ? 'pend' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; };
         // On the floor first, then the bench (fouled-out players last). Tap to move a player between them.
-        const on = ps.filter(p => SUB[t].has(p.id)), bench = ps.filter(p => !SUB[t].has(p.id)).sort((x, y) => isOut(g, t, x.id) - isOut(g, t, y.id));
-        return `<div class="sub-lbl">On the floor <span class="muted">${n}/5</span></div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
+        // Checking-in players lead the floor list, so the ones still to tap off are easy to scan.
+        const isP = p => SUB.pend && SUB.pend[t].has(p.id) ? 0 : 1;
+        const on = ps.filter(p => SUB[t].has(p.id)).sort((x, y) => isP(x) - isP(y)), bench = ps.filter(p => !SUB[t].has(p.id)).sort((x, y) => isOut(g, t, x.id) - isOut(g, t, y.id));
+        return `<div class="sub-lbl">On the floor ${n > 5 ? '' : `<span class="muted">${n}/5</span>`}${n > 5 ? ` <b class="sub-off">tap ${n - 5} coming off</b>` : ''}</div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
           <div class="sub-lbl">Bench</div><div class="sub-grid">${bench.map(btn).join('') || '<div class="muted small">No one on the bench.</div>'}</div>`; })()
         : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; };
   const ok = t => (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id)));
@@ -2216,6 +2256,8 @@ function subModal(title) {
 function subConfirm() {
   const g = cur(), D = derive(g);
   ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, Object.assign({ t: 'sub', team: t, five: f }, D.five[t].length ? {} : { lock: true })); });
+  // Pending players who went in are done waiting; the rest stay pending.
+  if (g.pending) ['a', 'b'].forEach(t => { g.pending[t] = (g.pending[t] || []).filter(id => !SUB[t].has(id)); });
   SUB = null; save(); closeModal(); render();
   const B = theirBestOn(g, derive(g)); if (B && fiveKey(B.five) !== fiveKey(D.five.b)) toast(`★ ${g.opp}'s best five is on (net ${sg1(Math.round(10 * B.net) / 10)} on ${B.poss} poss)`, 'warn');
 }
@@ -2612,6 +2654,11 @@ document.addEventListener('click', ev => {
       UI.redo.push(g.ev.pop()); save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
+    case 'pend': pendModal(); break;
+    case 'pend-p': { g.pending = g.pending || { a: [], b: [] }; const t = b.dataset.t, id = b.dataset.p, l = g.pending[t] = pending(g, t);
+      if (l.includes(id)) g.pending[t] = l.filter(x => x !== id); else l.push(id); save(); pendModal(); break; }
+    case 'pend-clear': g.pending = { a: [], b: [] }; save(); pendModal(); break;
+    case 'pend-done': closeModal(); render(); break;
     case 'tip': tipModal(); break;
     case 'tip-close': closeModal(); break;
     case 'tip-sub': { const f = (b.dataset.five || '').split('|').filter(Boolean); if (f.length !== 5) { closeModal(); break; }

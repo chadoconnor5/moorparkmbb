@@ -124,6 +124,14 @@ below. Tap a player on the floor to take him out, tap a bench player to put him 
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).
 
+**⏳ Pending** (its own button, under ⇄ Sub): mark players waiting at the table before you know who
+they're replacing. It lists each team's bench only (no one on the floor, no one fouled out); tap to
+mark **⏳ CHECKING IN**, tap again to unmark, **Clear all** to reset. A **Checking in** strip shows under
+each team's on-floor list with a **Sub now** button, and ⇄ Sub reads **⇄ Sub · 3 waiting**. When the sub
+happens, ⇄ Sub opens with them already on the floor list (gold, first) and says **tap 2 coming off**:
+tap who's coming off and Confirm. Players who went in leave the pending list; anyone left out stays
+pending. On a fouled-out player's forced sub, a pending player fills the spot.
+
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
 show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 
