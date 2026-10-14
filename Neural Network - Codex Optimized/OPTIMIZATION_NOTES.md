@@ -147,6 +147,11 @@ This copy keeps the original project intact and starts consolidating the working
   `adjust_lineups.py` reads `adj_ff` to adjust each five's four factors (per game,
   weighted by that factor's own attempts, clamped to 0-100) into `adjFF` / `adjFFw`;
   the leaderboard's tracker-lineups panel combines them for 1- to 4-man groups.
+  Leverage: the possession tracker's lineup file gives each unit a `lev` block per leverage
+  bucket (high / med / low / clutch; garbage time already out). adjust_lineups.py adjusts each
+  bucket the same way, plus `hm` (High+Med) and `w` (leverage-weighted, LEV_W: High 1, Medium
+  0.6, Low 0.25), into each unit's `lev`, with `levMix` (% of possessions High/Med/Low). Files
+  without `lev` (the game tracker's) give the same top-level numbers as before.
 
 ## Example commands
 

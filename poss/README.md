@@ -133,7 +133,7 @@ shows at the top of their column and on their lineup card, and a sub that puts i
 
 **💡 Try (lineup tip, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0 or
 worse, a **💡 Try** button shows at the top right of our lineup card. It suggests our five with the best
-four factors in this game (Dean Oliver's weights on ours minus theirs with that five on: eFG% 40, TO% 25,
+four factors in this game, on High+Med possessions only (garbage time and low leverage out), (Dean Oliver's weights on ours minus theirs with that five on: eFG% 40, TO% 25,
 OReb% 20, FT rate 15), among fives with 8+ possessions and nobody fouled out. Tapping it shows the five,
 who comes in and out, and its factors next to the five on now; **Sub this five in…** opens the sub screen
 with it filled in, ready to confirm. If no five qualifies and wins the factors, there is no button. Not
@@ -160,9 +160,17 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
    factors against the opponent's opponent-adjusted four factors: holding a team that has rebounded well
    against good opponents counts for more than holding a weak one. Scrimmages and teams outside the CCC
    system are left out of the adjusted numbers.
-3. **⬆ Adjusted** loads `internal_data/moorpark_lineups_adj.json`. A table lists each five with 10+
-   possessions each way: adjusted ORtg, DRtg, net and four factors at both ends. It says when newer
-   games aren't in the file.
+3. **⬆ Adjusted** loads `internal_data/moorpark_lineups_adj.json`. A table lists each five: adjusted
+   ORtg, DRtg, net and four factors at both ends, and **H · M · L**, how its possessions split by
+   leverage (red when mostly low). It says when newer games aren't in the file.
+
+**Leverage.** The file carries each five's possessions split by leverage (High / Medium / Low, and clutch;
+garbage time is out of everything), and each split is opponent-adjusted. A **Leverage** filter, on the
+season table and the halftime card, picks **High+Med** (the default), **High**, **Clutch** or **All**.
+Season **All** is leverage-weighted: a possession counts High ×1, Medium ×0.6, Low ×0.25, so a five that
+built its numbers in low-leverage minutes ranks lower. Smaller scopes need fewer possessions (season
+All 25 / High+Med 15 / High 10 / Clutch 6 at that end; today 6 / 5 / 4 / 3), and when no five qualifies
+the next wider scope is shown, saying so. The Lineups tab filters add High+Med and High.
 
 **Halftime: lineups for what's hurting us, today and season.** Each four factor we're losing in the 1st
 half is split into its two ends, and only the end that's off our norm tonight is worked on (our season
@@ -174,8 +182,10 @@ fives are ranked on that stat alone:
   (OREB%), getting to the line (FT rate) and fouling (opp FT rate).
 
 Worst problem first. Two columns side by side:
-- **Today:** this half's fives, as played, with 6+ possessions at that end;
-- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted) with 25+ possessions at that end.
+- **Today:** this half's fives, as played;
+- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted), with their H · M · L leverage mix;
+
+both at the chosen leverage (High+Med by default; see Leverage above).
 
 Each lists its top two, only fives better than the norm with everyone dressed and not fouled out.
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
