@@ -949,7 +949,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.67';
+const VERSION = 'v2026.10.14.68';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -972,11 +972,16 @@ const D0 = g => derive(g).score;
 const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'all', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
 /* ---------- rosters ---------- */
-// Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage).
+// Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage),
+// else the roster built in (the same locked list as the game tracker's), so it is never empty on a new iPad.
+const SEED_ROSTER = [['Josh Castaniero', '1'], ['Quian Khawaja', '2'], ['Eric Kubel', '3'], ['Axel Ostergard', '4'], ['Ashton Carraway', '5'],
+  ['Brenden Banks-Speed', '10'], ['SoulJah Niles', '12'], ['Emmitt Claiborne', '14'], ['Matthew Wilson', '15'], ['Alex Bello', '20'],
+  ['George Hees', '21'], ['Jaylen Smith', '22'], ['Sean Castro', '31'], ['Finn Ortiz', '32'], ['Jack Johnson', '34']].map(([name, num]) => ({ num, name, note: '' }));
 function roster() {
   const own = lsGet(LS_ROSTER, null);
   if (Array.isArray(own) && own.length) return own;
-  return (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name, note: '' }));
+  const gt = (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name, note: '' }));
+  return gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r));
 }
 const byNum = (a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || String(a.name).localeCompare(b.name);
 const lastName = n => String(n).split(' ').slice(-1)[0];
@@ -1968,10 +1973,14 @@ function applySched(r) {
   Object.assign(SD, { opp: r.opp, date: r.date, site: r.site || 'home', conf: !!r.conf, schedId: r.id });
   applyOpp(r.opp);
 }
+// The game's opponent is always the opponent roster in use: a saved one (matched ignoring case, spaces and
+// punctuation), or that name with a blank roster, so you never have to pick the team again.
 function applyOpp(name) {
-  const o = oppStore().find(x => x.name.toLowerCase() === String(name).toLowerCase());
-  if ((o ? o.name : '') !== SD.oppName) SD.oppStarters = [];
-  SD.oppName = o ? o.name : '';
+  name = String(name || '').trim();
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g, ''), o = n ? oppStore().find(x => x.name.toLowerCase().replace(/[^a-z0-9]/g, '') === n) : null;
+  const nm = o ? o.name : name;
+  if (nm !== SD.oppName) SD.oppStarters = [];
+  SD.oppName = nm;
   if (o && o.scoutKey) SD.scoutKey = o.scoutKey;
 }
 function readSetup() {
@@ -2004,7 +2013,7 @@ function setupView() {
     </div>
     <div class="card"><h3>Opponent roster <span class="muted">optional — numbers are enough; without one their fouls go to the team</span>
       <button class="btn btn-sm" data-act="su-opp-edit" style="margin-left:auto">${oppPl.length ? 'Edit roster / notes' : '+ Add players'}</button></h3>
-      <div class="row" style="gap:10px"><select id="su-oppsel"><option value="">— none —</option>${oppStore().slice().sort((x, y) => x.name.localeCompare(y.name)).map(x => `<option value="${esc(x.name)}" ${d.oppName === x.name ? 'selected' : ''}>${esc(x.name)} (${(x.players || []).length})</option>`).join('')}</select>
+      <div class="row" style="gap:10px"><select id="su-oppsel"><option value="">— none —</option>${d.oppName && !o ? `<option value="${esc(d.oppName)}" selected>${esc(d.oppName)} (no roster yet)</option>` : ''}${oppStore().slice().sort((x, y) => x.name.localeCompare(y.name)).map(x => `<option value="${esc(x.name)}" ${d.oppName === x.name ? 'selected' : ''}>${esc(x.name)} (${(x.players || []).length})</option>`).join('')}</select>
         ${oppPl.length ? `<span class="small muted">Their starters: <b>${d.oppStarters.length}/5</b> — tap to pick (optional; you can set them with ⇄ Sub)</span>` : ''}</div>
       ${oppPl.length ? `<div class="chk-grid" style="margin-top:10px">${oppPl.map(p => { const st = d.oppStarters.includes(String(p.num));
         return `<div class="chk on ${st ? 'starter them' : ''}" data-act="su-opp-starter" data-p="${esc(String(p.num))}"><span>#${esc(p.num)} ${esc(p.name || '')}${p.pos ? ' <span class="muted">' + esc(p.pos) + '</span>' : ''}</span><span class="st">${st ? 'Starter' : ''}</span></div>`; }).join('')}</div>` : ''}
@@ -2023,7 +2032,7 @@ async function paintSetupScout() {
   $('#su-scoutsel').onchange = e => { SD.scoutKey = e.target.value || null; };
   $('#su-sched').onchange = e => { readSetup(); const r = schedule().find(x => x.id === e.target.value); if (r) applySched(r); else SD.schedId = null; setTimeout(render, 0); };
   $('#su-oppsel').onchange = e => { readSetup(); applyOpp(e.target.value); if (!SD.opp) SD.opp = e.target.value; setTimeout(render, 0); };
-  $('#su-opp').onchange = () => { readSetup(); if (!SD.oppName) { applyOpp(SD.opp); if (SD.oppName) setTimeout(render, 0); } };
+  $('#su-opp').onchange = () => { readSetup(); const was = SD.oppName; applyOpp(SD.opp); if (SD.oppName !== was) setTimeout(render, 0); };
 }
 function createGame() {
   readSetup();
@@ -2153,8 +2162,9 @@ function schSave(quiet) {
 function oppStore() { return lsGet('gt_opp_rosters', []) || []; }
 function rostersView() {
   const g = cur();
-  const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : []).filter(Boolean))].sort();
   const sel = UI.rosterSel || (g ? g.opp : 'MPK');
+  // The one being set up (a new game's opponent with no roster yet) is listed too.
+  const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : [], sel !== 'MPK' ? [sel] : []).filter(Boolean))].sort();
   const isM = sel === 'MPK';
   const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppStore().find(x => x.name === sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
   const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Note', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting note', 0]];
