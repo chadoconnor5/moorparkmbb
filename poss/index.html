@@ -794,6 +794,16 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .cpad-k:active{background:var(--hover)} .cpad-k.fn{font-size:24px;color:var(--text2)}
 .modal.to-modal .modal-foot{justify-content:center!important;gap:10px}
 .undo-btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* end of half (Huddle) */
+.eoh-card{padding:12px 14px;margin-bottom:12px;border-color:var(--warn)}
+.eoh-top{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px}
+.eoh-big{font-size:46px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.eoh-big small{display:block;font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
+.eoh-head{font-size:19px;font-weight:800} .eoh-sub{color:var(--text2);font-size:13.5px;margin-top:2px}
+.eoh-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.eoh-cell{background:var(--surface);border-radius:10px;padding:8px 10px}
+.eoh-cell span{display:block;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.eoh-cell b{display:block;font-size:17px;margin-top:2px} .eoh-cell i{font-style:normal;font-size:12px;color:var(--text2)}
 
 </style>
 </head>
@@ -825,7 +835,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.14.52';
+const VERSION = 'v2026.10.14.53';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2056,6 +2066,24 @@ function huddleOpen(g, calledBy, kind, clock) {
     return `${'<span class="to-dot"></span>'.repeat(Math.max(0, L.s30))}<span style="width:4px;display:inline-block"></span>${'<span class="to-dot full"></span>'.repeat(Math.max(0, L.full))}`; };
   const fouls = t => { const n = teamFouls(g, t, per), c = n >= 10 ? 'tf-dbl' : n >= 7 ? 'tf-bonus' : n >= 5 ? 'tf-warn' : ''; return `<b class="${c}">${n}</b>`; };
   const caller = calledBy ? `${esc(teamName(g, calledBy))} ${kind === 's30' ? '30-second' : 'full'} timeout` : 'Huddle';
+  /* END OF HALF — in the Huddle only (the live screen already shows fouls and timeouts beside the score): once a
+     clock has been entered and there are 4:00 or less in the period. Fouls to give before the bonus (7th foul;
+     double at 10), timeouts left, possessions needed, rough possessions left each, team FT tonight (tracked). */
+  const eoh = (() => {
+    const ck = clockNow(g, D), secs = clock != null ? clock : ck ? ck.perSecs : null; if (secs == null || secs > 240) return '';
+    const m = G.pts.a - G.pts.b, need = n => Math.ceil(n / 3), spt = ck ? ck.spt : SPT_DEFAULT, left = Math.max(1, Math.round(secs / spt / 2));
+    const situ = m === 0 ? 'Tied' : m > 0 ? `Up ${m} · they need ${need(m)} possession${need(m) > 1 ? 's' : ''}` : `Down ${-m} · we need ${need(-m)} possession${need(-m) > 1 ? 's' : ''}`;
+    const give = n => Math.max(0, 6 - n), bon = (n, who) => n >= 10 ? `${who} in the double bonus` : n >= 7 ? `${who} in the bonus (1-and-1)` : 'bonus on the 7th';
+    const TOL = t => ({ full: FULL_TOS - tosUsed(g, t, 'full'), s30: S30_TOS + otCount(g) - tosUsed(g, t, 's30') });
+    const FT = ffTracked(g, 'G'), ft = t => `${FT[t].ftm}-${FT[t].fta}${FT[t].fta ? ' · ' + Math.round(100 * FT[t].ftm / FT[t].fta) + '%' : ''}`;
+    const cell = (lbl, val, sub, col) => `<div class="eoh-cell"><span>${lbl}</span><b${col ? ` style="color:${col}"` : ''}>${val}</b><i>${sub}</i></div>`;
+    const ta = TOL('a'), tb = TOL('b');
+    return `<div class="card eoh-card"><div class="eoh-top"><div class="eoh-big">${fmtSecs(secs)}<small>${clock != null ? 'game clock' : 'est. from ' + fmtSecs(ck.clock)}</small></div>
+      <div><div class="eoh-head">${esc(situ)}</div><div class="eoh-sub">About ${left} possession${left > 1 ? 's' : ''} left each at this game's pace.</div></div></div>
+      <div class="eoh-grid">${cell('Our fouls to give', give(fa), `${fa} fouls · ${bon(fa, "they're")}`, 'var(--us)')}${cell('Their fouls to give', give(fb), `${fb} fouls · ${bon(fb, "we're")}`, 'var(--them-text)')}
+        ${cell('Our timeouts', `${ta.full} full · ${ta.s30}×30`, '')}${cell('Their timeouts', `${tb.full} full · ${tb.s30}×30`, '')}
+        ${cell('Our FT tonight', ft('a'), 'team, tracked')}${cell('Their FT tonight', ft('b'), 'team, tracked')}</div></div>`;
+  })();
   const runTxt = run && run.pts ? `${teamName(g, run.team)} ${run.pts}-0` : '—';
   $('#modal-root').innerHTML = `<div class="overlay huddle-overlay" data-act="overlay"><div class="modal huddle">
     <div class="hud-top">
@@ -2063,7 +2091,7 @@ function huddleOpen(g, calledBy, kind, clock) {
       <div class="hud-mid"><div class="hud-cap">${caller}</div><div class="hud-clock">${esc(PER_NAME(per))}${clock != null ? ' · ' + fmtSecs(clock) : ''} · Poss ${possAvg(S)}</div></div>
       <div class="hud-team b"><div><div class="hud-score">${G.pts.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logo(opp, 34)}</div>
     </div>
-    <div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
+    ${eoh}<div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
     <div class="card hud-floor"><h3>Last ${HUDDLE_N} possessions (~5:00) vs the game <span class="muted">${a.pts}–${b.pts} · ${a.n} ours, ${b.n} theirs · ▲▼ highlighted = moved well away from the game on enough attempts</span></h3>
       <div class="tbl-wrap">${cmp}</div></div>
     <div class="card hud-floor"><h3>Momentum</h3>

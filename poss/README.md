@@ -56,6 +56,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
     offensive boards, their scoring rate, runs, empty trips, stops in a row, bonus, foul trouble);
   - the **last 20 possessions** (both teams; Moorpark's tempo the last 5 seasons averages 78.7 a team per 40:00, so 5:00 is ~10 a team) against the whole game: PPP, eFG%, TO%,
     OREB%, DREB%, FT rate, 3PA rate, highlighted ▲▼ when one has moved well away on enough tries;
+  - **End of half** (4:00 or less, once a clock has been entered at a timeout; any half or OT): the clock, the margin
+    and possessions needed, rough possessions left each, fouls to give for both teams (bonus on the 7th, double at
+    10), timeouts left and each team's FT tonight. Only in the Huddle: the live screen already shows fouls and
+    timeouts beside the score;
   - momentum: current run, stops in a row, kills this half;
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
   - Tap a row to mark it yellow.
