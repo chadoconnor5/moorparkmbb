@@ -164,14 +164,22 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
    possessions each way: adjusted ORtg, DRtg, net and four factors at both ends. It says when newer
    games aren't in the file.
 
-**Halftime: lineups for what's hurting us, today and season.** For each four factor we're losing in
-the 1st half (shooting, turnovers, rebounding, FT rate), the halftime report shows two columns side by side:
-- **Today:** this half's fives, as played, with 6+ possessions each way: who is going today.
-- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted) with 25+ possessions each way.
+**Halftime: lineups for what's hurting us, today and season.** Each four factor we're losing in the 1st
+half is split into its two ends, and only the end that's off our norm tonight is worked on (our season
+norm once 2 games are in, league average before). Each problem is one stat with one direction, and the
+fives are ranked on that stat alone:
+- they're getting their misses back → **Defensive rebounding**: the best DREB% fives;
+- they're shooting well → **Their shooting**: the lowest opponent eFG% fives;
+- likewise our shooting (eFG%), our turnovers (TO%), forcing turnovers (opp TO%), offensive rebounding
+  (OREB%), getting to the line (FT rate) and fouling (opp FT rate).
 
-Each lists its top two by the margin on that factor (ours minus theirs; turnovers = forced minus
-committed), only with a positive margin and everyone dressed and not fouled out. ★ BOTH marks a five in
-the top two of both columns; ON NOW marks the five on the floor. No five qualifies, none is listed.
+Worst problem first. Two columns side by side:
+- **Today:** this half's fives, as played, with 6+ possessions at that end;
+- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted) with 25+ possessions at that end.
+
+Each lists its top two, only fives better than the norm with everyone dressed and not fouled out.
+★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
+qualifies, none is listed.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,

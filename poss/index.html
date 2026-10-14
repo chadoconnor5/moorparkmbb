@@ -865,6 +865,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .fx-on{margin-left:6px;font-size:9.5px;font-weight:800;color:var(--good,#4c9);border:1px solid currentColor;border-radius:999px;padding:0 5px}
 .fx-none{padding:6px 0}
 
+.fx-stat{margin-left:6px;font-size:13px}
+.fx-ask{font-size:12.5px;font-weight:700;color:var(--text2);margin:0 0 6px}
+
 </style>
 </head>
 <body>
@@ -1802,41 +1805,72 @@ function seasonAdjCard() {
    ours minus theirs: shooting eFG% - eFG% allowed, turnovers forced - committed, OREB% - their OREB%,
    FT rate - theirs. */
 const FIX_FACTORS = [['efg', 'Shooting', 'eFG%', true, 'efg', 'oefg'], ['to', 'Turnovers', 'TO%', false, 'tov', 'otov'], ['orb', 'Rebounding', 'OREB%', true, 'orb', 'oorb'], ['ftr', 'Free throws', 'FT rate', true, 'ftr', 'oftr']];
+/* Each losing factor is split into its two ends, and only the end that is actually going wrong tonight is
+   worked on: worse than our own season norm (league average until 2 games are in). Each problem is one stat
+   with one direction, and the fives are ranked on that stat alone: they're killing us on the offensive glass
+   -> best DREB% fives; they're shooting 60% -> lowest opponent eFG% fives. */
+const FIX_STATS = {
+  efg:  { f: 'efg', end: 'o', hi: true,  name: 'eFG%',     what: 'Our shooting',         rank: 'best eFG%' },
+  oefg: { f: 'oefg', end: 'd', hi: false, name: 'Opp eFG%', what: 'Their shooting',       rank: 'lowest opponent eFG%' },
+  tov:  { f: 'tov', end: 'o', hi: false, name: 'TO%',      what: 'Our turnovers',        rank: 'lowest TO%' },
+  otov: { f: 'otov', end: 'd', hi: true,  name: 'Opp TO%',  what: 'Forcing turnovers',    rank: 'most turnovers forced' },
+  orb:  { f: 'orb', end: 'o', hi: true,  name: 'OREB%',    what: 'Offensive rebounding', rank: 'best OREB%' },
+  drb:  { f: 'drb', end: 'd', hi: true,  name: 'DREB%',    what: 'Defensive rebounding', rank: 'best DREB%' },
+  ftr:  { f: 'ftr', end: 'o', hi: true,  name: 'FT rate',  what: 'Getting to the line',  rank: 'best FT rate' },
+  oftr: { f: 'oftr', end: 'd', hi: false, name: 'Opp FT rate', what: 'Fouling',          rank: 'lowest opponent FT rate' } };
+const FIX_PAIRS = { efg: ['efg', 'oefg'], to: ['tov', 'otov'], orb: ['orb', 'drb'], ftr: ['ftr', 'oftr'] };
+const FIX_LG = { efg: 49.6, oefg: 49.6, tov: 18.6, otov: 18.6, orb: 29.7, drb: 70.3, ftr: 34.0, oftr: 34.0 };
+// Both ends of the eight stats from a pair of count lines (o = ours, d = theirs).
+function fixVals(o, d, oP, dP) {
+  const O = ff4(o, d, oP), X = ff4(d, o, dP);
+  return { efg: O.efg, oefg: X.efg, tov: O.to, otov: X.to, orb: O.orb, drb: X.orb == null ? null : 100 - X.orb, ftr: O.ftr, oftr: X.ftr };
+}
+function seasonNorm(g) {
+  const prev = games.filter(x => x.final && x.id !== g.id && x.ev && x.ev.length);
+  if (prev.length < 2) return { v: FIX_LG, src: 'league average' };
+  const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 }), o = zb(), d = zb(); let oP = 0, dP = 0;
+  prev.forEach(x => derive(x).poss.forEach(p => { const bx = possBox(p), side = p.team === 'a' ? o : d; Object.keys(bx).forEach(k => { side[k] += bx[k]; }); if (p.team === 'a') oP++; else dP++; }));
+  return { v: fixVals(o, d, oP, dP), src: `our ${prev.length}-game norm` };
+}
 function seasonFixCard(g, D) {
   const L = ffLine(g, '1H'); if (!L) return '';
   const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
   const losing = FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
   if (!losing.length) return '';
+  // Tonight's eight stats, and which end of each losing factor is off its norm (both, if both are).
+  const night = { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr };
+  const N = seasonNorm(g), bad = k => { const S = FIX_STATS[k], v = night[k], n = N.v[k]; return v == null || n == null ? 0 : S.hi ? n - v : v - n; };
+  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => bad(y) - bad(x));
+  if (!problems.length) return '';
   const ok = id => teamPlayers(g, 'a').some(p => p.id === id) && !isOut(g, 'a', id);
   const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
-  const P = v => v == null ? '—' : v.toFixed(1), S1 = v => sg1(Math.round(10 * v) / 10);
-  // TODAY: this half's fives, raw, TODAY_MIN+ possessions each way.
-  const T = lineupUnits(g, D, 'a', '1H', 'all').units.filter(u => u.oPoss >= TODAY_MIN && u.dPoss >= TODAY_MIN && u.five.every(ok)).map(u => {
-    const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), d = (x, y) => x == null || y == null ? null : x - y;
-    return { five: u.five, poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null,
-      F: { efg: O.efg, oefg: X.efg, tov: O.to, otov: X.to, orb: O.orb, oorb: X.orb, ftr: O.ftr, oftr: X.ftr },
-      m: { efg: d(O.efg, X.efg), to: d(X.to, O.to), orb: d(O.orb, X.orb), ftr: d(O.ftr, X.ftr) } }; });
-  // SEASON: the loaded opponent-adjusted file, ADJ_MIN+ possessions each way.
+  const P = v => v == null ? '—' : v.toFixed(1);
+  const T = lineupUnits(g, D, 'a', '1H', 'all').units.filter(u => u.five.every(ok)).map(u => ({ five: u.five, oP: u.oPoss, dP: u.dPoss, v: fixVals(u.o, u.d, u.oPoss, u.dPoss) }));
   const A = luAdj(), haveA = A && A.factorsAdjusted;
-  const SU = haveA ? adjUnits(A).filter(u => u.oT >= ADJ_MIN && u.dT >= ADJ_MIN && u.players.every(p => ok(p.name))).map(u => Object.assign(u, { five: u.players.map(p => p.name), poss: Math.floor((u.oT + u.dT) / 2) })) : [];
-  const top = (list, k) => list.filter(u => u.m[k] != null && u.m[k] > 0).sort((x, y) => y.m[k] - x.m[k]).slice(0, 2);
+  const SU = haveA ? adjUnits(A).filter(u => u.players.every(p => ok(p.name))).map(u => ({ five: u.players.map(p => p.name), oP: u.oT, dP: u.dT,
+    v: { efg: u.F.efg, oefg: u.F.oefg, tov: u.F.tov, otov: u.F.otov, orb: u.F.orb, drb: u.F.oorb == null ? null : 100 - u.F.oorb, ftr: u.F.ftr, oftr: u.F.oftr } })) : [];
+  // The top two on that one stat, among fives with enough possessions at that end and better than our norm.
+  const top = (list, k, min) => { const S = FIX_STATS[k], n = N.v[k];
+    return list.filter(u => (S.end === 'o' ? u.oP : u.dP) >= min && u.v[k] != null && (n == null || (S.hi ? u.v[k] > n : u.v[k] < n)))
+      .sort((x, y) => S.hi ? y.v[k] - x.v[k] : x.v[k] - y.v[k]).slice(0, 2); };
   const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
   const names = f => fiveSorted(g, 'a', f).map(id => lastName(pInfo(g, 'a', id).name || id)).join(', ');
-  const row = (u, k, ours, theirs, both) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
+  const row = (u, k, both) => { const S = FIX_STATS[k];
+    return `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
       <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}</div></div>
-      <div class="fx-v"><b class="pos">${S1(u.m[k])}</b><span>${k === 'to' ? `forced ${P(u.F[theirs])} · ours ${P(u.F[ours])}` : `${P(u.F[ours])} · them ${P(u.F[theirs])}`}</span></div>
-      <div class="fx-v"><b>${u.poss}</b><span>poss</span></div></div>`;
-  const sec = ([k, lbl, short, hi, ours, theirs]) => {
-    const t = top(T, k), s = top(SU, k), sKeys = new Set(s.map(u => fiveKey(u.five))), tKeys = new Set(t.map(u => fiveKey(u.five)));
-    return `<div class="fx-sec"><div class="fx-h"><b>${lbl}</b> <span class="muted small">this half: ${short} ${P(a[k])} vs ${P(b[k])}</span></div>
+      <div class="fx-v"><b class="pos">${P(u.v[k])}</b><span>${S.name}</span></div>
+      <div class="fx-v"><b>${S.end === 'o' ? u.oP : u.dP}</b><span>${S.end === 'o' ? 'off' : 'def'} poss</span></div></div>`; };
+  const sec = k => { const S = FIX_STATS[k], t = top(T, k, TODAY_MIN), s = top(SU, k, ADJ_MIN), tK = new Set(t.map(u => fiveKey(u.five))), sK = new Set(s.map(u => fiveKey(u.five)));
+    return `<div class="fx-sec"><div class="fx-h"><b>${S.what}</b> <span class="fx-stat">${S.name} <b class="neg">${P(night[k])}</b> tonight</span> <span class="muted small">· ${esc(N.src)} ${P(N.v[k])}</span></div>
+      <div class="fx-ask">→ the ${S.rank} fives</div>
       <div class="fx-cols">
-        <div class="fx-col"><div class="fx-lbl today">TODAY <span>1st half · ${TODAY_MIN}+ poss each way</span></div>
-          ${t.map(u => row(u, k, ours, theirs, sKeys.has(fiveKey(u.five)))).join('') || '<div class="small muted fx-none">No five has won it today with enough possessions.</div>'}</div>
-        <div class="fx-col"><div class="fx-lbl season">SEASON <span>opp-adjusted · ${ADJ_MIN}+ poss each way</span></div>
+        <div class="fx-col"><div class="fx-lbl today">TODAY <span>1st half · ${TODAY_MIN}+ ${S.end === 'o' ? 'off' : 'def'} poss</span></div>
+          ${t.map(u => row(u, k, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No five has been better than ${P(N.v[k])} today.</div>`}</div>
+        <div class="fx-col"><div class="fx-lbl season">SEASON <span>opp-adjusted · ${ADJ_MIN}+ ${S.end === 'o' ? 'off' : 'def'} poss</span></div>
           ${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>'
-            : s.map(u => row(u, k, ours, theirs, tKeys.has(fiveKey(u.five)))).join('') || '<div class="small muted fx-none">No available five has won it over the season.</div>'}</div></div></div>`; };
-  return `<div class="card fix-card"><h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>${losing.map(sec).join('')}
-    <div class="tiny muted" style="margin-top:6px">Ranked by the margin on that factor, ours minus theirs (turnovers: forced minus committed). Today = this half's fives as played; Season = every game, each adjusted for the opponent's own opponent-adjusted factors${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. ★ BOTH = in the top two for today and the season. Only fives with everyone dressed and not fouled out, and a positive margin.</div></div>`;
+            : s.map(u => row(u, k, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(N.v[k])}.</div>`}</div></div></div>`; };
+  return `<div class="card fix-card"><h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>${problems.map(sec).join('')}
+    <div class="tiny muted" style="margin-top:6px">For each four factor we're losing, the end that's off our norm tonight, and the fives best at that one stat: today's as played, and the season's adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Listed only if better than the norm, with everyone dressed and not fouled out. ★ BOTH = in the top two today and for the season.</div></div>`;
 }
 const TODAY_MIN = 6;
 function lineupsView(g) {
