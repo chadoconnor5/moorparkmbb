@@ -43,7 +43,6 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
   time use the real time left (that clock, less the possessions since at this half's pace) instead of the estimate
   from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
-- **Undo** says what it will take back ("↶ Undo: MPK 3PT Miss", "Undo: #1 Castaniero foul"), so a bad tap is caught first.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
@@ -125,10 +124,10 @@ than five on, it says how many to tap off). The starting fives are asked for whe
 and at each new period. The opponent's roster comes from the game tracker; edit it with Roster on
 the live screen (numbers are enough).
 
-**⏳ Pending** (its own button, under ⇄ Sub): mark players waiting at the table before you know who
+**⏳ Pending** (its own button, beside ⇄ Sub): mark players waiting at the table before you know who
 they're replacing. It lists each team's bench only (no one on the floor, no one fouled out); tap to
 mark **⏳ CHECKING IN**, tap again to unmark, **Clear all** to reset. A **Checking in** strip shows under
-each team's on-floor list with a **Sub now** button, and ⇄ Sub reads **⇄ Sub · 3 waiting**. When the sub
+each team's on-floor list with a **Sub now** button, ⇄ Sub reads **⇄ Sub (3)** and ⏳ Pending turns gold. When the sub
 happens, ⇄ Sub opens with them already on the floor list (gold, first) and says **tap 2 coming off**:
 tap who's coming off and Confirm. **Sub now** on the strip opens the same screen. You can still add more
 from the bench there (the count goes up: **tap 3 coming off**); Confirm unlocks when each team is back to five. Players who went in leave the pending list; anyone left out stays
