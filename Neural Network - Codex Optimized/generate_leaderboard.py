@@ -1497,6 +1497,8 @@ def load_teams(stats_dir=None):
                 "dreb_pct": ta.get("dreb_pct", 0),
                 "opp_tov_pct": ta.get("opp_tov_pct", 0),
                 "opp_ft_rate": ta.get("opp_ft_rate", 0),
+                # Opponent-adjusted four factors (update_advanced_analytics.py pass 4)
+                **{"adj_" + k: v for k, v in (ta.get("adj_ff") or {}).items()},
                 "opp_orebpg": opp_avgs.get("OREB", 0),
                 "opp_drebpg": opp_avgs.get("DREB", 0),
                 "opp_rpg": opp_avgs.get("REB", 0),
@@ -6027,6 +6029,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       </tr></thead><tbody id="sl-body-quads"></tbody></table></div></div>
     </div>
     <div id="sl-tab-trank" class="sl-tab-content" style="display:none">
+      <div style="display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:0.85rem;color:#ccc">Four factors:
+        <button id="trank-ff-adj" onclick="slTrankSetFF('adj')" title="Opponent-adjusted, like AdjO/AdjD: each game moved by how the opponent does on that factor">Opp-adjusted</button>
+        <button id="trank-ff-raw" onclick="slTrankSetFF('raw')" title="Season totals as played">Raw</button></div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="trank-table"><thead>
         <tr id="trank-avg-row" style="background:#1a1a2e;color:#aaa;font-size:0.72rem;font-style:italic">
           <td colspan="4" style="text-align:right;padding:2px 6px;color:#666">Lg Avg &rarr;</td>
@@ -12299,6 +12304,8 @@ function slRenderQuads() {{
 
 let slWabRegion = 'North';
 
+let slTrankFF = 'adj';   // four factors: 'adj' (opponent-adjusted) or 'raw'
+function slTrankSetFF(m) {{ slTrankFF = m; slRenderTrank(); }}
 let slTrankSortKey = 'ortg';
 let slTrankSortAsc = false;
 
@@ -12337,6 +12344,11 @@ function slRenderTrank() {{
   _avgCell('trank-avg-dor', la.dreb_pct, 1);
   _avgCell('trank-avg-dftr', la.opp_ft_rate, 1);
 
+  ['adj', 'raw'].forEach(m => {{ const b = document.getElementById('trank-ff-' + m); if (!b) return;
+    const on = slTrankFF === m;
+    b.style.cssText = `background:${{on ? '#ffd700' : '#2a2a40'}};border:1px solid #ffd700;color:${{on ? '#1a1a2e' : '#ffd700'}};font-weight:${{on ? 700 : 600}};padding:3px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem`; }});
+  // Opponent-adjusted factor when there is one (seasons built before it fall back to raw).
+  const ff = (t, k) => (slTrankFF === 'adj' && t['adj_' + k] != null ? t['adj_' + k] : t[k]) || 0;
   let rows = src.map(t => {{
     const adjoe = t.ortg;
     const adjde = t.drtg;
@@ -12345,10 +12357,10 @@ function slRenderTrank() {{
     const barthag = powOE / (powOE + powDE);
     return {{ team: t.team, conference: t.conference || '', record: t.record || '',
               ortg: adjoe, drtg: adjde, barthag,
-              efg_pct: t.efg_pct || 0, tov_pct: t.tov_pct || 0,
-              oreb_pct: t.oreb_pct || 0, ft_rate: t.ft_rate || 0,
-              opp_efg_pct: t.opp_efg_pct || 0, opp_tov_pct: t.opp_tov_pct || 0,
-              dreb_pct: t.dreb_pct || 0, opp_ft_rate: t.opp_ft_rate || 0,
+              efg_pct: ff(t, 'efg_pct'), tov_pct: ff(t, 'tov_pct'),
+              oreb_pct: ff(t, 'oreb_pct'), ft_rate: ff(t, 'ft_rate'),
+              opp_efg_pct: ff(t, 'opp_efg_pct'), opp_tov_pct: ff(t, 'opp_tov_pct'),
+              dreb_pct: ff(t, 'dreb_pct'), opp_ft_rate: ff(t, 'opp_ft_rate'),
     }};
   }});
 

@@ -22,7 +22,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - Turnovers: Turnover, Steal. For a steal, tap the team that stole it.
 - **Rebounds** have no buttons. After any miss, both logos light up for the rebound: the shooting
   team's logo = offensive rebound, the other logo = defensive rebound. If there was no rebound
-  (out of bounds, the first of two FTs), just tap the next stat.
+  (the first of two FTs, out of bounds, end of the half), tap **No rebound** (it reads "No rebound (1st of 2)"
+  after a missed FT), or just tap the next stat.
 - **Fouls go to the player:** tap Foul, Charge or Off Foul, then his card. "Team / bench foul" is
   for a foul with no player.
 - **Foul trouble** lights the cards: 1st half, 2 fouls yellow, 3–4 red; 2nd half / OT, 3 yellow, 4 red; 5
@@ -37,7 +38,12 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - On a player it is his foul and a team foul.
   - On a coach it is neither. A second on the same coach flags the ejection.
   - The free throws count in the score, PPP and +/-, but are not a possession.
-- **Timeout:** pick the team, full or 30. 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
+- **Timeout:** pick the team, full or 30, and tap the **game clock** (time left in the half) on the big keypad: digits fill
+  from the right (7, 4, 2 → 7:42; 5, 0 → 0:50), no iPad keyboard. Then **Log timeout → Huddle**; **Skip clock** if you don't have it. The clock shows in the Huddle header, the feed and
+  Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
+  time use the real time left (that clock, less the possessions since at this half's pace) instead of the estimate
+  from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
+- **Undo** says what it will take back ("↶ Undo: MPK 3PT Miss", "Undo: #1 Castaniero foul"), so a bad tap is caught first.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
@@ -50,6 +56,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
     offensive boards, their scoring rate, runs, empty trips, stops in a row, bonus, foul trouble);
   - the **last 20 possessions** (both teams; Moorpark's tempo the last 5 seasons averages 78.7 a team per 40:00, so 5:00 is ~10 a team) against the whole game: PPP, eFG%, TO%,
     OREB%, DREB%, FT rate, 3PA rate, highlighted ▲▼ when one has moved well away on enough tries;
+  - **End of half** (4:00 or less, once a clock has been entered at a timeout; any half or OT): the clock, the margin
+    and possessions needed, rough possessions left each, fouls to give for both teams (bonus on the 7th, double at
+    10), timeouts left and each team's FT tonight. Only in the Huddle: the live screen already shows fouls and
+    timeouts beside the score;
   - momentum: current run, stops in a row, kills this half;
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
   - Tap a row to mark it yellow.
@@ -121,6 +131,14 @@ show the current five for each team: possessions, ORtg, DRtg, net and +/-.
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
 
+**💡 Try (lineup tip, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0 or
+worse, a **💡 Try** button shows at the top right of our lineup card. It suggests our five with the best
+four factors in this game (Dean Oliver's weights on ours minus theirs with that five on: eFG% 40, TO% 25,
+OReb% 20, FT rate 15), among fives with 8+ possessions and nobody fouled out. Tapping it shows the five,
+who comes in and out, and its factors next to the five on now; **Sub this five in…** opens the sub screen
+with it filled in, ready to confirm. If no five qualifies and wins the factors, there is no button. Not
+shown in garbage time.
+
 **Lineups tab**, for the game or the current period, for both teams, as **5-man, 4-man, 3-man or 2-man**
 combos (a combo is on the floor for every possession of every five that contains it). For each:
 - possessions, points for–against, +/-, ORtg, DRtg, net;
@@ -133,6 +151,35 @@ combos (a combo is on the floor for every possession of every five that contains
 
 Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
 rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds up Moorpark's lineups and combos from every game tracked on the iPad.
+
+**Season lineups, opponent-adjusted** (Lineups → Season):
+1. **⬇ Lineup file** saves every finished game's Moorpark fives, game by game with the opponent and
+   site (garbage time out), in the game tracker's format.
+2. On the PC, in `Neural Network - Codex Optimized/`, run `python3 adjust_lineups.py <that file>`.
+   Each five's ratings are adjusted for the opponent's leaderboard rating and home court, and its four
+   factors against the opponent's opponent-adjusted four factors: holding a team that has rebounded well
+   against good opponents counts for more than holding a weak one. Scrimmages and teams outside the CCC
+   system are left out of the adjusted numbers.
+3. **⬆ Adjusted** loads `internal_data/moorpark_lineups_adj.json`. A table lists each five with 10+
+   possessions each way: adjusted ORtg, DRtg, net and four factors at both ends. It says when newer
+   games aren't in the file.
+
+**Halftime: lineups for what's hurting us, today and season.** Each four factor we're losing in the 1st
+half is split into its two ends, and only the end that's off our norm tonight is worked on (our season
+norm once 2 games are in, league average before). Each problem is one stat with one direction, and the
+fives are ranked on that stat alone:
+- they're getting their misses back → **Defensive rebounding**: the best DREB% fives;
+- they're shooting well → **Their shooting**: the lowest opponent eFG% fives;
+- likewise our shooting (eFG%), our turnovers (TO%), forcing turnovers (opp TO%), offensive rebounding
+  (OREB%), getting to the line (FT rate) and fouling (opp FT rate).
+
+Worst problem first. Two columns side by side:
+- **Today:** this half's fives, as played, with 6+ possessions at that end;
+- **Season:** the opponent-adjusted season fives (from ⬆ Adjusted) with 25+ possessions at that end.
+
+Each lists its top two, only fives better than the norm with everyone dressed and not fouled out.
+★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
+qualifies, none is listed.
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
@@ -225,7 +272,17 @@ rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds
     tracker's formulas. No assists.
   - Tap a box to type the official printout's number over a tracked one; **Back to tracked**
     undoes the typed numbers.
-- **Scouting:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
+- **Scouting:** two tabs. **Last time vs <opponent>** (when we've tracked them before; it opens first) and the
+  scouting PDF.
+  - The **opponent file** is built from every game on this iPad against that team, plus their stat sheets — nothing
+    to enter: what decided it (the full report's hurting / helping lines when a sheet was read, else the four
+    factors), their biggest run and our best five, their lineups (most used, best against us), their players (sheet
+    numbers and your notes) and their tendencies (pace, PPP, TO% / non-steal, eFG% / FT rate, kills, biggest run,
+    timeouts after our runs). Two or more games → a chip per game plus All games.
+  - Opened from: the Scouting tab (a LAST TIME badge shows when there's a file), 📄 Scout on the live screen,
+    **📁 Last time** on the Schedule row, the New game screen (a line under the opponent with Open file) and the
+    opponent's page on the Rosters tab.
+- **Scouting PDF:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
 - **Saved reports** (Games tab): a copy of each halftime and post-game report as it was, kept on the iPad apart

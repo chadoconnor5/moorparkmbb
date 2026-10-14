@@ -135,6 +135,19 @@ This copy keeps the original project intact and starts consolidating the working
   sums). Moorpark's "Lineups →" link shows in the build's current season even without
   a Synergy export; the Synergy panel itself stays 2025-26 only.
 
+- Opponent-adjusted four factors (Oct 2026): `update_advanced_analytics.py` pass 4,
+  `compute_iterative_adjusted_factors()`, adjusts eFG%, TO%, OReb% and FT rate at both
+  ends the way pass 2 adjusts ORtg/DRtg (game value - opponent's adjusted counterpart +
+  league average; iterated, regressed with REGRESSION_GAMES, damped, re-centred; no
+  home-court term). Per-game inputs are stored as `team.game_ff` (in-system games only)
+  and the result as `team.adj_ff`, keyed like the raw season factors; the raw factors are
+  untouched. `game_ff` is NOT shipped: team rows are built from explicit keys, and only
+  the eight `adj_*` fields are added to them. The T-Rank table has an Opp-adjusted / Raw
+  four-factors toggle (default adjusted; seasons without `adj_ff` fall back to raw).
+  `adjust_lineups.py` reads `adj_ff` to adjust each five's four factors (per game,
+  weighted by that factor's own attempts, clamped to 0-100) into `adjFF` / `adjFFw`;
+  the leaderboard's tracker-lineups panel combines them for 1- to 4-man groups.
+
 ## Example commands
 
 ```bash
