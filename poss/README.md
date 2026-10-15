@@ -47,6 +47,11 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   (7, 4, 2 → 7:42). It works like a timeout's clock: time left, leverage, clutch and garbage time run from
   it, the scoreboard shows **≈ 4:30 left** (that clock less the possessions since, at this half's pace),
   and it goes in the feed as "Game clock · 4:30" (tap it to fix or delete).
+- **Free throws name the shooter.** The trip's first **FT Make / FT Miss**: tap the shooter's card (the player
+  cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
+  the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
+  a sub, timeout or Set time in between doesn't end it; a foul or any other play does, so the next trip asks
+  again. Wrong shooter? Tap the line in the feed.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,

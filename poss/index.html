@@ -957,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.73';
+const VERSION = 'v2026.10.15.74';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1482,8 +1482,18 @@ const STATS = [['2m', '2PT Make', '2fg_make'], ['2x', '2PT Miss', '2fg_miss'], [
 const STAT_LABEL = Object.fromEntries(STATS.map(s => [s[0], s[1]]));
 // Team stats go to a team (the buttons at the top); fouls go to the player.
 const PLAYER_STATS = new Set(['foul', 'chg', 'offf']);
+/* FREE THROWS name the shooter: the trip's first FT Make / FT Miss, then his card (or the team logo for team).
+   The rest of the trip logs on the FT Make / FT Miss tap alone, to the same shooter (or team). A trip = free
+   throws in a row by one team; a sub, timeout or clock in between doesn't end it, a foul or any other play does. */
+const FT_K = new Set(['ftm', 'ftx']);
+function ftTrip(g) {
+  for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i];
+    if (e.t === 'sub' || e.t === 'to' || e.t === 'clock') continue;
+    return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
+  return null;
+}
 const STAT_HINT_TEAM = { '2m': 'tap the team that scored', '3m': 'tap the team that scored', '2x': 'tap the team that missed', '3x': 'tap the team that missed',
-  ftm: 'tap the shooting team', ftx: 'tap the shooting team', oreb: 'tap the team that got it', dreb: 'tap the team that got it', to: 'tap the team that turned it over', stl: 'tap the team that stole it' };
+  ftm: 'tap the shooter, or the team logo', ftx: 'tap the shooter, or the team logo', oreb: 'tap the team that got it', dreb: 'tap the team that got it', to: 'tap the team that turned it over', stl: 'tap the team that stole it' };
 const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 'tap who rebounded', chg: 'tap who was charged', offf: 'tap who fouled', foul: 'tap who fouled', to: 'tap who turned it over' };
 
 function playerCards(g, D, t) {
@@ -1494,7 +1504,8 @@ function playerCards(g, D, t) {
     // Foul trouble: 1st half — 2 yellow, 3-4 red; 2nd half / OT — 3 yellow, 4 red; 5 (or 2 technicals) fouled out.
     const out = pf >= 5 || te >= 2, h1 = g.per === '1H';
     const cls = out ? 'ft-danger ft-out' : h1 ? (pf >= 3 ? 'ft-danger' : pf === 2 ? 'ft-warn' : '') : (pf >= 4 ? 'ft-danger' : pf === 3 ? 'ft-warn' : '');
-    return `<button class="pbtn ${cls} ${UI.stat && PLAYER_STATS.has(UI.stat) ? 'hot' : ''} ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
+    const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat));   // fouls and free throws take a player
+    return `<button class="pbtn ${cls} ${pl ? 'hot' : ''} ${UI.stat && !pl ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
       ${p.pos || p.note ? `<span class="pnote">${esc([p.pos, p.note].filter(Boolean).join(' · '))}</span>` : ''}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
@@ -2697,6 +2708,9 @@ document.addEventListener('click', ev => {
     case 'stat': {
       const k = b.dataset.k;
       if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
+      // The rest of a free-throw trip: logged right away to the same shooter (or team).
+      if (FT_K.has(k) && !UI.ins) { const tr = ftTrip(g); if (tr) { UI.reb = null; UI.stat = k; logStat(tr.team, tr.player);
+        toast(`${k === 'ftm' ? 'FT make' : 'FT miss'} · ${tr.player === 'TEAM' ? teamName(g, tr.team) : pShort(g, tr.team, tr.player)}`, 'good'); break; } }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
     case 'stat-cancel': UI.stat = null; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
@@ -2704,7 +2718,7 @@ document.addEventListener('click', ev => {
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
-      if (!PLAYER_STATS.has(UI.stat)) { toast('Tap the team button at the top'); return; }
+      if (!PLAYER_STATS.has(UI.stat) && !FT_K.has(UI.stat)) { toast('Tap the team button at the top'); return; }
       logStat(b.dataset.team, b.dataset.p); break;
     case 'teambtn':
       if (!UI.stat && UI.reb) { UI.stat = b.dataset.team === UI.reb ? 'oreb' : 'dreb'; logStat(b.dataset.team, 'TEAM'); return; }
