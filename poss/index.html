@@ -824,7 +824,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .of-banner .ic{font-size:20px}
 
 /* Lineup tip: button top right of our +/- card, and its modal */
-.tip-btn{margin-left:6px;flex:none;white-space:nowrap;align-self:center;font:inherit;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:none;padding:4px 9px;border-radius:999px;border:1px solid var(--warn);background:rgba(220,176,90,.16);color:var(--warn);cursor:pointer;animation:tipPulse 2s ease-in-out infinite}
+.tip-btn{margin-left:6px;flex:none;white-space:nowrap;align-self:center;font:inherit;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:none;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;}
+.tip-btn.hot{border-color:var(--warn);background:rgba(220,176,90,.16);color:var(--warn);animation:tipPulse 2s ease-in-out infinite}
 @keyframes tipPulse{50%{box-shadow:0 0 0 3px rgba(220,176,90,.25)}}
 .tip-modal{max-width:460px}
 .tip-five{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
@@ -918,6 +919,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sub-p.pend.held{border-style:dashed;border-color:var(--border);background:var(--card);opacity:.85}
 .sub-p.pend.held .pend-tag{color:var(--text2)}
 
+/* Lineup suggestion banner (above the scoreboard) */
+.tip-ban{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;margin:0 0 10px;border-radius:12px;background:#d9a441;color:#1b1407;font-size:15px;box-shadow:0 0 0 3px rgba(217,164,65,.3);animation:tipBan 2s ease-in-out infinite}
+.tip-ban-r{display:flex;gap:8px;align-items:center;flex:none}
+.tip-ban .btn{background:#1b1407;color:#f6d38a;border-color:#1b1407;font-weight:800;white-space:nowrap}
+.tip-ban-x{font:inherit;font-size:18px;font-weight:800;width:38px;height:38px;border-radius:50%;border:0;background:rgba(27,20,7,.15);color:#1b1407;cursor:pointer}
+@keyframes tipBan{50%{box-shadow:0 0 0 6px rgba(217,164,65,.15)}}
+
 </style>
 </head>
 <body>
@@ -949,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.69';
+const VERSION = 'v2026.10.15.72';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1515,6 +1523,11 @@ const theirBestOn = (g, D) => { const B = theirBest(g, D); return B && D.five.b.
    opens the same lineup card as the halftime report, built for now: the best fives overall (four-factor edge)
    and for whatever is hurting us this half, today's beside the season's (opponent-adjusted), at a leverage
    that opens on High. No five qualifies anywhere, no button. */
+// 💡 Try's window: the last 10:00 of the 2nd half, and overtime (not the 1st half, not a finished game).
+function tipWindow(g, D) {
+  if (g.final || g.per === '1H') return false; if (g.per.startsWith('OT')) return true;
+  const N = gradeNow(g, D); return !!N && N.secs != null && N.secs <= 600;
+}
 function tipCur(g, D) {
   if (g.final || g.per === '1H' || D.five.a.length !== 5) return null;
   const N = gradeNow(g, D); if (!N || N.gt || (!g.per.startsWith('OT') && N.secs > 600)) return null;
@@ -1534,7 +1547,7 @@ function lpmCard(g, D, t) {
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
   const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null, pm = u.pf - u.pa;
   const best = t === 'b' ? theirBestOn(g, D) : null;
-  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span>${t === 'a' && lineupTip(g, D) ? '<button class="tip-btn" data-act="tip">💡 Try</button>' : ''}</div>
+  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span>${t === 'a' && tipWindow(g, D) ? `<button class="tip-btn ${lineupTip(g, D) ? 'hot' : ''}" data-act="tip" title="Lineup suggestions (lights up when the five on is struggling late)">💡 Try</button>` : ''}</div>
     ${best ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * best.net) / 10)} · ${best.poss} poss</span></div>` : ''}
     <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
@@ -1564,6 +1577,15 @@ function feedText0(g, x) {
 function feedRow(g, f) {
   return `<div class="${f.cls} ${f.flag || UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}<button class="flagbtn ${f.flag ? 'on' : ''}" data-act="flag" data-id="${f.id}" title="${f.flag ? 'Unflag' : 'Flag this play to look at later'}">🚩</button></div>`;
 }
+/* Gold banner above the scoreboard when 💡 Try has a suggestion, so it isn't missed. ✕ closes it for the five
+   on the floor (saved on the game); it comes back only if a different five gets into the same spot. */
+function tipBanner(g, D) {
+  const T = lineupTip(g, D); if (!T) return '';
+  const key = fiveKey(T.cur.five); if ((g.tipClosed || []).includes(key)) return '';
+  const N = gradeNow(g, D), left = N && N.secs != null ? fmtSecs(N.secs) : '';
+  return `<div class="tip-ban"><div><b>Lineup suggestion</b> · the five on is at a net of ${sg1(T.cur.net)}${left ? ` with ${left} left` : ''}. Better fives are ready.</div>
+    <div class="tip-ban-r"><button class="btn btn-sm" data-act="tip">See lineups</button><button class="tip-ban-x" data-act="tip-ban-x" data-k="${esc(key)}" title="Close for this five">✕</button></div></div>`;
+}
 function liveView(g) {
   const D = derive(g);
   const st = UI.stat;
@@ -1572,7 +1594,7 @@ function liveView(g) {
     : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb <button class="btn btn-sm btn-warn no-reb" data-act="no-reb">No rebound${UI.rebFt ? ' (1st of 2)' : ''}</button>`
     : 'Tap the stat, then the team — fouls: then the player';
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
-  return `${scorebar(g, D)}
+  return `${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
@@ -2691,6 +2713,7 @@ document.addEventListener('click', ev => {
     case 'pend-clear': g.pending = { a: [], b: [] }; save(); pendModal(); break;
     case 'pend-done': closeModal(); render(); break;
     case 'tip': SIT = null; sitModal('overall'); break;
+    case 'tip-ban-x': g.tipClosed = [...new Set([...(g.tipClosed || []), b.dataset.k])]; save(); render(); break;
     case 'sit': SIT = null; sitModal(); break;
     case 'sit-pick': sitModal(b.dataset.s); break;
     case 'sit-protect': SIT.protect = !SIT.protect; sitModal(); break;
