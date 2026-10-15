@@ -919,6 +919,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sub-p.pend.held{border-style:dashed;border-color:var(--border);background:var(--card);opacity:.85}
 .sub-p.pend.held .pend-tag{color:var(--text2)}
 
+/* Lineup suggestion banner (above the scoreboard) */
+.tip-ban{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;margin:0 0 10px;border-radius:12px;background:#d9a441;color:#1b1407;font-size:15px;box-shadow:0 0 0 3px rgba(217,164,65,.3);animation:tipBan 2s ease-in-out infinite}
+.tip-ban-r{display:flex;gap:8px;align-items:center;flex:none}
+.tip-ban .btn{background:#1b1407;color:#f6d38a;border-color:#1b1407;font-weight:800;white-space:nowrap}
+.tip-ban-x{font:inherit;font-size:18px;font-weight:800;width:38px;height:38px;border-radius:50%;border:0;background:rgba(27,20,7,.15);color:#1b1407;cursor:pointer}
+@keyframes tipBan{50%{box-shadow:0 0 0 6px rgba(217,164,65,.15)}}
+
 </style>
 </head>
 <body>
@@ -950,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.70';
+const VERSION = 'v2026.10.15.71';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1565,6 +1572,15 @@ function feedText0(g, x) {
 function feedRow(g, f) {
   return `<div class="${f.cls} ${f.flag || UI.ins === f.id ? 'flagged' : ''}" data-act="edit" data-id="${f.id}"><span>${f.html}</span>${f.sc ? `<span class="small muted" style="white-space:nowrap">${f.sc}</span>` : ''}<button class="flagbtn ${f.flag ? 'on' : ''}" data-act="flag" data-id="${f.id}" title="${f.flag ? 'Unflag' : 'Flag this play to look at later'}">🚩</button></div>`;
 }
+/* Gold banner above the scoreboard when 💡 Try has a suggestion, so it isn't missed. ✕ closes it for the five
+   on the floor (saved on the game); it comes back only if a different five gets into the same spot. */
+function tipBanner(g, D) {
+  const T = lineupTip(g, D); if (!T) return '';
+  const key = fiveKey(T.cur.five); if ((g.tipClosed || []).includes(key)) return '';
+  const N = gradeNow(g, D), left = N && N.secs != null ? fmtSecs(N.secs) : '';
+  return `<div class="tip-ban"><div><b>Lineup suggestion</b> · the five on is at a net of ${sg1(T.cur.net)}${left ? ` with ${left} left` : ''}. Better fives are ready.</div>
+    <div class="tip-ban-r"><button class="btn btn-sm" data-act="tip">See lineups</button><button class="tip-ban-x" data-act="tip-ban-x" data-k="${esc(key)}" title="Close for this five">✕</button></div></div>`;
+}
 function liveView(g) {
   const D = derive(g);
   const st = UI.stat;
@@ -1573,7 +1589,7 @@ function liveView(g) {
     : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb <button class="btn btn-sm btn-warn no-reb" data-act="no-reb">No rebound${UI.rebFt ? ' (1st of 2)' : ''}</button>`
     : 'Tap the stat, then the team — fouls: then the player';
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
-  return `${scorebar(g, D)}
+  return `${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
@@ -2692,6 +2708,7 @@ document.addEventListener('click', ev => {
     case 'pend-clear': g.pending = { a: [], b: [] }; save(); pendModal(); break;
     case 'pend-done': closeModal(); render(); break;
     case 'tip': SIT = null; sitModal('overall'); break;
+    case 'tip-ban-x': g.tipClosed = [...new Set([...(g.tipClosed || []), b.dataset.k])]; save(); render(); break;
     case 'sit': SIT = null; sitModal(); break;
     case 'sit-pick': sitModal(b.dataset.s); break;
     case 'sit-protect': SIT.protect = !SIT.protect; sitModal(); break;

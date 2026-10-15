@@ -198,7 +198,10 @@ steals, fouls, opponent 2P% and 3-point attempt rate) count only games against q
 
 **💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
 or worse (garbage time out), the **💡 Try** button at the top right of our lineup card (always there, on
-the MOORPARK — THIS FIVE line; plain otherwise) lights up gold. It opens
+the MOORPARK — THIS FIVE line; plain otherwise) lights up gold, and a gold **Lineup suggestion** banner
+shows above the scoreboard ("the five on is at a net of −200.0 with 6:08 left. Better fives are ready.")
+with **See lineups** and **✕**. ✕ closes it for the five on the floor; it comes back only if a different
+five gets into the same spot. Both open
 **Lineups to try**, the same card as the halftime report, built for now, with today's fives beside the
 season's (opponent-adjusted), at a **Leverage** setting that opens on **High+Med**:
 - **Best overall:** the four-factor edge (ours minus theirs, weighted eFG% 40, TO% 25, OReb% 20, FT
