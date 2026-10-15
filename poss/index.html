@@ -957,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.74';
+const VERSION = 'v2026.10.15.75';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1284,9 +1284,10 @@ function clockPad(d, len, act) {
     <div class="cpad-keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button class="cpad-k ${k === 'C' || k === '⌫' ? 'fn' : ''}" data-act="${act}" data-k="${k}">${k === 'C' ? 'Clear' : k}</button>`).join('')}</div></div>`;
 }
 const padKey = (d, k) => k === 'C' ? '' : k === '⌫' ? (d || '').slice(0, -1) : ((d || '') + k).replace(/^0+(?=\d)/, '').slice(-4);
-/* CLOCK CHECKPOINTS — the game clock entered at a timeout. For each possession after one (same period), the time
-   left = that clock minus the possessions since, at this period's own pace up to the checkpoint (seconds elapsed /
-   possessions so far); before any checkpoint the estimate from possessions stands. Returns Map(possession → info). */
+/* CLOCK CHECKPOINTS — the game clock entered at a timeout or with Set time. For each possession after one (same
+   period), the time left is exactly that clock, until the next one is entered: no running estimate. (spt, this
+   period's pace so far, only converts it to possessions left for leverage.) Before any clock is entered the
+   estimate from possessions stands. Returns Map(possession → info). */
 function clockPlan(g, poss, fallbackSpt) {
   const out = new Map(), first = p => g.ev.indexOf(p.plays[0]);
   const cps = g.ev.map((e, i) => ({ e, i })).filter(x => (x.e.t === 'to' || x.e.t === 'clock') && x.e.clock != null);
@@ -1295,7 +1296,8 @@ function clockPlan(g, poss, fallbackSpt) {
     const list = poss.filter(p => p.per === per), mine = cps.filter(c => c.e.per === per); if (!mine.length) return;
     mine.forEach(c => { c.before = list.filter(p => first(p) < c.i).length; c.spt = c.before > 0 ? (perLen(per) - c.e.clock) / c.before : fallbackSpt; });
     list.forEach((p, idx) => { const i0 = first(p), c = mine.filter(c => c.i < i0).pop(); if (!c) return;
-      const since = idx - c.before, perSecs = Math.max(0, c.e.clock - since * c.spt);
+      // No estimating: the clock is exactly the last one entered, until the next one.
+      const perSecs = c.e.clock;
       out.set(p, { perSecs, gameSecs: perSecs + (per === '1H' ? 1200 : 0), spt: Math.max(5, c.spt) }); });
   });
   return out;
@@ -1305,7 +1307,7 @@ function clockNow(g, D) {
   const cps = g.ev.map((e, i) => ({ e, i })).filter(x => (x.e.t === 'to' || x.e.t === 'clock') && x.e.clock != null && x.e.per === g.per); if (!cps.length) return null;
   const c = cps[cps.length - 1], list = D.poss.filter(p => p.per === g.per), first = p => g.ev.indexOf(p.plays[0]);
   const before = list.filter(p => first(p) < c.i).length, spt = before > 0 ? (perLen(g.per) - c.e.clock) / before : SPT_DEFAULT;
-  const perSecs = Math.max(0, c.e.clock - (list.length - before) * spt);
+  const perSecs = c.e.clock;   // exactly the last clock entered (timeout or Set time), until the next one
   return { perSecs, gameSecs: perSecs + (g.per === '1H' ? 1200 : 0), spt: Math.max(5, spt), clock: c.e.clock, at: c.e };
 }
 const LEV_LABEL = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' };
@@ -1462,7 +1464,7 @@ function scorebar(g, D) {
       <div class="sb-meta">${bonus('a')}${kills('a')}</div>
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
-    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="From the last clock you set, less the possessions since at this half's pace">≈ ${fmtSecs(c.perSecs)} left</div>` : ''; })()}
+    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="The last game clock you entered (timeout or Set time)">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
       ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
@@ -2520,7 +2522,7 @@ let STM = null;
 function setTimeModal() {
   const g = cur(), len = perLen(g.per); STM = STM || { d: '' };
   const secs = padSecs(STM.d, len), c = clockNow(g, derive(g));
-  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · the tracker has about ${fmtSecs(c.perSecs)}` : ''}</div>
+  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · last set ${fmtSecs(c.clock)}` : ''}</div>
     ${clockPad(STM.d, len, 'st-key')}
     <div class="modal-foot"><button class="btn btn-lg" data-act="st-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="st-ok" ${secs != null ? '' : 'disabled'}>Set ${secs != null ? fmtSecs(secs) : ''}</button></div>`, 'to-modal');
 }
