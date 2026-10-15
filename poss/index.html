@@ -957,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.71';
+const VERSION = 'v2026.10.15.72';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1523,6 +1523,11 @@ const theirBestOn = (g, D) => { const B = theirBest(g, D); return B && D.five.b.
    opens the same lineup card as the halftime report, built for now: the best fives overall (four-factor edge)
    and for whatever is hurting us this half, today's beside the season's (opponent-adjusted), at a leverage
    that opens on High. No five qualifies anywhere, no button. */
+// 💡 Try's window: the last 10:00 of the 2nd half, and overtime (not the 1st half, not a finished game).
+function tipWindow(g, D) {
+  if (g.final || g.per === '1H') return false; if (g.per.startsWith('OT')) return true;
+  const N = gradeNow(g, D); return !!N && N.secs != null && N.secs <= 600;
+}
 function tipCur(g, D) {
   if (g.final || g.per === '1H' || D.five.a.length !== 5) return null;
   const N = gradeNow(g, D); if (!N || N.gt || (!g.per.startsWith('OT') && N.secs > 600)) return null;
@@ -1542,7 +1547,7 @@ function lpmCard(g, D, t) {
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
   const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null, pm = u.pf - u.pa;
   const best = t === 'b' ? theirBestOn(g, D) : null;
-  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span>${t === 'a' ? `<button class="tip-btn ${lineupTip(g, D) ? 'hot' : ''}" data-act="tip" title="Lineup suggestions (lights up when the five on is struggling late)">💡 Try</button>` : ''}</div>
+  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span>${t === 'a' && tipWindow(g, D) ? `<button class="tip-btn ${lineupTip(g, D) ? 'hot' : ''}" data-act="tip" title="Lineup suggestions (lights up when the five on is struggling late)">💡 Try</button>` : ''}</div>
     ${best ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * best.net) / 10)} · ${best.poss} poss</span></div>` : ''}
     <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>

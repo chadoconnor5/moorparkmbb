@@ -197,7 +197,7 @@ steals, fouls, opponent 2P% and 3-point attempt rate) count only games against q
 (garbage time always out) applies to both.
 
 **💡 Try (lineups to try, last 10:00 of regulation and OT):** when our five on the floor is at a net of 0
-or worse (garbage time out), the **💡 Try** button at the top right of our lineup card (always there, on
+or worse (garbage time out), the **💡 Try** button at the top right of our lineup card (there only in the last 10:00 of the 2nd half and OT, on
 the MOORPARK — THIS FIVE line; plain otherwise) lights up gold, and a gold **Lineup suggestion** banner
 shows above the scoreboard ("the five on is at a net of −200.0 with 6:08 left. Better fives are ready.")
 with **See lineups** and **✕**. ✕ closes it for the five on the floor; it comes back only if a different
