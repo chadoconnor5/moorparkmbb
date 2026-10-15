@@ -957,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.72';
+const VERSION = 'v2026.10.15.73';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1289,7 +1289,7 @@ const padKey = (d, k) => k === 'C' ? '' : k === '⌫' ? (d || '').slice(0, -1) :
    possessions so far); before any checkpoint the estimate from possessions stands. Returns Map(possession → info). */
 function clockPlan(g, poss, fallbackSpt) {
   const out = new Map(), first = p => g.ev.indexOf(p.plays[0]);
-  const cps = g.ev.map((e, i) => ({ e, i })).filter(x => x.e.t === 'to' && x.e.clock != null);
+  const cps = g.ev.map((e, i) => ({ e, i })).filter(x => (x.e.t === 'to' || x.e.t === 'clock') && x.e.clock != null);
   if (!cps.length) return out;
   [...new Set(poss.map(p => p.per))].forEach(per => {
     const list = poss.filter(p => p.per === per), mine = cps.filter(c => c.e.per === per); if (!mine.length) return;
@@ -1302,7 +1302,7 @@ function clockPlan(g, poss, fallbackSpt) {
 }
 // The same for "now" (the next possession in the current period).
 function clockNow(g, D) {
-  const cps = g.ev.map((e, i) => ({ e, i })).filter(x => x.e.t === 'to' && x.e.clock != null && x.e.per === g.per); if (!cps.length) return null;
+  const cps = g.ev.map((e, i) => ({ e, i })).filter(x => (x.e.t === 'to' || x.e.t === 'clock') && x.e.clock != null && x.e.per === g.per); if (!cps.length) return null;
   const c = cps[cps.length - 1], list = D.poss.filter(p => p.per === g.per), first = p => g.ev.indexOf(p.plays[0]);
   const before = list.filter(p => first(p) < c.i).length, spt = before > 0 ? (perLen(g.per) - c.e.clock) / before : SPT_DEFAULT;
   const perSecs = Math.max(0, c.e.clock - (list.length - before) * spt);
@@ -1462,12 +1462,12 @@ function scorebar(g, D) {
       <div class="sb-meta">${bonus('a')}${kills('a')}</div>
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
-    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>
+    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="From the last clock you set, less the possessions since at this half's pace">≈ ${fmtSecs(c.perSecs)} left</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
       ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
-      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
+      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
@@ -1569,6 +1569,7 @@ function feedText0(g, x) {
   if (x.kind === 'tech') return { cls: 's', html: `<span style="color:var(--bad)">T</span> · ${esc(techText(g, e))}`, sc: `${x.score.a}–${x.score.b}`, id: e.id };
   if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb`, id: e.id };
   if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
+  if (x.kind === 'clock') return { cls: 's', html: `Game clock · ${fmtSecs(e.clock)}`, id: e.id };
   if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout${e.clock != null ? ' · ' + fmtSecs(e.clock) : ''}`, id: e.id };
   return { cls: 's', html: '', id: e.id };
 }
@@ -2502,14 +2503,24 @@ function adjustModal() {
 }
 
 let EDC = null;   // the clock being fixed on a timeout: { id, d }
+/* ⏱ SET TIME: the game clock any time (not only at a timeout), on the big keypad. Logged as a clock
+   checkpoint like a timeout's clock: time left, leverage, clutch and garbage time run from it. */
+let STM = null;
+function setTimeModal() {
+  const g = cur(), len = perLen(g.per); STM = STM || { d: '' };
+  const secs = padSecs(STM.d, len), c = clockNow(g, derive(g));
+  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · the tracker has about ${fmtSecs(c.perSecs)}` : ''}</div>
+    ${clockPad(STM.d, len, 'st-key')}
+    <div class="modal-foot"><button class="btn btn-lg" data-act="st-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="st-ok" ${secs != null ? '' : 'disabled'}>Set ${secs != null ? fmtSecs(secs) : ''}</button></div>`, 'to-modal');
+}
 function editModal(id) {
   const g = cur(), e = g.ev.find(x => x.id === id); if (!e) return;
   const isPlay = e.t === 'play' || e.t === 'foul';
   const byPlayer = e.t === 'foul' || (e.t === 'play' && PLAYER_STATS.has(e.k));
   const ps = byPlayer ? teamPlayers(g, e.team) : [];
-  if (e.t === 'to') {
+  if (e.t === 'to' || e.t === 'clock') {
     if (!EDC || EDC.id !== id) EDC = { id, d: e.clock != null ? String(Math.floor(e.clock / 60)) + String(e.clock % 60).padStart(2, '0') : '' };
-    modal(`<h2>Timeout</h2><div class="small muted" style="margin-bottom:8px">${esc(teamName(g, e.team))} · ${e.kind === 'full' ? 'full' : '30-second'} · ${esc(PER_NAME(e.per))}</div>
+    modal(`<h2>${e.t === 'clock' ? 'Game clock' : 'Timeout'}</h2><div class="small muted" style="margin-bottom:8px">${e.t === 'clock' ? 'Set time' : `${esc(teamName(g, e.team))} · ${e.kind === 'full' ? 'full' : '30-second'}`} · ${esc(PER_NAME(e.per))}</div>
       <div class="field"><label>Game clock (time left in the ${esc(PER_NAME(e.per).toLowerCase())})</label>${clockPad(EDC.d, perLen(e.per), 'edc-key')}</div>
       <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-bad" data-act="ed-del" data-id="${id}">Delete</button>
         <span class="row" style="gap:8px"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="ed-clock" data-id="${id}" ${!EDC.d || padSecs(EDC.d, perLen(e.per)) != null ? '' : 'disabled'}>Save</button></span></div>`, 'to-modal');
@@ -2742,6 +2753,10 @@ document.addEventListener('click', ev => {
     case 'to-pick': TOM.t = b.dataset.t; TOM.k = b.dataset.k; timeoutModal(); break;
     case 'to-key': TOM.clock = padKey(TOM.clock, b.dataset.k); timeoutModal(); break;
     case 'to-cancel': TOM = null; closeModal(); break;
+    case 'set-time': STM = null; setTimeModal(); break;
+    case 'st-key': STM.d = padKey(STM.d, b.dataset.k); setTimeModal(); break;
+    case 'st-cancel': STM = null; closeModal(); break;
+    case 'st-ok': { const secs = padSecs(STM.d, perLen(g.per)); if (secs == null) return; push(g, { t: 'clock', clock: secs }); STM = null; save(); closeModal(); render(); toast(`Game clock set: ${fmtSecs(secs)}`, 'good'); break; }
     case 'to-log': { if (!TOM || !TOM.t) return; const secs = b.dataset.skip ? null : padSecs(TOM.clock, perLen(g.per));
       const e = { t: 'to', team: TOM.t, kind: TOM.k }; if (secs != null) e.clock = secs;
       push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); break; }

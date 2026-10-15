@@ -43,6 +43,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
   time use the real time left (that clock, less the possessions since at this half's pace) instead of the estimate
   from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
+- **⏱ Set time** (scoreboard, beside ± Fouls / TOs): enter the game clock any time on the same big keypad
+  (7, 4, 2 → 7:42). It works like a timeout's clock: time left, leverage, clutch and garbage time run from
+  it, the scoreboard shows **≈ 4:30 left** (that clock less the possessions since, at this half's pace),
+  and it goes in the feed as "Game clock · 4:30" (tap it to fix or delete).
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
