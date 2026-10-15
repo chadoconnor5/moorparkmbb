@@ -286,6 +286,40 @@ Each lists its top two, only fives better than the norm with everyone dressed an
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
 qualifies, none is listed.
 
+## Runs tab
+
+**Tabs** run in game order: Live · Report · Lineups · Scouting · Runs · Play-by-Play · Four factors · Sheet ·
+Schedule · Rosters · Games. On the iPad the title shrinks to "Moorpark" so all the in-game tabs fit without
+scrolling.
+
+**Runs** tracks three things, ours and theirs (green = ours / red = theirs):
+- **Kill** = 3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules.
+- **Kill shot** = 10-0 unanswered (technical FTs count; it carries across the half), as on the Report.
+- **Run** = 6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4); overlapping ones merge.
+
+**This game / Season / Season · quality opp** (quality = positive adjusted net, needs the ⬆ Adjusted file).
+It opens on This game during a game, Season otherwise. Garbage time is always out, and so are scrimmages.
+- **Per game:** kills, kill shots, runs, and kill → skunk (how often a kill goes on to 6 straight stops).
+- **Fives:** kills per 100 defensive possessions, kills allowed per 100 offensive, kills / kill shots / runs
+  for and against. **KILLER** / **LEAKS KILLS** = 1.4x the team rate on 25+ possessions with 2+ kills.
+  Kills are credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they
+  started. **Tap a five** for every kill, kill shot and run it was on for: date, opponent, half and trip,
+  score before → after, what started and ended it.
+- **Kill shots:** every 10-0, with when, the score, our five, what started it and what ended it.
+- **When kills start:** trips (possessions each) into each half, ours vs theirs: the possession count,
+  never a clock estimate.
+- **What starts and ends them**, for kills and for kill shots & runs. Started by: start of a half, out of
+  their own timeout, after the other side's timeout, a fresh five (2+ subs), the other side just subbed 2+,
+  after forcing a live-ball / dead-ball TO, after missed FTs, after a stop on a missed shot. Ended by: made
+  3, made 2, foul → FTs, timeout then they scored, end of the half, technical FTs.
+- **What stops their runs:** once they hit 6-0, did we call timeout, sub, or do nothing, and their points
+  in their next 3 possessions (and the same for ours).
+- **Players:** kills, kill shots and runs for / against while each player is on, and kill margin.
+
+**Live:** under KILLS on the scoreboard, "1 more stop → kill" when we have 2 straight (or 5, 8). When they
+have 2 straight stops on us: "2 stops on us · this five allows X kills / 100" (the season rate, once the
+five has 25+ offensive possessions).
+
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
   plus fouls, subs, technicals and timeouts. Filter by team. Tap any line to fix it.

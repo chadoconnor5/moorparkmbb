@@ -949,6 +949,31 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .cf-in{background:#1f8a4c;color:#fff}.cf-out{background:#d94141;color:#fff}.cf-on{border:1px solid var(--good,#3ecf7a);color:var(--good,#3ecf7a)}
 .cf-warn{margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(217,65,65,.15);color:#ffb3b3;font-size:13.5px}
 .cf-go{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px}
+/* Runs tab */
+.rn-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.rn-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.rn-kpi b{display:block;font-size:24px}.rn-kpi>span{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.rn-t{width:100%;border-collapse:collapse;font-size:13.5px}
+.rn-t th{font-size:10.5px;letter-spacing:.06em;color:var(--muted);font-weight:800;text-align:right;padding:4px 6px;white-space:nowrap}
+.rn-t th:first-child,.rn-t td:first-child{text-align:left}
+.rn-t td{padding:7px 6px;text-align:right;border-top:1px dashed var(--border)}
+.rn-row{cursor:pointer}.rn-row.on td{background:rgba(58,155,217,.08)}
+.rn-drill td{text-align:left;background:rgba(255,255,255,.02)}
+.rn-di{padding:5px 0;border-top:1px dashed var(--border);font-size:13px}.rn-di:first-child{border-top:0}
+.rn-sep{font-size:10.5px!important;letter-spacing:.06em;color:var(--muted);font-weight:800;text-align:left!important;padding-top:10px!important}
+.rn-bar{display:flex;align-items:center;gap:6px;margin:5px 0;font-size:13px}
+.rn-bar .l{width:110px;flex:none}.rn-bar .t,.rn-bar .t0{flex:1;height:14px;border-radius:4px;background:rgba(255,255,255,.05);position:relative;overflow:hidden}
+.rn-bh .t0{background:none;height:auto;font-size:10.5px;font-weight:800;letter-spacing:.06em}
+.rn-bar .f{position:absolute;left:0;top:0;bottom:0;background:#d94141;border-radius:4px}.rn-bar .f.us{background:#3ecf7a}
+.rn-bar .n{width:56px;text-align:right}
+.rn-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:700px){.rn-2{grid-template-columns:1fr}.rn-kpis{grid-template-columns:repeat(2,1fr)}}
+.rn-note{font-size:12px;color:var(--muted);margin-top:6px}
+.rn-flag{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;margin-left:6px;white-space:nowrap}
+.rn-flag.bad{background:#d94141;color:#fff}.rn-flag.good{background:#1f8a4c;color:#fff}
+.kill-near{display:block;font-size:11.5px;font-weight:800;margin-top:2px}
+/* Nav: on the iPad the brand shrinks so the in-game tabs all fit without scrolling. */
+@media (max-width:1100px){.brand span{display:none}.brand{margin-right:6px}.nav .tab{padding-left:10px;padding-right:10px}}
 
 </style>
 </head>
@@ -956,12 +981,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <nav class="nav"><div class="nav-in">
   <div class="brand"><b class="brand-us">Moorpark</b> <span>Possession Tracker</span></div>
   <button class="tab" data-tab="live">Live</button>
-  <button class="tab" data-tab="pbp">Play-by-Play</button>
-  <button class="tab" data-tab="sheet">Sheet</button>
-  <button class="tab" data-tab="lineups">Lineups</button>
   <button class="tab" data-tab="report">Report</button>
-  <button class="tab" data-tab="ff">Four factors</button>
+  <button class="tab" data-tab="lineups">Lineups</button>
   <button class="tab scout-tab" data-tab="scout">Scouting</button>
+  <button class="tab" data-tab="runs">Runs</button>
+  <button class="tab" data-tab="pbp">Play-by-Play</button>
+  <button class="tab" data-tab="ff">Four factors</button>
+  <button class="tab" data-tab="sheet">Sheet</button>
   <button class="tab" data-tab="sched">Schedule</button>
   <button class="tab" data-tab="rosters">Rosters</button>
   <button class="tab" data-tab="games">Games</button>
@@ -981,7 +1007,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.77';
+const VERSION = 'v2026.10.15.78';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1467,6 +1493,7 @@ function render() {
   else if (UI.tab === 'ff') { v.innerHTML = '<div id="ff"></div>'; renderFF(); }
   else if (UI.tab === 'pbp') v.innerHTML = pbpView(g);
   else if (UI.tab === 'report') v.innerHTML = reportView(g);
+  else if (UI.tab === 'runs') v.innerHTML = runsView();
   else if (UI.tab === 'sched') v.innerHTML = schedView();
   else if (UI.tab === 'rosters') v.innerHTML = rostersView();
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
@@ -1485,7 +1512,7 @@ function scorebar(g, D) {
   return `<div class="scorebar">
     <div class="sb-team a"><div class="sb-id"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div>
       <div class="sb-meta"><span>Fouls ${teamFouls(g, 'a', per)}</span>${dots('a')}</div>
-      <div class="sb-meta">${bonus('a')}${kills('a')}</div>
+      <div class="sb-meta">${bonus('a')}${kills('a')}</div>${killNear(g, D, 'a')}
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
     <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="The last game clock you entered (timeout or Set time)">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
@@ -1497,7 +1524,7 @@ function scorebar(g, D) {
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
-      <div class="sb-meta">${kills('b')}${bonus('b')}</div>
+      <div class="sb-meta">${kills('b')}${bonus('b')}</div>${killNear(g, D, 'b')}
       <div class="sb-meta">${ppp(S.pts.b, S.poss.b)} PPP</div></div></div>
   </div>`;
 }
@@ -2895,6 +2922,8 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'rn-scope': UI.rnScope = b.dataset.s; UI.rnFive = null; render(); break;
+    case 'rn-five': { const y = window.scrollY; UI.rnFive = UI.rnFive === b.dataset.k ? null : b.dataset.k; render(); window.scrollTo(0, y); break; }
     case 'lu-export': exportLineups(); break;
     case 'lev-scope': { const k = b.dataset.k || 'levScope'; UI[k] = b.dataset.s; if (k.startsWith('sit_')) { sitModal(); break; } const y = window.scrollY; render(); window.scrollTo(0, y); break; }
     case 'lu-adj': importLineupAdj(); break;
@@ -4364,6 +4393,202 @@ function plugCard(g, D, outId) {
     ${top.map((r, i) => `<div class="plug-row"><span class="fix-rk">${i + 1}</span><div class="plug-who"><b>${esc(pShort(g, 'a', r.p.id))}</b>${r.p.pos ? ` <span class="muted small">${esc(r.p.pos)}</span>` : ''}${r.same ? '<span class="fx-both">SAME POS</span>' : ''}
         <div class="tiny muted">${mode && r.skill != null ? `<b>${mode.pct ? r.skill.toFixed(0) + '%' : r.skill.toFixed(1)} ${mode.pct ? mode.lbl.replace('%', '') : mode.lbl}</b> (${esc(plSample(r.p.id, mode.made, mode.att))}) · ` : mode ? 'not enough quality-game sample · ' : ''}five with him: season ${sg(r.sNet)}${r.sP ? ` (${r.sP} poss)` : ''} · tonight ${sg(r.tNet)}${r.tP ? ` (${r.tP})` : ''} · his +/- ${sgn(r.pm)}${r.pf ? ` · ${r.pf} PF` : ''}</div></div>
       <button class="btn btn-good" data-act="plug" data-out="${esc(outId)}" data-p="${esc(r.p.id)}">Plug in</button></div>`).join('')}</div>`;
+}
+
+/* ---------- Runs: kills, kill shots and runs ----------
+   KILL       3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules, per half / OT.
+   KILL SHOT  10-0 unanswered (technical FTs count, it carries across the half), as on the Report.
+   RUN        6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4), merged when they overlap.
+   For each one: who achieved it, the five on the floor (ours and theirs), the half and how many trips into
+   it (possession count, never a clock estimate), the score, what started it and what ended it. A kill is
+   credited to the five on the floor when its 3rd stop happens; a kill shot or run to the five on when it
+   started. Garbage time is out. Season = every game tracked here (no scrimmages); Quality = only against
+   an opponent with a positive adjusted net (needs the ⬆ Adjusted file). */
+const SPURT_NET = 8, SPURT_TRIPS = 6, RN_MIN_POSS = 25;
+const RN_START = [['half', 'Start of a half'], ['to-own', 'Out of their own timeout'], ['to-opp', "After the other side's timeout"], ['sub-own', 'Fresh five (2+ subs)'],
+  ['sub-opp', 'Other side just subbed 2+'], ['lbto', 'After forcing a live-ball TO'], ['to', 'After forcing a dead-ball TO'], ['ftx', 'After the other side missed FTs'], ['miss', 'After a stop on a missed shot']];
+const RN_END = [['3', 'Made 3'], ['2', 'Made 2'], ['FT', 'Foul → FTs'], ['timeout', 'Timeout, then they scored'], ['half', 'End of the half'], ['tech', 'Technical FTs']];
+const rnLbl = (L, k) => (L.find(x => x[0] === k) || [k, k])[1];
+let RN_MEMO = new Map();
+function runsGame(g) {
+  const stamp = g.ev.length + ':' + (g.ev.length ? g.ev[g.ev.length - 1].id : '') + ':' + (g.gtFrom || '') + (g.gtOff ? 'x' : '') + (g.final ? 'f' : '');
+  const m = RN_MEMO.get(g.id); if (m && m.stamp === stamp) return m.v;
+  const D = derive(g), P = D.poss, eIdx = new Map(g.ev.map((e, i) => [e.id, i])), byEv = new Map();
+  P.forEach((p, i) => { p._i = i; p.plays.forEach(e => byEv.set(e.id, p)); });
+  const st = p => eIdx.get(p.plays[0].id);
+  // Timeouts and subs after possession i-1 started and before possession i.
+  const between = i => { const a = i > 0 ? st(P[i - 1]) : -1, b = st(P[i]); return g.ev.slice(a + 1, b).filter(e => e.t === 'to' || e.t === 'sub'); };
+  const trip = p => Math.ceil((p.seq || 1) / 2);
+  const started = (i, who) => { const p = P[i], prev = P[i - 1], out = new Set(), vic = other(who);
+    if (!prev || prev.per !== p.per || p.seq <= 2) out.add('half');
+    if (i > 0) between(i).forEach(e => { if (e.t === 'to') out.add(e.team === who ? 'to-own' : 'to-opp'); });
+    if (prev && prev.per === p.per) {
+      ['a', 'b'].forEach(t => { if ((p.five[t] || []).filter(x => !(prev.five[t] || []).includes(x)).length >= 2) out.add(t === who ? 'sub-own' : 'sub-opp'); });
+      if (prev.team === vic) { const c = prev.end.col; out.add(c === 'STL' ? 'lbto' : c === 'TO' || c === 'CHG' || c === 'OFF' ? 'to' : c === 'xFT' ? 'ftx' : c === 'x2' || c === 'x3' ? 'miss' : ''); }
+    }
+    out.delete(''); return [...out]; };
+  // How the other side finally scored at possession j (or the half ran out).
+  const ended = (j, vic, from) => { const p = P[j]; if (!p) return 'half';
+    if (between(j).some(e => e.t === 'to' && e.team === vic) || (j > from && P.slice(from, j).some((q, k) => between(from + k).some(e => e.t === 'to' && e.team === vic) && k >= j - from - 2))) return 'timeout';
+    const c = p.end.col; return c === '3' ? '3' : c === '2' ? '2' : c === 'FT' ? 'FT' : 'tech'; };
+  const ep = (o, i) => Object.assign({ gid: g.id, date: g.date, opp: g.opp, loc: g.loc, per: P[i].per, trip: trip(P[i]), fiveA: (P[i].five.a || []).slice(), fiveB: (P[i].five.b || []).slice() }, o);
+  // KILLS: every 3 stops in a row; one episode per streak of 3+.
+  const kills = [];
+  D.stopRuns.filter(r => r.len >= 3).forEach(r => {
+    const vic = other(r.team), list = P.filter(p => p.per === r.per && p.team === vic && p.seq >= r.fromSeq && p.seq <= r.toSeq);
+    if (!list.length || list[0].gt) return;
+    const i0 = list[0]._i, k = Math.floor(r.len / 3), credit = [];
+    for (let n = 1; n <= k; n++) { const p = list[3 * n - 1]; if (p && !p.gt) credit.push((p.five.a || []).slice()); }
+    if (!credit.length) return;
+    const nx = P.find(p => p.per === r.per && p.team === vic && p.seq > r.toSeq), j = nx ? nx._i : -1;
+    kills.push(ep({ kind: 'kill', team: r.team, len: r.len, kills: credit.length, skunk: r.len >= 6, credit, from: r.from, to: r.to, start: started(i0, r.team), end: j < 0 ? 'half' : ended(j, vic, i0) }, i0));
+  });
+  // UNANSWERED runs (kill shots at 10), and our answer when theirs reached 6-0.
+  const un = []; let cur = null; const sc = { a: 0, b: 0 };
+  g.ev.forEach((e, ei) => {
+    const t = e.t === 'play' ? e.team : e.t === 'tech' ? other(e.team) : null, v = e.t === 'play' ? (PTS[e.k] || 0) : e.t === 'tech' ? (e.ftm || 0) : 0;
+    if (!t || !v) return;
+    const p = byEv.get(e.id) || P.find(q => st(q) > ei) || P[P.length - 1];
+    if (!cur || cur.team !== t) { if (cur) cur.endP = p, cur.endTech = e.t === 'tech'; cur = { team: t, pts: 0, from: { ...sc }, p0: p, p6: null }; un.push(cur); }
+    cur.pts += v; sc[t] += v; cur.to = { ...sc }; cur.pl = p; if (!cur.p6 && cur.pts >= 6) cur.p6 = p;
+  });
+  const shots = [], answers = [];
+  un.forEach(r => { if (!r.p0 || r.p0.gt) return; const i0 = r.p0._i, vic = other(r.team), j = r.endP ? r.endP._i : -1;
+    const end = !r.endP ? 'half' : r.endTech ? 'tech' : ended(j, vic, i0);
+    r.ep = ep({ team: r.team, pts: r.pts, against: 0, from: r.from, to: r.to, start: started(i0, r.team), end, i0, i1: r.pl._i }, i0);
+    if (r.pts >= 10) shots.push(Object.assign({ kind: 'shot' }, r.ep));
+    // What we (or they) did once a run hit 6-0: a timeout, a sub, or nothing, then the next 3 trips.
+    if (r.p6 && !r.p6.gt) { const k6 = r.p6._i, nxt = P.findIndex((q, k) => k > k6 && q.team === vic);
+      if (nxt > 0) { const ev = g.ev.slice(st(P[k6]) + 1, st(P[nxt])), did = ev.some(e => e.t === 'to' && e.team === vic) ? 'timeout' : ev.some(e => e.t === 'sub' && e.team === vic) ? 'sub' : 'nothing';
+        const next = P.filter((q, k) => k > k6 && q.team === r.team).slice(0, 3);
+        if (next.length === 3) answers.push({ team: r.team, did, pts: next.reduce((s, q) => s + q.pts, 0), gid: g.id }); } } });
+  // SPURTS: +8 within 6 trips each, inside a half, then merged with unanswered 6-0s of the same side.
+  const spans = { a: [], b: [] };
+  un.forEach(r => { if (r.ep && r.pts >= 6) spans[r.team].push({ i0: r.ep.i0, i1: r.ep.i1, src: r }); });
+  ['a', 'b'].forEach(t => { for (let i = 0; i < P.length; i++) {
+    if (P[i].gt || P[i].team !== t || !P[i].pts) continue;
+    let f = 0, a = 0, n = { a: 0, b: 0 }, best = null;
+    for (let j = i; j < P.length && P[j].per === P[i].per && !P[j].gt; j++) { n[P[j].team]++; if (n.a > SPURT_TRIPS || n.b > SPURT_TRIPS) break;
+      if (P[j].team === t) f += P[j].pts; else a += P[j].pts; if (P[j].team === t && P[j].pts && f - a >= SPURT_NET) best = { i0: i, i1: j, f, a }; }
+    if (best) { spans[t].push(best); i = best.i1; } } });
+  const runs = [];
+  ['a', 'b'].forEach(t => { const L = spans[t].sort((x, y) => x.i0 - y.i0), M = [];
+    L.forEach(s => { const l = M[M.length - 1]; if (l && s.i0 <= l.i1) { l.i1 = Math.max(l.i1, s.i1); l.srcs.push(s); } else M.push({ i0: s.i0, i1: s.i1, srcs: [s] }); });
+    M.forEach(m => { let f = 0, a = 0; for (let k = m.i0; k <= m.i1; k++) { if (P[k].team === t) f += P[k].pts; else a += P[k].pts; }
+      const u = m.srcs.find(s => s.src); f = Math.max(f, u ? u.src.pts : 0);
+      const nx = P.findIndex((q, k) => k > m.i1 && q.team !== t && q.pts > 0);
+      runs.push(ep({ kind: 'run', team: t, pts: f, against: a, from: P[m.i0].before, to: P[m.i1].score, start: started(m.i0, t), end: nx < 0 || P[nx].per !== P[m.i1].per ? 'half' : ended(nx, other(t), m.i0) }, m.i0)); }); });
+  // Possessions per five (ours), off / def, garbage time out.
+  const fives = {};
+  P.forEach(p => { if (p.gt || (p.five.a || []).length !== 5) return; const k = fiveKey(p.five.a), f = fives[k] = fives[k] || { five: p.five.a.slice(), o: 0, d: 0 }; if (p.team === 'a') f.o++; else f.d++; });
+  const v = { kills, shots, runs, answers, fives, poss: P.filter(p => !p.gt).length };
+  RN_MEMO.set(g.id, { stamp, v });
+  return v;
+}
+// The games in scope: this one, every game, or only games against quality opponents (positive adjusted net).
+function rnGames(scope) {
+  if (scope === 'game') { const g = cur(); return g ? [g] : []; }
+  const A = luAdj(), net = {};
+  ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) net[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
+  return games.filter(g => g.ev && g.ev.length && !((schedule().find(x => x.id === g.schedId) || {}).scrim))
+    .filter(g => scope !== 'quality' || net[g.date + '|' + String(g.opp).toLowerCase()] > 0);
+}
+function rnAgg(list) {
+  const R = { kills: [], shots: [], runs: [], answers: [], fives: {}, games: list.length, poss: 0 };
+  list.forEach(g => { const v = runsGame(g); ['kills', 'shots', 'runs', 'answers'].forEach(k => R[k].push(...v[k])); R.poss += v.poss;
+    Object.values(v.fives).forEach(f => { const k = fiveKey(f.five), x = R.fives[k] = R.fives[k] || { five: f.five, o: 0, d: 0 }; x.o += f.o; x.d += f.d; }); });
+  // Per five and per player: kills for / against (credited at the 3rd stop), kill shots and runs (at the start).
+  const F = R.fives, pl = {}, P_ = id => pl[id] = pl[id] || { kf: 0, ka: 0, sf: 0, sa: 0, rf: 0, ra: 0 };
+  Object.values(F).forEach(f => Object.assign(f, { kf: 0, ka: 0, sf: 0, sa: 0, rf: 0, ra: 0 }));
+  const add = (five, key) => { if (five.length !== 5) return; const f = F[fiveKey(five)]; if (f) f[key]++; five.forEach(id => P_(id)[key]++); };
+  R.kills.forEach(k => k.credit.forEach(c => add(c, k.team === 'a' ? 'kf' : 'ka')));
+  R.shots.forEach(s => add(s.fiveA, s.team === 'a' ? 'sf' : 'sa'));
+  R.runs.forEach(r => add(r.fiveA, r.team === 'a' ? 'rf' : 'ra'));
+  R.players = pl;
+  const tot = Object.values(F).reduce((s, f) => ({ o: s.o + f.o, d: s.d + f.d, kf: s.kf + f.kf, ka: s.ka + f.ka }), { o: 0, d: 0, kf: 0, ka: 0 });
+  R.rate = { kf: tot.d ? 100 * tot.kf / tot.d : 0, ka: tot.o ? 100 * tot.ka / tot.o : 0 };
+  Object.values(F).forEach(f => { f.kfR = f.d ? 100 * f.kf / f.d : null; f.kaR = f.o ? 100 * f.ka / f.o : null;
+    f.tag = f.d >= RN_MIN_POSS && f.kf >= 2 && f.kfR >= 1.4 * R.rate.kf ? 'killer' : f.o >= RN_MIN_POSS && f.ka >= 2 && f.kaR >= 1.4 * R.rate.ka ? 'leaks' : ''; });
+  return R;
+}
+// One five's season line, for the live warnings.
+function rnFive(five) { if (!five || five.length !== 5) return null; const R = rnAgg(rnGames('all')), f = R.fives[fiveKey(five)]; return f ? Object.assign({ rate: R.rate }, f) : null; }
+
+function runsView() {
+  const scope = UI.rnScope || (cur() && !cur().final ? 'game' : 'all'), list = rnGames(scope), R = rnAgg(list), g0 = cur() || list[list.length - 1];
+  const A = luAdj(), haveQ = !!(A && A.games && A.games.some(x => x.oppOrtg != null));
+  const btn = (k, l, dis) => `<button class="btn btn-sm ${scope === k ? 'btn-primary' : ''}" data-act="rn-scope" data-s="${k}" ${dis ? 'disabled title="Needs the ⬆ Adjusted file (Lineups → Season)"' : ''}>${l}</button>`;
+  const head = `<div class="page-head"><h2>Runs</h2><div class="row" style="gap:6px">${btn('game', 'This game', !cur())}${btn('all', 'Season')}${btn('quality', 'Season · quality opp', !haveQ)}</div></div>
+    <div class="small muted" style="margin:-4px 0 10px">Kill = 3 straight stops · Kill shot = 10-0 · Run = 6-0, or +8 within 6 possessions each (10-2, 12-4). ${scope === 'game' ? 'This game' : `${list.length} game${list.length === 1 ? '' : 's'}${scope === 'quality' ? ' vs quality opponents' : ''}`} · garbage time out. <span class="pos">Green = ours</span> / <span class="neg">red = theirs</span>.</div>`;
+  if (!list.length) return head + '<div class="card muted">No games tracked yet.</div>';
+  if (!g0) return head;
+  const kv = (u, t) => `<span class="pos">${u}</span> <span class="muted">/</span> <span class="neg">${t}</span>`;
+  const n = list.length, pg = v => scope === 'game' ? String(v) : (v / n).toFixed(1);
+  const cnt = (L, t) => L.filter(x => x.team === t).length, kc = t => R.kills.filter(k => k.team === t).reduce((s, k) => s + k.kills, 0);
+  const chain = t => { const L = R.kills.filter(k => k.team === t); return L.length ? Math.round(100 * L.filter(k => k.skunk).length / L.length) + '%' : '—'; };
+  const nm = id => pShort(g0, 'a', id), five = f => fiveSorted(g0, 'a', f).map(id => { const p = pInfo(g0, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); }).join(' ');
+  const fmt1 = v => v == null ? '—' : v.toFixed(1);
+  const kpis = `<div class="rn-kpis"><div class="rn-kpi"><b>${kv(pg(kc('a')), pg(kc('b')))}</b><span>KILLS${scope === 'game' ? '' : ' / GAME'}</span></div>
+    <div class="rn-kpi"><b>${kv(pg(cnt(R.shots, 'a')), pg(cnt(R.shots, 'b')))}</b><span>KILL SHOTS (10-0)${scope === 'game' ? '' : ' / GAME'}</span></div>
+    <div class="rn-kpi"><b>${kv(pg(cnt(R.runs, 'a')), pg(cnt(R.runs, 'b')))}</b><span>RUNS${scope === 'game' ? '' : ' / GAME'}</span></div>
+    <div class="rn-kpi"><b>${kv(chain('a'), chain('b'))}</b><span>KILL → SKUNK (6 STOPS)</span></div></div>`;
+  // Fives.
+  const FL = Object.values(R.fives).filter(f => f.o + f.d >= 10).sort((x, y) => (y.o + y.d) - (x.o + x.d)).slice(0, 15);
+  const open = UI.rnFive;
+  const fiveRows = FL.map(f => { const k = fiveKey(f.five), poss = Math.round((f.o + f.d) / 2);
+    const row = `<tr class="rn-row ${open === k ? 'on' : ''}" data-act="rn-five" data-k="${esc(k)}"><td><b>${esc(five(f.five))}</b>${f.tag === 'killer' ? '<span class="rn-flag good">KILLER</span>' : f.tag === 'leaks' ? '<span class="rn-flag bad">LEAKS KILLS</span>' : ''}</td>
+      <td>${poss}</td><td class="pos">${fmt1(f.kfR)}</td><td class="neg">${fmt1(f.kaR)}</td><td>${kv(f.kf, f.ka)}</td><td>${kv(f.sf, f.sa)}</td><td>${kv(f.rf, f.ra)}</td></tr>`;
+    return row + (open === k ? `<tr class="rn-drill"><td colspan="7">${rnDrill(g0, R, f)}</td></tr>` : ''); }).join('');
+  const fives = `<div class="card"><h3>Fives: kills, kill shots and runs <span class="muted">· tap a five for every one it was on for</span></h3><div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Five</th><th>Poss</th><th>Kills / 100 def</th><th>Allowed / 100 off</th><th>Kills</th><th>Kill shots</th><th>Runs</th></tr></thead><tbody>${fiveRows || '<tr><td colspan="7" class="muted">No five with 10+ possessions yet.</td></tr>'}</tbody></table></div>
+    <div class="rn-note">Kills credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they started. Team rate: ${fmt1(R.rate.kf)} kills per 100 defensive possessions, ${fmt1(R.rate.ka)} allowed per 100 offensive. KILLER / LEAKS KILLS = 1.4x the team rate on ${RN_MIN_POSS}+ possessions, 2+ kills.</div></div>`;
+  // Every kill shot.
+  const where = x => `${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)}`;
+  const shots = R.shots.slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+  const shotCard = `<div class="card"><h3>Kill shots (10-0)${scope === 'game' ? '' : ' this season'}</h3>${shots.length ? `<div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Who</th><th>When</th><th>Score</th><th>Our five</th><th>What started it</th><th>What ended it</th></tr></thead><tbody>
+    ${shots.map(s => `<tr><td><b class="${s.team === 'a' ? 'pos' : 'neg'}">${s.team === 'a' ? 'OURS' : 'THEIRS'} ${s.pts}-0</b>${scope === 'game' ? '' : ` <span class="muted small">${esc(s.date || '')} ${where(s)}</span>`}</td><td>${esc(s.per)} · trip ${s.trip}</td><td>${s.from.a}–${s.from.b} → ${s.to.a}–${s.to.b}</td><td>${esc(five(s.fiveA))}</td><td>${esc(s.start.map(k => rnLbl(RN_START, k)).join(', ') || '—')}</td><td>${esc(rnLbl(RN_END, s.end))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted small">None yet.</div>'}</div>`;
+  // When kills start: trips into each half.
+  const bins = [['1H', 1, 8], ['1H', 9, 24], ['1H', 25, 999], ['2H', 1, 8], ['2H', 9, 24], ['2H', 25, 999]];
+  const inBin = (x, b) => x.per === b[0] && x.trip >= b[1] && x.trip <= b[2];
+  const bc = bins.map(b => ({ l: `${b[0]} · trip ${b[1]}${b[2] > 99 ? '+' : '–' + b[2]}`, a: R.kills.filter(k => k.team === 'a' && inBin(k, b)).length, b: R.kills.filter(k => k.team === 'b' && inBin(k, b)).length }));
+  const ot = { l: 'OT', a: R.kills.filter(k => k.team === 'a' && k.per.startsWith('OT')).length, b: R.kills.filter(k => k.team === 'b' && k.per.startsWith('OT')).length };
+  if (ot.a || ot.b) bc.push(ot);
+  const mx = Math.max(1, ...bc.map(x => Math.max(x.a, x.b)));
+  const bar = (l, a, b) => `<div class="rn-bar"><span class="l">${l}</span><span class="t"><span class="f us" style="width:${100 * a / mx}%"></span></span><span class="t"><span class="f" style="width:${100 * b / mx}%"></span></span><span class="n">${kv(a, b)}</span></div>`;
+  const when = `<div class="card"><h3>When kills start</h3><div class="rn-bar rn-bh"><span class="l"></span><span class="t0 pos">ours</span><span class="t0 neg">theirs</span><span class="n"></span></div>${bc.map(x => bar(x.l, x.a, x.b)).join('')}<div class="rn-note">Trips = possessions each into the half: the possession count, never a clock estimate.</div></div>`;
+  // What starts and ends them.
+  const tally = (L, key, k, t) => L.filter(x => x.team === t && (key === 'start' ? x.start.includes(k) : x.end === k)).length;
+  const se = (L, title) => { const rows = (key, list) => list.map(([k, l]) => [l, tally(L, key, k, 'a'), tally(L, key, k, 'b')]).filter(r => r[1] || r[2]).map(r => `<tr><td>${esc(r[0])}</td><td class="pos">${r[1]}</td><td class="neg">${r[2]}</td></tr>`).join('');
+    const s = rows('start', RN_START), e = rows('end', RN_END);
+    return `<div class="card"><h3>${title}</h3><table class="rn-t"><thead><tr><th></th><th>Ours</th><th>Theirs</th></tr></thead><tbody>
+      <tr><td colspan="3" class="rn-sep">STARTED BY</td></tr>${s || '<tr><td colspan="3" class="muted small">—</td></tr>'}<tr><td colspan="3" class="rn-sep">ENDED BY</td></tr>${e || '<tr><td colspan="3" class="muted small">—</td></tr>'}</tbody></table>
+      <div class="rn-note">Started by = what happened just before the first ${title.includes('kills') ? 'stop' : 'basket'}; one can have more than one.</div></div>`; };
+  // Players.
+  const PL = Object.entries(R.players).sort((x, y) => (y[1].kf - y[1].ka) - (x[1].kf - x[1].ka));
+  const players = `<div class="card"><h3>Players: on the floor for</h3><div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Player</th><th>Kills</th><th>Kill shots</th><th>Runs</th><th>Kill margin</th></tr></thead><tbody>
+    ${PL.map(([id, x]) => `<tr><td><b>${esc(nm(id))}</b></td><td>${kv(x.kf, x.ka)}</td><td>${kv(x.sf, x.sa)}</td><td>${kv(x.rf, x.ra)}</td><td class="${pmCls(x.kf - x.ka)}">${sgn(x.kf - x.ka)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table></div></div>`;
+  // What stops their runs (and what stops ours).
+  const ans = t => ['timeout', 'sub', 'nothing'].map(d => { const L = R.answers.filter(x => x.team === t && x.did === d); return [d, L.length, L.length ? L.reduce((s, x) => s + x.pts, 0) / L.length : null]; });
+  const stops = `<div class="card"><h3>What stops their runs</h3><table class="rn-t"><thead><tr><th>Once they hit 6-0, we</th><th>Times</th><th>Their pts, next 3 trips</th></tr></thead><tbody>
+    ${ans('b').map(([d, c, v]) => `<tr><td><b>${{ timeout: 'Called timeout', sub: 'Subbed', nothing: 'Did nothing' }[d]}</b></td><td>${c}</td><td>${v == null ? '—' : v.toFixed(1)}</td></tr>`).join('')}</tbody></table>
+    <div class="rn-note">Their points in their next 3 possessions. Ours, once we hit 6-0 and they ${ans('a').map(([d, c, v]) => `${{ timeout: 'called timeout', sub: 'subbed', nothing: 'did nothing' }[d]}: ${v == null ? '—' : v.toFixed(1)} (${c})`).join(' · ')}.</div></div>`;
+  return head + kpis + fives + shotCard + `<div class="rn-2">${when}${se(R.kills, 'What starts and ends kills')}</div><div class="rn-2">${se(R.shots.concat(R.runs), 'What starts and ends kill shots &amp; runs')}${stops}</div>` + players;
+}
+// Every kill, kill shot and run one five was on the floor for, newest first.
+function rnDrill(g0, R, f) {
+  const k = fiveKey(f.five), has = x => x.kind === 'kill' ? x.credit.some(c => c.length === 5 && fiveKey(c) === k) : x.fiveA.length === 5 && fiveKey(x.fiveA) === k;
+  // A run that is also a kill shot shows once, as the kill shot.
+  const dup = x => x.kind === 'run' && R.shots.some(s => s.gid === x.gid && s.team === x.team && s.from.a === x.from.a && s.from.b === x.from.b);
+  const L = [...R.kills, ...R.shots, ...R.runs.filter(x => !dup(x))].filter(has).sort((x, y) => (y.date || '').localeCompare(x.date || '') || 0);
+  if (!L.length) return '<div class="muted small">Nothing yet.</div>';
+  const what = x => x.kind === 'kill' ? `${x.len} straight stops${x.len >= 9 ? ' · DEAD SKUNK' : x.len >= 6 ? ' · SKUNK' : ''}` : x.kind === 'shot' ? `${x.pts}-0 kill shot` : `${x.pts}-${x.against} run`;
+  return `<div class="rn-dl">${L.map(x => `<div class="rn-di"><b class="${x.team === 'a' ? 'pos' : 'neg'}">${x.team === 'a' ? 'OURS' : 'THEIRS'}</b> ${esc(what(x))} <span class="muted">· ${esc(x.date || '')} ${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp || '')} · ${esc(x.per)} trip ${x.trip} · ${x.from.a}–${x.from.b} → ${x.to.a}–${x.to.b}</span><div class="tiny muted">Started: ${esc(x.start.map(s => rnLbl(RN_START, s)).join(', ') || '—')} · Ended: ${esc(rnLbl(RN_END, x.end))}</div></div>`).join('')}</div>`;
+}
+// Live: one stop short of a kill (ours), or theirs on us with the five on the floor's season rate.
+function killNear(g, D, t) {
+  const S = perSums(D, g.per), s = S.streak[t] || 0; if (g.final || s % 3 !== 2) return '';
+  if (t === 'a') return '<span class="kill-near pos">1 more stop → kill</span>';
+  const f = rnFive(D.five.a), bad = f && f.o >= RN_MIN_POSS ? f.kaR : null;
+  return `<span class="kill-near neg">${s} stops on us${bad != null ? ` · this five allows ${bad.toFixed(1)} kills / 100` : ''}</span>`;
 }
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
