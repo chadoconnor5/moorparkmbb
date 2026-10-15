@@ -925,6 +925,30 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tip-ban .btn{background:#1b1407;color:#f6d38a;border-color:#1b1407;font-weight:800;white-space:nowrap}
 .tip-ban-x{font:inherit;font-size:18px;font-weight:800;width:38px;height:38px;border-radius:50%;border:0;background:rgba(27,20,7,.15);color:#1b1407;cursor:pointer}
 @keyframes tipBan{50%{box-shadow:0 0 0 6px rgba(217,164,65,.15)}}
+/* Lineups: the situation buttons in fixed rows, with what applies right now on top. */
+.sg{display:grid;grid-template-columns:118px repeat(5,minmax(0,1fr));gap:8px;align-items:stretch;margin:12px 0 10px}
+.sg-l{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--muted);display:flex;align-items:center;line-height:1.2}
+.sg .sit-chip{border-radius:12px;padding:10px 6px;min-height:52px;font-size:14px;line-height:1.15;text-align:center;display:flex;align-items:center;justify-content:center}
+.sg .sit-chip.lit::after,.sg-now .sit-chip.lit::after{content:none}
+.sg .sit-chip.lit:not(.sel){box-shadow:inset 0 -3px 0 var(--warn)}
+.sg-now{margin:10px 0 4px;padding:8px 10px;border-radius:10px;background:rgba(220,176,90,.10);border:1px solid rgba(220,176,90,.35)}
+.sg-now-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sg-now-r b{color:var(--warn);font-size:12px;letter-spacing:.08em}
+.sg-now .sit-chip{padding:6px 12px}
+.sg-now .sit-why{margin:8px 0 0}
+/* Closing FTs */
+.cf-t{width:100%;border-collapse:collapse;font-size:13.5px}
+.cf-t th{font-size:10.5px;letter-spacing:.06em;color:var(--muted);font-weight:800;text-align:right;padding:3px 6px}
+.cf-t th:first-child,.cf-t td:first-child{text-align:left}
+.cf-t td{padding:6px;text-align:right;border-top:1px dashed var(--border)}
+.cf-t .cf-sc{font-size:16px;font-weight:800;color:var(--good,#3ecf7a)}
+.cf-t .cf-bad{color:#ff7b7b;font-weight:800}
+.cf-t .cf-bench td{color:var(--muted)}
+.cf-t .cf-sep{font-size:10.5px;letter-spacing:.06em;color:var(--muted);font-weight:800;padding-top:10px;text-align:left}
+.cf-in,.cf-out,.cf-on{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.cf-in{background:#1f8a4c;color:#fff}.cf-out{background:#d94141;color:#fff}.cf-on{border:1px solid var(--good,#3ecf7a);color:var(--good,#3ecf7a)}
+.cf-warn{margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(217,65,65,.15);color:#ffb3b3;font-size:13.5px}
+.cf-go{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px}
 
 </style>
 </head>
@@ -957,7 +981,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.76';
+const VERSION = 'v2026.10.15.77';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4105,6 +4129,57 @@ const plPer40 = (id, ...ks) => { const { P, T } = plSeason(), x = P[id]; if (!x 
   return 40 * (c + PL_PRIOR.MIN * tr) / (x.MIN + PL_PRIOR.MIN); };
 // The sample behind a player's number, to show next to it: "24/28 FT, 11 quality games".
 const plSample = (id, made, att) => { const x = plSeason().P[id]; if (!x) return ''; return att ? `${x[made] || 0}/${x[att] || 0} ${att === 'FTA' ? 'FT' : '3PT'}, ${x.games} quality g` : `${x.MIN || 0} min, ${x.games} quality g`; };
+/* CLUTCH FREE THROWS: our FTs tagged to a shooter in clutch possessions (last 5:00 of the 2nd half or OT,
+   within 5) of every game, counted only where a clock you set stands behind the possession, never an
+   estimate. Scrimmages are out. { id: { m, a } } */
+let CFT_MEMO = null;
+function clutchFT() {
+  const stamp = games.map(g => g.id + ':' + g.ev.length).join('|');
+  if (CFT_MEMO && CFT_MEMO.stamp === stamp) return CFT_MEMO.v;
+  const out = {};
+  games.forEach(g => { const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+    derive(g).poss.forEach(p => { if (p.team !== 'a' || !p.clutch || p.clockSecs == null || p.gt) return;
+      p.plays.forEach(e => { if (!isFT(e.k) || e.team !== 'a' || !e.player || e.player === 'TEAM') return;
+        const x = out[e.player] = out[e.player] || { m: 0, a: 0 }; x.a++; if (e.k === 'ftm') x.m++; }); }); });
+  CFT_MEMO = { stamp, v: out };
+  return out;
+}
+/* CLOSING FT%: a player's season FT% (quality games, pulled toward the team rate, 10+ FTA to count) moved
+   toward their clutch FTs as they add up: clutch attempts weigh in against 20 attempts at the season rate,
+   so one 0/2 night can't sink anyone and one 2/2 can't make anyone. null = not enough season FTs. */
+const CFT_PRIOR = 20;
+function closingFt(id) {
+  const base = plPct(luAdj(), id, 'FTM', 'FTA'); if (base == null) return null;
+  const c = clutchFT()[id] || { m: 0, a: 0 };
+  return 100 * (c.m + CFT_PRIOR * base / 100) / (c.a + CFT_PRIOR);
+}
+/* Closing FTs: the best five FT shooters available, ranked by closing FT%, the five on the floor marked
+   IN / OUT against it, and a warning naming the weakest shooter on the floor right now. */
+function closingFtCard(g, D) {
+  const ok = sitOk(g), cur = D.five.a.length === 5 ? D.five.a : [], { P } = plSeason(), C = clutchFT();
+  const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num + ' ' + lastName(p.name || id) : lastName(p.name || id); };
+  const all = teamPlayers(g, 'a').filter(p => ok(p.id)).map(p => ({ id: p.id, v: closingFt(p.id) }));
+  const ranked = all.filter(x => x.v != null).sort((a, b) => b.v - a.v), top = ranked.slice(0, 5), topK = new Set(top.map(x => x.id));
+  // Below the five: who comes out, then the next three best on the bench.
+  const rest = [...all.filter(x => cur.includes(x.id) && !topK.has(x.id)), ...ranked.slice(5).filter(x => !cur.includes(x.id)).slice(0, 3)];
+  const ft = id => { const x = P[id]; return x && x.FTA ? `${x.FTM || 0}/${x.FTA}` : '—'; };
+  const cl = id => { const x = C[id]; return x && x.a ? `${x.m}/${x.a}` : '—'; };
+  const tag = (id, inTop) => inTop && cur.length && !cur.includes(id) ? '<span class="cf-in">IN</span>' : !inTop && cur.includes(id) ? '<span class="cf-out">OUT</span>' : cur.includes(id) ? '<span class="cf-on">ON</span>' : '';
+  const row = (x, inTop) => `<tr class="${inTop ? '' : 'cf-bench'}"><td><b>${esc(nn(x.id))}</b>${tag(x.id, inTop)}</td><td class="${inTop ? 'cf-sc' : x.v != null && x.v < 65 ? 'cf-bad' : ''}">${x.v == null ? '—' : x.v.toFixed(0) + '%'}</td><td>${ft(x.id)}</td><td>${cl(x.id)}</td></tr>`;
+  const onNow = cur.map(id => ({ id, v: closingFt(id) })), noRec = onNow.filter(x => x.v == null && ok(x.id)), weak = onNow.filter(x => x.v != null && !topK.has(x.id)).sort((a, b) => a.v - b.v)[0];
+  const warn = top.length < 5 ? '' : noRec.length ? `On the floor now: <b>${esc(noRec.map(x => nn(x.id)).join(', '))}</b>, under 10 season FTs: no FT record to trust.`
+    : weak ? `On the floor now: <b>${esc(nn(weak.id))} ${weak.v.toFixed(0)}%</b>, the weakest FT shooter on the floor. That's who they'll foul.` : '';
+  const ins = top.filter(x => !cur.includes(x.id)).map(x => nn(x.id)), outs = cur.filter(id => !topK.has(id)).map(nn), f = top.map(x => x.id);
+  if (!plSeason().src) return '<div class="card muted">Closing FTs needs players\' season FT numbers: final stat sheets photographed here, or the ⬆ Adjusted file (Lineups → Season).</div>';
+  return `<div class="card cf"><h3 style="margin:0 0 6px">Closing five: best FT shooters available</h3>
+    <table class="cf-t"><thead><tr><th>Player</th><th>Closing FT%</th><th>Season FT</th><th>Clutch FT</th></tr></thead><tbody>
+    ${top.map(x => row(x, true)).join('')}
+    ${rest.length ? `<tr><td colspan="4" class="cf-sep">${cur.length ? 'COMING OUT · NEXT ON THE BENCH' : 'NEXT ON THE BENCH'}</td></tr>${rest.map(x => row(x, false)).join('')}` : ''}</tbody></table>
+    ${top.length < 5 ? `<div class="cf-warn">Only ${top.length} available player${top.length === 1 ? ' has' : 's have'} 10+ season FTs. Pick the rest yourself.</div>` : warn ? `<div class="cf-warn">${warn}</div>` : ''}
+    ${top.length === 5 && (ins.length || !cur.length) ? `<div class="cf-go"><span class="small muted">${ins.length && cur.length ? `IN ${esc(ins.join(', '))} · OUT ${esc(outs.join(', '))}` : ''}</span><button class="btn btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`
+      : top.length === 5 ? '<div class="cf-go"><span class="small pos"><b>These five are on the floor.</b></span></div>' : ''}
+    <div class="tiny muted" style="margin-top:8px">Closing FT% = season FT% (${esc(plSeason().src)}, pulled toward the team rate when attempts are few) moved toward clutch FTs as they add up. 10+ season FTs to be picked. Clutch FT = FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, only with a clock you set. Nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}.</div></div>`;
+}
 /* The situations. stat = what the fives are ranked on; hi = higher is better; end = which end's
    possessions count toward the minimum; def = the leverage it opens on; on(c) = its trigger right now
    (returns the reason to show, or ''). c = the game right now (see sitCtx). */
@@ -4113,7 +4188,7 @@ const SITS = [
     on: c => c.tip ? `The five on is at a net of ${sg1(c.tip.net)}` : '' },
   { id: 'hurt', name: "What's hurting us", def: 'hm', on: c => c.hurt ? 'We\'re losing a four factor this half' : '' },
   { id: 'ft', name: 'Closing FTs', stat: 'ft', hi: true, end: 'both', def: 'hm', player: ['FTM', 'FTA'], rank: 'best free-throw shooters (players\' season FT%)',
-    on: c => c.late && c.m >= 1 && c.m <= 8 ? `Up ${c.m} ${c.left ? `with ${c.left} left` : 'late'}: they have to foul` : '' },
+    on: c => c.clockLate && c.m >= 1 && c.m <= 8 ? `Up ${c.m} with ${c.left} left: they have to foul` : '' },   // only on a clock you set
   { id: 'ball', name: 'Ball security', stat: 'tov', hi: false, end: 'o', def: 'hm', rank: 'lowest TO%',
     on: c => c.late && c.m >= 1 && c.m <= 10 ? `Up ${c.m} ${c.left ? `with ${c.left} left` : 'late'}: no turnovers` : '' },
   { id: 'steal', name: 'Need steals', stat: 'stl', hi: true, end: 'd', def: 'hm', rank: 'most steals per defensive possession',
@@ -4134,6 +4209,8 @@ const SITS = [
     on: c => c.run >= 6 ? `They're on a ${c.run}-0 run` : '' },
   { id: 'best', name: 'vs their best five', def: 'hm', on: c => c.theirBest ? `${esc(c.oppName)}'s best five is on` : '' },
 ];
+// The buttons, in fixed rows.
+const SIT_GROUPS = [['CLOSE IT OUT', ['ft', 'ball', 'stop']], ['COME BACK', ['three', 'steal']], ['DEFENSE', ['run', 'two', 'arc', 'glass', 'foul']], ['OVERALL', ['overall', 'hurt', 'best']]];
 const SIT_ORDER = ['stop', 'ft', 'ball', 'steal', 'three', 'run', 'foul', 'two', 'arc', 'glass', 'hurt', 'best', 'overall'];
 // The game right now, for the triggers.
 function sitCtx(g, D) {
@@ -4146,7 +4223,8 @@ function sitCtx(g, D) {
   const runs = scoringRuns(g), lr = runs[runs.length - 1];
   const ck = clockNow(g, D), perLeft = ck ? ck.clock : null;   // shown times: only the clock you entered
   const hurt = !!fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, ffSc: half === '1H' ? '1H' : '2H' })).html;
-  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
+  const clockLate = !g.final && g.per !== '1H' && perLeft != null && perLeft <= 240;
+  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, clockLate, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
     att2: L ? (L.b.fga || 0) - (L.b.fg3a || 0) : 0, fga: L ? L.b.fga || 0 : 0, tf: teamFouls(g, 'a', g.per), perLeft, hurt,
     theirBest: theirBestOn(g, D), oppName: g.opp, tip: tipCur(g, D) };
 }
@@ -4158,12 +4236,13 @@ function sitModal(id) {
   const lit = SIT_ORDER.map(k => SITS.find(s => s.id === k)).filter(s => s.on(c));
   if (id) SIT.id = id; if (!SIT.id) SIT.id = (lit[0] || SITS[0]).id;
   const S = SITS.find(s => s.id === SIT.id) || SITS[0];
-  const chips = [...lit, ...SITS.filter(s => !lit.includes(s))].map(s => `<button class="sit-chip ${s.id === S.id ? 'sel' : ''} ${lit.includes(s) ? 'lit' : ''}" data-act="sit-pick" data-s="${s.id}">${esc(s.name)}</button>`).join('');
+  const chip = s => `<button class="sit-chip ${s.id === S.id ? 'sel' : ''} ${lit.includes(s) ? 'lit' : ''}" data-act="sit-pick" data-s="${s.id}">${esc(s.name)}</button>`;
+  const grid = SIT_GROUPS.map(([l, ids]) => `<div class="sg-l">${l}</div>${ids.map(id => chip(SITS.find(s => s.id === id))).join('')}${'<div></div>'.repeat(5 - ids.length)}`).join('');
   const why = S.on(c);
   modal(`<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">Lineups</h2>
       <div class="row" style="gap:8px;align-items:center"><label class="sit-prot"><input type="checkbox" data-act="sit-protect" ${SIT.protect ? 'checked' : ''}> Protect fouls</label><button class="btn btn-lg" data-act="sit-close">Close</button></div></div>
-    <div class="sit-chips">${chips}</div>
-    ${why ? `<div class="sit-why">● ${why}</div>` : ''}
+    ${lit.length ? `<div class="sg-now"><div class="sg-now-r"><b>RIGHT NOW</b>${lit.map(chip).join('')}</div>${why ? `<div class="sit-why">● ${why}</div>` : ''}</div>` : ''}
+    <div class="sg">${grid}</div>
     ${sitBody(g, D, S, c)}`, 'tip-modal sit-modal');
 }
 // Players we won't suggest: fouled out, not dressed, and (Protect fouls) in foul trouble.
@@ -4179,6 +4258,7 @@ function sitBody(g, D, S, c) {
   }
   if (S.id === 'overall') return fixCard(g, D, Object.assign({}, TIP_OPTS, { sk, def: S.def, problems: false, ok: sitOk(g) }), c.tip).html || '<div class="card muted">No five qualifies.</div>';
   if (S.id === 'best') return sitVsBest(g, D, c);
+  if (S.id === 'ft') return closingFtCard(g, D);
   return sitStatCard(g, D, S, c, sk);
 }
 // One situation: today | season on one stat.
@@ -4260,7 +4340,7 @@ function plugCard(g, D, outId) {
   // The moment decides the stat: the most urgent situation lit right now (as on Lineups).
   const MODES = {
     stop: { lbl: 'steals + blocks / 40', v: id => plPer40(id, 'STL', 'BLK'), hi: true, why: c => `Up ${c.m}, their ball: ranked by steals + blocks` },
-    ft: { lbl: 'FT%', v: id => plPct(A, id, 'FTM', 'FTA'), hi: true, pct: 1, made: 'FTM', att: 'FTA', why: c => `Up ${c.m} late: ranked by FT%` },
+    ft: { lbl: 'closing FT%', v: id => closingFt(id), hi: true, pct: 1, made: 'FTM', att: 'FTA', why: c => `Up ${c.m} late: ranked by closing FT% (season + clutch FTs)` },
     ball: { lbl: 'TO / 40', v: id => plPer40(id, 'TO'), hi: false, why: c => `Up ${c.m} late: ranked by fewest turnovers` },
     steal: { lbl: 'steals / 40', v: id => plPer40(id, 'STL'), hi: true, why: c => `Down ${-c.m} late: ranked by steals` },
     three: { lbl: '3P%', v: id => plPct(A, id, '3PM', '3PA'), hi: true, pct: 1, made: '3PM', att: '3PA', why: c => `Down ${-c.m} late: ranked by 3P%` },

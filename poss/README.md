@@ -155,13 +155,17 @@ fives with 8+ possessions. When it is on the floor a ★ **Their best five is on
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
 
 **Lineups (situational lineups):** a button in the live controls (and 💡 Try opens it on Best overall).
-A chip per situation; the ones whose trigger is met right now light up (●) and come first, most urgent
-first, with the reason ("Up 5 with 3:11 left: they have to foul"):
+The situation buttons sit in four fixed rows, so each is always in the same place: **Close it out**
+(Closing FTs · Ball security · Last stop), **Come back** (Need a 3 · Need steals), **Defense** (Stop the
+run · Stop the 2s · Off the 3-pt line · Close out the glass · Stop fouling) and **Overall** (Best overall ·
+What's hurting us · vs their best five). A gold **Right now** bar on top lists the ones whose trigger is
+met, most urgent first, with the reason ("Up 5 with 3:11 left: they have to foul"); they're also
+underlined gold in their rows. Blue is the one open.
 
 | Situation | Lights up when | Fives ranked by |
 |---|---|---|
 | Last stop | up 1-3, their ball, last 1:00 | best stop % |
-| Closing FTs | up 1-8, last 4:00 | players' season FT% (the five, by attempts) |
+| Closing FTs | up 1-8 with 4:00 or less on a clock you set (never an estimate) | closing FT% of each player (below) |
 | Ball security | up 1-10, last 4:00 | lowest TO% |
 | Need steals | down 4+, last 4:00 | most steals per defensive possession |
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
@@ -174,7 +178,18 @@ first, with the reason ("Up 5 with 3:11 left: they have to foul"):
 | vs their best five | their best five is on | our fives' net against that exact five, tonight |
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
 
-Each opens to Today | Season (opponent-adjusted for the four factors; the season's raw counts for the
+**Closing FTs** is one list: the **best five FT shooters available**, ranked by **closing FT%**, each
+with season FTs and clutch FTs, IN / ON tags against the five on the floor, then who comes out (OUT) and the
+next three on the bench, a red line naming the weakest shooter on the floor ("That's who they'll foul"),
+and **Sub these five in**. Closing FT% = the player's season FT% (quality games, pulled toward the team
+rate when attempts are few; 10+ FTA to be picked) moved toward their **clutch FTs** as those add up: clutch
+attempts weigh against 20 attempts at the season rate, so one 0/2 night can't sink anyone. Clutch FTs =
+FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, in every game (no scrimmages),
+only where a clock you set stands behind the possession. Fewer than five qualified players → it says so
+and leaves the rest to you. No leverage row here (FT% is the players' own numbers). Plug in uses the same
+closing FT%.
+
+Every other situation opens to Today | Season (opponent-adjusted for the four factors; the season's raw counts for the
 rest), the leverage filter (every situation opens on High+Med), IN/OUT and **Sub
 this five in** on every five. The FT and 3-point situations also list the **best 5 available** shooters,
 whether or not they've played together, with **Sub these five in**. Never a five with a player who fouled
