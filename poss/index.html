@@ -957,7 +957,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.74';
+const VERSION = 'v2026.10.15.76';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1231,7 +1231,7 @@ function gradePossessions(g, poss) {
   P.reg.forEach((p, i) => {
     const ck = CK.get(p), spt = ck ? ck.spt : P.spt, left = ck ? Math.max(Math.round(ck.gameSecs / spt), 1) : Math.max(P.N - i, 1);
     const r = grade(p.before.a - p.before.b, p.team, left, spt, false);
-    Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: P.exact, gt: false });
+    Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: P.exact, gt: false, clockSecs: ck ? ck.perSecs : null });
     if (cut == null && r.gtHit) cut = i;
   });
   // A manual start overrides the automatic one; "No garbage time" turns it off.
@@ -1243,7 +1243,7 @@ function gradePossessions(g, poss) {
     const N = done ? list.length : Math.max(list.length + 1, Math.round(300 / P.spt));
     list.forEach((p, i) => { const ck = CK.get(p), r = ck ? grade(p.before.a - p.before.b, p.team, Math.max(Math.round(ck.perSecs / ck.spt), 1), ck.spt, true)
         : grade(p.before.a - p.before.b, p.team, Math.max(N - i, 1), P.spt, true);
-      Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: done, gt: false }); });
+      Object.assign(p, { lev: r.tier, clutch: r.clutch, secsLeft: r.secs, exact: done, gt: false, clockSecs: ck ? ck.perSecs : null }); });
   });
 }
 // Where the game stands for the next possession (the live screen).
@@ -1284,9 +1284,10 @@ function clockPad(d, len, act) {
     <div class="cpad-keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => `<button class="cpad-k ${k === 'C' || k === '⌫' ? 'fn' : ''}" data-act="${act}" data-k="${k}">${k === 'C' ? 'Clear' : k}</button>`).join('')}</div></div>`;
 }
 const padKey = (d, k) => k === 'C' ? '' : k === '⌫' ? (d || '').slice(0, -1) : ((d || '') + k).replace(/^0+(?=\d)/, '').slice(-4);
-/* CLOCK CHECKPOINTS — the game clock entered at a timeout. For each possession after one (same period), the time
-   left = that clock minus the possessions since, at this period's own pace up to the checkpoint (seconds elapsed /
-   possessions so far); before any checkpoint the estimate from possessions stands. Returns Map(possession → info). */
+/* CLOCK CHECKPOINTS — the game clock entered at a timeout or with Set time. For each possession after one (same
+   period), the time left is exactly that clock, until the next one is entered: no running estimate. (spt, this
+   period's pace so far, only converts it to possessions left for leverage.) Before any clock is entered the
+   estimate from possessions stands. Returns Map(possession → info). */
 function clockPlan(g, poss, fallbackSpt) {
   const out = new Map(), first = p => g.ev.indexOf(p.plays[0]);
   const cps = g.ev.map((e, i) => ({ e, i })).filter(x => (x.e.t === 'to' || x.e.t === 'clock') && x.e.clock != null);
@@ -1295,7 +1296,8 @@ function clockPlan(g, poss, fallbackSpt) {
     const list = poss.filter(p => p.per === per), mine = cps.filter(c => c.e.per === per); if (!mine.length) return;
     mine.forEach(c => { c.before = list.filter(p => first(p) < c.i).length; c.spt = c.before > 0 ? (perLen(per) - c.e.clock) / c.before : fallbackSpt; });
     list.forEach((p, idx) => { const i0 = first(p), c = mine.filter(c => c.i < i0).pop(); if (!c) return;
-      const since = idx - c.before, perSecs = Math.max(0, c.e.clock - since * c.spt);
+      // No estimating: the clock is exactly the last one entered, until the next one.
+      const perSecs = c.e.clock;
       out.set(p, { perSecs, gameSecs: perSecs + (per === '1H' ? 1200 : 0), spt: Math.max(5, c.spt) }); });
   });
   return out;
@@ -1305,7 +1307,7 @@ function clockNow(g, D) {
   const cps = g.ev.map((e, i) => ({ e, i })).filter(x => (x.e.t === 'to' || x.e.t === 'clock') && x.e.clock != null && x.e.per === g.per); if (!cps.length) return null;
   const c = cps[cps.length - 1], list = D.poss.filter(p => p.per === g.per), first = p => g.ev.indexOf(p.plays[0]);
   const before = list.filter(p => first(p) < c.i).length, spt = before > 0 ? (perLen(g.per) - c.e.clock) / before : SPT_DEFAULT;
-  const perSecs = Math.max(0, c.e.clock - (list.length - before) * spt);
+  const perSecs = c.e.clock;   // exactly the last clock entered (timeout or Set time), until the next one
   return { perSecs, gameSecs: perSecs + (g.per === '1H' ? 1200 : 0), spt: Math.max(5, spt), clock: c.e.clock, at: c.e };
 }
 const LEV_LABEL = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' };
@@ -1462,7 +1464,7 @@ function scorebar(g, D) {
       <div class="sb-meta">${bonus('a')}${kills('a')}</div>
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
-    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="From the last clock you set, less the possessions since at this half's pace">≈ ${fmtSecs(c.perSecs)} left</div>` : ''; })()}
+    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="The last game clock you entered (timeout or Set time)">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
       ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
@@ -1594,7 +1596,7 @@ function feedRow(g, f) {
 function tipBanner(g, D) {
   const T = lineupTip(g, D); if (!T) return '';
   const key = fiveKey(T.cur.five); if ((g.tipClosed || []).includes(key)) return '';
-  const N = gradeNow(g, D), left = N && N.secs != null ? fmtSecs(N.secs) : '';
+  const ck = clockNow(g, D), left = ck ? fmtSecs(ck.clock) : '';   // the clock you entered, never an estimate
   return `<div class="tip-ban"><div><b>Lineup suggestion</b> · the five on is at a net of ${sg1(T.cur.net)}${left ? ` with ${left} left` : ''}. Better fives are ready.</div>
     <div class="tip-ban-r"><button class="btn btn-sm" data-act="tip">See lineups</button><button class="tip-ban-x" data-act="tip-ban-x" data-k="${esc(key)}" title="Close for this five">✕</button></div></div>`;
 }
@@ -1638,7 +1640,7 @@ function sheetTable(g, D, per) {
     if (x.kind === 'sub') { h += `<tr class="lu ${x.e.team}"><td colspan="15">⇄ ${esc(teamName(g, x.e.team))}: ${esc(fiveSorted(g, x.e.team, x.e.five).map(id => pShort(g, x.e.team, id)).join(' · '))}</td></tr>`; continue; }
     if (x.kind === 'tech') { h += `<tr class="tch"><td colspan="15">T · ${esc(techText(g, x.e))} · ${x.score.a}–${x.score.b}</td></tr>`; continue; }
     const p = x.p;
-    if (p.gtStart) { h += `<tr class="gtl"><td colspan="15">🗑 Garbage time from here — ${p.before.a}–${p.before.b}, up ${Math.abs(p.before.a - p.before.b)} with ${p.exact ? '' : '~'}${fmtSecs(p.secsLeft)} left${g.gtFrom ? ' (set by hand)' : p.exact ? '' : ' (estimated until the game ends)'}</td></tr>`; }
+    if (p.gtStart) { h += `<tr class="gtl"><td colspan="15">🗑 Garbage time from here — ${p.before.a}–${p.before.b}, up ${Math.abs(p.before.a - p.before.b)}${p.clockSecs != null ? ` with ${fmtSecs(p.clockSecs)} on the clock` : ''}${g.gtFrom ? ' (set by hand)' : ''}</td></tr>`; }
     const en = p.end, last = p.plays.filter(e => e.k !== 'oreb' && e.k !== 'dreb').slice(-1)[0] || p.plays[0];
     const c = col => {
       if (en.col !== col && !((col === 'FT') && en.ft && (en.col === '2' || en.col === '3') && en.and1)) return '<td></td>';
@@ -1683,7 +1685,7 @@ function sheetView(g) {
   return `<div class="page-head"><h2>Possession sheet</h2><div class="row" style="gap:6px">${g.periods.map(p => `<button class="btn btn-sm ${p === per ? 'btn-primary' : ''}" data-act="sheet-per" data-p="${p}">${p}</button>`).join('')}</div>
       <span class="row" style="gap:6px;margin-left:auto"><button class="btn btn-sm" data-act="export-def" title="def_ CSV for internal_data/def_logs">⬇ Leaderboard: defense</button><button class="btn btn-sm" data-act="export-off" title="off_ CSV for internal_data/def_logs">⬇ Leaderboard: offense</button><button class="btn btn-sm" data-act="print">Print / PDF</button></span></div>
     <div class="card"><h3>${esc(PER_NAME(per))} — every possession in order <span class="muted">· tap a row to fix it</span></h3><div class="tbl-wrap">${sheetTable(g, D, per)}</div>
-      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (every 3 straight stops), S = skunk (6), DS = dead skunk (9). LEV = leverage going into the possession: H high, M medium, L low; C = clutch; GT = garbage time. Worked out from possessions left (no clock): estimated until the game is final, exact after. Tap a row to set garbage time by hand.</div></div>
+      <div class="small muted" style="margin-top:8px">K = a kill for the defending team (every 3 straight stops), S = skunk (6), DS = dead skunk (9). LEV = leverage going into the possession: H high, M medium, L low; C = clutch; GT = garbage time. From the game clock you enter (timeouts and Set time); before one is entered, from possessions. Tap a row to set garbage time by hand.</div></div>
     <div class="card"><h3>Summary</h3><div class="tbl-wrap">${summaryTable(g, D)}</div></div>
     <div class="card"><h3>Stops, kills &amp; killshots <span class="muted">· the game</span></h3>${killsCard(g, D)}</div>
     <div class="print-only">${g.periods.filter(p => p !== per).map(p => `<div class="card"><h3>${esc(PER_NAME(p))}</h3>${sheetTable(g, D, p)}</div>`).join('')}</div>`;
@@ -2459,15 +2461,15 @@ function huddleOpen(g, calledBy, kind, clock) {
      double at 10), timeouts left, possessions needed, rough possessions left each, team FT tonight (tracked). */
   const eoh = (() => {
     const ck = clockNow(g, D), secs = clock != null ? clock : ck ? ck.perSecs : null; if (secs == null || secs > 240) return '';
-    const m = G.pts.a - G.pts.b, need = n => Math.ceil(n / 3), spt = ck ? ck.spt : SPT_DEFAULT, left = Math.max(1, Math.round(secs / spt / 2));
+    const m = G.pts.a - G.pts.b, need = n => Math.ceil(n / 3);
     const situ = m === 0 ? 'Tied' : m > 0 ? `Up ${m} · they need ${need(m)} possession${need(m) > 1 ? 's' : ''}` : `Down ${-m} · we need ${need(-m)} possession${need(-m) > 1 ? 's' : ''}`;
     const give = n => Math.max(0, 6 - n), bon = (n, who) => n >= 10 ? `${who} in the double bonus` : n >= 7 ? `${who} in the bonus (1-and-1)` : 'bonus on the 7th';
     const TOL = t => ({ full: FULL_TOS - tosUsed(g, t, 'full'), s30: S30_TOS + otCount(g) - tosUsed(g, t, 's30') });
     const FT = ffTracked(g, 'G'), ft = t => `${FT[t].ftm}-${FT[t].fta}${FT[t].fta ? ' · ' + Math.round(100 * FT[t].ftm / FT[t].fta) + '%' : ''}`;
     const cell = (lbl, val, sub, col) => `<div class="eoh-cell"><span>${lbl}</span><b${col ? ` style="color:${col}"` : ''}>${val}</b><i>${sub}</i></div>`;
     const ta = TOL('a'), tb = TOL('b');
-    return `<div class="card eoh-card"><div class="eoh-top"><div class="eoh-big">${fmtSecs(secs)}<small>${clock != null ? 'game clock' : 'est. from ' + fmtSecs(ck.clock)}</small></div>
-      <div><div class="eoh-head">${esc(situ)}</div><div class="eoh-sub">About ${left} possession${left > 1 ? 's' : ''} left each at this game's pace.</div></div></div>
+    return `<div class="card eoh-card"><div class="eoh-top"><div class="eoh-big">${fmtSecs(secs)}<small>${clock != null ? 'game clock' : 'last clock set'}</small></div>
+      <div><div class="eoh-head">${esc(situ)}</div></div></div>
       <div class="eoh-grid">${cell('Our fouls to give', give(fa), `${fa} fouls · ${bon(fa, "they're")}`, 'var(--us)')}${cell('Their fouls to give', give(fb), `${fb} fouls · ${bon(fb, "we're")}`, 'var(--them-text)')}
         ${cell('Our timeouts', `${ta.full} full · ${ta.s30}×30`, '')}${cell('Their timeouts', `${tb.full} full · ${tb.s30}×30`, '')}
         ${cell('Our FT tonight', ft('a'), 'team, tracked')}${cell('Their FT tonight', ft('b'), 'team, tracked')}</div></div>`;
@@ -2520,7 +2522,7 @@ let STM = null;
 function setTimeModal() {
   const g = cur(), len = perLen(g.per); STM = STM || { d: '' };
   const secs = padSecs(STM.d, len), c = clockNow(g, derive(g));
-  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · the tracker has about ${fmtSecs(c.perSecs)}` : ''}</div>
+  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · last set ${fmtSecs(c.clock)}` : ''}</div>
     ${clockPad(STM.d, len, 'st-key')}
     <div class="modal-foot"><button class="btn btn-lg" data-act="st-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="st-ok" ${secs != null ? '' : 'disabled'}>Set ${secs != null ? fmtSecs(secs) : ''}</button></div>`, 'to-modal');
 }
@@ -4111,15 +4113,15 @@ const SITS = [
     on: c => c.tip ? `The five on is at a net of ${sg1(c.tip.net)}` : '' },
   { id: 'hurt', name: "What's hurting us", def: 'hm', on: c => c.hurt ? 'We\'re losing a four factor this half' : '' },
   { id: 'ft', name: 'Closing FTs', stat: 'ft', hi: true, end: 'both', def: 'hm', player: ['FTM', 'FTA'], rank: 'best free-throw shooters (players\' season FT%)',
-    on: c => c.late && c.m >= 1 && c.m <= 8 ? `Up ${c.m} with ${c.left} left: they have to foul` : '' },
+    on: c => c.late && c.m >= 1 && c.m <= 8 ? `Up ${c.m} ${c.left ? `with ${c.left} left` : 'late'}: they have to foul` : '' },
   { id: 'ball', name: 'Ball security', stat: 'tov', hi: false, end: 'o', def: 'hm', rank: 'lowest TO%',
-    on: c => c.late && c.m >= 1 && c.m <= 10 ? `Up ${c.m} with ${c.left} left: no turnovers` : '' },
+    on: c => c.late && c.m >= 1 && c.m <= 10 ? `Up ${c.m} ${c.left ? `with ${c.left} left` : 'late'}: no turnovers` : '' },
   { id: 'steal', name: 'Need steals', stat: 'stl', hi: true, end: 'd', def: 'hm', rank: 'most steals per defensive possession',
-    on: c => c.late && c.m <= -4 ? `Down ${-c.m} with ${c.left} left: need extra possessions` : '' },
+    on: c => c.late && c.m <= -4 ? `Down ${-c.m} ${c.left ? `with ${c.left} left` : 'late'}: need extra possessions` : '' },
   { id: 'three', name: 'Need a 3', stat: 'p3', hi: true, end: 'o', def: 'hm', player: ['3PM', '3PA'], rank: 'best 3-point shooters (players\' season 3P%)',
-    on: c => c.late && c.m <= -4 && c.m >= -9 ? `Down ${-c.m} with ${c.left} left` : '' },
+    on: c => c.late && c.m <= -4 && c.m >= -9 ? `Down ${-c.m} ${c.left ? `with ${c.left} left` : 'late'}` : '' },
   { id: 'stop', name: 'Last stop', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
-    on: c => c.secs != null && c.secs <= 60 && c.m >= 1 && c.m <= 3 && c.ball === 'b' ? `Up ${c.m}, their ball, ${c.left} left` : '' },
+    on: c => c.secs != null && c.secs <= 60 && c.m >= 1 && c.m <= 3 && c.ball === 'b' ? `Up ${c.m}, their ball${c.left ? `, ${c.left} left` : ', late'}` : '' },
   { id: 'two', name: 'Stop the 2s', stat: 'o2p', hi: false, end: 'd', def: 'hm', rank: 'lowest opponent 2P%',
     on: c => c.night.o2p != null && c.night.o2p > c.N.o2p + 8 && c.att2 >= 10 ? `They're ${c.night.o2p.toFixed(0)}% on 2s (norm ${c.N.o2p.toFixed(0)}%)` : '' },
   { id: 'arc', name: 'Off the 3-pt line', stat: 'o3ar', hi: false, end: 'd', def: 'hm', rank: 'fewest opponent 3-point attempts (3PA rate)',
@@ -4127,7 +4129,7 @@ const SITS = [
   { id: 'glass', name: 'Close out the glass', stat: 'drb', hi: true, end: 'd', def: 'hm', rank: 'best DREB%',
     on: c => c.night.drb != null && c.night.drb < c.N.drb - 5 ? `DREB% ${c.night.drb.toFixed(0)} tonight (norm ${c.N.drb.toFixed(0)})` : '' },
   { id: 'foul', name: 'Stop fouling', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
-    on: c => c.tf >= 7 && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} left in the half` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
+    on: c => c.tf >= 7 && c.perLeft != null && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} on the clock` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
   { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
     on: c => c.run >= 6 ? `They're on a ${c.run}-0 run` : '' },
   { id: 'best', name: 'vs their best five', def: 'hm', on: c => c.theirBest ? `${esc(c.oppName)}'s best five is on` : '' },
@@ -4142,9 +4144,9 @@ function sitCtx(g, D) {
     return { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr,
       o2p: pct1((L.b.fgm || 0) - (L.b.fg3m || 0), (L.b.fga || 0) - (L.b.fg3a || 0)), o3ar: pct1(L.b.fg3a || 0, L.b.fga || 0) }; })() : {};
   const runs = scoringRuns(g), lr = runs[runs.length - 1];
-  const perLeft = R && R.clock ? R.clock.perSecs : R ? (g.per === '1H' ? Math.max(0, R.secs - 1200) : R.secs) : null;
+  const ck = clockNow(g, D), perLeft = ck ? ck.clock : null;   // shown times: only the clock you entered
   const hurt = !!fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, ffSc: half === '1H' ? '1H' : '2H' })).html;
-  return { N: N.v, nsrc: N.src, secs, left: secs == null ? '' : fmtSecs(secs), late, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
+  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
     att2: L ? (L.b.fga || 0) - (L.b.fg3a || 0) : 0, fga: L ? L.b.fga || 0 : 0, tf: teamFouls(g, 'a', g.per), perLeft, hurt,
     theirBest: theirBestOn(g, D), oppName: g.opp, tip: tipCur(g, D) };
 }
