@@ -300,7 +300,9 @@ four factors at both ends, over the possessions with exactly that pattern on the
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
 Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
 
-**Scope** buttons on Lineups: Game · 1H · 2H · OT (each overtime, once it starts) · Season.
+**Scope** on Lineups: a **Game / Season** dropdown, then **All · 1H · 2H · OT**. Game 2H = this game's 2nd half;
+Season 2H = every tracked game's 2nd half (Season OT = every overtime). In a game, each OT gets its own button once it
+starts, and 2H is greyed out until it does.
 
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.

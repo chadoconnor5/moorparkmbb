@@ -996,6 +996,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lu-b-slots{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:6px}
 .lu-b-slot{min-width:0;font-size:13px;padding:8px 6px}
 .lu-fsel select{width:auto;font:inherit;font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--us);background:var(--card);color:var(--text)}
+.lu-src{width:auto;font:inherit;font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--us);background:var(--card);color:var(--text)}
 
 </style>
 </head>
@@ -1029,7 +1030,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.86';
+const VERSION = 'v2026.10.16.87';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1466,6 +1467,8 @@ function possBox(p) {
 /* Every k-man combo (k = 5: the fives) of team t: possessions at both ends, points, +/-, how they
    ended, and the four-factor counts on offence (o) and defence (d). A combo is on the floor for every
    possession of every five that contains it. */
+// A period, or 'OT*' = every overtime (the season's OT button).
+const perIn = (per, want) => want === 'OT*' ? String(per).startsWith('OT') : per === want;
 function lineupUnits(g, D, t, scope, filter, k) {
   k = k || 5;
   const pers = scope === 'game' ? null : scope, units = {}, players = {};
@@ -1476,7 +1479,7 @@ function lineupUnits(g, D, t, scope, filter, k) {
   const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, fouls: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
   const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
   D.poss.forEach((p, i) => {
-    if (pers && p.per !== pers) return;
+    if (pers && !perIn(p.per, pers)) return;
     if (!keep(p)) return;
     const f = p.five[t]; if (!f || f.length !== 5) return;
     const mine = p.team === t, bx = possBox(p), pv = D.poss[i - 1];
@@ -1489,9 +1492,9 @@ function lineupUnits(g, D, t, scope, filter, k) {
     if (mine) credit(f, p.pts, 0); else credit(f, 0, p.pts);
   });
   // Personal fouls by this team while the unit was on, filtered like the possession they came in.
-  D.items.filter(x => x.kind === 'foul' && x.e.team === t && (!pers || x.e.per === pers) && (!filter || filter === 'all' || (x.p ? keep(x.p) : filter === 'nogt'))).forEach(x => {
+  D.items.filter(x => x.kind === 'foul' && x.e.team === t && (!pers || perIn(x.e.per, pers)) && (!filter || filter === 'all' || (x.p ? keep(x.p) : filter === 'nogt'))).forEach(x => {
     const f = x.five && x.five[t]; if (!f || f.length !== 5) return; combos(f).forEach(c => { U(c).fouls++; }); });
-  D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers) && (!filter || filter === 'all')).forEach(x => {
+  D.items.filter(x => x.kind === 'tech' && (!pers || perIn(x.e.per, pers)) && (!filter || filter === 'all')).forEach(x => {
     const f = x.five[t]; if (!f || f.length !== 5) return;
     const pts = x.e.ftm || 0;
     combos(f).forEach(c => { const u = U(c); if (x.e.team === t) u.pa += pts; else u.pf += pts; });
@@ -1858,10 +1861,10 @@ const LU_COLS = [['five', 'FIVE', ''], ['poss', 'POSS', ''], ['pts', 'PTS', ''],
   ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1], ['stops', 'STOPS', 'gd']];
 /* Season: Moorpark's units from every tracked game added together (players are keyed by name, so a
    five is the same five in every game). */
-function seasonUnits(t, filter, k) {
+function seasonUnits(t, filter, k, per) {
   const units = {};
   games.forEach(gm => { if (!gm.ev || !gm.ev.length) return;
-    lineupUnits(gm, derive(gm), t, 'game', filter, k).units.forEach(u => { const key = fiveKey(u.five);
+    lineupUnits(gm, derive(gm), t, per || 'game', filter, k).units.forEach(u => { const key = fiveKey(u.five);
       const m = units[key] = units[key] || { five: u.five, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, games: 0, oEnd: {}, dEnd: {}, o: {}, d: {} };
       ['oPoss', 'dPoss', 'pf', 'pa', 'kills', 'stops'].forEach(x => { m[x] += u[x]; }); m.games++;
       [['oEnd', u.oEnd], ['dEnd', u.dEnd], ['o', u.o], ['d', u.d]].forEach(([x, src]) => Object.keys(src).forEach(c => { m[x][c] = (m[x][c] || 0) + src[c]; })); }); });
@@ -1887,10 +1890,15 @@ function shootTable(u) {
    that no longer fits after a filter change is kept, and the panel says so, rather than vanishing.
    UI.luB = one slot per player of the current size, '' = any player. */
 function luUnitsFor(g, D, t, scope, filter, k) {
-  // Game, Season, or one period (1H / 2H / OT / OT2 ...); 'per' = whatever period is on now.
-  const sc = scope || (UI.luScope === 'game' ? 'game' : UI.luScope === 'season' ? 'season' : UI.luScope === 'per' || !g.periods.includes(UI.luScope) ? g.per : UI.luScope);
-  return sc === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, sc, filter || UI.luFilter, k);
+  // Game or Season (the dropdown), then All / 1H / 2H / OT (the buttons): season 2H = every game's 2nd half.
+  if (scope) return scope === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, scope, filter || UI.luFilter, k);
+  const per = luPer(g);
+  return UI.luScope === 'season' ? seasonUnits(t, filter || UI.luFilter, k, per) : lineupUnits(g, D, t, per || 'game', filter || UI.luFilter, k);
 }
+// The period picked under Game / Season: null = the whole game.
+function luPer(g) { const p = UI.luPer || 'all'; if (p === 'all') return null;
+  if (UI.luScope === 'season') return p === 'OT' ? 'OT*' : p;
+  return g.periods.includes(p) ? p : null; }
 function luBSync(units, k) { const known = new Set(units.flatMap(u => u.five)); UI.luB = Array.from({ length: k }, (_, i) => { const n = (UI.luB || [])[i]; return n && known.has(n) ? n : ''; }); }
 const luBMatch = units => { const sel = (UI.luB || []).filter(Boolean); return sel.length ? units.filter(u => sel.every(n => u.five.includes(n))) : units; };
 function luBOptions(units, i) {
@@ -2114,7 +2122,9 @@ function fixCard(g, D, o, cur) {
 }
 function lineupsView(g) {
   const D = derive(g);
-  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button>${['1H', '2H', ...g.periods.filter(p => p.startsWith('OT'))].map(p => `<button class="btn btn-sm ${UI.luScope === p || (UI.luScope === 'per' && g.per === p) ? 'btn-primary' : ''}" data-act="lu-scope" data-s="${p}" ${g.periods.includes(p) ? '' : 'disabled title="Not started yet"'}>${esc(p)}</button>`).join('')}<button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
+  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px;align-items:center"><select class="lu-src" data-act="lu-src"><option value="game" ${UI.luScope !== 'season' ? 'selected' : ''}>Game</option><option value="season" ${UI.luScope === 'season' ? 'selected' : ''}>Season</option></select>${(() => { const sea = UI.luScope === 'season', cur = UI.luPer || 'all';
+        const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
+        return ['all', '1H', '2H', ...ots].map(p => `<button class="btn btn-sm ${cur === p || (p === 'all' && !luPer(g) && cur !== 'all' && !sea && !g.periods.includes(cur)) ? 'btn-primary' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join(''); })()}</div>
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
       <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · season, every game tracked</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
@@ -2996,6 +3006,7 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'lu-per': UI.luPer = b.dataset.s; UI.luOpen = null; render(); break;
     case 'lu-wowy': UI.luWowy = true; UI.luOpen = null; render(); break;
     case 'wowy-clear': UI.wowy = []; render(); break;
     case 'lu-b-clear': UI.luB = []; render(); break;
@@ -3048,7 +3059,9 @@ document.addEventListener('click', ev => {
 });
 
 // The Lineup Builder's dropdowns (selects fire change, not click).
-document.addEventListener('change', ev => { const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
+document.addEventListener('change', ev => { const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
+  if (src) { UI.luScope = src.value; UI.luOpen = null; render(); return; }
+  const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
   if (f) { UI.luFilter = f.value; UI.luOpen = null; render(); return; }
   const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
   const k = s.dataset.act === 'wowy' ? 'wowy' : 'luB'; UI[k] = UI[k] || []; UI[k][+s.dataset.i] = s.value; const y = window.scrollY; render(); window.scrollTo(0, y); });
