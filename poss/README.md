@@ -318,6 +318,20 @@ score, ORtg / DRtg / net and four factors for exactly that view.
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.
 
+## Assist and Block buttons
+
+Two stat buttons ride on a shot, under the 3PT pair:
+- Tap **2PT Make** or **3PT Make**: every other stat button mutes except **Assist** (and the team logos). Tap Assist
+  if it was assisted (it lights ✓), then the team logo logs the make, assisted. No Assist tap = unassisted.
+- Tap **2PT Miss** or **3PT Miss**: everything mutes except **Block**. Tap Block if it was blocked, then the logo
+  logs the miss, blocked (and the logos wait for the rebound as before). No Block tap = not blocked.
+Tap the make / miss again (or Cancel) to back out. The feed shows "(assisted)" / "(blocked)", and the leaderboard
+export's assisted column fills in.
+
+Games started from now on log them (old games don't, so on / off counts assists and blocks only from games that do):
+the on / off cards' Assists / 40, Assist %, Ast/Tov, Blocks / 40, Block %, Hakeem %, Blocks / PF and PF Efficiency
+((steals + blocks) / fouls, as in the practice tracker) fill in.
+
 ## Player on / off and projected fives (Lineups → View)
 
 **View** is one dropdown: 5-man lineups, 4-man, 3-man, 2-man pairs, Player on / off, Projected fives & synergy,

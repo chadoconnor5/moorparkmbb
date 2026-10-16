@@ -1048,6 +1048,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .oo-imp-tbl tbody td{padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;text-align:right;color:#000;white-space:nowrap}
 .oo-imp-tbl tbody td.oo-imp-on{font-weight:700}.oo-imp-tbl tbody td.oo-imp-diff{font-weight:800;color:#444}
 .oo-imp-tbl tbody td.oo-imp-good{color:#15803d}.oo-imp-tbl tbody td.oo-imp-bad{color:#b91c1c}
+/* Assist / Block ride on a shot: lit when they can be added. */
+.sbtn.addon{box-shadow:0 0 0 2px #fbbf24 inset}
 
 </style>
 </head>
@@ -1081,7 +1083,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.97';
+const VERSION = 'v2026.10.17.98';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1504,10 +1506,10 @@ const tosUsed = (g, t, kind) => g.ev.filter(e => e.t === 'to' && e.team === t &&
    it ended on the defence's rebound. */
 function possBox(p) {
   // The four-factor counts, plus: FTs made, and-ones, charges / offensive fouls, a scoring trip, second-chance points.
-  const b = { fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, ftm: 0, tov: 0, stov: 0, chg: 0, offf: 0, oreb: 0, dreb: p.dreb ? 1 : 0, scp: p.pts > 0 ? 1 : 0, sc2: 0, and1: 0 };
+  const b = { fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, ftm: 0, tov: 0, stov: 0, chg: 0, offf: 0, oreb: 0, dreb: p.dreb ? 1 : 0, scp: p.pts > 0 ? 1 : 0, sc2: 0, and1: 0, ast: 0, blkd: 0 };
   let rebd = false;
   p.plays.forEach(e => { const k = e.k;
-    if (/^[23][mx]$/.test(k)) { b.fga++; if (k[0] === '3') b.fg3a++; if (k[1] === 'm') { b.fgm++; if (k[0] === '3') b.fg3m++; } }
+    if (/^[23][mx]$/.test(k)) { b.fga++; if (k[0] === '3') b.fg3a++; if (k[1] === 'm') { b.fgm++; if (k[0] === '3') b.fg3m++; if (e.ast) b.ast++; } else if (e.blk) b.blkd++; }
     else if (k === 'ftm' || k === 'ftx') { b.fta++; if (k === 'ftm') b.ftm++; }
     else if (k === 'to' || k === 'stl' || k === 'chg' || k === 'offf') { b.tov++; if (k === 'stl') b.stov++; if (k === 'chg') b.chg++; if (k === 'offf') b.offf++; }
     else if (k === 'oreb') { b.oreb++; rebd = true; }
@@ -1616,6 +1618,7 @@ function scorebar(g, D) {
 }
 
 const STATS = [['2m', '2PT Make', '2fg_make'], ['2x', '2PT Miss', '2fg_miss'], ['3m', '3PT Make', '3fg_make'], ['3x', '3PT Miss', '3fg_miss'],
+  ['ast', 'Assist', 'ast'], ['blk', 'Block', 'blk'],
   ['ftm', 'FT Make', 'ft_make'], ['ftx', 'FT Miss', 'ft_miss'], ['oreb', 'Off Reb', 'oreb'], ['dreb', 'Def Reb', 'dreb'],
   ['to', 'Turnover', 'tov'], ['stl', 'Steal', 'stl'], ['chg', 'Charge', 'chg'], ['offf', 'Off Foul', 'offf'], ['foul', 'Foul', 'foul'], ['tech', 'Tech', 'tech']];
 const STAT_LABEL = Object.fromEntries(STATS.map(s => [s[0], s[1]]));
@@ -1631,7 +1634,7 @@ function ftTrip(g) {
     return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
   return null;
 }
-const STAT_HINT_TEAM = { '2m': 'tap the team that scored', '3m': 'tap the team that scored', '2x': 'tap the team that missed', '3x': 'tap the team that missed',
+const STAT_HINT_TEAM = { '2m': 'Assist if it was assisted, then tap the team that scored', '3m': 'Assist if it was assisted, then tap the team that scored', '2x': 'Block if it was blocked, then tap the team that missed', '3x': 'Block if it was blocked, then tap the team that missed',
   ftm: 'tap the shooter, or the team logo', ftx: 'tap the shooter, or the team logo', oreb: 'tap the team that got it', dreb: 'tap the team that got it', to: 'tap the team that turned it over', stl: 'tap the team that stole it' };
 const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 'tap who rebounded', chg: 'tap who was charged', offf: 'tap who fouled', foul: 'tap who fouled', to: 'tap who turned it over' };
 
@@ -1710,7 +1713,7 @@ function feedText(g, x) {
 function feedText0(g, x) {
   if (x.kind === 'poss') {
     const p = x.p, t = p.team;
-    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'steal (held ball)' : STAT_LABEL[e.k].toLowerCase()}`);
+    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'steal (held ball)' : STAT_LABEL[e.k].toLowerCase()}${e.ast ? ' (assisted)' : ''}${e.blk ? ' (blocked)' : ''}`);
     const tail = p.dreb ? ' · def reb' : '';
     return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
@@ -1751,7 +1754,8 @@ function liveView(g) {
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
-      <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => `<button class="sbtn sb-${c} ${st === k ? 'on' : ''}" data-act="stat" data-k="${k}">${l}</button>`).join('')}</div>
+      <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => { const mut = shotMute(st, k), on = st === k || (k === 'ast' && UI.ast) || (k === 'blk' && UI.blk);
+        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? 'addon' : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}${k === 'ast' && UI.ast ? ' ✓' : k === 'blk' && UI.blk ? ' ✓' : ''}</button>`; }).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
         // Three across: subs and timeout; fix a tap and end the half; scout, situational lineups, flag.
         return `<div class="ctrls">
@@ -2291,7 +2295,7 @@ function createGame() {
   if (d.starters.length !== 5) { toast('Pick exactly 5 starters (' + d.starters.length + ' picked)', 'bad'); return; }
   const g = { id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], box: {}, opp: d.opp, date: d.date || today(),
     loc: { home: 'H', away: 'A', neutral: 'N' }[d.site] || 'H', conf: d.conf, schedId: d.schedId, dressed: d.dressed.slice(),
-    oppRoster: gtOppRoster(d.oppName || d.opp), scoutKey: d.scoutKey || null };
+    oppRoster: gtOppRoster(d.oppName || d.opp), scoutKey: d.scoutKey || null, astBlk: true };
   // Starting fives are locked: Undo and Delete never take them back (change them with ⇄ Sub).
   g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'a', five: d.starters.slice(), lock: true });
   if (d.oppStarters.length === 5) g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'b', five: d.oppStarters.map(n => 'o:' + n), lock: true });
@@ -2789,12 +2793,23 @@ function push(g, e) {
   if (UI.ins) { const i = g.ev.findIndex(x => x.id === UI.ins); if (i >= 0) { g.ev.splice(i, 0, e); UI.ins = null; UI.redo = []; return; } UI.ins = null; }
   g.ev.push(e); UI.redo = [];
 }
+/* Assist / Block: after 2PT or 3PT Make only Assist (and the team logos) stays live; after 2PT or 3PT Miss only
+   Block. Everything else is muted until the shot is logged or cancelled. */
+const MAKES = new Set(['2m', '3m']), MISSES = new Set(['2x', '3x']);
+function shotMute(st, k) {
+  if (MAKES.has(st)) return k !== 'ast' && k !== st;
+  if (MISSES.has(st)) return k !== 'blk' && k !== st;
+  return k === 'ast' || k === 'blk';   // nothing to add onto yet
+}
 function logStat(team, player) {
   const g = cur(), k = UI.stat; UI.stat = null;
+  const extra = MAKES.has(k) && UI.ast ? { ast: 1 } : MISSES.has(k) && UI.blk ? { blk: 1 } : {};
+  if (extra.ast || extra.blk) g.astBlk = true;
+  UI.ast = false; UI.blk = false;
   // After a miss the logos wait for the rebound: the shooting team's logo = offensive, the other = defensive.
   UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null; UI.rebFt = k === 'ftx';
   if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
-  else push(g, { t: 'play', team, player, k });
+  else push(g, Object.assign({ t: 'play', team, player, k }, extra));
   save(); render();
   if (k === 'foul' || k === 'chg' || k === 'offf') {
     const n = playerFouls(g, team, player); if (player !== 'TEAM' && n >= 4) toast(`${pShort(g, team, player)}: ${n} fouls${n >= 5 ? ' — FOULED OUT' : ''}`, n >= 5 ? 'bad' : 'warn');
@@ -2826,7 +2841,7 @@ function logRows(g, side) {
       if (e.k === 'oreb') { rows.push(Object.assign({}, base, { event: 'oreb', pts: 0 })); afterOreb = true; return; }
       if (/^[23][mx]$/.test(e.k)) {
         const made = e.k[1] === 'm', v = made ? +e.k[0] : 0;
-        rows.push(Object.assign({}, base, { event: 'shot', shot_type: e.k[0] + 'pa', result: made ? 'made' : 'missed', scp: afterOreb && made ? 1 : '', pot: made ? pot : '', pts: v }));
+        rows.push(Object.assign({}, base, { event: 'shot', shot_type: e.k[0] + 'pa', result: made ? 'made' : 'missed', assisted: made && e.ast ? 1 : '', scp: afterOreb && made ? 1 : '', pot: made ? pot : '', pts: v }));
         return;
       }
       const tt = { to: 'deadball', stl: 'steal', chg: 'offfoul', offf: 'offfoul' }[e.k];
@@ -2923,12 +2938,17 @@ document.addEventListener('click', ev => {
 
     case 'stat': {
       const k = b.dataset.k;
+      // Assist rides on a 2PT / 3PT make, Block on a 2PT / 3PT miss: toggled on, then the team logo logs the shot with it.
+      if (k === 'ast' || k === 'blk') { const ok = k === 'ast' ? MAKES.has(UI.stat) : MISSES.has(UI.stat);
+        if (!ok) { toast(k === 'ast' ? 'Tap 2PT Make or 3PT Make first, then Assist' : 'Tap 2PT Miss or 3PT Miss first, then Block'); return; }
+        UI[k] = !UI[k]; render(); return; }
+      UI.ast = false; UI.blk = false;
       if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
       // The rest of a free-throw trip: logged right away to the same shooter (or team).
       if (FT_K.has(k) && !UI.ins) { const tr = ftTrip(g); if (tr) { UI.reb = null; UI.stat = k; logStat(tr.team, tr.player);
         toast(`${k === 'ftm' ? 'FT make' : 'FT miss'} · ${tr.player === 'TEAM' ? teamName(g, tr.team) : pShort(g, tr.team, tr.player)}`, 'good'); break; } }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
-    case 'stat-cancel': UI.stat = null; render(); break;
+    case 'stat-cancel': UI.stat = null; UI.ast = false; UI.blk = false; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
     case 'no-reb': UI.reb = null; UI.rebFt = false; render(); break;
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
@@ -5031,19 +5051,22 @@ function ooTime(D) {   // each possession's share of its half, in minutes
   const n = {}; D.poss.forEach(p => { n[p.per] = (n[p.per] || 0) + 1; });
   return p => (p.per.startsWith('OT') ? 5 : OO_W) / n[p.per];
 }
-const OO_Z = () => ({ min: 0, poss: 0, pts: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, tov: 0, stl: 0, blk: 0, ast: 0, pf: 0, defl: 0,
+/* Assists and blocks only count from games that log them (the Assist / Block buttons): their rates use only those
+   games' possessions, makes, minutes and fouls (the *T fields), so older games never read as zero assists. */
+const OO_Z = () => ({ astT: 0, fgmT: 0, tovT: 0, minT: 0, blkT: 0, opp2T: 0, stlT: 0, pfT: 0, min: 0, poss: 0, pts: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, tov: 0, stl: 0, blk: 0, ast: 0, pf: 0, defl: 0,
   oppPoss: 0, oppPts: 0, oppFgm: 0, oppFga: 0, oppFg3m: 0, oppFg3a: 0, oppFta: 0, oppTov: 0, oppOreb: 0, oppDreb: 0 });
 // Every possession in the Lineups view, game by game: [{ g, D, list: [{ p, w, bx }], fouls: [{ five, p }] }].
 function ooPossessions(g) {
   const list = UI.luScope === 'season' ? splitGames() : [g], per = luPer(g);
   return list.map(gm => { const D = derive(gm), keep = wowyKeep(UI.luFilter, gm), tw = ooTime(D);
     const ok = p => (!per || perIn(p.per, per)) && keep(p) && (p.five.a || []).length === 5;
-    const P = D.poss.filter(ok).map(p => ({ p, w: tw(p), bx: possBox(p) }));
-    const fouls = D.items.filter(x => x.kind === 'foul' && x.e.team === 'a' && FOULING(x.e) && x.p && ok(x.p) && x.five && (x.five.a || []).length === 5).map(x => ({ five: x.five.a }));
+    const tr = !!gm.astBlk, P = D.poss.filter(ok).map(p => ({ p, w: tw(p), bx: possBox(p), tr }));
+    const fouls = D.items.filter(x => x.kind === 'foul' && x.e.team === 'a' && FOULING(x.e) && x.p && ok(x.p) && x.five && (x.five.a || []).length === 5).map(x => ({ five: x.five.a, tr: !!gm.astBlk }));
     return { g: gm, D, P, fouls }; });
 }
 function ooAdd(T, it) {
-  const { p, w, bx } = it; T.min += w;
+  const { p, w, bx, tr } = it; T.min += w;
+  if (tr) { T.minT += w; if (p.team === 'a') { T.astT += bx.ast || 0; T.fgmT += bx.fgm; T.tovT += bx.tov; } else { T.blkT += bx.blkd || 0; T.opp2T += bx.fga - bx.fg3a; if (p.end.col === 'STL') T.stlT++; } }
   if (p.team === 'a') { T.poss++; T.pts += p.pts; T.fgm += bx.fgm; T.fga += bx.fga; T.fg3m += bx.fg3m; T.fg3a += bx.fg3a; T.ftm += bx.ftm; T.fta += bx.fta; T.oreb += bx.oreb; T.oppDreb += bx.dreb; T.tov += bx.tov; }
   else { T.oppPoss++; T.oppPts += p.pts; T.oppFgm += bx.fgm; T.oppFga += bx.fga; T.oppFg3m += bx.fg3m; T.oppFg3a += bx.fg3a; T.oppFta += bx.fta; T.oppTov += bx.tov; T.oppOreb += bx.oreb; T.dreb += bx.dreb; if (p.end.col === 'STL') T.stl++; }
 }
@@ -5057,14 +5080,15 @@ function ooStats(T, A) {
   let defReb = pct(T.dreb, T.dreb + T.oppOreb);
   if (A) { if (A.adjOrtg != null) ortg = A.adjOrtg; if (A.adjDrtg != null) drtg = A.adjDrtg; const F = A.adjFF || {};
     if (F.efg != null) ff.efg = F.efg; if (F.orb != null) ff.oreb = F.orb; if (F.tov != null) ff.tov = F.tov; if (F.ftr != null) ff.ftr = F.ftr; if (F.oorb != null) defReb = 100 - F.oorb; }
-  const stlPct = T.oppPoss >= 1 ? pct(T.stl, T.oppPoss) : null;
+  const stlPct = T.oppPoss >= 1 ? pct(T.stl, T.oppPoss) : null, trk = T.minT > 0, per40T = v => trk ? v / T.minT * 40 : null;
+  const blkPct = trk ? pct(T.blkT, T.opp2T) : null;
   return { min: T.min, eff: { ortg, drtg, net: ortg != null && drtg != null ? ortg - drtg : null },
-    rate: { pace: per40(T.poss), tpar: pct(T.fg3a, T.fga), asp: null, ato: null, stl: stlPct, blk: null },
+    rate: { pace: per40(T.poss), tpar: pct(T.fg3a, T.fga), asp: trk ? pct(T.astT, T.fgmT) : null, ato: trk && T.tovT > 0 ? T.astT / T.tovT : null, stl: stlPct, blk: blkPct },
     off_ff: ff,
-    box: { pts: per40(T.pts), ast: null, oreb: per40(T.oreb), dreb: per40(T.dreb), stl: per40(T.stl), blk: null, to: per40(T.tov), foul: per40(T.pf) },
+    box: { pts: per40(T.pts), ast: per40T(T.astT), oreb: per40(T.oreb), dreb: per40(T.dreb), stl: per40(T.stl), blk: per40T(T.blkT), to: per40(T.tov), foul: per40(T.pf) },
     ts: (T.fga + 0.475 * T.fta) > 0 ? 0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100 : null,
-    defl40: null, def_reb: defReb, hakeem: null,
-    pf_eff: T.pf > 0 ? T.stl / T.pf : null, stl_pf: T.pf > 0 ? T.stl / T.pf : null, blk_pf: null,
+    defl40: null, def_reb: defReb, hakeem: stlPct != null && blkPct != null ? stlPct + blkPct : null,
+    pf_eff: trk ? (T.pfT > 0 ? (T.stlT + T.blkT) / T.pfT : null) : (T.pf > 0 ? T.stl / T.pf : null), stl_pf: T.pf > 0 ? T.stl / T.pf : null, blk_pf: trk && T.pfT > 0 ? T.blkT / T.pfT : null,
     offPoss: T.poss, defPoss: T.oppPoss };
 }
 // On and off accumulators per player, per game (for the adjustment) and summed.
@@ -5073,7 +5097,7 @@ function ooSplits(g) {
   G.forEach(({ g: gm, P, fouls }) => {
     const tot = OO_Z(), on = {};
     P.forEach(it => { ooAdd(tot, it); it.p.five.a.forEach(id => { ids.add(id); ooAdd(on[id] = on[id] || OO_Z(), it); }); });
-    fouls.forEach(f => { tot.pf++; f.five.forEach(id => { (on[id] = on[id] || OO_Z()).pf++; }); });
+    fouls.forEach(f => { tot.pf++; if (f.tr) tot.pfT++; f.five.forEach(id => { const o = on[id] = on[id] || OO_Z(); o.pf++; if (f.tr) o.pfT++; }); });
     byGame.push({ g: gm, tot, on });
   });
   return { ids: [...ids], byGame };
@@ -5117,7 +5141,7 @@ function onOffView(g) {
     return { id, on: ooStats(on, AJ && AJ.get('on|' + id)), off: ooStats(off, AJ && AJ.get('off|' + id)), minPct: tot.min > 0 ? 100 * on.min / tot.min : 0, games }; })
     .filter(p => p.on).sort((a, b) => b.minPct - a.minPct);
   const poss = s => s ? `${s.offPoss}` : '0';
-  return `<div class="oo-imp-bar"><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). Assists, blocks and deflections aren't logged in games (—).</div></div>
+  return `<div class="oo-imp-bar"><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). Assists and blocks come from the Assist / Block buttons (games logged with them); deflections aren't logged (—).</div></div>
     ${cards.map(p => `<div class="oo-imp-card"><div class="oo-imp-head"><span class="oo-imp-name">${esc(pShort(g, 'a', p.id))}</span><span class="oo-imp-sub">${p.minPct.toFixed(0)}% min · ${p.games} game${p.games === 1 ? '' : 's'} · ${poss(p.on)} poss on · ${p.off ? poss(p.off) + ' off' : 'never off the floor'}</span></div>
       <div class="oo-imp-grid">${ooPanel('Core Stats', OO_CORE, p)}${ooPanel('Box Stats', OO_BOX, p)}${ooPanel('Offense & Activity', OO_OFF, p)}${ooPanel('Defense', OO_DEF, p)}</div></div>`).join('')}`;
 }
