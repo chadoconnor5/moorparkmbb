@@ -318,6 +318,26 @@ score, ORtg / DRtg / net and four factors for exactly that view.
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.
 
+## Player on / off and projected fives (Lineups → View)
+
+**View** is one dropdown: 5-man lineups, 4-man, 3-man, 2-man pairs, Player on / off, Projected fives & synergy,
+WOWY, Rotation map. Everything follows the Games split, Half, Possessions and Situation.
+
+**Player on / off** mirrors the practice tracker's Player On-Court Impact cards: a card per player ranked by share
+of floor time, four panels of eight rows (Core Stats, Box Stats, Offense & Activity, Defense), each a team stat
+On / Off / Diff (green = team better with him on). The Defense panel ends with **PF Efficiency, Steals / PF and
+Blocks / PF** (the version before paint / transition / off-turnover points). Differences from practice: minutes
+are his share of each half's possessions (a half = 20 min), possessions are the real count, and assists, blocks
+and deflections aren't logged in games (—), so PF Efficiency is steals per foul. Ratings and four factors are
+opponent-adjusted (Data → Show raw numbers for raw).
+
+**Projected fives & synergy**: an adjusted plus-minus model (ridge regression over every possession in the view,
+opponent-adjusted, each player starting at 60 possessions of average): each player's Off / Def / Net impact per
+100. **Pair synergy** = how the team did with both on beyond what the model expected from who was on the floor,
+shrunk toward 0 (40 possessions to count half). **Best projected fives** = team baseline + five players + half of
+each pair's synergy, from the 13 most-used players: the best untested fives (with a Try button) and the best
+overall.
+
 ## Rotation map (Lineups → View → Rotation)
 
 CBB Analytics' "Lineup Tendencies" heat maps, by possession instead of by minute: each half is cut into 20 equal

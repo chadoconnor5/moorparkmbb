@@ -1034,6 +1034,20 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rot-leg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin:10px 0 4px 116px}
 .rot-bar{width:200px;height:10px;border-radius:3px;background:linear-gradient(90deg,rgb(253,236,200),rgb(139,21,21))}
 .rot-det{font-size:13px;margin-top:6px}
+/* Player on/off cards: the practice tracker's Player On-Court Impact layout (2 x 2 on the iPad). */
+.oo-imp-bar{margin:4px 0 12px}.oo-imp-note{color:var(--muted);font-size:12px}
+.oo-imp-card{border:1px solid var(--border);border-radius:12px;background:var(--card);margin-bottom:12px;overflow:hidden}
+.oo-imp-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:9px 12px;border-bottom:2px solid #f5c542}
+.oo-imp-name{font-size:15px;font-weight:800;color:#fff}.oo-imp-sub{font-size:11.5px;color:#fff}
+.oo-imp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 12px 12px}
+@media (min-width:1200px){.oo-imp-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.oo-imp-tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:4px;overflow:hidden}
+.oo-imp-tbl thead th{background:#1a3a6e;color:#fff;padding:5px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;text-align:right}
+.oo-imp-tbl thead th:first-child{text-align:left}
+.oo-imp-tbl tbody th{text-align:left;font-weight:600;color:#333;padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap}
+.oo-imp-tbl tbody td{padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;text-align:right;color:#000;white-space:nowrap}
+.oo-imp-tbl tbody td.oo-imp-on{font-weight:700}.oo-imp-tbl tbody td.oo-imp-diff{font-weight:800;color:#444}
+.oo-imp-tbl tbody td.oo-imp-good{color:#15803d}.oo-imp-tbl tbody td.oo-imp-bad{color:#b91c1c}
 
 </style>
 </head>
@@ -1067,7 +1081,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.96';
+const VERSION = 'v2026.10.17.97';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2178,21 +2192,23 @@ function lineupsView(g) {
   const sea = UI.luScope === 'season', curP = UI.luPer || 'all';
   const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
   const halves = ['all', '1H', '2H', ...ots].map(p => `<button class="${curP === p || (p === 'all' && !luPer(g)) ? 'on' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join('');
-  const views = [5, 4, 3, 2].map(k => `<button class="${(UI.luK || 5) === k && !UI.luWowy && !UI.luRot ? 'on' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('') + `<button class="${UI.luWowy && !UI.luRot ? 'on' : ''}" data-act="lu-wowy">WOWY</button><button class="${UI.luRot ? 'on' : ''}" data-act="lu-rot">Rotation</button>`;
+  // View: one dropdown (lineups by size, WOWY, On/Off, Projected & synergy, Rotation map).
+  const vNow = UI.luOO ? 'oo' : UI.luProj ? 'proj' : UI.luRot ? 'rot' : UI.luWowy ? 'wowy' : 'k' + (UI.luK || 5);
+  const views = `<select data-act="lu-view">${[['k5', '5-man lineups'], ['k4', '4-man groups'], ['k3', '3-man groups'], ['k2', '2-man pairs'], ['oo', 'Player on / off'], ['proj', 'Projected fives & synergy'], ['wowy', 'WOWY'], ['rot', 'Rotation map']].map(([k, l]) => `<option value="${k}" ${vNow === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const possSel = `<select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select>`;
   return `<div class="page-head"><h2>Lineups</h2></div>
     <div class="lu-ctl">
       <div class="lu-f"><span class="lu-l">Games</span>${splitSelect(g)}</div>
       <div class="lu-f"><span class="lu-l">Half</span><div class="lu-seg">${halves}</div></div>
-      <div class="lu-f"><span class="lu-l">View</span><div class="lu-seg">${views}</div></div>
+      <div class="lu-f"><span class="lu-l">View</span>${views}</div>
       <div class="lu-f"><span class="lu-l">Possessions</span>${possSel}</div>
       <div class="lu-f"><span class="lu-l">Situation</span>${sitSel}</div>
     </div>
     ${splitPicker()}
-    ${UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
-    ${UI.luWowy || UI.luRot ? '' : UI.luScope === 'season' ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
-    ${UI.luWowy || UI.luRot ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
+    ${UI.luOO ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> player on / off <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${onOffView(g)}</div>` : UI.luProj ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> projected fives &amp; synergy <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${projectedView(g)}</div>` : UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
+    ${UI.luWowy || UI.luRot ? '' : UI.luScope === 'season' || UI.luOO || UI.luProj ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${UI.luWowy || UI.luRot || UI.luOO || UI.luProj ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
@@ -3028,7 +3044,7 @@ document.addEventListener('click', ev => {
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
     case 'lu-filter': UI.luFilter = b.dataset.f; render(); break;
-    case 'lu-k': UI.luK = +b.dataset.k; UI.luWowy = false; UI.luRot = false; UI.luOpen = null; render(); break;
+    case 'lu-k': UI.luK = +b.dataset.k; UI.luWowy = false; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
     case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
@@ -3071,8 +3087,8 @@ document.addEventListener('click', ev => {
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
     case 'lu-pick': { const P = UI.luPick = UI.luPick || [], i = P.indexOf(b.dataset.id); if (i < 0) P.push(b.dataset.id); else P.splice(i, 1); render(); break; }
     case 'lu-per': UI.luPer = b.dataset.s; UI.luOpen = null; render(); break;
-    case 'lu-wowy': UI.luWowy = true; UI.luRot = false; UI.luOpen = null; render(); break;
-    case 'lu-rot': UI.luRot = true; UI.luWowy = false; UI.luOpen = null; render(); break;
+    case 'lu-wowy': UI.luWowy = true; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
+    case 'lu-rot': UI.luRot = true; UI.luWowy = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
     case 'rot-mode': UI.rotMode = b.dataset.s; render(); break;
     case 'rot-w': UI.rotW = +b.dataset.s; UI.rotCell = null; render(); break;
     case 'rot-cell': { const y = window.scrollY; UI.rotCell = { id: b.dataset.id, c: +b.dataset.c }; render(); window.scrollTo(0, y); break; }
@@ -3131,6 +3147,8 @@ document.addEventListener('change', ev => { const src = ev.target.closest && ev.
   if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }
   const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
   if (f) { UI.luFilter = f.value; UI.luOpen = null; render(); return; }
+  const lv = ev.target.closest && ev.target.closest('select[data-act="lu-view"]');
+  if (lv) { const v = lv.value; Object.assign(UI, { luWowy: v === 'wowy', luRot: v === 'rot', luOO: v === 'oo', luProj: v === 'proj', luOpen: null }); if (v[0] === 'k') UI.luK = +v.slice(1); render(); return; }
   const si = ev.target.closest && ev.target.closest('select[data-act="lu-sit-sel"]');
   if (si) { UI.luSit = si.value || null; UI.luOpen = null; render(); return; }
   const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
@@ -4985,6 +5003,194 @@ function rotView(g) {
   return `<div class="rot-top"><div class="lu-seg rot-tabs">${tabs}</div><div class="rot-w"><span class="small muted">Slices per box</span><div class="lu-seg">${widths}</div></div></div>
     <div class="small muted" style="margin:6px 0 8px">${esc(sub)}. Each half is cut into ${ROT_SLICES} slices of its possessions, each a whole number of possessions (about 2, so about a minute each); tap a box to see which possessions it holds. Players sorted by possessions on the floor.</div>
     <div class="rot">${head}${rows}</div>${legend}${detail}`;
+}
+
+/* ---------- Player On/Off, pair synergy and projected fives (Lineups → View) ----------
+   ON/OFF mirrors the practice tracker's Player On-Court Impact cards exactly: one card per player, four
+   panels of eight rows (Core / Box / Offense & Activity / Defense), each a TEAM stat with him On the floor,
+   Off it, and the Diff (green = team better with him on), ranked by share of the team's floor time. The
+   Defense panel ends with the three PF ratios (PF Efficiency, Steals / PF, Blocks / PF), the version
+   before they were swapped for paint / transition / off-turnover points.
+   Game data differs from practice in three places, all said on the page:
+     - Minutes: we don't keep a running clock, so a possession's share of the half stands in for time (a
+       half is 20 minutes, split evenly over its possessions, both teams). Per-40 rows use that.
+     - Possessions are the real count, not the practice formula's estimate.
+     - Assists, blocks and deflections aren't logged in games, so their rows show — (and Blocks / PF, Block %
+       and Hakeem % with them); PF Efficiency is steals per foul until blocks are logged.
+   Ratings and four factors are opponent-adjusted (each game's on and off possessions adjusted against that
+   opponent, same math as the lineups); the Data corner's Show raw numbers turns that off. Everything follows
+   the Lineups panel: Games split, Half, Possessions and Situation.
+
+   PROJECTED: an adjusted plus-minus model (ridge regression over every possession in the view): each
+   player's offensive and defensive impact per 100, opponent-adjusted, pulled toward zero until the sample
+   supports it. A five's projection = the team baseline + its five players + the pair synergies among them.
+   SYNERGY: for each pair, how the team actually did with both on, against what the model expected from
+   who was on the floor; shrunk toward zero by the sample. */
+const OO_W = 20;   // minutes in a half
+function ooTime(D) {   // each possession's share of its half, in minutes
+  const n = {}; D.poss.forEach(p => { n[p.per] = (n[p.per] || 0) + 1; });
+  return p => (p.per.startsWith('OT') ? 5 : OO_W) / n[p.per];
+}
+const OO_Z = () => ({ min: 0, poss: 0, pts: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, tov: 0, stl: 0, blk: 0, ast: 0, pf: 0, defl: 0,
+  oppPoss: 0, oppPts: 0, oppFgm: 0, oppFga: 0, oppFg3m: 0, oppFg3a: 0, oppFta: 0, oppTov: 0, oppOreb: 0, oppDreb: 0 });
+// Every possession in the Lineups view, game by game: [{ g, D, list: [{ p, w, bx }], fouls: [{ five, p }] }].
+function ooPossessions(g) {
+  const list = UI.luScope === 'season' ? splitGames() : [g], per = luPer(g);
+  return list.map(gm => { const D = derive(gm), keep = wowyKeep(UI.luFilter, gm), tw = ooTime(D);
+    const ok = p => (!per || perIn(p.per, per)) && keep(p) && (p.five.a || []).length === 5;
+    const P = D.poss.filter(ok).map(p => ({ p, w: tw(p), bx: possBox(p) }));
+    const fouls = D.items.filter(x => x.kind === 'foul' && x.e.team === 'a' && FOULING(x.e) && x.p && ok(x.p) && x.five && (x.five.a || []).length === 5).map(x => ({ five: x.five.a }));
+    return { g: gm, D, P, fouls }; });
+}
+function ooAdd(T, it) {
+  const { p, w, bx } = it; T.min += w;
+  if (p.team === 'a') { T.poss++; T.pts += p.pts; T.fgm += bx.fgm; T.fga += bx.fga; T.fg3m += bx.fg3m; T.fg3a += bx.fg3a; T.ftm += bx.ftm; T.fta += bx.fta; T.oreb += bx.oreb; T.oppDreb += bx.dreb; T.tov += bx.tov; }
+  else { T.oppPoss++; T.oppPts += p.pts; T.oppFgm += bx.fgm; T.oppFga += bx.fga; T.oppFg3m += bx.fg3m; T.oppFg3a += bx.fg3a; T.oppFta += bx.fta; T.oppTov += bx.tov; T.oppOreb += bx.oreb; T.dreb += bx.dreb; if (p.end.col === 'STL') T.stl++; }
+}
+const ooSum = (a, b, sign = 1) => { const o = OO_Z(); Object.keys(o).forEach(k => { o[k] = (a[k] || 0) + sign * (b[k] || 0); }); return o; };
+// The practice tracker's ooAgg, on game counts.
+function ooStats(T, A) {
+  if (!T || (T.poss <= 0 && T.oppPoss <= 0)) return null;
+  const per40 = v => T.min > 0 ? v / T.min * 40 : null, pct = (n, d) => d > 0 ? 100 * n / d : null, r100 = (n, d) => d >= 1 ? 100 * n / d : null;
+  let ortg = r100(T.pts, T.poss), drtg = r100(T.oppPts, T.oppPoss);
+  const ff = { efg: pct(T.fgm + 0.5 * T.fg3m, T.fga), oreb: pct(T.oreb, T.oreb + T.oppDreb), tov: T.poss >= 1 ? pct(T.tov, T.poss) : null, ftr: pct(T.fta, T.fga) };
+  let defReb = pct(T.dreb, T.dreb + T.oppOreb);
+  if (A) { if (A.adjOrtg != null) ortg = A.adjOrtg; if (A.adjDrtg != null) drtg = A.adjDrtg; const F = A.adjFF || {};
+    if (F.efg != null) ff.efg = F.efg; if (F.orb != null) ff.oreb = F.orb; if (F.tov != null) ff.tov = F.tov; if (F.ftr != null) ff.ftr = F.ftr; if (F.oorb != null) defReb = 100 - F.oorb; }
+  const stlPct = T.oppPoss >= 1 ? pct(T.stl, T.oppPoss) : null;
+  return { min: T.min, eff: { ortg, drtg, net: ortg != null && drtg != null ? ortg - drtg : null },
+    rate: { pace: per40(T.poss), tpar: pct(T.fg3a, T.fga), asp: null, ato: null, stl: stlPct, blk: null },
+    off_ff: ff,
+    box: { pts: per40(T.pts), ast: null, oreb: per40(T.oreb), dreb: per40(T.dreb), stl: per40(T.stl), blk: null, to: per40(T.tov), foul: per40(T.pf) },
+    ts: (T.fga + 0.475 * T.fta) > 0 ? 0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100 : null,
+    defl40: null, def_reb: defReb, hakeem: null,
+    pf_eff: T.pf > 0 ? T.stl / T.pf : null, stl_pf: T.pf > 0 ? T.stl / T.pf : null, blk_pf: null,
+    offPoss: T.poss, defPoss: T.oppPoss };
+}
+// On and off accumulators per player, per game (for the adjustment) and summed.
+function ooSplits(g) {
+  const G = ooPossessions(g), ids = new Set(), byGame = [];
+  G.forEach(({ g: gm, P, fouls }) => {
+    const tot = OO_Z(), on = {};
+    P.forEach(it => { ooAdd(tot, it); it.p.five.a.forEach(id => { ids.add(id); ooAdd(on[id] = on[id] || OO_Z(), it); }); });
+    fouls.forEach(f => { tot.pf++; f.five.forEach(id => { (on[id] = on[id] || OO_Z()).pf++; }); });
+    byGame.push({ g: gm, tot, on });
+  });
+  return { ids: [...ids], byGame };
+}
+// Opponent-adjust each player's on and off sides game by game (adjust.js), unless raw is picked.
+function ooAdjusted(S) {
+  const R = ratingsData(); if (!R || !R.teams || UI.luRaw) return null;
+  const blk = T => ({ oT: T.poss, dT: T.oppPoss, pf: T.pts, pa: T.oppPts, stops: 0, fouls: T.pf,
+    o: { fgm: T.fgm, fga: T.fga, fg3m: T.fg3m, fg3a: T.fg3a, fta: T.fta, ftm: T.ftm, tov: T.tov, oreb: T.oreb, dreb: T.dreb },
+    d: { fgm: T.oppFgm, fga: T.oppFga, fg3m: T.oppFg3m, fg3a: T.oppFg3a, fta: T.oppFta, tov: T.oppTov, oreb: T.oppOreb, dreb: T.oppDreb } });
+  const file = { games: S.byGame.map(({ g, tot, on }) => { const sc = schedule().find(x => x.id === g.schedId);
+    return { id: g.id, date: g.date, opponent: g.opp, site: { H: 'home', A: 'away', N: 'neutral' }[g.loc] || '', scrimmage: !!(sc && sc.scrim),
+      units: S.ids.flatMap(id => { const o = on[id] || OO_Z(), f = ooSum(tot, o, -1), u = [];
+        if (o.poss + o.oppPoss) u.push(Object.assign({ key: 'on|' + id, players: [{ name: id }], secs: 0 }, blk(o)));
+        if (f.poss + f.oppPoss) u.push(Object.assign({ key: 'off|' + id, players: [{ name: id }], secs: 0 }, blk(f)));
+        return u; }) }; }) };
+  const A = adjustLineups(file, R); return new Map(A.units.map(u => [u.key, u]));
+}
+const OO_CORE = [['Net Rating', 'eff.net', 1, true, ''], ['Offensive Rating', 'eff.ortg', 1, true, ''], ['Defensive Rating', 'eff.drtg', 1, false, ''], ['Pace', 'rate.pace', 1, null, ''],
+  ['Effective FG%', 'off_ff.efg', 1, true, '%'], ['Off Rebound %', 'off_ff.oreb', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%']];
+const OO_BOX = [['Points / 40', 'box.pts', 1, true, ''], ['Assists / 40', 'box.ast', 1, true, ''], ['ORebs / 40', 'box.oreb', 1, true, ''], ['DRebs / 40', 'box.dreb', 1, true, ''],
+  ['Steals / 40', 'box.stl', 1, true, ''], ['Blocks / 40', 'box.blk', 1, true, ''], ['Turnovers / 40', 'box.to', 1, false, ''], ['PFs / 40', 'box.foul', 1, false, '']];
+const OO_OFF = [['Offensive Rating', 'eff.ortg', 1, true, ''], ['True Shooting %', 'ts', 1, true, '%'], ['3-Point Att Rate', 'rate.tpar', 1, null, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%'],
+  ['Assist %', 'rate.asp', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['Ast/Tov Ratio', 'rate.ato', 2, true, ''], ['Deflections / 40', 'defl40', 1, true, '']];
+const OO_DEF = [['Defensive Rating', 'eff.drtg', 1, false, ''], ['Def Rebound %', 'def_reb', 1, true, '%'], ['Steal %', 'rate.stl', 1, true, '%'], ['Block %', 'rate.blk', 1, true, '%'],
+  ['Hakeem %', 'hakeem', 1, true, '%'], ['PF Efficiency', 'pf_eff', 2, true, ''], ['Steals / PF', 'stl_pf', 2, true, ''], ['Blocks / PF', 'blk_pf', 2, true, '']];
+const ooGet = (o, path) => { if (!o) return null; const a = path.split('.'); const v = a.length === 1 ? o[a[0]] : (o[a[0]] || {})[a[1]]; return v == null || isNaN(v) ? null : v; };
+function ooPanel(title, defs, p) {
+  const fmt = (v, d, s) => v == null ? '—' : v.toFixed(d) + (s || '');
+  return `<table class="oo-imp-tbl"><thead><tr><th>${esc(title)}</th><th>On</th><th>Off</th><th>Diff</th></tr></thead><tbody>${defs.map(([label, path, dec, hb, suf]) => {
+    const on = ooGet(p.on, path), off = ooGet(p.off, path); let diff = '<td class="oo-imp-diff">—</td>';
+    if (on != null && off != null) { const dv = +(on - off).toFixed(dec) || 0, good = hb == null ? null : (hb ? dv > 0 : dv < 0), up = good == null ? dv > 0 : good;
+      diff = `<td class="oo-imp-diff ${Math.abs(dv) < 1e-9 ? '' : up ? 'oo-imp-good' : 'oo-imp-bad'}">${dv > 0 ? '+' : ''}${dv.toFixed(dec)}${suf}</td>`; }
+    return `<tr><th>${esc(label)}</th><td class="oo-imp-on">${fmt(on, dec, suf)}</td><td class="oo-imp-off">${fmt(off, dec, suf)}</td>${diff}</tr>`; }).join('')}</tbody></table>`;
+}
+function onOffView(g) {
+  const S = ooSplits(g); if (!S.ids.length) return '<div class="muted small">No possessions with a full five in this view.</div>';
+  const AJ = ooAdjusted(S), tot = S.byGame.reduce((t, x) => ooSum(t, x.tot), OO_Z());
+  const cards = S.ids.map(id => { const on = S.byGame.reduce((t, x) => ooSum(t, x.on[id] || OO_Z()), OO_Z()), off = ooSum(tot, on, -1);
+    const games = S.byGame.filter(x => x.on[id] && (x.on[id].poss + x.on[id].oppPoss)).length;
+    return { id, on: ooStats(on, AJ && AJ.get('on|' + id)), off: ooStats(off, AJ && AJ.get('off|' + id)), minPct: tot.min > 0 ? 100 * on.min / tot.min : 0, games }; })
+    .filter(p => p.on).sort((a, b) => b.minPct - a.minPct);
+  const poss = s => s ? `${s.offPoss}` : '0';
+  return `<div class="oo-imp-bar"><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). Assists, blocks and deflections aren't logged in games (—).</div></div>
+    ${cards.map(p => `<div class="oo-imp-card"><div class="oo-imp-head"><span class="oo-imp-name">${esc(pShort(g, 'a', p.id))}</span><span class="oo-imp-sub">${p.minPct.toFixed(0)}% min · ${p.games} game${p.games === 1 ? '' : 's'} · ${poss(p.on)} poss on · ${p.off ? poss(p.off) + ' off' : 'never off the floor'}</span></div>
+      <div class="oo-imp-grid">${ooPanel('Core Stats', OO_CORE, p)}${ooPanel('Box Stats', OO_BOX, p)}${ooPanel('Offense & Activity', OO_OFF, p)}${ooPanel('Defense', OO_DEF, p)}</div></div>`).join('')}`;
+}
+
+/* ---------- the model: adjusted plus-minus (ridge) ---------- */
+const RAPM_LAMBDA = 60;   // possessions of "average player" each player starts with
+function solve(A, b) {   // Gaussian elimination, A symmetric positive definite (ridge)
+  const n = b.length, M = A.map((r, i) => [...r, b[i]]);
+  for (let i = 0; i < n; i++) { let mx = i; for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[mx][i])) mx = r; [M[i], M[mx]] = [M[mx], M[i]];
+    for (let r = 0; r < n; r++) { if (r === i || !M[i][i]) continue; const f = M[r][i] / M[i][i]; for (let c = i; c <= n; c++) M[r][c] -= f * M[i][c]; } }
+  return M.map((r, i) => r[n] / (r[i] || 1));
+}
+// One possession's opponent-adjusted points per 100 (as adjustLineups does it for a game).
+function rapmY(g, p, R) {
+  if (!R || !R.teams) return 100 * p.pts;
+  const opp = resolveTeam(g.opp, R), r = opp && R.teams[opp]; if (!r) return 100 * p.pts;
+  const T = Object.values(R.teams), lgO = T.reduce((s, t) => s + t.ortg, 0) / T.length, lgD = T.reduce((s, t) => s + t.drtg, 0) / T.length;
+  const H = (R.homeAdvantage || 3) / 2, h = ({ H: [-H, H], A: [H, -H] })[g.loc] || [0, 0], mo = String(g.date || '').slice(5, 7), ph = -((R.phase || {})[mo === '10' ? '11' : mo] || 0);
+  return p.team === 'a' ? 100 * p.pts + h[0] + ph - r.drtg + lgD : 100 * p.pts + h[1] + ph - r.ortg + lgO;
+}
+function rapm(g) {
+  const G = ooPossessions(g), R = UI.luRaw ? null : ratingsData(), ids = [...new Set(G.flatMap(x => x.P.flatMap(it => it.p.five.a)))], ix = new Map(ids.map((id, i) => [id, i])), n = ids.length;
+  const fit = side => { const rows = []; G.forEach(({ g: gm, P }) => P.forEach(it => { if ((it.p.team === 'a') === (side === 'o')) rows.push({ x: it.p.five.a.map(id => ix.get(id)), y: rapmY(gm, it.p, R) }); }));
+    if (!rows.length) return { b0: null, b: Array(n).fill(0), n: 0, cnt: Array(n).fill(0) };
+    const b0 = rows.reduce((s, r) => s + r.y, 0) / rows.length, A = Array.from({ length: n }, () => Array(n).fill(0)), v = Array(n).fill(0), cnt = Array(n).fill(0);
+    rows.forEach(r => { r.x.forEach(i => { v[i] += r.y - b0; cnt[i]++; r.x.forEach(j => { A[i][j] += 1; }); }); });
+    for (let i = 0; i < n; i++) A[i][i] += RAPM_LAMBDA;
+    return { b0, b: solve(A, v), n: rows.length, cnt }; };
+  const O = fit('o'), D = fit('d');
+  const players = ids.map((id, i) => ({ id, o: O.b[i], d: -D.b[i], net: O.b[i] - D.b[i], oPoss: O.cnt[i], dPoss: D.cnt[i] }));
+  // Pair synergy: actual adjusted net with both on minus what the model expected on those possessions, shrunk.
+  const pairs = {};
+  G.forEach(({ g: gm, P }) => P.forEach(it => { const f = it.p.five.a.slice().sort(), y = rapmY(gm, it.p, R), off = it.p.team === 'a', M = off ? O : D;
+    if (M.b0 == null) return; const pred = M.b0 + f.reduce((s, id) => s + M.b[ix.get(id)], 0), res = y - pred;
+    for (let a = 0; a < 5; a++) for (let c = a + 1; c < 5; c++) { const k = f[a] + '|' + f[c], x = pairs[k] = pairs[k] || { a: f[a], b: f[c], o: 0, on: 0, d: 0, dn: 0 };
+      if (off) { x.o += res; x.on++; } else { x.d += res; x.dn++; } } }));
+  const PK = 40;   // possessions a pair's residual needs before it counts half
+  Object.values(pairs).forEach(x => { x.so = x.on ? (x.o / x.on) * x.on / (x.on + PK) : 0; x.sd = x.dn ? -(x.d / x.dn) * x.dn / (x.dn + PK) : 0; x.syn = x.so + x.sd; x.n = Math.floor((x.on + x.dn) / 2); });
+  return { players, pairs, O, D, R: !!(R && R.teams) };
+}
+// A five's projection: team baseline + its five players + half of each pair's synergy (pairs overlap).
+function projectFive(M, five) {
+  const by = new Map(M.players.map(p => [p.id, p])), f = five.slice().sort();
+  let net = (M.O.b0 || 0) - (M.D.b0 || 0), o = M.O.b0 || 0, d = M.D.b0 || 0, syn = 0;
+  f.forEach(id => { const p = by.get(id); if (p) { net += p.net; o += p.o; d -= p.d; } });
+  for (let a = 0; a < 5; a++) for (let c = a + 1; c < 5; c++) { const x = M.pairs[f[a] + '|' + f[c]]; if (x) syn += x.syn / 2; }
+  return { net: net + syn, o, d, syn };
+}
+function combos5(ids) { const out = []; const rec = (s, cur) => { if (cur.length === 5) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
+function projectedView(g) {
+  const M = rapm(g); if (!M.players.length) return '<div class="muted small">No possessions with a full five in this view.</div>';
+  const nm = id => pShort(g, 'a', id), sg = v => v == null ? '—' : sg1(Math.round(10 * v) / 10);
+  const P = M.players.slice().sort((a, b) => b.net - a.net);
+  const played = new Map(luUnitsFor(g, derive(g), 'a', null, null, 5).units.map(u => [fiveKey(u.five), Math.floor((u.oPoss + u.dPoss) / 2)]));
+  // Every five of players who've played at least 15 possessions in the view (up to 13 players: 1,287 fives).
+  const pool = P.filter(p => p.oPoss + p.dPoss >= 30).sort((a, b) => (b.oPoss + b.dPoss) - (a.oPoss + a.dPoss)).slice(0, 13).map(p => p.id);
+  const F = combos5(pool).map(f => Object.assign({ five: f, played: played.get(fiveKey(f)) || 0 }, projectFive(M, f))).sort((a, b) => b.net - a.net);
+  const untested = F.filter(x => x.played < 10).slice(0, 8), best = F.slice(0, 8);
+  const five = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); }).join(' ');
+  const fRow = x => `<tr><td style="text-align:left"><b>${esc(five(x.five))}</b>${x.played ? '' : ' <span class="rn-flag good">UNTESTED</span>'}</td><td class="${pmCls(x.net)}"><b>${sg(x.net)}</b></td><td>${sg(x.o - (M.O.b0 || 0))}</td><td>${sg(-(x.d - (M.D.b0 || 0)))}</td><td>${sg(x.syn)}</td><td>${x.played || '—'}</td>${x.played ? '<td></td>' : `<td><button class="btn btn-sm btn-good" data-act="tip-sub" data-five="${esc(x.five.join('|'))}">Try</button></td>`}</tr>`;
+  const fHead = '<tr><th style="text-align:left">Five</th><th>Proj net</th><th>Off</th><th>Def</th><th>Synergy</th><th>Poss played</th><th></th></tr>';
+  const SY = Object.values(M.pairs).filter(x => x.n >= 10).sort((a, b) => b.syn - a.syn);
+  const pRow = x => `<tr><td style="text-align:left"><b>${esc(nm(x.a))}</b> + <b>${esc(nm(x.b))}</b></td><td class="${pmCls(x.syn)}"><b>${sg(x.syn)}</b></td><td>${sg(x.so)}</td><td>${sg(x.sd)}</td><td>${x.n}</td></tr>`;
+  return `<div class="small muted" style="margin:0 0 10px">Adjusted plus-minus over every possession in this view${M.R ? ', opponent-adjusted' : ' (raw)'}: each player's impact on the team's net per 100 possessions, with the others on the floor accounted for and pulled toward zero until his sample supports it (${RAPM_LAMBDA} possessions of average). Projected five = team baseline + its five players + half of each pair's synergy.</div>
+    <div class="rn-2"><div class="card"><h3>Player impact</h3><div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Player</th><th>Net</th><th>Off</th><th>Def</th><th>Poss</th></tr></thead><tbody>
+      ${P.map(p => `<tr><td><b>${esc(nm(p.id))}</b></td><td class="${pmCls(p.net)}"><b>${sg(p.net)}</b></td><td>${sg(p.o)}</td><td>${sg(p.d)}</td><td>${Math.floor((p.oPoss + p.dPoss) / 2)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="rn-note">Off / Def: per 100 possessions, + = better (Def + = fewer points allowed).</div></div>
+    <div class="card"><h3>Pair synergy</h3><div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Pair</th><th>Synergy</th><th>Off</th><th>Def</th><th>Poss</th></tr></thead><tbody>
+      ${SY.length ? SY.slice(0, 6).map(pRow).join('') + (SY.length > 6 ? '<tr><td colspan="5" class="rn-sep">WORST FIT</td></tr>' + SY.slice(-4).map(pRow).join('') : '') : '<tr><td colspan="5" class="muted">No pair with 10+ possessions yet.</td></tr>'}</tbody></table></div>
+      <div class="rn-note">How the team did with both on, beyond what the two of them and their teammates predict. Shrunk toward 0 (40 possessions to count half).</div></div></div>
+    <div class="card"><h3>Best projected fives <span class="muted">· untested ones you could try</span></h3><div class="tbl-wrap"><table class="rn-t"><thead>${fHead}</thead><tbody>${untested.map(fRow).join('') || '<tr><td colspan="7" class="muted">Every top five has already played together.</td></tr>'}</tbody></table></div></div>
+    <div class="card"><h3>Best projected fives <span class="muted">· overall</span></h3><div class="tbl-wrap"><table class="rn-t"><thead>${fHead}</thead><tbody>${best.map(fRow).join('')}</tbody></table></div>
+      <div class="rn-note">From the ${pool.length} players with 15+ possessions in this view. A projection is a starting point: small samples and players who never shared the floor are the least certain.</div></div>`;
 }
 
 /* ---------- Runs: kills, kill shots and runs ----------
