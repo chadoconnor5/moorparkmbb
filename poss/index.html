@@ -1049,7 +1049,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .oo-imp-tbl tbody td.oo-imp-on{font-weight:700}.oo-imp-tbl tbody td.oo-imp-diff{font-weight:800;color:#444}
 .oo-imp-tbl tbody td.oo-imp-good{color:#15803d}.oo-imp-tbl tbody td.oo-imp-bad{color:#b91c1c}
 /* Assist / Block ride on a shot: lit when they can be added. */
-.sbtn.addon,.sbtn.addon.on{outline:3px solid #fbbf24;outline-offset:1px;box-shadow:none}
+.sbtn.addready{outline:2px solid #fff;outline-offset:1px}
+.sbtn.addon{outline:3px solid #fbbf24;outline-offset:1px}
 
 </style>
 </head>
@@ -1083,7 +1084,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.99';
+const VERSION = 'v2026.10.17.100';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1754,8 +1755,8 @@ function liveView(g) {
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
-      <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => { const mut = shotMute(st, k), on = st === k || (k === 'ast' && UI.ast) || (k === 'blk' && UI.blk);
-        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}${k === 'ast' && UI.ast ? ' ✓' : k === 'blk' && UI.blk ? ' ✓' : ''}</button>`; }).join('')}</div>
+      <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => { const mut = shotMute(st, k), on = st === k;
+        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? ((k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : 'addready') : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}</button>`; }).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
         // Three across: subs and timeout; fix a tap and end the half; scout, situational lineups, flag.
         return `<div class="ctrls">
