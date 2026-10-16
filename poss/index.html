@@ -1067,7 +1067,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.95';
+const VERSION = 'v2026.10.16.96';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2192,7 +2192,7 @@ function lineupsView(g) {
     ${splitPicker()}
     ${UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
     ${UI.luWowy || UI.luRot ? '' : UI.luScope === 'season' ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
-    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. +/- includes technical free throws; the four factors don't.</div>`;
+    ${UI.luWowy || UI.luRot ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
