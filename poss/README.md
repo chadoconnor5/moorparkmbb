@@ -300,6 +300,9 @@ four factors at both ends, over the possessions with exactly that pattern on the
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
 Combinations that never happened stay, dimmed and last. Scope and the leverage filter are the Lineups tab's.
 
+**Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
+garbage time. It drives the lineup table, the Lineup Builder and WOWY.
+
 ## Lineup shooting and scoring (tap a five on Lineups)
 
 Under how its possessions ended, every five shows both ends (ours = OFF, theirs = DEF):

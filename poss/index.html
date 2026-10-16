@@ -995,6 +995,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 /* One row of equal slots (5 for WOWY / a five, fewer for smaller groups). */
 .lu-b-slots{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:6px}
 .lu-b-slot{min-width:0;font-size:13px;padding:8px 6px}
+.lu-fsel select{width:auto;font:inherit;font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--us);background:var(--card);color:var(--text)}
 
 </style>
 </head>
@@ -1028,7 +1029,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.82';
+const VERSION = 'v2026.10.16.83';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1049,7 +1050,7 @@ const cur = () => games.find(g => g.id === curId) || null;
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
 const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
 const D0 = g => derive(g).score;
-const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'all', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
+const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
 /* ---------- rosters ---------- */
 // Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage),
@@ -2114,7 +2115,7 @@ function lineupsView(g) {
   const D = derive(g);
   return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
-      <div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['nogt', 'No garbage time'], ['hm', 'High+Med'], ['high', 'High'], ['clutch', 'Clutch']].map(([k, l]) => `<button class="btn btn-sm ${UI.luFilter === k ? 'btn-primary' : ''}" data-act="lu-filter" data-f="${k}">${l}</button>`).join('')}</div></div>
+      <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
     ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
@@ -3046,7 +3047,9 @@ document.addEventListener('click', ev => {
 });
 
 // The Lineup Builder's dropdowns (selects fire change, not click).
-document.addEventListener('change', ev => { const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
+document.addEventListener('change', ev => { const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
+  if (f) { UI.luFilter = f.value; UI.luOpen = null; render(); return; }
+  const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
   const k = s.dataset.act === 'wowy' ? 'wowy' : 'luB'; UI[k] = UI[k] || []; UI[k][+s.dataset.i] = s.value; const y = window.scrollY; render(); window.scrollTo(0, y); });
 
 /* ---------- scouting report ----------
