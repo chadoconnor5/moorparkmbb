@@ -376,7 +376,7 @@ WOWY, Rotation map. Everything follows the Games split, Half, Possessions and Si
 
 **Player on / off** mirrors the practice tracker's Player On-Court Impact cards: a card per player ranked by share
 of floor time, four panels of eight rows (Core Stats, Box Stats, Offense & Activity, Defense), each a team stat
-On / Off / Diff (green = team better with him on). The Defense panel ends with **PF Efficiency, Steals / PF and
+On / Off / Diff (green = team better with him on), in alternating light grey / darker grey rows. The Defense panel ends with **PF Efficiency, Steals / PF and
 Blocks / PF** (the version before paint / transition / off-turnover points). Differences from practice: minutes
 are his share of each half's possessions (a half = 20 min), possessions are the real count, and assists, blocks
 and deflections aren't logged in games (—), so PF Efficiency is steals per foul. Ratings and four factors are
