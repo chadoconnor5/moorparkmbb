@@ -4787,27 +4787,29 @@ function wowyView(g) {
    The Lineups dropdown picks which games count: this game, or a split of the season. Halves (All / 1H / 2H /
    OT) and the Possessions filter (leverage, clutch, garbage time) apply on top of it. Quads and Top 25 use the
    leaderboard's nightly ratings: the opponent's rank by adjusted net among every in-system team, with the
-   NCAA's NET quadrant lines scaled to the size of the league and moved by venue (a road game against a
-   mid-table team counts higher than the same game at home). Scrimmages never count. */
+   leaderboard's own quadrant lines (see QUAD_LINES). Scrimmages never count. */
 const SPLITS = [
   ['full', 'Full season'], ['last5', 'Last 5 games'], ['last10', 'Last 10 games'],
   ['conf', 'Conference games'], ['nonconf', 'Non-conference games'], ['confW', 'Conference wins'], ['confL', 'Conference losses'],
   ['post', 'Postseason'], ['home', 'Home games'], ['away', 'Away games'], ['neutral', 'Neutral games'], ['awayN', 'Away + neutral games'],
   ['won', 'Games won'], ['lost', 'Games lost'],
-  ['q1', 'Quad 1 games'], ['q2', 'Quad 2 games'], ['q12', 'Quad 1 + 2 games'], ['q3', 'Quad 3 games'], ['q4', 'Quad 4 games'], ['q34', 'Quad 3 + 4 games'],
+  ['q1a', 'Quad 1A games'], ['q1', 'Quad 1 games'], ['q2', 'Quad 2 games'], ['q12', 'Quad 1 + 2 games'], ['q3', 'Quad 3 games'], ['q4', 'Quad 4 games'],
   ['top25', 'vs top 25 (rating)'], ['nontop25', 'vs outside the top 25'], ['pick', 'Select your own games']];
-// NCAA NET quadrant lines (of ~364 teams) by venue: Q1 / Q2 / Q3 upper bounds.
-const QUAD_LINES = { home: [30, 75, 160], neutral: [50, 100, 200], away: [75, 135, 240] };
+/* The leaderboard's quadrants (its Quads tab), exactly: opponents ranked by net rating among every rated team,
+   NCAA cutoffs (of 353) scaled to the league's size and not rounded, by venue (no venue = neutral).
+   Q1A H<=15 N<=25 A<=40 · Q1 H<=30 N<=50 A<=75 · Q2 H<=75 N<=100 A<=135 · Q3 H<=160 N<=200 A<=240 · Q4 the rest.
+   Like the leaderboard, Q1 includes Q1A and Q1+2 includes Q1A, Q1 and Q2. */
+const QUAD_LINES = { '1A': { H: 15, N: 25, A: 40 }, '1': { H: 30, N: 50, A: 75 }, '2': { H: 75, N: 100, A: 135 }, '3': { H: 160, N: 200, A: 240 } };
 function oppRank(g) {
   const R = ratingsData(); if (!R || !R.teams) return null;
   const t = resolveTeam(g.opp, R); if (!t) return null;
-  const order = Object.entries(R.teams).sort((a, b) => (b[1].ortg - b[1].drtg) - (a[1].ortg - a[1].drtg)).map(x => x[0]);
+  const order = Object.entries(R.teams).filter(x => x[1].ortg > 0).sort((a, b) => (b[1].ortg - b[1].drtg) - (a[1].ortg - a[1].drtg)).map(x => x[0]);
   return { rank: order.indexOf(t) + 1, n: order.length };
 }
 function quadOf(g) {
-  const r = oppRank(g); if (!r) return null;
-  const site = { H: 'home', A: 'away', N: 'neutral' }[g.loc] || 'home', L = QUAD_LINES[site].map(x => Math.max(1, Math.round(x * r.n / 364)));
-  return r.rank <= L[0] ? 1 : r.rank <= L[1] ? 2 : r.rank <= L[2] ? 3 : 4;
+  const r = oppRank(g); if (!r || !r.rank) return null;
+  const v = g.loc === 'H' || g.loc === 'A' ? g.loc : 'N';
+  return ['1A', '1', '2', '3'].find(q => r.rank <= r.n * QUAD_LINES[q][v] / 353) || '4';
 }
 const gSched = g => schedule().find(x => x.id === g.schedId) || {};
 const gWon = g => { const s = derive(g).score; return s.a > s.b; };
@@ -4820,7 +4822,7 @@ function splitGames(split) {
     full: () => true, conf: g => !!g.conf, nonconf: g => !g.conf && !isPost(g), post: isPost,
     confW: g => g.conf && g.final && gWon(g), confL: g => g.conf && g.final && !gWon(g), won: g => g.final && gWon(g), lost: g => g.final && !gWon(g),
     home: g => g.loc === 'H', away: g => g.loc === 'A', neutral: g => g.loc === 'N', awayN: g => g.loc === 'A' || g.loc === 'N',
-    q1: g => quadOf(g) === 1, q2: g => quadOf(g) === 2, q12: g => [1, 2].includes(quadOf(g)), q3: g => quadOf(g) === 3, q4: g => quadOf(g) === 4, q34: g => [3, 4].includes(quadOf(g)),
+    q1a: g => quadOf(g) === '1A', q1: g => ['1A', '1'].includes(quadOf(g)), q2: g => quadOf(g) === '2', q12: g => ['1A', '1', '2'].includes(quadOf(g)), q3: g => quadOf(g) === '3', q4: g => quadOf(g) === '4',
     top25: g => { const r = oppRank(g); return !!r && r.rank <= 25; }, nontop25: g => { const r = oppRank(g); return !!r && r.rank > 25; },
     pick: g => (UI.luPick || []).includes(g.id) }[split] || (() => true);
   if (split === 'last5') return all.slice(-5);

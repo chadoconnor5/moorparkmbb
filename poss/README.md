@@ -302,10 +302,11 @@ Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never
 
 **Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
 2H · OT** and the Possessions filter on top. Splits (game counts shown): Full season, Last 5, Last 10, Conference,
-Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away + neutral, Games won / lost, Quad 1,
-2, 1+2, 3, 4, 3+4, vs top 25 / outside the top 25, and Select your own games (a chip per game). Quads and top 25 use
-the nightly ratings: the opponent's rank by adjusted net, with the NCAA NET quadrant lines (home 30/75/160,
-neutral 50/100/200, away 75/135/240 of ~364) scaled to the league's size. Scrimmages never count. Season 2H =
+Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away + neutral, Games won / lost,
+**Quad 1A, Quad 1, Quad 2, Quad 1 + 2, Quad 3, Quad 4**, vs top 25 / outside the top 25, and Select your own games (a
+chip per game). Quads are the leaderboard's (its Quads tab), exactly: opponents ranked by net among every rated team,
+NCAA cutoffs of 353 scaled to the league (Q1A home 15 / neutral 25 / away 40, Q1 30/50/75, Q2 75/100/135, Q3
+160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages never count. Season 2H =
 every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
 This game is picked).
 
