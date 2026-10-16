@@ -1096,9 +1096,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rd-x{border:0;background:none;color:var(--muted);font-weight:800;padding:0 4px;cursor:pointer}
 /* Rosters: the leaderboard's Team Stats table (Basic / Advanced). */
 .ts-wrap{max-width:100%;overflow-x:auto}
-.ts-t{font-size:12px;white-space:nowrap}.ts-t th,.ts-t td{padding:5px 6px;text-align:right}.ts-t .l{text-align:left;position:sticky;left:0;background:var(--card);z-index:1}
+.ts-t{font-size:12px;white-space:nowrap}.ts-t th,.ts-t td{padding:5px 7px;text-align:center}.ts-t .l{text-align:left;position:sticky;left:0;background:var(--card);z-index:1}
+.ts-t tbody tr td{background:var(--card)}.ts-t tbody tr.z td{background:#2a303d}
+.ts-t tbody tr.ts-band td{background:#101318!important}
 .ts-t th[data-act]{cursor:pointer}.ts-t th.on{color:var(--text)}.ts-t th.on.desc::after{content:' ▾'}.ts-t th.on.asc::after{content:' ▴'}
-.ts-band td{text-align:left!important;font-weight:800;font-size:11.5px;letter-spacing:.02em;color:var(--warn);background:var(--card2)!important;padding-top:8px}
+.ts-band td{text-align:left!important;font-weight:800;font-size:11.5px;letter-spacing:.02em;color:var(--warn);padding-top:8px}
 .ts-has td{border-bottom:none}.ts-rk td{color:#f87171;font-size:10.5px;font-weight:700;padding-top:0}.ts-rk td.l{color:var(--muted);font-weight:600}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
@@ -1135,7 +1137,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.116';
+const VERSION = 'v2026.10.17.117';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2595,13 +2597,14 @@ function teamStatsTable(name, mode) {
     const k = UI.tsSort || 'ppg', dir = UI.tsDir || 'desc';
     const S = rows.slice().sort((a, b) => k === 'name' ? (dir === 'asc' ? 1 : -1) * String(a.name).localeCompare(String(b.name)) : (dir === 'desc' ? -1 : 1) * ((+a[k] || 0) - (+b[k] || 0)));
     const val = (r, c) => c === 'name' ? `<td class="l"><b>${esc(r.name)}</b></td>` : c === 'fgm' ? `<td>${pm(r.fgm, r.fga)}</td>` : c === 'twom' ? `<td>${pm(r.twom, r.twoa)}</td>` : c === 'tpm' ? `<td>${pm(r.tpm, r.tpa)}</td>` : c === 'ftm' ? `<td>${pm(r.ftm, r.fta)}</td>` : c === 'gp' ? `<td>${r.gp}</td>` : `<td>${c === 'ppg' ? `<b>${tsF(r[c])}</b>` : tsF(r[c])}</td>`;
-    return `<div class="tbl-wrap ts-wrap"><table class="tbl ts-t"><thead><tr>${TS_BASIC.map(([c, l]) => `<th class="${c === 'name' ? 'l ' : ''}${k === c ? 'on ' + dir : ''}" data-act="ts-sort" data-k="${c}">${l}</th>`).join('')}</tr></thead><tbody>${S.map(r => `<tr>${TS_BASIC.map(([c]) => val(r, c)).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return `<div class="tbl-wrap ts-wrap"><table class="tbl ts-t"><thead><tr>${TS_BASIC.map(([c, l]) => `<th class="${c === 'name' ? 'l ' : ''}${k === c ? 'on ' + dir : ''}" data-act="ts-sort" data-k="${c}">${l}</th>`).join('')}</tr></thead><tbody>${S.map((r, i) => `<tr class="${i % 2 ? 'z' : ''}">${TS_BASIC.map(([c]) => val(r, c)).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
   const cells = r => { r0 = r; return `<td class="l"><b>${esc(r.name)}</b></td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td><b>${A('ind_ortg')}</b></td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
   const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rk"><td class="l">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
-  const row = r => `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-has' : ''}">${cells(r)}</tr>${rankRow(r)}`, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}">${l}</td></tr>`;
+  let zi = 0;   // alternating colours per player; his State Rank line shares his colour
+  const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-has' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rk">', `<tr class="ts-rk${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}">${l}</td></tr>`;
   let body = '';
   if (!adv) body = rows.map(row).join('');
   else {
