@@ -78,8 +78,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
       joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no line
       yet (every opponent for now), from his position and his card labels (Shooter, Big, Ball hawk, Can't shoot...).
     - **Shooter / non-shooter** combines 3PA rate (share of his shots that are threes), threes a game and 3P%:
-      - *Estimated 3P%* = his makes / attempts pulled toward the team's 3P% until the attempts add up (the team
-        rate counts as 50 attempts), moved by his card label (Shooter +3, Can't shoot −4). FT% is not used.
+      - *Estimated 3P%* = his quality-game makes / attempts pulled toward **his own all-games 3P%** (the
+        leaderboard's box scores, downloaded with the ratings) until they add up (the starting point counts as 50
+        attempts). Only a player with under 10 threes anywhere starts from the team's 3P%, moved by his card
+        label (Shooter +3, Can't shoot −4). FT% is not used.
       - *Volume* = 3PA rate (40% of his shots, 10+ FGA) or 2.0 threes a game, whichever says more.
       - Shooter: full volume and est. 32%+, or 75% of the volume and est. 36%+. Non-shooter: est. under 28%, or
         under 15% of his shots on 20+ FGA, or under 0.5 a game over 3+ games. In between: neither.

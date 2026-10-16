@@ -1117,7 +1117,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.112';
+const VERSION = 'v2026.10.17.113';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4765,10 +4765,11 @@ function plugCard(g, D, outId) {
    line yet (every opponent for now), from his position and the labels on his card (Shooter, Big, Ball hawk...).
    Tap a label: who earned it, with their numbers. */
 /* SHOOTING: everything we have, combined into two numbers.
-   Estimated 3P% = his makes and attempts, pulled toward a starting guess until the attempts add up (the guess
-   counts as 50 attempts). The guess is the team's 3P%, moved by your card label (Shooter +3, Can't shoot -4).
-   So in week one volume and labels carry it; by February his own threes do. (FT% is not used: it isn't the
-   mark of a distance shooter.)
+   Estimated 3P% = his quality-game makes and attempts, pulled toward a starting guess until they add up (the
+   guess counts as 50 attempts). The guess is HIS OWN 3P% over all his games (the leaderboard's box scores, which
+   the tracker downloads with the ratings); only a player with almost no threes anywhere (under 10) starts from
+   the team's 3P% moved by your card label (Shooter +3, Can't shoot -4). By February his own threes decide.
+   (FT% is not used: it isn't the mark of a distance shooter.)
    Volume = does he take them: 3PA rate (share of his shots that are threes, 10+ FGA) or 3PA a game, whichever
    says more (40% of his shots or 2.0 a game = full volume).
    Shooter: full volume and est. 3P% 32%+, or most of the volume (75%) and est. 36%+.
@@ -4788,7 +4789,9 @@ function flPlayer(g, t, id) {
   const ft = x && (x.FTA || 0) >= FL.FT_MIN ? 100 * (x.FTM || 0) / x.FTA : null, rate = fga >= 10 ? 100 * a3 / fga : null, ftr = fga >= FL.FTR_FGA ? 100 * (x.FTA || 0) / fga : null;
   const T = plSeason().T || {}, base = T['3PA'] ? 100 * (T['3PM'] || 0) / T['3PA'] : 32;
   const tagS = flTag(p, /^shooter$|^sniper$|^3pt|^knockdown/i), tagN = flTag(p, /can'?t shoot|non-?shooter|no 3|bad 3/i);
-  const prior = base + (tagS ? FL.TAG_SH : 0) + (tagN ? FL.TAG_NS : 0);
+  const A = luAdj(), allL = t === 'a' && A && A.playerSeason && A.playerSeason[id] && A.playerSeason[id].all, aa = allL ? allL['3PA'] || 0 : 0;
+  const tagged = base + (tagS ? FL.TAG_SH : 0) + (tagN ? FL.TAG_NS : 0);
+  const prior = aa >= 10 ? 100 * ((allL['3PM'] || 0) + 20 * tagged / 100) / (aa + 20) : tagged;   // his all-games 3P% (lightly steadied)
   const est = x ? 100 * (m3 + FL.K3 * prior / 100) / (a3 + FL.K3) : null;
   const vol = x ? Math.max(rate != null ? rate / FL.VOL_RATE : 0, pg3 != null ? pg3 / FL.VOL_PG : 0) : null;
   const sh = x ? (vol >= 1 && est >= FL.SH_EST) || (vol >= FL.SH_VOL_HI && est >= FL.SH_EST_HI) : null;
