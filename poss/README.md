@@ -300,9 +300,14 @@ four factors at both ends, over the possessions with exactly that pattern on the
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
 Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
 
-**Scope** on Lineups: a **Game / Season** dropdown, then **All · 1H · 2H · OT**. Game 2H = this game's 2nd half;
-Season 2H = every tracked game's 2nd half (Season OT = every overtime). In a game, each OT gets its own button once it
-starts, and 2H is greyed out until it does.
+**Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
+2H · OT** and the Possessions filter on top. Splits (game counts shown): Full season, Last 5, Last 10, Conference,
+Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away + neutral, Games won / lost, Quad 1,
+2, 1+2, 3, 4, 3+4, vs top 25 / outside the top 25, and Select your own games (a chip per game). Quads and top 25 use
+the nightly ratings: the opponent's rank by adjusted net, with the NCAA NET quadrant lines (home 30/75/160,
+neutral 50/100/200, away 75/135/240 of ~364) scaled to the league's size. Scrimmages never count. Season 2H =
+every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
+This game is picked).
 
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.
