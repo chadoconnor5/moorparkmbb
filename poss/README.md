@@ -347,7 +347,7 @@ iPad** with the same math as `adjust_lineups.py` (a test checks they agree to th
 - **One lineup table, opponent-adjusted.** The Moorpark lineups (and the Moorpark line above them) show
   adjusted ORtg / DRtg / net and four factors for exactly the view picked: games split, half, possessions,
   situation and group size. Each game's units in that view are adjusted against that opponent, then summed.
-  Points, +/-, possessions, stops and NS TO% stay actual counts. A five with no rated opponent in the view shows
+  +/- and possessions stay actual counts (no PTS, STOPS or NS TO% columns: points and stops are in the row details). A five with no rated opponent in the view shows
   its raw line in italics.
 - **Raw is the backup**, in the **Data** corner under the table: **Show raw numbers** (and back), the ratings
   date (warns when more than a week old), ⬇ Lineup file and ⬆ Adjusted file (only used if the iPad has never

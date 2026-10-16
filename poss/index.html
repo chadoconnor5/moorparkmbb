@@ -1051,7 +1051,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.92';
+const VERSION = 'v2026.10.16.94';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1881,8 +1881,8 @@ function reportView(g) {
 /* ---------- lineups view ---------- */
 /* Sortable: tap a header to sort by it (biggest first; lower-is-better columns like DRtg and TO%
    smallest first), tap again to flip. Blanks sort last either way. */
-const LU_COLS = [['five', 'FIVE', ''], ['poss', 'POSS', ''], ['pts', 'PTS', ''], ['pm', '+/-', ''], ['ortg', 'ORTG', ''], ['drtg', 'DRTG', '', 1], ['net', 'NET', ''],
-  ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1], ['stops', 'STOPS', 'gd']];
+const LU_COLS = [['five', 'FIVE', ''], ['poss', 'POSS', ''], ['pm', '+/-', ''], ['ortg', 'ORTG', ''], ['drtg', 'DRTG', '', 1], ['net', 'NET', ''],
+  ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1]];
 /* Season: Moorpark's units from every tracked game added together (players are keyed by name, so a
    five is the same five in every game). */
 function seasonUnits(t, filter, k, per, sit) {
@@ -1988,14 +1988,14 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
     return (c * S.dir) || (y.v.poss - x.v.poss); });
   const th = ([key, label, cls]) => `<th class="${cls} sortable ${S.key === key ? 'on' : ''}" data-act="lu-sort" data-s="${key}">${key === 'five' ? (k === 5 ? 'FIVE' : k + '-MAN') : label}${S.key === key ? (S.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
   return `<table class="tbl zebra lut lutx"><thead>
-    <tr class="grp"><th></th><th colspan="6" class="lu-mode">${builder && t === 'a' ? (AV ? 'OPP-ADJUSTED RATINGS' : 'RAW') : ''}</th><th colspan="4" class="go">OFFENSE</th><th colspan="5" class="gd">DEFENSE</th></tr>
+    <tr class="grp"><th></th><th colspan="5" class="lu-mode">${builder && t === 'a' ? (AV ? 'OPP-ADJUSTED RATINGS' : 'RAW') : ''}</th><th colspan="4" class="go">OFFENSE</th><th colspan="4" class="gd">DEFENSE</th></tr>
     <tr>${LU_COLS.map(th).join('')}</tr></thead><tbody>
     ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
       return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''} ${v.rawOnly ? 'rawonly' : ''}" title="${v.rawOnly ? 'Raw: no rated opponent in this view' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
-        <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg == null ? '—' : f1(v.ortg)}</td><td>${v.drtg == null ? '—' : f1(v.drtg)}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sg1(v.net)}</td>
-        <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}<div class="tiny muted" title="Non-steal TO%">NS ${P(v.onsto)}</div></td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
-        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}<div class="tiny muted" title="Non-steal TO%">NS ${P(v.dnsto)}</div></td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td><td class="gd"><b>${v.stops}</b><div class="tiny muted">${P(v.stopPct)}</div></td></tr>
-        ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="16"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
+        <td>${v.poss}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg == null ? '—' : f1(v.ortg)}</td><td>${v.drtg == null ? '—' : f1(v.drtg)}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sg1(v.net)}</td>
+        <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}</td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
+        <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}</td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td></tr>
+        ${UI.luOpen === key ? `<tr class="drillwrap"><td colspan="14"><table class="tbl lut-in"><thead><tr><th></th><th>POSS</th>${END_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>PTS</th><th>KILLS</th></tr></thead><tbody>
           ${endRow('OFF', 'a', u.oPoss, u.oEnd, u.pf, 0)}${endRow('DEF', 'b', u.dPoss, u.dEnd, u.pa, u.kills)}</tbody></table>${shootTable(u)}</td></tr>` : ''}`; }).join('')}
   </tbody></table>`;
 }
@@ -2176,7 +2176,7 @@ function lineupsView(g) {
     ${splitPicker()}
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
     ${UI.luWowy ? '' : UI.luScope === 'season' ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
-    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
+    <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
