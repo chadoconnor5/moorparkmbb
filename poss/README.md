@@ -158,7 +158,7 @@ shows at the top of their column and on their lineup card, and a sub that puts i
 The situation buttons sit in four fixed rows, so each is always in the same place: **Close it out**
 (Closing FTs · Ball security · Last stop), **Come back** (Need a 3 · Need steals), **Defense** (Stop the
 run · Stop the 2s · Off the 3-pt line · Close out the glass · Stop fouling) and **Overall** (Best overall ·
-What's hurting us · vs their best five). A gold **Right now** bar on top lists the ones whose trigger is
+What's hurting us · Move the ball · vs their best five). A gold **Right now** bar on top lists the ones whose trigger is
 met, most urgent first, with the reason ("Up 5 with 3:11 left: they have to foul"); they're also
 underlined gold in their rows. Blue is the one open.
 
@@ -171,12 +171,23 @@ underlined gold in their rows. Blue is the one open.
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
 | Stop the run | they're on a 6-0 run or more | best stop % |
 | Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
-| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | lowest opponent 2P% |
+| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | best **rim D**: low opponent 2P%, blocks, without fouling (below) |
 | Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
 | Close out the glass | our DREB% 5+ under our norm | best DREB% |
+| Move the ball | our AST% tonight 12+ under our norm (8+ made shots, logged game) | best AST%, with AST/TO shown |
 | What's hurting us | we're losing a four factor this half | the halftime card's logic |
 | vs their best five | their best five is on | our fives' net against that exact five, tonight |
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
+
+**Assists and blocks in the situations.** Only games logged with the Assist / Block buttons count, so older
+games never read as zero; a five's AST% and BLK% are pulled toward our norm until the sample supports them
+(15 made shots / 20 of their 2-pt tries count half). **Rim D** (Stop the 2s) = opponent 2P%, minus half of how
+far the five's BLK% (blocks per opponent 2-pt try) is above our norm, plus a quarter of how far its fouls / 100
+defensive possessions are above our norm; lower is better. So two fives that hold teams to the same 2P% are
+split by who blocks shots without sending them to the line. Each five shows its raw line: "opp 2P 41% ·
+BLK 9/48 · 1.3 blk/PF · 22 fouls/100" on Stop the 2s, "AST 14/20 made, AST/TO 2.3" on Move the ball and Ball
+security. Until a logged game is in, Stop the 2s ranks on opponent 2P% and fouls. Plug in (fouled out) on
+Move the ball ranks by assists / 40.
 
 **Closing FTs** is one list: the **best five FT shooters available**, ranked by **closing FT%**, each
 with season FTs and clutch FTs, IN / ON tags against the five on the floor, then who comes out (OUT) and the
