@@ -179,7 +179,9 @@ This copy keeps the original project intact and starts consolidating the working
   `load_full_rosters()`, `adv` flag) with each player's State Rank on the 15 ranked stats. Ranks are computed in
   `export_ratings.state_ranks()` from `load_players()` (the page's DATA pool) with a Python port of the page's
   TS_RANK_STATS / __tsQualifies / advSchoolNeedsRelaxedCat rules: change those JS rules and the port together.
-  Checked against the page (Citrus, 2025-26: identical). Adds ~3 s to the export. Each holds `team` (team_summary.json's record / totals /
+  Checked against the page (Citrus, 2025-26: identical). Adds ~3 s to the export.
+  ORtg State Rank is statewide WITHIN the player's %Poss band (TS_USAGE_BANDS: >28 / 24-28 / 20-24 / 16-20 / 12-16 /
+  <12): `__tsUsageBand()` in the page, `usage_band()` in export_ratings.py. Every other ranked stat is overall. Each holds `team` (team_summary.json's record / totals /
   averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
   `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's
   advanced_analytics.json row). `load_players` now finds a team's side of a box with `resolve_opponent()` (box labels
