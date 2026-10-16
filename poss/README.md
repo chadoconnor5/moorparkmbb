@@ -487,7 +487,7 @@ five has 25+ offensive possessions).
     ("Shooter, Lefty"), so the game tracker shows the same thing; an old one-line note splits on commas.
   - On the Live screen the position and labels sit on **one line** under the player's name, in the order you added
     them. What doesn't fit collapses into a grey **+N** chip; tapping it opens a small light-grey bubble above the
-    card with every label (✕, any other tap, or 4 seconds closes it). It never logs anything; tapping the rest of
+    card with every label, in yellow (✕, any other tap — a game action button included — or 8 seconds closes it). It never logs anything; tapping the rest of
     the card works as before.
 - **Halftime stat sheet:** **End 1H** brings up the stat-sheet screen over the halftime report: add a photo of the
   printout if you have it (check / Clarify, then Save), or **Skip → halftime report**.

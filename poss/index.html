@@ -664,7 +664,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .nt-pop.fade{opacity:0}
 .nt-pop::after{content:'';position:absolute;left:24px;bottom:-6px;width:10px;height:10px;background:#e5e7eb;border-right:1px solid #cbd0d8;border-bottom:1px solid #cbd0d8;transform:rotate(45deg)}
 .nt-pop-l{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
-.nt-pop .nt{color:#1f2430;background:#fff;border-color:#c3c8d1}
+.nt-pop .nt{color:#713f12;background:#fcd34d;border-color:#d97706}   /* the cards' gold, solid so it reads on the light bubble */
 .nt-pop-x{flex:none;width:26px;height:26px;border-radius:7px;border:1px solid #c3c8d1;background:#fff;color:#4b5263;font-weight:800;font-size:12px;cursor:pointer}
 .ned{display:flex;flex-direction:column;gap:6px;min-width:220px}
 .ned-chips{display:flex;flex-wrap:wrap;gap:4px}.ned-chips:empty{display:none}
@@ -1102,7 +1102,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.104';
+const VERSION = 'v2026.10.17.105';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1667,14 +1667,14 @@ function fitLabels() {
     tags.forEach(x => { x.hidden = false; }); more.hidden = true; let n = 0;
     for (let i = tags.length - 1; i >= 0 && r.scrollWidth > r.clientWidth + 1; i--) { tags[i].hidden = true; n++; more.textContent = '+' + n; more.hidden = false; } });
 }
-// A small light-grey bubble above the player's card with every label; ✕ (or any other tap) closes it, and it fades on its own after 4 s.
+// A small light-grey bubble above the player's card with every label; ✕ (or any other tap) closes it, and it fades on its own after 8 s.
 function labelPop(b, L) {
   const card = b.closest('.pbtn') || b, r = card.getBoundingClientRect(), d = document.createElement('div'); d.className = 'nt-pop';
   d.innerHTML = `<div class="nt-pop-l">${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
   document.body.appendChild(d);
   d.style.width = Math.min(r.width, 320) + 'px';
   d.style.left = (r.left + window.scrollX) + 'px'; d.style.top = (r.top + window.scrollY - d.offsetHeight - 6) + 'px';
-  setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 500); }, 4000);   // fades on its own
+  setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 500); }, 8000);   // fades on its own
 }
 function playerCards(g, D, t) {
   const f = D.five[t];
