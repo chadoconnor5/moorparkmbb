@@ -300,7 +300,7 @@ four factors at both ends, over the possessions with exactly that pattern on the
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
 Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
 
-**Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
+**Lineups opens on Full season.** The controls sit in one panel: **Games** (This game or a season split), **Half**, **View** (5- to 2-man, WOWY), then **Possessions** and **Situation**. **Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
 2H · OT** and the Possessions filter on top. Splits (game counts shown): Full season, Last 5, Last 10, Conference,
 Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away + neutral, Games won / lost,
 **Q1A, Q1, Q2, Q1 + Q2, Q3, Q4**, vs top 25 / outside the top 25, and Select your own games (a
@@ -344,10 +344,15 @@ iPad** with the same math as `adjust_lineups.py` (a test checks they agree to th
 - Everything uses it: season lineups, situational lineups, the halftime card, the quality-opponent filter,
   players' quality-game lines, our norm (four factors opponent-adjusted), and the Runs tab (kills weighted
   by the opponent's rating: a kill on a good offense counts more).
-- The season card says "Live … opponent ratings as of <date>" and warns when they're more than a week old.
-  ⬇ Lineup file / ⬆ Adjusted still work as the backup when the iPad has never been online.
-- **Whole season / Last 8 games** on the season card: the last 8 finished games only, for who's playing
-  well now. Suggestions always use the whole season.
+- **One lineup table, opponent-adjusted.** The Moorpark lineups (and the Moorpark line above them) show
+  adjusted ORtg / DRtg / net and four factors for exactly the view picked: games split, half, possessions,
+  situation and group size. Each game's units in that view are adjusted against that opponent, then summed.
+  +/- and possessions stay actual counts (no PTS, STOPS or NS TO% columns: points and stops are in the row details). A five with no rated opponent in the view shows
+  its raw line in italics.
+- **Raw is the backup**, in the **Data** corner under the table: **Show raw numbers** (and back), the ratings
+  date (warns when more than a week old), ⬇ Lineup file and ⬆ Adjusted file (only used if the iPad has never
+  been online). The old second "Season lineups, opponent-adjusted" card and its Whole season / Last 8 toggle
+  are gone: Last 5 / Last 10 are in the Games dropdown.
 
 ## Situation log (automatic, saved in each game)
 
