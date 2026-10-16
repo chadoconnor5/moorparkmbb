@@ -1071,6 +1071,19 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sbtn.addready{outline:2px solid #ef4444;outline-offset:1px}
 .sbtn.addon{outline:3px solid #fbbf24;outline-offset:1px}
 
+/* THIS FIVE: the five's labels where the Team / bench row was. One line, three at most; tap one for who earned it. */
+.five-lbl{position:relative;display:flex;align-items:center;min-height:40px;padding:0 8px;border:1px dashed var(--border2);border-radius:var(--r,10px)}
+.five-lbl-t{position:absolute;top:-7px;left:10px;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--muted);padding:0 5px;line-height:12px;background:var(--card)}
+.five-lbl-ch{display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;min-width:0}
+.lc{flex:none;font:inherit;font-size:11px;font-weight:700;line-height:1;padding:5px 7px;border-radius:999px;border:1px solid;white-space:nowrap;cursor:pointer}
+.lc.g{color:#4ade80;border-color:rgba(74,222,128,.45);background:rgba(74,222,128,.10)}
+.lc.r{color:#f87171;border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.10)}
+.lc.n{color:var(--text2);border-color:var(--border2);background:rgba(255,255,255,.04)}
+.nt-pop-h{width:100%;font-size:12px;font-weight:800;color:#1f2430;margin-bottom:2px}
+.nt-pop-r{width:100%;display:grid;grid-template-columns:1fr auto;gap:10px;font-size:12.5px;color:#1f2430;line-height:1.45;white-space:nowrap}
+.nt-pop-r b{font-weight:700;overflow:hidden;text-overflow:ellipsis}.nt-pop-r span{font-weight:600;color:#4b5263;font-variant-numeric:tabular-nums}
+.lc[hidden]{display:none}
+
 </style>
 </head>
 <body>
@@ -1103,7 +1116,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.108';
+const VERSION = 'v2026.10.17.109';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1664,17 +1677,19 @@ const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 't
 const noteLabels = s => String(s || '').split(/\s*[,;·|]\s*/).map(x => x.trim()).filter(Boolean);
 const labelsNote = L => L.join(', ');
 function fitLabels() {
+  // THIS FIVE: when the three don't fit, the grey shape label goes first (the strength and weakness always show).
+  document.querySelectorAll('.five-lbl-ch').forEach(r => { const n = r.querySelector('.lc.n'); if (n) { n.hidden = false; if (r.scrollWidth > r.clientWidth + 1) n.hidden = true; } });
   document.querySelectorAll('.nt-row').forEach(r => { const more = r.querySelector('.nt.more'), tags = [...r.querySelectorAll('.nt:not(.pos):not(.more)')]; if (!more) return;
     tags.forEach(x => { x.hidden = false; }); more.hidden = true; let n = 0;
     for (let i = tags.length - 1; i >= 0 && r.scrollWidth > r.clientWidth + 1; i--) { tags[i].hidden = true; n++; more.textContent = '+' + n; more.hidden = false; } });
 }
 // A small light-grey bubble above the player's card with every label; ✕ (or any other tap) closes it, and it fades on its own after 8 s.
-function labelPop(b, L) {
-  const card = b.closest('.pbtn') || b, r = card.getBoundingClientRect(), d = document.createElement('div'); d.className = 'nt-pop';
-  d.innerHTML = `<div class="nt-pop-l">${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
+function labelPop(b, L, rows) {
+  const card = b.closest('.pbtn, .five-lbl') || b, r = card.getBoundingClientRect(), d = document.createElement('div'); d.className = 'nt-pop';
+  d.innerHTML = `<div class="nt-pop-l">${rows ? `<div class="nt-pop-h">${esc(L)}</div>${rows.map(x => `<div class="nt-pop-r">${x}</div>`).join('')}` : L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
   document.body.appendChild(d);
-  d.style.width = Math.min(r.width, 320) + 'px';
-  d.style.left = (r.left + window.scrollX) + 'px'; d.style.top = (r.top + window.scrollY - d.offsetHeight - 6) + 'px';
+  d.style.width = (rows ? Math.min(Math.max(r.width, 290), window.innerWidth - 16) : Math.min(r.width, 320)) + 'px';
+  d.style.left = (Math.max(8, Math.min(r.left, window.innerWidth - 8 - d.offsetWidth)) + window.scrollX) + 'px'; d.style.top = (r.top + window.scrollY - d.offsetHeight - 6) + 'px';
   setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 500); }, 8000);   // fades on its own
 }
 function playerCards(g, D, t) {
@@ -1694,7 +1709,7 @@ function playerCards(g, D, t) {
   const noRoster = !teamPlayers(g, t).length;
   return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
       : `<button class="btn btn-good btn-lg" style="width:100%;margin-bottom:7px" data-act="sub">Set ${esc(teamName(g, t))}'s five</button>`) : ''}
-    <div class="pgrid">${list.map(card).join('')}<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button></div>`;
+    <div class="pgrid">${list.map(card).join('')}${f.length === 5 ? fiveStrip(g, t, f) : `<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button>`}</div>`;
 }
 
 /* Their best five (2nd half and OT only): the opponent five with the best net rating over the game,
@@ -3201,6 +3216,7 @@ document.addEventListener('click', ev => {
     case 'ned-pick': nedAdd(b.closest('.ned'), b.dataset.l); break;
     case 'ned-del': { const c = b.closest('.ned'), L = noteLabels(c.querySelector('input[data-k="note"]').value); L.splice(+b.dataset.i, 1); nedPaint(c, L); break; }
     case 'nt-pop-x': break;   // the bubble is already gone (every tap closes it)
+    case 'fl-tap': { const x = ((UI.flCache || {})[b.dataset.team] || [])[+b.dataset.i]; if (x) labelPop(b, (x.kind === 'r' ? '✕ ' : '') + x.text, x.rows); break; }
     case 'nt-more': { const p = pInfo(g, b.dataset.team, b.dataset.p); labelPop(b, noteLabels(p.note)); break; }
     case 'rr-del': b.closest('tr').remove(); break;
     case 'r-save': saveRosterEdit(); render(); break;
@@ -4741,6 +4757,69 @@ function plugCard(g, D, outId) {
     ${top.map((r, i) => `<div class="plug-row"><span class="fix-rk">${i + 1}</span><div class="plug-who"><b>${esc(pShort(g, 'a', r.p.id))}</b>${r.p.pos ? ` <span class="muted small">${esc(r.p.pos)}</span>` : ''}${r.same ? '<span class="fx-both">SAME POS</span>' : ''}
         <div class="tiny muted">${mode && r.skill != null ? `<b>${mode.pct ? r.skill.toFixed(0) + '%' : r.skill.toFixed(1)} ${mode.pct ? mode.lbl.replace('%', '') : mode.lbl}</b> (${esc(plSample(r.p.id, mode.made, mode.att))}) · ` : mode ? 'not enough quality-game sample · ' : ''}five with him: season ${sg(r.sNet)}${r.sP ? ` (${r.sP} poss)` : ''} · tonight ${sg(r.tNet)}${r.tP ? ` (${r.tP})` : ''} · his +/- ${sgn(r.pm)}${r.pf ? ` · ${r.pf} PF` : ''}</div></div>
       <button class="btn btn-good" data-act="plug" data-out="${esc(outId)}" data-p="${esc(r.p.id)}">Plug in</button></div>`).join('')}</div>`;
+}
+
+/* ---------- THIS FIVE: what the five on the floor does well (and badly), in the old Team / bench row ----------
+   Three labels at most, one line: the five's shape (grey), its best strength (green), its worst weakness (red ✕).
+   From each player's season line (quality games; ours from the stat sheets / leaderboard; at halftime the 1st-half
+   sheet joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no
+   line yet (every opponent for now), from his position and the labels on his card (Shooter, Big, Ball hawk...).
+   Tap a label: who earned it, with their numbers. */
+/* Shooting adapts across the season: volume first (2.0+ threes a game is a shooter from week one), and once the
+   attempts add up (15+) the percentage has to hold (30%+). Fewer than 0.5 a game (3+ games), or under 25% on 15+,
+   is a non-shooter. */
+const FL = { SH_PG: 2.0, SH_PCT: 30, NS_PG: 0.5, NS_PCT: 25, SH_N: 15, NS_GAMES: 3, HAWK: 2.5, RIM: 2.5, TO: 4, PF: 6, FT_LO: 62, FT_HI: 75, FT_MIN: 6, GLASS_HI: 40, GLASS_LO: 26, AST_HI: 18 };
+const flTag = (p, re) => noteLabels(p.note).some(x => re.test(x));
+function flPlayer(g, t, id) {
+  const p = pInfo(g, t, id), x = t === 'a' ? plSeason().P[id] : null, pos = String(p.pos || '').toUpperCase(), min = x && (x.MIN || 0) >= 60 ? x.MIN : 0;
+  const per40 = k => min ? 40 * (x[k] || 0) / min : null, gp = x ? x.games || 0 : 0;
+  const a3 = x ? x['3PA'] || 0 : 0, pg3 = gp ? a3 / gp : null, p3 = a3 ? 100 * (x['3PM'] || 0) / a3 : null, ft = x && (x.FTA || 0) >= FL.FT_MIN ? 100 * (x.FTM || 0) / x.FTA : null;
+  const sh = pg3 == null ? null : pg3 >= FL.SH_PG && (a3 < FL.SH_N || p3 >= FL.SH_PCT), ns = pg3 == null ? null : (gp >= FL.NS_GAMES && pg3 < FL.NS_PG) || (a3 >= FL.SH_N && p3 < FL.NS_PCT);
+  const inch = (() => { const m = String(p.ht || '').match(/(\d)\D+(\d{1,2})/); return m ? 12 * +m[1] + +m[2] : null; })();
+  return { id, num: p.num, name: p.name, p3, ft, a3, pg3, fta: x ? x.FTA || 0 : 0,
+    stl: per40('STL'), blk: per40('BLK'), reb: min ? 40 * ((x.OREB || 0) + (x.DREB || 0)) / min : null, ast: per40('AST'), to: per40('TO'), pf: per40('PF'),
+    shooter: sh != null ? sh : flTag(p, /^shooter$|^sniper$|^3pt|^knockdown/i),
+    nonShooter: ns != null ? ns : flTag(p, /can'?t shoot|non-?shooter|no 3|bad 3/i),
+    big: /^(C|PF|F|F\/C|C\/F|4|5)$/.test(pos) || (inch != null && inch >= 79) || flTag(p, /^big$|^post$|^center$|^5$/i),
+    guard: /^(G|PG|SG|1|2|G\/W)$/.test(pos), posKnown: !!pos || inch != null,
+    hawk: p.stl == null && per40('STL') == null ? flTag(p, /ball ?hawk|steals|hands/i) : per40('STL') >= FL.HAWK,
+    rim: per40('BLK') != null ? per40('BLK') >= FL.RIM : flTag(p, /rim|shot ?block|blocker/i),
+    foulish: per40('PF') != null ? per40('PF') >= FL.PF : flTag(p, /foul/i) };
+}
+function fiveLabels(g, t, five) {
+  if (!five || five.length !== 5) return [];
+  const P = five.map(id => flPlayer(g, t, id)), nn = q => q.num ? '#' + q.num : lastName(q.name || q.id);
+  const who = (L, f) => L.map(q => `<b>${nn(q)} ${esc(lastName(q.name || ''))}</b><span>${f ? f(q) : ''}</span>`);
+  const out = [], add = (kind, text, score, rows) => out.push({ kind, text, score, rows });
+  const sh = P.filter(q => q.shooter), bigs = P.filter(q => q.big), known = P.filter(q => q.pg3 != null || q.shooter || q.nonShooter).length;
+  const f3 = q => q.pg3 != null ? `${q.pg3.toFixed(1)} 3PA/g${q.a3 ? ` · ${q.p3.toFixed(0)}%` : ''}` : 'tagged';
+  // Shape
+  if (bigs.length >= 2) add('n', `${bigs.length} bigs`, 0, who(bigs));
+  else if (!bigs.length && P.filter(q => q.posKnown).length >= 4) add('n', 'Small', 0, ['<b>No big on the floor</b><span></span>']);
+  // Strengths
+  if (sh.length >= 3) add('g', `${sh.length} shooters`, sh.length - 1.5, who(sh, f3));
+  const hawks = P.filter(q => q.hawk); if (hawks.length >= 2) add('g', 'Ball hawks', hawks.length - 0.5, who(hawks, q => q.stl != null ? `${q.stl.toFixed(1)} stl/40` : 'tagged'));
+  const rim = P.filter(q => q.rim); if (rim.length) add('g', 'Rim protector', 1.5, who(rim, q => q.blk != null ? `${q.blk.toFixed(1)} blk/40` : 'tagged'));
+  const R = P.filter(q => q.reb != null), reb = R.length >= 4 ? R.reduce((s, q) => s + q.reb, 0) * 5 / R.length : null;
+  if (reb != null && reb >= FL.GLASS_HI) add('g', 'Elite glass', 1 + (reb - FL.GLASS_HI) / 5, who(R, q => `${q.reb.toFixed(1)} reb/40`));
+  const A = P.filter(q => q.ast != null), ast = A.length >= 4 ? A.reduce((s, q) => s + q.ast, 0) * 5 / A.length : null;
+  if (ast != null && ast >= FL.AST_HI) add('g', 'Passers', 1 + (ast - FL.AST_HI) / 4, who(A, q => `${q.ast.toFixed(1)} ast/40`));
+  const F = P.filter(q => q.ft != null), ftLo = F.slice().sort((a, b) => a.ft - b.ft)[0];
+  if (F.length === 5 && ftLo.ft >= FL.FT_HI) add('g', 'Closing FTs', 1.5, who(F, q => `${q.ft.toFixed(0)}% FT (${q.fta})`));
+  // Weaknesses
+  if (known >= 4 && sh.length <= 1) add('r', sh.length ? '1 shooter' : 'No shooter', sh.length ? 2 : 3, sh.length ? who(sh, f3) : ['<b>Nobody on the floor shoots it</b><span></span>']);
+  const gns = P.filter(q => q.guard && q.nonShooter); if (gns.length) add('r', 'G can\'t shoot', 1.5, who(gns, f3));
+  if (reb != null && reb <= FL.GLASS_LO) add('r', 'Thin glass', 1 + (FL.GLASS_LO - reb) / 5, who(R, q => `${q.reb.toFixed(1)} reb/40`));
+  const tos = P.filter(q => q.to != null && q.to >= FL.TO); if (tos.length >= 2) add('r', 'TO risk', tos.length, who(tos, q => `${q.to.toFixed(1)} TO/40`));
+  const fp = P.filter(q => q.foulish); if (fp.length >= 2) add('r', 'Foul-prone', fp.length - 0.5, who(fp, q => q.pf != null ? `${q.pf.toFixed(1)} PF/40` : 'tagged'));
+  const badFt = P.filter(q => q.ft != null && q.ft < FL.FT_LO).sort((a, b) => a.ft - b.ft)[0] || P.find(q => q.ft == null && flTag(pInfo(g, t, q.id), /bad ft|can'?t shoot ft|hack/i));
+  if (badFt) add('r', `FT ${nn(badFt)}`, badFt.ft != null ? 1 + (FL.FT_LO - badFt.ft) / 5 : 1, who([badFt], q => q.ft != null ? `${q.ft.toFixed(0)}% FT (${q.fta})` : 'tagged'));
+  const best = k => out.filter(x => x.kind === k).sort((a, b) => b.score - a.score)[0];
+  return [best('n'), best('g'), best('r')].filter(Boolean);
+}
+function fiveStrip(g, t, five) {
+  const L = fiveLabels(g, t, five); UI.flCache = UI.flCache || {}; UI.flCache[t] = L;
+  return `<div class="five-lbl"><span class="five-lbl-t">THIS FIVE</span><div class="five-lbl-ch">${L.length ? L.map((x, i) => `<button class="lc ${x.kind}" data-act="fl-tap" data-team="${t}" data-i="${i}">${x.kind === 'r' ? '✕ ' : ''}${esc(x.text)}</button>`).join('') : '<span class="muted small">No season numbers or labels on these players yet</span>'}</div></div>`;
 }
 
 /* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------
