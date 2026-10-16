@@ -1018,6 +1018,22 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lut .lu-mode{font-size:10px;letter-spacing:.08em;color:var(--us);text-align:left}
 .lut tr.rawonly td{font-style:italic;opacity:.7}
 .lu-data{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:0 0 12px;border:1px dashed var(--border);border-radius:10px}
+/* Rotation maps */
+.lu-ctl .lu-f:nth-child(3) .lu-seg button{font-size:12.5px}
+.rot-top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.rot-tabs{flex:1;min-width:300px}
+.rot-w{display:flex;flex-direction:column;gap:4px}.rot-w .lu-seg{width:160px}
+.rot{display:flex;flex-direction:column;gap:2px}
+.rot-row{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:6px}
+.rot-n{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rot-g{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:1px}
+.rot-c{height:18px;border-radius:2px;cursor:pointer}
+.rot-c.h2{box-shadow:-3px 0 0 var(--bg,#0d0f14)}
+.rot-c.sel{outline:2px solid var(--us);outline-offset:-1px}
+.rot-hd .rot-g div{font-size:11px;font-weight:800;color:var(--muted);text-align:center;border-bottom:1px solid var(--border);padding-bottom:2px;margin-bottom:2px}
+.rot-leg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin:10px 0 4px 116px}
+.rot-bar{width:200px;height:10px;border-radius:3px;background:linear-gradient(90deg,rgb(253,236,200),rgb(139,21,21))}
+.rot-det{font-size:13px;margin-top:6px}
 
 </style>
 </head>
@@ -1051,7 +1067,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.94';
+const VERSION = 'v2026.10.16.95';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2162,7 +2178,7 @@ function lineupsView(g) {
   const sea = UI.luScope === 'season', curP = UI.luPer || 'all';
   const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
   const halves = ['all', '1H', '2H', ...ots].map(p => `<button class="${curP === p || (p === 'all' && !luPer(g)) ? 'on' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join('');
-  const views = [5, 4, 3, 2].map(k => `<button class="${(UI.luK || 5) === k && !UI.luWowy ? 'on' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('') + `<button class="${UI.luWowy ? 'on' : ''}" data-act="lu-wowy">WOWY</button>`;
+  const views = [5, 4, 3, 2].map(k => `<button class="${(UI.luK || 5) === k && !UI.luWowy && !UI.luRot ? 'on' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('') + `<button class="${UI.luWowy && !UI.luRot ? 'on' : ''}" data-act="lu-wowy">WOWY</button><button class="${UI.luRot ? 'on' : ''}" data-act="lu-rot">Rotation</button>`;
   const possSel = `<select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select>`;
   return `<div class="page-head"><h2>Lineups</h2></div>
@@ -2174,8 +2190,8 @@ function lineupsView(g) {
       <div class="lu-f"><span class="lu-l">Situation</span>${sitSel}</div>
     </div>
     ${splitPicker()}
-    ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
-    ${UI.luWowy ? '' : UI.luScope === 'season' ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
+    ${UI.luWowy || UI.luRot ? '' : UI.luScope === 'season' ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
@@ -3012,7 +3028,7 @@ document.addEventListener('click', ev => {
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
     case 'lu-filter': UI.luFilter = b.dataset.f; render(); break;
-    case 'lu-k': UI.luK = +b.dataset.k; UI.luWowy = false; UI.luOpen = null; render(); break;
+    case 'lu-k': UI.luK = +b.dataset.k; UI.luWowy = false; UI.luRot = false; UI.luOpen = null; render(); break;
     case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
@@ -3055,7 +3071,11 @@ document.addEventListener('click', ev => {
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
     case 'lu-pick': { const P = UI.luPick = UI.luPick || [], i = P.indexOf(b.dataset.id); if (i < 0) P.push(b.dataset.id); else P.splice(i, 1); render(); break; }
     case 'lu-per': UI.luPer = b.dataset.s; UI.luOpen = null; render(); break;
-    case 'lu-wowy': UI.luWowy = true; UI.luOpen = null; render(); break;
+    case 'lu-wowy': UI.luWowy = true; UI.luRot = false; UI.luOpen = null; render(); break;
+    case 'lu-rot': UI.luRot = true; UI.luWowy = false; UI.luOpen = null; render(); break;
+    case 'rot-mode': UI.rotMode = b.dataset.s; render(); break;
+    case 'rot-w': UI.rotW = +b.dataset.s; UI.rotCell = null; render(); break;
+    case 'rot-cell': { const y = window.scrollY; UI.rotCell = { id: b.dataset.id, c: +b.dataset.c }; render(); window.scrollTo(0, y); break; }
     case 'wowy-clear': UI.wowy = []; render(); break;
     case 'lu-b-clear': UI.luB = []; render(); break;
     case 'lu-raw': UI.luRaw = !UI.luRaw; render(); break;
@@ -4900,6 +4920,59 @@ function splitPicker() {
   if (UI.luScope !== 'season' || UI.luSplit !== 'pick') return '';
   const all = games.filter(g => g.ev && g.ev.length && !gSched(g).scrim).sort((a, b) => String(a.date).localeCompare(String(b.date))), P = UI.luPick || [];
   return `<div class="split-pick"><span class="small muted">Games:</span>${all.map(g => `<button class="btn btn-sm ${P.includes(g.id) ? 'btn-primary' : ''}" data-act="lu-pick" data-id="${esc(g.id)}">${esc(String(g.date).slice(5))} ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</button>`).join('')}</div>`;
+}
+
+/* ---------- Rotation maps (as CBB Analytics' "Lineup Tendencies"), by possession instead of by minute ----------
+   We don't log the clock every minute, so each half is cut into 20 equal slices of its possessions (both teams,
+   in order): a half of 38 possessions puts ~1.9 possessions in each slice, so a slice stands in for one minute.
+   Every game's halves are sliced on their own count, then the games in the Lineups split are added together.
+   Three maps, one row per player (sorted by possessions on the floor):
+     ON COURT        % of the slice's possessions he was on the floor
+     ON COURT, SHOTS % of our shot attempts in the slice taken with him on the floor
+     SHOTS TAKEN     % of our shot attempts in the slice he took himself (shots tagged to a shooter)
+   Overtime isn't drawn. Tap a cell for the numbers behind it; "slices per box" widens the boxes like their slider. */
+const ROT_SLICES = 20;
+function rotData(list) {
+  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, fgaTag: 0, games: new Set() }));
+  const pl = id => P[id] = P[id] || { on: Array(2 * ROT_SLICES).fill(0), shotOn: Array(2 * ROT_SLICES).fill(0), shots: Array(2 * ROT_SLICES).fill(0), total: 0 };
+  list.forEach(g => { const D = derive(g);
+    ['1H', '2H'].forEach((per, h) => { const H = D.poss.filter(p => p.per === per), n = H.length; if (!n) return;
+      H.forEach((p, i) => { const b = h * ROT_SLICES + Math.min(ROT_SLICES - 1, Math.floor(i * ROT_SLICES / n)), t = T[b], five = p.five.a || [];
+        t.poss++; t.games.add(g.id);
+        five.forEach(id => { const x = pl(id); x.on[b]++; x.total++; });
+        if (p.team !== 'a') return;
+        p.plays.forEach(e => { if (!/^[23][mx]$/.test(e.k) || e.team !== 'a') return;
+          t.fga++; five.forEach(id => { pl(id).shotOn[b]++; });
+          if (e.player && e.player !== 'TEAM') { t.fgaTag++; pl(e.player).shots[b]++; } }); }); }); });
+  return { P, T };
+}
+function rotView(g) {
+  const list = UI.luScope === 'season' ? splitGames() : [g], R = rotData(list), mode = UI.rotMode || 'on', w = UI.rotW || 1;
+  const cols = 2 * ROT_SLICES / w, nm = id => pShort(g, 'a', id);
+  const ids = Object.keys(R.P).filter(id => teamPlayers(g, 'a').some(p => p.id === id) || R.P[id].total).sort((a, b) => R.P[b].total - R.P[a].total);
+  // One box = w slices: sums across them.
+  const sum = (arr, c) => arr.slice(c * w, c * w + w).reduce((s, v) => s + v, 0);
+  const val = (id, c) => { const x = R.P[id], tp = T => sum(R.T.map(t => t[T]), c);
+    return mode === 'on' ? { n: sum(x.on, c), d: tp('poss') } : mode === 'shotOn' ? { n: sum(x.shotOn, c), d: tp('fga') } : { n: sum(x.shots, c), d: tp('fgaTag') }; };
+  const max = mode === 'shots' ? 25 : 80;   // the colour scale's top, like theirs: 80% on court, 25% of shots
+  const col = r => { if (r == null) return 'transparent'; const t = Math.min(1, r / max), a = [253, 236, 200], z = [139, 21, 21];
+    return `rgb(${a.map((v, i) => Math.round(v + (z[i] - v) * t)).join(',')})`; };
+  const sel = UI.rotCell;
+  const cells = id => Array.from({ length: cols }, (_, c) => { const v = val(id, c), r = v.d ? 100 * v.n / v.d : null, on = sel && sel.id === id && sel.c === c;
+    return `<div class="rot-c ${on ? 'sel' : ''} ${c === cols / 2 ? 'h2' : ''}" style="background:${r == null || !v.n ? (r == null ? 'transparent' : 'rgba(255,255,255,.04)') : col(r)}" data-act="rot-cell" data-id="${esc(id)}" data-c="${c}"></div>`; }).join('');
+  const head = `<div class="rot-row rot-hd"><div class="rot-n"></div><div class="rot-g" style="--cols:${cols}"><div style="grid-column:1 / span ${cols / 2}">1st half</div><div style="grid-column:${cols / 2 + 1} / span ${cols / 2}">2nd half</div></div></div>`;
+  const rows = ids.map(id => `<div class="rot-row"><div class="rot-n">${esc(nm(id))}</div><div class="rot-g" style="--cols:${cols}">${cells(id)}</div></div>`).join('');
+  const detail = sel && R.P[sel.id] ? (() => { const v = val(sel.id, sel.c), h = sel.c < cols / 2 ? '1st half' : '2nd half', s = (sel.c % (cols / 2)) * w;
+    const what = mode === 'on' ? `on the floor for ${v.n} of ${v.d} possessions` : mode === 'shotOn' ? `on the floor for ${v.n} of our ${v.d} shots` : `took ${v.n} of our ${v.d} tagged shots`;
+    return `<div class="rot-det"><b>${esc(nm(sel.id))}</b> · ${h}, "minute" ${s + 1}${w > 1 ? `–${s + w}` : ''}: ${what}${v.d ? ` (<b>${Math.round(100 * v.n / v.d)}%</b>)` : ''} · ${list.length} game${list.length === 1 ? '' : 's'}</div>`; })() : '<div class="rot-det muted">Tap a box for the numbers behind it.</div>';
+  const legend = `<div class="rot-leg"><span>0%</span><span class="rot-bar"></span><span>${max}%+</span></div>`;
+  const tabs = [['on', 'On court'], ['shotOn', 'On court for shots'], ['shots', 'Shots taken']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="rot-mode" data-s="${k}">${l}</button>`).join('');
+  const widths = [1, 2, 4, 5].map(k => `<button class="${w === k ? 'on' : ''}" data-act="rot-w" data-s="${k}">${k}</button>`).join('');
+  const sub = { on: '% of each slice\'s possessions he was on the floor', shotOn: '% of our shot attempts taken with him on the floor', shots: '% of our shot attempts he took (shots tagged to a shooter)' }[mode];
+  if (!ids.length) return '<div class="muted small">No possessions with a full five yet.</div>';
+  return `<div class="rot-top"><div class="lu-seg rot-tabs">${tabs}</div><div class="rot-w"><span class="small muted">Slices per box</span><div class="lu-seg">${widths}</div></div></div>
+    <div class="small muted" style="margin:6px 0 8px">${esc(sub)}. Each half is cut into ${ROT_SLICES} equal slices of its possessions (about one minute each). Players sorted by possessions on the floor.</div>
+    <div class="rot">${head}${rows}</div>${legend}${detail}`;
 }
 
 /* ---------- Runs: kills, kill shots and runs ----------
