@@ -996,6 +996,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lu-b-slots{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:6px}
 .lu-b-slot{min-width:0;font-size:13px;padding:8px 6px}
 .lu-fsel select{width:auto;font:inherit;font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--us);background:var(--card);color:var(--text)}
+.lu-src{width:auto;font:inherit;font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--us);background:var(--card);color:var(--text)}
+.split-pick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+/* Moorpark's line for the view picked, above the lineups. */
+.lu-team{border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:0 0 10px;background:rgba(58,155,217,.06)}
+.lu-team-r{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin-top:4px}
+.lu-team-r .go{color:var(--text2)}.lu-team-r .gd{color:var(--text2)}
 
 </style>
 </head>
@@ -1029,7 +1035,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.85';
+const VERSION = 'v2026.10.16.89';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1466,17 +1472,22 @@ function possBox(p) {
 /* Every k-man combo (k = 5: the fives) of team t: possessions at both ends, points, +/-, how they
    ended, and the four-factor counts on offence (o) and defence (d). A combo is on the floor for every
    possession of every five that contains it. */
-function lineupUnits(g, D, t, scope, filter, k) {
+// A period, or 'OT*' = every overtime (the season's OT button).
+const perIn = (per, want) => want === 'OT*' ? String(per).startsWith('OT') : per === want;
+function lineupUnits(g, D, t, scope, filter, k, sit) {
   k = k || 5;
   const pers = scope === 'game' ? null : scope, units = {}, players = {};
   // all · nogt (no garbage time) · clutch · hm (High+Med) · high · med · low — garbage time is out of all but 'all'.
-  const keep = p => !filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)));
+  const keep0 = p => !filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)));
+  // A situation (sitlog.js) on top: only possessions the game's situation log tagged with it.
+  let SL = null; if (sit) { try { stampSits(g); } catch (e) {} SL = (g.sitLog && g.sitLog.poss) || {}; }
+  const keep = p => keep0(p) && (!SL || !!(SL[p.id] && SL[p.id].t.includes(sit)));
   const zb = () => ({ fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, ftm: 0, tov: 0, stov: 0, chg: 0, offf: 0, oreb: 0, dreb: 0, scp: 0, sc2: 0, and1: 0, pot: 0, potN: 0 });
   const combos = f => k === 5 ? [f] : kSubsets(f.slice().sort(), k);
   const U = c => units[fiveKey(c)] = units[fiveKey(c)] || { five: c, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, fouls: 0, oEnd: {}, dEnd: {}, o: zb(), d: zb() };
   const credit = (f, pf, pa) => f.forEach(id => { const p = players[id] = players[id] || { pm: 0 }; p.pm += pf - pa; });
   D.poss.forEach((p, i) => {
-    if (pers && p.per !== pers) return;
+    if (pers && !perIn(p.per, pers)) return;
     if (!keep(p)) return;
     const f = p.five[t]; if (!f || f.length !== 5) return;
     const mine = p.team === t, bx = possBox(p), pv = D.poss[i - 1];
@@ -1489,9 +1500,9 @@ function lineupUnits(g, D, t, scope, filter, k) {
     if (mine) credit(f, p.pts, 0); else credit(f, 0, p.pts);
   });
   // Personal fouls by this team while the unit was on, filtered like the possession they came in.
-  D.items.filter(x => x.kind === 'foul' && x.e.team === t && (!pers || x.e.per === pers) && (!filter || filter === 'all' || (x.p ? keep(x.p) : filter === 'nogt'))).forEach(x => {
+  D.items.filter(x => x.kind === 'foul' && x.e.team === t && (!pers || perIn(x.e.per, pers)) && (!sit || (x.p && keep(x.p))) && (!filter || filter === 'all' || (x.p ? keep(x.p) : filter === 'nogt'))).forEach(x => {
     const f = x.five && x.five[t]; if (!f || f.length !== 5) return; combos(f).forEach(c => { U(c).fouls++; }); });
-  D.items.filter(x => x.kind === 'tech' && (!pers || x.e.per === pers) && (!filter || filter === 'all')).forEach(x => {
+  D.items.filter(x => x.kind === 'tech' && !sit && (!pers || perIn(x.e.per, pers)) && (!filter || filter === 'all')).forEach(x => {
     const f = x.five[t]; if (!f || f.length !== 5) return;
     const pts = x.e.ftm || 0;
     combos(f).forEach(c => { const u = U(c); if (x.e.team === t) u.pa += pts; else u.pf += pts; });
@@ -1858,10 +1869,10 @@ const LU_COLS = [['five', 'FIVE', ''], ['poss', 'POSS', ''], ['pts', 'PTS', ''],
   ['oefg', 'eFG%', 'go'], ['oto', 'TO%', 'go', 1], ['oorb', 'OREB%', 'go'], ['oftr', 'FTR', 'go'], ['defg', 'eFG%', 'gd', 1], ['dto', 'TO%', 'gd'], ['ddrb', 'DREB%', 'gd'], ['dftr', 'FTR', 'gd', 1], ['stops', 'STOPS', 'gd']];
 /* Season: Moorpark's units from every tracked game added together (players are keyed by name, so a
    five is the same five in every game). */
-function seasonUnits(t, filter, k) {
+function seasonUnits(t, filter, k, per, sit) {
   const units = {};
-  games.forEach(gm => { if (!gm.ev || !gm.ev.length) return;
-    lineupUnits(gm, derive(gm), t, 'game', filter, k).units.forEach(u => { const key = fiveKey(u.five);
+  splitGames().forEach(gm => {
+    lineupUnits(gm, derive(gm), t, per || 'game', filter, k, sit).units.forEach(u => { const key = fiveKey(u.five);
       const m = units[key] = units[key] || { five: u.five, oPoss: 0, dPoss: 0, pf: 0, pa: 0, kills: 0, stops: 0, games: 0, oEnd: {}, dEnd: {}, o: {}, d: {} };
       ['oPoss', 'dPoss', 'pf', 'pa', 'kills', 'stops'].forEach(x => { m[x] += u[x]; }); m.games++;
       [['oEnd', u.oEnd], ['dEnd', u.dEnd], ['o', u.o], ['d', u.d]].forEach(([x, src]) => Object.keys(src).forEach(c => { m[x][c] = (m[x][c] || 0) + src[c]; })); }); });
@@ -1887,9 +1898,15 @@ function shootTable(u) {
    that no longer fits after a filter change is kept, and the panel says so, rather than vanishing.
    UI.luB = one slot per player of the current size, '' = any player. */
 function luUnitsFor(g, D, t, scope, filter, k) {
-  const sc = scope || (UI.luScope === 'game' ? 'game' : UI.luScope === 'season' ? 'season' : g.per);
-  return sc === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, sc, filter || UI.luFilter, k);
+  // Game or Season (the dropdown), then All / 1H / 2H / OT (the buttons): season 2H = every game's 2nd half.
+  if (scope) return scope === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, scope, filter || UI.luFilter, k);
+  const per = luPer(g);
+  return UI.luScope === 'season' ? seasonUnits(t, filter || UI.luFilter, k, per, UI.luSit) : lineupUnits(g, D, t, per || 'game', filter || UI.luFilter, k, UI.luSit);
 }
+// The period picked under Game / Season: null = the whole game.
+function luPer(g) { const p = UI.luPer || 'all'; if (p === 'all') return null;
+  if (UI.luScope === 'season') return p === 'OT' ? 'OT*' : p;
+  return g.periods.includes(p) ? p : null; }
 function luBSync(units, k) { const known = new Set(units.flatMap(u => u.five)); UI.luB = Array.from({ length: k }, (_, i) => { const n = (UI.luB || [])[i]; return n && known.has(n) ? n : ''; }); }
 const luBMatch = units => { const sel = (UI.luB || []).filter(Boolean); return sel.length ? units.filter(u => sel.every(n => u.five.includes(n))) : units; };
 function luBOptions(units, i) {
@@ -1898,6 +1915,19 @@ function luBOptions(units, i) {
   if (!reach) units.forEach(u => u.five.forEach(n => { if (!others.includes(n)) out.add(n); }));
   if (UI.luB[i]) out.add(UI.luB[i]);
   return [...out];
+}
+/* Moorpark in the view picked (split · half · possessions · situation): every possession with a full five,
+   both ends, so the team line and the lineups below it always cover the same possessions. */
+function luTeamLine(g, D) {
+  const L = luUnitsFor(g, D, 'a', null, null, 5); if (!L.units.length) return '';
+  const z = { oPoss: 0, dPoss: 0, pf: 0, pa: 0, stops: 0, o: {}, d: {} };
+  L.units.forEach(u => { ['oPoss', 'dPoss', 'pf', 'pa', 'stops'].forEach(k => { z[k] += u[k]; }); ['o', 'd'].forEach(s => Object.keys(u[s]).forEach(k => { z[s][k] = (z[s][k] || 0) + u[s][k]; })); });
+  const O = ff4(Object.assign({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: 0 }, z.o), z.d, z.oPoss), X = ff4(Object.assign({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: 0 }, z.d), z.o, z.dPoss);
+  const o = z.oPoss ? 100 * z.pf / z.oPoss : null, d = z.dPoss ? 100 * z.pa / z.dPoss : null, P = v => v == null ? '—' : v.toFixed(1), Pc = v => v == null ? '—' : v.toFixed(1) + '%';
+  const view = [UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game', luPer(g) ? (luPer(g) === 'OT*' ? 'OT' : luPer(g)) : '', { all: '', hm: 'High + Med', high: 'High', med: 'Medium', low: 'Low', clutch: 'Clutch', nogt: 'No garbage time' }[UI.luFilter || 'hm'], UI.luSit ? SITLOG[UI.luSit].lbl : ''].filter(Boolean).join(' · ');
+  return `<div class="lu-team"><div class="lu-team-h"><b>Moorpark</b> <span class="muted small">· ${esc(view)}</span></div>
+    <div class="lu-team-r"><span><b>${z.oPoss}</b>/<b>${z.dPoss}</b> poss O/D</span><span>${z.pf}–${z.pa}</span><span>ORtg <b>${P(o)}</b></span><span>DRtg <b>${P(d)}</b></span><span>Net <b class="${o != null && d != null ? pmCls(o - d) : ''}">${o != null && d != null ? sg1(Math.round(10 * (o - d)) / 10) : '—'}</b></span>
+      <span class="go">eFG ${Pc(O.efg)} · TO ${Pc(O.to)} · OREB ${Pc(O.orb)} · FTR ${Pc(O.ftr)}</span><span class="gd">opp eFG ${Pc(X.efg)} · TO ${Pc(X.to)} · DREB ${Pc(X.orb == null ? null : 100 - X.orb)} · FTR ${Pc(X.ftr)} · stops ${z.dPoss ? Math.round(100 * z.stops / z.dPoss) + '%' : '—'}</span></div></div>`;
 }
 function luBuilderPanel(g, D, k) {
   const L = luUnitsFor(g, D, 'a', null, null, k); if (!L.units.length) return '';
@@ -2113,11 +2143,14 @@ function fixCard(g, D, o, cur) {
 }
 function lineupsView(g) {
   const D = derive(g);
-  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
+  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px;align-items:center">${splitSelect(g)}${(() => { const sea = UI.luScope === 'season', cur = UI.luPer || 'all';
+        const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
+        return ['all', '1H', '2H', ...ots].map(p => `<button class="btn btn-sm ${cur === p || (p === 'all' && !luPer(g) && cur !== 'all' && !sea && !g.periods.includes(cur)) ? 'btn-primary' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join(''); })()}</div>
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
-      <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
-    ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · season, every game tracked</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
-    ${UI.luWowy ? '' : UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+      <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Situation</span><select data-act="lu-sit-sel"><option value="">Any</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select></label><label class="row lu-fsel" style="gap:6px;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    ${splitPicker()}
+    ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
+    ${UI.luWowy ? '' : UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season · ${esc(splitName(UI.luSplit || 'full'))}: ${splitGames().length} game${splitGames().length === 1 ? '' : 's'} tracked on this iPad, Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
@@ -2995,6 +3028,8 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'lu-pick': { const P = UI.luPick = UI.luPick || [], i = P.indexOf(b.dataset.id); if (i < 0) P.push(b.dataset.id); else P.splice(i, 1); render(); break; }
+    case 'lu-per': UI.luPer = b.dataset.s; UI.luOpen = null; render(); break;
     case 'lu-wowy': UI.luWowy = true; UI.luOpen = null; render(); break;
     case 'wowy-clear': UI.wowy = []; render(); break;
     case 'lu-b-clear': UI.luB = []; render(); break;
@@ -3047,8 +3082,12 @@ document.addEventListener('click', ev => {
 });
 
 // The Lineup Builder's dropdowns (selects fire change, not click).
-document.addEventListener('change', ev => { const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
+document.addEventListener('change', ev => { const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
+  if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }
+  const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
   if (f) { UI.luFilter = f.value; UI.luOpen = null; render(); return; }
+  const si = ev.target.closest && ev.target.closest('select[data-act="lu-sit-sel"]');
+  if (si) { UI.luSit = si.value || null; UI.luOpen = null; render(); return; }
   const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
   const k = s.dataset.act === 'wowy' ? 'wowy' : 'luB'; UI[k] = UI[k] || []; UI[k][+s.dataset.i] = s.value; const y = window.scrollY; render(); window.scrollTo(0, y); });
 
@@ -4709,21 +4748,23 @@ function sitTagsHtml(g, p) {
    Always the whole season (every game tracked here, scrimmages out); the leverage filter is the Lineups tab's. Combinations that never took
    the floor stay, dimmed and last, because "these two were never off together" is a fact about the rotation. */
 const WOWY_SLOTS = 5;
-function wowyKeep(filter) { return p => !filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter))); }
+function wowyKeep(filter, g) {
+  let SL = null; if (UI.luSit && g) { try { stampSits(g); } catch (e) {} SL = (g.sitLog && g.sitLog.poss) || {}; }
+  return p => (!filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)))) && (!SL || !!(SL[p.id] && SL[p.id].t.includes(UI.luSit))); }
 // Always the whole season: every game tracked here (scrimmages out), whatever the Lineups scope is set to.
 function wowyGames(g) {
-  return games.filter(x => x.ev && x.ev.length && !((schedule().find(s => s.id === x.schedId) || {}).scrim)).map(x => ({ g: x, D: derive(x), per: null }));
+  // The season split picked on Lineups (Full season unless you've picked one); This game still means the season.
+  return splitGames(UI.luScope === 'season' ? UI.luSplit : 'full').map(x => ({ g: x, D: derive(x), per: null }));
 }
 // Each game's players who took the floor in scope: the units the dropdowns cascade over.
 function wowyUnits(G) {
-  const keep = wowyKeep(UI.luFilter);
-  return G.map(({ D, per }) => { const s = new Set(); D.poss.forEach(p => { if ((!per || p.per === per) && keep(p) && (p.five.a || []).length === 5) p.five.a.forEach(id => s.add(id)); }); return [...s]; }).filter(u => u.length);
+  return G.map(({ g, D, per }) => { const keep = wowyKeep(UI.luFilter, g), s = new Set(); D.poss.forEach(p => { if ((!per || p.per === per) && keep(p) && (p.five.a || []).length === 5) p.five.a.forEach(id => s.add(id)); }); return [...s]; }).filter(u => u.length);
 }
 function wowyRows(G, picks) {
-  const keep = wowyKeep(UI.luFilter), K = picks.length, z = () => ({ fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, ftm: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 });
+  const K = picks.length, z = () => ({ fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, ftm: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 });
   const acc = Array.from({ length: 1 << K }, () => ({ games: new Set(), oPoss: 0, dPoss: 0, pf: 0, pa: 0, o: z(), d: z() }));
   let used = 0, split = 0;
-  G.forEach(({ g, D, per }) => {
+  G.forEach(({ g, D, per }) => { const keep = wowyKeep(UI.luFilter, g);
     const P = D.poss.filter(p => (!per || p.per === per) && keep(p) && (p.five.a || []).length === 5);
     const played = new Set(P.flatMap(p => p.five.a));
     if (!picks.every(id => played.has(id))) { if (P.length) split++; return; }
@@ -4763,6 +4804,67 @@ function wowyView(g) {
     ${rows.map(r => `<tr class="${r.never ? 'wowy-never' : ''}"><td style="text-align:left">${chips(r)}</td><td>${r.never ? '—' : r.gp}</td><td>${r.never ? '—' : r.poss}</td><td class="${r.never ? '' : pmCls(r.pm)}">${r.never ? '—' : sgn(r.pm)}</td><td>${f1(r.ortg)}</td><td>${f1(r.drtg)}</td><td class="${r.net == null ? '' : pmCls(r.net)}"><b>${r.net == null ? '—' : sg1(Math.round(10 * r.net) / 10)}</b></td>
       <td class="go">${P(r.efg)}</td><td class="go">${P(r.to)}</td><td class="go">${P(r.orb)}</td><td class="go">${P(r.ftr)}</td><td class="gd">${P(r.defg)}</td><td class="gd">${P(r.dto)}</td><td class="gd">${P(r.ddrb)}</td><td class="gd">${P(r.dftr)}</td></tr>`).join('')}</tbody></table></div>
     <div class="small muted" style="margin-top:6px">${R.rows.filter(r => !r.never).length} of ${1 << picks.length} combinations took the floor; the rest are dimmed with no possessions behind them.${R.split ? ` ${R.split} game${R.split === 1 ? '' : 's'} left out where not all ${picks.length} played, so OFF always means he sat.` : ''} POSS = possessions (both ends averaged); ratings per 100. Green = on the floor, red = off.</div>`;
+}
+
+/* ---------- stat splits for lineups (as CBB Analytics has them) ----------
+   The Lineups dropdown picks which games count: this game, or a split of the season. Halves (All / 1H / 2H /
+   OT) and the Possessions filter (leverage, clutch, garbage time) apply on top of it. Quads and Top 25 use the
+   leaderboard's nightly ratings: the opponent's rank by adjusted net among every in-system team, with the
+   leaderboard's own quadrant lines (see QUAD_LINES). Scrimmages never count. */
+const SPLITS = [
+  ['full', 'Full season'], ['last5', 'Last 5 games'], ['last10', 'Last 10 games'],
+  ['conf', 'Conference games'], ['nonconf', 'Non-conference games'], ['confW', 'Conference wins'], ['confL', 'Conference losses'],
+  ['post', 'Postseason'], ['home', 'Home games'], ['away', 'Away games'], ['neutral', 'Neutral games'], ['awayN', 'Away + neutral games'],
+  ['won', 'Games won'], ['lost', 'Games lost'],
+  ['q1a', 'Q1A games'], ['q1', 'Q1 games'], ['q2', 'Q2 games'], ['q12', 'Q1 + Q2 games'], ['q3', 'Q3 games'], ['q4', 'Q4 games'],
+  ['top25', 'vs top 25 (rating)'], ['nontop25', 'vs outside the top 25'], ['pick', 'Select your own games']];
+/* The leaderboard's quadrants (its Quads tab), exactly: opponents ranked by net rating among every rated team,
+   NCAA cutoffs (of 353) scaled to the league's size and not rounded, by venue (no venue = neutral).
+   Q1A H<=15 N<=25 A<=40 · Q1 H<=30 N<=50 A<=75 · Q2 H<=75 N<=100 A<=135 · Q3 H<=160 N<=200 A<=240 · Q4 the rest.
+   Like the leaderboard, Q1 includes Q1A and Q1+2 includes Q1A, Q1 and Q2. */
+const QUAD_LINES = { '1A': { H: 15, N: 25, A: 40 }, '1': { H: 30, N: 50, A: 75 }, '2': { H: 75, N: 100, A: 135 }, '3': { H: 160, N: 200, A: 240 } };
+function oppRank(g) {
+  const R = ratingsData(); if (!R || !R.teams) return null;
+  const t = resolveTeam(g.opp, R); if (!t) return null;
+  const order = Object.entries(R.teams).filter(x => x[1].ortg > 0).sort((a, b) => (b[1].ortg - b[1].drtg) - (a[1].ortg - a[1].drtg)).map(x => x[0]);
+  return { rank: order.indexOf(t) + 1, n: order.length };
+}
+function quadOf(g) {
+  const r = oppRank(g); if (!r || !r.rank) return null;
+  const v = g.loc === 'H' || g.loc === 'A' ? g.loc : 'N';
+  return ['1A', '1', '2', '3'].find(q => r.rank <= r.n * QUAD_LINES[q][v] / 353) || '4';
+}
+const gSched = g => schedule().find(x => x.id === g.schedId) || {};
+const gWon = g => { const s = derive(g).score; return s.a > s.b; };
+function isPost(g) { const s = gSched(g); return !!(g.post || s.post || /playoff|regional|state|post/i.test(s.event || '')); }
+// The games a split covers, oldest first (the game in progress counts where it fits; W/L only once final).
+function splitGames(split) {
+  split = split || UI.luSplit || 'full';
+  const all = games.filter(g => g.ev && g.ev.length && !gSched(g).scrim).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const f = {
+    full: () => true, conf: g => !!g.conf, nonconf: g => !g.conf && !isPost(g), post: isPost,
+    confW: g => g.conf && g.final && gWon(g), confL: g => g.conf && g.final && !gWon(g), won: g => g.final && gWon(g), lost: g => g.final && !gWon(g),
+    home: g => g.loc === 'H', away: g => g.loc === 'A', neutral: g => g.loc === 'N', awayN: g => g.loc === 'A' || g.loc === 'N',
+    q1a: g => quadOf(g) === '1A', q1: g => ['1A', '1'].includes(quadOf(g)), q2: g => quadOf(g) === '2', q12: g => ['1A', '1', '2'].includes(quadOf(g)), q3: g => quadOf(g) === '3', q4: g => quadOf(g) === '4',
+    top25: g => { const r = oppRank(g); return !!r && r.rank <= 25; }, nontop25: g => { const r = oppRank(g); return !!r && r.rank > 25; },
+    pick: g => (UI.luPick || []).includes(g.id) }[split] || (() => true);
+  if (split === 'last5') return all.slice(-5);
+  if (split === 'last10') return all.slice(-10);
+  return all.filter(f);
+}
+const splitName = k => (SPLITS.find(x => x[0] === k) || ['', 'Full season'])[1];
+// The dropdown: This game, then every split (quads / top 25 greyed out until the ratings are on this iPad).
+function splitSelect(g) {
+  const v = UI.luScope === 'season' ? (UI.luSplit || 'full') : 'game', hasR = !!ratingsData();
+  return `<select class="lu-src" data-act="lu-src"><option value="game" ${v === 'game' ? 'selected' : ''}>This game</option><optgroup label="Season">${SPLITS.map(([k, l]) => {
+    const n = (/^q|top25/.test(k) && !hasR) ? null : splitGames(k).length;
+    return `<option value="${k}" ${v === k ? 'selected' : ''} ${n === null ? 'disabled' : ''}>${l}${n === null ? ' (needs ratings)' : k === 'pick' ? '' : ` (${n})`}</option>`; }).join('')}</optgroup></select>`;
+}
+// "Select your own games": a chip per game.
+function splitPicker() {
+  if (UI.luScope !== 'season' || UI.luSplit !== 'pick') return '';
+  const all = games.filter(g => g.ev && g.ev.length && !gSched(g).scrim).sort((a, b) => String(a.date).localeCompare(String(b.date))), P = UI.luPick || [];
+  return `<div class="split-pick"><span class="small muted">Games:</span>${all.map(g => `<button class="btn btn-sm ${P.includes(g.id) ? 'btn-primary' : ''}" data-act="lu-pick" data-id="${esc(g.id)}">${esc(String(g.date).slice(5))} ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</button>`).join('')}</div>`;
 }
 
 /* ---------- Runs: kills, kill shots and runs ----------
