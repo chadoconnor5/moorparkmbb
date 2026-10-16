@@ -321,7 +321,8 @@ garbage time. It drives the lineup table, the Lineup Builder and WOWY.
 ## Rotation map (Lineups → View → Rotation)
 
 CBB Analytics' "Lineup Tendencies" heat maps, by possession instead of by minute: each half is cut into 20 equal
-slices of its own possessions (both teams, in order; a 38-possession half puts ~1.9 in each), so a slice stands in
+slices of its own possessions (both teams, in order). Every slice is a whole number of possessions (a 38-possession half:
+18 slices of 2 and 2 of 1, spread evenly; tap a box for "Possessions 37–38 · 2 possessions"), so a slice stands in
 for a minute. Each game is sliced on its own count, then the games in the Games split are added. One row per player,
 sorted by possessions on the floor; darker = higher.
 - **On court**: % of the slice's possessions he was on the floor (scale to 80%).

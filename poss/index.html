@@ -4923,8 +4923,10 @@ function splitPicker() {
 }
 
 /* ---------- Rotation maps (as CBB Analytics' "Lineup Tendencies"), by possession instead of by minute ----------
-   We don't log the clock every minute, so each half is cut into 20 equal slices of its possessions (both teams,
-   in order): a half of 38 possessions puts ~1.9 possessions in each slice, so a slice stands in for one minute.
+   We don't log the clock every minute, so each half is cut into 20 slices of its possessions (both teams, in
+   order). Every slice holds a whole number of possessions: a 38-possession half gives 18 slices of 2 and 2 of 1,
+   spread evenly through the half (never 1.9), so a slice stands in for one minute. Tapping a box says which
+   possessions of the half it holds ("Possessions 37–38 · 2 possessions").
    Every game's halves are sliced on their own count, then the games in the Lineups split are added together.
    Three maps, one row per player (sorted by possessions on the floor):
      ON COURT        % of the slice's possessions he was on the floor
@@ -4933,12 +4935,14 @@ function splitPicker() {
    Overtime isn't drawn. Tap a cell for the numbers behind it; "slices per box" widens the boxes like their slider. */
 const ROT_SLICES = 20;
 function rotData(list) {
-  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, fgaTag: 0, games: new Set() }));
+  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, fgaTag: 0, games: new Set(), ranges: {} }));
   const pl = id => P[id] = P[id] || { on: Array(2 * ROT_SLICES).fill(0), shotOn: Array(2 * ROT_SLICES).fill(0), shots: Array(2 * ROT_SLICES).fill(0), total: 0 };
   list.forEach(g => { const D = derive(g);
     ['1H', '2H'].forEach((per, h) => { const H = D.poss.filter(p => p.per === per), n = H.length; if (!n) return;
       H.forEach((p, i) => { const b = h * ROT_SLICES + Math.min(ROT_SLICES - 1, Math.floor(i * ROT_SLICES / n)), t = T[b], five = p.five.a || [];
         t.poss++; t.games.add(g.id);
+        // Which possessions of the half (1 = the half's first, both teams) this box holds in this game.
+        const r = t.ranges[g.id] = t.ranges[g.id] || { from: i + 1, to: i + 1, n: 0 }; r.to = i + 1; r.n++;
         five.forEach(id => { const x = pl(id); x.on[b]++; x.total++; });
         if (p.team !== 'a') return;
         p.plays.forEach(e => { if (!/^[23][mx]$/.test(e.k) || e.team !== 'a') return;
@@ -4964,14 +4968,22 @@ function rotView(g) {
   const rows = ids.map(id => `<div class="rot-row"><div class="rot-n">${esc(nm(id))}</div><div class="rot-g" style="--cols:${cols}">${cells(id)}</div></div>`).join('');
   const detail = sel && R.P[sel.id] ? (() => { const v = val(sel.id, sel.c), h = sel.c < cols / 2 ? '1st half' : '2nd half', s = (sel.c % (cols / 2)) * w;
     const what = mode === 'on' ? `on the floor for ${v.n} of ${v.d} possessions` : mode === 'shotOn' ? `on the floor for ${v.n} of our ${v.d} shots` : `took ${v.n} of our ${v.d} tagged shots`;
-    return `<div class="rot-det"><b>${esc(nm(sel.id))}</b> · ${h}, "minute" ${s + 1}${w > 1 ? `–${s + w}` : ''}: ${what}${v.d ? ` (<b>${Math.round(100 * v.n / v.d)}%</b>)` : ''} · ${list.length} game${list.length === 1 ? '' : 's'}</div>`; })() : '<div class="rot-det muted">Tap a box for the numbers behind it.</div>';
+    // Which possessions the box holds: exact for one game; per game for a season.
+    const rg = []; for (let k = sel.c * w; k < sel.c * w + w; k++) Object.entries(R.T[k].ranges).forEach(([gid, r]) => { const x = rg.find(y => y.gid === gid); if (x) { x.to = r.to; x.n += r.n; } else rg.push({ gid, from: r.from, to: r.to, n: r.n }); });
+    const lbl = r => `${r.n === 1 ? `Possession ${r.from}` : `Possessions ${r.from}–${r.to}`} · ${r.n} possession${r.n === 1 ? '' : 's'}`;
+    const sameAll = rg.length && rg.every(r => r.from === rg[0].from && r.to === rg[0].to);
+    const counts = [...new Set(rg.map(r => r.n))].sort((a, b) => a - b);
+    const which = !rg.length ? 'No possessions in this box' : rg.length === 1 ? lbl(rg[0]) + ' of the half'
+      : sameAll ? `${lbl(rg[0])} of the half in every game (${rg.reduce((t, r) => t + r.n, 0)} over ${rg.length} games)`
+      : `${counts.join(' or ')} possession${counts.length === 1 && counts[0] === 1 ? '' : 's'} per game, around possession ${Math.min(...rg.map(r => r.from))}–${Math.max(...rg.map(r => r.to))} of the half (${rg.reduce((t, r) => t + r.n, 0)} over ${rg.length} games)`;
+    return `<div class="rot-det"><b>${esc(nm(sel.id))}</b> · ${h}, "minute" ${s + 1}${w > 1 ? `–${s + w}` : ''}: ${what}${v.d ? ` (<b>${Math.round(100 * v.n / v.d)}%</b>)` : ''}<div class="small muted">${which}.</div></div>`; })() : '<div class="rot-det muted">Tap a box for the numbers behind it.</div>';
   const legend = `<div class="rot-leg"><span>0%</span><span class="rot-bar"></span><span>${max}%+</span></div>`;
   const tabs = [['on', 'On court'], ['shotOn', 'On court for shots'], ['shots', 'Shots taken']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="rot-mode" data-s="${k}">${l}</button>`).join('');
   const widths = [1, 2, 4, 5].map(k => `<button class="${w === k ? 'on' : ''}" data-act="rot-w" data-s="${k}">${k}</button>`).join('');
   const sub = { on: '% of each slice\'s possessions he was on the floor', shotOn: '% of our shot attempts taken with him on the floor', shots: '% of our shot attempts he took (shots tagged to a shooter)' }[mode];
   if (!ids.length) return '<div class="muted small">No possessions with a full five yet.</div>';
   return `<div class="rot-top"><div class="lu-seg rot-tabs">${tabs}</div><div class="rot-w"><span class="small muted">Slices per box</span><div class="lu-seg">${widths}</div></div></div>
-    <div class="small muted" style="margin:6px 0 8px">${esc(sub)}. Each half is cut into ${ROT_SLICES} equal slices of its possessions (about one minute each). Players sorted by possessions on the floor.</div>
+    <div class="small muted" style="margin:6px 0 8px">${esc(sub)}. Each half is cut into ${ROT_SLICES} slices of its possessions, each a whole number of possessions (about 2, so about a minute each); tap a box to see which possessions it holds. Players sorted by possessions on the floor.</div>
     <div class="rot">${head}${rows}</div>${legend}${detail}`;
 }
 
