@@ -480,9 +480,15 @@ five has 25+ offensive possessions).
   - Edit rows, Paste schedule, + Add game, Save schedule.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
-- **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
-  - Opponent rosters are shared with the game tracker.
-  - Position and the note show on the player's card on the Live screen.
+- **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
+  - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
+    it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
+  - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
+    ("Shooter, Lefty"), so the game tracker shows the same thing; an old one-line note splits on commas.
+  - On the Live screen the position and labels sit on **one line** under the player's name, in the order you added
+    them. What doesn't fit collapses into a grey **+N** chip; tapping it opens a small light-grey bubble above the
+    card with every label (✕, any other tap, or 4 seconds closes it). It never logs anything; tapping the rest of
+    the card works as before.
 - **Halftime stat sheet:** **End 1H** brings up the stat-sheet screen over the halftime report: add a photo of the
   printout if you have it (check / Clarify, then Save), or **Skip → halftime report**.
 - **Two reports.** With a stat sheet for that half / the game, the report is the **full report**:

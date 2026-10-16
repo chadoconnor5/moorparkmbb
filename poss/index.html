@@ -654,6 +654,24 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tbtn img{height:56px;max-width:85%;object-fit:contain;pointer-events:none}
 .tbtn .tn{display:none}
 .pbtn .pnote{display:block;font-size:11.5px;font-weight:500;color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:38px;margin-top:1px}
+/* Player labels: one line under the name (position first), the rest behind +N. */
+.nt-row{display:flex;flex-wrap:nowrap;gap:4px;margin-top:4px;overflow:hidden;min-width:0}
+.nt{display:inline-flex;align-items:center;flex:none;font-size:11px;font-weight:700;line-height:1;padding:4px 7px;border-radius:999px;border:1px solid rgba(251,191,36,.45);color:#fbbf24;background:rgba(251,191,36,.08);white-space:nowrap}
+.nt[hidden]{display:none}
+.nt.pos{border-color:var(--border);color:var(--text2);background:rgba(255,255,255,.04)}
+.nt.more{border-color:var(--border);color:var(--muted);background:transparent;cursor:pointer;padding:4px 8px}
+.nt-pop{position:absolute;z-index:60;display:flex;align-items:flex-start;gap:6px;padding:8px 8px 8px 10px;border-radius:10px;background:#e5e7eb;border:1px solid #cbd0d8;box-shadow:0 8px 24px rgba(0,0,0,.45);transition:opacity .45s}
+.nt-pop.fade{opacity:0}
+.nt-pop::after{content:'';position:absolute;left:24px;bottom:-6px;width:10px;height:10px;background:#e5e7eb;border-right:1px solid #cbd0d8;border-bottom:1px solid #cbd0d8;transform:rotate(45deg)}
+.nt-pop-l{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+.nt-pop .nt{color:#1f2430;background:#fff;border-color:#c3c8d1}
+.nt-pop-x{flex:none;width:26px;height:26px;border-radius:7px;border:1px solid #c3c8d1;background:#fff;color:#4b5263;font-weight:800;font-size:12px;cursor:pointer}
+.ned{display:flex;flex-direction:column;gap:6px;min-width:220px}
+.ned-chips{display:flex;flex-wrap:wrap;gap:4px}.ned-chips:empty{display:none}
+.nt-x{border:0;background:none;color:var(--muted);font-weight:800;font-size:11px;padding:0 0 0 6px;cursor:pointer}
+.ned-in{display:flex;gap:6px}.ned-in input{flex:1;min-width:0}
+.ned-q{display:flex;flex-wrap:wrap;gap:4px}.ned-q:empty{display:none}
+.ned-pick{font-size:11px;padding:4px 8px;border-radius:999px;border:1px dashed var(--border);background:none;color:var(--text2);cursor:pointer}
 .pbp-feed{max-height:none;font-size:13.5px;border-top:0;padding-top:0}
 .pbp-feed div{padding:7px 10px;cursor:pointer}
 .rost{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start}
@@ -1084,7 +1102,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.103';
+const VERSION = 'v2026.10.17.104';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1586,7 +1604,7 @@ function render() {
   else if (UI.tab === 'sched') v.innerHTML = schedView();
   else if (UI.tab === 'rosters') v.innerHTML = rostersView();
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
-  scoutBadge();
+  scoutBadge(); fitLabels();
   // A fouled-out player on the floor: straight to the sub screen, which can't be closed until he's replaced.
   if (g && UI.tab === 'live' && !g.final && !$('#modal-root').innerHTML && outOnFloor(g, derive(g)).length) { SUB = null; UI.stat = null; subModal(); }
 }
@@ -1639,6 +1657,25 @@ const STAT_HINT_TEAM = { '2m': 'Assist if it was assisted, then tap the team tha
   ftm: 'tap the shooter, or the team logo', ftx: 'tap the shooter, or the team logo', oreb: 'tap the team that got it', dreb: 'tap the team that got it', to: 'tap the team that turned it over', stl: 'tap the team that stole it' };
 const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 'tap who rebounded', chg: 'tap who was charged', offf: 'tap who fouled', foul: 'tap who fouled', to: 'tap who turned it over' };
 
+/* Player labels: a player's note is a list of short labels ("Shooter, Lefty, Foul"), kept as one comma-separated
+   note so the game tracker (which shares opponent notes) shows the same thing. On a card they sit on one line
+   after the position; what doesn't fit collapses into a +N chip that shows them all (and logs nothing). */
+const noteLabels = s => String(s || '').split(/\s*[,;·|]\s*/).map(x => x.trim()).filter(Boolean);
+const labelsNote = L => L.join(', ');
+function fitLabels() {
+  document.querySelectorAll('.nt-row').forEach(r => { const more = r.querySelector('.nt.more'), tags = [...r.querySelectorAll('.nt:not(.pos):not(.more)')]; if (!more) return;
+    tags.forEach(x => { x.hidden = false; }); more.hidden = true; let n = 0;
+    for (let i = tags.length - 1; i >= 0 && r.scrollWidth > r.clientWidth + 1; i--) { tags[i].hidden = true; n++; more.textContent = '+' + n; more.hidden = false; } });
+}
+// A small light-grey bubble above the player's card with every label; ✕ (or any other tap) closes it, and it fades on its own after 4 s.
+function labelPop(b, L) {
+  const card = b.closest('.pbtn') || b, r = card.getBoundingClientRect(), d = document.createElement('div'); d.className = 'nt-pop';
+  d.innerHTML = `<div class="nt-pop-l">${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
+  document.body.appendChild(d);
+  d.style.width = Math.min(r.width, 320) + 'px';
+  d.style.left = (r.left + window.scrollX) + 'px'; d.style.top = (r.top + window.scrollY - d.offsetHeight - 6) + 'px';
+  setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 500); }, 4000);   // fades on its own
+}
 function playerCards(g, D, t) {
   const f = D.five[t];
   const list = f.length ? fiveSorted(g, t, f).map(id => pInfo(g, t, id)) : [];
@@ -1650,7 +1687,7 @@ function playerCards(g, D, t) {
     const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat));   // fouls and free throws take a player
     return `<button class="pbtn ${cls} ${pl ? 'hot' : ''} ${UI.stat && !pl ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
-      ${p.pos || p.note ? `<span class="pnote">${esc([p.pos, p.note].filter(Boolean).join(' · '))}</span>` : ''}
+      ${(() => { const L = noteLabels(p.note); return p.pos || L.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}${L.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${out ? 'OUT' : pf + ' PF'}</span></button>`; };
   const noRoster = !teamPlayers(g, t).length;
@@ -2422,8 +2459,8 @@ function rostersView() {
   const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : [], sel !== 'MPK' ? [sel] : []).filter(Boolean))].sort();
   const isM = sel === 'MPK';
   const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppStore().find(x => x.name === sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
-  const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Note', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting note', 0]];
-  const row = p => `<tr class="rrow">${cols.map(([k, , w]) => `<td><input data-k="${k}" value="${esc(p[k] || '')}" ${k === 'num' ? 'inputmode="numeric"' : ''} style="${w ? 'width:' + w + 'px' : 'width:100%'}"></td>`).join('')}<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>`;
+  const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Labels', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting labels', 0]];
+  const row = p => `<tr class="rrow">${cols.map(([k, , w]) => `<td>${k === 'note' ? noteCell(p.note) : `<input data-k="${k}" value="${esc(p[k] || '')}" ${k === 'num' ? 'inputmode="numeric"' : ''} style="${w ? 'width:' + w + 'px' : 'width:100%'}">`}</td>`).join('')}<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>`;
   return `<div class="page-head"><h2>Rosters</h2></div>
     <div class="rost">
       <div class="card rlist"><button class="btn ${isM ? 'btn-primary' : ''}" data-act="r-sel" data-n="MPK">Moorpark</button>
@@ -2432,12 +2469,40 @@ function rostersView() {
       <div class="card"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         <div class="tbl-wrap"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
-        <div class="small muted" style="margin-top:8px">${isM ? 'Notes show on the player cards. Saved in this tracker.' : 'Shared with the game tracker. Pos and the note show on the player cards on the Live screen.'}</div></div>
+        <div class="small muted" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
     </div>`;
 }
+// The roster editor's label cell: chips (✕ removes), a box + Add, and quick picks from labels already used.
+const nedChips = L => L.map((x, i) => `<span class="nt">${esc(x)}<button class="nt-x" data-act="ned-del" data-i="${i}" aria-label="Remove ${esc(x)}">✕</button></span>`).join('');
+const noteCell = v => `<div class="ned"><input type="hidden" data-k="note" value="${esc(v || '')}"><div class="ned-chips">${nedChips(noteLabels(v))}</div>
+  <div class="ned-in"><input class="ned-add" placeholder="Add a label" maxlength="20" enterkeyhint="done"><button class="btn btn-sm btn-good" data-act="ned-add">Add</button></div><div class="ned-q"></div></div>`;
+function usedLabels() {
+  const n = {}; [...roster(), ...oppStore().flatMap(o => o.players || [])].forEach(p => noteLabels(p.note).forEach(x => { const k = x.toLowerCase(); n[k] = n[k] || { x, c: 0 }; n[k].c++; }));
+  document.querySelectorAll('.ned input[data-k="note"]').forEach(i => noteLabels(i.value).forEach(x => { const k = x.toLowerCase(); n[k] = n[k] || { x, c: 0 }; n[k].c++; }));
+  return Object.values(n).sort((a, b) => b.c - a.c).map(y => y.x);
+}
+function nedPaint(cell, L) {
+  cell.querySelector('input[data-k="note"]').value = labelsNote(L);
+  cell.querySelector('.ned-chips').innerHTML = nedChips(L);
+  const have = new Set(L.map(x => x.toLowerCase()));
+  cell.querySelector('.ned-q').innerHTML = usedLabels().filter(x => !have.has(x.toLowerCase())).slice(0, 8).map(x => `<button class="ned-pick" data-act="ned-pick" data-l="${esc(x)}">+ ${esc(x)}</button>`).join('');
+}
+function nedAdd(cell, v) {
+  const L = noteLabels(cell.querySelector('input[data-k="note"]').value), have = new Set(L.map(x => x.toLowerCase()));
+  noteLabels(v).forEach(x => { if (!have.has(x.toLowerCase())) { L.push(x); have.add(x.toLowerCase()); } });
+  nedPaint(cell, L);
+}
+// Quick picks show under the row being edited only.
+document.addEventListener('focusin', ev => { const a = ev.target.closest && ev.target.closest('.ned-add'); if (!a) return;
+  document.querySelectorAll('.ned-q').forEach(q => { q.innerHTML = ''; }); const cell = a.closest('.ned'); nedPaint(cell, noteLabels(cell.querySelector('input[data-k="note"]').value)); });
+document.addEventListener('keydown', ev => { if (ev.key !== 'Enter' || !ev.target.classList || !ev.target.classList.contains('ned-add')) return;
+  ev.preventDefault(); const cell = ev.target.closest('.ned'); nedAdd(cell, ev.target.value); ev.target.value = ''; });
+window.addEventListener('resize', () => fitLabels());
 function saveRosterEdit() {
   const sel = UI.rosterSel || (cur() ? cur().opp : 'MPK');
-  const rows = [...document.querySelectorAll('#rbody tr.rrow')].map(tr => Object.fromEntries([...tr.querySelectorAll('input')].map(i => [i.dataset.k, i.value.trim()])))
+  // A label typed but not added yet still counts.
+  document.querySelectorAll('#rbody .ned').forEach(c => { const a = c.querySelector('.ned-add'); if (a && a.value.trim()) { nedAdd(c, a.value); a.value = ''; } });
+  const rows = [...document.querySelectorAll('#rbody tr.rrow')].map(tr => Object.fromEntries([...tr.querySelectorAll('input[data-k]')].map(i => [i.dataset.k, i.value.trim()])))
     .map(r => Object.assign(r, { num: String(r.num || '').replace(/\D/g, '').slice(0, 2) })).filter(r => r.num || r.name);
   const nums = rows.map(r => r.num).filter(Boolean), dupe = nums.find((n, i) => nums.indexOf(n) !== i);
   if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
@@ -2886,6 +2951,7 @@ function toast(msg, kind) {
 }
 
 document.addEventListener('click', ev => {
+  document.querySelectorAll('.nt-pop').forEach(x => x.remove());
   const hr = ev.target.closest('.huddle tr');
   if (hr && hr.querySelector('td') && !ev.target.closest('button')) {
     const on = hr.classList.contains('hl'); hr.closest('.huddle').querySelectorAll('tr.hl').forEach(r => r.classList.remove('hl')); if (!on) hr.classList.add('hl'); return;
@@ -3127,8 +3193,14 @@ document.addEventListener('click', ev => {
     case 'r-sel': UI.rosterSel = b.dataset.n; render(); break;
     case 'r-new': { const n = (prompt('Opponent name') || '').trim(); if (!n) return; const st = oppStore(); if (!st.some(o => o.name === n)) { st.push({ id: 'opp_' + uid(), name: n, players: [], updatedAt: new Date().toISOString() }); lsSet('gt_opp_rosters', st); } UI.rosterSel = n; render(); break; }
     case 'rr-add': { const tb = $('#rbody'), tr = tb.querySelector('tr.rrow'); const html = rostersView().match(/<tr class="rrow">[\s\S]*?<\/tr>/); const tmp = document.createElement('tbody');
-      tmp.innerHTML = (html ? html[0] : '').replace(/value="[^"]*"/g, 'value=""'); if (!tmp.firstElementChild) { const cols = document.querySelectorAll('.redit thead th').length - 1; tmp.innerHTML = '<tr class="rrow">' + Array.from({ length: cols }, (_, i) => `<td><input data-k="${['num', 'name', 'pos', 'ht', 'yr', 'note'][i] || 'note'}" style="width:100%"></td>`).join('') + '<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>'; }
+      tmp.innerHTML = (html ? html[0] : '').replace(/value="[^"]*"/g, 'value=""'); if (!tmp.firstElementChild) { const cols = document.querySelectorAll('.redit thead th').length - 1; tmp.innerHTML = '<tr class="rrow">' + Array.from({ length: cols }, (_, i) => { const k = (cols === 4 ? ['num', 'name', 'pos', 'note'] : ['num', 'name', 'pos', 'ht', 'yr', 'note'])[i] || 'note'; return `<td>${k === 'note' ? noteCell('') : `<input data-k="${k}" style="width:100%">`}</td>`; }).join('') + '<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>'; }
+      tmp.querySelectorAll('.ned-chips, .ned-q').forEach(x => { x.innerHTML = ''; });
       tb.appendChild(tmp.firstElementChild); tb.lastElementChild.querySelector('input').focus(); break; }
+    case 'ned-add': { const c = b.closest('.ned'), a = c.querySelector('.ned-add'); nedAdd(c, a.value); a.value = ''; a.focus(); break; }
+    case 'ned-pick': nedAdd(b.closest('.ned'), b.dataset.l); break;
+    case 'ned-del': { const c = b.closest('.ned'), L = noteLabels(c.querySelector('input[data-k="note"]').value); L.splice(+b.dataset.i, 1); nedPaint(c, L); break; }
+    case 'nt-pop-x': break;   // the bubble is already gone (every tap closes it)
+    case 'nt-more': { const p = pInfo(g, b.dataset.team, b.dataset.p); labelPop(b, noteLabels(p.note)); break; }
     case 'rr-del': b.closest('tr').remove(); break;
     case 'r-save': saveRosterEdit(); render(); break;
     case 'sch-add': collectSched(); SCH.rows.push({ id: 'sch_' + Date.now(), date: '', time: '', opp: '', site: 'home', conf: false }); render(); { const d = document.querySelectorAll('[data-f="date"][data-sr]'); if (d.length) d[d.length - 1].focus(); } break;
