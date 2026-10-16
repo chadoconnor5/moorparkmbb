@@ -318,6 +318,40 @@ score, ORtg / DRtg / net and four factors for exactly that view.
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.
 
+## Assist and Block buttons
+
+Two stat buttons ride on a shot, right above FT Make / FT Miss (red outline when it can be added, gold when toggled on):
+- Tap **2PT Make** or **3PT Make**: every other stat button mutes except **Assist** (and the team logos). Tap Assist
+  if it was assisted, then the team logo logs the make, assisted. No Assist tap = unassisted.
+- Tap **2PT Miss** or **3PT Miss**: everything mutes except **Block**. Tap Block if it was blocked, then the logo
+  logs the miss, blocked (and the logos wait for the rebound as before). No Block tap = not blocked.
+Tap the make / miss again (or Cancel) to back out. The feed shows "(assisted)" / "(blocked)", and the leaderboard
+export's assisted column fills in.
+
+Games started from now on log them (old games don't, so on / off counts assists and blocks only from games that do):
+the on / off cards' Assists / 40, Assist %, Ast/Tov, Blocks / 40, Block %, Hakeem %, Blocks / PF and PF Efficiency
+((steals + blocks) / fouls, as in the practice tracker) fill in.
+
+## Player on / off and projected fives (Lineups → View)
+
+**View** is one dropdown: 5-man lineups, 4-man, 3-man, 2-man pairs, Player on / off, Projected fives & synergy,
+WOWY, Rotation map. Everything follows the Games split, Half, Possessions and Situation.
+
+**Player on / off** mirrors the practice tracker's Player On-Court Impact cards: a card per player ranked by share
+of floor time, four panels of eight rows (Core Stats, Box Stats, Offense & Activity, Defense), each a team stat
+On / Off / Diff (green = team better with him on). The Defense panel ends with **PF Efficiency, Steals / PF and
+Blocks / PF** (the version before paint / transition / off-turnover points). Differences from practice: minutes
+are his share of each half's possessions (a half = 20 min), possessions are the real count, and assists, blocks
+and deflections aren't logged in games (—), so PF Efficiency is steals per foul. Ratings and four factors are
+opponent-adjusted (Data → Show raw numbers for raw).
+
+**Projected fives & synergy**: an adjusted plus-minus model (ridge regression over every possession in the view,
+opponent-adjusted, each player starting at 60 possessions of average): each player's Off / Def / Net impact per
+100. **Pair synergy** = how the team did with both on beyond what the model expected from who was on the floor,
+shrunk toward 0 (40 possessions to count half). **Best projected fives** = team baseline + five players + half of
+each pair's synergy, from the 13 most-used players: the best untested fives (with a Try button) and the best
+overall.
+
 ## Rotation map (Lineups → View → Rotation)
 
 CBB Analytics' "Lineup Tendencies" heat maps, by possession instead of by minute: each half is cut into 20 equal
