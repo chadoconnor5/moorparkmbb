@@ -70,15 +70,24 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - momentum: current run, stops in a row, kills this half;
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
   - **THIS FIVE** (where the Team / bench foul row was, once a five is set): two labels on one line for each five
-    on the floor: its best strength (green: *3 shooters*, *Ball hawks*, *Rim protector*, *Elite glass*, *Passers*,
+    on the floor: its best strength (green: *3 shooters*, *Attack the rim*, *Ball hawks*, *Rim protector*, *Elite glass*, *Passers*,
     *Closing FTs*) and its worst weakness (red ✕: *1 shooter*, *G can't shoot*, *Thin glass*, *TO risk*,
     *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists who earned it, with their numbers. Nothing
     is logged.
     - From each player's season line (quality games: stat sheets / leaderboard; at halftime the 1st-half sheet
       joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no line
       yet (every opponent for now), from his position and his card labels (Shooter, Big, Ball hawk, Can't shoot...).
-    - Shooting adapts across the season: 2.0+ threes a game is a shooter from week one; once he has 15+ attempts
-      he also has to be at 30%+. Under 0.5 a game (3+ games), or under 25% on 15+, is a non-shooter.
+    - **Shooter / non-shooter** combines 3PA rate (share of his shots that are threes), threes a game and 3P%:
+      - *Estimated 3P%* = his makes / attempts pulled toward the team's 3P% until the attempts add up (the team
+        rate counts as 50 attempts), moved by his card label (Shooter +3, Can't shoot −4). FT% is not used.
+      - *Volume* = 3PA rate (40% of his shots, 10+ FGA) or 2.0 threes a game, whichever says more.
+      - Shooter: full volume and est. 32%+, or 75% of the volume and est. 36%+. Non-shooter: est. under 28%, or
+        under 15% of his shots on 20+ FGA, or under 0.5 a game over 3+ games. In between: neither.
+      - So week one runs on volume and labels, and February on his own threes. The bubble shows
+        "est 36% · 4/10 · 2.5/g · 33% of FGA".
+    - **FT rate** (FTA / FGA, 15+ FGA) = how often he attacks the basket: 45%+ is an attacker; two on the floor =
+      *Attack the rim*. A **slasher** is a non-shooter who attacks: he counts toward Attack the rim, and a
+      slasher guard is not *G can't shoot* (that is a guard who neither shoots nor attacks).
     - Other lines (per 40, 60+ minutes): ball hawk 2.5+ steals, rim protector 2.5+ blocks, TO risk 4+ (two
       players), foul-prone 6+ PF (two players); glass = the five's rebounds per 40 (40+ elite, 26 or less thin);
       passers = assists per 40 of 18+; Closing FTs = all five 75%+; FT #N = the worst shooter under 62% (6+ FTA).

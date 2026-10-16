@@ -1080,8 +1080,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lc.r{color:#f87171;border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.10)}
 .lc.n{color:var(--text2);border-color:var(--border2);background:rgba(255,255,255,.04)}
 .nt-pop-h{width:100%;font-size:12px;font-weight:800;color:#1f2430;margin-bottom:2px}
-.nt-pop-r{width:100%;display:grid;grid-template-columns:1fr auto;gap:10px;font-size:12.5px;color:#1f2430;line-height:1.45;white-space:nowrap}
-.nt-pop-r b{font-weight:700;overflow:hidden;text-overflow:ellipsis}.nt-pop-r span{font-weight:600;color:#4b5263;font-variant-numeric:tabular-nums}
+.nt-pop-r{width:100%;font-size:12.5px;color:#1f2430;line-height:1.3;padding:3px 0}
+.nt-pop-r+.nt-pop-r{border-top:1px solid #d3d7de}
+.nt-pop-r b{display:block;font-weight:700}.nt-pop-r span{display:block;font-size:11.5px;font-weight:600;color:#4b5263;font-variant-numeric:tabular-nums}.nt-pop-r span:empty{display:none}
 .lc[hidden]{display:none}
 
 </style>
@@ -1116,7 +1117,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.110';
+const VERSION = 'v2026.10.17.112';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4763,21 +4764,40 @@ function plugCard(g, D, outId) {
    sheet joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no
    line yet (every opponent for now), from his position and the labels on his card (Shooter, Big, Ball hawk...).
    Tap a label: who earned it, with their numbers. */
-/* Shooting adapts across the season: volume first (2.0+ threes a game is a shooter from week one), and once the
-   attempts add up (15+) the percentage has to hold (30%+). Fewer than 0.5 a game (3+ games), or under 25% on 15+,
-   is a non-shooter. */
-const FL = { SH_PG: 2.0, SH_PCT: 30, NS_PG: 0.5, NS_PCT: 25, SH_N: 15, NS_GAMES: 3, HAWK: 2.5, RIM: 2.5, TO: 4, PF: 6, FT_LO: 62, FT_HI: 75, FT_MIN: 6, GLASS_HI: 40, GLASS_LO: 26, AST_HI: 18 };
+/* SHOOTING: everything we have, combined into two numbers.
+   Estimated 3P% = his makes and attempts, pulled toward a starting guess until the attempts add up (the guess
+   counts as 50 attempts). The guess is the team's 3P%, moved by your card label (Shooter +3, Can't shoot -4).
+   So in week one volume and labels carry it; by February his own threes do. (FT% is not used: it isn't the
+   mark of a distance shooter.)
+   Volume = does he take them: 3PA rate (share of his shots that are threes, 10+ FGA) or 3PA a game, whichever
+   says more (40% of his shots or 2.0 a game = full volume).
+   Shooter: full volume and est. 3P% 32%+, or most of the volume (75%) and est. 36%+.
+   Non-shooter: est. 3P% under 28%, or he barely takes them (under 15% of his shots on 20+ FGA, or under 0.5 a game
+   over 3+ games). In between: neither.
+   FT RATE (FTA / FGA, 15+ FGA) is a different skill: how often he attacks the basket and gets fouled. 45%+ makes
+   him an attacker; two on the floor = "Attack the rim". It also shows next to a non-shooter, so a guard who can't
+   shoot but gets to the line reads differently from one who does neither.
+   SLASHER = a non-shooter who attacks the rim (FT rate 45%+). He counts toward Attack the rim, and a slasher guard
+   is not "G can't shoot": that is a guard who neither shoots nor attacks. */
+const FL = { K3: 50, TAG_SH: 3, TAG_NS: -4, VOL_RATE: 40, VOL_PG: 2.0, SH_EST: 32, SH_EST_HI: 36, SH_VOL_HI: 0.75, NS_EST: 28, NS_RATE: 15, NS_FGA: 20, NS_PG: 0.5, NS_GAMES: 3, FTR_HI: 45, FTR_FGA: 15, HAWK: 2.5, RIM: 2.5, TO: 4, PF: 6, FT_LO: 62, FT_HI: 75, FT_MIN: 6, GLASS_HI: 40, GLASS_LO: 26, AST_HI: 18 };
 const flTag = (p, re) => noteLabels(p.note).some(x => re.test(x));
 function flPlayer(g, t, id) {
   const p = pInfo(g, t, id), x = t === 'a' ? plSeason().P[id] : null, pos = String(p.pos || '').toUpperCase(), min = x && (x.MIN || 0) >= 60 ? x.MIN : 0;
   const per40 = k => min ? 40 * (x[k] || 0) / min : null, gp = x ? x.games || 0 : 0;
-  const a3 = x ? x['3PA'] || 0 : 0, pg3 = gp ? a3 / gp : null, p3 = a3 ? 100 * (x['3PM'] || 0) / a3 : null, ft = x && (x.FTA || 0) >= FL.FT_MIN ? 100 * (x.FTM || 0) / x.FTA : null;
-  const sh = pg3 == null ? null : pg3 >= FL.SH_PG && (a3 < FL.SH_N || p3 >= FL.SH_PCT), ns = pg3 == null ? null : (gp >= FL.NS_GAMES && pg3 < FL.NS_PG) || (a3 >= FL.SH_N && p3 < FL.NS_PCT);
+  const a3 = x ? x['3PA'] || 0 : 0, m3 = x ? x['3PM'] || 0 : 0, fga = x ? x.FGA || 0 : 0, pg3 = gp ? a3 / gp : null, p3 = a3 ? 100 * m3 / a3 : null;
+  const ft = x && (x.FTA || 0) >= FL.FT_MIN ? 100 * (x.FTM || 0) / x.FTA : null, rate = fga >= 10 ? 100 * a3 / fga : null, ftr = fga >= FL.FTR_FGA ? 100 * (x.FTA || 0) / fga : null;
+  const T = plSeason().T || {}, base = T['3PA'] ? 100 * (T['3PM'] || 0) / T['3PA'] : 32;
+  const tagS = flTag(p, /^shooter$|^sniper$|^3pt|^knockdown/i), tagN = flTag(p, /can'?t shoot|non-?shooter|no 3|bad 3/i);
+  const prior = base + (tagS ? FL.TAG_SH : 0) + (tagN ? FL.TAG_NS : 0);
+  const est = x ? 100 * (m3 + FL.K3 * prior / 100) / (a3 + FL.K3) : null;
+  const vol = x ? Math.max(rate != null ? rate / FL.VOL_RATE : 0, pg3 != null ? pg3 / FL.VOL_PG : 0) : null;
+  const sh = x ? (vol >= 1 && est >= FL.SH_EST) || (vol >= FL.SH_VOL_HI && est >= FL.SH_EST_HI) : null;
+  const ns = x ? est < FL.NS_EST || (fga >= FL.NS_FGA && rate < FL.NS_RATE) || (gp >= FL.NS_GAMES && pg3 < FL.NS_PG) : null;
   const inch = (() => { const m = String(p.ht || '').match(/(\d)\D+(\d{1,2})/); return m ? 12 * +m[1] + +m[2] : null; })();
-  return { id, num: p.num, name: p.name, p3, ft, a3, pg3, fta: x ? x.FTA || 0 : 0,
+  return { id, num: p.num, name: p.name, p3, m3, ft, a3, pg3, rate, est, ftr, fta: x ? x.FTA || 0 : 0,
+    attacker: ftr != null ? ftr >= FL.FTR_HI : flTag(p, /attack|driver|downhill|slasher/i),   // slasher = this + non-shooter (fiveLabels)
     stl: per40('STL'), blk: per40('BLK'), reb: min ? 40 * ((x.OREB || 0) + (x.DREB || 0)) / min : null, ast: per40('AST'), to: per40('TO'), pf: per40('PF'),
-    shooter: sh != null ? sh : flTag(p, /^shooter$|^sniper$|^3pt|^knockdown/i),
-    nonShooter: ns != null ? ns : flTag(p, /can'?t shoot|non-?shooter|no 3|bad 3/i),
+    shooter: sh != null ? sh : tagS, nonShooter: ns != null ? ns : tagN,
     big: /^(C|PF|F|F\/C|C\/F|4|5)$/.test(pos) || (inch != null && inch >= 79) || flTag(p, /^big$|^post$|^center$|^5$/i),
     guard: /^(G|PG|SG|1|2|G\/W)$/.test(pos), posKnown: !!pos || inch != null,
     hawk: p.stl == null && per40('STL') == null ? flTag(p, /ball ?hawk|steals|hands/i) : per40('STL') >= FL.HAWK,
@@ -4790,9 +4810,12 @@ function fiveLabels(g, t, five) {
   const who = (L, f) => L.map(q => `<b>${nn(q)} ${esc(lastName(q.name || ''))}</b><span>${f ? f(q) : ''}</span>`);
   const out = [], add = (kind, text, score, rows) => out.push({ kind, text, score, rows });
   const sh = P.filter(q => q.shooter), known = P.filter(q => q.pg3 != null || q.shooter || q.nonShooter).length;
-  const f3 = q => q.pg3 != null ? `${q.pg3.toFixed(1)} 3PA/g${q.a3 ? ` · ${q.p3.toFixed(0)}%` : ''}` : 'tagged';
+  // In the bubble: est. 3P%, then what it rests on (makes/attempts, threes a game, share of his shots).
+  const f3 = q => q.est != null ? `est ${q.est.toFixed(0)}% · ${q.m3}/${q.a3}${q.pg3 != null ? ` · ${q.pg3.toFixed(1)}/g` : ''}${q.rate != null ? ` · ${q.rate.toFixed(0)}% of FGA` : ''}` : 'tagged';
   // Strengths
   if (sh.length >= 3) add('g', `${sh.length} shooters`, sh.length - 1.5, who(sh, f3));
+  P.forEach(q => { q.slasher = q.nonShooter && q.attacker; });
+  const atk = P.filter(q => q.attacker); if (atk.length >= 2) add('g', 'Attack the rim', atk.length - 0.75, who(atk, q => (q.slasher ? 'Slasher · ' : '') + (q.ftr != null ? `FTr ${q.ftr.toFixed(0)}%` : 'tagged')));
   const hawks = P.filter(q => q.hawk); if (hawks.length >= 2) add('g', 'Ball hawks', hawks.length - 0.5, who(hawks, q => q.stl != null ? `${q.stl.toFixed(1)} stl/40` : 'tagged'));
   const rim = P.filter(q => q.rim); if (rim.length) add('g', 'Rim protector', 1.5, who(rim, q => q.blk != null ? `${q.blk.toFixed(1)} blk/40` : 'tagged'));
   const R = P.filter(q => q.reb != null), reb = R.length >= 4 ? R.reduce((s, q) => s + q.reb, 0) * 5 / R.length : null;
@@ -4803,7 +4826,7 @@ function fiveLabels(g, t, five) {
   if (F.length === 5 && ftLo.ft >= FL.FT_HI) add('g', 'Closing FTs', 1.5, who(F, q => `${q.ft.toFixed(0)}% FT (${q.fta})`));
   // Weaknesses
   if (known >= 4 && sh.length <= 1) add('r', sh.length ? '1 shooter' : 'No shooter', sh.length ? 2 : 3, sh.length ? who(sh, f3) : ['<b>Nobody on the floor shoots it</b><span></span>']);
-  const gns = P.filter(q => q.guard && q.nonShooter); if (gns.length) add('r', 'G can\'t shoot', 1.5, who(gns, f3));
+  const gns = P.filter(q => q.guard && q.nonShooter && !q.attacker); if (gns.length) add('r', 'G can\'t shoot', 1.5, who(gns, q => f3(q) + (q.ftr != null ? ` · FTr ${q.ftr.toFixed(0)}%` : '')));
   if (reb != null && reb <= FL.GLASS_LO) add('r', 'Thin glass', 1 + (FL.GLASS_LO - reb) / 5, who(R, q => `${q.reb.toFixed(1)} reb/40`));
   const tos = P.filter(q => q.to != null && q.to >= FL.TO); if (tos.length >= 2) add('r', 'TO risk', tos.length, who(tos, q => `${q.to.toFixed(1)} TO/40`));
   const fp = P.filter(q => q.foulish); if (fp.length >= 2) add('r', 'Foul-prone', fp.length - 0.5, who(fp, q => q.pf != null ? `${q.pf.toFixed(1)} PF/40` : 'tagged'));
