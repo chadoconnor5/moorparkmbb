@@ -5102,12 +5102,21 @@ function __tsRankMaps() {
     const qualified = pool.filter(p => __tsQualifies(p, key, mode));
     qualified.sort((a, b) => asc ? a[key] - b[key] : b[key] - a[key]);
     const m = new Map();
-    qualified.forEach((p, i) => m.set(p.name + '|' + p.school, i + 1));
+    if (key === 'ind_ortg') {
+      // ORtg is ranked within the player's %Poss band statewide: a role player's efficiency isn't comparable
+      // to a go-to guy's, so JJ Sanchez is the #1 Role Player, not #1 overall.
+      const seen = {};
+      qualified.forEach(p => { const b = __tsUsageBand(p.usage_pct); seen[b] = (seen[b] || 0) + 1; m.set(p.name + '|' + p.school, seen[b]); });
+    } else {
+      qualified.forEach((p, i) => m.set(p.name + '|' + p.school, i + 1));
+    }
     maps[key] = { map: m, total: qualified.length };
   }
   return maps;
 }
 
+// Index of a %Poss band in TS_USAGE_BANDS (0 = Go-to Guys ... 5 = Nearly Invisible), as the table groups players.
+function __tsUsageBand(u) { const i = TS_USAGE_BANDS.findIndex(b => (u || 0) > b[0]); return i < 0 ? TS_USAGE_BANDS.length - 1 : i; }
 const TS_USAGE_BANDS = [
   [28, 'Go-to Guys (>28% of possessions used)'],
   [24, 'Major Contributors (24-28% of possessions used)'],

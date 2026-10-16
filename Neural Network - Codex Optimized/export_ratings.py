@@ -105,6 +105,9 @@ ADV_CAT_MIN_PCT = {"efg_pct": 50, "ts_pct": 50, "ft_rate": 50}
 ADV_CAT_ATTEMPT_MIN = {"twop": "twoa", "tpp": "tpa", "ftp": "fta"}
 ADV_RATE_GP_MIN, ADV_RATE_ATTEMPTS_PER_GAME_MIN, MIN_PCT_QUAL = 20, 2.5, 30
 ADV_RELAXED_CAT_KEYS = {"efg_pct", "ts_pct", "ft_rate", "twop", "tpp", "ftp"}
+# %Poss bands (the page's TS_USAGE_BANDS): ORtg is ranked within the player's band.
+USAGE_BANDS = [28, 24, 20, 16, 12, -1]
+usage_band = lambda u: next((i for i, f in enumerate(USAGE_BANDS) if (u or 0) > f), len(USAGE_BANDS) - 1)
 
 
 def state_ranks(pool):
@@ -171,8 +174,17 @@ def state_ranks(pool):
         q = [p for p in pool if qualifies(p, k, mode)]
         q.sort(key=lambda p: p[k] if asc else -p[k])   # stable, like the page's Array.sort
         totals[k] = len(q)
+        seen = {}
         for i, p in enumerate(q):
-            ranks.setdefault((p["name"], p["school"]), {})[k] = i + 1
+            if k == "ind_ortg":   # ORtg: ranked within the player's %Poss band, statewide (the page's __tsUsageBand)
+                b = usage_band(p.get("usage_pct"))
+                seen[b] = seen.get(b, 0) + 1
+                ranks.setdefault((p["name"], p["school"]), {})[k] = seen[b]
+                ranks[(p["name"], p["school"])]["ortg_band"] = b
+            else:
+                ranks.setdefault((p["name"], p["school"]), {})[k] = i + 1
+        if k == "ind_ortg":
+            totals["ortg_band"] = [seen.get(b, 0) for b in range(len(USAGE_BANDS))]
     return ranks, totals
 
 
