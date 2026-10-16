@@ -69,6 +69,32 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
     timeouts beside the score;
   - momentum: current run, stops in a row, kills this half;
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
+  - **THIS FIVE** (where the Team / bench foul row was, once a five is set): two labels on one line for each five
+    on the floor: its best strength (green: *3 shooters*, *Attack the rim*, *Ball hawks*, *Rim protector*, *Elite glass*, *Passers*,
+    *Closing FTs*) and its worst weakness (red ✕: *1 shooter*, *G can't shoot*, *Thin glass*, *TO risk*,
+    *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists who earned it, with their numbers. Nothing
+    is logged.
+    - From each player's season line (quality games: stat sheets / leaderboard; at halftime the 1st-half sheet
+      joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no line
+      yet (every opponent for now), from his position and his card labels (Shooter, Big, Ball hawk, Can't shoot...).
+    - **Shooter / non-shooter** combines 3PA rate (share of his shots that are threes), threes a game and 3P%:
+      - *Estimated 3P%* = his quality-game makes / attempts pulled toward **his own all-games 3P%** (the
+        leaderboard's box scores, downloaded with the ratings) until they add up (the starting point counts as 50
+        attempts). Only a player with under 10 threes anywhere starts from the team's 3P%, moved by his card
+        label (Shooter +3, Can't shoot −4). FT% is not used.
+      - *Volume* = 3PA rate (40% of his shots, 10+ FGA) or 2.0 threes a game, whichever says more.
+      - Shooter: full volume and est. 32%+, or 75% of the volume and est. 36%+. Non-shooter: est. under 28%, or
+        under 15% of his shots on 20+ FGA, or under 0.5 a game over 3+ games. In between: neither.
+      - So week one runs on volume and labels, and February on his own threes. The bubble shows
+        "est 36% · 4/10 · 2.5/g · 33% of FGA".
+    - **FT rate** (FTA / FGA, 15+ FGA) = how often he attacks the basket: 45%+ is an attacker; two on the floor =
+      *Attack the rim*. A **slasher** is a non-shooter who attacks: he counts toward Attack the rim, and a
+      slasher guard is not *G can't shoot* (that is a guard who neither shoots nor attacks).
+    - Other lines (per 40, 60+ minutes): ball hawk 2.5+ steals, rim protector 2.5+ blocks, TO risk 4+ (two
+      players), foul-prone 6+ PF (two players); glass = the five's rebounds per 40 (40+ elite, 26 or less thin);
+      passers = assists per 40 of 18+; Closing FTs = all five 75%+; FT #N = the worst shooter under 62% (6+ FTA).
+    - Foul trouble stays on the player cards (yellow / red), not here. A foul on nobody (bench / team) is set from
+      the play's edit screen; before a five is set, the Team / bench foul button is still there.
   - Tap a row to mark it yellow.
 
 ## How possessions are counted
@@ -158,7 +184,7 @@ shows at the top of their column and on their lineup card, and a sub that puts i
 The situation buttons sit in four fixed rows, so each is always in the same place: **Close it out**
 (Closing FTs · Ball security · Last stop), **Come back** (Need a 3 · Need steals), **Defense** (Stop the
 run · Stop the 2s · Off the 3-pt line · Close out the glass · Stop fouling) and **Overall** (Best overall ·
-What's hurting us · vs their best five). A gold **Right now** bar on top lists the ones whose trigger is
+What's hurting us · Move the ball · vs their best five). A gold **Right now** bar on top lists the ones whose trigger is
 met, most urgent first, with the reason ("Up 5 with 3:11 left: they have to foul"); they're also
 underlined gold in their rows. Blue is the one open.
 
@@ -171,12 +197,23 @@ underlined gold in their rows. Blue is the one open.
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
 | Stop the run | they're on a 6-0 run or more | best stop % |
 | Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
-| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | lowest opponent 2P% |
+| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | best **rim D**: low opponent 2P%, blocks, without fouling (below) |
 | Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
 | Close out the glass | our DREB% 5+ under our norm | best DREB% |
+| Move the ball | our AST% tonight 12+ under our norm (8+ made shots, logged game) | best AST%, with AST/TO shown |
 | What's hurting us | we're losing a four factor this half | the halftime card's logic |
 | vs their best five | their best five is on | our fives' net against that exact five, tonight |
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
+
+**Assists and blocks in the situations.** Only games logged with the Assist / Block buttons count, so older
+games never read as zero; a five's AST% and BLK% are pulled toward our norm until the sample supports them
+(15 made shots / 20 of their 2-pt tries count half). **Rim D** (Stop the 2s) = opponent 2P%, minus half of how
+far the five's BLK% (blocks per opponent 2-pt try) is above our norm, plus a quarter of how far its fouls / 100
+defensive possessions are above our norm; lower is better. So two fives that hold teams to the same 2P% are
+split by who blocks shots without sending them to the line. Each five shows its raw line: "opp 2P 41% ·
+BLK 9/48 · 1.3 blk/PF · 22 fouls/100" on Stop the 2s, "AST 14/20 made, AST/TO 2.3" on Move the ball and Ball
+security. Until a logged game is in, Stop the 2s ranks on opponent 2P% and fouls. Plug in (fouled out) on
+Move the ball ranks by assists / 40.
 
 **Closing FTs** is one list: the **best five FT shooters available**, ranked by **closing FT%**, each
 with season FTs and clutch FTs, IN / ON tags against the five on the floor, then who comes out (OUT) and the
@@ -469,9 +506,39 @@ five has 25+ offensive possessions).
   - Edit rows, Paste schedule, + Add game, Save schedule.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
-- **Rosters:** Moorpark and every opponent: #, name, position, height, year and a **note**.
-  - Opponent rosters are shared with the game tracker.
-  - Position and the note show on the player's card on the Live screen.
+- **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file (record, averages for and
+  against, advanced numbers, and every player's jersey number, season lines and advanced numbers) for each team on
+  Moorpark's schedule and each potential opponent in the leaderboard's `tracker_teams.txt` (a tournament field: one
+  team per line, short names ok). The tracker downloads the ones for teams we play, keeps them for offline gyms,
+  and refreshes them after each build:
+  - every team on the **schedule** (a team added to the schedule downloads as soon as you Save),
+  - every team under **Teams to have ready** on the Schedule tab: type a tournament field once (short names work:
+    RCC, CCSF, SBVC, East LA) and each team shows *✓ stats ready* with its logo, before you know who you play (a team
+    the leaderboard doesn't publish says *not published: add to tracker_teams.txt*),
+  - every opponent you keep a roster for.
+  An opponent's THIS FIVE labels then come from his players' real numbers, matched by jersey number.
+- **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
+  - **Roster · Basic · Advanced** (every team with leaderboard stats, Moorpark too): the leaderboard's Team Stats
+    table. *Basic*: per-game lines (G, MPG, PPG, rebounds, AST, STL, BLK, TO, FG / 2P / 3P / FT, eFG%, TS%), sorted
+    by PPG; tap a header to sort. *Advanced*: %Min, ORtg, %Poss, %Shots, eFG%, TS%, OR%, DR%, ARate, TORate, Blk%,
+    Stl%, FC/40, FD/40, FTRate and the shooting splits, grouped like the leaderboard (Go-to Guys >28% of
+    possessions, Major Contributors 24-28, Significant 20-24, Role Players 16-20, Limited Roles 12-16, Nearly
+    Invisible <12, Benchwarmers <10% of minutes last), with a red **State Rank** line under each qualified player
+    (the leaderboard's own ranks and rules). The leaderboard's own table format (navy header, bold names, blue
+    %Poss band rows, italic State Rank label with small red ranks), with light grey / darker grey alternating rows (a
+    player's rank line shares his row) and centred numbers. Scrolls sideways with the player column pinned. Roster edits in
+    progress are kept while you look.
+  - An opponent shows its leaderboard line (record, ORtg / DRtg, net and rank, points per game) and
+    **⬇ Fill from leaderboard**: adds everyone who played for them this season (by minutes, jersey numbers from
+    the latest box score), keeping the numbers already on the roster. Check them, then Save.
+  - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
+    it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
+  - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
+    ("Shooter, Lefty"), so the game tracker shows the same thing; an old one-line note splits on commas.
+  - On the Live screen the position and labels sit on **one line** under the player's name, in the order you added
+    them. What doesn't fit collapses into a grey **+N** chip; tapping it opens a small light-grey bubble above the
+    card with every label, in yellow (the red ✕ with a black outline, any other tap — a game action button included — or 8 seconds closes it). It never logs anything; tapping the rest of
+    the card works as before.
 - **Halftime stat sheet:** **End 1H** brings up the stat-sheet screen over the halftime report: add a photo of the
   printout if you have it (check / Clarify, then Save), or **Skip → halftime report**.
 - **Two reports.** With a stat sheet for that half / the game, the report is the **full report**:

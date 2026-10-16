@@ -170,6 +170,24 @@ This copy keeps the original project intact and starts consolidating the working
   folds into November). `adjust()` takes `phase` and shifts both ends of each game by -phase[month], so a
   five's net is unchanged and its O/D split is put on the season-average scale.
 
+- Team files for the tracker (Oct 2026): `export_ratings.py` also writes `../poss/teams/<team>.json` (~10-20 KB
+  each) for Moorpark, every team on Moorpark's schedule.json (`scheduled`) and every team in `tracker_teams.txt`
+  (potential opponents, e.g. a tournament field: one per line, short names like RCC / CCSF / SBVC map through
+  `SHORT`; unmatched lines are printed). Not all 100 teams: ~27 files / ~400 KB. Files for teams that drop off both
+  lists are deleted. Indexed in ratings.json as `teamFiles`.
+  Each file also carries `table`: the leaderboard's Team Stats table for that team (rows straight from
+  `load_full_rosters()`, `adv` flag) with each player's State Rank on the 15 ranked stats. Ranks are computed in
+  `export_ratings.state_ranks()` from `load_players()` (the page's DATA pool) with a Python port of the page's
+  TS_RANK_STATS / __tsQualifies / advSchoolNeedsRelaxedCat rules: change those JS rules and the port together.
+  Checked against the page (Citrus, 2025-26: identical). Adds ~3 s to the export. Each holds `team` (team_summary.json's record / totals /
+  averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
+  `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's
+  advanced_analytics.json row). `load_players` now finds a team's side of a box with `resolve_opponent()` (box labels
+  vary: "LA Valley") and records `num`, the jersey number from the latest box score. The tracker downloads only the
+  files for teams it plays (its schedule, a "Teams to have ready" tournament list, rosters it keeps), keeps them for
+  offline gyms, and refetches when ratings.json's `generatedAt` changes. Same compact JSON as ratings.json; written in
+  ~1 s; nothing is added to the leaderboard HTML.
+
 ## Example commands
 
 ```bash
