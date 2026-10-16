@@ -1147,7 +1147,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.120';
+const VERSION = 'v2026.10.17.121';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3342,7 +3342,8 @@ document.addEventListener('click', ev => {
     case 'rd-add': { collectSched(); readyAdd($('#rd-in').value); render(); break; }
     case 'rd-del': { collectSched(); const L = readyList(); L.splice(+b.dataset.i, 1); lsSet(LS_READY, L); render(); break; }
     case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = UI.rsMode === 'roster' ? '' : teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
-    case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) c.innerHTML = teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), 'basic'); break; }
+    case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) { const w = c.querySelector('.ts-wrap'), x = w ? w.scrollLeft : 0;   // keep the sideways scroll where it was
+      c.innerHTML = teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), 'basic'); const w2 = c.querySelector('.ts-wrap'); if (w2) w2.scrollLeft = x; } break; }
     case 'r-fill-lb': fillFromLeaderboard(UI.rosterSel || (g ? g.opp : '')); break;
     case 'r-save': saveRosterEdit(); render(); break;
     case 'sch-add': collectSched(); SCH.rows.push({ id: 'sch_' + Date.now(), date: '', time: '', opp: '', site: 'home', conf: false }); render(); { const d = document.querySelectorAll('[data-f="date"][data-sr]'); if (d.length) d[d.length - 1].focus(); } break;
