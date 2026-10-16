@@ -520,7 +520,7 @@ five has 25+ offensive possessions).
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
   - **Roster · Basic · Advanced** (every team with leaderboard stats, Moorpark too): the leaderboard's Team Stats
     table. *Basic*: per-game lines (G, MPG, PPG, rebounds, AST, STL, BLK, TO, FG / 2P / 3P / FT, eFG%, TS%), sorted
-    by PPG; tap a header to sort. *Advanced*: %Min, ORtg, %Poss, %Shots, eFG%, TS%, OR%, DR%, ARate, TORate, Blk%,
+    by PPG; tap a header to sort (the table stays scrolled where it was). *Advanced*: %Min, ORtg, %Poss, %Shots, eFG%, TS%, OR%, DR%, ARate, TORate, Blk%,
     Stl%, FC/40, FD/40, FTRate and the shooting splits, grouped like the leaderboard (Go-to Guys >28% of
     possessions, Major Contributors 24-28, Significant 20-24, Role Players 16-20, Limited Roles 12-16, Nearly
     Invisible <12, Benchwarmers <10% of minutes last), with a red **State Rank** line under each qualified player
