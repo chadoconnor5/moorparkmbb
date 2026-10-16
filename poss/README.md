@@ -381,6 +381,9 @@ Blocks / PF** (the version before paint / transition / off-turnover points). Dif
 are his share of each half's possessions (a half = 20 min), possessions are the real count, and assists, blocks
 and deflections aren't logged in games (—), so PF Efficiency is steals per foul. Ratings and four factors are
 opponent-adjusted (Data → Show raw numbers for raw).
+**Shooting** checkbox (top of the on / off view, remembered): adds a full-width Shooting panel first on every card,
+the team's raw shooting with him on / off: Effective FG%, True Shooting %, FGAs / 40, Field Goal Pct, 2PAs / 40,
+2-Point Pct, 3PAs / 40, 3-Point Pct, FTAs / 40, Free Throw Pct (On / Off / Diff).
 
 **Projected fives & synergy**: an adjusted plus-minus model (ridge regression over every possession in the view,
 opponent-adjusted, each player starting at 60 possessions of average): each player's Off / Def / Net impact per

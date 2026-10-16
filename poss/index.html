@@ -1115,6 +1115,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ts-table td.ts-ranklabel{font-weight:700;font-style:italic}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
+/* On/off: the Shooting checkbox and panel (full width, first). */
+.oo-imp-bar{display:flex;gap:12px;align-items:flex-start}.oo-shoot-cb{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:700;font-size:13px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;cursor:pointer}
+.oo-imp-wide{grid-column:1 / -1}
 
 </style>
 </head>
@@ -1148,7 +1151,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.123';
+const VERSION = 'v2026.10.17.124';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1169,7 +1172,7 @@ const cur = () => games.find(g => g.id === curId) || null;
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
 const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
 const D0 = g => derive(g).score;
-const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'season', luOpen: null };
+const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'season', luOpen: null, ooShoot: (() => { try { return localStorage.getItem('pt2_oo_shoot') === 'true'; } catch (e) { return false; } })() };
 
 /* ---------- rosters ---------- */
 // Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage),
@@ -3342,6 +3345,7 @@ document.addEventListener('click', ev => {
     case 'rr-del': b.closest('tr').remove(); break;
     case 'rd-add': { collectSched(); readyAdd($('#rd-in').value); render(); break; }
     case 'rd-del': { collectSched(); const L = readyList(); L.splice(+b.dataset.i, 1); lsSet(LS_READY, L); render(); break; }
+    case 'oo-shoot': UI.ooShoot = !UI.ooShoot; lsSet('pt2_oo_shoot', UI.ooShoot); render(); break;
     case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = UI.rsMode === 'roster' ? '' : teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
     case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) { const w = c.querySelector('.ts-wrap'), x = w ? w.scrollLeft : 0;   // keep the sideways scroll where it was
       c.innerHTML = teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), 'basic'); const w2 = c.querySelector('.ts-wrap'); if (w2) w2.scrollLeft = x; } break; }
@@ -5474,7 +5478,10 @@ function ooStats(T, A) {
     ts: (T.fga + 0.475 * T.fta) > 0 ? 0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100 : null,
     defl40: null, def_reb: defReb, hakeem: stlPct != null && blkPct != null ? stlPct + blkPct : null,
     pf_eff: trk ? (T.pfT > 0 ? (T.stlT + T.blkT) / T.pfT : null) : (T.pf > 0 ? T.stl / T.pf : null), stl_pf: T.pf > 0 ? T.stl / T.pf : null, blk_pf: trk && T.pfT > 0 ? T.blkT / T.pfT : null,
-    offPoss: T.poss, defPoss: T.oppPoss };
+    offPoss: T.poss, defPoss: T.oppPoss,
+    // Shooting (raw, the team's while he's on / off): the Shooting checkbox's panel.
+    sh: { efg: pct(T.fgm + 0.5 * T.fg3m, T.fga), ts: (T.fga + 0.475 * T.fta) > 0 ? 0.5 * T.pts / (T.fga + 0.475 * T.fta) * 100 : null, fga40: per40(T.fga), fgp: pct(T.fgm, T.fga),
+      fg2a40: per40(T.fga - T.fg3a), fg2p: pct(T.fgm - T.fg3m, T.fga - T.fg3a), fg3a40: per40(T.fg3a), fg3p: pct(T.fg3m, T.fg3a), fta40: per40(T.fta), ftp: pct(T.ftm, T.fta) } };
 }
 // On and off accumulators per player, per game (for the adjustment) and summed.
 function ooSplits(g) {
@@ -5509,6 +5516,9 @@ const OO_OFF = [['Offensive Rating', 'eff.ortg', 1, true, ''], ['True Shooting %
   ['Assist %', 'rate.asp', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['Ast/Tov Ratio', 'rate.ato', 2, true, ''], ['Deflections / 40', 'defl40', 1, true, '']];
 const OO_DEF = [['Defensive Rating', 'eff.drtg', 1, false, ''], ['Def Rebound %', 'def_reb', 1, true, '%'], ['Steal %', 'rate.stl', 1, true, '%'], ['Block %', 'rate.blk', 1, true, '%'],
   ['Hakeem %', 'hakeem', 1, true, '%'], ['PF Efficiency', 'pf_eff', 2, true, ''], ['Steals / PF', 'stl_pf', 2, true, ''], ['Blocks / PF', 'blk_pf', 2, true, '']];
+// Shooting (the Shooting checkbox): the team's raw shooting with him on / off.
+const OO_SHOOT = [['Effective FG%', 'sh.efg', 1, true, '%'], ['True Shooting %', 'sh.ts', 1, true, '%'], ['FGAs / 40 Mins', 'sh.fga40', 1, null, ''], ['Field Goal Pct', 'sh.fgp', 1, true, '%'],
+  ['2PAs / 40 Mins', 'sh.fg2a40', 1, null, ''], ['2-Point Pct', 'sh.fg2p', 1, true, '%'], ['3PAs / 40 Mins', 'sh.fg3a40', 1, null, ''], ['3-Point Pct', 'sh.fg3p', 1, true, '%'], ['FTAs / 40 Mins', 'sh.fta40', 1, true, ''], ['Free Throw Pct', 'sh.ftp', 1, true, '%']];
 const ooGet = (o, path) => { if (!o) return null; const a = path.split('.'); const v = a.length === 1 ? o[a[0]] : (o[a[0]] || {})[a[1]]; return v == null || isNaN(v) ? null : v; };
 function ooPanel(title, defs, p) {
   const fmt = (v, d, s) => v == null ? '—' : v.toFixed(d) + (s || '');
@@ -5526,9 +5536,9 @@ function onOffView(g) {
     return { id, on: ooStats(on, AJ && AJ.get('on|' + id)), off: ooStats(off, AJ && AJ.get('off|' + id)), minPct: tot.min > 0 ? 100 * on.min / tot.min : 0, games }; })
     .filter(p => p.on).sort((a, b) => b.minPct - a.minPct);
   const poss = s => s ? `${s.offPoss}` : '0';
-  return `<div class="oo-imp-bar"><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). Assists and blocks come from the Assist / Block buttons (games logged with them); deflections aren't logged (—).</div></div>
+  return `<div class="oo-imp-bar"><label class="oo-shoot-cb"><input type="checkbox" data-act="oo-shoot" ${UI.ooShoot ? 'checked' : ''}> Shooting</label><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). Assists and blocks come from the Assist / Block buttons (games logged with them); deflections aren't logged (—).${UI.ooShoot ? ' Shooting: the team\'s raw shooting with him on / off.' : ''}</div></div>
     ${cards.map(p => `<div class="oo-imp-card"><div class="oo-imp-head"><span class="oo-imp-name">${esc(pShort(g, 'a', p.id))}</span><span class="oo-imp-sub">${p.minPct.toFixed(0)}% min · ${p.games} game${p.games === 1 ? '' : 's'} · ${poss(p.on)} poss on · ${p.off ? poss(p.off) + ' off' : 'never off the floor'}</span></div>
-      <div class="oo-imp-grid">${ooPanel('Core Stats', OO_CORE, p)}${ooPanel('Box Stats', OO_BOX, p)}${ooPanel('Offense & Activity', OO_OFF, p)}${ooPanel('Defense', OO_DEF, p)}</div></div>`).join('')}`;
+      <div class="oo-imp-grid">${UI.ooShoot ? `<div class="oo-imp-wide">${ooPanel('Shooting', OO_SHOOT, p)}</div>` : ''}${ooPanel('Core Stats', OO_CORE, p)}${ooPanel('Box Stats', OO_BOX, p)}${ooPanel('Offense & Activity', OO_OFF, p)}${ooPanel('Defense', OO_DEF, p)}</div></div>`).join('')}`;
 }
 
 /* ---------- the model: adjusted plus-minus (ridge) ---------- */
