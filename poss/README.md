@@ -300,7 +300,7 @@ four factors at both ends, over the possessions with exactly that pattern on the
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
 Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
 
-**Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
+**Lineups opens on Full season.** The controls sit in one panel: **Games** (This game or a season split), **Half**, **View** (5- to 2-man, WOWY), then **Possessions** and **Situation**. **Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
 2H · OT** and the Possessions filter on top. Splits (game counts shown): Full season, Last 5, Last 10, Conference,
 Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away + neutral, Games won / lost,
 **Q1A, Q1, Q2, Q1 + Q2, Q3, Q4**, vs top 25 / outside the top 25, and Select your own games (a

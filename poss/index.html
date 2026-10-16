@@ -1002,6 +1002,19 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lu-team{border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:0 0 10px;background:rgba(58,155,217,.06)}
 .lu-team-r{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin-top:4px}
 .lu-team-r .go{color:var(--text2)}.lu-team-r .gd{color:var(--text2)}
+/* Lineups control panel: two even rows, every control the same height and filling its cell. */
+.lu-ctl{display:grid;grid-template-columns:1.25fr 1fr 1.6fr;gap:10px 12px;padding:12px;margin:0 0 12px;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+.lu-ctl .lu-f:nth-child(4){grid-column:1}
+.lu-ctl .lu-f:nth-child(5){grid-column:2 / span 2}
+.lu-f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.lu-l{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lu-ctl select,.lu-ctl .lu-src{width:100%;height:40px;font:inherit;font-size:14px;font-weight:700;padding:0 10px;border-radius:9px;border:1px solid var(--border);background:var(--bg,#0d0f14);color:var(--text)}
+.lu-seg{display:flex;height:40px;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.lu-seg button{flex:1;min-width:0;border:0;border-left:1px solid var(--border);background:var(--bg,#0d0f14);color:var(--text2);font:inherit;font-size:13.5px;font-weight:700;padding:0 4px;cursor:pointer;white-space:nowrap}
+.lu-seg button:first-child{border-left:0}
+.lu-seg button.on{background:var(--us);color:#0b1520}
+.lu-seg button:disabled{opacity:.35}
+@media (max-width:700px){.lu-ctl{grid-template-columns:1fr 1fr}.lu-ctl .lu-f:nth-child(3){grid-column:1 / span 2}.lu-ctl .lu-f:nth-child(4){grid-column:1}.lu-ctl .lu-f:nth-child(5){grid-column:2}}
 
 </style>
 </head>
@@ -1035,7 +1048,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.89';
+const VERSION = 'v2026.10.16.91';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1056,7 +1069,7 @@ const cur = () => games.find(g => g.id === curId) || null;
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
 const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
 const D0 = g => derive(g).score;
-const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
+const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'season', luOpen: null };
 
 /* ---------- rosters ---------- */
 // Moorpark: this tracker's own list if one was saved, else the game tracker's (same site, same storage),
@@ -2143,11 +2156,22 @@ function fixCard(g, D, o, cur) {
 }
 function lineupsView(g) {
   const D = derive(g);
-  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px;align-items:center">${splitSelect(g)}${(() => { const sea = UI.luScope === 'season', cur = UI.luPer || 'all';
-        const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
-        return ['all', '1H', '2H', ...ots].map(p => `<button class="btn btn-sm ${cur === p || (p === 'all' && !luPer(g) && cur !== 'all' && !sea && !g.periods.includes(cur)) ? 'btn-primary' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join(''); })()}</div>
-      <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
-      <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Situation</span><select data-act="lu-sit-sel"><option value="">Any</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select></label><label class="row lu-fsel" style="gap:6px;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+  /* One control panel, two even rows: what games · which half · what view, then which possessions · which
+     situation. Every control is the same height and fills its cell. */
+  const sea = UI.luScope === 'season', curP = UI.luPer || 'all';
+  const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
+  const halves = ['all', '1H', '2H', ...ots].map(p => `<button class="${curP === p || (p === 'all' && !luPer(g)) ? 'on' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join('');
+  const views = [5, 4, 3, 2].map(k => `<button class="${(UI.luK || 5) === k && !UI.luWowy ? 'on' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('') + `<button class="${UI.luWowy ? 'on' : ''}" data-act="lu-wowy">WOWY</button>`;
+  const possSel = `<select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select>`;
+  return `<div class="page-head"><h2>Lineups</h2></div>
+    <div class="lu-ctl">
+      <div class="lu-f"><span class="lu-l">Games</span>${splitSelect(g)}</div>
+      <div class="lu-f"><span class="lu-l">Half</span><div class="lu-seg">${halves}</div></div>
+      <div class="lu-f"><span class="lu-l">View</span><div class="lu-seg">${views}</div></div>
+      <div class="lu-f"><span class="lu-l">Possessions</span>${possSel}</div>
+      <div class="lu-f"><span class="lu-l">Situation</span>${sitSel}</div>
+    </div>
     ${splitPicker()}
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
     ${UI.luWowy ? '' : UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season · ${esc(splitName(UI.luSplit || 'full'))}: ${splitGames().length} game${splitGames().length === 1 ? '' : 's'} tracked on this iPad, Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
