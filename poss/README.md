@@ -286,6 +286,32 @@ Each lists its top two, only fives better than the norm with everyone dressed an
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
 qualifies, none is listed.
 
+## Lineup Builder and WOWY (as in the practice tracker)
+
+**Lineup Builder**, above the Moorpark lineup table: one dropdown per player of the size you're on (5-, 4-,
+3- or 2-man). Pick a player and the other slots only offer players who actually shared the floor with him
+under the current scope (game / half / season) and leverage filter; the table narrows to the units with every
+pick, so a full pick is one row. A pick that stops fitting after a filter change is kept and the panel says
+so. Clear empties it.
+
+**WOWY** (With Or Without You), the button after 2-man: five slots, pick 2-5 of our players and every on/off
+combination of them gets a row (2 picks = 4 rows, 3 = 8 ...): GP, possessions, +/-, ORtg, DRtg, net and the
+four factors at both ends, over the possessions with exactly that pattern on the floor (green chip = on, red =
+off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
+Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
+
+**Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
+garbage time. It drives the lineup table, the Lineup Builder and WOWY.
+
+## Lineup shooting and scoring (tap a five on Lineups)
+
+Under how its possessions ended, every five shows both ends (ours = OFF, theirs = DEF):
+2P, 3P and FT (made/attempts and %), **TS%** (points / (2 × (FGA + 0.44 FTA))), **PTS/FGA** (field-goal points per
+shot), **SCORE%** (trips with a point), **2ND CH** (points after an offensive rebound, and per OREB), **OFF TO**
+(points on the trip right after the other side's turnover), **AND-1s**, **STL'D** (turnovers that were
+steals) and **CHG/OFF** (charges / other offensive fouls committed). Game, half and season scopes all have it.
+FTs made now go in the ⬇ Lineup file too.
+
 ## Opponent ratings, live (every game re-graded nightly)
 
 The leaderboard build writes **`poss/ratings.json`** every night (`export_ratings.py`): every in-system team's
