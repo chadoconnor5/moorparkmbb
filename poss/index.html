@@ -1029,7 +1029,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.85';
+const VERSION = 'v2026.10.16.86';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1887,7 +1887,8 @@ function shootTable(u) {
    that no longer fits after a filter change is kept, and the panel says so, rather than vanishing.
    UI.luB = one slot per player of the current size, '' = any player. */
 function luUnitsFor(g, D, t, scope, filter, k) {
-  const sc = scope || (UI.luScope === 'game' ? 'game' : UI.luScope === 'season' ? 'season' : g.per);
+  // Game, Season, or one period (1H / 2H / OT / OT2 ...); 'per' = whatever period is on now.
+  const sc = scope || (UI.luScope === 'game' ? 'game' : UI.luScope === 'season' ? 'season' : UI.luScope === 'per' || !g.periods.includes(UI.luScope) ? g.per : UI.luScope);
   return sc === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, sc, filter || UI.luFilter, k);
 }
 function luBSync(units, k) { const known = new Set(units.flatMap(u => u.five)); UI.luB = Array.from({ length: k }, (_, i) => { const n = (UI.luB || [])[i]; return n && known.has(n) ? n : ''; }); }
@@ -2113,7 +2114,7 @@ function fixCard(g, D, o, cur) {
 }
 function lineupsView(g) {
   const D = derive(g);
-  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
+  return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button>${['1H', '2H', ...g.periods.filter(p => p.startsWith('OT'))].map(p => `<button class="btn btn-sm ${UI.luScope === p || (UI.luScope === 'per' && g.per === p) ? 'btn-primary' : ''}" data-act="lu-scope" data-s="${p}" ${g.periods.includes(p) ? '' : 'disabled title="Not started yet"'}>${esc(p)}</button>`).join('')}<button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
       <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · season, every game tracked</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
