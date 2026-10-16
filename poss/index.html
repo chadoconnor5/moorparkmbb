@@ -1094,19 +1094,24 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rd-chip .muted{font-size:11.5px}.rd-st{font-size:11.5px;font-weight:700}
 .rd-chip.ok .rd-st{color:var(--good,#4ade80)}.rd-chip.wait .rd-st{color:var(--warn)}.rd-chip.bad .rd-st{color:var(--bad,#f87171)}
 .rd-x{border:0;background:none;color:var(--muted);font-weight:800;padding:0 4px;cursor:pointer}
-/* Rosters: the leaderboard's Team Stats table (Basic / Advanced), in the box score's look (.tbl.zebra: light grey /
-   slightly darker grey rows, dark text). A player's State Rank line shares his row colour; the %Poss bands are a
-   darker grey subheader. */
-.ts-wrap{max-width:100%;overflow-x:auto}
-.ts-t{white-space:nowrap}.ts-t th,.ts-t td{text-align:center}.ts-t .l{text-align:left;position:sticky;left:0;z-index:1}
-.ts-t th.l{background:var(--card)}
-.ts-t th[data-act]{cursor:pointer}.ts-t th.on{color:var(--text)}.ts-t th.on.desc::after{content:' ▾'}.ts-t th.on.asc::after{content:' ▴'}
-.ts-t tbody td{color:#1f2937;border-top-color:#c4c9d1;background:var(--row-light)}
-.ts-t tbody tr.z td{background:var(--row-dark)}
-.ts-t tbody tr.ts-band td{background:#b8bec8;color:#1f2937;font-weight:700;font-size:12px;text-align:left}
-.ts-t tbody tr.ts-has td{border-bottom:none}
-.ts-t tbody tr.ts-rk td{color:#b91c1c;font-size:11px;font-weight:600;border-top:none;padding-top:0}
-.ts-t tbody tr.ts-rk td.l{color:#6b7280;font-weight:500}
+/* Rosters: the leaderboard's Team Stats table, copied from generate_leaderboard.py (#teamstats-content .ts-table:
+   navy header, bold names, blue %Poss band rows with a navy rule, italic State Rank label, small red ranks), with
+   two changes asked for here: light grey / darker grey alternating rows (a player's rank line shares his row) and
+   centred numbers. Scrolls sideways with the player column pinned. */
+.ts-wrap{max-width:100%;overflow-x:auto;background:#fff;border-radius:8px}
+.ts-table{width:auto;min-width:100%;border-collapse:collapse;font-size:.78rem;white-space:nowrap;margin:0 auto;font-variant-numeric:tabular-nums}
+.ts-table th{background:#1a1a2e;color:#fff;padding:5px 7px;text-align:center;font-size:.72rem;border-bottom:2px solid #333;font-weight:700}
+.ts-table th.ts-l,.ts-table td.ts-l{text-align:left;position:sticky;left:0;z-index:1}
+.ts-table td{padding:4px 7px;border-bottom:1px solid #ddd;text-align:center;color:#000;background:var(--row-light)}
+.ts-table td.ts-l{font-weight:600}
+.ts-table tbody tr.z td{background:var(--row-dark)}
+.ts-table tbody tr.ts-band td{background:#c7d3e8;color:#122a52;font-weight:800;font-size:.76rem;text-align:left;padding:6px 8px;border-top:12px solid #fff;border-bottom:2px solid #1a3a6e}
+.ts-table tbody tr.ts-band:first-child td{border-top:none}
+.ts-table.ts-basic{font-size:.92rem}.ts-table.ts-basic th{font-size:.82rem;padding:7px 10px;cursor:pointer}.ts-table.ts-basic td{padding:6px 10px}
+.ts-table.ts-basic th.on.desc::after{content:' ▾'}.ts-table.ts-basic th.on.asc::after{content:' ▴'}
+.ts-table tbody tr.ts-hasrank td{border-bottom:none;padding-bottom:1px}
+.ts-table tbody tr.ts-rankrow td{color:#c62828;font-size:.64rem;font-weight:700;padding:0 7px 4px;border-bottom:1px solid #ddd}
+.ts-table td.ts-ranklabel{font-weight:700;font-style:italic}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
 
@@ -1142,7 +1147,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.119';
+const VERSION = 'v2026.10.17.120';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2601,15 +2606,15 @@ function teamStatsTable(name, mode) {
   if (mode === 'basic') {
     const k = UI.tsSort || 'ppg', dir = UI.tsDir || 'desc';
     const S = rows.slice().sort((a, b) => k === 'name' ? (dir === 'asc' ? 1 : -1) * String(a.name).localeCompare(String(b.name)) : (dir === 'desc' ? -1 : 1) * ((+a[k] || 0) - (+b[k] || 0)));
-    const val = (r, c) => c === 'name' ? `<td class="l">${esc(r.name)}</td>` : c === 'fgm' ? `<td>${pm(r.fgm, r.fga)}</td>` : c === 'twom' ? `<td>${pm(r.twom, r.twoa)}</td>` : c === 'tpm' ? `<td>${pm(r.tpm, r.tpa)}</td>` : c === 'ftm' ? `<td>${pm(r.ftm, r.fta)}</td>` : c === 'gp' ? `<td>${r.gp}</td>` : `<td>${tsF(r[c])}</td>`;
-    return `<div class="tbl-wrap ts-wrap"><table class="tbl ts-t"><thead><tr>${TS_BASIC.map(([c, l]) => `<th class="${c === 'name' ? 'l ' : ''}${k === c ? 'on ' + dir : ''}" data-act="ts-sort" data-k="${c}">${l}</th>`).join('')}</tr></thead><tbody>${S.map((r, i) => `<tr class="${i % 2 ? 'z' : ''}">${TS_BASIC.map(([c]) => val(r, c)).join('')}</tr>`).join('')}</tbody></table></div>`;
+    const val = (r, c) => c === 'name' ? `<td class="ts-l">${esc(r.name)}</td>` : c === 'fgm' ? `<td>${pm(r.fgm, r.fga)}</td>` : c === 'twom' ? `<td>${pm(r.twom, r.twoa)}</td>` : c === 'tpm' ? `<td>${pm(r.tpm, r.tpa)}</td>` : c === 'ftm' ? `<td>${pm(r.ftm, r.fta)}</td>` : c === 'gp' ? `<td>${r.gp}</td>` : `<td>${tsF(r[c])}</td>`;
+    return `<div class="ts-wrap"><table class="ts-table ts-basic"><thead><tr>${TS_BASIC.map(([c, l]) => `<th class="${c === 'name' ? 'ts-l ' : ''}${k === c ? 'on ' + dir : ''}" data-act="ts-sort" data-k="${c}">${l}</th>`).join('')}</tr></thead><tbody>${S.map((r, i) => `<tr class="${i % 2 ? 'z' : ''}">${TS_BASIC.map(([c]) => val(r, c)).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
-  const cells = r => { r0 = r; return `<td class="l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${A('ind_ortg')}</td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
-  const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rk"><td class="l">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
+  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${A('ind_ortg')}</td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rankrow"><td class="ts-l ts-ranklabel">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
   let zi = 0;   // alternating colours per player; his State Rank line shares his colour
-  const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-has' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rk">', `<tr class="ts-rk${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td class="l" colspan="${N}">${l}</td></tr>`;
+  const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-hasrank' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rankrow">', `<tr class="ts-rankrow${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}">${l}</td></tr>`;
   let body = '';
   if (!adv) body = rows.map(row).join('');
   else {
@@ -2618,7 +2623,7 @@ function teamStatsTable(name, mode) {
     if (bench.length) body += band('Benchwarmers (played in fewer than 10% of team\'s minutes)') + bench.map(row).join('');
   }
   const head = ['Player', 'Ht', 'G', '%Min', 'ORtg', '%Poss', '%Shots', 'eFG%', 'TS%', 'OR%', 'DR%', 'ARate', 'TORate', 'Blk%', 'Stl%', 'FC/40', 'FD/40', 'FTRate', 'FTM-A', 'Pct', '2PM-A', 'Pct', '3PM-A', 'Pct'];
-  return `<div class="tbl-wrap ts-wrap"><table class="tbl ts-t ts-adv"><thead><tr>${head.map((h, i) => `<th class="${i ? '' : 'l'}">${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
+  return `<div class="ts-wrap"><table class="ts-table ts-adv"><thead><tr>${head.map((h, i) => `<th class="${i ? '' : 'ts-l'}">${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
     ${adv ? `<div class="tiny muted" style="margin-top:6px">State Rank: among ${T.rankOf && T.rankOf.ind_ortg ? T.rankOf.ind_ortg + ' ' : ''}qualified players in the state, by the leaderboard's own rules (30% of minutes; shooting stats by their leaderboard qualifications).</div>` : '<div class="tiny muted" style="margin-top:6px">No advanced numbers for this team: its box scores don\'t have reliable minutes (same as the leaderboard).</div>'}`;
 }
 function fillFromLeaderboard(sel) {

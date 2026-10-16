@@ -524,8 +524,9 @@ five has 25+ offensive possessions).
     Stl%, FC/40, FD/40, FTRate and the shooting splits, grouped like the leaderboard (Go-to Guys >28% of
     possessions, Major Contributors 24-28, Significant 20-24, Role Players 16-20, Limited Roles 12-16, Nearly
     Invisible <12, Benchwarmers <10% of minutes last), with a red **State Rank** line under each qualified player
-    (the leaderboard's own ranks and rules). Same look as the box score: light grey / slightly darker grey rows
-    with dark text (a player's State Rank line shares his row), %Poss bands as a darker grey subheader, numbers centred. Scrolls sideways with the player column pinned. Roster edits in
+    (the leaderboard's own ranks and rules). The leaderboard's own table format (navy header, bold names, blue
+    %Poss band rows, italic State Rank label with small red ranks), with light grey / darker grey alternating rows (a
+    player's rank line shares his row) and centred numbers. Scrolls sideways with the player column pinned. Roster edits in
     progress are kept while you look.
   - An opponent shows its leaderboard line (record, ORtg / DRtg, net and rank, points per game) and
     **⬇ Fill from leaderboard**: adds everyone who played for them this season (by minutes, jersey numbers from
