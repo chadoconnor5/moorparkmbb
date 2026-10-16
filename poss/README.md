@@ -320,7 +320,7 @@ garbage time. It drives the lineup table, the Lineup Builder and WOWY.
 
 ## Assist and Block buttons
 
-Two stat buttons ride on a shot, under the 3PT pair:
+Two stat buttons ride on a shot, right above Turnover / Steal (gold outline + ✓ when toggled on):
 - Tap **2PT Make** or **3PT Make**: every other stat button mutes except **Assist** (and the team logos). Tap Assist
   if it was assisted (it lights ✓), then the team logo logs the make, assisted. No Assist tap = unassisted.
 - Tap **2PT Miss** or **3PT Miss**: everything mutes except **Block**. Tap Block if it was blocked, then the logo

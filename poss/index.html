@@ -1049,7 +1049,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .oo-imp-tbl tbody td.oo-imp-on{font-weight:700}.oo-imp-tbl tbody td.oo-imp-diff{font-weight:800;color:#444}
 .oo-imp-tbl tbody td.oo-imp-good{color:#15803d}.oo-imp-tbl tbody td.oo-imp-bad{color:#b91c1c}
 /* Assist / Block ride on a shot: lit when they can be added. */
-.sbtn.addon{box-shadow:0 0 0 2px #fbbf24 inset}
+.sbtn.addon,.sbtn.addon.on{outline:3px solid #fbbf24;outline-offset:1px;box-shadow:none}
 
 </style>
 </head>
@@ -1083,7 +1083,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.98';
+const VERSION = 'v2026.10.17.99';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1618,8 +1618,8 @@ function scorebar(g, D) {
 }
 
 const STATS = [['2m', '2PT Make', '2fg_make'], ['2x', '2PT Miss', '2fg_miss'], ['3m', '3PT Make', '3fg_make'], ['3x', '3PT Miss', '3fg_miss'],
-  ['ast', 'Assist', 'ast'], ['blk', 'Block', 'blk'],
   ['ftm', 'FT Make', 'ft_make'], ['ftx', 'FT Miss', 'ft_miss'], ['oreb', 'Off Reb', 'oreb'], ['dreb', 'Def Reb', 'dreb'],
+  ['ast', 'Assist', 'ast'], ['blk', 'Block', 'blk'],
   ['to', 'Turnover', 'tov'], ['stl', 'Steal', 'stl'], ['chg', 'Charge', 'chg'], ['offf', 'Off Foul', 'offf'], ['foul', 'Foul', 'foul'], ['tech', 'Tech', 'tech']];
 const STAT_LABEL = Object.fromEntries(STATS.map(s => [s[0], s[1]]));
 // Team stats go to a team (the buttons at the top); fouls go to the player.
@@ -1755,7 +1755,7 @@ function liveView(g) {
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => { const mut = shotMute(st, k), on = st === k || (k === 'ast' && UI.ast) || (k === 'blk' && UI.blk);
-        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? 'addon' : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}${k === 'ast' && UI.ast ? ' ✓' : k === 'blk' && UI.blk ? ' ✓' : ''}</button>`; }).join('')}</div>
+        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}${k === 'ast' && UI.ast ? ' ✓' : k === 'blk' && UI.blk ? ' ✓' : ''}</button>`; }).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
         // Three across: subs and timeout; fix a tap and end the half; scout, situational lineups, flag.
         return `<div class="ctrls">
