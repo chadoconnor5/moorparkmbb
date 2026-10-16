@@ -1928,7 +1928,7 @@ function adjUnits(A, scope) {
     return B && B.adjFF && B.adjOrtg != null ? Object.assign({}, B, { players: u.players, mix: u.levMix || {}, F: B.adjFF, net: B.adjNet }) : null; }).filter(Boolean);
 }
 function seasonAdjCard() {
-  const A = luAdj(), fin = games.filter(g => g.final && g.ev && g.ev.length).length;
+  const recent = UI.luRecent && luAdjRecent(), A = recent || luAdj(), fin = games.filter(g => g.final && g.ev && g.ev.length).length;
   const tools = `<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="lu-export">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj">⬆ Adjusted</button>${A ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear</button>' : ''}</div>`;
   const head = `<div class="row" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Season lineups, opponent-adjusted</h3>${tools}</div>`;
   if (!A) return `<div class="card">${head}<div class="small muted" style="margin-top:8px">Opponent ratings download automatically from the leaderboard (nightly) the next time this iPad is online; every finished game is then re-adjusted here. Without them: ⬇ Lineup file → on the PC, in <code>Neural Network - Codex Optimized</code>, run <code>python3 adjust_lineups.py &lt;file&gt;</code> → ⬆ Adjusted with <code>internal_data/moorpark_lineups_adj.json</code>. Each five's ratings and four factors get adjusted for who it played: holding a team that rebounds well against good opponents counts for more. The halftime report uses it to suggest fives for the factors we're losing.</div></div>`;
@@ -1939,7 +1939,8 @@ function seasonAdjCard() {
   return `<div class="card">${head}
     <div class="small muted" style="margin:6px 0 8px">${A.live ? (() => { const r = ratingsAge(); return `<b>Live</b>: every finished game re-adjusted on this iPad against opponent ratings as of <b>${esc(r ? r.date : '')}</b> (the leaderboard, nightly)${r && r.days > 7 ? ' · <span class="neg">more than a week old: open the tracker online to refresh</span>' : ''} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted. Every game counts the same, judged against what that opponent turned out to be.`; })()
       : `File ${esc(String(A.generatedAt || '').slice(0, 10))} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted against ${esc(A.ratingsSeason || '')} ratings`}${!A.live && A.gamesTotal < fin ? ` · <span class="neg">${fin - A.gamesTotal} newer game${fin - A.gamesTotal === 1 ? '' : 's'} not in it — export and adjust again</span>` : ''}${A.factorsAdjusted ? '' : ' · <span class="neg">four factors not adjusted in this file (rerun update_advanced_analytics.py --all, then adjust_lineups.py)</span>'}</div>
-    ${levBtns()}
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">${levBtns()}${luAdj() && luAdj().live ? `<div class="row lev-seg"><span class="small muted">Games</span><button class="btn btn-sm ${UI.luRecent ? '' : 'btn-primary'}" data-act="lu-recent" data-v="">Whole season</button><button class="btn btn-sm ${UI.luRecent ? 'btn-primary' : ''}" data-act="lu-recent" data-v="1">Last 8 games</button></div>` : ''}</div>
+    ${recent ? `<div class="small muted" style="margin:4px 0">Last 8 games only (${recent.gamesTotal}): who's playing well now. The season numbers above every suggestion still count every game the same.</div>` : ''}
     ${noLev ? '<div class="small neg" style="margin:6px 0">This file has no leverage split: export the Lineup file from this tracker and run adjust_lineups.py again.</div>' : ''}
     <div class="tbl-wrap"><table class="tbl zebra adj-tbl"><thead><tr class="grp"><th></th><th colspan="4"></th><th colspan="4" class="go">OFFENSE (adj)</th><th colspan="4" class="gd">DEFENSE (adj)</th></tr>
       <tr><th>FIVE</th><th>POSS O/D</th><th>ADJ O</th><th>ADJ D</th><th>ADJ NET</th><th>eFG%</th><th>TO%</th><th>OREB%</th><th>FTR</th><th>eFG%</th><th>TO%</th><th>DREB%</th><th>FTR</th></tr></thead><tbody>
@@ -2928,6 +2929,7 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'lu-recent': UI.luRecent = !!b.dataset.v; render(); break;
     case 'rn-scope': UI.rnScope = b.dataset.s; UI.rnFive = null; render(); break;
     case 'rn-five': { const y = window.scrollY; UI.rnFive = UI.rnFive === b.dataset.k ? null : b.dataset.k; render(); window.scrollTo(0, y); break; }
     case 'lu-export': exportLineups(); break;
@@ -4488,7 +4490,9 @@ function adjustLineups(data, R) {
     const opp = g.scrimmage ? null : resolveTeam(g.opponent, R), r = opp ? R.teams[opp] : null;
     const why = g.scrimmage ? 'scrimmage' : !opp ? 'not in the CCC system' : null;
     gamesOut.push({ id: g.id, date: g.date, opponent: g.opponent, matched: opp, adjusted: !why, skipped: why, oppOrtg: r ? r.ortg : null, oppDrtg: r ? r.drtg : null, oppGames: r ? r.games : null });
-    const h = hc(g.site), F = r && r.ff && Object.keys(r.ff).length ? r.ff : null;
+    // Time of season (adjust_lineups.season_phase): put the game on the season-average scale for its month.
+    const mo = String(g.date || '').slice(5, 7), ph = -((R.phase || {})[mo === '10' ? '11' : mo] || 0), h0 = hc(g.site), h = [h0[0] + ph, h0[1] + ph];
+    const F = r && r.ff && Object.keys(r.ff).length ? r.ff : null;
     (g.units || []).forEach(u => { const x = units[u.key] = units[u.key] || { key: u.key, players: u.players, gp: 0, secs: 0, o: {}, d: {}, all: acc(), lev: {} };
       x.gp++; x.secs += u.secs || 0;
       ['o', 'd'].forEach(s => Object.entries(u[s] || {}).forEach(([k, v]) => { x[s][k] = (x[s][k] || 0) + v; }));
@@ -4505,7 +4509,7 @@ function adjustLineups(data, R) {
       ortg: rnd(o), drtg: rnd(d), net: o != null && d != null ? rnd(o - d) : null, adjPossO: A.adjPossO, adjPossD: A.adjPossD, adjOrtg: A.adjOrtg, adjDrtg: A.adjDrtg, adjNet: A.adjNet,
       adjFF: A.adjFF, adjFFw: A.adjFFw, lev, levMix: mix }; }).sort((a, b) => (b.oT + b.dT) - (a.oT + a.dT));
   return { app: 'moorpark-possession-tracker', kind: 'lineups-adjusted', version: 1, live: true, generatedAt: R.generatedAt, ratingsAt: R.generatedAt, source: data.exportedAt,
-    ratingsSeason: R.season, leagueAvg: { ortg: rnd(lgO), drtg: rnd(lgD) }, homeAdvantage: R.homeAdvantage, factorsAdjusted: FT.length > 0, leverage: anyLev, levWeights: ADJ_LEV_W,
+    ratingsSeason: R.season, leagueAvg: { ortg: rnd(lgO), drtg: rnd(lgD) }, homeAdvantage: R.homeAdvantage, factorsAdjusted: FT.length > 0, leverage: anyLev, levWeights: ADJ_LEV_W, phase: R.phase || {},
     gamesTotal: gamesOut.length, gamesAdjusted: gamesOut.filter(g => g.adjusted).length, games: gamesOut, units: out, playerSeason: R.playerSeason || {}, qualityMargin: R.qualityMargin || 15 };
 }
 // The adjusted lineups everything reads: re-adjusted on the iPad when there are ratings, else the uploaded file.
@@ -4523,6 +4527,14 @@ function luAdj() {
 }
 // "Opponent ratings as of Dec 3" and whether they're more than a week old.
 function ratingsAge() { const R = ratingsData(); if (!R) return null; const t = Date.parse(R.generatedAt); return { R, days: isNaN(t) ? null : (Date.now() - t) / 864e5, date: String(R.generatedAt || '').slice(0, 10) }; }
+// The last 8 finished games only, for "who's playing well now" (the season numbers never decay; this is a view).
+let RECENT_ADJ = null;
+function luAdjRecent(n = 8) {
+  const R = ratingsData(), A = luAdj(); if (!R || !R.teams || !A || !A.live) return null;
+  if (RECENT_ADJ && RECENT_ADJ.base === A) return RECENT_ADJ.v;
+  const f = lineupFile(); f.games = f.games.slice().sort((x, y) => String(x.date).localeCompare(String(y.date))).slice(-n);
+  const v = adjustLineups(f, R); RECENT_ADJ = { base: A, v }; return v;
+}
 
 /* ---------- situation log: every possession tagged with the Lineups situation it was in ----------
    Nobody tags anything. Each time the game is saved, every possession is checked against the situations on

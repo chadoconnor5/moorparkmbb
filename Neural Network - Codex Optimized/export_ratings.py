@@ -51,7 +51,7 @@ def export(season=None, out=OUT):
         "app": "moorpark-possession-tracker", "kind": "team-ratings", "version": 1,
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "season": season, "homeAdvantage": uaa.HOME_ADVANTAGE, "qualityMargin": al.QUALITY_MARGIN,
-        "aliases": dict(uaa.OPPONENT_ALIASES), "teams": teams,
+        "aliases": dict(uaa.OPPONENT_ALIASES), "teams": teams, "phase": al.season_phase(),
         "playerSeason": al.load_players(season, ratings),
     }
     out = Path(out)

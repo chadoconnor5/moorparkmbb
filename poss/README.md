@@ -286,6 +286,56 @@ Each lists its top two, only fives better than the norm with everyone dressed an
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
 qualifies, none is listed.
 
+## Opponent ratings, live (every game re-graded nightly)
+
+The leaderboard build writes **`poss/ratings.json`** every night (`export_ratings.py`): every in-system team's
+current opponent-adjusted ORtg / DRtg and four factors, games played, the name aliases, Moorpark's player
+season lines (all / quality games), and the time-of-season baseline. The tracker downloads it whenever it
+opens online and keeps the last copy for offline gyms. It then **re-adjusts every finished game on the
+iPad** with the same math as `adjust_lineups.py` (a test checks they agree to the decimal), so:
+- Every past game is graded against **what that opponent turned out to be**, not what they were that
+  night: holding a team in November that became a great shooting team counts as exactly that.
+- **No recency decay**: game 1 counts as much as game 20.
+- **Time of season** (measured on 8 seasons): league scoring runs ~1.8 points per 100 below its season
+  average in November and ~1.7 above in February, every year. Each game is put on the season-average scale
+  for its month, so scoring well early counts for more and holding a team down early for a little less.
+  Both ends move together, so a five's net is unchanged.
+- Everything uses it: season lineups, situational lineups, the halftime card, the quality-opponent filter,
+  players' quality-game lines, our norm (four factors opponent-adjusted), and the Runs tab (kills weighted
+  by the opponent's rating: a kill on a good offense counts more).
+- The season card says "Live … opponent ratings as of <date>" and warns when they're more than a week old.
+  ⬇ Lineup file / ⬆ Adjusted still work as the backup when the iPad has never been online.
+- **Whole season / Last 8 games** on the season card: the last 8 finished games only, for who's playing
+  well now. Suggestions always use the whole season.
+
+## Situation log (automatic, saved in each game)
+
+Nobody tags anything. Every time the game saves, each possession is checked against the Lineups situations
+and the result is written into the game (`g.sitLog`): which situations it was in, both fives, the margin,
+the clock you set, and what happened (points, stop, turnover, steal, FTs, whether they went to the line).
+It travels with the game (backups, exports), is rewritten when a play is fixed, and games tracked before it
+existed are filled in when the tracker opens.
+
+| Situation | Tagged when (from the five's side) | Record |
+|---|---|---|
+| Closing FTs | our ball, up 1-8, late | pts / trip, FTs |
+| Ball security | our ball, up 1-10, late | turnovers |
+| Last stop | their ball, up 1-3, last minute | stops |
+| Need steals | their ball, down 4+, late | steals, TOs forced |
+| Need a 3 | our ball, down 4-9, late | pts / trip |
+| Stop the run | their ball while they're on a 6-0 or more | stops |
+| Stop fouling | their ball with our 7+ team fouls | trips without sending them to the line |
+
+**Late is never estimated:** during a game, the clock you entered (4:00 or less in the 2nd half, any OT;
+the last minute for Last stop); once the game is final, also the exact count of possessions left (the last
+16 of the 2nd half; the last 4 for Last stop). The situations show as chips on the play-by-play sheet.
+
+On Lineups every five shows **In this spot**: its record in that exact situation this season (quality
+opponents once ratings are on the iPad), e.g. "6/6 stops · 2 games · counts 33%". The record moves the
+five's ranking as the trips add up (weight trips / (trips + 12): 3 trips → 20%, 12 → 50%), so one lucky
+night can't decide it. **PROVEN** = 6+ trips and better than our norm. Closing FTs also lists the fives'
+record up 1-8 late (these five, the five on now, the best there).
+
 ## Runs tab
 
 **Tabs** run in game order: Live · Report · Lineups · Scouting · Runs · Play-by-Play · Four factors · Sheet ·

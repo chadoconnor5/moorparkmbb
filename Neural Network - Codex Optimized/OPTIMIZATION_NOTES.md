@@ -159,6 +159,17 @@ This copy keeps the original project intact and starts consolidating the working
   decided by QUALITY_MARGIN (15) or fewer. Each bucket's `q` holds the same raw counts from games against
   positive-net opponents only.
 
+- Possession tracker ratings (Oct 2026): `export_ratings.py` writes `../poss/ratings.json` (compact JSON,
+  ~30 KB): every in-system team's ortg/drtg, `adj_ff` subset, games, OPPONENT_ALIASES, HOME_ADVANTAGE,
+  QUALITY_MARGIN, Moorpark `playerSeason` (adjust_lineups.load_players) and `phase`. generate_leaderboard.py
+  calls it at the end of every build (wrapped in try/except: it never fails the build) and run_pipeline.py
+  runs it after update_advanced_analytics.py. The tracker re-adjusts every game client-side with a JS port of
+  `adjust()` (poss: adjust.js); keep the two in sync (scratchpad e2e adjparity.js compares them).
+  Time of season: `adjust_lineups.season_phase()` = league in-system game ORtg by month minus the season
+  average, averaged over every season folder (Nov ~ -1.8, Dec -0.8, Jan +1.0, Feb +1.7, Mar +0.4; October
+  folds into November). `adjust()` takes `phase` and shifts both ends of each game by -phase[month], so a
+  five's net is unchanged and its O/D split is put on the season-average scale.
+
 ## Example commands
 
 ```bash
