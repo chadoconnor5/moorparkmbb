@@ -101,12 +101,12 @@ QUALITY_MARGIN = 15   # a game decided by more is left out of the quality lines 
 
 
 def load_players(season, ratings, team="Moorpark"):
-    """Moorpark's player season lines from the season's box scores (the schedules folder), twice:
+    """A team's player season lines (Moorpark's by default; export_ratings.py also builds every opponent's) from the season's box scores (the schedules folder), twice:
     "all" games, and "quality" games only - against an in-system opponent with a positive adjusted
     net rating, decided by QUALITY_MARGIN or fewer - so a player's FT% isn't built on blowouts of weak
     teams. Box scores can't see leverage inside a game; that is the closest a box score gets.
-    {name: {"all": {...}, "quality": {...}}}, keys games MIN FGM FGA FTM FTA 3PM 3PA OREB DREB AST
-    STL BLK TO PF PTS."""
+    {name: {"num": latest jersey, "all": {...}, "quality": {...}}}, keys games MIN FGM FGA FTM FTA 3PM 3PA
+    OREB DREB AST STL BLK TO PF PTS."""
     root = Path(f"{season} Teams Schedules")
     dirs = [d for d in root.glob(f"*/{team}") if d.is_dir()]
     if not dirs:
@@ -126,7 +126,9 @@ def load_players(season, ratings, team="Moorpark"):
         except (OSError, ValueError):
             continue
         teams = box.get("teams") or {}
-        mine = next((k for k in teams if k.lower().startswith(team.lower())), None)
+        # This team's side of the box: its label resolves to the team (box labels vary: "LA Valley"), else a
+        # label starting with the folder name.
+        mine = next((k for k in teams if uaa.resolve_opponent(k) == team), None) or next((k for k in teams if k.lower().startswith(team.lower())), None)
         if not mine or not teams.get(mine):
             continue
         opp_label = next((k for k in teams if k != mine), "")
@@ -136,7 +138,9 @@ def load_players(season, ratings, team="Moorpark"):
         margin = abs((sc.get(mine) or 0) - (sc.get(opp_label) or 0)) if sc else 99
         quality = r is not None and (r[0] - r[1]) > lg_net and margin <= QUALITY_MARGIN
         for pl in teams[mine]:
-            name = re.sub(r"^#\S+\s+", "", pl.get("name") or "").strip()
+            raw = (pl.get("name") or "").strip()
+            name = re.sub(r"^#\S+\s+", "", raw).strip()
+            jn = re.match(r"^#(\d{1,2})\b", raw)
             st = pl.get("stats") or {}
             if not name or num(st.get("MIN")) <= 0:
                 continue
@@ -145,6 +149,8 @@ def load_players(season, ratings, team="Moorpark"):
                     "FTM": num(ft[0]), "FTA": num(ft[-1]), "OREB": num(st.get("OREB")), "DREB": num(st.get("DREB")), "AST": num(st.get("AST")),
                     "STL": num(st.get("STL")), "BLK": num(st.get("BLK")), "TO": num(st.get("TO")), "PF": num(st.get("PF")), "PTS": num(st.get("PTS"))}
             x = out.setdefault(name, {"all": {}, "quality": {}})
+            if jn:
+                x["num"] = jn.group(1)   # the latest box score's number (files are read in date order)
             for scope in ("all", "quality") if quality else ("all",):
                 for k, v in line.items():
                     x[scope][k] = x[scope].get(k, 0) + v

@@ -506,7 +506,18 @@ five has 25+ offensive possessions).
   - Edit rows, Paste schedule, + Add game, Save schedule.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
+- **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file per team (record, averages
+  for and against, advanced numbers, and every player's jersey number, season lines and advanced numbers). The
+  tracker downloads the ones for teams we play, keeps them for offline gyms, and refreshes them after each build:
+  - every team on the **schedule** (a team added to the schedule downloads as soon as you Save),
+  - every team under **Teams to have ready** on the Schedule tab: type a tournament field once (short names work:
+    RCC, CCSF, SBVC, East LA) and each team shows *✓ stats ready* with its logo, before you know who you play,
+  - every opponent you keep a roster for.
+  An opponent's THIS FIVE labels then come from his players' real numbers, matched by jersey number.
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
+  - An opponent shows its leaderboard line (record, ORtg / DRtg, net and rank, points per game) and
+    **⬇ Fill from leaderboard**: adds everyone who played for them this season (by minutes, jersey numbers from
+    the latest box score), keeping the numbers already on the roster. Check them, then Save.
   - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note

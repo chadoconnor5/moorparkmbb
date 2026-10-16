@@ -667,7 +667,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .nt-pop .nt{color:#713f12;background:#fcd34d;border-color:#d97706}   /* the cards' gold, solid so it reads on the light bubble */
 .nt-pop-x{flex:none;width:26px;height:26px;border-radius:7px;border:1.5px solid #000;outline:none;-webkit-appearance:none;appearance:none;background:#fff;color:#dc2626;font-weight:800;font-size:12px;cursor:pointer}
 .nt-pop-x:focus,.nt-pop-x:focus-visible{outline:none;box-shadow:none}
-.ned{display:flex;flex-direction:column;gap:6px;min-width:220px}
+.ned{display:flex;flex-direction:column;gap:6px;min-width:170px}
+.redit input[data-k="name"]{min-width:170px}
 .ned-chips{display:flex;flex-wrap:wrap;gap:4px}.ned-chips:empty{display:none}
 .nt-x{border:0;background:none;color:var(--muted);font-weight:800;font-size:11px;padding:0 0 0 6px;cursor:pointer}
 .ned-in{display:flex;gap:6px}.ned-in input{flex:1;min-width:0}
@@ -1085,6 +1086,15 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .nt-pop-r b{display:block;font-weight:700}.nt-pop-r span{display:block;font-size:11.5px;font-weight:600;color:#4b5263;font-variant-numeric:tabular-nums}.nt-pop-r span:empty{display:none}
 .lc[hidden]{display:none}
 
+/* Rosters: an opponent's leaderboard line. */
+.tm-line{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:0 0 10px;font-size:13px;color:var(--text2)}.tm-line b{color:var(--text)}
+/* Schedule: teams to have ready (a tournament field). */
+.rd-list{display:flex;flex-wrap:wrap;gap:6px}
+.rd-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 8px;border-radius:999px;border:1px solid var(--border2);font-size:13px}
+.rd-chip .muted{font-size:11.5px}.rd-st{font-size:11.5px;font-weight:700}
+.rd-chip.ok .rd-st{color:var(--good,#4ade80)}.rd-chip.wait .rd-st{color:var(--warn)}.rd-chip.bad .rd-st{color:var(--bad,#f87171)}
+.rd-x{border:0;background:none;color:var(--muted);font-weight:800;padding:0 4px;cursor:pointer}
+
 </style>
 </head>
 <body>
@@ -1117,7 +1127,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.113';
+const VERSION = 'v2026.10.17.115';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1222,7 +1232,16 @@ const LOGO_ALIAS = { fresno_city: 'fresno', mira_costa: 'miracosta', mt_sac: 'mt
   pierce: 'la_pierce', santa_monica_college: 'santa_monica', smc: 'santa_monica', sbcc: 'santa_barbara', santa_barbara_city: 'santa_barbara',
   san_bernardino: 'san_bernardino_valley', sbvc: 'san_bernardino_valley', av: 'antelope_valley', mack_attack: 'mack_attack_prep',
   miramar: 'san_diego_miramar', sd_miramar: 'san_diego_miramar', san_diego_miramar_college: 'san_diego_miramar' };
+/* Short names the way brackets and schedules print them → the leaderboard's team name. Used for logos and for
+   the team's stats (resolveTeam), so "RCC" on a bracket gets Riverside's logo and Riverside's numbers. */
+const TEAM_ABBR = { rcc: 'Riverside', ccsf: 'San Francisco', 'city college of san francisco': 'San Francisco', sbvc: 'San Bernardino Valley',
+  'east la': 'East Los Angeles', elac: 'East Los Angeles', 'west la': 'West LA', wlac: 'West LA', lacc: 'Los Angeles City', 'la city': 'Los Angeles City',
+  smc: 'Santa Monica', sbcc: 'Santa Barbara', 'mt sac': 'Mt. San Antonio', mtsac: 'Mt. San Antonio', msjc: 'Mt. San Jacinto', avc: 'Antelope Valley',
+  coc: 'Canyons', 'college of the canyons': 'Canyons', occ: 'Orange Coast', ivc: 'Irvine Valley', lbcc: 'Long Beach', pcc: 'Pasadena City', 'sd city': 'San Diego City',
+  'sd mesa': 'San Diego Mesa', 'sd miramar': 'San Diego Miramar', cos: 'Sequoias', 'college of the sequoias': 'Sequoias', fcc: 'Fresno', 'fresno city': 'Fresno' };
+const expandTeam = n => TEAM_ABBR[String(n || '').toLowerCase().replace(/[.']/g, '').replace(/\s+/g, ' ').trim()] || n;
 function logoSlug(name) {
+  name = expandTeam(name);
   let k = String(name || '').toLowerCase().replace(/&/g, 'and').replace(/\b(college|cc|community)\b/g, ' ').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   if (LOGO_ALIAS[k]) k = LOGO_ALIAS[k];
   return LOGO_FILES.has(k) ? k : null;
@@ -2449,7 +2468,26 @@ function schedView() {
         ${body || '<tr><td class="l muted" colspan="9" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
       <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Shared with the game tracker. Changes save when you tap Save.</span>
         <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
-    </div>`;
+    </div>
+    ${readyCard()}`;
+}
+/* Teams to have ready: a tournament field (or anyone we might see) whose leaderboard stats should be on the iPad
+   before we know who we play. Every team here, and every team on the schedule, downloads when the tracker is
+   online and stays for offline gyms. Short names work (RCC, CCSF, SBVC, East LA). */
+const LS_READY = 'pt2_ready';
+const readyList = () => lsGet(LS_READY, []) || [];
+function readyCard() {
+  const R = ratingsData(), L = readyList();
+  const chip = (n, i) => { const t = R && R.teams ? resolveTeam(n, R) : null, F = t && teamFile(n);
+    return `<span class="rd-chip ${t ? (F ? 'ok' : 'wait') : 'bad'}">${logo(n, 18)}<b>${esc(n)}</b>${t && t !== n ? `<span class="muted">${esc(t)}</span>` : ''}<span class="rd-st">${!t ? 'not on the leaderboard' : F ? '✓ stats ready' : 'downloads when online'}</span><button class="rd-x" data-act="rd-del" data-i="${i}" aria-label="Remove">✕</button></span>`; };
+  return `<div class="card"><h3 style="margin-bottom:6px">Teams to have ready <span class="muted small">· a tournament field: their stats and logos download now, before you know who you play</span></h3>
+    <div class="rd-list">${L.map(chip).join('') || '<span class="small muted">No teams yet. Every team on the schedule is ready automatically.</span>'}</div>
+    <div class="row" style="gap:6px;margin-top:8px"><input id="rd-in" placeholder="Team (RCC, CCSF, East LA...) — commas for several" style="flex:1;min-width:0" enterkeyhint="done"><button class="btn btn-sm btn-good" data-act="rd-add">Add</button></div></div>`;
+}
+function readyAdd(v) {
+  const L = readyList(), have = new Set(L.map(x => x.toLowerCase()));
+  String(v || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean).forEach(x => { if (!have.has(x.toLowerCase())) { L.push(x); have.add(x.toLowerCase()); } });
+  lsSet(LS_READY, L); try { fetchTeamFiles(ratingsData()); } catch (e) {}
 }
 function schSave(quiet) {
   collectSched();
@@ -2458,6 +2496,7 @@ function schSave(quiet) {
   rows.sort((a, b) => a.date.localeCompare(b.date));
   lsSet('gt_schedule', rows.map(r => Object.assign({}, r)));
   SCH.rows = null;
+  try { fetchTeamFiles(ratingsData()); } catch (e) {}   // a team added to the schedule (a tournament field): its stats come down now
   if (!quiet) toast('Schedule saved — ' + rows.length + ' games', 'good');
   return true;
 }
@@ -2482,7 +2521,8 @@ function rostersView() {
         ${opps.map(n => `<button class="btn ${sel === n ? 'btn-primary' : ''}" data-act="r-sel" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
         <button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
       <div class="card"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
-        <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
+        <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
+        ${isM ? '' : teamLine(sel)}
         <div class="tbl-wrap"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
         <div class="small muted" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
     </div>`;
@@ -2510,9 +2550,29 @@ function nedAdd(cell, v) {
 // Quick picks show under the row being edited only.
 document.addEventListener('focusin', ev => { const a = ev.target.closest && ev.target.closest('.ned-add'); if (!a) return;
   document.querySelectorAll('.ned-q').forEach(q => { q.innerHTML = ''; }); const cell = a.closest('.ned'); nedPaint(cell, noteLabels(cell.querySelector('input[data-k="note"]').value)); });
-document.addEventListener('keydown', ev => { if (ev.key !== 'Enter' || !ev.target.classList || !ev.target.classList.contains('ned-add')) return;
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'rd-in') { ev.preventDefault(); collectSched(); readyAdd(ev.target.value); render(); return; }
+  if (ev.key !== 'Enter' || !ev.target.classList || !ev.target.classList.contains('ned-add')) return;
   ev.preventDefault(); const cell = ev.target.closest('.ned'); nedAdd(cell, ev.target.value); ev.target.value = ''; });
 window.addEventListener('resize', () => fitLabels());
+/* An opponent's season line from the leaderboard, above his roster: record, ratings and rank, and whether his
+   stats are on this iPad (they come down for every team on the schedule when the tracker is online). */
+function teamLine(name) {
+  const R = ratingsData(), t = R && R.teams ? resolveTeam(name, R) : null, F = teamFile(name);
+  if (!t) return `<div class="small muted" style="margin:0 0 8px">${R ? 'Not a team on the leaderboard (check the spelling).' : 'No leaderboard data on this iPad yet: open the tracker online once.'}</div>`;
+  const x = R.teams[t], rank = Object.values(R.teams).filter(y => y.ortg - y.drtg > x.ortg - x.drtg).length + 1, n = Object.keys(R.teams).length;
+  const rec = F && F.team && F.team.record ? Object.entries(F.team.record).find(([k]) => /^Overall/i.test(k)) : null, A = F && F.team && F.team.averages;
+  return `<div class="tm-line"><b>${esc(t)}</b>${rec ? ` <span>${esc(rec[1])}</span>` : ''}<span>ORtg ${x.ortg.toFixed(1)}</span><span>DRtg ${x.drtg.toFixed(1)}</span><span class="${pmCls(x.ortg - x.drtg)}">Net ${sg1(Math.round(10 * (x.ortg - x.drtg)) / 10)} · #${rank} of ${n}</span>${A && A.PTS != null ? `<span>${(+A.PTS).toFixed(1)} ppg</span>` : ''}
+    <span class="muted">${F ? `${Object.keys(F.players || {}).length} players' stats on this iPad` : 'player stats download when online'}</span></div>`;
+}
+// Fill an opponent's roster from his team's leaderboard file: everyone who played, by minutes; numbers already on the roster are kept.
+function fillFromLeaderboard(sel) {
+  const F = teamFile(sel); if (!F) { toast('No leaderboard stats for ' + sel + ' on this iPad yet', 'bad'); return; }
+  const tb = $('#rbody'), have = new Set([...tb.querySelectorAll('input[data-k="num"]')].map(i => i.value.trim()).filter(Boolean));
+  const best = {}; Object.entries(F.players || {}).forEach(([n, v]) => { const k = String(v.num || ''); if (!k || (v.all || {}).games < 1) return; if (!best[k] || (v.all.MIN || 0) > (best[k][1].all.MIN || 0)) best[k] = [n, v]; });
+  const add = Object.entries(best).filter(([k]) => !have.has(k)).sort((a, b) => (b[1][1].all.MIN || 0) - (a[1][1].all.MIN || 0));
+  add.forEach(([k, [n]]) => { document.querySelector('[data-act="rr-add"]').click(); const r = [...tb.querySelectorAll('tr.rrow')].pop(); r.querySelector('input[data-k="num"]').value = k; r.querySelector('input[data-k="name"]').value = n; });
+  toast(add.length ? `${add.length} players added from the leaderboard: check them, then Save` : 'Everyone on the leaderboard is already on this roster', add.length ? 'good' : '');
+}
 function saveRosterEdit() {
   const sel = UI.rosterSel || (cur() ? cur().opp : 'MPK');
   // A label typed but not added yet still counts.
@@ -3218,6 +3278,9 @@ document.addEventListener('click', ev => {
     case 'fl-tap': { const x = ((UI.flCache || {})[b.dataset.team] || [])[+b.dataset.i]; if (x) labelPop(b, (x.kind === 'r' ? '✕ ' : '') + x.text, x.rows); break; }
     case 'nt-more': { const p = pInfo(g, b.dataset.team, b.dataset.p); labelPop(b, noteLabels(p.note)); break; }
     case 'rr-del': b.closest('tr').remove(); break;
+    case 'rd-add': { collectSched(); readyAdd($('#rd-in').value); render(); break; }
+    case 'rd-del': { collectSched(); const L = readyList(); L.splice(+b.dataset.i, 1); lsSet(LS_READY, L); render(); break; }
+    case 'r-fill-lb': fillFromLeaderboard(UI.rosterSel || (g ? g.opp : '')); break;
     case 'r-save': saveRosterEdit(); render(); break;
     case 'sch-add': collectSched(); SCH.rows.push({ id: 'sch_' + Date.now(), date: '', time: '', opp: '', site: 'home', conf: false }); render(); { const d = document.querySelectorAll('[data-f="date"][data-sr]'); if (d.length) d[d.length - 1].focus(); } break;
     case 'sch-del': { collectSched(); const r = SCH.rows[+b.dataset.i]; if (r && (!r.opp || confirm('Remove ' + r.date + ' ' + r.opp + ' from the schedule? (A game already tracked is kept.)'))) { SCH.rows.splice(+b.dataset.i, 1); render(); } break; }
@@ -4782,14 +4845,24 @@ function plugCard(g, D, outId) {
    is not "G can't shoot": that is a guard who neither shoots nor attacks. */
 const FL = { K3: 50, TAG_SH: 3, TAG_NS: -4, VOL_RATE: 40, VOL_PG: 2.0, SH_EST: 32, SH_EST_HI: 36, SH_VOL_HI: 0.75, NS_EST: 28, NS_RATE: 15, NS_FGA: 20, NS_PG: 0.5, NS_GAMES: 3, FTR_HI: 45, FTR_FGA: 15, HAWK: 2.5, RIM: 2.5, TO: 4, PF: 6, FT_LO: 62, FT_HI: 75, FT_MIN: 6, GLASS_HI: 40, GLASS_LO: 26, AST_HI: 18 };
 const flTag = (p, re) => noteLabels(p.note).some(x => re.test(x));
+// An opponent's player in his team's leaderboard file: by jersey number, else by last name.
+function oppFileLine(g, p) {
+  const F = teamFile(g.opp); if (!F || !F.players) return null;
+  const E = Object.entries(F.players), ln = s => lastName(String(s || '')).toLowerCase();
+  const byNum = p.num ? E.filter(([, v]) => String(v.num) === String(p.num)) : [];
+  const hit = (p.name && byNum.find(([n]) => ln(n) === ln(p.name))) || (byNum.length === 1 && byNum[0]) || (p.name && E.find(([n]) => ln(n) === ln(p.name)));
+  return hit ? { name: hit[0], ...hit[1] } : null;
+}
 function flPlayer(g, t, id) {
-  const p = pInfo(g, t, id), x = t === 'a' ? plSeason().P[id] : null, pos = String(p.pos || '').toUpperCase(), min = x && (x.MIN || 0) >= 60 ? x.MIN : 0;
+  const p0 = pInfo(g, t, id), of = t === 'b' ? oppFileLine(g, p0) : null, p = p0;
+  const x = t === 'a' ? plSeason().P[id] : of ? ((of.quality && (of.quality.games || 0) >= 3) ? of.quality : of.all) : null, pos = String(p.pos || '').toUpperCase(), min = x && (x.MIN || 0) >= 60 ? x.MIN : 0;
   const per40 = k => min ? 40 * (x[k] || 0) / min : null, gp = x ? x.games || 0 : 0;
   const a3 = x ? x['3PA'] || 0 : 0, m3 = x ? x['3PM'] || 0 : 0, fga = x ? x.FGA || 0 : 0, pg3 = gp ? a3 / gp : null, p3 = a3 ? 100 * m3 / a3 : null;
   const ft = x && (x.FTA || 0) >= FL.FT_MIN ? 100 * (x.FTM || 0) / x.FTA : null, rate = fga >= 10 ? 100 * a3 / fga : null, ftr = fga >= FL.FTR_FGA ? 100 * (x.FTA || 0) / fga : null;
-  const T = plSeason().T || {}, base = T['3PA'] ? 100 * (T['3PM'] || 0) / T['3PA'] : 32;
+  const T = t === 'a' ? plSeason().T || {} : (() => { const z = {}; Object.values((teamFile(g.opp) || {}).players || {}).forEach(v => { const l = v.all || {}; z['3PA'] = (z['3PA'] || 0) + (l['3PA'] || 0); z['3PM'] = (z['3PM'] || 0) + (l['3PM'] || 0); }); return z; })();
+  const base = T['3PA'] ? 100 * (T['3PM'] || 0) / T['3PA'] : 32;
   const tagS = flTag(p, /^shooter$|^sniper$|^3pt|^knockdown/i), tagN = flTag(p, /can'?t shoot|non-?shooter|no 3|bad 3/i);
-  const A = luAdj(), allL = t === 'a' && A && A.playerSeason && A.playerSeason[id] && A.playerSeason[id].all, aa = allL ? allL['3PA'] || 0 : 0;
+  const A = luAdj(), allL = t === 'a' ? A && A.playerSeason && A.playerSeason[id] && A.playerSeason[id].all : of && of.all, aa = allL ? allL['3PA'] || 0 : 0;
   const tagged = base + (tagS ? FL.TAG_SH : 0) + (tagN ? FL.TAG_NS : 0);
   const prior = aa >= 10 ? 100 * ((allL['3PM'] || 0) + 20 * tagged / 100) / (aa + 20) : tagged;   // his all-games 3P% (lightly steadied)
   const est = x ? 100 * (m3 + FL.K3 * prior / 100) / (a3 + FL.K3) : null;
@@ -4858,13 +4931,36 @@ function fetchRatings() {
   if (!window.fetch) return;
   fetch('ratings.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
     if (!d || d.kind !== 'team-ratings' || !d.teams) return;
-    const old = ratingsData(); if (old && old.generatedAt === d.generatedAt) return;
+    const old = ratingsData(); if (old && old.generatedAt === d.generatedAt) { fetchTeamFiles(d); return; }
     if (lsSet(LS_RATINGS, d)) { LIVE_ADJ = null; render(); }
+    fetchTeamFiles(d);
   }).catch(() => {});
+}
+/* Every team's stats file (teams/<team>.json, export_ratings.py): season stats, and every player's jersey number,
+   season lines (all / quality games) and advanced numbers. Downloaded for the opponents on our schedule (the
+   tracker's and the leaderboard's) and the game being tracked, kept on the iPad for offline gyms, refreshed when
+   the leaderboard rebuilds. Any other team: teamFile(name) is there once its file has been fetched. */
+const LS_TEAM_FILES = 'pt2_team_files';
+const teamFiles = () => lsGet(LS_TEAM_FILES, {}) || {};
+function teamFile(name) {
+  const R = ratingsData(); if (!R || !R.teams || !name) return null;
+  const t = resolveTeam(name, R); return t ? teamFiles()[t] || null : null;
+}
+function fetchTeamFiles(R) {
+  if (!R || !R.teamFiles || !window.fetch) return;
+  const want = new Set([...(R.scheduled || []), ...schedule().map(s => s.opp), ...games.filter(g => !g.final).map(g => g.opp), ...oppStore().map(o => o.name), ...readyList()].map(n => resolveTeam(n, R)).filter(t => t && R.teamFiles[t]));
+  const have = teamFiles(), todo = [...want].filter(t => !have[t] || have[t].generatedAt !== R.generatedAt);
+  if (!todo.length) return;
+  Promise.all(todo.map(t => fetch(R.teamFiles[t] + '?v=' + encodeURIComponent(R.generatedAt), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)))
+    .then(L => { const cur = teamFiles(); let n = 0; L.forEach(d => { if (d && d.kind === 'team-file' && d.name) { cur[d.name] = d; n++; } });
+      // Only teams we play (or keep a roster for) are kept, so the iPad's storage stays small.
+      Object.keys(cur).forEach(t => { if (!want.has(t)) delete cur[t]; });
+      if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
 }
 const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 // update_advanced_analytics.resolve_opponent: canonical name match (longest first), then the alias table.
 function resolveTeam(name, R) {
+  name = expandTeam(name);   // RCC, CCSF, East LA... (app.js TEAM_ABBR)
   const T = Object.keys(R.teams).sort((a, b) => b.length - a.length);
   const match = n => { const x = normTeam(n); if (!x) return null; return T.find(t => { const y = normTeam(t); return x === y || x.startsWith(y + ' ') || y.endsWith(' ' + x); }) || null; };
   const m = match(name); if (m) return m;
