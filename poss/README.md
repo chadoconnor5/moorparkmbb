@@ -286,6 +286,15 @@ Each lists its top two, only fives better than the norm with everyone dressed an
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
 qualifies, none is listed.
 
+## Lineup shooting and scoring (tap a five on Lineups)
+
+Under how its possessions ended, every five shows both ends (ours = OFF, theirs = DEF):
+2P, 3P and FT (made/attempts and %), **TS%** (points / (2 × (FGA + 0.44 FTA))), **PTS/FGA** (field-goal points per
+shot), **SCORE%** (trips with a point), **2ND CH** (points after an offensive rebound, and per OREB), **OFF TO**
+(points on the trip right after the other side's turnover), **AND-1s**, **STL'D** (turnovers that were
+steals) and **CHG/OFF** (charges / other offensive fouls committed). Game, half and season scopes all have it.
+FTs made now go in the ⬇ Lineup file too.
+
 ## Opponent ratings, live (every game re-graded nightly)
 
 The leaderboard build writes **`poss/ratings.json`** every night (`export_ratings.py`): every in-system team's
