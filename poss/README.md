@@ -298,7 +298,7 @@ so. Clear empties it.
 combination of them gets a row (2 picks = 4 rows, 3 = 8 ...): GP, possessions, +/-, ORtg, DRtg, net and the
 four factors at both ends, over the possessions with exactly that pattern on the floor (green chip = on, red =
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
-Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
+Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
 
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.

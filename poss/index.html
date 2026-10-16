@@ -1029,7 +1029,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.84';
+const VERSION = 'v2026.10.16.85';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2117,7 +2117,7 @@ function lineupsView(g) {
       <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
       <label class="row lu-fsel" style="gap:6px;margin-left:auto;align-items:center"><span class="small muted">Possessions</span><select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · season, every game tracked</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
-    ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${UI.luWowy ? '' : UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
