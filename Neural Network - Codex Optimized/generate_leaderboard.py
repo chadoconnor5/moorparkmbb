@@ -13684,6 +13684,12 @@ def main():
         for logo in logo_src.glob("*.png"):
             shutil.copy2(logo, logo_dest / logo.name)
     print(f"  Saved: {output} ({len(html) // 1024} KB)")
+    # The possession tracker re-adjusts every tracked game against these ratings (poss/ratings.json).
+    try:
+        import export_ratings
+        export_ratings.export()
+    except Exception as err:  # never fail the leaderboard build over it
+        print(f"  export_ratings skipped: {err}")
 
 
 if __name__ == "__main__":

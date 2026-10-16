@@ -151,6 +151,45 @@ def load_players(season, ratings, team="Moorpark"):
     return out
 
 
+# Time of season (measured on every season in the stats folders): league scoring runs ~2.5 points per 100
+# below its season average in November and ~1.5 above it in February, every year. A game's ratings are put
+# on the season-average scale by its month: scoring 105 in November counts like ~107.5, and holding a team to
+# 95 in November counts like ~97.5. Both ends move together, so a five's net is unchanged; its O/D split is not.
+def season_phase(min_games=30):
+    """{month 'MM': league ORtg in that month minus the season's average}, averaged over all seasons."""
+    from datetime import datetime
+    devs = {}
+    for sdir in sorted(Path(".").glob("* Team Statistics")):
+        by_m, allv = {}, []
+        for p in sdir.glob("*/*/advanced_analytics.json"):
+            try:
+                gr = json.load(open(p)).get("team", {}).get("game_ratings") or []
+            except (OSError, ValueError):
+                continue
+            for g in gr:
+                if not g.get("in_system") or not g.get("ortg"):
+                    continue
+                d = None
+                for f in ("%m/%d/%Y", "%m-%d-%y", "%m/%d/%y", "%Y-%m-%d"):
+                    try:
+                        d = datetime.strptime(g["date"], f)
+                        break
+                    except (ValueError, KeyError, TypeError):
+                        pass
+                if not d:
+                    continue
+                m = "11" if d.month == 10 else f"{d.month:02d}"
+                by_m.setdefault(m, []).append(g["ortg"])
+                allv.append(g["ortg"])
+        if len(allv) < 500:
+            continue
+        avg = sum(allv) / len(allv)
+        for m, v in by_m.items():
+            if len(v) >= min_games:
+                devs.setdefault(m, []).append(sum(v) / len(v) - avg)
+    return {m: round(sum(v) / len(v), 2) for m, v in sorted(devs.items()) if len(v) >= 3}
+
+
 def home_court(site):
     """Moorpark's venue -> (ORtg shift, DRtg shift), as update_advanced_analytics does."""
     h = uaa.HOME_ADVANTAGE / 2
@@ -174,7 +213,7 @@ def _acc():
     return dict(_raw(), q=_raw(), _ao=0.0, _ad=0.0, _aoT=0.0, _adT=0.0, _ff={})
 
 
-def adjust(data, ratings, ratings_season, factors=None):
+def adjust(data, ratings, ratings_season, factors=None, phase=None):
     lg_o = sum(o for o, _ in ratings.values()) / len(ratings)
     lg_d = sum(d for _, d in ratings.values()) / len(ratings)
     factors = factors or {}
@@ -233,6 +272,9 @@ def adjust(data, ratings, ratings_season, factors=None):
                       "adjusted": why is None, "skipped": why,
                       "oppOrtg": r[0] if r else None, "oppDrtg": r[1] if r else None})
         hc_o, hc_d = home_court(g.get("site"))
+        # Put the game on the season-average scale for its month (see season_phase): both ends together.
+        ph = -(phase or {}).get(str(g.get("date") or "")[5:7].replace("10", "11"), 0.0)
+        hc_o, hc_d = hc_o + ph, hc_d + ph
         F = factors.get(opp) if r else None
         for u in g.get("units", []):
             x = units.setdefault(u["key"], {"key": u["key"], "players": u["players"], "gp": 0, "secs": 0,
@@ -281,7 +323,7 @@ def adjust(data, ratings, ratings_season, factors=None):
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": data.get("exportedAt"), "ratingsSeason": ratings_season,
         "leagueAvg": {"ortg": round(lg_o, 1), "drtg": round(lg_d, 1)}, "homeAdvantage": uaa.HOME_ADVANTAGE,
-        "factorsAdjusted": bool(factors), "leverage": any_lev, "levWeights": LEV_W,
+        "factorsAdjusted": bool(factors), "leverage": any_lev, "levWeights": LEV_W, "phase": phase or {},
         "gamesTotal": len(games), "gamesAdjusted": sum(g["adjusted"] for g in games),
         "games": games, "units": out_units,
     }
@@ -305,7 +347,7 @@ def main():
     factors = load_factors(season)
     if not factors:
         print(f"No adjusted four factors in '{season} Team Statistics' (run update_advanced_analytics.py --all); ratings only.")
-    res = adjust(data, ratings, season, factors)
+    res = adjust(data, ratings, season, factors, season_phase())
     res["playerSeason"] = load_players(season, ratings)
     res["qualityMargin"] = QUALITY_MARGIN
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)

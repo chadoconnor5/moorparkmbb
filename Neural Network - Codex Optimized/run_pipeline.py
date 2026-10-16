@@ -37,6 +37,8 @@ def main() -> None:
     if args.prior_season:
         analytics_cmd.extend(["--prior-season", args.prior_season])
     run_step(analytics_cmd)
+    # The possession tracker's team ratings (poss/ratings.json), re-read by the iPad on open.
+    run_step([sys.executable, "export_ratings.py", "--season", args.season])
 
 
 if __name__ == "__main__":

@@ -155,13 +155,17 @@ fives with 8+ possessions. When it is on the floor a ★ **Their best five is on
 shows at the top of their column and on their lineup card, and a sub that puts it back on pops a note.
 
 **Lineups (situational lineups):** a button in the live controls (and 💡 Try opens it on Best overall).
-A chip per situation; the ones whose trigger is met right now light up (●) and come first, most urgent
-first, with the reason ("Up 5 with 3:11 left: they have to foul"):
+The situation buttons sit in four fixed rows, so each is always in the same place: **Close it out**
+(Closing FTs · Ball security · Last stop), **Come back** (Need a 3 · Need steals), **Defense** (Stop the
+run · Stop the 2s · Off the 3-pt line · Close out the glass · Stop fouling) and **Overall** (Best overall ·
+What's hurting us · vs their best five). A gold **Right now** bar on top lists the ones whose trigger is
+met, most urgent first, with the reason ("Up 5 with 3:11 left: they have to foul"); they're also
+underlined gold in their rows. Blue is the one open.
 
 | Situation | Lights up when | Fives ranked by |
 |---|---|---|
 | Last stop | up 1-3, their ball, last 1:00 | best stop % |
-| Closing FTs | up 1-8, last 4:00 | players' season FT% (the five, by attempts) |
+| Closing FTs | up 1-8 with 4:00 or less on a clock you set (never an estimate) | closing FT% of each player (below) |
 | Ball security | up 1-10, last 4:00 | lowest TO% |
 | Need steals | down 4+, last 4:00 | most steals per defensive possession |
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
@@ -174,7 +178,18 @@ first, with the reason ("Up 5 with 3:11 left: they have to foul"):
 | vs their best five | their best five is on | our fives' net against that exact five, tonight |
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
 
-Each opens to Today | Season (opponent-adjusted for the four factors; the season's raw counts for the
+**Closing FTs** is one list: the **best five FT shooters available**, ranked by **closing FT%**, each
+with season FTs and clutch FTs, IN / ON tags against the five on the floor, then who comes out (OUT) and the
+next three on the bench, a red line naming the weakest shooter on the floor ("That's who they'll foul"),
+and **Sub these five in**. Closing FT% = the player's season FT% (quality games, pulled toward the team
+rate when attempts are few; 10+ FTA to be picked) moved toward their **clutch FTs** as those add up: clutch
+attempts weigh against 20 attempts at the season rate, so one 0/2 night can't sink anyone. Clutch FTs =
+FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, in every game (no scrimmages),
+only where a clock you set stands behind the possession. Fewer than five qualified players → it says so
+and leaves the rest to you. No leverage row here (FT% is the players' own numbers). Plug in uses the same
+closing FT%.
+
+Every other situation opens to Today | Season (opponent-adjusted for the four factors; the season's raw counts for the
 rest), the leverage filter (every situation opens on High+Med), IN/OUT and **Sub
 this five in** on every five. The FT and 3-point situations also list the **best 5 available** shooters,
 whether or not they've played together, with **Sub these five in**. Never a five with a player who fouled
@@ -270,6 +285,90 @@ both at the chosen leverage (High+Med by default; see Leverage above).
 Each lists its top two, only fives better than the norm with everyone dressed and not fouled out.
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
 qualifies, none is listed.
+
+## Opponent ratings, live (every game re-graded nightly)
+
+The leaderboard build writes **`poss/ratings.json`** every night (`export_ratings.py`): every in-system team's
+current opponent-adjusted ORtg / DRtg and four factors, games played, the name aliases, Moorpark's player
+season lines (all / quality games), and the time-of-season baseline. The tracker downloads it whenever it
+opens online and keeps the last copy for offline gyms. It then **re-adjusts every finished game on the
+iPad** with the same math as `adjust_lineups.py` (a test checks they agree to the decimal), so:
+- Every past game is graded against **what that opponent turned out to be**, not what they were that
+  night: holding a team in November that became a great shooting team counts as exactly that.
+- **No recency decay**: game 1 counts as much as game 20.
+- **Time of season** (measured on 8 seasons): league scoring runs ~1.8 points per 100 below its season
+  average in November and ~1.7 above in February, every year. Each game is put on the season-average scale
+  for its month, so scoring well early counts for more and holding a team down early for a little less.
+  Both ends move together, so a five's net is unchanged.
+- Everything uses it: season lineups, situational lineups, the halftime card, the quality-opponent filter,
+  players' quality-game lines, our norm (four factors opponent-adjusted), and the Runs tab (kills weighted
+  by the opponent's rating: a kill on a good offense counts more).
+- The season card says "Live … opponent ratings as of <date>" and warns when they're more than a week old.
+  ⬇ Lineup file / ⬆ Adjusted still work as the backup when the iPad has never been online.
+- **Whole season / Last 8 games** on the season card: the last 8 finished games only, for who's playing
+  well now. Suggestions always use the whole season.
+
+## Situation log (automatic, saved in each game)
+
+Nobody tags anything. Every time the game saves, each possession is checked against the Lineups situations
+and the result is written into the game (`g.sitLog`): which situations it was in, both fives, the margin,
+the clock you set, and what happened (points, stop, turnover, steal, FTs, whether they went to the line).
+It travels with the game (backups, exports), is rewritten when a play is fixed, and games tracked before it
+existed are filled in when the tracker opens.
+
+| Situation | Tagged when (from the five's side) | Record |
+|---|---|---|
+| Closing FTs | our ball, up 1-8, late | pts / trip, FTs |
+| Ball security | our ball, up 1-10, late | turnovers |
+| Last stop | their ball, up 1-3, last minute | stops |
+| Need steals | their ball, down 4+, late | steals, TOs forced |
+| Need a 3 | our ball, down 4-9, late | pts / trip |
+| Stop the run | their ball while they're on a 6-0 or more | stops |
+| Stop fouling | their ball with our 7+ team fouls | trips without sending them to the line |
+
+**Late is never estimated:** during a game, the clock you entered (4:00 or less in the 2nd half, any OT;
+the last minute for Last stop); once the game is final, also the exact count of possessions left (the last
+16 of the 2nd half; the last 4 for Last stop). The situations show as chips on the play-by-play sheet.
+
+On Lineups every five shows **In this spot**: its record in that exact situation this season (quality
+opponents once ratings are on the iPad), e.g. "6/6 stops · 2 games · counts 33%". The record moves the
+five's ranking as the trips add up (weight trips / (trips + 12): 3 trips → 20%, 12 → 50%), so one lucky
+night can't decide it. **PROVEN** = 6+ trips and better than our norm. Closing FTs also lists the fives'
+record up 1-8 late (these five, the five on now, the best there).
+
+## Runs tab
+
+**Tabs** run in game order: Live · Report · Lineups · Scouting · Runs · Play-by-Play · Four factors · Sheet ·
+Schedule · Rosters · Games. On the iPad the title shrinks to "Moorpark" so all the in-game tabs fit without
+scrolling.
+
+**Runs** tracks three things, ours and theirs (green = ours / red = theirs):
+- **Kill** = 3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules.
+- **Kill shot** = 10-0 unanswered (technical FTs count; it carries across the half), as on the Report.
+- **Run** = 6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4); overlapping ones merge.
+
+**This game / Season / Season · quality opp** (quality = positive adjusted net, needs the ⬆ Adjusted file).
+It opens on This game during a game, Season otherwise. Garbage time is always out, and so are scrimmages.
+- **Per game:** kills, kill shots, runs, and kill → skunk (how often a kill goes on to 6 straight stops).
+- **Fives:** kills per 100 defensive possessions, kills allowed per 100 offensive, kills / kill shots / runs
+  for and against. **KILLER** / **LEAKS KILLS** = 1.4x the team rate on 25+ possessions with 2+ kills.
+  Kills are credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they
+  started. **Tap a five** for every kill, kill shot and run it was on for: date, opponent, half and trip,
+  score before → after, what started and ended it.
+- **Kill shots:** every 10-0, with when, the score, our five, what started it and what ended it.
+- **When kills start:** trips (possessions each) into each half, ours vs theirs: the possession count,
+  never a clock estimate.
+- **What starts and ends them**, for kills and for kill shots & runs. Started by: start of a half, out of
+  their own timeout, after the other side's timeout, a fresh five (2+ subs), the other side just subbed 2+,
+  after forcing a live-ball / dead-ball TO, after missed FTs, after a stop on a missed shot. Ended by: made
+  3, made 2, foul → FTs, timeout then they scored, end of the half, technical FTs.
+- **What stops their runs:** once they hit 6-0, did we call timeout, sub, or do nothing, and their points
+  in their next 3 possessions (and the same for ours).
+- **Players:** kills, kill shots and runs for / against while each player is on, and kill margin.
+
+**Live:** under KILLS on the scoreboard, "1 more stop → kill" when we have 2 straight (or 5, 8). When they
+have 2 straight stops on us: "2 stops on us · this five allows X kills / 100" (the season rate, once the
+five has 25+ offensive possessions).
 
 ## Other tabs
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
