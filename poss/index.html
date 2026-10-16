@@ -979,6 +979,22 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .sit-rec{font-size:11.5px;color:var(--text2);margin-top:3px}
 .sit-proven{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;background:#1f8a4c;color:#fff;margin-right:6px}
 .cf-rec{margin-top:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px}
+/* Lineup Builder (as in the practice tracker): sits above the Moorpark lineup table and drives it. */
+.lu-builder{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.lu-b-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lu-b-title{font-size:13px;font-weight:800;white-space:nowrap}
+.lu-b-slots{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+.lu-b-slot{width:auto;min-width:130px;flex:1 1 130px;font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text2)}
+.lu-b-slot.is-set{border-color:var(--us);font-weight:700;color:var(--text)}
+.lu-b-note{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
+.lu-b-blank{color:var(--warn);font-weight:700}
+/* WOWY (as in the practice tracker): solid green ON / red OFF chips; combinations that never played recede. */
+.wowy-chip{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;margin:1px 4px 1px 0;white-space:nowrap;color:#0b0f1a}
+.wowy-on{background:#4ade80;border:1px solid #22c55e}.wowy-off{background:#f87171;border:1px solid #ef4444}
+.wowy-never td{opacity:.45}.wowy-never .wowy-chip{opacity:1}
+/* One row of equal slots (5 for WOWY / a five, fewer for smaller groups). */
+.lu-b-slots{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:6px}
+.lu-b-slot{min-width:0;font-size:13px;padding:8px 6px}
 
 </style>
 </head>
@@ -1012,7 +1028,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.80';
+const VERSION = 'v2026.10.16.82';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1863,11 +1879,41 @@ function shootTable(u) {
     ${row('OFF', 'a', u.o, u.oPoss, u.pf)}${row('DEF', 'b', u.d, u.dPoss, u.pa)}</tbody></table>
     <div class="tiny muted" style="margin:4px 0 2px">OFF = ours, DEF = theirs while this five was on. TS% = points / (2 × (FGA + 0.44 FTA)). PTS/FGA = field-goal points per shot. SCORE% = trips with a point. 2ND CH = points after an offensive rebound. OFF TO = points on the trip right after the other side's turnover. STL'D = turnovers that were steals. CHG/OFF = charges / other offensive fouls committed.</div>`;
 }
-function lineupTable(g, D, t, scope, filter, k) {
-  k = k || 5;
+/* ---------- Lineup Builder (as in the practice tracker) ----------
+   Pick players slot by slot; the table below narrows to the units that contain every pick. The options
+   cascade: a slot only offers players who actually shared the floor with the other picks under the
+   current scope, size and leverage filter, so a group that never played can't be built by picking. A pick
+   that no longer fits after a filter change is kept, and the panel says so, rather than vanishing.
+   UI.luB = one slot per player of the current size, '' = any player. */
+function luUnitsFor(g, D, t, scope, filter, k) {
   const sc = scope || (UI.luScope === 'game' ? 'game' : UI.luScope === 'season' ? 'season' : g.per);
-  const L = sc === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, sc, filter || UI.luFilter, k), nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
-  if (!L.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
+  return sc === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, sc, filter || UI.luFilter, k);
+}
+function luBSync(units, k) { const known = new Set(units.flatMap(u => u.five)); UI.luB = Array.from({ length: k }, (_, i) => { const n = (UI.luB || [])[i]; return n && known.has(n) ? n : ''; }); }
+const luBMatch = units => { const sel = (UI.luB || []).filter(Boolean); return sel.length ? units.filter(u => sel.every(n => u.five.includes(n))) : units; };
+function luBOptions(units, i) {
+  const others = UI.luB.filter((n, j) => n && j !== i), out = new Set(); let reach = false;
+  units.forEach(u => { if (!others.every(n => u.five.includes(n))) return; reach = true; u.five.forEach(n => { if (!others.includes(n)) out.add(n); }); });
+  if (!reach) units.forEach(u => u.five.forEach(n => { if (!others.includes(n)) out.add(n); }));
+  if (UI.luB[i]) out.add(UI.luB[i]);
+  return [...out];
+}
+function luBuilderPanel(g, D, k) {
+  const L = luUnitsFor(g, D, 'a', null, null, k); if (!L.units.length) return '';
+  luBSync(L.units, k);
+  const sel = UI.luB.filter(Boolean), M = luBMatch(L.units), done = sel.length === k, nm = id => pShort(g, 'a', id);
+  const slots = UI.luB.map((s, i) => `<select class="lu-b-slot ${s ? 'is-set' : ''}" data-act="lu-b" data-i="${i}"><option value="">Any player</option>${fiveSorted(g, 'a', luBOptions(L.units, i)).map(id => `<option value="${esc(id)}" ${id === s ? 'selected' : ''}>${esc(nm(id))}</option>`).join('')}</select>`).join('');
+  const body = !sel.length ? `Choose a player and the other slots narrow to the players who actually shared the floor with them. Leave a slot on <em>Any player</em> to keep it open; the table below follows your picks.`
+    : !M.length ? `<span class="lu-b-blank">No ${k === 5 ? 'lineup' : k + '-man group'} on record has ${esc(sel.map(nm).join(' + '))} on the floor together under these filters.</span>`
+    : done ? `Showing <b>${esc(fiveSorted(g, 'a', M[0].five).map(nm).join(' · '))}</b> below: ${Math.floor((M[0].oPoss + M[0].dPoss) / 2)} poss, ${M[0].pf}–${M[0].pa}. Tap it for how its possessions ended and its shooting.`
+    : `<b>${M.length}</b> ${k === 5 ? 'lineup' : k + '-man group'}${M.length === 1 ? '' : 's'} include ${esc(sel.map(nm).join(' + '))}, listed below. Fill ${k - sel.length} more slot${k - sel.length === 1 ? '' : 's'} to narrow to one.`;
+  return `<div class="lu-builder"><div class="lu-b-head"><span class="lu-b-title">Lineup Builder</span><div class="lu-b-slots" style="--n:${k}">${slots}</div><button class="btn btn-sm" data-act="lu-b-clear" ${sel.length ? '' : 'disabled'}>Clear</button></div><div class="lu-b-note">${body}</div></div>`;
+}
+function lineupTable(g, D, t, scope, filter, k, builder) {
+  k = k || 5;
+  const L0 = luUnitsFor(g, D, t, scope, filter, k), L = builder ? Object.assign({}, L0, { units: luBMatch(L0.units) }) : L0, nowKey = D.five[t].length === 5 ? fiveKey(D.five[t]) : '';
+  if (!L0.units.length) return '<div class="muted small">No possessions with a full five on the floor yet.</div>';
+  if (!L.units.length) return '<div class="muted small">No unit matches the Lineup Builder picks.</div>';
   const P = v => v == null ? '—' : v.toFixed(1) + '%';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([c]) => `<td>${E[c] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
@@ -2067,9 +2113,9 @@ function fixCard(g, D, o, cur) {
 function lineupsView(g) {
   const D = derive(g);
   return `<div class="page-head"><h2>Lineups</h2><div class="row" style="gap:6px"><button class="btn btn-sm ${UI.luScope === 'game' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="game">Game</button><button class="btn btn-sm ${UI.luScope === 'per' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="per">${esc(g.per)}</button><button class="btn btn-sm ${UI.luScope === 'season' ? 'btn-primary' : ''}" data-act="lu-scope" data-s="season">Season</button></div>
-      <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}</div>
+      <div class="row" style="gap:6px">${[5, 4, 3, 2].map(k => `<button class="btn btn-sm ${(UI.luK || 5) === k && !UI.luWowy ? 'btn-primary' : ''}" data-act="lu-k" data-k="${k}">${k}-man</button>`).join('')}<button class="btn btn-sm ${UI.luWowy ? 'btn-primary' : ''}" data-act="lu-wowy">WOWY</button></div>
       <div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['nogt', 'No garbage time'], ['hm', 'High+Med'], ['high', 'High'], ['clutch', 'Clutch']].map(([k, l]) => `<button class="btn btn-sm ${UI.luFilter === k ? 'btn-primary' : ''}" data-act="lu-filter" data-f="${k}">${l}</button>`).join('')}</div></div>
-    <div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5)}</div></div>
+    ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
     ${UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season: every game tracked on this iPad (${games.filter(x => x.ev && x.ev.length).length}), Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
@@ -2907,7 +2953,7 @@ document.addEventListener('click', ev => {
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
     case 'lu-filter': UI.luFilter = b.dataset.f; render(); break;
-    case 'lu-k': UI.luK = +b.dataset.k; UI.luOpen = null; render(); break;
+    case 'lu-k': UI.luK = +b.dataset.k; UI.luWowy = false; UI.luOpen = null; render(); break;
     case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
@@ -2948,6 +2994,9 @@ document.addEventListener('click', ev => {
     case 'sheet-per': UI.sheetPer = b.dataset.p; render(); break;
     case 'print': setTimeout(() => window.print(), 50); break;
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
+    case 'lu-wowy': UI.luWowy = true; UI.luOpen = null; render(); break;
+    case 'wowy-clear': UI.wowy = []; render(); break;
+    case 'lu-b-clear': UI.luB = []; render(); break;
     case 'lu-recent': UI.luRecent = !!b.dataset.v; render(); break;
     case 'rn-scope': UI.rnScope = b.dataset.s; UI.rnFive = null; render(); break;
     case 'rn-five': { const y = window.scrollY; UI.rnFive = UI.rnFive === b.dataset.k ? null : b.dataset.k; render(); window.scrollTo(0, y); break; }
@@ -2995,6 +3044,10 @@ document.addEventListener('click', ev => {
     case 'ff-clear': if (confirm('Drop the typed numbers and go back to the tracked ones?')) { g.box[FF.scope] = { a: {}, b: {} }; FF.team = 'a'; FF.i = 0; FF.fresh = true; save(); renderFF(); } break;
   }
 });
+
+// The Lineup Builder's dropdowns (selects fire change, not click).
+document.addEventListener('change', ev => { const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
+  const k = s.dataset.act === 'wowy' ? 'wowy' : 'luB'; UI[k] = UI[k] || []; UI[k][+s.dataset.i] = s.value; const y = window.scrollY; render(); window.scrollTo(0, y); });
 
 /* ---------- scouting report ----------
    Same IndexedDB store as the game tracker ('gt_files', same site), so a PDF added in either
@@ -4643,6 +4696,70 @@ const sitRecWeight = x => x && x.n ? x.n / (x.n + SITREC_K) : 0;
 function sitTagsHtml(g, p) {
   const r = g.sitLog && g.sitLog.poss && g.sitLog.poss[p.id]; if (!r) return '';
   return r.t.map(k => `<span class="sit-tag" title="${esc(SITLOG[k].lbl)}">${esc(SITLOG[k].lbl)}</span>`).join('');
+}
+
+/* ---------- WOWY: With Or Without You (as in the practice tracker) ----------
+   Pick 2-5 of our players and every on/off combination of them gets a row (2^K): the possessions where
+   exactly that pattern was on the floor, with the lineup table's own ratings and four factors, so a WOWY row
+   and a lineup row covering the same possessions can't disagree. Off means he sat: a game only counts if
+   every pick played in it (the games where one didn't dress or never got in are counted under the table).
+   Scope (game / half / season) and the leverage filter are the Lineups tab's. Combinations that never took
+   the floor stay, dimmed and last, because "these two were never off together" is a fact about the rotation. */
+const WOWY_SLOTS = 5;
+function wowyKeep(filter) { return p => !filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter))); }
+function wowyGames(g) {
+  const sc = UI.luScope === 'season' ? 'season' : UI.luScope === 'game' ? 'game' : 'per';
+  return (sc === 'season' ? games.filter(x => x.ev && x.ev.length) : [g]).map(x => ({ g: x, D: derive(x), per: sc === 'per' ? g.per : null }));
+}
+// Each game's players who took the floor in scope: the units the dropdowns cascade over.
+function wowyUnits(G) {
+  const keep = wowyKeep(UI.luFilter);
+  return G.map(({ D, per }) => { const s = new Set(); D.poss.forEach(p => { if ((!per || p.per === per) && keep(p) && (p.five.a || []).length === 5) p.five.a.forEach(id => s.add(id)); }); return [...s]; }).filter(u => u.length);
+}
+function wowyRows(G, picks) {
+  const keep = wowyKeep(UI.luFilter), K = picks.length, z = () => ({ fga: 0, fgm: 0, fg3m: 0, fg3a: 0, fta: 0, ftm: 0, tov: 0, stov: 0, oreb: 0, dreb: 0 });
+  const acc = Array.from({ length: 1 << K }, () => ({ games: new Set(), oPoss: 0, dPoss: 0, pf: 0, pa: 0, o: z(), d: z() }));
+  let used = 0, split = 0;
+  G.forEach(({ g, D, per }) => {
+    const P = D.poss.filter(p => (!per || p.per === per) && keep(p) && (p.five.a || []).length === 5);
+    const played = new Set(P.flatMap(p => p.five.a));
+    if (!picks.every(id => played.has(id))) { if (P.length) split++; return; }
+    used++;
+    P.forEach(p => { let pat = 0; picks.forEach((id, i) => { if (p.five.a.includes(id)) pat |= 1 << i; });
+      const a = acc[pat], bx = possBox(p), side = p.team === 'a' ? a.o : a.d; a.games.add(g.id);
+      Object.keys(side).forEach(k => { side[k] += bx[k] || 0; });
+      if (p.team === 'a') { a.oPoss++; a.pf += p.pts; } else { a.dPoss++; a.pa += p.pts; } });
+  });
+  const rows = acc.map((a, pat) => { const never = !a.oPoss && !a.dPoss, O = ff4(a.o, a.d, a.oPoss), X = ff4(a.d, a.o, a.dPoss);
+    const o = a.oPoss ? 100 * a.pf / a.oPoss : null, d = a.dPoss ? 100 * a.pa / a.dPoss : null;
+    return { pat, never, gp: a.games.size, poss: Math.floor((a.oPoss + a.dPoss) / 2), pm: a.pf - a.pa, ortg: o, drtg: d, net: o != null && d != null ? o - d : null,
+      efg: O.efg, to: O.to, orb: O.orb, ftr: O.ftr, defg: X.efg, dto: X.to, ddrb: (a.d.dreb + a.d.oreb) ? 100 * a.d.dreb / (a.d.dreb + a.d.oreb) : null, dftr: X.ftr }; });
+  return { rows, used, split };
+}
+function wowyView(g) {
+  const G = wowyGames(g), units = wowyUnits(G), known = new Set(units.flat());
+  UI.wowy = Array.from({ length: WOWY_SLOTS }, (_, i) => { const n = (UI.wowy || [])[i]; return n && known.has(n) ? n : ''; });
+  const nm = id => pShort(g, 'a', id), last = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); };
+  const opts = i => { const others = UI.wowy.filter((n, j) => n && j !== i), out = new Set(); let reach = false;
+    units.forEach(u => { if (!others.every(n => u.includes(n))) return; reach = true; u.forEach(n => { if (!others.includes(n)) out.add(n); }); });
+    if (!reach) units.forEach(u => u.forEach(n => { if (!others.includes(n)) out.add(n); }));
+    if (UI.wowy[i]) out.add(UI.wowy[i]); return fiveSorted(g, 'a', [...out]); };
+  const picks = UI.wowy.filter(Boolean), shared = units.filter(u => picks.every(n => u.includes(n))).length, unitName = UI.luScope === 'season' ? 'game' : 'stretch';
+  const slots = UI.wowy.map((s, i) => `<select class="lu-b-slot ${s ? 'is-set' : ''}" data-act="wowy" data-i="${i}"><option value="">Any player</option>${opts(i).map(id => `<option value="${esc(id)}" ${id === s ? 'selected' : ''}>${esc(nm(id))}</option>`).join('')}</select>`).join('');
+  const note = !picks.length ? 'Choose a player and the other slots narrow to the players who played in the same games. Leave a slot on <em>Any player</em> to keep it out of the split.'
+    : picks.length === 1 ? `Pick one more to split. With <b>${esc(nm(picks[0]))}</b> alone there is nothing to be with or without.`
+    : !shared ? `<span class="lu-b-blank">${esc(picks.map(nm).join(' + '))} never played in the same ${UI.luScope === 'season' ? 'game' : 'game'} under these filters, so there is nothing to split.</span>`
+    : `<b>${picks.length}-man split</b>: ${1 << picks.length} on/off combinations of ${esc(picks.map(nm).join(' + '))}${UI.luScope === 'season' ? `, across ${shared} game${shared === 1 ? '' : 's'} where all ${picks.length} played` : ''}. Add another to double the split.`;
+  const panel = `<div class="lu-builder"><div class="lu-b-head"><span class="lu-b-title">WOWY</span><div class="lu-b-slots" style="--n:${WOWY_SLOTS}">${slots}</div><button class="btn btn-sm" data-act="wowy-clear" ${picks.length ? '' : 'disabled'}>Clear</button></div><div class="lu-b-note">${note}</div></div>`;
+  if (picks.length < 2 || !shared) return panel + '<div class="muted small" style="padding:10px 0">Pick at least two players to split the possessions by who was on the floor.</div>';
+  const R = wowyRows(G, picks), rows = R.rows.filter(r => !r.never).sort((a, b) => b.poss - a.poss).concat(R.rows.filter(r => r.never));
+  const f1 = v => v == null ? '—' : v.toFixed(1), P = v => v == null ? '—' : v.toFixed(1) + '%';
+  const chips = r => picks.map((id, i) => `<span class="wowy-chip ${r.pat & (1 << i) ? 'wowy-on' : 'wowy-off'}" title="${esc(nm(id))} ${r.pat & (1 << i) ? 'ON' : 'OFF'}">${esc(last(id))}</span>`).join('');
+  return panel + `<div class="tbl-wrap"><table class="tbl zebra lut wowy-t"><thead><tr class="grp"><th></th><th colspan="6"></th><th colspan="4" class="go">OFFENSE</th><th colspan="4" class="gd">DEFENSE</th></tr>
+    <tr><th>ON / OFF</th><th>GP</th><th>POSS</th><th>+/-</th><th>ORTG</th><th>DRTG</th><th>NET</th><th>eFG%</th><th>TO%</th><th>OREB%</th><th>FTR</th><th>eFG%</th><th>TO%</th><th>DREB%</th><th>FTR</th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="${r.never ? 'wowy-never' : ''}"><td style="text-align:left">${chips(r)}</td><td>${r.never ? '—' : r.gp}</td><td>${r.never ? '—' : r.poss}</td><td class="${r.never ? '' : pmCls(r.pm)}">${r.never ? '—' : sgn(r.pm)}</td><td>${f1(r.ortg)}</td><td>${f1(r.drtg)}</td><td class="${r.net == null ? '' : pmCls(r.net)}"><b>${r.net == null ? '—' : sg1(Math.round(10 * r.net) / 10)}</b></td>
+      <td class="go">${P(r.efg)}</td><td class="go">${P(r.to)}</td><td class="go">${P(r.orb)}</td><td class="go">${P(r.ftr)}</td><td class="gd">${P(r.defg)}</td><td class="gd">${P(r.dto)}</td><td class="gd">${P(r.ddrb)}</td><td class="gd">${P(r.dftr)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="small muted" style="margin-top:6px">${R.rows.filter(r => !r.never).length} of ${1 << picks.length} combinations took the floor; the rest are dimmed with no possessions behind them.${R.split ? ` ${R.split} game${R.split === 1 ? '' : 's'} left out where not all ${picks.length} played, so OFF always means he sat.` : ''} POSS = possessions (both ends averaged); ratings per 100. Green = on the floor, red = off.</div>`;
 }
 
 /* ---------- Runs: kills, kill shots and runs ----------
