@@ -15,6 +15,8 @@ Files for teams that drop off both lists are removed.
             season's advanced numbers (advanced_analytics.json, without the per-game lists)
   players - every player: jersey number, box-score season lines (all games / quality games, the same shape
             as Moorpark's playerSeason) and his advanced numbers (eFG%, TS%, usage, ORtg/DRtg, rates...)
+  table   - the leaderboard's Team Stats table: its Basic and Advanced rows (load_full_rosters) and each player's
+            State Rank on the ranked stats, by the page's own qualification rules
 The tracker downloads the files for the opponents on its schedule (and keeps them for offline gyms), so an
 opponent's five gets the same THIS FIVE labels as ours. Each file is ~10-20 KB.
 
@@ -90,6 +92,104 @@ def _load(p):
         return {}
 
 
+# ---- The leaderboard's Team Stats table (Basic / Advanced, %Poss bands, State Rank rows), for the tracker ----
+# Rows come from generate_leaderboard.load_full_rosters() and ranks from its player pool (load_players(), the
+# page's DATA) with the page's own rules (TS_RANK_STATS / __tsQualifies / advSchoolNeedsRelaxedCat in
+# generate_leaderboard.py) - keep these in step with that JS.
+TS_RANK_STATS = [("ind_ortg", "min30", False), ("efg_pct", "cat", False), ("ts_pct", "cat", False),
+                 ("oreb_pct", "min30", False), ("dreb_pct", "min30", False), ("ast_rate", "min30", False),
+                 ("tov_pct", "min30", True), ("blk_pct", "min30", False), ("stl_pct", "min30", False),
+                 ("fc_per_40", "min30", True), ("fd_per_40", "min30", False), ("ft_rate", "cat", False),
+                 ("ftp", "cat", False), ("twop", "cat", False), ("tpp", "cat", False)]
+ADV_CAT_MIN_PCT = {"efg_pct": 50, "ts_pct": 50, "ft_rate": 50}
+ADV_CAT_ATTEMPT_MIN = {"twop": "twoa", "tpp": "tpa", "ftp": "fta"}
+ADV_RATE_GP_MIN, ADV_RATE_ATTEMPTS_PER_GAME_MIN, MIN_PCT_QUAL = 20, 2.5, 30
+ADV_RELAXED_CAT_KEYS = {"efg_pct", "ts_pct", "ft_rate", "twop", "tpp", "ftp"}
+
+
+def state_ranks(pool):
+    """{(name, school): {stat: rank}} plus {stat: number ranked}, as the leaderboard's Team Stats page ranks."""
+    import generate_leaderboard as gl
+    apg = lambda p, k: (p.get(k) or 0) / p["gp"] if p.get("gp") else 0
+
+    def value(p, k):
+        if p.get(k) is not None:
+            return p[k]
+        fga = p.get("fga") or 0
+        if k == "efg_pct" and fga > 0:
+            return ((p.get("fgm") or 0) + 0.5 * (p.get("tpm") or 0)) / fga * 100
+        if k == "ts_pct":
+            d = 2 * (fga + 0.44 * (p.get("fta") or 0))
+            return (p.get("pts") or 0) / d * 100 if d > 0 else None
+        if k == "ft_rate" and fga > 0:
+            return (p.get("fta") or 0) / fga * 100
+        return None
+
+    def standard(p, k):
+        if (p.get("min_pct") or 0) < ADV_CAT_MIN_PCT.get(k, MIN_PCT_QUAL):
+            return False
+        a = ADV_CAT_ATTEMPT_MIN.get(k)
+        return not (a and (apg(p, a) < ADV_RATE_ATTEMPTS_PER_GAME_MIN or (p.get("gp") or 0) < ADV_RATE_GP_MIN))
+
+    def relaxed(p, k):
+        gp_ok = (p.get("gp") or 0) >= ADV_RATE_GP_MIN
+        if k == "efg_pct":
+            return gp_ok and apg(p, "fga") >= gl.EFG_FGA_PER_GAME_MIN
+        if k == "ts_pct":
+            return gp_ok and apg(p, "fga") + apg(p, "fta") >= gl.TS_ATT_PER_GAME_MIN
+        if k == "ft_rate":
+            return gp_ok
+        a = ADV_CAT_ATTEMPT_MIN.get(k)
+        return bool(a) and gp_ok and apg(p, a) >= ADV_RATE_ATTEMPTS_PER_GAME_MIN
+
+    by_school, cache = {}, {}
+    for p in pool:
+        by_school.setdefault(p["school"], []).append(p)
+
+    def needs_relaxed(school, k):
+        if k not in ADV_RELAXED_CAT_KEYS:
+            return False
+        if (school, k) not in cache:
+            sp = by_school.get(school, [])
+            if not any(p.get("region") in ("North", "South") for p in sp):
+                cache[(school, k)] = False
+            elif sp and all(p.get("fm") for p in sp):
+                cache[(school, k)] = True
+            else:
+                cache[(school, k)] = not any(standard(p, k) and value(p, k) is not None for p in sp)
+        return cache[(school, k)]
+
+    def qualifies(p, k, mode):
+        if p.get(k) is None:
+            return False
+        if mode == "cat":
+            return relaxed(p, k) if needs_relaxed(p["school"], k) else (p.get("min_pct") or 0) >= 50
+        return (p.get("min_pct") or 0) >= 30
+
+    ranks, totals = {}, {}
+    for k, mode, asc in TS_RANK_STATS:
+        q = [p for p in pool if qualifies(p, k, mode)]
+        q.sort(key=lambda p: p[k] if asc else -p[k])   # stable, like the page's Array.sort
+        totals[k] = len(q)
+        for i, p in enumerate(q):
+            ranks.setdefault((p["name"], p["school"]), {})[k] = i + 1
+    return ranks, totals
+
+
+_TABLES = None
+
+
+def leaderboard_tables():
+    """(full rosters, state ranks, totals) for the leaderboard's current season, built once per export."""
+    global _TABLES
+    if _TABLES is None:
+        import generate_leaderboard as gl
+        rosters = gl.load_full_rosters(gl.STATS_DIR)
+        ranks, totals = state_ranks(gl.load_players())
+        _TABLES = (rosters, ranks, totals)
+    return _TABLES
+
+
 def team_file(season, ratings, team):
     """One team's season stats and every player's lines, for the tracker."""
     d = uaa.find_team_stats(team)
@@ -100,8 +200,18 @@ def team_file(season, ratings, team):
         n = p.get("name")
         if n in players:
             players[n]["adv"] = {k: v for k, v in p.items() if k != "name"}
-    return {"team": dict({k: summ.get(k) for k in ("games_played", "record", "totals", "averages", "opponent_totals", "opponent_averages") if summ.get(k) is not None},
+    body = {"team": dict({k: summ.get(k) for k in ("games_played", "record", "totals", "averages", "opponent_totals", "opponent_averages") if summ.get(k) is not None},
                          adv=t_adv), "players": players}
+    # The leaderboard's Team Stats table for this team: Basic and Advanced rows, each with its State Ranks.
+    try:
+        rosters, ranks, totals = leaderboard_tables()
+        r = rosters.get(team)
+        if r:
+            body["table"] = {"adv": r["adv"], "rankOf": totals,
+                             "rows": [dict(p, rank=ranks.get((p["name"], team), {})) for p in r["players"]]}
+    except Exception as ex:   # the table is extra: never lose the rest of the file over it
+        print(f"export_ratings: no Team Stats table for {team}: {ex}")
+    return body
 
 
 def export_teams(season, ratings, out_dir, generated, teams):

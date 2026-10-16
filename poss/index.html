@@ -1094,6 +1094,14 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rd-chip .muted{font-size:11.5px}.rd-st{font-size:11.5px;font-weight:700}
 .rd-chip.ok .rd-st{color:var(--good,#4ade80)}.rd-chip.wait .rd-st{color:var(--warn)}.rd-chip.bad .rd-st{color:var(--bad,#f87171)}
 .rd-x{border:0;background:none;color:var(--muted);font-weight:800;padding:0 4px;cursor:pointer}
+/* Rosters: the leaderboard's Team Stats table (Basic / Advanced). */
+.ts-wrap{max-width:100%;overflow-x:auto}
+.ts-t{font-size:12px;white-space:nowrap}.ts-t th,.ts-t td{padding:5px 6px;text-align:right}.ts-t .l{text-align:left;position:sticky;left:0;background:var(--card);z-index:1}
+.ts-t th[data-act]{cursor:pointer}.ts-t th.on{color:var(--text)}.ts-t th.on.desc::after{content:' ▾'}.ts-t th.on.asc::after{content:' ▴'}
+.ts-band td{text-align:left!important;font-weight:800;font-size:11.5px;letter-spacing:.02em;color:var(--warn);background:var(--card2)!important;padding-top:8px}
+.ts-has td{border-bottom:none}.ts-rk td{color:#f87171;font-size:10.5px;font-weight:700;padding-top:0}.ts-rk td.l{color:var(--muted);font-weight:600}
+.card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
+.rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
 
 </style>
 </head>
@@ -1127,7 +1135,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.115';
+const VERSION = 'v2026.10.17.116';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2521,11 +2529,13 @@ function rostersView() {
       <div class="card rlist"><button class="btn ${isM ? 'btn-primary' : ''}" data-act="r-sel" data-n="MPK">Moorpark</button>
         ${opps.map(n => `<button class="btn ${sel === n ? 'btn-primary' : ''}" data-act="r-sel" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
         <button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
-      <div class="card"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
+      <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
-        ${isM ? '' : teamLine(sel)}
-        <div class="tbl-wrap"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
-        <div class="small muted" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
+        ${teamLine(sel)}
+        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
+        <div class="rs-stats">${(UI.rsMode || 'roster') !== 'roster' ? teamStatsTable(sel, UI.rsMode) : ''}</div>
+        <div class="tbl-wrap rs-roster"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
+        <div class="small muted rs-roster-note" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
     </div>`;
 }
 // The roster editor's label cell: chips (✕ removes), a box + Add, and quick picks from labels already used.
@@ -2558,6 +2568,7 @@ window.addEventListener('resize', () => fitLabels());
 /* An opponent's season line from the leaderboard, above his roster: record, ratings and rank, and whether his
    stats are on this iPad (they come down for every team on the schedule when the tracker is online). */
 function teamLine(name) {
+  if (name === 'MPK') name = 'Moorpark';
   const R = ratingsData(), t = R && R.teams ? resolveTeam(name, R) : null, F = teamFile(name);
   if (!t) return `<div class="small muted" style="margin:0 0 8px">${R ? 'Not a team on the leaderboard (check the spelling).' : 'No leaderboard data on this iPad yet: open the tracker online once.'}</div>`;
   const x = R.teams[t], rank = Object.values(R.teams).filter(y => y.ortg - y.drtg > x.ortg - x.drtg).length + 1, n = Object.keys(R.teams).length;
@@ -2566,6 +2577,42 @@ function teamLine(name) {
     <span class="muted">${F ? `${Object.keys(F.players || {}).length} players' stats on this iPad` : 'player stats download when online'}</span></div>`;
 }
 // Fill an opponent's roster from his team's leaderboard file: everyone who played, by minutes; numbers already on the roster are kept.
+/* The leaderboard's Team Stats table, from the team's file (export_ratings.py: the same rows and State Ranks as
+   the leaderboard page). Basic: per-game lines, sortable. Advanced: KenPom %Poss bands, benchwarmers (<10% of
+   minutes) last, a State Rank line under each player on the ranked stats. */
+const TS_BANDS = [[28, 'Go-to Guys (>28% of possessions used)'], [24, 'Major Contributors (24-28% of possessions used)'], [20, 'Significant Contributors (20-24% of possessions used)'],
+  [16, 'Role Players (16-20% of possessions used)'], [12, 'Limited Roles (12-16% of possessions used)'], [-1, 'Nearly Invisible (<12% of possessions used)']];
+const TS_BASIC = [['name', 'Player'], ['gp', 'G'], ['mpg', 'MPG'], ['ppg', 'PPG'], ['orpg', 'ORPG'], ['drpg', 'DRPG'], ['rpg', 'RPG'], ['apg', 'APG'], ['spg', 'SPG'], ['bpg', 'BPG'], ['topg', 'TOPG'],
+  ['fgm', 'FGM-A'], ['fgp', 'FG%'], ['twom', '2PM-A'], ['twop', '2P%'], ['tpm', '3PM-A'], ['tpp', '3P%'], ['efg_pct', 'eFG%'], ['ftm', 'FTM-A'], ['ftp', 'FT%'], ['ts_pct', 'TS%']];
+const TS_ADV = ['ind_ortg', 'usage_pct', 'shot_pct', 'efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'];
+const tsF = v => v == null || v === '' ? '—' : (+v).toFixed(1);
+function teamStatsTable(name, mode) {
+  if (name === 'MPK') name = 'Moorpark';
+  const F = teamFile(name), T = F && F.table;
+  if (!T) return `<div class="small muted" style="padding:8px 0 12px">${F ? 'This team\'s file has no Team Stats table yet (the next leaderboard build adds it).' : 'No leaderboard stats for this team on the iPad: it downloads when the team is on the schedule or under Teams to have ready, and the tracker is online.'}</div>`;
+  const rows = T.rows || [], pm = (m, a) => `${m}-${a}`;
+  if (mode === 'basic') {
+    const k = UI.tsSort || 'ppg', dir = UI.tsDir || 'desc';
+    const S = rows.slice().sort((a, b) => k === 'name' ? (dir === 'asc' ? 1 : -1) * String(a.name).localeCompare(String(b.name)) : (dir === 'desc' ? -1 : 1) * ((+a[k] || 0) - (+b[k] || 0)));
+    const val = (r, c) => c === 'name' ? `<td class="l"><b>${esc(r.name)}</b></td>` : c === 'fgm' ? `<td>${pm(r.fgm, r.fga)}</td>` : c === 'twom' ? `<td>${pm(r.twom, r.twoa)}</td>` : c === 'tpm' ? `<td>${pm(r.tpm, r.tpa)}</td>` : c === 'ftm' ? `<td>${pm(r.ftm, r.fta)}</td>` : c === 'gp' ? `<td>${r.gp}</td>` : `<td>${c === 'ppg' ? `<b>${tsF(r[c])}</b>` : tsF(r[c])}</td>`;
+    return `<div class="tbl-wrap ts-wrap"><table class="tbl ts-t"><thead><tr>${TS_BASIC.map(([c, l]) => `<th class="${c === 'name' ? 'l ' : ''}${k === c ? 'on ' + dir : ''}" data-act="ts-sort" data-k="${c}">${l}</th>`).join('')}</tr></thead><tbody>${S.map(r => `<tr>${TS_BASIC.map(([c]) => val(r, c)).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+  const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
+  const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
+  const cells = r => { r0 = r; return `<td class="l"><b>${esc(r.name)}</b></td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td><b>${A('ind_ortg')}</b></td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rk"><td class="l">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
+  const row = r => `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-has' : ''}">${cells(r)}</tr>${rankRow(r)}`, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}">${l}</td></tr>`;
+  let body = '';
+  if (!adv) body = rows.map(row).join('');
+  else {
+    const main = rows.filter(r => (r.min_pct || 0) >= 10), bench = rows.filter(r => (r.min_pct || 0) < 10).sort((a, b) => (b.min_pct || 0) - (a.min_pct || 0));
+    TS_BANDS.forEach(([floor, l], i) => { const top = i ? TS_BANDS[i - 1][0] : Infinity, B = main.filter(r => (r.usage_pct || 0) > floor && (r.usage_pct || 0) <= top).sort((a, b) => (b.min_pct || 0) - (a.min_pct || 0)); if (B.length) body += band(l) + B.map(row).join(''); });
+    if (bench.length) body += band('Benchwarmers (played in fewer than 10% of team\'s minutes)') + bench.map(row).join('');
+  }
+  const head = ['Player', 'Ht', 'G', '%Min', 'ORtg', '%Poss', '%Shots', 'eFG%', 'TS%', 'OR%', 'DR%', 'ARate', 'TORate', 'Blk%', 'Stl%', 'FC/40', 'FD/40', 'FTRate', 'FTM-A', 'Pct', '2PM-A', 'Pct', '3PM-A', 'Pct'];
+  return `<div class="tbl-wrap ts-wrap"><table class="tbl ts-t ts-adv"><thead><tr>${head.map((h, i) => `<th class="${i ? '' : 'l'}">${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
+    ${adv ? `<div class="tiny muted" style="margin-top:6px">State Rank: among ${T.rankOf && T.rankOf.ind_ortg ? T.rankOf.ind_ortg + ' ' : ''}qualified players in the state, by the leaderboard's own rules (30% of minutes; shooting stats by their leaderboard qualifications).</div>` : '<div class="tiny muted" style="margin-top:6px">No advanced numbers for this team: its box scores don\'t have reliable minutes (same as the leaderboard).</div>'}`;
+}
 function fillFromLeaderboard(sel) {
   const F = teamFile(sel); if (!F) { toast('No leaderboard stats for ' + sel + ' on this iPad yet', 'bad'); return; }
   const tb = $('#rbody'), have = new Set([...tb.querySelectorAll('input[data-k="num"]')].map(i => i.value.trim()).filter(Boolean));
@@ -3281,6 +3328,8 @@ document.addEventListener('click', ev => {
     case 'rr-del': b.closest('tr').remove(); break;
     case 'rd-add': { collectSched(); readyAdd($('#rd-in').value); render(); break; }
     case 'rd-del': { collectSched(); const L = readyList(); L.splice(+b.dataset.i, 1); lsSet(LS_READY, L); render(); break; }
+    case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = UI.rsMode === 'roster' ? '' : teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
+    case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) c.innerHTML = teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), 'basic'); break; }
     case 'r-fill-lb': fillFromLeaderboard(UI.rosterSel || (g ? g.opp : '')); break;
     case 'r-save': saveRosterEdit(); render(); break;
     case 'sch-add': collectSched(); SCH.rows.push({ id: 'sch_' + Date.now(), date: '', time: '', opp: '', site: 'home', conf: false }); render(); { const d = document.querySelectorAll('[data-f="date"][data-sr]'); if (d.length) d[d.length - 1].focus(); } break;
@@ -4949,7 +4998,7 @@ function teamFile(name) {
 }
 function fetchTeamFiles(R) {
   if (!R || !R.teamFiles || !window.fetch) return;
-  const want = new Set([...(R.scheduled || []), ...schedule().map(s => s.opp), ...games.filter(g => !g.final).map(g => g.opp), ...oppStore().map(o => o.name), ...readyList()].map(n => resolveTeam(n, R)).filter(t => t && R.teamFiles[t]));
+  const want = new Set([...(R.scheduled || []), ...schedule().map(s => s.opp), ...games.filter(g => !g.final).map(g => g.opp), ...oppStore().map(o => o.name), ...readyList(), 'Moorpark'].map(n => resolveTeam(n, R)).filter(t => t && R.teamFiles[t]));
   const have = teamFiles(), todo = [...want].filter(t => !have[t] || have[t].generatedAt !== R.generatedAt);
   if (!todo.length) return;
   Promise.all(todo.map(t => fetch(R.teamFiles[t] + '?v=' + encodeURIComponent(R.generatedAt), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null)))

@@ -518,6 +518,14 @@ five has 25+ offensive possessions).
   - every opponent you keep a roster for.
   An opponent's THIS FIVE labels then come from his players' real numbers, matched by jersey number.
 - **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
+  - **Roster · Basic · Advanced** (every team with leaderboard stats, Moorpark too): the leaderboard's Team Stats
+    table. *Basic*: per-game lines (G, MPG, PPG, rebounds, AST, STL, BLK, TO, FG / 2P / 3P / FT, eFG%, TS%), sorted
+    by PPG; tap a header to sort. *Advanced*: %Min, ORtg, %Poss, %Shots, eFG%, TS%, OR%, DR%, ARate, TORate, Blk%,
+    Stl%, FC/40, FD/40, FTRate and the shooting splits, grouped like the leaderboard (Go-to Guys >28% of
+    possessions, Major Contributors 24-28, Significant 20-24, Role Players 16-20, Limited Roles 12-16, Nearly
+    Invisible <12, Benchwarmers <10% of minutes last), with a red **State Rank** line under each qualified player
+    (the leaderboard's own ranks and rules). Scrolls sideways with the player column pinned. Roster edits in
+    progress are kept while you look.
   - An opponent shows its leaderboard line (record, ORtg / DRtg, net and rank, points per game) and
     **⬇ Fill from leaderboard**: adds everyone who played for them this season (by minutes, jersey numbers from
     the latest box score), keeping the numbers already on the roster. Check them, then Save.
