@@ -7,14 +7,16 @@ update_advanced_analytics.py), games played, the name aliases, the home-court ed
 Moorpark's player season lines (all games / quality games, from the public box scores).
 These are the leaderboard's own public numbers; no tracker or lineup data goes in.
 
-Every in-system team (Moorpark included) also gets its own file, ../poss/teams/<team>.json, listed in
-ratings.json under "teamFiles" (with the teams on Moorpark's schedule under "scheduled"):
+The teams we play or might play also get their own file, ../poss/teams/<team>.json, listed in ratings.json
+under "teamFiles": Moorpark, every team on Moorpark's schedule.json ("scheduled"), and every team in
+tracker_teams.txt (potential opponents: a tournament field, one per line, short names like RCC / CCSF work).
+Files for teams that drop off both lists are removed.
   team    - its season stats: record, totals and averages for and against (team_summary.json) and the
             season's advanced numbers (advanced_analytics.json, without the per-game lists)
   players - every player: jersey number, box-score season lines (all games / quality games, the same shape
             as Moorpark's playerSeason) and his advanced numbers (eFG%, TS%, usage, ORtg/DRtg, rates...)
 The tracker downloads the files for the opponents on its schedule (and keeps them for offline gyms), so an
-opponent's five gets the same THIS FIVE labels as ours. Each file is ~5-10 KB.
+opponent's five gets the same THIS FIVE labels as ours. Each file is ~10-20 KB.
 
 The tracker downloads it when it opens online, keeps a copy for offline gyms, and
 re-adjusts every tracked game against it, so a game from November is always graded against
@@ -52,6 +54,35 @@ def schedule_opponents(season, team="Moorpark"):
     return out
 
 
+TRACKER_TEAMS = Path(__file__).resolve().parent / "tracker_teams.txt"
+# Bracket / schedule short names (the tracker's TEAM_ABBR has the same ones).
+SHORT = {"rcc": "Riverside", "ccsf": "San Francisco", "sbvc": "San Bernardino Valley", "east la": "East Los Angeles",
+         "elac": "East Los Angeles", "west la": "West LA", "wlac": "West LA", "lacc": "Los Angeles City", "smc": "Santa Monica",
+         "sbcc": "Santa Barbara", "mt sac": "Mt. San Antonio", "msjc": "Mt. San Jacinto", "avc": "Antelope Valley", "coc": "Canyons",
+         "occ": "Orange Coast", "ivc": "Irvine Valley", "lbcc": "Long Beach", "pcc": "Pasadena City", "cos": "Sequoias", "fcc": "Fresno"}
+
+
+def potential_opponents(ratings, path=TRACKER_TEAMS):
+    """tracker_teams.txt: one team per line (# comments ok). Returns (teams found, lines not matched)."""
+    found, missing = [], []
+    try:
+        lines = open(path).read().splitlines()
+    except OSError:
+        return found, missing
+    for ln in lines:
+        n = ln.split("#")[0].strip()
+        if not n:
+            continue
+        n2 = SHORT.get(re.sub(r"[.']", "", n).lower().strip(), n)
+        t = n2 if n2 in ratings else uaa.resolve_opponent(n2)
+        if t and t in ratings:
+            if t not in found:
+                found.append(t)
+        else:
+            missing.append(n)
+    return found, missing
+
+
 def _load(p):
     try:
         return json.load(open(p))
@@ -73,12 +104,14 @@ def team_file(season, ratings, team):
                          adv=t_adv), "players": players}
 
 
-def export_teams(season, ratings, out_dir, generated):
-    """../poss/teams/<team>.json for every in-system team. Returns {team: path}."""
+def export_teams(season, ratings, out_dir, generated, teams):
+    """../poss/teams/<team>.json for each of `teams`; other files in the folder are removed. Returns {team: path}."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     index = {}
-    for t in sorted(ratings):
+    for t in teams:
+        if t not in ratings:
+            continue
         body = team_file(season, ratings, t)
         if not body["players"]:
             continue
@@ -86,6 +119,10 @@ def export_teams(season, ratings, out_dir, generated):
         json.dump(dict({"app": "moorpark-possession-tracker", "kind": "team-file", "version": 1, "name": t, "season": season,
                         "generatedAt": generated, "qualityMargin": al.QUALITY_MARGIN}, **body), open(f, "w"), separators=(",", ":"))
         index[t] = f"{out_dir.name}/{f.name}"
+    keep = {Path(p).name for p in index.values()}
+    for f in out_dir.glob("*.json"):
+        if f.name not in keep:
+            f.unlink()
     return index
 
 
@@ -111,6 +148,10 @@ def export(season=None, out=OUT):
                        "ff": {k: f.get(k) for k in ("efg_pct", "tov_pct", "oreb_pct", "dreb_pct", "ft_rate",
                                                      "opp_efg_pct", "opp_tov_pct", "opp_ft_rate") if f.get(k) is not None}}
     generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    sched = schedule_opponents(season)
+    extra, missing = potential_opponents(ratings)
+    if missing:
+        print(f"export_ratings: tracker_teams.txt names not matched to a team: {', '.join(missing)}")
     out = Path(out)
     res = {
         "app": "moorpark-possession-tracker", "kind": "team-ratings", "version": 1,
@@ -118,13 +159,13 @@ def export(season=None, out=OUT):
         "season": season, "homeAdvantage": uaa.HOME_ADVANTAGE, "qualityMargin": al.QUALITY_MARGIN,
         "aliases": dict(uaa.OPPONENT_ALIASES), "teams": teams, "phase": al.season_phase(),
         "playerSeason": al.load_players(season, ratings),
-        "teamFiles": export_teams(season, ratings, out.parent / "teams", generated),
-        "scheduled": schedule_opponents(season),
+        "scheduled": sched,
+        "teamFiles": export_teams(season, ratings, out.parent / "teams", generated, ["Moorpark"] + sched + [t for t in extra if t not in sched]),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(out, "w"), separators=(",", ":"))
     print(f"export_ratings: {season}, {len(teams)} teams, {len(res['playerSeason'])} Moorpark players, "
-          f"{len(res['teamFiles'])} team files ({len(res['scheduled'])} on our schedule) -> {out}")
+          f"{len(res['teamFiles'])} team files ({len(sched)} on our schedule, {len(extra)} in tracker_teams.txt) -> {out}")
     return res
 
 

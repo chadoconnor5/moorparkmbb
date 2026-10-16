@@ -37,8 +37,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 adjust_lineups.py <lineup file>   # -> internal_data/moorpark_lineups_adj.json
 - Publish the team ratings the possession tracker re-adjusts every game against (runs automatically at the
   end of generate_leaderboard.py and in run_pipeline.py):
-  python3 export_ratings.py                 # -> ../poss/ratings.json + ../poss/teams/<team>.json (every team's
-                                            #    season stats and player lines, for the tracker's opponents)
+  python3 export_ratings.py                 # -> ../poss/ratings.json + ../poss/teams/<team>.json (season and player
+                                            #    stats for Moorpark's schedule + tracker_teams.txt, potential opponents
+                                            #    like a tournament field: one team per line, short names ok)
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:

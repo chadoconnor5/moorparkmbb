@@ -2472,14 +2472,15 @@ function schedView() {
     ${readyCard()}`;
 }
 /* Teams to have ready: a tournament field (or anyone we might see) whose leaderboard stats should be on the iPad
-   before we know who we play. Every team here, and every team on the schedule, downloads when the tracker is
+   before we know who we play. The leaderboard publishes files only for Moorpark's schedule and the teams in its
+   tracker_teams.txt; a team here that isn't published says so. Every team here, and every team on the schedule, downloads when the tracker is
    online and stays for offline gyms. Short names work (RCC, CCSF, SBVC, East LA). */
 const LS_READY = 'pt2_ready';
 const readyList = () => lsGet(LS_READY, []) || [];
 function readyCard() {
   const R = ratingsData(), L = readyList();
-  const chip = (n, i) => { const t = R && R.teams ? resolveTeam(n, R) : null, F = t && teamFile(n);
-    return `<span class="rd-chip ${t ? (F ? 'ok' : 'wait') : 'bad'}">${logo(n, 18)}<b>${esc(n)}</b>${t && t !== n ? `<span class="muted">${esc(t)}</span>` : ''}<span class="rd-st">${!t ? 'not on the leaderboard' : F ? '✓ stats ready' : 'downloads when online'}</span><button class="rd-x" data-act="rd-del" data-i="${i}" aria-label="Remove">✕</button></span>`; };
+  const chip = (n, i) => { const t = R && R.teams ? resolveTeam(n, R) : null, F = t && teamFile(n), pub = t && R.teamFiles && R.teamFiles[t];
+    return `<span class="rd-chip ${t && (F || pub) ? (F ? 'ok' : 'wait') : 'bad'}">${logo(n, 18)}<b>${esc(n)}</b>${t && t !== n ? `<span class="muted">${esc(t)}</span>` : ''}<span class="rd-st">${!t ? 'not on the leaderboard' : F ? '✓ stats ready' : pub ? 'downloads when online' : 'not published: add to tracker_teams.txt'}</span><button class="rd-x" data-act="rd-del" data-i="${i}" aria-label="Remove">✕</button></span>`; };
   return `<div class="card"><h3 style="margin-bottom:6px">Teams to have ready <span class="muted small">· a tournament field: their stats and logos download now, before you know who you play</span></h3>
     <div class="rd-list">${L.map(chip).join('') || '<span class="small muted">No teams yet. Every team on the schedule is ready automatically.</span>'}</div>
     <div class="row" style="gap:6px;margin-top:8px"><input id="rd-in" placeholder="Team (RCC, CCSF, East LA...) — commas for several" style="flex:1;min-width:0" enterkeyhint="done"><button class="btn btn-sm btn-good" data-act="rd-add">Add</button></div></div>`;

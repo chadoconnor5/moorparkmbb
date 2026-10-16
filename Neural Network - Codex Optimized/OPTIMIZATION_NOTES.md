@@ -170,9 +170,11 @@ This copy keeps the original project intact and starts consolidating the working
   folds into November). `adjust()` takes `phase` and shifts both ends of each game by -phase[month], so a
   five's net is unchanged and its O/D split is put on the season-average scale.
 
-- Team files for the tracker (Oct 2026): `export_ratings.py` also writes `../poss/teams/<team>.json` for every
-  in-system team (Moorpark included; ~10-20 KB each, ~1.5 MB for 100 teams), indexed in ratings.json as `teamFiles`
-  (`scheduled` = the teams on Moorpark's schedule.json). Each holds `team` (team_summary.json's record / totals /
+- Team files for the tracker (Oct 2026): `export_ratings.py` also writes `../poss/teams/<team>.json` (~10-20 KB
+  each) for Moorpark, every team on Moorpark's schedule.json (`scheduled`) and every team in `tracker_teams.txt`
+  (potential opponents, e.g. a tournament field: one per line, short names like RCC / CCSF / SBVC map through
+  `SHORT`; unmatched lines are printed). Not all 100 teams: ~27 files / ~400 KB. Files for teams that drop off both
+  lists are deleted. Indexed in ratings.json as `teamFiles`. Each holds `team` (team_summary.json's record / totals /
   averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
   `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's
   advanced_analytics.json row). `load_players` now finds a team's side of a box with `resolve_opponent()` (box labels
