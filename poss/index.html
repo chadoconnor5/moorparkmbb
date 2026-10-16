@@ -1116,7 +1116,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.109';
+const VERSION = 'v2026.10.17.110';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1677,8 +1677,6 @@ const STAT_HINT = { stl: 'tap who stole it', dreb: 'tap who rebounded', oreb: 't
 const noteLabels = s => String(s || '').split(/\s*[,;·|]\s*/).map(x => x.trim()).filter(Boolean);
 const labelsNote = L => L.join(', ');
 function fitLabels() {
-  // THIS FIVE: when the three don't fit, the grey shape label goes first (the strength and weakness always show).
-  document.querySelectorAll('.five-lbl-ch').forEach(r => { const n = r.querySelector('.lc.n'); if (n) { n.hidden = false; if (r.scrollWidth > r.clientWidth + 1) n.hidden = true; } });
   document.querySelectorAll('.nt-row').forEach(r => { const more = r.querySelector('.nt.more'), tags = [...r.querySelectorAll('.nt:not(.pos):not(.more)')]; if (!more) return;
     tags.forEach(x => { x.hidden = false; }); more.hidden = true; let n = 0;
     for (let i = tags.length - 1; i >= 0 && r.scrollWidth > r.clientWidth + 1; i--) { tags[i].hidden = true; n++; more.textContent = '+' + n; more.hidden = false; } });
@@ -4760,7 +4758,7 @@ function plugCard(g, D, outId) {
 }
 
 /* ---------- THIS FIVE: what the five on the floor does well (and badly), in the old Team / bench row ----------
-   Three labels at most, one line: the five's shape (grey), its best strength (green), its worst weakness (red ✕).
+   One line: the five's best strength (green) and its worst weakness (red ✕).
    From each player's season line (quality games; ours from the stat sheets / leaderboard; at halftime the 1st-half
    sheet joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no
    line yet (every opponent for now), from his position and the labels on his card (Shooter, Big, Ball hawk...).
@@ -4791,11 +4789,8 @@ function fiveLabels(g, t, five) {
   const P = five.map(id => flPlayer(g, t, id)), nn = q => q.num ? '#' + q.num : lastName(q.name || q.id);
   const who = (L, f) => L.map(q => `<b>${nn(q)} ${esc(lastName(q.name || ''))}</b><span>${f ? f(q) : ''}</span>`);
   const out = [], add = (kind, text, score, rows) => out.push({ kind, text, score, rows });
-  const sh = P.filter(q => q.shooter), bigs = P.filter(q => q.big), known = P.filter(q => q.pg3 != null || q.shooter || q.nonShooter).length;
+  const sh = P.filter(q => q.shooter), known = P.filter(q => q.pg3 != null || q.shooter || q.nonShooter).length;
   const f3 = q => q.pg3 != null ? `${q.pg3.toFixed(1)} 3PA/g${q.a3 ? ` · ${q.p3.toFixed(0)}%` : ''}` : 'tagged';
-  // Shape
-  if (bigs.length >= 2) add('n', `${bigs.length} bigs`, 0, who(bigs));
-  else if (!bigs.length && P.filter(q => q.posKnown).length >= 4) add('n', 'Small', 0, ['<b>No big on the floor</b><span></span>']);
   // Strengths
   if (sh.length >= 3) add('g', `${sh.length} shooters`, sh.length - 1.5, who(sh, f3));
   const hawks = P.filter(q => q.hawk); if (hawks.length >= 2) add('g', 'Ball hawks', hawks.length - 0.5, who(hawks, q => q.stl != null ? `${q.stl.toFixed(1)} stl/40` : 'tagged'));
@@ -4815,7 +4810,7 @@ function fiveLabels(g, t, five) {
   const badFt = P.filter(q => q.ft != null && q.ft < FL.FT_LO).sort((a, b) => a.ft - b.ft)[0] || P.find(q => q.ft == null && flTag(pInfo(g, t, q.id), /bad ft|can'?t shoot ft|hack/i));
   if (badFt) add('r', `FT ${nn(badFt)}`, badFt.ft != null ? 1 + (FL.FT_LO - badFt.ft) / 5 : 1, who([badFt], q => q.ft != null ? `${q.ft.toFixed(0)}% FT (${q.fta})` : 'tagged'));
   const best = k => out.filter(x => x.kind === k).sort((a, b) => b.score - a.score)[0];
-  return [best('n'), best('g'), best('r')].filter(Boolean);
+  return [best('g'), best('r')].filter(Boolean);
 }
 function fiveStrip(g, t, five) {
   const L = fiveLabels(g, t, five); UI.flCache = UI.flCache || {}; UI.flCache[t] = L;

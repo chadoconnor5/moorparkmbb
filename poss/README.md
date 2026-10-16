@@ -69,11 +69,11 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
     timeouts beside the score;
   - momentum: current run, stops in a row, kills this half;
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
-  - **THIS FIVE** (where the Team / bench foul row was, once a five is set): up to three labels on one line for
-    each five on the floor: its shape (grey: *2 bigs*, *Small*), its best strength (green: *3 shooters*, *Ball
-    hawks*, *Rim protector*, *Elite glass*, *Passers*, *Closing FTs*) and its worst weakness (red ✕: *1 shooter*,
-    *G can't shoot*, *Thin glass*, *TO risk*, *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists
-    who earned it, with their numbers. Nothing is logged. If the three don't fit, the shape label drops first.
+  - **THIS FIVE** (where the Team / bench foul row was, once a five is set): two labels on one line for each five
+    on the floor: its best strength (green: *3 shooters*, *Ball hawks*, *Rim protector*, *Elite glass*, *Passers*,
+    *Closing FTs*) and its worst weakness (red ✕: *1 shooter*, *G can't shoot*, *Thin glass*, *TO risk*,
+    *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists who earned it, with their numbers. Nothing
+    is logged.
     - From each player's season line (quality games: stat sheets / leaderboard; at halftime the 1st-half sheet
       joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no line
       yet (every opponent for now), from his position and his card labels (Shooter, Big, Ball hawk, Can't shoot...).
