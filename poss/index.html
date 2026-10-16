@@ -1015,6 +1015,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lu-seg button.on{background:var(--us);color:#0b1520}
 .lu-seg button:disabled{opacity:.35}
 @media (max-width:700px){.lu-ctl{grid-template-columns:1fr 1fr}.lu-ctl .lu-f:nth-child(3){grid-column:1 / span 2}.lu-ctl .lu-f:nth-child(4){grid-column:1}.lu-ctl .lu-f:nth-child(5){grid-column:2}}
+.lut .lu-mode{font-size:10px;letter-spacing:.08em;color:var(--us);text-align:left}
+.lut tr.rawonly td{font-style:italic;opacity:.7}
+.lu-data{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:0 0 12px;border:1px dashed var(--border);border-radius:10px}
 
 </style>
 </head>
@@ -1048,7 +1051,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.16.91';
+const VERSION = 'v2026.10.16.92';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1936,9 +1939,15 @@ function luTeamLine(g, D) {
   const z = { oPoss: 0, dPoss: 0, pf: 0, pa: 0, stops: 0, o: {}, d: {} };
   L.units.forEach(u => { ['oPoss', 'dPoss', 'pf', 'pa', 'stops'].forEach(k => { z[k] += u[k]; }); ['o', 'd'].forEach(s => Object.keys(u[s]).forEach(k => { z[s][k] = (z[s][k] || 0) + u[s][k]; })); });
   const O = ff4(Object.assign({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: 0 }, z.o), z.d, z.oPoss), X = ff4(Object.assign({ fga: 0, fgm: 0, fg3m: 0, fta: 0, tov: 0, oreb: 0, dreb: 0 }, z.d), z.o, z.dPoss);
-  const o = z.oPoss ? 100 * z.pf / z.oPoss : null, d = z.dPoss ? 100 * z.pa / z.dPoss : null, P = v => v == null ? '—' : v.toFixed(1), Pc = v => v == null ? '—' : v.toFixed(1) + '%';
+  let o = z.oPoss ? 100 * z.pf / z.oPoss : null, d = z.dPoss ? 100 * z.pa / z.dPoss : null; const P = v => v == null ? '—' : v.toFixed(1), Pc = v => v == null ? '—' : v.toFixed(1) + '%';
+  // Opponent-adjusted (the main numbers): every five's adjusted line in this view, weighted like the leaderboard does.
+  const AV = !UI.luRaw ? luAdjView(g, 5) : null; let adj = false;
+  if (AV && AV.units.length) { const w = (k, wk) => { let s = 0, n = 0; AV.units.forEach(u => { if (u[k] != null && u[wk]) { s += u[k] * u[wk]; n += u[wk]; } }); return n ? s / n : null; };
+    const ff = k => { let s = 0, n = 0; AV.units.forEach(u => { const x = (u.adjFF || {})[k], m = (u.adjFFw || {})[k]; if (x != null && m) { s += x * m; n += m; } }); return n ? s / n : null; };
+    const ao = w('adjOrtg', 'adjPossO'), ad = w('adjDrtg', 'adjPossD');
+    if (ao != null || ad != null) { o = ao; d = ad; adj = true; Object.assign(O, { efg: ff('efg'), to: ff('tov'), orb: ff('orb'), ftr: ff('ftr') }); Object.assign(X, { efg: ff('oefg'), to: ff('otov'), orb: ff('oorb'), ftr: ff('oftr') }); } }
   const view = [UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game', luPer(g) ? (luPer(g) === 'OT*' ? 'OT' : luPer(g)) : '', { all: '', hm: 'High + Med', high: 'High', med: 'Medium', low: 'Low', clutch: 'Clutch', nogt: 'No garbage time' }[UI.luFilter || 'hm'], UI.luSit ? SITLOG[UI.luSit].lbl : ''].filter(Boolean).join(' · ');
-  return `<div class="lu-team"><div class="lu-team-h"><b>Moorpark</b> <span class="muted small">· ${esc(view)}</span></div>
+  return `<div class="lu-team"><div class="lu-team-h"><b>Moorpark</b> <span class="muted small">· ${esc(view)} · ${adj ? 'opp-adjusted' : 'raw'}</span></div>
     <div class="lu-team-r"><span><b>${z.oPoss}</b>/<b>${z.dPoss}</b> poss O/D</span><span>${z.pf}–${z.pa}</span><span>ORtg <b>${P(o)}</b></span><span>DRtg <b>${P(d)}</b></span><span>Net <b class="${o != null && d != null ? pmCls(o - d) : ''}">${o != null && d != null ? sg1(Math.round(10 * (o - d)) / 10) : '—'}</b></span>
       <span class="go">eFG ${Pc(O.efg)} · TO ${Pc(O.to)} · OREB ${Pc(O.orb)} · FTR ${Pc(O.ftr)}</span><span class="gd">opp eFG ${Pc(X.efg)} · TO ${Pc(X.to)} · DREB ${Pc(X.orb == null ? null : 100 - X.orb)} · FTR ${Pc(X.ftr)} · stops ${z.dPoss ? Math.round(100 * z.stops / z.dPoss) + '%' : '—'}</span></div></div>`;
 }
@@ -1960,11 +1969,18 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
   if (!L.units.length) return '<div class="muted small">No unit matches the Lineup Builder picks.</div>';
   const P = v => v == null ? '—' : v.toFixed(1) + '%';
   const endRow = (lbl, cls, n, E, pts, kills) => `<tr class="drill"><td class="sd ${cls}">${lbl}</td><td>${n}</td>${END_COLS.map(([c]) => `<td>${E[c] || ''}</td>`).join('')}<td>${pts}</td><td>${kills || ''}</td></tr>`;
+  // Moorpark's table is opponent-adjusted (adjust.js luAdjView); raw is the backup (Data → Show raw).
+  const AV = builder && t === 'a' && !UI.luRaw ? luAdjView(g, k) : null;
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
-    return { u, f, v: { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
+    const v = { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
       ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, onsto: O.nsto, dnsto: X.nsto, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
-      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null } }; });
+      ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null };
+    const A = AV && AV.map.get(fiveKey(u.five));
+    if (A && (A.adjOrtg != null || A.adjDrtg != null)) { const F = A.adjFF || {};
+      Object.assign(v, { ortg: A.adjOrtg, drtg: A.adjDrtg, net: A.adjNet, oefg: F.efg ?? null, oto: F.tov ?? null, oorb: F.orb ?? null, oftr: F.ftr ?? null, defg: F.oefg ?? null, dto: F.otov ?? null, ddrb: F.oorb == null ? null : Math.round(10 * (100 - F.oorb)) / 10, dftr: F.oftr ?? null, adj: true }); }
+    else if (AV) v.rawOnly = true;
+    return { u, f, v }; });
   const S = UI.luSort || { key: 'poss', dir: -1 };
   rows.sort((x, y) => { const a = x.v[S.key], b = y.v[S.key];
     if (a == null && b == null) return y.v.poss - x.v.poss; if (a == null) return 1; if (b == null) return -1;
@@ -1972,10 +1988,10 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
     return (c * S.dir) || (y.v.poss - x.v.poss); });
   const th = ([key, label, cls]) => `<th class="${cls} sortable ${S.key === key ? 'on' : ''}" data-act="lu-sort" data-s="${key}">${key === 'five' ? (k === 5 ? 'FIVE' : k + '-MAN') : label}${S.key === key ? (S.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
   return `<table class="tbl zebra lut lutx"><thead>
-    <tr class="grp"><th></th><th colspan="6"></th><th colspan="4" class="go">OFFENSE</th><th colspan="5" class="gd">DEFENSE</th></tr>
+    <tr class="grp"><th></th><th colspan="6" class="lu-mode">${builder && t === 'a' ? (AV ? 'OPP-ADJUSTED RATINGS' : 'RAW') : ''}</th><th colspan="4" class="go">OFFENSE</th><th colspan="5" class="gd">DEFENSE</th></tr>
     <tr>${LU_COLS.map(th).join('')}</tr></thead><tbody>
     ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
-      return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
+      return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''} ${v.rawOnly ? 'rawonly' : ''}" title="${v.rawOnly ? 'Raw: no rated opponent in this view' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
         <td>${v.poss}</td><td>${u.pf}–${u.pa}</td><td class="${pmCls(v.pm)}">${sgn(v.pm)}</td><td>${v.ortg == null ? '—' : f1(v.ortg)}</td><td>${v.drtg == null ? '—' : f1(v.drtg)}</td><td class="${v.net == null ? '' : pmCls(v.net)}">${v.net == null ? '—' : sg1(v.net)}</td>
         <td class="go">${P(v.oefg)}</td><td class="go">${P(v.oto)}<div class="tiny muted" title="Non-steal TO%">NS ${P(v.onsto)}</div></td><td class="go">${P(v.oorb)}</td><td class="go">${P(v.oftr)}</td>
         <td class="gd">${P(v.defg)}</td><td class="gd">${P(v.dto)}<div class="tiny muted" title="Non-steal TO%">NS ${P(v.dnsto)}</div></td><td class="gd">${P(v.ddrb)}</td><td class="gd">${P(v.dftr)}</td><td class="gd"><b>${v.stops}</b><div class="tiny muted">${P(v.stopPct)}</div></td></tr>
@@ -2036,26 +2052,11 @@ function adjUnits(A, scope) {
   return (A ? A.units : []).map(u => { const L = u.lev || {}, B = scope === 'all' ? (L.w && L.w.adjOrtg != null ? L.w : u) : L[scope];
     return B && B.adjFF && B.adjOrtg != null ? Object.assign({}, B, { players: u.players, mix: u.levMix || {}, F: B.adjFF, net: B.adjNet }) : null; }).filter(Boolean);
 }
-function seasonAdjCard() {
-  const recent = UI.luRecent && luAdjRecent(), A = recent || luAdj(), fin = games.filter(g => g.final && g.ev && g.ev.length).length;
-  const tools = `<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="lu-export">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj">⬆ Adjusted</button>${A ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear</button>' : ''}</div>`;
-  const head = `<div class="row" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Season lineups, opponent-adjusted</h3>${tools}</div>`;
-  if (!A) return `<div class="card">${head}<div class="small muted" style="margin-top:8px">Opponent ratings download automatically from the leaderboard (nightly) the next time this iPad is online; every finished game is then re-adjusted here. Without them: ⬇ Lineup file → on the PC, in <code>Neural Network - Codex Optimized</code>, run <code>python3 adjust_lineups.py &lt;file&gt;</code> → ⬆ Adjusted with <code>internal_data/moorpark_lineups_adj.json</code>. Each five's ratings and four factors get adjusted for who it played: holding a team that rebounds well against good opponents counts for more. The halftime report uses it to suggest fives for the factors we're losing.</div></div>`;
-  const sc = levScope(), noLev = !A.leverage && sc !== 'all', tmin = sc === 'all' ? 10 : 5;
-  const U = noLev ? [] : adjUnits(A, sc).filter(u => u.oT >= tmin && u.dT >= tmin).sort((x, y) => (y.oT + y.dT) - (x.oT + x.dT));
-  const nm = u => u.players.slice().sort((x, y) => (+x.num || 99) - (+y.num || 99)).map(p => p.num ? '#' + p.num : lastName(p.name)).join(' · ');
-  const P = v => v == null ? '—' : v.toFixed(1);
-  return `<div class="card">${head}
-    <div class="small muted" style="margin:6px 0 8px">${A.live ? (() => { const r = ratingsAge(); return `<b>Live</b>: every finished game re-adjusted on this iPad against opponent ratings as of <b>${esc(r ? r.date : '')}</b> (the leaderboard, nightly)${r && r.days > 7 ? ' · <span class="neg">more than a week old: open the tracker online to refresh</span>' : ''} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted. Every game counts the same, judged against what that opponent turned out to be.`; })()
-      : `File ${esc(String(A.generatedAt || '').slice(0, 10))} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted against ${esc(A.ratingsSeason || '')} ratings`}${!A.live && A.gamesTotal < fin ? ` · <span class="neg">${fin - A.gamesTotal} newer game${fin - A.gamesTotal === 1 ? '' : 's'} not in it — export and adjust again</span>` : ''}${A.factorsAdjusted ? '' : ' · <span class="neg">four factors not adjusted in this file (rerun update_advanced_analytics.py --all, then adjust_lineups.py)</span>'}</div>
-    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">${levBtns()}${luAdj() && luAdj().live ? `<div class="row lev-seg"><span class="small muted">Games</span><button class="btn btn-sm ${UI.luRecent ? '' : 'btn-primary'}" data-act="lu-recent" data-v="">Whole season</button><button class="btn btn-sm ${UI.luRecent ? 'btn-primary' : ''}" data-act="lu-recent" data-v="1">Last 8 games</button></div>` : ''}</div>
-    ${recent ? `<div class="small muted" style="margin:4px 0">Last 8 games only (${recent.gamesTotal}): who's playing well now. The season numbers above every suggestion still count every game the same.</div>` : ''}
-    ${noLev ? '<div class="small neg" style="margin:6px 0">This file has no leverage split: export the Lineup file from this tracker and run adjust_lineups.py again.</div>' : ''}
-    <div class="tbl-wrap"><table class="tbl zebra adj-tbl"><thead><tr class="grp"><th></th><th colspan="4"></th><th colspan="4" class="go">OFFENSE (adj)</th><th colspan="4" class="gd">DEFENSE (adj)</th></tr>
-      <tr><th>FIVE</th><th>POSS O/D</th><th>ADJ O</th><th>ADJ D</th><th>ADJ NET</th><th>eFG%</th><th>TO%</th><th>OREB%</th><th>FTR</th><th>eFG%</th><th>TO%</th><th>DREB%</th><th>FTR</th></tr></thead><tbody>
-      ${U.map(u => `<tr><td><b>${esc(nm(u))}</b><div class="tiny muted">${esc(u.players.slice().sort((x, y) => (+x.num || 99) - (+y.num || 99)).map(p => lastName(p.name)).join(', '))}</div>${levMix(u.mix)}</td><td>${u.oT}/${u.dT}</td><td>${P(u.adjOrtg)}</td><td>${P(u.adjDrtg)}</td><td class="${pmCls(u.adjNet)}"><b>${u.adjNet == null ? '—' : sg1(u.adjNet)}</b></td>
-        <td>${P(u.F.efg)}</td><td>${P(u.F.tov)}</td><td>${P(u.F.orb)}</td><td>${P(u.F.ftr)}</td><td>${P(u.F.oefg)}</td><td>${P(u.F.otov)}</td><td>${u.F.oorb == null ? '—' : P(100 - u.F.oorb)}</td><td>${P(u.F.oftr)}</td></tr>`).join('') || `<tr><td colspan="13" class="muted">No five with ${tmin}+ ${levName(sc)} possessions at each end yet.</td></tr>`}</tbody></table></div>
-    <div class="tiny muted" style="margin-top:6px">${sc === 'all' ? 'All = garbage time out and leverage-weighted (a possession counts High ×1, Medium ×0.6, Low ×0.25); possessions shown are the actual count.' : `Only ${levName(sc)} possessions.`} Fives with ${tmin}+ possessions at each end; H · M · L = how its possessions split by leverage (red when mostly low). Each game is adjusted for the opponent and home court, then weighted by possessions (four factors by their own attempts). Games against teams outside the CCC system and scrimmages are left out.</div></div>`;
+/* The backup corner: where the adjusted numbers come from, raw numbers on request, and the lineup files. */
+function luDataCard() {
+  const r = ratingsAge(), up = lsGet(LS_LU_ADJ, null);
+  return `<div class="lu-data"><div><b>Data</b> <span class="small muted">· ${r ? `opponent ratings as of ${esc(r.date)} (leaderboard, nightly)${r.days > 7 ? ' · <span class="neg">more than a week old: open the tracker online</span>' : ''}` : '<span class="neg">no opponent ratings on this iPad yet: open the tracker online once (until then the numbers are raw)</span>'} · ${splitGames().length} game${splitGames().length === 1 ? '' : 's'} in this split</span></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm ${UI.luRaw ? 'btn-primary' : ''}" data-act="lu-raw">${UI.luRaw ? 'Showing raw · back to adjusted' : 'Show raw numbers'}</button><button class="btn btn-sm" data-act="lu-export">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj">⬆ Adjusted file</button>${up ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear file</button>' : ''}</div></div>`;
 }
 // The four factors at halftime: which we're losing (ours vs theirs on ffCalc).
 const FIX_FACTORS = [['efg', 'Shooting', 'eFG%', true, 'efg', 'oefg'], ['to', 'Turnovers', 'TO%', false, 'tov', 'otov'], ['orb', 'Rebounding', 'OREB%', true, 'orb', 'oorb'], ['ftr', 'Free throws', 'FT rate', true, 'ftr', 'oftr']];
@@ -2174,7 +2175,7 @@ function lineupsView(g) {
     </div>
     ${splitPicker()}
     ${UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${luBuilderPanel(g, D, UI.luK || 5)}<div class="tbl-wrap">${lineupTable(g, D, 'a', null, null, UI.luK || 5, true)}</div></div>`}
-    ${UI.luWowy ? '' : UI.luScope === 'season' ? `<div class="small muted" style="margin:-4px 0 12px">Season · ${esc(splitName(UI.luSplit || 'full'))}: ${splitGames().length} game${splitGames().length === 1 ? '' : 's'} tracked on this iPad, Moorpark only.</div>${seasonAdjCard()}` : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${UI.luWowy ? '' : UI.luScope === 'season' ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
     <div class="small muted">POSS = possessions on the floor together (both ends averaged). ORTG / DRTG = points per 100 possessions. Offense: eFG%, TO% (turnovers per possession; NS = non-steal TO%, the unforced ones: travels, bad passes out, charges, violations), OREB%, FT rate (FTA / FGA). Defense: what the opponent shot / turned it over / got to the line, and DREB%. STOPS = the opponent's possessions that ended with no points while that unit was on (missed free throws don't count, as with kills), with the stop % (stops per defensive possession) under it — kills can run across lineups, stops belong to the unit that got them. +/- includes technical free throws; the four factors don't.</div>`;
 }
 
@@ -3057,7 +3058,7 @@ document.addEventListener('click', ev => {
     case 'lu-wowy': UI.luWowy = true; UI.luOpen = null; render(); break;
     case 'wowy-clear': UI.wowy = []; render(); break;
     case 'lu-b-clear': UI.luB = []; render(); break;
-    case 'lu-recent': UI.luRecent = !!b.dataset.v; render(); break;
+    case 'lu-raw': UI.luRaw = !UI.luRaw; render(); break;
     case 'rn-scope': UI.rnScope = b.dataset.s; UI.rnFive = null; render(); break;
     case 'rn-five': { const y = window.scrollY; UI.rnFive = UI.rnFive === b.dataset.k ? null : b.dataset.k; render(); window.scrollTo(0, y); break; }
     case 'lu-export': exportLineups(); break;
@@ -4665,13 +4666,23 @@ function luAdj() {
 }
 // "Opponent ratings as of Dec 3" and whether they're more than a week old.
 function ratingsAge() { const R = ratingsData(); if (!R) return null; const t = Date.parse(R.generatedAt); return { R, days: isNaN(t) ? null : (Date.now() - t) / 864e5, date: String(R.generatedAt || '').slice(0, 10) }; }
-// The last 8 finished games only, for "who's playing well now" (the season numbers never decay; this is a view).
-let RECENT_ADJ = null;
-function luAdjRecent(n = 8) {
-  const R = ratingsData(), A = luAdj(); if (!R || !R.teams || !A || !A.live) return null;
-  if (RECENT_ADJ && RECENT_ADJ.base === A) return RECENT_ADJ.v;
-  const f = lineupFile(); f.games = f.games.slice().sort((x, y) => String(x.date).localeCompare(String(y.date))).slice(-n);
-  const v = adjustLineups(f, R); RECENT_ADJ = { base: A, v }; return v;
+/* The Lineups tab's numbers, opponent-adjusted for exactly the view picked (games split · half · possessions ·
+   situation · group size): each game's units in that view are adjusted against that opponent (the same
+   adjustLineups math), then summed over the games. Raw numbers stay underneath as the backup. key → unit. */
+let VIEW_ADJ = null;
+function luAdjView(g, k) {
+  const R = ratingsData(); if (!R || !R.teams) return null;
+  const list = UI.luScope === 'season' ? splitGames() : [g], per = luPer(g);
+  const stamp = [R.generatedAt, UI.luScope, UI.luSplit, (UI.luPick || []).join(','), per, UI.luFilter, UI.luSit, k, list.map(x => x.id + ':' + x.ev.length).join(',')].join('|');
+  if (VIEW_ADJ && VIEW_ADJ.stamp === stamp) return VIEW_ADJ.v;
+  const side = (x, y) => ({ fgm: x.fgm, fga: x.fga, fg3m: x.fg3m, fg3a: x.fg3a, fta: x.fta, ftm: x.ftm || 0, tov: x.tov, stov: x.stov, oreb: x.oreb, dreb: y.dreb });
+  const file = { games: list.map(gm => { const sc = schedule().find(x => x.id === gm.schedId);
+    return { id: gm.id, date: gm.date, opponent: gm.opp, site: { H: 'home', A: 'away', N: 'neutral' }[gm.loc] || '', scrimmage: !!(sc && sc.scrim),
+      units: lineupUnits(gm, derive(gm), 'a', per || 'game', UI.luFilter, k, UI.luSit).units.map(u => ({ key: fiveKey(u.five), players: u.five.map(id => ({ name: id })), secs: 0,
+        oT: u.oPoss, dT: u.dPoss, pf: u.pf, pa: u.pa, stops: u.stops, fouls: u.fouls, o: side(u.o, u.d), d: side(u.d, u.o) })) }; }) };
+  const A = adjustLineups(file, R), v = { map: new Map(A.units.map(u => [u.key, u])), adjusted: A.gamesAdjusted, total: A.gamesTotal, units: A.units };
+  VIEW_ADJ = { stamp, v };
+  return v;
 }
 
 /* ---------- situation log: every possession tagged with the Lineups situation it was in ----------
