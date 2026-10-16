@@ -974,6 +974,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .kill-near{display:block;font-size:11.5px;font-weight:800;margin-top:2px}
 /* Nav: on the iPad the brand shrinks so the in-game tabs all fit without scrolling. */
 @media (max-width:1100px){.brand span{display:none}.brand{margin-right:6px}.nav .tab{padding-left:10px;padding-right:10px}}
+/* Situation log: chips on the play-by-play sheet, the record on Lineups. */
+.sit-tag{display:inline-block;margin:1px 0 1px 4px;font-size:9.5px;font-weight:800;padding:0 5px;border-radius:999px;border:1px solid var(--warn);color:var(--warn);white-space:nowrap}
+.sit-rec{font-size:11.5px;color:var(--text2);margin-top:3px}
+.sit-proven{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;background:#1f8a4c;color:#fff;margin-right:6px}
+.cf-rec{margin-top:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px}
 
 </style>
 </head>
@@ -1007,7 +1012,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.15.78';
+const VERSION = 'v2026.10.16.79';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1025,7 +1030,8 @@ const pmCls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
 let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
 const cur = () => games.find(g => g.id === curId) || null;
-const save = () => { lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
+// Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
+const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
 const D0 = g => derive(g).score;
 const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'all', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'game', luOpen: null };
 
@@ -1702,7 +1708,7 @@ function sheetTable(g, D, per) {
     const toCol = ['TO', 'STL', 'CHG', 'OFF'].includes(en.col) ? '<td class="m">●' + (en.col !== 'TO' && en.col !== 'STL' ? `<span class="tiny">${en.col}</span>` : '') + '</td>' : '<td></td>';
     h += `<tr class="${p.kill ? 'kill-' + other(p.team) : ''} ${p.gt ? 'gtr' : ''}" data-act="edit" data-id="${p.plays[p.plays.length - 1].id}"><td class="pn">${p.seq}${p.plays.some(e => e.flag) ? '<span title="Flagged">🚩</span>' : ''}</td><td class="tm ${p.team}">${esc(teamAbbr(g, p.team))}${p.oreb ? `<div class="tiny" style="color:#fff">${p.oreb} OREB</div>` : ''}</td>
 ${['2', '3', 'FT', 'x2', 'x3', 'xFT'].map(c).join('')}${toCol}
-      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.dead ? 'DS' : p.skunk ? 'S' : p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td><td class="lv">${p.gt ? '<span class="lvg">GT</span>' : `<span class="lv-${p.lev}">${(LEV_LABEL[p.lev] || '')[0] || ''}</span>${p.clutch ? '<span class="lvc">C</span>' : ''}`}</td></tr>`;
+      <td class="m ms">${p.dreb ? '●' : ''}</td><td class="m ms">${en.col === 'STL' ? '●' : ''}</td><td class="pts">${p.pts || '<span class="tiny">0</span>'}</td><td class="kill">${p.dead ? 'DS' : p.skunk ? 'S' : p.kill ? 'K' : ''}</td><td class="sc">${p.score.a}–${p.score.b}</td><td class="lv">${p.gt ? '<span class="lvg">GT</span>' : `<span class="lv-${p.lev}">${(LEV_LABEL[p.lev] || '')[0] || ''}</span>${p.clutch ? '<span class="lvc">C</span>' : ''}`}${sitTagsHtml(g, p)}</td></tr>`;
   }
   return h + '</tbody></table>';
 }
@@ -1887,7 +1893,6 @@ const levBtns = (key, def) => { key = key || 'levScope'; const cur = UI[key] || 
   return `<div class="row lev-seg"><span class="small muted">Leverage</span>${LEV_SCOPES.map(([k, l]) => `<button class="btn btn-sm ${cur === k ? 'btn-primary' : ''}" data-act="lev-scope" data-k="${key}" data-s="${k}">${l}</button>`).join('')}</div>`; };
 // A five's possessions by leverage, as a small H / M / L line; flagged when most were low leverage.
 const levMix = m => m && (m.high != null || m.med != null || m.low != null) ? `<span class="lev-mix ${(m.low || 0) > 50 ? 'lowmaj' : ''}" title="Share of this five's possessions that were High / Medium / Low leverage">H ${Math.round(m.high || 0)} · M ${Math.round(m.med || 0)} · L ${Math.round(m.low || 0)}%</span>` : '';
-const luAdj = () => lsGet(LS_LU_ADJ, null);
 function lineupFile() {
   const rows = games.filter(g => g.final && g.ev && g.ev.length).map(g => { const D = derive(g), sc = schedule().find(x => x.id === g.schedId);
     // possBox puts the defensive rebound that ends a possession on the side that lost the ball; the file
@@ -1926,13 +1931,14 @@ function seasonAdjCard() {
   const A = luAdj(), fin = games.filter(g => g.final && g.ev && g.ev.length).length;
   const tools = `<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm" data-act="lu-export">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj">⬆ Adjusted</button>${A ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear</button>' : ''}</div>`;
   const head = `<div class="row" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Season lineups, opponent-adjusted</h3>${tools}</div>`;
-  if (!A) return `<div class="card">${head}<div class="small muted" style="margin-top:8px">⬇ Lineup file → on the PC, in <code>Neural Network - Codex Optimized</code>, run <code>python3 adjust_lineups.py &lt;file&gt;</code> → ⬆ Adjusted with <code>internal_data/moorpark_lineups_adj.json</code>. Each five's ratings and four factors get adjusted for who it played: holding a team that rebounds well against good opponents counts for more. The halftime report uses it to suggest fives for the factors we're losing.</div></div>`;
+  if (!A) return `<div class="card">${head}<div class="small muted" style="margin-top:8px">Opponent ratings download automatically from the leaderboard (nightly) the next time this iPad is online; every finished game is then re-adjusted here. Without them: ⬇ Lineup file → on the PC, in <code>Neural Network - Codex Optimized</code>, run <code>python3 adjust_lineups.py &lt;file&gt;</code> → ⬆ Adjusted with <code>internal_data/moorpark_lineups_adj.json</code>. Each five's ratings and four factors get adjusted for who it played: holding a team that rebounds well against good opponents counts for more. The halftime report uses it to suggest fives for the factors we're losing.</div></div>`;
   const sc = levScope(), noLev = !A.leverage && sc !== 'all', tmin = sc === 'all' ? 10 : 5;
   const U = noLev ? [] : adjUnits(A, sc).filter(u => u.oT >= tmin && u.dT >= tmin).sort((x, y) => (y.oT + y.dT) - (x.oT + x.dT));
   const nm = u => u.players.slice().sort((x, y) => (+x.num || 99) - (+y.num || 99)).map(p => p.num ? '#' + p.num : lastName(p.name)).join(' · ');
   const P = v => v == null ? '—' : v.toFixed(1);
   return `<div class="card">${head}
-    <div class="small muted" style="margin:6px 0 8px">File ${esc(String(A.generatedAt || '').slice(0, 10))} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted against ${esc(A.ratingsSeason || '')} ratings${A.gamesTotal < fin ? ` · <span class="neg">${fin - A.gamesTotal} newer game${fin - A.gamesTotal === 1 ? '' : 's'} not in it — export and adjust again</span>` : ''}${A.factorsAdjusted ? '' : ' · <span class="neg">four factors not adjusted in this file (rerun update_advanced_analytics.py --all, then adjust_lineups.py)</span>'}</div>
+    <div class="small muted" style="margin:6px 0 8px">${A.live ? (() => { const r = ratingsAge(); return `<b>Live</b>: every finished game re-adjusted on this iPad against opponent ratings as of <b>${esc(r ? r.date : '')}</b> (the leaderboard, nightly)${r && r.days > 7 ? ' · <span class="neg">more than a week old: open the tracker online to refresh</span>' : ''} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted. Every game counts the same, judged against what that opponent turned out to be.`; })()
+      : `File ${esc(String(A.generatedAt || '').slice(0, 10))} · ${A.gamesAdjusted} of ${A.gamesTotal} games adjusted against ${esc(A.ratingsSeason || '')} ratings`}${!A.live && A.gamesTotal < fin ? ` · <span class="neg">${fin - A.gamesTotal} newer game${fin - A.gamesTotal === 1 ? '' : 's'} not in it — export and adjust again</span>` : ''}${A.factorsAdjusted ? '' : ' · <span class="neg">four factors not adjusted in this file (rerun update_advanced_analytics.py --all, then adjust_lineups.py)</span>'}</div>
     ${levBtns()}
     ${noLev ? '<div class="small neg" style="margin:6px 0">This file has no leverage split: export the Lineup file from this tracker and run adjust_lineups.py again.</div>' : ''}
     <div class="tbl-wrap"><table class="tbl zebra adj-tbl"><thead><tr class="grp"><th></th><th colspan="4"></th><th colspan="4" class="go">OFFENSE (adj)</th><th colspan="4" class="gd">DEFENSE (adj)</th></tr>
@@ -4105,7 +4111,13 @@ function sitNorm(g) {
   prev.forEach(x => { const D = derive(x); D.poss.forEach(p => { if (p.gt) return; const bx = possBox(p), s = p.team === 'a' ? o : d; Object.keys(bx).forEach(k => { s[k] += bx[k]; });
     if (p.team === 'a') oP++; else { dP++; if (p.stop) stops++; } }); fouls += x.ev.filter(e => e.t === 'foul' && e.team === 'a').length; });
   const v = sitVals(o, d, oP, dP, stops, fouls); v.ft = SIT_LG.ft; v.p3 = SIT_LG.p3;
-  return { v, src: `our ${prev.length}-game norm` };
+  // The four factors: opponent-adjusted when every game is re-adjusted live (each five's adjusted factor,
+  // weighted by its own attempts), so holding a team that became a great shooting team counts as that.
+  const A = luAdj(), FF = { efg: 'efg', oefg: 'oefg', tov: 'tov', otov: 'otov', orb: 'orb', drb: 'oorb', ftr: 'ftr', oftr: 'oftr' };
+  let adj = false;
+  if (A && A.live) Object.entries(FF).forEach(([k, f]) => { let s = 0, w = 0; A.units.forEach(u => { const x = (u.adjFF || {})[f], n = (u.adjFFw || {})[f]; if (x != null && n) { s += x * n; w += n; } });
+    if (w) { v[k] = k === 'drb' ? 100 - s / w : s / w; adj = true; } });
+  return { v, src: `our ${prev.length}-game norm${adj ? ', four factors opp-adjusted' : ''}` };
 }
 /* Our players' season stats so far, from QUALITY GAMES ONLY: against an opponent with a positive adjusted
    net rating (from the ⬆ Adjusted file), decided by 15 or fewer. Blowouts and weak opponents don't count, so
@@ -4207,6 +4219,12 @@ function closingFtCard(g, D) {
     ${top.length < 5 ? `<div class="cf-warn">Only ${top.length} available player${top.length === 1 ? ' has' : 's have'} 10+ season FTs. Pick the rest yourself.</div>` : warn ? `<div class="cf-warn">${warn}</div>` : ''}
     ${top.length === 5 && (ins.length || !cur.length) ? `<div class="cf-go"><span class="small muted">${ins.length && cur.length ? `IN ${esc(ins.join(', '))} · OUT ${esc(outs.join(', '))}` : ''}</span><button class="btn btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`
       : top.length === 5 ? '<div class="cf-go"><span class="small pos"><b>These five are on the floor.</b></span></div>' : ''}
+    ${(() => { const RC = sitRecords('ft'), L = Object.entries(RC.recs).filter(([, x]) => x.n >= 3).map(([k, x]) => ({ k, x })).sort((a, b) => b.x.pts / b.x.n - a.x.pts / a.x.n).slice(0, 3), on = cur.length ? RC.recs[fiveKey(cur)] : null, sug = top.length === 5 ? RC.recs[fiveKey(f)] : null;
+      if (!L.length && !on && !sug) return '';
+      const nm5 = k => k.split('|').map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); }).join(' ');
+      return `<div class="cf-rec"><b>Up 1-8 late this season</b> <span class="muted small">(every game's situation log${RC.quality ? ', quality opponents' : ''})</span>
+        ${sug ? `<div>These five: ${esc(sitRecText('ft', sug))}</div>` : ''}${on && !(sug && fiveKey(cur) === fiveKey(f)) ? `<div>On the floor now: ${esc(sitRecText('ft', on))}</div>` : ''}
+        ${L.length ? `<div class="small muted">Best there (3+ trips): ${L.map(y => `${esc(nm5(y.k))} ${(y.x.pts / y.x.n).toFixed(2)} pts/trip (${y.x.n})`).join(' · ')}</div>` : ''}</div>`; })()}
     <div class="tiny muted" style="margin-top:8px">Closing FT% = season FT% (${esc(plSeason().src)}, pulled toward the team rate when attempts are few) moved toward clutch FTs as they add up. 10+ season FTs to be picked. Clutch FT = FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, only with a clock you set. Nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}.</div></div>`;
 }
 /* The situations. stat = what the fives are ranked on; hi = higher is better; end = which end's
@@ -4295,8 +4313,15 @@ function sitStatCard(g, D, S, c, sk) {
   const ok = sitOk(g), A = luAdj(), haveA = A && A.factorsAdjusted, nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '', sc0 = () => UI[sk] || S.def;
   const P = v => v == null ? '—' : v.toFixed(1), n = S.player ? SIT_LG[S.stat] : c.N[S.stat];
   const val = (f, v) => S.player ? fiveShoot(A, f, S.player[0], S.player[1]) : S.stat === 'edge' ? null : v[S.stat];
+  /* The five's record in this exact situation (every game's saved situation log) moves its number toward that
+     record as the trips add up: weight n / (n + 12). Player-skill situations show the record without blending. */
+  const SL = SITLOG[S.id], RC = SL ? sitRecords(S.id) : null, recOf = f => RC && RC.recs[fiveKey(f)];
+  const blendX = (f, x) => { if (x == null || !SL || S.player) return x; const r = recOf(f), v = sitRecVal(S.id, r); if (v == null) return x; const w = sitRecWeight(r); return (1 - w) * x + w * v; };
+  const better = v => v != null && n != null && (S.hi === false || SL && SL.hi === false ? v < n : v > n);
+  const recLine = f => { const r = recOf(f); if (!r) return ''; const v = sitRecVal(S.id, r), proven = r.n >= SITREC_PROVEN && !S.player && better(v);
+    return `<div class="sit-rec">${proven ? '<span class="sit-proven">PROVEN</span>' : ''}In this spot: ${esc(sitRecText(S.id, r))}${S.player ? '' : ` · counts ${Math.round(100 * sitRecWeight(r))}%`}</div>`; };
   const today = sc => lineupUnits(g, D, 'a', 'game', sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok))
-    .map(u => { const v = sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, x: val(u.five, v) }; });
+    .map(u => { const v = sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, x: blendX(u.five, val(u.five, v)) }; });
   // Four factors: opponent-adjusted. Everything else: raw counts from games against quality opponents only
   // (positive adjusted net), so nothing rests on possessions against bad teams.
   const FOURF = ['efg', 'oefg', 'tov', 'otov', 'orb', 'drb', 'ftr', 'oftr'], useQ = !FOURF.includes(S.stat) && !S.player;
@@ -4305,7 +4330,7 @@ function sitStatCard(g, D, S, c, sk) {
     const f = u.players.map(p => p.name), v = sitVals(R.o, R.d, R.oT, R.dT, R.stops, R.fouls, R.pf, R.pa), F = u.F || {};
     // The four factors come opponent-adjusted from the file; the rest are the season's raw counts.
     Object.assign(v, { efg: F.efg, oefg: F.oefg, tov: F.tov, otov: F.otov, orb: F.orb, drb: F.oorb == null ? null : 100 - F.oorb, ftr: F.ftr, oftr: F.oftr });
-    return { five: f, oP: R.oT, dP: R.dT, mix: u.mix, v, x: val(f, v) }; });
+    return { five: f, oP: R.oT, dP: R.dT, mix: u.mix, v, x: blendX(f, val(f, v)) }; });
   const enough = (u, min) => S.end === 'o' ? u.oP >= min : S.end === 'd' ? u.dP >= min : u.oP >= min && u.dP >= min;
   const rank = (list, min) => list.filter(u => enough(u, min) && u.x != null && (S.player || n == null || (S.hi ? u.x > n : u.x < n)))
     .sort((a, b) => S.hi ? b.x - a.x : a.x - b.x).slice(0, 2);
@@ -4320,7 +4345,7 @@ function sitStatCard(g, D, S, c, sk) {
     return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(nn).join(' '))}</span> · <span class="neg">OUT ${esc(x.map(nn).join(' '))}</span></div>`; };
   const extra = u => S.id === 'three' && u.v.my3ar != null ? ` · 3PA rate ${u.v.my3ar.toFixed(0)}%` : S.id === 'steal' && u.v.otov != null ? ` · forces TO ${u.v.otov.toFixed(1)}%` : S.id === 'ft' && u.v.ftr != null ? ` · FT rate ${u.v.ftr.toFixed(0)}` : '';
   const row = (u, both) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
-      <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}${extra(u)}</div>${levMix(u.mix)}${swap(u.five)}</div>
+      <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}${extra(u)}</div>${levMix(u.mix)}${recLine(u.five)}${swap(u.five)}</div>
       <div class="fx-v"><b class="pos">${P(u.x)}</b><span>${esc(sitLabel(S))}</span></div>
       <div class="fx-v"><b>${S.end === 'o' ? u.oP : S.end === 'd' ? u.dP : Math.floor((u.oP + u.dP) / 2)}</b><span>${pl}</span></div>
       ${fiveKey(u.five) !== nowKey ? `<div class="fx-subrow"><button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(u.five.join('|'))}">Sub this five in</button></div>` : ''}</div>`;
@@ -4336,7 +4361,7 @@ function sitStatCard(g, D, S, c, sk) {
     <div class="fx-cols">
       <div class="fx-col"><div class="fx-lbl today">TODAY <span>this game · ${lbl(T)}</span></div>${T.l.map(u => row(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.player ? (plSeason().src ? 'No five today with enough possessions.' : 'Needs players\' season stats: final stat sheets here, or the ⬆ Adjusted file.') : `No five has been better than ${P(n)} today.`}</div>`}</div>
       <div class="fx-col"><div class="fx-lbl season">SEASON <span>${FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
-    <div class="tiny muted" style="margin-top:6px">Ranked by ${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.</div></div>`;
+    <div class="tiny muted" style="margin-top:6px">Ranked by ${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}</div></div>`;
 }
 const sitLabel = S => ({ ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100' })[S.stat] || S.stat;
 // vs their best five: our fives while that exact five of theirs was on, this game.
@@ -4393,6 +4418,200 @@ function plugCard(g, D, outId) {
     ${top.map((r, i) => `<div class="plug-row"><span class="fix-rk">${i + 1}</span><div class="plug-who"><b>${esc(pShort(g, 'a', r.p.id))}</b>${r.p.pos ? ` <span class="muted small">${esc(r.p.pos)}</span>` : ''}${r.same ? '<span class="fx-both">SAME POS</span>' : ''}
         <div class="tiny muted">${mode && r.skill != null ? `<b>${mode.pct ? r.skill.toFixed(0) + '%' : r.skill.toFixed(1)} ${mode.pct ? mode.lbl.replace('%', '') : mode.lbl}</b> (${esc(plSample(r.p.id, mode.made, mode.att))}) · ` : mode ? 'not enough quality-game sample · ' : ''}five with him: season ${sg(r.sNet)}${r.sP ? ` (${r.sP} poss)` : ''} · tonight ${sg(r.tNet)}${r.tP ? ` (${r.tP})` : ''} · his +/- ${sgn(r.pm)}${r.pf ? ` · ${r.pf} PF` : ''}</div></div>
       <button class="btn btn-good" data-act="plug" data-out="${esc(outId)}" data-p="${esc(r.p.id)}">Plug in</button></div>`).join('')}</div>`;
+}
+
+/* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------
+   poss/ratings.json (export_ratings.py, written by every leaderboard build) holds every in-system
+   team's current opponent-adjusted ORtg / DRtg and four factors. The tracker downloads it when it opens
+   online, keeps the last copy for offline gyms, and re-adjusts every finished game against it with the
+   same math as adjust_lineups.py (a JS port; e2e/adjparity.js checks they agree). So every past game is
+   always graded against what that opponent turned out to be: no recency decay, game 1 counts as much as
+   game 20, and holding a team that became a great shooting team counts as exactly that.
+   The result has the adjusted file's shape, so everything that reads luAdj() uses it. A file loaded with
+   ⬆ Adjusted is only the fallback when there are no ratings on this iPad. */
+const LS_RATINGS = 'pt2_ratings';
+const ratingsData = () => lsGet(LS_RATINGS, null);
+function fetchRatings() {
+  if (!window.fetch) return;
+  fetch('ratings.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+    if (!d || d.kind !== 'team-ratings' || !d.teams) return;
+    const old = ratingsData(); if (old && old.generatedAt === d.generatedAt) return;
+    if (lsSet(LS_RATINGS, d)) { LIVE_ADJ = null; render(); }
+  }).catch(() => {});
+}
+const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+// update_advanced_analytics.resolve_opponent: canonical name match (longest first), then the alias table.
+function resolveTeam(name, R) {
+  const T = Object.keys(R.teams).sort((a, b) => b.length - a.length);
+  const match = n => { const x = normTeam(n); if (!x) return null; return T.find(t => { const y = normTeam(t); return x === y || x.startsWith(y + ' ') || y.endsWith(' ' + x); }) || null; };
+  const m = match(name); if (m) return m;
+  const al = (R.aliases || {})[name]; if (al) { const m2 = match(al); return m2 || (R.teams[al] ? al : null); }
+  return null;
+}
+const ADJ_FF = [
+  ['efg', 'opp_efg_pct', (o, d) => pct1((o.fgm || 0) + 0.5 * (o.fg3m || 0), o.fga || 0), o => o.fga || 0],
+  ['tov', 'opp_tov_pct', (o, d, oT) => pct1(o.tov || 0, oT), (o, d, oT) => oT],
+  ['orb', 'opp_orb_pct', (o, d) => pct1(o.oreb || 0, (o.oreb || 0) + (d.dreb || 0)), (o, d) => (o.oreb || 0) + (d.dreb || 0)],
+  ['ftr', 'opp_ft_rate', o => pct1(o.fta || 0, o.fga || 0), o => o.fga || 0],
+  ['oefg', 'efg_pct', (o, d) => pct1((d.fgm || 0) + 0.5 * (d.fg3m || 0), d.fga || 0), (o, d) => d.fga || 0],
+  ['otov', 'tov_pct', (o, d, oT, dT) => pct1(d.tov || 0, dT), (o, d, oT, dT) => dT],
+  ['oorb', 'oreb_pct', (o, d) => pct1(d.oreb || 0, (d.oreb || 0) + (o.dreb || 0)), (o, d) => (d.oreb || 0) + (o.dreb || 0)],
+  ['oftr', 'ft_rate', (o, d) => pct1(d.fta || 0, d.fga || 0), (o, d) => d.fga || 0]];
+const oppFactor = (F, k) => k === 'opp_orb_pct' ? (F.dreb_pct == null ? null : 100 - F.dreb_pct) : F[k];
+const ADJ_LEV_W = { high: 1, med: 0.6, low: 0.25 };
+function adjustLineups(data, R) {
+  const T = Object.values(R.teams), lgO = T.reduce((s, t) => s + t.ortg, 0) / T.length, lgD = T.reduce((s, t) => s + t.drtg, 0) / T.length;
+  const FT = T.filter(t => t.ff && Object.keys(t.ff).length), lgF = {};
+  if (FT.length) ADJ_FF.forEach(([, k]) => { lgF[k] = FT.reduce((s, t) => s + (oppFactor(t.ff, k) || 0), 0) / FT.length; });
+  const H = (R.homeAdvantage || 3) / 2, hc = site => ({ home: [-H, +H], away: [+H, -H] })[String(site || '').toLowerCase()] || [0, 0];
+  const raw = () => ({ oT: 0, dT: 0, pf: 0, pa: 0, stops: 0, fouls: 0, o: {}, d: {} });
+  const acc = () => Object.assign(raw(), { q: raw(), _ao: 0, _ad: 0, _aoT: 0, _adT: 0, _ff: {} });
+  const add = (A, blk, r, F, h, w = 1) => {
+    const quality = r && r.ortg - r.drtg > 0;
+    (quality ? [A, A.q] : [A]).forEach(t => { ['oT', 'dT', 'pf', 'pa', 'stops', 'fouls'].forEach(k => { t[k] += blk[k] || 0; });
+      ['o', 'd'].forEach(s => Object.entries(blk[s] || {}).forEach(([k, v]) => { t[s][k] = (t[s][k] || 0) + (v || 0); })); });
+    if (!r) return;
+    if (F) { const o = blk.o || {}, d = blk.d || {};
+      ADJ_FF.forEach(([key, ok, val, wt]) => { const v = val(o, d, blk.oT || 0, blk.dT || 0), n = wt(o, d, blk.oT || 0, blk.dT || 0), of = oppFactor(F, ok);
+        if (v == null || !n || of == null) return; const a = A._ff[key] = A._ff[key] || [0, 0];
+        a[0] += Math.min(100, Math.max(0, v - of + lgF[ok])) * n * w; a[1] += n * w; }); }
+    if (blk.oT) { A._ao += (100 * blk.pf / blk.oT + h[0] - r.drtg + lgD) * blk.oT * w; A._aoT += blk.oT * w; }
+    if (blk.dT) { A._ad += (100 * blk.pa / blk.dT + h[1] - r.ortg + lgO) * blk.dT * w; A._adT += blk.dT * w; }
+  };
+  const rnd = v => v == null ? null : Math.round(v * 10) / 10;
+  const fin = A => { const ao = A._aoT ? A._ao / A._aoT : null, ad = A._adT ? A._ad / A._adT : null, F = {}, Fw = {};
+    Object.entries(A._ff).forEach(([k, v]) => { if (v[1]) { F[k] = rnd(v[0] / v[1]); Fw[k] = Math.round(v[1] * 10) / 10; } });
+    return { oT: A.oT, dT: A.dT, pf: A.pf, pa: A.pa, stops: A.stops, fouls: A.fouls, o: A.o, d: A.d, q: A.q, adjPossO: Math.round(A._aoT * 100) / 100, adjPossD: Math.round(A._adT * 100) / 100,
+      adjOrtg: rnd(ao), adjDrtg: rnd(ad), adjNet: ao != null && ad != null ? rnd(ao - ad) : null, adjFF: F, adjFFw: Fw }; };
+  const gamesOut = [], units = {}; let anyLev = false;
+  (data.games || []).forEach(g => {
+    const opp = g.scrimmage ? null : resolveTeam(g.opponent, R), r = opp ? R.teams[opp] : null;
+    const why = g.scrimmage ? 'scrimmage' : !opp ? 'not in the CCC system' : null;
+    gamesOut.push({ id: g.id, date: g.date, opponent: g.opponent, matched: opp, adjusted: !why, skipped: why, oppOrtg: r ? r.ortg : null, oppDrtg: r ? r.drtg : null, oppGames: r ? r.games : null });
+    const h = hc(g.site), F = r && r.ff && Object.keys(r.ff).length ? r.ff : null;
+    (g.units || []).forEach(u => { const x = units[u.key] = units[u.key] || { key: u.key, players: u.players, gp: 0, secs: 0, o: {}, d: {}, all: acc(), lev: {} };
+      x.gp++; x.secs += u.secs || 0;
+      ['o', 'd'].forEach(s => Object.entries(u[s] || {}).forEach(([k, v]) => { x[s][k] = (x[s][k] || 0) + v; }));
+      add(x.all, u, r, F, h);
+      const lev = u.lev || {}; if (Object.keys(lev).length) anyLev = true;
+      Object.entries(lev).forEach(([b, blk]) => { add(x.lev[b] = x.lev[b] || acc(), blk, r, F, h);
+        if (b === 'high' || b === 'med') add(x.lev.hm = x.lev.hm || acc(), blk, r, F, h);
+        if (ADJ_LEV_W[b]) add(x.lev.w = x.lev.w || acc(), blk, r, F, h, ADJ_LEV_W[b]); }); }); });
+  const out = Object.values(units).map(x => { const A = fin(x.all), o = A.oT ? 100 * A.pf / A.oT : null, d = A.dT ? 100 * A.pa / A.dT : null;
+    const poss = {}; ['high', 'med', 'low'].forEach(b => { if (x.lev[b]) poss[b] = x.lev[b].oT + x.lev[b].dT; }); const tot = Object.values(poss).reduce((s, v) => s + v, 0);
+    const lev = {}; ['high', 'med', 'low', 'clutch', 'hm', 'w'].forEach(b => { if (x.lev[b]) lev[b] = fin(x.lev[b]); });
+    const mix = {}; if (tot) Object.entries(poss).forEach(([b, n]) => { mix[b] = Math.round(1000 * n / tot) / 10; });
+    return { key: x.key, names: x.players.map(p => p.name), players: x.players, gp: x.gp, secs: x.secs, oT: A.oT, dT: A.dT, pf: A.pf, pa: A.pa, stops: A.stops, fouls: A.fouls, q: A.q, o: x.o, d: x.d,
+      ortg: rnd(o), drtg: rnd(d), net: o != null && d != null ? rnd(o - d) : null, adjPossO: A.adjPossO, adjPossD: A.adjPossD, adjOrtg: A.adjOrtg, adjDrtg: A.adjDrtg, adjNet: A.adjNet,
+      adjFF: A.adjFF, adjFFw: A.adjFFw, lev, levMix: mix }; }).sort((a, b) => (b.oT + b.dT) - (a.oT + a.dT));
+  return { app: 'moorpark-possession-tracker', kind: 'lineups-adjusted', version: 1, live: true, generatedAt: R.generatedAt, ratingsAt: R.generatedAt, source: data.exportedAt,
+    ratingsSeason: R.season, leagueAvg: { ortg: rnd(lgO), drtg: rnd(lgD) }, homeAdvantage: R.homeAdvantage, factorsAdjusted: FT.length > 0, leverage: anyLev, levWeights: ADJ_LEV_W,
+    gamesTotal: gamesOut.length, gamesAdjusted: gamesOut.filter(g => g.adjusted).length, games: gamesOut, units: out, playerSeason: R.playerSeason || {}, qualityMargin: R.qualityMargin || 15 };
+}
+// The adjusted lineups everything reads: re-adjusted on the iPad when there are ratings, else the uploaded file.
+let LIVE_ADJ = null;
+function luAdj() {
+  const R = ratingsData(), up = lsGet(LS_LU_ADJ, null);
+  if (!R || !R.teams) return up;
+  const stamp = R.generatedAt + '|' + games.map(g => g.id + ':' + (g.final ? 'f' : '') + g.ev.length + ':' + (g.loc || '') + (g.opp || '') + (g.gtFrom || '') + (g.gtOff ? 'x' : '')).join(',');
+  if (LIVE_ADJ && LIVE_ADJ.stamp === stamp) return LIVE_ADJ.v;
+  const v = adjustLineups(lineupFile(), R);
+  // Player lines: the ratings file's (box scores, nightly); an uploaded file's only if the ratings have none.
+  if (!Object.keys(v.playerSeason).length && up && up.playerSeason) v.playerSeason = up.playerSeason;
+  LIVE_ADJ = { stamp, v };
+  return v;
+}
+// "Opponent ratings as of Dec 3" and whether they're more than a week old.
+function ratingsAge() { const R = ratingsData(); if (!R) return null; const t = Date.parse(R.generatedAt); return { R, days: isNaN(t) ? null : (Date.now() - t) / 864e5, date: String(R.generatedAt || '').slice(0, 10) }; }
+
+/* ---------- situation log: every possession tagged with the Lineups situation it was in ----------
+   Nobody tags anything. Each time the game is saved, every possession is checked against the situations on
+   the Lineups screen and the result is written into the game itself (g.sitLog): which situations it was in,
+   who was on (both fives), and what happened. It goes wherever the game goes (backups, exports) and is
+   rewritten whenever a play is fixed, so it always matches the play-by-play. Games tracked before this
+   are filled in when the tracker opens.
+   "Late" is never estimated: during a game it is the clock you entered (4:00 or less in the 2nd half, any
+   OT); once the game is final, the exact count of possessions left in the half also counts (the last 16
+   possessions of the 2nd half; the last 4 for "Last stop"). */
+const SITLOG_V = 1, LATE_SECS = 240, LAST_SECS = 60, LATE_POSS = 16, LAST_POSS = 4;
+// What each situation counts, from the five's side: possessions (ours = offense 'o', theirs = defense 'd') and success.
+const SITLOG = {
+  ft:    { end: 'o', lbl: 'Closing FTs', on: c => c.late && c.m >= 1 && c.m <= 8, res: 'pts', how: 'pts / trip' },
+  ball:  { end: 'o', lbl: 'Ball security', on: c => c.late && c.m >= 1 && c.m <= 10, res: 'to', how: 'turnovers', hi: false },
+  stop:  { end: 'd', lbl: 'Last stop', on: c => c.last && c.m >= 1 && c.m <= 3, res: 'stop', how: 'stops' },
+  steal: { end: 'd', lbl: 'Need steals', on: c => c.late && c.m <= -4, res: 'fto', how: 'forced TOs' },
+  three: { end: 'o', lbl: 'Need a 3', on: c => c.late && c.m <= -4 && c.m >= -9, res: 'pts', how: 'pts / trip' },
+  run:   { end: 'd', lbl: 'Stop the run', on: c => c.run >= 6, res: 'stop', how: 'stops' },
+  foul:  { end: 'd', lbl: 'Stop fouling', on: c => c.tf >= 7, res: 'nofoul', how: 'trips without FTs' } };
+function sitLogGame(g) {
+  const D = derive(g), P = D.poss, out = {};
+  // Possessions left in the 2nd half (exact once the game is final).
+  const reg2 = P.filter(p => p.per === '2H'), left = new Map(reg2.map((p, i) => [p, reg2.length - i]));
+  // Their unanswered points going into each possession, and our team fouls in the half.
+  let run = { team: null, pts: 0 }; const runAt = new Map(), foulsAt = new Map(); let tf = 0, curPer = null;
+  D.items.forEach(x => {
+    if (x.kind === 'foul' && FOULING(x.e)) { if (foulBucket(x.e.per) !== curPer) { curPer = foulBucket(x.e.per); tf = 0; } if (x.e.team === 'a') tf++; }
+    if (x.kind === 'tech') { const t = other(x.e.team); if (x.e.ftm) { if (run.team === t) run.pts += x.e.ftm; else run = { team: t, pts: x.e.ftm }; } }
+    if (x.kind !== 'poss') return; const p = x.p;
+    if (foulBucket(p.per) !== curPer) { curPer = foulBucket(p.per); tf = 0; }
+    runAt.set(p, run.team === 'b' ? run.pts : 0); foulsAt.set(p, tf);
+    if (p.pts) { if (run.team === p.team) run.pts += p.pts; else run = { team: p.team, pts: p.pts }; } });
+  P.forEach(p => {
+    if (p.gt || (p.five.a || []).length !== 5) return;
+    const ot = p.per.startsWith('OT'), ck = p.clockSecs, n = left.get(p);
+    const late = ot || (p.per === '2H' && ((ck != null && ck <= LATE_SECS) || (g.final && n != null && n <= LATE_POSS)));
+    const last = (p.per === '2H' || ot) && ((ck != null && ck <= LAST_SECS) || (g.final && n != null && n <= LAST_POSS) || (ot && g.final && P.filter(q => q.per === p.per).slice(-LAST_POSS).includes(p)));
+    const c = { late, last, m: p.before.a - p.before.b, run: runAt.get(p) || 0, tf: foulsAt.get(p) || 0 };
+    const side = p.team === 'a' ? 'o' : 'd', tags = Object.entries(SITLOG).filter(([, s]) => s.end === side && s.on(c)).map(([k]) => k);
+    if (!tags.length) return;
+    const ft = p.plays.filter(e => isFT(e.k) && e.team === p.team);
+    out[p.id] = { t: tags, per: p.per, end: side, five: p.five.a.slice().sort(), opp: (p.five.b || []).slice(), m: c.m, clock: ck == null ? null : ck,
+      pts: p.pts, stop: p.team === 'b' ? !!p.stop : undefined, to: ['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col) ? 1 : 0, ftm: ft.filter(e => e.k === 'ftm').length, fta: ft.length,
+      stl: p.end.col === 'STL' ? 1 : 0, fouls: p.team === 'b' && ft.length ? 1 : 0 };   // fouled = they went to the line
+  });
+  return out;
+}
+// Write the log into the game (on every save of the game being tracked; old games when the tracker opens).
+function stampSits(g) {
+  if (!g || !g.ev) return;
+  const k = g.ev.length + ':' + (g.ev.length ? g.ev[g.ev.length - 1].id : '') + (g.final ? 'f' : '') + (g.gtFrom || '') + (g.gtOff ? 'x' : '') + ':' + g.ev.filter(e => e.t === 'clock' || e.t === 'to').map(e => e.clock).join(',');
+  if (g.sitLog && g.sitLog.v === SITLOG_V && g.sitLog.k === k) return;
+  g.sitLog = { v: SITLOG_V, k, at: new Date().toISOString(), poss: sitLogGame(g) };
+}
+function backfillSits() {
+  let n = 0; games.forEach(g => { const before = g.sitLog && g.sitLog.k; try { stampSits(g); } catch (e) { return; } if (!g.sitLog || g.sitLog.k !== before) n++; });
+  if (n) lsSet(LS_GAMES, games);
+}
+/* A five's season record in one situation, from every game's saved log: trips, and the result.
+   Quality opponents only once ratings are on this iPad (an in-system opponent with a positive net), all games
+   until then; scrimmages never. */
+function sitRecords(sitId) {
+  const A = luAdj(), Q = {}; ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null) Q[x.id] = x.oppOrtg - x.oppDrtg > 0; });
+  const useQ = !!(A && A.live), recs = {};
+  games.forEach(g => { if (!g.sitLog) try { stampSits(g); } catch (e) {} if (!g.sitLog || !g.sitLog.poss) return; const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+    if (useQ && g.final && !Q[g.id]) return;
+    Object.values(g.sitLog.poss).forEach(r => { if (!r.t.includes(sitId)) return; const k = r.five.join('|'), x = recs[k] = recs[k] || { n: 0, pts: 0, stops: 0, to: 0, stl: 0, ftm: 0, fta: 0, fouls: 0, nofoul: 0, games: new Set() };
+      x.n++; x.pts += r.pts || 0; x.stops += r.stop ? 1 : 0; x.to += r.to || 0; x.stl += r.stl || 0; x.ftm += r.ftm || 0; x.fta += r.fta || 0; x.fouls += r.fouls || 0; x.nofoul += r.fouls ? 0 : 1; x.games.add(g.id); }); });
+  return { recs, quality: useQ };
+}
+// The record as one number on the situation's stat (same units as the Lineups ranking), and as words.
+function sitRecVal(sitId, x) {
+  if (!x || !x.n) return null;
+  return { stop: 100 * x.stops / x.n, run: 100 * x.stops / x.n, ball: 100 * x.to / x.n, steal: 100 * x.stl / x.n, foul: 100 * x.fouls / x.n, ft: x.pts / x.n, three: x.pts / x.n }[sitId];
+}
+function sitRecText(sitId, x) {
+  if (!x || !x.n) return '';
+  const g = x.games.size, gs = ` · ${g} game${g === 1 ? '' : 's'}`;
+  return { stop: `${x.stops}/${x.n} stops`, run: `${x.stops}/${x.n} stops`, ball: `${x.to} TO on ${x.n} trips`, steal: `${x.stl} steals, ${x.to} TO forced on ${x.n} trips`,
+    foul: `${x.nofoul}/${x.n} trips without sending them to the line`, ft: `${(x.pts / x.n).toFixed(2)} pts/trip on ${x.n} trips${x.fta ? ` · ${x.ftm}/${x.fta} FT` : ''}`, three: `${(x.pts / x.n).toFixed(2)} pts/trip on ${x.n} trips` }[sitId] + gs;
+}
+// How much the record counts in the ranking: n / (n + 12). 3 trips → 20%, 12 → 50%, 24 → 67%.
+const SITREC_K = 12, SITREC_PROVEN = 6;
+const sitRecWeight = x => x && x.n ? x.n / (x.n + SITREC_K) : 0;
+// The situation chips on a possession (play-by-play sheet).
+function sitTagsHtml(g, p) {
+  const r = g.sitLog && g.sitLog.poss && g.sitLog.poss[p.id]; if (!r) return '';
+  return r.t.map(k => `<span class="sit-tag" title="${esc(SITLOG[k].lbl)}">${esc(SITLOG[k].lbl)}</span>`).join('');
 }
 
 /* ---------- Runs: kills, kill shots and runs ----------
@@ -4502,12 +4721,17 @@ function rnAgg(list) {
   Object.values(F).forEach(f => Object.assign(f, { kf: 0, ka: 0, sf: 0, sa: 0, rf: 0, ra: 0 }));
   const add = (five, key) => { if (five.length !== 5) return; const f = F[fiveKey(five)]; if (f) f[key]++; five.forEach(id => P_(id)[key]++); };
   R.kills.forEach(k => k.credit.forEach(c => add(c, k.team === 'a' ? 'kf' : 'ka')));
+  // Opponent-weighted kills: a kill on a good offense counts more, being killed by a weak defense counts more.
+  const A = luAdj(), G = {}; ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null) G[x.id] = x; });
+  const lg = A && A.leagueAvg, wt = k => { const x = G[k.gid]; if (!x || !lg) return 1; return k.team === 'a' ? x.oppOrtg / lg.ortg : lg.drtg / x.oppDrtg; };
+  R.kills.forEach(k => k.credit.forEach(c => { if (c.length !== 5) return; const f = F[fiveKey(c)]; if (f) f[k.team === 'a' ? 'kfW' : 'kaW'] = (f[k.team === 'a' ? 'kfW' : 'kaW'] || 0) + wt(k); }));
+  R.weighted = !!(lg && Object.keys(G).length);
   R.shots.forEach(s => add(s.fiveA, s.team === 'a' ? 'sf' : 'sa'));
   R.runs.forEach(r => add(r.fiveA, r.team === 'a' ? 'rf' : 'ra'));
   R.players = pl;
   const tot = Object.values(F).reduce((s, f) => ({ o: s.o + f.o, d: s.d + f.d, kf: s.kf + f.kf, ka: s.ka + f.ka }), { o: 0, d: 0, kf: 0, ka: 0 });
   R.rate = { kf: tot.d ? 100 * tot.kf / tot.d : 0, ka: tot.o ? 100 * tot.ka / tot.o : 0 };
-  Object.values(F).forEach(f => { f.kfR = f.d ? 100 * f.kf / f.d : null; f.kaR = f.o ? 100 * f.ka / f.o : null;
+  Object.values(F).forEach(f => { f.kfR = f.d ? 100 * f.kf / f.d : null; f.kaR = f.o ? 100 * f.ka / f.o : null; f.kfWR = f.d ? 100 * (f.kfW || 0) / f.d : null; f.kaWR = f.o ? 100 * (f.kaW || 0) / f.o : null;
     f.tag = f.d >= RN_MIN_POSS && f.kf >= 2 && f.kfR >= 1.4 * R.rate.kf ? 'killer' : f.o >= RN_MIN_POSS && f.ka >= 2 && f.kaR >= 1.4 * R.rate.ka ? 'leaks' : ''; });
   return R;
 }
@@ -4537,10 +4761,10 @@ function runsView() {
   const open = UI.rnFive;
   const fiveRows = FL.map(f => { const k = fiveKey(f.five), poss = Math.round((f.o + f.d) / 2);
     const row = `<tr class="rn-row ${open === k ? 'on' : ''}" data-act="rn-five" data-k="${esc(k)}"><td><b>${esc(five(f.five))}</b>${f.tag === 'killer' ? '<span class="rn-flag good">KILLER</span>' : f.tag === 'leaks' ? '<span class="rn-flag bad">LEAKS KILLS</span>' : ''}</td>
-      <td>${poss}</td><td class="pos">${fmt1(f.kfR)}</td><td class="neg">${fmt1(f.kaR)}</td><td>${kv(f.kf, f.ka)}</td><td>${kv(f.sf, f.sa)}</td><td>${kv(f.rf, f.ra)}</td></tr>`;
+      <td>${poss}</td><td class="pos">${fmt1(f.kfR)}${R.weighted ? `<div class="tiny muted">opp-wtd ${fmt1(f.kfWR)}</div>` : ''}</td><td class="neg">${fmt1(f.kaR)}${R.weighted ? `<div class="tiny muted">opp-wtd ${fmt1(f.kaWR)}</div>` : ''}</td><td>${kv(f.kf, f.ka)}</td><td>${kv(f.sf, f.sa)}</td><td>${kv(f.rf, f.ra)}</td></tr>`;
     return row + (open === k ? `<tr class="rn-drill"><td colspan="7">${rnDrill(g0, R, f)}</td></tr>` : ''); }).join('');
   const fives = `<div class="card"><h3>Fives: kills, kill shots and runs <span class="muted">· tap a five for every one it was on for</span></h3><div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Five</th><th>Poss</th><th>Kills / 100 def</th><th>Allowed / 100 off</th><th>Kills</th><th>Kill shots</th><th>Runs</th></tr></thead><tbody>${fiveRows || '<tr><td colspan="7" class="muted">No five with 10+ possessions yet.</td></tr>'}</tbody></table></div>
-    <div class="rn-note">Kills credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they started. Team rate: ${fmt1(R.rate.kf)} kills per 100 defensive possessions, ${fmt1(R.rate.ka)} allowed per 100 offensive. KILLER / LEAKS KILLS = 1.4x the team rate on ${RN_MIN_POSS}+ possessions, 2+ kills.</div></div>`;
+    <div class="rn-note">Kills credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they started. Team rate: ${fmt1(R.rate.kf)} kills per 100 defensive possessions, ${fmt1(R.rate.ka)} allowed per 100 offensive. KILLER / LEAKS KILLS = 1.4x the team rate on ${RN_MIN_POSS}+ possessions, 2+ kills.${R.weighted ? ' Opp-wtd = each kill weighted by the opponent\'s current rating: a kill on a good offense counts more, getting killed by a weak defense counts more.' : ''}</div></div>`;
   // Every kill shot.
   const where = x => `${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)}`;
   const shots = R.shots.slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''));
@@ -4592,7 +4816,9 @@ function killNear(g, D, t) {
 }
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+try { backfillSits(); } catch (e) {}
 render();
+fetchRatings();
 </script>
 </body>
 </html>
