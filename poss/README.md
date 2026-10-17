@@ -538,6 +538,19 @@ five has 25+ offensive possessions).
     the latest box score), keeping the numbers already on the roster. Check them, then Save.
   - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
+  - **Labels from stats** (outlined; yours are filled and come first): every player, ours and every opponent with a
+    leaderboard file, gets labels from his season numbers, qualified against the state (his State Rank on the
+    leaderboard's advanced numbers, the same ranks as Rosters → Advanced). Top 20% of the state earns a strength,
+    bottom 20% a weakness; a player can have several:
+    *Go-to* (%Poss over 28) · *Efficient* (TS% top 15%) · *All-Around* (can do it all: TS% top 35%, 25-55% of his
+    shots threes, FT rate top half) · *Shooter* (3P% top 35% and 2.0+ threes a game or 35%+ of his shots) ·
+    *Can't shoot* (3P% bottom 30%, or almost never shoots one) · *Slasher* (a non-shooter who gets to the line: FT
+    rate or FD/40 top 25%) · *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) · *Rebounder* (DR%) ·
+    *Off. rebounder* (OR%) · *Passer* (ARate) · *TO-prone* (TORate) · *Foul-prone* (FC/40) · *Bad FT* (FT%).
+    A player with too few minutes to be ranked falls back to per-40 lines (60+ minutes) and the shooting estimate (15+
+    threes). The +N bubble shows each one's numbers ("Ball hawk · Stl% 4.2 · #30 of 404"). In the roster editor they
+    sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
+    already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
     ("Shooter, Lefty"), so the game tracker shows the same thing; an old one-line note splits on commas.
   - On the Live screen the position and labels sit on **one line** under the player's name, in the order you added

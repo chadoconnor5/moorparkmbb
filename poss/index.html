@@ -1121,6 +1121,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .oo-imp-tbl tbody tr:nth-child(odd) th,.oo-imp-tbl tbody tr:nth-child(odd) td{background:var(--row-light)}
 .oo-imp-tbl tbody tr:nth-child(even) th,.oo-imp-tbl tbody tr:nth-child(even) td{background:var(--row-dark)}
 .oo-imp-tbl tbody th,.oo-imp-tbl tbody td{border-bottom-color:#c4c9d1}
+/* Labels from stats: outlined (yours are filled); vetoed ones faded and struck through in the roster editor. */
+.nt.auto{background:transparent;border-style:dashed}
+.nt.auto.offd{opacity:.45;text-decoration:line-through}
+.nt-pop .nt.auto{background:#fff;border-style:dashed}.nt-pop .nt.auto i{font-style:normal;font-weight:600;margin-left:6px;color:#92400e}
+.ned-auto{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.ned-auto-h{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.04em;margin-right:2px}
+.nt-pop .nt{white-space:normal;line-height:1.3;max-width:100%}.nt-pop .nt.auto i{display:inline}
 
 </style>
 </head>
@@ -1154,7 +1160,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.126';
+const VERSION = 'v2026.10.17.128';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1729,9 +1735,9 @@ function fitLabels() {
     for (let i = tags.length - 1; i >= 0 && r.scrollWidth > r.clientWidth + 1; i--) { tags[i].hidden = true; n++; more.textContent = '+' + n; more.hidden = false; } });
 }
 // A small light-grey bubble above the player's card with every label; ✕ (or any other tap) closes it, and it fades on its own after 8 s.
-function labelPop(b, L, rows) {
+function labelPop(b, L, rows, auto) {
   const card = b.closest('.pbtn, .five-lbl') || b, r = card.getBoundingClientRect(), d = document.createElement('div'); d.className = 'nt-pop';
-  d.innerHTML = `<div class="nt-pop-l">${rows ? `<div class="nt-pop-h">${esc(L)}</div>${rows.map(x => `<div class="nt-pop-r">${x}</div>`).join('')}` : L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
+  d.innerHTML = `<div class="nt-pop-l">${rows ? `<div class="nt-pop-h">${esc(L)}</div>${rows.map(x => `<div class="nt-pop-r">${x}</div>`).join('')}` : L.map(x => `<span class="nt">${esc(x)}</span>`).join('') + (auto || []).map(x => `<span class="nt auto">${esc(x.l)}<i>${esc(x.why)}</i></span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
   document.body.appendChild(d);
   d.style.width = (rows ? Math.min(Math.max(r.width, 290), window.innerWidth - 16) : Math.min(r.width, 320)) + 'px';
   d.style.left = (Math.max(8, Math.min(r.left, window.innerWidth - 8 - d.offsetWidth)) + window.scrollX) + 'px'; d.style.top = (r.top + window.scrollY - d.offsetHeight - 6) + 'px';
@@ -1748,7 +1754,7 @@ function playerCards(g, D, t) {
     const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat));   // fouls and free throws take a player
     return `<button class="pbtn ${cls} ${pl ? 'hot' : ''} ${UI.stat && !pl ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
-      ${(() => { const L = noteLabels(p.note); return p.pos || L.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}${L.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
+      ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}${AU.map(x => `<span class="nt auto" title="${esc(x.why)}">${esc(x.l)}</span>`).join('')}${L.length + AU.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${out ? 'OUT' : pf + ' PF'}</span></button>`; };
   const noRoster = !teamPlayers(g, t).length;
@@ -2542,7 +2548,13 @@ function rostersView() {
   const isM = sel === 'MPK';
   const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppStore().find(x => x.name === sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
   const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Labels', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting labels', 0]];
-  const row = p => `<tr class="rrow">${cols.map(([k, , w]) => `<td>${k === 'note' ? noteCell(p.note) : `<input data-k="${k}" value="${esc(p[k] || '')}" ${k === 'num' ? 'inputmode="numeric"' : ''} style="${w ? 'width:' + w + 'px' : 'width:100%'}">`}</td>`).join('')}<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>`;
+  const team = isM ? 'MPK' : sel, gS = isM ? null : { opp: sel, oppRoster: players };
+  // Labels from his numbers: shown under the typed ones; ✕ turns one off for him, + brings it back.
+  const statsRow = p => { const L = noteLabels(p.note), off = new Set(autoOff(team, p).map(x => x.toLowerCase())), id = isM ? p.name : 'o:' + p.num;
+    const A = p.num || isM ? autoLabels(gS, isM ? 'a' : 'b', id).filter(x => !L.some(y => y.toLowerCase() === x.l.toLowerCase())) : [];
+    return A.length ? `<div class="ned-auto"><span class="ned-auto-h">From stats</span>${A.map(x => off.has(x.l.toLowerCase()) ? `<span class="nt auto offd" title="${esc(x.why)}">${esc(x.l)}<button class="nt-x" data-act="au-on" data-team="${esc(team)}" data-num="${esc(p.num || '')}" data-name="${esc(p.name || '')}" data-l="${esc(x.l)}" aria-label="Show ${esc(x.l)}">+</button></span>`
+      : `<span class="nt auto" title="${esc(x.why)}">${esc(x.l)}<button class="nt-x" data-act="au-off" data-team="${esc(team)}" data-num="${esc(p.num || '')}" data-name="${esc(p.name || '')}" data-l="${esc(x.l)}" aria-label="Hide ${esc(x.l)}">✕</button></span>`).join('')}</div>` : ''; };
+  const row = p => `<tr class="rrow">${cols.map(([k, , w]) => `<td>${k === 'note' ? noteCell(p.note, statsRow(p)) : `<input data-k="${k}" value="${esc(p[k] || '')}" ${k === 'num' ? 'inputmode="numeric"' : ''} style="${w ? 'width:' + w + 'px' : 'width:100%'}">`}</td>`).join('')}<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>`;
   return `<div class="page-head"><h2>Rosters</h2></div>
     <div class="rost">
       <div class="card rlist"><button class="btn ${isM ? 'btn-primary' : ''}" data-act="r-sel" data-n="MPK">Moorpark</button>
@@ -2559,7 +2571,7 @@ function rostersView() {
 }
 // The roster editor's label cell: chips (✕ removes), a box + Add, and quick picks from labels already used.
 const nedChips = L => L.map((x, i) => `<span class="nt">${esc(x)}<button class="nt-x" data-act="ned-del" data-i="${i}" aria-label="Remove ${esc(x)}">✕</button></span>`).join('');
-const noteCell = v => `<div class="ned"><input type="hidden" data-k="note" value="${esc(v || '')}"><div class="ned-chips">${nedChips(noteLabels(v))}</div>
+const noteCell = (v, au) => `<div class="ned"><input type="hidden" data-k="note" value="${esc(v || '')}"><div class="ned-chips">${nedChips(noteLabels(v))}</div>${au || ''}
   <div class="ned-in"><input class="ned-add" placeholder="Add a label" maxlength="20" enterkeyhint="done"><button class="btn btn-sm btn-good" data-act="ned-add">Add</button></div><div class="ned-q"></div></div>`;
 function usedLabels() {
   const n = {}; [...roster(), ...oppStore().flatMap(o => o.players || [])].forEach(p => noteLabels(p.note).forEach(x => { const k = x.toLowerCase(); n[k] = n[k] || { x, c: 0 }; n[k].c++; }));
@@ -3344,8 +3356,12 @@ document.addEventListener('click', ev => {
     case 'ned-del': { const c = b.closest('.ned'), L = noteLabels(c.querySelector('input[data-k="note"]').value); L.splice(+b.dataset.i, 1); nedPaint(c, L); break; }
     case 'nt-pop-x': break;   // the bubble is already gone (every tap closes it)
     case 'fl-tap': { const x = ((UI.flCache || {})[b.dataset.team] || [])[+b.dataset.i]; if (x) labelPop(b, (x.kind === 'r' ? '✕ ' : '') + x.text, x.rows); break; }
-    case 'nt-more': { const p = pInfo(g, b.dataset.team, b.dataset.p); labelPop(b, noteLabels(p.note)); break; }
+    case 'nt-more': { const t = b.dataset.team, p = pInfo(g, t, b.dataset.p), L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L);
+      labelPop(b, L, null, AU); break; }
     case 'rr-del': b.closest('tr').remove(); break;
+    case 'au-off': case 'au-on': { const all = lsGet(LS_AUTO_OFF, {}) || {}, k = autoKey(b.dataset.team, { num: b.dataset.num, name: b.dataset.name }), L = (all[k] || []).filter(x => x.toLowerCase() !== b.dataset.l.toLowerCase());
+      if (act === 'au-off') L.push(b.dataset.l); if (L.length) all[k] = L; else delete all[k]; lsSet(LS_AUTO_OFF, all);
+      const sp = b.closest('.nt'); if (sp) { sp.classList.toggle('offd', act === 'au-off'); b.dataset.act = act === 'au-off' ? 'au-on' : 'au-off'; b.textContent = act === 'au-off' ? '+' : '✕'; } break; }
     case 'rd-add': { collectSched(); readyAdd($('#rd-in').value); render(); break; }
     case 'rd-del': { collectSched(); const L = readyList(); L.splice(+b.dataset.i, 1); lsSet(LS_READY, L); render(); break; }
     case 'oo-shoot': UI.ooShoot = !UI.ooShoot; lsSet('pt2_oo_shoot', UI.ooShoot); render(); break;
@@ -4986,6 +5002,73 @@ function fiveLabels(g, t, five) {
 function fiveStrip(g, t, five) {
   const L = fiveLabels(g, t, five); UI.flCache = UI.flCache || {}; UI.flCache[t] = L;
   return `<div class="five-lbl"><span class="five-lbl-t">THIS FIVE</span><div class="five-lbl-ch">${L.length ? L.map((x, i) => `<button class="lc ${x.kind}" data-act="fl-tap" data-team="${t}" data-i="${i}">${x.kind === 'r' ? '✕ ' : ''}${esc(x.text)}</button>`).join('') : '<span class="muted small">No season numbers or labels on these players yet</span>'}</div></div>`;
+}
+
+/* ---------- stats labels: a player's labels from his numbers, qualified against the state ----------
+   Shown on the player cards after the labels you typed, outlined; they follow the season (ours and every opponent:
+   the leaderboard's team file for that team, refreshed each build). One you veto in the roster editor stays off for
+   that player. A player can have several (Shooter · Ball hawk).
+   Ranked labels use his State Rank on the leaderboard's advanced numbers (the same ranks as Rosters → Advanced:
+   qualified players statewide, 30% of minutes; shooting by the leaderboard's qualifications). Top 20% of the state
+   (top 15% for Efficient / Rim protector, top 35% for Shooter) earns a strength; bottom 20% a weakness:
+     Go-to (%Poss over 28) · Efficient (TS%) · Shooter (3P% top 35% and volume: 2.0+ threes a game or 35%+ of his
+     shots; unranked: the THIS FIVE estimate on 15+ attempts) ·
+     Can't shoot (bottom 30% 3P%, or almost never shoots one) · All-Around (can do it all: TS% top 35%, a balanced
+     shot diet of 25-55% threes, FT rate top half; replaces Shooter on him) · Slasher (a non-shooter who draws fouls:
+     FT rate or FD/40 top 25%) · Ball hawk (Stl%) · Rim protector (Blk%) ·
+     Rebounder (DR%) · Off. rebounder (OR%) · Passer (ARate) · TO-prone (TORate) · Foul-prone (FC/40) · Bad FT (FT%).
+   A player with too few minutes to be ranked falls back to per-40 lines (60+ minutes) where they apply. */
+const AUTO_CUT = { top: 0.20, topTight: 0.15, shooter: 0.35, cantShoot: 0.30, draws: 0.25, bottom: 0.20, aaTs: 0.35, aaFtr: 0.50, aaRateLo: 25, aaRateHi: 55 };
+const LS_AUTO_OFF = 'pt2_auto_off';
+const autoKey = (team, p) => team === 'MPK' ? 'MPK|' + p.name : String(team) + '|' + p.num;
+const autoOff = (team, p) => ((lsGet(LS_AUTO_OFF, {}) || {})[autoKey(team, p)] || []);
+// His row in his team's Team Stats table (the leaderboard file): by name, else last name + jersey via the box lines.
+function autoRow(g, t, id) {
+  const team = t === 'a' ? 'Moorpark' : g && g.opp, F = teamFile(team), rows = F && F.table && F.table.rows; if (!rows) return { R: null, F };
+  const p = pInfo(g, t, id), ln = s => lastName(String(s || '')).toLowerCase(), n = String(p.name || '').toLowerCase();
+  let R = rows.find(r => String(r.name).toLowerCase() === n);
+  if (!R && t === 'b') { const of = oppFileLine(g, p); if (of) R = rows.find(r => String(r.name).toLowerCase() === String(of.name).toLowerCase()) || rows.find(r => ln(r.name) === ln(of.name)); }
+  if (!R && p.name) { const c = rows.filter(r => ln(r.name) === ln(p.name)); if (c.length === 1) R = c[0]; }
+  return { R, F };
+}
+function autoLabels(g, t, id) {
+  let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
+  const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
+  const top = (k, cut) => rk[k] != null && tot[k] ? rk[k] <= Math.max(1, Math.round(cut * tot[k])) : false;
+  const bot = (k, cut) => rk[k] != null && tot[k] ? rk[k] > Math.round((1 - cut) * tot[k]) : false;
+  const rTxt = k => rk[k] != null && tot[k] ? ` · #${rk[k]} of ${tot[k]}` : '', f1 = v => v == null ? '—' : (+v).toFixed(1);
+  const out = [], add = (l, why) => out.push({ l, why });
+  if (!R && (!q || q.est == null)) return out;   // nothing on him yet
+  // Shooting: ranked 3P% first; else the THIS FIVE estimate (his own 3P% history, volume).
+  const tpa = R ? R.tpa || 0 : q.a3, fga = R ? R.fga || 0 : null, rate = fga ? 100 * tpa / fga : q && q.rate, pg = R && R.gp ? tpa / R.gp : q && q.pg3;
+  const shootWhy = (R && R.tpa ? `3P ${f1(R.tpp)}% (${R.tpm}-${R.tpa})` : q && q.est != null ? `est ${q.est.toFixed(0)}%` : '') + (pg != null ? `, ${pg.toFixed(1)} 3PA/g` : '') + rTxt('tpp');
+  // A shooter also takes them: 2.0+ threes a game or 35%+ of his shots; unranked, 15+ attempts too.
+  const volume = (pg != null && pg >= 2.0) || (rate != null && rate >= 35);
+  const shooter = volume && (rk.tpp != null ? top('tpp', AUTO_CUT.shooter) : !!(q && q.shooter && q.est != null) && tpa >= 15);
+  const cant = rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : !!(q && q.nonShooter && q.est != null) || (fga >= 20 && rate != null && rate < 10);
+  const draws = top('ft_rate', AUTO_CUT.draws) || top('fd_per_40', AUTO_CUT.draws) || (rk.ft_rate == null && rk.fd_per_40 == null && q && q.ftr != null && q.ftr >= FL.FTR_HI);
+  const drawWhy = R && (R.ft_rate != null || R.fd_per_40 != null) ? `FT rate ${f1(R.ft_rate)}${rTxt('ft_rate')}, FD/40 ${f1(R.fd_per_40)}` : q && q.ftr != null ? `FT rate ${q.ftr.toFixed(0)}%` : '';
+  if (R && R.usage_pct != null && R.usage_pct > 28 && (R.min_pct || 0) >= 30) add('Go-to', `%Poss ${f1(R.usage_pct)}`);
+  if (top('ts_pct', AUTO_CUT.topTight)) add('Efficient', `TS ${f1(R.ts_pct)}%${rTxt('ts_pct')}`);
+  // All-Around: efficient, a balanced shot diet, and gets to the line.
+  const allAround = R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
+  if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}%${rTxt('ts_pct')} · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate)}${rTxt('ft_rate')}`);
+  else if (shooter) add('Shooter', shootWhy);
+  if (!shooter && !allAround && cant) add(draws ? 'Slasher' : 'Can\'t shoot', draws ? drawWhy : shootWhy);
+  if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}${rTxt('stl_pct')}` : `${f1(q.stl)} stl/40`);
+  if (rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)}${rTxt('blk_pct')}` : `${f1(q.blk)} blk/40`);
+  if (top('dreb_pct', AUTO_CUT.top)) add('Rebounder', `DR% ${f1(R.dreb_pct)}${rTxt('dreb_pct')}`);
+  if (top('oreb_pct', AUTO_CUT.top)) add('Off. rebounder', `OR% ${f1(R.oreb_pct)}${rTxt('oreb_pct')}`);
+  if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}${rTxt('ast_rate')}`);
+  if (rk.ftp != null ? bot('ftp', AUTO_CUT.bottom) : q && q.ft != null && q.ft < FL.FT_LO) add('Bad FT', rk.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})${rTxt('ftp')}` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
+  if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}${rTxt('tov_pct')}` : `${f1(q.to)} TO/40`);
+  if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `FC/40 ${f1(R.fc_per_40)}${rTxt('fc_per_40')}` : `${f1(q.pf)} PF/40`);
+  return out;
+}
+// The labels a card shows from stats: minus the ones typed already and the ones vetoed for him.
+function cardAutoLabels(g, t, p, typed) {
+  const team = t === 'a' ? 'MPK' : g.opp, have = new Set(typed.map(x => x.toLowerCase())), off = new Set(autoOff(team, p).map(x => x.toLowerCase()));
+  return autoLabels(g, t, p.id).filter(x => !have.has(x.l.toLowerCase()) && !off.has(x.l.toLowerCase()));
 }
 
 /* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------
