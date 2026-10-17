@@ -1161,7 +1161,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.132';
+const VERSION = 'v2026.10.17.133';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5018,8 +5018,9 @@ function fiveStrip(g, t, five) {
      shot diet of 25-55% threes, FT rate top half; replaces Shooter on him) · Slasher (a non-shooter who draws fouls:
      FT rate or FD/40 top 25%) · Ball hawk (Stl%) · Rim protector (Blk%) ·
      Rebounder (DR%) · Off. rebounder (OR%) · Passer (ARate) · TO-prone (TORate) · Foul-prone (FC/40) · Bad FT (FT%).
-   A player with too few minutes to be ranked falls back to per-40 lines (60+ minutes) where they apply (Shooter 25+
-   threes, Bad FT 20+ FTA). Only players who play get labels (10%+ of minutes; low-info teams 4+ ppg or 3+ rpg over half
+   Teams with analytics (reliable minutes) get ranked labels only; a player there with too few minutes to be ranked
+   just doesn't get that label. Low-info teams fall back to per-40 lines (60+ minutes) and the shooting estimate
+   (Shooter 25+ threes, Bad FT 20+ FTA). Only players who play get labels (10%+ of minutes; low-info teams 4+ ppg or 3+ rpg over half
    the games); team-leader labels have their own bar.
    The bubble shows each label's numbers, not the ranks. */
 const AUTO_CUT = { top: 0.20, topTight: 0.15, shooter: 0.35, cantShoot: 0.30, draws: 0.25, bottom: 0.20, aaTs: 0.35, aaFtr: 0.50, aaRateLo: 25, aaRateHi: 55 };
@@ -5038,7 +5039,7 @@ function autoRow(g, t, id) {
 /* TEAM LEADERS: who his team runs through, whatever the state thinks. One player per label per team, among the
    players who play: 10+ games (half the team's games early in the season) and 20%+ of the minutes (minutes only
    where the team's minutes are reliable).
-   Analytics when the team's file has them (reliable minutes), per-game box stats when it doesn't:
+   Analytics when the team's file has them (reliable minutes), per-game box stats when it doesn't (never mixed):
      Top scorer     points produced per game (Oliver)   | PPG
      Top rebounder  OR% + DR%                            | RPG
      Top passer     assist rate                          | APG
@@ -5062,7 +5063,6 @@ function teamLeaders(F) {
   const pool = rows.filter(r => (r.gp || 0) >= minG && (!adv || (r.min_pct || 0) >= 20)), out = {};
   LEADERS.forEach(([l, A, B]) => {
     let M = adv ? A : B, S = pool.map(r => ({ r, v: M.f(r, advOf(r)) })).filter(x => x.v != null && x.v > 0);
-    if (adv && !S.length) { M = B; S = pool.map(r => ({ r, v: M.f(r) })).filter(x => x.v != null && x.v > 0); }   // an analytic nobody qualifies for: the box stat
     S.sort((a, b) => b.v - a.v); if (!S.length) return;
     const d = M.d == null ? 1 : M.d, top = S[0];
     out[top.r.name] = (out[top.r.name] || []).concat({ l, lead: true, why: `${top.v.toFixed(d)}${M.u[0] === '%' ? '' : ' '}${M.u}${M.x ? M.x(top.r) : ''}${S[1] ? ` (next: ${S[1].v.toFixed(d)})` : ''}` });
@@ -5072,6 +5072,7 @@ function teamLeaders(F) {
 function autoLabels(g, t, id) {
   let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
   const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
+  const basic = !(F && F.table && F.table.adv === 1);   // per-game / per-40 fallbacks only for low-info teams
   const top = (k, cut) => rk[k] != null && tot[k] ? rk[k] <= Math.max(1, Math.round(cut * tot[k])) : false;
   const bot = (k, cut) => rk[k] != null && tot[k] ? rk[k] > Math.round((1 - cut) * tot[k]) : false;
   const f1 = v => v == null ? '—' : (+v).toFixed(1);
@@ -5089,9 +5090,9 @@ function autoLabels(g, t, id) {
   const shootWhy = (R && R.tpa ? `3P ${f1(R.tpp)}% (${R.tpm}-${R.tpa})` : q && q.est != null ? `est ${q.est.toFixed(0)}%` : '') + (pg != null ? `, ${pg.toFixed(1)} 3PA/g` : '') ;
   // A shooter also takes them: 2.0+ threes a game or 35%+ of his shots; unranked, 15+ attempts too.
   const volume = (pg != null && pg >= 2.0) || (rate != null && rate >= 35);
-  const shooter = volume && (rk.tpp != null ? top('tpp', AUTO_CUT.shooter) : !!(q && q.shooter && q.est != null) && tpa >= 25);
-  const cant = rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : !!(q && q.nonShooter && q.est != null) || (fga >= 20 && rate != null && rate < 10);
-  const draws = top('ft_rate', AUTO_CUT.draws) || top('fd_per_40', AUTO_CUT.draws) || (rk.ft_rate == null && rk.fd_per_40 == null && q && q.ftr != null && q.ftr >= FL.FTR_HI);
+  const shooter = volume && (rk.tpp != null ? top('tpp', AUTO_CUT.shooter) : basic && !!(q && q.shooter && q.est != null) && tpa >= 25);
+  const cant = rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : (basic && !!(q && q.nonShooter && q.est != null)) || (fga >= 20 && rate != null && rate < 10);
+  const draws = top('ft_rate', AUTO_CUT.draws) || top('fd_per_40', AUTO_CUT.draws) || (basic && rk.ft_rate == null && rk.fd_per_40 == null && q && q.ftr != null && q.ftr >= FL.FTR_HI);
   const drawWhy = R && (R.ft_rate != null || R.fd_per_40 != null) ? `FT rate ${f1(R.ft_rate)}, FD/40 ${f1(R.fd_per_40)}` : q && q.ftr != null ? `FT rate ${q.ftr.toFixed(0)}%` : '';
   if (R && R.usage_pct != null && R.usage_pct > 28 && (R.min_pct || 0) >= 30) add('Go-to', `%Poss ${f1(R.usage_pct)}`);
   if (top('ts_pct', AUTO_CUT.topTight)) add('Efficient', `TS ${f1(R.ts_pct)}%`);
@@ -5100,14 +5101,14 @@ function autoLabels(g, t, id) {
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}`);
   else if (shooter) add('Shooter', shootWhy);
   if (!shooter && !allAround && cant) add(draws ? 'Slasher' : 'Can\'t shoot', draws ? drawWhy : shootWhy);
-  if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}` : `${f1(q.stl)} stl/40`);
-  if (rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)}` : `${f1(q.blk)} blk/40`);
+  if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : basic && q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}` : `${f1(q.stl)} stl/40`);
+  if (rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : basic && q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)}` : `${f1(q.blk)} blk/40`);
   if (top('dreb_pct', AUTO_CUT.top)) add('Rebounder', `DR% ${f1(R.dreb_pct)}`);
   if (top('oreb_pct', AUTO_CUT.top)) add('Off. rebounder', `OR% ${f1(R.oreb_pct)}`);
   if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}`);
-  if (rk.ftp != null ? bot('ftp', AUTO_CUT.bottom) : q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', rk.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
-  if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : `${f1(q.to)} TO/40`);
-  if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `FC/40 ${f1(R.fc_per_40)}` : `${f1(q.pf)} PF/40`);
+  if (rk.ftp != null ? bot('ftp', AUTO_CUT.bottom) : basic && q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', rk.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
+  if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : basic && q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : `${f1(q.to)} TO/40`);
+  if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : basic && q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `FC/40 ${f1(R.fc_per_40)}` : `${f1(q.pf)} PF/40`);
   return out.filter(x => x.lead || !led.has(x.l));
 }
 // The labels a card shows from stats: minus the ones typed already and the ones vetoed for him.
