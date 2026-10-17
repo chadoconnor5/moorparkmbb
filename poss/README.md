@@ -539,14 +539,21 @@ five has 25+ offensive possessions).
   - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
   - **Labels from stats** (outlined; yours are filled and come first): every player, ours and every opponent with a
-    leaderboard file, gets labels from his season numbers, qualified against the state (his State Rank on the
-    leaderboard's advanced numbers, the same ranks as Rosters → Advanced). Top 20% of the state earns a strength,
-    bottom 20% a weakness; a player can have several:
-    *Go-to* (%Poss over 28) · *Efficient* (TS% top 15%) · *All-Around* (can do it all: TS% top 35%, 25-55% of his
-    shots threes, FT rate top half) · *Shooter* (3P% top 35% and 2.0+ threes a game or 35%+ of his shots) ·
-    *Can't shoot* (3P% bottom 30%, or almost never shoots one) · *Slasher* (a non-shooter who gets to the line: FT
-    rate or FD/40 top 25%) · *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) · *Rebounder* (DR%) ·
-    *Off. rebounder* (OR%) · *Passer* (ARate) · *TO-prone* (TORate) · *Foul-prone* (FC/40) · *Bad FT* (FT%).
+    leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
+    qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
+    noted). A player can have several; the card shows them in this order:
+    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
+      possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
+      volume* (24%+ usage, TS% bottom 30%).
+    - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, most of his shots inside) ·
+      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half) · *Elite shooter* / *Shooter* (3P% top
+      10% / 35%, on 2.0+ threes a game or 35%+ of his shots) · *Slasher* (a non-shooter who gets to the line) ·
+      *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *Can't shoot*.
+    - **Glass:** *Glass cleaner* (OR% and DR% both top 20%) · *Rebounder* (DR%) · *Off. rebounder* (OR%).
+    - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer* · *Ball secure* (TORate top 20%)
+      · *Non-passer* (assist rate bottom 10%) · *TO-prone*.
+    - **Defense:** *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) · *Disciplined* (fouls / 40 top 20%) ·
+      *Foul-prone*. **FT:** *FT shooter* (top 20%) · *Bad FT*.
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
     that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
     estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,

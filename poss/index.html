@@ -1161,7 +1161,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.135';
+const VERSION = 'v2026.10.17.137';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5023,6 +5023,7 @@ function fiveStrip(g, t, five) {
    (Shooter 25+ threes, Bad FT 20+ FTA). Only players who play get labels (30%+ of minutes; low-info teams 4+ ppg or 3+ rpg over half
    the games); team-leader labels have their own bar.
    The bubble shows each label's numbers, not the ranks. */
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 const AUTO_CUT = { top: 0.20, topTight: 0.15, shooter: 0.35, cantShoot: 0.30, draws: 0.25, bottom: 0.20, aaTs: 0.35, aaFtr: 0.50, aaRateLo: 25, aaRateHi: 55 };
 const LS_AUTO_OFF = 'pt2_auto_off';
 const autoKey = (team, p) => team === 'MPK' ? 'MPK|' + p.name : String(team) + '|' + p.num;
@@ -5095,21 +5096,50 @@ function autoLabels(g, t, id) {
   const cant = rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : (basic && !!(q && q.nonShooter && q.est != null)) || (fga >= 20 && rate != null && rate < 10);
   const draws = top('ft_rate', AUTO_CUT.draws) || top('fd_per_40', AUTO_CUT.draws) || (basic && rk.ft_rate == null && rk.fd_per_40 == null && q && q.ftr != null && q.ftr >= FL.FTR_HI);
   const drawWhy = R && (R.ft_rate != null || R.fd_per_40 != null) ? `FT rate ${f1(R.ft_rate)}, FD/40 ${f1(R.fd_per_40)}` : q && q.ftr != null ? `FT rate ${q.ftr.toFixed(0)}%` : '';
-  if (R && R.usage_pct != null && R.usage_pct > 28 && (R.min_pct || 0) >= 30) add('Go-to', `%Poss ${f1(R.usage_pct)}`);
-  if (top('ts_pct', AUTO_CUT.topTight)) add('Efficient', `TS ${f1(R.ts_pct)}%`);
-  // All-Around: efficient, a balanced shot diet, and gets to the line.
+  /* Who he is, how he scores, and what else he does, in that order (the card shows the first that fit).
+     ROLE: Star = top 5% of the state in PORPAGATU! (the leaderboard's points over replacement per adjusted game,
+     among players with 30%+ of minutes); Go-to = %Poss over 28;
+     Efficient role player = top 10% of his band on ORtg, under 20% usage; Inefficient volume = 24%+ usage, TS% bottom 30%. */
+  const band = rk.ortg_band, bandN = band != null && tot.ortg_band ? tot.ortg_band[band] : null, BANDS = ['Go-to Guys', 'Major Contributors', 'Significant Contributors', 'Role Players', 'Limited Roles', 'Nearly Invisible'];
+  const bandTop = cut => rk.ind_ortg != null && bandN ? rk.ind_ortg <= Math.max(1, Math.round(cut * bandN)) : false;
+  const ortgWhy = R && R.ind_ortg != null && bandN ? `ORtg ${f1(R.ind_ortg)} (${ordinal(rk.ind_ortg)} of ${bandN} ${BANDS[band]}), ${f1(R.usage_pct)}% of possessions` : '';
+  const usg = R && R.usage_pct != null ? R.usage_pct : null, star = top('porp', 0.05);
+  if (star) add('Star', `PORPAGATU! ${f1(R.porp)}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
+  if (!star && usg != null && usg > 28) add('Go-to', `${f1(usg)}% of possessions${ortgWhy ? ' · ' + ortgWhy.split(',')[0] : ''}`);
+  if (!star && usg != null && usg < 20 && bandTop(0.10)) add('Efficient role player', ortgWhy);
+  if (usg != null && usg >= 24 && bot('ts_pct', 0.30)) add('Inefficient volume', `TS ${f1(R.ts_pct)}% on ${f1(usg)}% of possessions`);
+  /* HOW HE SCORES. Interior scorer = 2P% top 20% on 4+ two-point tries a game, with most of his shots inside (3s under
+     40% of his shots). All-Around / Shooter (Elite shooter = 3P% top 10%) / Slasher / Draws fouls (FD/40 top 20% or
+     FT rate top 15%, when he isn't already a Slasher). */
+  const twoA = R && R.gp ? (R.twoa || 0) / R.gp : 0;
+  const interior = R && top('twop', 0.20) && twoA >= 4 && rate != null && rate < 40;
+  if (interior) add('Interior scorer', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa}), ${(100 - rate).toFixed(0)}% of his shots inside`);
   const allAround = R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}`);
-  else if (shooter) add('Shooter', shootWhy);
-  if (!shooter && !allAround && cant) add(draws ? 'Slasher' : 'Can\'t shoot', draws ? drawWhy : shootWhy);
+  else if (shooter) add(rk.tpp != null && top('tpp', 0.10) ? 'Elite shooter' : 'Shooter', shootWhy);
+  const slasher = !shooter && !allAround && cant && draws;
+  if (!shooter && !allAround && cant && !interior) add(draws ? 'Slasher' : 'Can\'t shoot', draws ? drawWhy : shootWhy);
+  if (!slasher && !allAround && (top('fd_per_40', 0.20) || top('ft_rate', 0.15))) add('Draws fouls', `FD/40 ${f1(R.fd_per_40)} · FT rate ${f1(R.ft_rate)}`);
+  if (R && (R.twoa || 0) >= 3 * (R.gp || 1) && bot('twop', 0.20)) add('Struggles inside', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa})`);
+  // GLASS: both ends top 20% = Glass cleaner; else whichever end.
+  const dr = top('dreb_pct', AUTO_CUT.top), or = top('oreb_pct', AUTO_CUT.top);
+  if (dr && or) add('Glass cleaner', `OR% ${f1(R.oreb_pct)} · DR% ${f1(R.dreb_pct)}`);
+  else { if (dr) add('Rebounder', `DR% ${f1(R.dreb_pct)}`); if (or) add('Off. rebounder', `OR% ${f1(R.oreb_pct)}`); }
+  // BALL: Floor general = assist rate top 10% without turning it over (TORate not bottom 30%); Passer = top 20%.
+  if (top('ast_rate', 0.10) && !bot('tov_pct', 0.30)) add('Floor general', `ARate ${f1(R.ast_rate)} · TORate ${f1(R.tov_pct)}`);
+  else if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}`);
+  if (top('tov_pct', AUTO_CUT.top)) add('Ball secure', `TORate ${f1(R.tov_pct)}`);
+  // DEFENSE.
   if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : basic && q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}` : `${f1(q.stl)} stl/40`);
   if (rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : basic && q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)}` : `${f1(q.blk)} blk/40`);
-  if (top('dreb_pct', AUTO_CUT.top)) add('Rebounder', `DR% ${f1(R.dreb_pct)}`);
-  if (top('oreb_pct', AUTO_CUT.top)) add('Off. rebounder', `OR% ${f1(R.oreb_pct)}`);
-  if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}`);
+  if (top('fc_per_40', AUTO_CUT.top)) add('Disciplined', `${f1(R.fc_per_40)} fouls / 40`);
+  // FREE THROWS.
+  if (top('ftp', AUTO_CUT.top)) add('FT shooter', `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})`);
   if (rk.ftp != null ? bot('ftp', AUTO_CUT.bottom) : basic && q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', rk.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
+  // WEAKNESSES.
+  if (bot('ast_rate', 0.10)) add('Non-passer', `ARate ${f1(R.ast_rate)}`);
   if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : basic && q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : `${f1(q.to)} TO/40`);
-  if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : basic && q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `FC/40 ${f1(R.fc_per_40)}` : `${f1(q.pf)} PF/40`);
+  if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : basic && q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `${f1(R.fc_per_40)} fouls / 40` : `${f1(q.pf)} PF/40`);
   return out.filter(x => x.lead || !led.has(x.l));
 }
 // The labels a card shows from stats: minus the ones typed already and the ones vetoed for him.
