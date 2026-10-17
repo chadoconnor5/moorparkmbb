@@ -481,7 +481,7 @@ table{border-collapse:collapse}
 .sch-tbl select:hover{border-color:var(--border2)}
 .sch-tbl input[type=checkbox]{width:auto}
 .res{font-weight:600;font-size:13px;margin-right:6px}
-.sch-tbl input.tbd{color:var(--warn)}
+.sch-tbl input.tbd,.sch-tbl select.tbd{color:var(--warn)}
 .tlogo{width:var(--lg);height:var(--lg);object-fit:contain;flex-shrink:0;display:inline-block;vertical-align:middle}
 .tlogo-ph{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--card2);color:var(--text2);font-size:calc(var(--lg) * .34);font-weight:800}
 .sb-name .tlogo{margin-right:2px}
@@ -489,7 +489,7 @@ table{border-collapse:collapse}
 .bx-team .tlogo{margin-right:8px;vertical-align:-6px}
 .box-team-header .tlogo{margin-right:-4px}
 .sch-opp{display:flex;align-items:center;gap:8px}
-.sch-opp input{flex:1;min-width:0}
+.sch-opp input,.sch-opp select{flex:1;min-width:0}
 .sch-box{padding:3px 10px}
 .sch-event{padding-left:38px!important;font-size:11px;color:var(--text2);padding-left:8px;text-align:left}
 .res.w{color:var(--good)} .res.l{color:var(--bad)}
@@ -1090,6 +1090,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .tm-line{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:0 0 10px;font-size:13px;color:var(--text2)}.tm-line b{color:var(--text)}
 /* Schedule: teams to have ready (a tournament field). */
 .rd-list{display:flex;flex-wrap:wrap;gap:6px}
+.rd-grp{padding:10px 0}.rd-grp+.rd-grp{border-top:1px solid var(--border)}.rd-gh{font-size:13px;font-weight:800;margin-bottom:6px}
 .rd-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 8px;border-radius:999px;border:1px solid var(--border2);font-size:13px}
 .rd-chip .muted{font-size:11.5px}.rd-st{font-size:11.5px;font-weight:700}
 .rd-chip.ok .rd-st{color:var(--good,#4ade80)}.rd-chip.wait .rd-st{color:var(--warn)}.rd-chip.bad .rd-st{color:var(--bad,#f87171)}
@@ -1165,7 +1166,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.152';
+const VERSION = 'v2026.10.17.154';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2472,24 +2473,34 @@ function parseScheduleText(text) {
   return out;
 }
 
-const SCH = { rows: null, paste: false };
+const SCH = { rows: null, paste: false, other: new Set() };   // other: rows switched to typing (Other…)
 function schRows() { if (!SCH.rows) SCH.rows = schedule().map(r => Object.assign({}, r)); return SCH.rows; }
 function collectSched() {
-  document.querySelectorAll('[data-sr]').forEach(el => { const r = SCH.rows[+el.dataset.sr]; if (r) r[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; });
+  document.querySelectorAll('[data-sr]').forEach(el => { const r = SCH.rows[+el.dataset.sr]; if (r && el.value !== '__other') r[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; });
 }
 const gameForRow = r => games.find(x => x.schedId === r.id) || games.find(x => !x.schedId && x.date === r.date && (x.opp || '').toLowerCase() === (r.opp || '').toLowerCase()) || null;
+/* A tournament game (TBD, or already picked from the field) picks its opponent from a dropdown: its own tournament's
+   field in "Teams to have ready" (full names: RCC → Riverside), plus Other… to type any team. A game picked this way keeps
+   its dropdown (r.picked) so the pick can change; a game typed in or seeded with an opponent keeps its text box. */
+function schField(r) {
+  const R = ratingsData(), out = [];
+  readyGet(r.event || '').forEach(n => { const t = (R && R.teams && resolveTeam(n, R)) || n; if (!out.includes(t)) out.push(t); });
+  return out.sort((a, b) => a.localeCompare(b));
+}
+const schPick = (r, field) => field.length && !SCH.other.has(r.id) && (isTBD(r.opp) || (r.picked && field.includes(r.opp)));
 function schedView() {
   const rows = schRows(), td = today();
   const nextIdx = rows.map((r, i) => ({ r, i })).filter(x => x.r.date >= td && !gameForRow(x.r)).sort((a, b) => a.r.date.localeCompare(b.r.date))[0];
   const body = rows.map((r, i) => {
-    const gm = gameForRow(r), S = gm ? perSums(derive(gm), null) : null;
+    const field = schField(r), gm = gameForRow(r), S = gm ? perSums(derive(gm), null) : null;
     const ofB = !isTBD(r.opp) && ofSummary(r.opp) && !(gm && gm.final) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(r.opp)}" title="${esc(ofSummary(r.opp).text)}">📁 Last time</button> ` : '';
     const status = gm ? ofB + `<span class="res ${S.pts.a > S.pts.b ? 'w' : S.pts.a < S.pts.b ? 'l' : ''}">${S.pts.a}–${S.pts.b}</span><button class="btn btn-sm btn-good" data-act="open" data-id="${gm.id}">${gm.id === curId ? 'Live' : 'Open'}</button>`
       : `${ofB}<button class="btn btn-sm ${nextIdx && nextIdx.i === i ? 'btn-good' : ''}" data-act="sch-start" data-i="${i}">Start game</button>`;
     return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
       <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
       <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
-      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logo(r.opp, 22) : '<span class="tlogo" style="--lg:22px;width:22px"></span>'}<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" class="${isTBD(r.opp) ? 'tbd' : ''}"></div>${r.event && !isTBD(r.opp) ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
+      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logo(r.opp, 22) : '<span class="tlogo" style="--lg:22px;width:22px"></span>'}${schPick(r, field) ? `<select data-sr="${i}" data-f="opp" class="${isTBD(r.opp) ? 'tbd' : ''}">${isTBD(r.opp) ? `<option value="${esc(r.opp)}" selected>TBD</option>` : ''}${field.map(n => `<option value="${esc(n)}" ${n === r.opp ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="__other">Other…</option></select>`
+        : `<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" class="${isTBD(r.opp) ? 'tbd' : ''}">`}</div>${r.event ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
       <td style="width:64px;text-align:center">${gm ? `<button class="btn btn-sm sch-box" data-act="sch-sheet" data-id="${gm.id}">Sheet</button>` : ''}</td>
       <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}"></td>
       <td style="width:60px;text-align:center"><input type="checkbox" data-sr="${i}" data-f="conf" ${r.conf ? 'checked' : ''}></td>
@@ -2518,25 +2529,45 @@ function schedView() {
    before we know who we play. The leaderboard publishes files only for Moorpark's schedule and the teams in its
    tracker_teams.txt; a team here that isn't published says so. Every team here, and every team on the schedule, downloads when the tracker is
    online and stays for offline gyms. Short names work (RCC, CCSF, SBVC, East LA). */
-const LS_READY = 'pt2_ready';
-const readyList = () => lsGet(LS_READY, []) || [];
-function readyCard() {
-  const R = ratingsData(), L = readyList();
-  const chip = (n, i) => { const t = R && R.teams ? resolveTeam(n, R) : null, F = t && teamFile(n), pub = t && R.teamFiles && R.teamFiles[t];
-    return `<span class="rd-chip ${t && (F || pub) ? (F ? 'ok' : 'wait') : 'bad'}">${logo(n, 18)}<b>${esc(n)}</b>${t && t !== n ? `<span class="muted">${esc(t)}</span>` : ''}<span class="rd-st">${!t ? 'not on the leaderboard' : F ? '✓ stats ready' : pub ? 'downloads when online' : 'not published: add to tracker_teams.txt'}</span><button class="rd-x" data-act="rd-del" data-i="${i}" aria-label="Remove">✕</button></span>`; };
-  return `<div class="card"><h3 style="margin-bottom:6px">Teams to have ready <span class="muted small">· a tournament field: their stats and logos download now, before you know who you play</span></h3>
-    <div class="rd-list">${L.map(chip).join('') || '<span class="small muted">No teams yet. Every team on the schedule is ready automatically.</span>'}</div>
-    <div class="row" style="gap:6px;margin-top:8px"><input id="rd-in" placeholder="Team (RCC, CCSF, East LA...) — commas for several" style="flex:1;min-width:0" enterkeyhint="done"><button class="btn btn-sm btn-good" data-act="rd-add">Add</button></div></div>`;
+const LS_READY = 'pt2_ready', LS_FIELDS = 'pt2_fields';
+/* Each tournament keeps its own field: {event: [teams]} (pt2_fields), the event being the schedule's event name on its
+   TBD games. pt2_ready holds other teams to have ready. The first time, an old single list becomes the field of the
+   next tournament with TBD games (it was the SBVC field). Everything in both downloads. */
+const fmtDay = d => { const [y, m, dd] = String(d).split('-').map(Number); return y ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1] + ' ' + dd : ''; };
+const schTourneys = () => [...new Set(schedule().filter(r => r.event && (isTBD(r.opp) || r.picked) && r.date >= today()).map(r => r.event))];
+function fieldsAll() {
+  let F = lsGet(LS_FIELDS, null);
+  if (!F || typeof F !== 'object') { F = {}; const flat = lsGet(LS_READY, []) || [], ev = schTourneys()[0];
+    if (flat.length && ev) { F[ev] = flat; lsSet(LS_READY, []); } lsSet(LS_FIELDS, F); }
+  return F;
 }
-function readyAdd(v) {
-  const L = readyList(), have = new Set(L.map(x => x.toLowerCase()));
+const readyOther = () => lsGet(LS_READY, []) || [];
+const readyList = () => [...new Set([...readyOther(), ...Object.values(fieldsAll()).flat()])];
+const readyGet = ev => ev ? fieldsAll()[ev] || [] : readyOther();
+function readySet(ev, L) { if (!ev) return lsSet(LS_READY, L); const F = fieldsAll(); if (L.length) F[ev] = L; else delete F[ev]; lsSet(LS_FIELDS, F); }
+function readyCard() {
+  const R = ratingsData(), evs = [...new Set([...schTourneys(), ...Object.keys(fieldsAll())])];
+  const dates = ev => { const d = schedule().filter(r => r.event === ev).map(r => r.date).sort(); return d.length ? fmtDay(d[0]) + (d.length > 1 ? ' – ' + fmtDay(d[d.length - 1]) : '') : ''; };
+  const group = (ev, title, sub) => { const L = readyGet(ev);
+    return `<div class="rd-grp"><div class="rd-gh">${esc(title)}${sub ? ` <span class="muted small">${esc(sub)}</span>` : ''}</div>
+      <div class="rd-list">${L.map((n, i) => chip(n, i, ev)).join('') || `<span class="small muted">${ev ? 'No teams yet: add the field, and its TBD games pick from it.' : 'Anyone else we might see. Every team on the schedule is ready automatically.'}</span>`}</div>
+      <div class="row" style="gap:6px;margin-top:6px"><input class="rd-in" ${ev ? '' : 'id="rd-in"'} data-ev="${esc(ev)}" placeholder="Team (RCC, CCSF, East LA...) — commas for several" style="flex:1;min-width:0" enterkeyhint="done"><button class="btn btn-sm btn-good" data-act="rd-add" data-ev="${esc(ev)}">Add</button></div></div>`; };
+  const chip = (n, i, ev) => { const t = R && R.teams ? resolveTeam(n, R) : null, F = t && teamFile(n), pub = t && R.teamFiles && R.teamFiles[t];
+    return `<span class="rd-chip ${t && (F || pub) ? (F ? 'ok' : 'wait') : 'bad'}">${logo(n, 18)}<b>${esc(n)}</b>${t && t !== n ? `<span class="muted">${esc(t)}</span>` : ''}<span class="rd-st">${!t ? 'not on the leaderboard' : F ? '✓ stats ready' : pub ? 'downloads when online' : 'not published: add to tracker_teams.txt'}</span><button class="rd-x" data-act="rd-del" data-ev="${esc(ev)}" data-i="${i}" aria-label="Remove">✕</button></span>`; };
+  return `<div class="card"><h3 style="margin-bottom:6px">Teams to have ready <span class="muted small">· each tournament's field: stats and logos download now, and its TBD games pick from it</span></h3>
+    ${evs.map(ev => group(ev, ev, dates(ev))).join('')}${group('', evs.length ? 'Other teams' : 'Teams', '')}</div>`;
+}
+function readyAdd(v, ev) {
+  const L = readyGet(ev).slice(), have = new Set(L.map(x => x.toLowerCase()));
   String(v || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean).forEach(x => { if (!have.has(x.toLowerCase())) { L.push(x); have.add(x.toLowerCase()); } });
-  lsSet(LS_READY, L); try { fetchTeamFiles(ratingsData()); } catch (e) {}
+  readySet(ev, L); try { fetchTeamFiles(ratingsData()); } catch (e) {}
 }
 // Every complete row (date and opponent) to the store, without re-rendering (focus stays where it is). A row still
 // being filled in waits until it has both.
 function schAutosave() {
-  collectSched();
+  collectSched(); schAutosaveRows();
+}
+function schAutosaveRows() {
   const rows = SCH.rows.filter(r => r.date && String(r.opp || '').trim()).map(r => Object.assign({}, r, { opp: String(r.opp).trim() }));
   rows.sort((a, b) => a.date.localeCompare(b.date));
   lsSet('gt_schedule', rows);
@@ -2610,7 +2641,7 @@ function nedAdd(cell, v) {
 // Quick picks show under the row being edited only.
 document.addEventListener('focusin', ev => { const a = ev.target.closest && ev.target.closest('.ned-add'); if (!a) return;
   document.querySelectorAll('.ned-q').forEach(q => { q.innerHTML = ''; }); const cell = a.closest('.ned'); nedPaint(cell, noteLabels(cell.querySelector('input[data-k="note"]').value)); });
-document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'rd-in') { ev.preventDefault(); collectSched(); readyAdd(ev.target.value); render(); return; }
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('rd-in')) { ev.preventDefault(); collectSched(); readyAdd(ev.target.value, ev.target.dataset.ev); render(); return; }
   if (ev.key !== 'Enter' || !ev.target.classList || !ev.target.classList.contains('ned-add')) return;
   ev.preventDefault(); const cell = ev.target.closest('.ned'); nedAdd(cell, ev.target.value); ev.target.value = ''; });
 window.addEventListener('resize', () => fitLabels());
@@ -3382,8 +3413,8 @@ document.addEventListener('click', ev => {
     case 'au-off': case 'au-on': { const all = lsGet(LS_AUTO_OFF, {}) || {}, k = autoKey(b.dataset.team, { num: b.dataset.num, name: b.dataset.name }), L = (all[k] || []).filter(x => x.toLowerCase() !== b.dataset.l.toLowerCase());
       if (act === 'au-off') L.push(b.dataset.l); if (L.length) all[k] = L; else delete all[k]; lsSet(LS_AUTO_OFF, all);
       const sp = b.closest('.nt'); if (sp) { sp.classList.toggle('offd', act === 'au-off'); b.dataset.act = act === 'au-off' ? 'au-on' : 'au-off'; b.textContent = act === 'au-off' ? '+' : '✕'; } break; }
-    case 'rd-add': { collectSched(); readyAdd($('#rd-in').value); render(); break; }
-    case 'rd-del': { collectSched(); const L = readyList(); L.splice(+b.dataset.i, 1); lsSet(LS_READY, L); render(); break; }
+    case 'rd-add': { collectSched(); const i = b.parentElement.querySelector('.rd-in'); readyAdd(i && i.value, b.dataset.ev); render(); break; }
+    case 'rd-del': { collectSched(); const L = readyGet(b.dataset.ev).slice(); L.splice(+b.dataset.i, 1); readySet(b.dataset.ev, L); render(); break; }
     case 'oo-shoot': UI.ooShoot = !UI.ooShoot; lsSet('pt2_oo_shoot', UI.ooShoot); render(); break;
     case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = UI.rsMode === 'roster' ? '' : teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
     case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) { const w = c.querySelector('.ts-wrap'), x = w ? w.scrollLeft : 0;   // keep the sideways scroll where it was
@@ -3424,7 +3455,13 @@ document.addEventListener('click', ev => {
 
 // The Lineup Builder's dropdowns (selects fire change, not click).
 // Schedule edits save as you make them (date, time, site, opponent, Conf, Scrim): switching tabs never loses one.
-document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-sr]') && SCH.rows) schAutosave(); });
+document.addEventListener('change', ev => {
+  const t = ev.target; if (!(t.matches && t.matches('[data-sr]') && SCH.rows)) return;
+  const r = SCH.rows[+t.dataset.sr];
+  if (t.tagName === 'SELECT' && t.dataset.f === 'opp') {   // tournament pick: Other… switches the row to typing
+    if (t.value === '__other') { SCH.other.add(r.id); r.picked = false; render(); const i = document.querySelector(`input[data-sr="${t.dataset.sr}"][data-f="opp"]`); if (i) { i.focus(); i.select(); } return; }
+    collectSched(); r.picked = !isTBD(r.opp); schAutosaveRows(); render(); toast(`${fmtDay(r.date)}: ${isTBD(t.value) ? 'TBD' : t.value}`, 'good'); try { fetchTeamFiles(ratingsData()); } catch (e) {} return; }
+  schAutosave(); });
 document.addEventListener('change', ev => { const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
   if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }
   const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');

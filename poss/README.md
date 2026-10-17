@@ -512,6 +512,12 @@ five has 25+ offensive possessions).
 - **Schedule:** the game tracker's Schedule tab, same look, same shared schedule.
   - Edit rows, Paste schedule, + Add game. Edits save as you make them (date, time, site, opponent, Conf, Scrim), so
     switching tabs never loses one; a new row saves once it has a date and an opponent. Save schedule sorts and checks.
+  - **TBD games** (a tournament) pick their opponent from a dropdown: that tournament's own field in **Teams to have
+    ready** (full names: RCC → Riverside), plus **Other…** to type any team. The pick saves right away and keeps its
+    dropdown so it can change; the tournament's name stays under the game. A tournament with no field yet keeps a text box.
+  - **Teams to have ready** has a section per tournament on the schedule (its name and dates, from the TBD games'
+    event), each with its own Add box, plus **Other teams**. Every team in every section downloads its stats
+    (pt2_fields / pt2_ready). An old single list moved, once, into the next tournament with TBD games.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
 - **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file (record, averages for and
