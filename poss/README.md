@@ -540,7 +540,7 @@ five has 25+ offensive possessions).
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
   - **Labels guide:** the **Labels** button in the Moorpark header on the Live screen (and **Labels guide** on
     Rosters) opens a glossary of every label and what earns it.
-  - **Labels from stats** (outlined; yours are filled and come first, except *Star*, which is always first): every player, ours and every opponent with a
+  - **Labels from stats** (same solid, square gold chip as yours; yours come first, except *Star*, which is always first): every player, ours and every opponent with a
     leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
     qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
     noted). Roles are **composites**: each blends the related stats as state percentiles (e.g. Interior scorer = 2P%,
