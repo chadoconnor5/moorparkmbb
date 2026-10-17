@@ -46,6 +46,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
 - **⏱ Set time** (scoreboard, beside ± Fouls / TOs): enter the game clock any time on the same big keypad
   (7, 4, 2 → 7:42). It works like a timeout's clock: time left, leverage, clutch and garbage time run from
   it, the scoreboard shows **Clock 4:30**, and it goes in the feed as "Game clock · 4:30" (tap it to fix or delete).
+  Each period starts showing its full clock: **Clock 20:00** at tip-off and the start of the 2nd half, **5:00** each
+  overtime, until a clock is entered. That start-of-period clock is display only: leverage keeps its possession
+  estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
 - **Free throws name the shooter.** The trip's first **FT Make / FT Miss**: tap the shooter's card (the player
   cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
@@ -507,7 +510,8 @@ five has 25+ offensive possessions).
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
   plus fouls, subs, technicals and timeouts. Filter by team. Tap any line to fix it.
 - **Schedule:** the game tracker's Schedule tab, same look, same shared schedule.
-  - Edit rows, Paste schedule, + Add game, Save schedule.
+  - Edit rows, Paste schedule, + Add game. Edits save as you make them (date, time, site, opponent, Conf, Scrim), so
+    switching tabs never loses one; a new row saves once it has a date and an opponent. Save schedule sorts and checks.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
 - **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file (record, averages for and

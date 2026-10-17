@@ -1165,7 +1165,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.150';
+const VERSION = 'v2026.10.17.152';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1528,6 +1528,10 @@ function clockNow(g, D) {
   const perSecs = c.e.clock;   // exactly the last clock entered (timeout or Set time), until the next one
   return { perSecs, gameSecs: perSecs + (g.per === '1H' ? 1200 : 0), spt: Math.max(5, spt), clock: c.e.clock, at: c.e };
 }
+/* The clock the scoreboard shows: the last one entered this period, else the period's full length (20:00 at the start of
+   each half, 5:00 each overtime). The start-of-period clock is display only: leverage keeps its possession estimate until
+   a clock is entered (a 20:00 checkpoint would freeze "time left" at 20:00 for the whole half). */
+const clockShown = (g, D) => clockNow(g, D) || { clock: perLen(g.per), start: true };
 const LEV_LABEL = { high: 'HIGH', med: 'MEDIUM', low: 'LOW' };
 // How a possession ended — the sheet's columns.
 function endingOf(p) {
@@ -1694,7 +1698,7 @@ function scorebar(g, D) {
       <div class="sb-meta">${bonus('a')}${kills('a')}</div>${killNear(g, D, 'a')}
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
-    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockNow(g, D); return c ? `<div class="sb-cap sb-time" title="The last game clock you entered (timeout or Set time)">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
+    <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockShown(g, D); return c ? `<div class="sb-cap sb-time" title="${c.start ? 'Start of the period' : 'The last game clock you entered (timeout or Set time)'}">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
       ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
@@ -2505,7 +2509,7 @@ function schedView() {
     <div class="card" style="padding:0">
       <div class="tbl-wrap" style="border:none"><table class="tbl opp-tbl sch-tbl"><tr><th>Date</th><th></th><th>Opponent</th><th style="text-align:center!important">Sheet</th><th>Time</th><th style="text-align:center!important">Conf</th><th style="text-align:center!important">Scrim</th><th>Result</th><th></th></tr>
         ${body || '<tr><td class="l muted" colspan="9" style="padding:16px">No games yet — + Add game, or Paste schedule.</td></tr>'}</table></div>
-      <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Shared with the game tracker. Changes save when you tap Save.</span>
+      <div class="row" style="padding:12px 14px;border-top:1px solid var(--border)"><span class="small muted">Highlighted: next game. Shared with the game tracker. Changes save as you make them.</span>
         <button class="btn btn-good btn-sm" data-act="sch-save" style="margin-left:auto">Save schedule</button></div>
     </div>
     ${readyCard()}`;
@@ -2528,6 +2532,14 @@ function readyAdd(v) {
   const L = readyList(), have = new Set(L.map(x => x.toLowerCase()));
   String(v || '').split(/\s*[,;\n]\s*/).map(x => x.trim()).filter(Boolean).forEach(x => { if (!have.has(x.toLowerCase())) { L.push(x); have.add(x.toLowerCase()); } });
   lsSet(LS_READY, L); try { fetchTeamFiles(ratingsData()); } catch (e) {}
+}
+// Every complete row (date and opponent) to the store, without re-rendering (focus stays where it is). A row still
+// being filled in waits until it has both.
+function schAutosave() {
+  collectSched();
+  const rows = SCH.rows.filter(r => r.date && String(r.opp || '').trim()).map(r => Object.assign({}, r, { opp: String(r.opp).trim() }));
+  rows.sort((a, b) => a.date.localeCompare(b.date));
+  lsSet('gt_schedule', rows);
 }
 function schSave(quiet) {
   collectSched();
@@ -2566,7 +2578,7 @@ function rostersView() {
       <div class="card rlist"><button class="btn ${isM ? 'btn-primary' : ''}" data-act="r-sel" data-n="MPK">Moorpark</button>
         ${opps.map(n => `<button class="btn ${sel === n ? 'btn-primary' : ''}" data-act="r-sel" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
         <button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
-      <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
+      <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : (teamPalette(sel) || {}).text || 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         ${teamLine(sel)}
         <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<button class="btn btn-sm" data-act="lg-open">Labels guide</button><span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
@@ -2966,8 +2978,8 @@ let EDC = null;   // the clock being fixed on a timeout: { id, d }
 let STM = null;
 function setTimeModal() {
   const g = cur(), len = perLen(g.per); STM = STM || { d: '' };
-  const secs = padSecs(STM.d, len), c = clockNow(g, derive(g));
-  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · last set ${fmtSecs(c.clock)}` : ''}</div>
+  const secs = padSecs(STM.d, len), c = clockShown(g, derive(g));
+  modal(`<h2>Set time</h2><div class="small muted" style="margin-bottom:8px">${esc(PER_NAME(g.per))} · time left on the game clock${c ? ` · ${c.start ? 'period starts at' : 'last set'} ${fmtSecs(c.clock)}` : ''}</div>
     ${clockPad(STM.d, len, 'st-key')}
     <div class="modal-foot"><button class="btn btn-lg" data-act="st-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="st-ok" ${secs != null ? '' : 'disabled'}>Set ${secs != null ? fmtSecs(secs) : ''}</button></div>`, 'to-modal');
 }
@@ -3411,6 +3423,8 @@ document.addEventListener('click', ev => {
 });
 
 // The Lineup Builder's dropdowns (selects fire change, not click).
+// Schedule edits save as you make them (date, time, site, opponent, Conf, Scrim): switching tabs never loses one.
+document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-sr]') && SCH.rows) schAutosave(); });
 document.addEventListener('change', ev => { const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
   if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }
   const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
