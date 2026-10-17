@@ -1128,6 +1128,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ned-auto{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.ned-auto-h{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.04em;margin-right:2px}
 .nt-pop .nt{white-space:normal;line-height:1.3;max-width:100%}.nt-pop .nt.auto i{display:inline}
 .nt.auto.lead::before{content:'★';margin-right:3px;font-size:10px}
+/* Labels guide. */
+.lg-modal{max-width:760px}
+.lg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;max-height:72vh;overflow:auto}
+.lg-sec:first-child{grid-column:1 / -1}
+.lg-h{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:2px 0 6px}
+.lg-row{display:flex;gap:8px;align-items:flex-start;margin:0 0 7px}.lg-row .nt{flex:none}.lg-d{font-size:12.5px;color:var(--text2);line-height:1.35}
 
 </style>
 </head>
@@ -1161,7 +1167,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.138';
+const VERSION = 'v2026.10.17.140';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1857,7 +1863,7 @@ function liveView(g) {
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
   return `${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
-    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
+    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span><button class="btn btn-sm" data-act="lg-open">Labels</button></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
@@ -2565,7 +2571,7 @@ function rostersView() {
       <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         ${teamLine(sel)}
-        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
+        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<button class="btn btn-sm" data-act="lg-open">Labels guide</button><span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
         <div class="rs-stats">${(UI.rsMode || 'roster') !== 'roster' ? teamStatsTable(sel, UI.rsMode) : ''}</div>
         <div class="tbl-wrap rs-roster"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
         <div class="small muted rs-roster-note" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
@@ -3356,7 +3362,9 @@ document.addEventListener('click', ev => {
     case 'ned-add': { const c = b.closest('.ned'), a = c.querySelector('.ned-add'); nedAdd(c, a.value); a.value = ''; a.focus(); break; }
     case 'ned-pick': nedAdd(b.closest('.ned'), b.dataset.l); break;
     case 'ned-del': { const c = b.closest('.ned'), L = noteLabels(c.querySelector('input[data-k="note"]').value); L.splice(+b.dataset.i, 1); nedPaint(c, L); break; }
-    case 'nt-pop-x': break;   // the bubble is already gone (every tap closes it)
+    case 'nt-pop-x': break;
+    case 'lg-open': labelGuide(); break;
+    case 'lg-close': closeModal(); break;   // the bubble is already gone (every tap closes it)
     case 'fl-tap': { const x = ((UI.flCache || {})[b.dataset.team] || [])[+b.dataset.i]; if (x) labelPop(b, (x.kind === 'r' ? '✕ ' : '') + x.text, x.rows); break; }
     case 'nt-more': { const t = b.dataset.team, p = pInfo(g, t, b.dataset.p), L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L);
       labelPop(b, L, null, AU); break; }
@@ -5147,6 +5155,55 @@ function autoLabels(g, t, id) {
 function cardAutoLabels(g, t, p, typed) {
   const team = t === 'a' ? 'MPK' : g.opp, have = new Set(typed.map(x => x.toLowerCase())), off = new Set(autoOff(team, p).map(x => x.toLowerCase()));
   return autoLabels(g, t, p.id).filter(x => !have.has(x.l.toLowerCase()) && !off.has(x.l.toLowerCase()));
+}
+
+/* ---------- Labels guide: what every player label means (Live: Labels in the Moorpark header; Rosters: Labels guide) ---------- */
+const LABEL_GUIDE = [
+  ['How labels work', [
+    ['Your labels', 'Filled gold. What you typed in the roster editor; they come first (after Star).'],
+    ['From stats', 'Outlined. From his season numbers on the leaderboard, judged against every qualified player in the state: top 20% earns a strength, bottom 20% a weakness (unless noted). Only players with 30%+ of their team\'s minutes. ✕ in the roster editor turns one off for a player.'],
+    ['Low-info teams', 'Teams whose box scores don\'t have reliable minutes get ★ team-leader labels and shooting labels instead of the state ones.']]],
+  ['Role', [
+    ['Star', 'Top 5% of the state in PORPAGATU! (points over replacement per adjusted game). Always shown first.'],
+    ['Go-to', 'Uses over 28% of his team\'s possessions while on the floor.'],
+    ['Efficient role player', 'Top 10% of his %Poss band on offensive rating, on under 20% usage.'],
+    ['Inefficient volume', 'Uses 24%+ of possessions with a TS% in the bottom 30%.']]],
+  ['How he scores', [
+    ['Interior scorer', '2P% top 20% on 4+ two-point tries a game, with most of his shots inside.'],
+    ['All-Around', 'Can do it all: TS% top 35%, 25-55% of his shots are threes, FT rate in the top half.'],
+    ['Elite shooter', '3P% top 10%, on 2.0+ threes a game or 35%+ of his shots.'],
+    ['Shooter', '3P% top 35%, on 2.0+ threes a game or 35%+ of his shots.'],
+    ['Slasher', 'Not a shooter, but gets to the line: FT rate or fouls drawn per 40 in the top 25%.'],
+    ['Draws fouls', 'Fouls drawn per 40 top 20%, or FT rate top 15%.'],
+    ['Struggles inside', '2P% bottom 20% on 3+ two-point tries a game.'],
+    ['Can\'t shoot', '3P% bottom 30%, or under 10% of his shots are threes.']]],
+  ['Glass', [
+    ['Glass cleaner', 'Offensive and defensive rebound % both top 20%.'],
+    ['Rebounder', 'Defensive rebound % top 20%.'],
+    ['Off. rebounder', 'Offensive rebound % top 20%.']]],
+  ['Ball', [
+    ['Floor general', 'Assist rate top 10% without turning it over.'],
+    ['Passer', 'Assist rate top 20%.'],
+    ['Ball secure', 'Turnover rate top 20% (fewest).'],
+    ['Non-passer', 'Assist rate bottom 10%.'],
+    ['TO-prone', 'Turnover rate bottom 20%.']]],
+  ['Defense', [
+    ['Ball hawk', 'Steal % top 20%.'],
+    ['Rim protector', 'Block % top 15%.'],
+    ['Disciplined', 'Fouls per 40 top 20% (fewest).'],
+    ['Foul-prone', 'Fouls per 40 bottom 20%.']]],
+  ['Free throws', [
+    ['FT shooter', 'FT% top 20%.'],
+    ['Bad FT', 'FT% bottom 20%.']]],
+  ['★ Team leaders (low-info teams)', [
+    ['Top scorer', 'Leads his team in points per game.'],
+    ['Top rebounder', 'Leads in rebounds per game.'],
+    ['Top passer', 'Leads in assists per game.'],
+    ['Top shooter', 'Leads in made threes, shooting 33%+.'],
+    ['Top defender', 'Leads in steals + blocks per game.']]]];
+function labelGuide() {
+  modal(`<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h2 style="margin:0">Player labels</h2><button class="btn btn-lg" data-act="lg-close">Close</button></div>
+    <div class="lg-grid">${LABEL_GUIDE.map(([h, L]) => `<div class="lg-sec"><div class="lg-h">${esc(h)}</div>${L.map(([l, d]) => `<div class="lg-row"><span class="nt ${h === 'How labels work' ? (l === 'Your labels' ? '' : 'auto') : 'auto'}${h.startsWith('★') ? ' lead' : ''}">${esc(l)}</span><span class="lg-d">${esc(d)}</span></div>`).join('')}</div>`).join('')}</div>`, 'lg-modal');
 }
 
 /* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------
