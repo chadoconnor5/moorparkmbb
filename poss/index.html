@@ -1167,7 +1167,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.140';
+const VERSION = 'v2026.10.17.141';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5023,7 +5023,8 @@ function fiveStrip(g, t, five) {
    (top 15% for Efficient / Rim protector, top 35% for Shooter) earns a strength; bottom 20% a weakness:
      Go-to (%Poss over 28) · Efficient (TS%) · Shooter (3P% top 35% and volume: 2.0+ threes a game or 35%+ of his
      shots; unranked: the THIS FIVE estimate on 15+ attempts) ·
-     Can't shoot (bottom 30% 3P%, or almost never shoots one) · All-Around (can do it all: TS% top 35%, a balanced
+     Non-shooter (under 10% of his shots are threes) · Poor 3PT (takes them, 3P% bottom 30%) · 3PT heavy (55%+ of
+     his shots threes, 2.0+ a game) · All-Around (can do it all: TS% top 35%, a balanced
      shot diet of 25-55% threes, FT rate top half; replaces Shooter on him) · Slasher (a non-shooter who draws fouls:
      FT rate or FD/40 top 25%) · Ball hawk (Stl%) · Rim protector (Blk%) ·
      Rebounder (DR%) · Off. rebounder (OR%) · Passer (ARate) · TO-prone (TORate) · Foul-prone (FC/40) · Bad FT (FT%).
@@ -5102,7 +5103,11 @@ function autoLabels(g, t, id) {
   // A shooter also takes them: 2.0+ threes a game or 35%+ of his shots; unranked, 15+ attempts too.
   const volume = (pg != null && pg >= 2.0) || (rate != null && rate >= 35);
   const shooter = volume && (rk.tpp != null ? top('tpp', AUTO_CUT.shooter) : basic && !!(q && q.shooter && q.est != null) && tpa >= 25);
-  const cant = rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : (basic && !!(q && q.nonShooter && q.est != null)) || (fga >= 20 && rate != null && rate < 10);
+  // Two different calls: a NON-SHOOTER doesn't take threes (under 10% of his shots; unranked low-volume non-shooters on
+  // low-info teams too): sag off him. POOR 3PT takes them (the shooter's volume) but misses (3P% bottom 30%): let him shoot.
+  const never = fga >= 20 && rate != null && rate < 10;
+  const nonShooter = never || (rk.tpp == null && !volume && basic && !!(q && q.nonShooter && q.est != null));
+  const cold = volume && (rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : basic && !!(q && q.nonShooter && q.est != null) && tpa >= 25);
   const draws = top('ft_rate', AUTO_CUT.draws) || top('fd_per_40', AUTO_CUT.draws) || (basic && rk.ft_rate == null && rk.fd_per_40 == null && q && q.ftr != null && q.ftr >= FL.FTR_HI);
   const drawWhy = R && (R.ft_rate != null || R.fd_per_40 != null) ? `FT rate ${f1(R.ft_rate)}, FD/40 ${f1(R.fd_per_40)}` : q && q.ftr != null ? `FT rate ${q.ftr.toFixed(0)}%` : '';
   /* Who he is, how he scores, and what else he does, in that order (the card shows the first that fit).
@@ -5126,8 +5131,11 @@ function autoLabels(g, t, id) {
   const allAround = R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}`);
   else if (shooter) add(rk.tpp != null && top('tpp', 0.10) ? 'Elite shooter' : 'Shooter', shootWhy);
-  const slasher = !shooter && !allAround && cant && draws;
-  if (!shooter && !allAround && cant && !interior) add(draws ? 'Slasher' : 'Can\'t shoot', draws ? drawWhy : shootWhy);
+  const slasher = !shooter && !allAround && nonShooter && draws && !interior;
+  if (!shooter && !allAround && nonShooter && !interior) add(draws ? 'Slasher' : 'Non-shooter', draws ? drawWhy : `${rate != null ? rate.toFixed(0) : '—'}% of his shots are threes`);
+  if (!shooter && !allAround && cold) add('Poor 3PT', shootWhy);
+  // Shot diet: 55%+ of his shots are threes on 2.0+ a game (about the top 20%), whether or not they go in.
+  if (rate != null && rate >= 55 && pg != null && pg >= 2) add('3PT heavy', `${rate.toFixed(0)}% of his shots are threes, ${pg.toFixed(1)} a game`);
   if (!slasher && !allAround && (top('fd_per_40', 0.20) || top('ft_rate', 0.15))) add('Draws fouls', `FD/40 ${f1(R.fd_per_40)} · FT rate ${f1(R.ft_rate)}`);
   if (R && (R.twoa || 0) >= 3 * (R.gp || 1) && bot('twop', 0.20)) add('Struggles inside', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa})`);
   // GLASS: both ends top 20% = Glass cleaner; else whichever end.
@@ -5173,10 +5181,12 @@ const LABEL_GUIDE = [
     ['All-Around', 'Can do it all: TS% top 35%, 25-55% of his shots are threes, FT rate in the top half.'],
     ['Elite shooter', '3P% top 10%, on 2.0+ threes a game or 35%+ of his shots.'],
     ['Shooter', '3P% top 35%, on 2.0+ threes a game or 35%+ of his shots.'],
-    ['Slasher', 'Not a shooter, but gets to the line: FT rate or fouls drawn per 40 in the top 25%.'],
+    ['Slasher', 'A non-shooter who gets to the line: FT rate or fouls drawn per 40 in the top 25%.'],
     ['Draws fouls', 'Fouls drawn per 40 top 20%, or FT rate top 15%.'],
     ['Struggles inside', '2P% bottom 20% on 3+ two-point tries a game.'],
-    ['Can\'t shoot', '3P% bottom 30%, or under 10% of his shots are threes.']]],
+    ['Non-shooter', 'Doesn\'t take threes: under 10% of his shots. Sag off him.'],
+    ['3PT heavy', '55%+ of his shots are threes, on 2.0+ a game: his shot diet, whether or not they go in.'],
+    ['Poor 3PT', 'Takes threes (2.0+ a game or 35%+ of his shots) but 3P% is in the bottom 30%. Let him shoot.']]],
   ['Glass', [
     ['Glass cleaner', 'Offensive and defensive rebound % both top 20%.'],
     ['Rebounder', 'Defensive rebound % top 20%.'],
