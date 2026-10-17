@@ -209,7 +209,7 @@ COMPOSITES = {
     "shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
                 {"tpp": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.35, False),
     "elite_shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
-                      {"tpp": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),
+                      {"tpp": 80, "tpa_pg": 10, "tpa_rate": 10}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),   # the elite tier is about accuracy
     "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
     "slasher": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 2,
                 {"ft_rate": 35, "fd_per_40": 30, "twoa_pg": 20, "usage_pct": 15}, {"syn_rim": 25}, 0.25, False),

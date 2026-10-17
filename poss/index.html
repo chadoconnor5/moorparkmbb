@@ -1165,7 +1165,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.146';
+const VERSION = 'v2026.10.17.147';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5043,7 +5043,19 @@ function autoRow(g, t, id) {
   let R = rows.find(r => String(r.name).toLowerCase() === n);
   if (!R && t === 'b') { const of = oppFileLine(g, p); if (of) R = rows.find(r => String(r.name).toLowerCase() === String(of.name).toLowerCase()) || rows.find(r => ln(r.name) === ln(of.name)); }
   if (!R && p.name) { const c = rows.filter(r => ln(r.name) === ln(p.name)); if (c.length === 1) R = c[0]; }
+  // The leaderboard can carry one player under two spellings ("Brayden Fu" / "Braden Fu"): same last name, first names
+  // a letter or two apart. Use the spelling with the most minutes, so a roster typo doesn't land on the empty row.
+  if (R) { const fn = s => String(s).toLowerCase().split(/\s+/)[0], f0 = fn(R.name);
+    const twin = rows.filter(r => r !== R && ln(r.name) === ln(R.name) && fn(r.name)[0] === f0[0] && editDist(fn(r.name), f0) <= 2);
+    twin.forEach(r => { if ((r.gp || 0) * (r.mpg || 0) > (R.gp || 0) * (R.mpg || 0)) R = r; }); }
   return { R, F };
+}
+function editDist(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) { const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur; }
+  return prev[b.length];
 }
 /* TEAM LEADERS (low-info teams only: no reliable minutes, so no state ranks to lean on; a team with analytics gets the
    state labels instead): who his team runs through. One player per label per team, among the
@@ -5088,9 +5100,9 @@ function autoLabels(g, t, id) {
   const f1 = v => v == null ? '—' : (+v).toFixed(1);
   const out = [], add = (l, why) => out.push({ l, why });
   /* Composites (export_ratings.py COMPOSITES): each role blends its related factors as state percentiles, plus the Synergy
-     shot-type percentiles when the team has a Synergy export; R.comp holds the scores (null when the gate fails) and
-     rankOf.compCut each label's calibrated cut. Files without them fall back to the single-stat rules below. */
-  const C = R && R.comp, CC = tot.compCut, hasC = !!(C && CC), cut = k => hasC && C[k] != null && CC[k] != null && C[k] >= CC[k];
+     shot-type percentiles when the team has a Synergy export; rank.comp holds the scores (absent when the gate fails) and
+     rankOf.compCut each label's calibrated cut (scores sit in R.rank.comp). Files without them fall back to the single-stat rules below. */
+  const C = rk.comp, CC = tot.compCut, hasC = !!(C && CC), cut = k => hasC && C[k] != null && CC[k] != null && C[k] >= CC[k];
   const S = (R && R.syn) || {}, synW = (...ks) => { const p = [];
     if (ks.includes('rim') && S.rim) p.push(`rim ${f1(S.rim[1])}% on ${(+S.rim[0]).toFixed(0)}% of shots`);
     if (ks.includes('cs') && S.cs) p.push(`C&S ${f1(S.cs[1])}%`);
@@ -5137,7 +5149,7 @@ function autoLabels(g, t, id) {
   if (interior) add('Interior scorer', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa}), ${(100 - rate).toFixed(0)}% of his shots inside · FT rate ${f1(R.ft_rate)}${synW('rim')}`);
   const allAround = hasC ? cut('all_around') : R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}${synW('rim', 'pull')}`);
-  else if (shooter) add((hasC ? cut('elite_shooter') : rk.tpp != null && top('tpp', 0.10)) ? 'Elite shooter' : 'Shooter', shootWhy + synW('cs', 'pull'));
+  if (shooter) add((hasC ? cut('elite_shooter') : rk.tpp != null && top('tpp', 0.10)) ? 'Elite shooter' : 'Shooter', shootWhy + synW('cs', 'pull'));
   // Slasher: the composite gates on threes under 25% of his shots; the old rule wants a non-shooter who draws fouls.
   const slasher = !shooter && !allAround && !interior && draws && (hasC || nonShooter);
   if (slasher) add('Slasher', drawWhy + (twoA ? `, ${twoA.toFixed(1)} 2PA/g` : '') + synW('rim'));
@@ -5188,7 +5200,7 @@ const LABEL_GUIDE = [
   ['How he scores', [
     ['Interior scorer', 'Threes under 25% of his shots, 3+ 2PA a game; top 20% on 2P%, share of shots inside, FT rate, 2PA a game and OR% (plus Synergy finishing at the rim).'],
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS%, FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
-    ['Elite shooter', 'The Shooter blend in the top 10%.'],
+    ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
     ['Shooter', '2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
     ['Draws fouls', 'Fouls drawn per 40 and FT rate together in the top 20%.'],

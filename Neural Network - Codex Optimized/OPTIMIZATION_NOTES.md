@@ -190,7 +190,7 @@ This copy keeps the original project intact and starts consolidating the working
   percentiles) from internal_data/synergy_players_<slug>_<season>.json / synergy_archetypes.json (2025-26 Moorpark).
   Each composite = gate + weighted mean (renormalized over present factors, null under 60% of the weight); the cut
   is the quantile of the gated pool's BOX-ONLY scores (Synergy scores compared against the same cut). Rows carry
-  rank.comp {name: score}, totals["compCut"], and row["syn"] (shares / FG% only, for the why text). sit.js
+  rank.comp {name: score} (sit.js reads it as rk.comp), totals["compCut"], and row["syn"] (shares / FG% only, for the why text). sit.js
   autoLabels uses them when present; keep its why lines and LABEL_GUIDE in step with COMPOSITES. Each holds `team` (team_summary.json's record / totals /
   averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
   `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's
