@@ -538,6 +538,40 @@ five has 25+ offensive possessions).
     the latest box score), keeping the numbers already on the roster. Check them, then Save.
   - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
+  - **Labels guide:** the **Labels** button in the Moorpark header on the Live screen (and **Labels guide** on
+    Rosters) opens a glossary of every label and what earns it.
+  - **Labels from stats** (outlined; yours are filled and come first, except *Star*, which is always first): every player, ours and every opponent with a
+    leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
+    qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
+    noted). A player can have several; the card shows them in this order:
+    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
+      possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
+      volume* (24%+ usage, TS% bottom 30%).
+    - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, most of his shots inside) ·
+      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half) · *Elite shooter* / *Shooter* (3P% top
+      10% / 35%, on 2.0+ threes a game or 35%+ of his shots) · *Slasher* (a non-shooter who gets to the line) ·
+      *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *3PT heavy* (55%+
+      of his shots threes, 2.0+ a game) · *Poor 3PT* (takes them, 3P% bottom 30%: let him shoot) · *Non-shooter* (under
+      10% of his shots threes: sag off him).
+    - **Glass:** *Glass cleaner* (OR% and DR% both top 20%) · *Rebounder* (DR%) · *Off. rebounder* (OR%).
+    - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer* · *Ball secure* (TORate top 20%)
+      · *Non-passer* (assist rate bottom 10%) · *TO-prone*.
+    - **Defense:** *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) · *Disciplined* (fouls / 40 top 20%) ·
+      *Foul-prone*. **FT:** *FT shooter* (top 20%) · *Bad FT*.
+    Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
+    that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
+    estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
+    4+ points or 3+ rebounds a game over half the games), so end-of-bench samples don't.
+    **Team leaders** (★, first on the card; low-info teams only, a team with analytics gets the state labels): one
+    player per label per team among those who play (10+ games, half the
+    games early in the season; 30%+ of the minutes where minutes are reliable). Analytics when the team's file has
+    them, per-game box stats for low-info teams (never mixed): *Top scorer* (points produced per game | PPG), *Top rebounder* (OR% +
+    DR% | RPG), *Top passer* (assist rate | APG), *Top shooter* (best 3P% on 2.0+ threes a game, 20+ | most 3PM at
+    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). The bubble gives the margin ("19.3 pts produced/g
+    (next: 19.0)"). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
+    Top shooter → no Shooter). The +N bubble shows each one's numbers ("Ball hawk · Stl% 4.2"), not the ranks. In the roster editor they
+    sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
+    already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
     ("Shooter, Lefty"), so the game tracker shows the same thing; an old one-line note splits on commas.
   - On the Live screen the position and labels sit on **one line** under the player's name, in the order you added

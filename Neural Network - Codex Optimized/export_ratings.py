@@ -16,7 +16,8 @@ Files for teams that drop off both lists are removed.
   players - every player: jersey number, box-score season lines (all games / quality games, the same shape
             as Moorpark's playerSeason) and his advanced numbers (eFG%, TS%, usage, ORtg/DRtg, rates...)
   table   - the leaderboard's Team Stats table: its Basic and Advanced rows (load_full_rosters) and each player's
-            State Rank on the ranked stats, by the page's own qualification rules
+            State Rank on the ranked stats, by the page's own qualification rules, and PORPAGATU! (porp, ranked
+            statewide among players with 30%+ of minutes)
 The tracker downloads the files for the opponents on its schedule (and keeps them for offline gyms), so an
 opponent's five gets the same THIS FIVE labels as ours. Each file is ~10-20 KB.
 
@@ -197,7 +198,19 @@ def leaderboard_tables():
     if _TABLES is None:
         import generate_leaderboard as gl
         rosters = gl.load_full_rosters(gl.STATS_DIR)
-        ranks, totals = state_ranks(gl.load_players())
+        pool = gl.load_players()
+        # PORPAGATU! (the leaderboard's attach_porpagatu, same team context): each player's value and statewide rank
+        # among players with 30%+ of minutes, for the tracker's Star label.
+        gl.attach_porpagatu(pool, gl.load_teams())
+        ranks, totals = state_ranks(pool)
+        q = sorted([p for p in pool if p.get("porp") is not None and (p.get("min_pct") or 0) >= 30], key=lambda p: -p["porp"])
+        totals["porp"] = len(q)
+        for i, p in enumerate(q):
+            ranks.setdefault((p["name"], p["school"]), {})["porp"] = i + 1
+        porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
+        for team, r in rosters.items():
+            for row in r["players"]:
+                row["porp"] = porp.get((row["name"], team))
         _TABLES = (rosters, ranks, totals)
     return _TABLES
 
