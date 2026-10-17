@@ -545,8 +545,7 @@ five has 25+ offensive possessions).
     qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
     noted). Roles are **composites**: each blends the related stats as state percentiles (e.g. Interior scorer = 2P%,
     share of shots inside, FT rate, 2PA a game, OR%), and when the team has a Synergy export its shot-type percentiles
-    (at the rim, 3PT, catch-and-shoot, pull-up) join the blend and the bubble's why line ("Synergy: rim 74% on 63% of
-    shots"). Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
+    (at the rim, 3PT, catch-and-shoot, pull-up) join the blend. Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
     `comp` / `compCut` / `syn`); older files fall back to the single-stat rules. A player can have several; the card
     shows them in this order:
     - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
@@ -572,9 +571,8 @@ five has 25+ offensive possessions).
     games early in the season; 30%+ of the minutes where minutes are reliable). Analytics when the team's file has
     them, per-game box stats for low-info teams (never mixed): *Top scorer* (points produced per game | PPG), *Top rebounder* (OR% +
     DR% | RPG), *Top passer* (assist rate | APG), *Top shooter* (best 3P% on 2.0+ threes a game, 20+ | most 3PM at
-    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). The bubble gives the margin ("19.3 pts produced/g
-    (next: 19.0)"). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
-    Top shooter → no Shooter). The +N bubble shows each one's numbers ("Ball hawk · Stl% 4.2"), not the ranks. In the roster editor they
+    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
+    Top shooter → no Shooter). The +N bubble shows label names only (each label's numbers are kept for a future player page). In the roster editor they
     sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
     already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
