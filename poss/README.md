@@ -552,7 +552,7 @@ five has 25+ offensive possessions).
       possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).
     - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
-      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half) · *Elite shooter* / *Shooter* (3P% top
+      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Elite shooter* / *Shooter* (3P% top
       10% / 35%, on 2.0+ threes a game or 35%+ of his shots) · *Slasher* (a non-shooter who gets to the line) ·
       *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *3PT heavy* (55%+
       of his shots threes, 2.0+ a game) · *Poor 3PT* (takes them, 3P% bottom 30%: let him shoot) · *Non-shooter* (under

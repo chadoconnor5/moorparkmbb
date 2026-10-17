@@ -1165,7 +1165,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.147';
+const VERSION = 'v2026.10.17.148';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5149,7 +5149,9 @@ function autoLabels(g, t, id) {
   if (interior) add('Interior scorer', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa}), ${(100 - rate).toFixed(0)}% of his shots inside · FT rate ${f1(R.ft_rate)}${synW('rim')}`);
   const allAround = hasC ? cut('all_around') : R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}${synW('rim', 'pull')}`);
-  if (shooter) add((hasC ? cut('elite_shooter') : rk.tpp != null && top('tpp', 0.10)) ? 'Elite shooter' : 'Shooter', shootWhy + synW('cs', 'pull'));
+  // All-Around already says he shoots it: plain Shooter is left off; Elite shooter still shows (it says more).
+  const elite = shooter && (hasC ? cut('elite_shooter') : rk.tpp != null && top('tpp', 0.10));
+  if (shooter && (elite || !allAround)) add(elite ? 'Elite shooter' : 'Shooter', shootWhy + synW('cs', 'pull'));
   // Slasher: the composite gates on threes under 25% of his shots; the old rule wants a non-shooter who draws fouls.
   const slasher = !shooter && !allAround && !interior && draws && (hasC || nonShooter);
   if (slasher) add('Slasher', drawWhy + (twoA ? `, ${twoA.toFixed(1)} 2PA/g` : '') + synW('rim'));
@@ -5201,7 +5203,7 @@ const LABEL_GUIDE = [
     ['Interior scorer', 'Threes under 25% of his shots, 3+ 2PA a game; top 20% on 2P%, share of shots inside, FT rate, 2PA a game and OR% (plus Synergy finishing at the rim).'],
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS%, FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
-    ['Shooter', '2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
+    ['Shooter', 'Not shown with All-Around (implied). 2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
     ['Draws fouls', 'Fouls drawn per 40 and FT rate together in the top 20%.'],
     ['Struggles inside', '3+ 2PA a game; 2P% (plus Synergy at the rim) in the bottom 20%.'],
