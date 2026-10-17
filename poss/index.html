@@ -1167,7 +1167,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.141';
+const VERSION = 'v2026.10.17.142';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5122,11 +5122,11 @@ function autoLabels(g, t, id) {
   if (!star && usg != null && usg > 28) add('Go-to', `${f1(usg)}% of possessions${ortgWhy ? ' · ' + ortgWhy.split(',')[0] : ''}`);
   if (!star && usg != null && usg < 20 && bandTop(0.10)) add('Efficient role player', ortgWhy);
   if (usg != null && usg >= 24 && bot('ts_pct', 0.30)) add('Inefficient volume', `TS ${f1(R.ts_pct)}% on ${f1(usg)}% of possessions`);
-  /* HOW HE SCORES. Interior scorer = 2P% top 20% on 4+ two-point tries a game, with most of his shots inside (3s under
-     40% of his shots). All-Around / Shooter (Elite shooter = 3P% top 10%) / Slasher / Draws fouls (FD/40 top 20% or
+  /* HOW HE SCORES. Interior scorer = 2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots (25%+
+     is already trending to the perimeter). All-Around / Shooter (Elite shooter = 3P% top 10%) / Slasher / Draws fouls (FD/40 top 20% or
      FT rate top 15%, when he isn't already a Slasher). */
   const twoA = R && R.gp ? (R.twoa || 0) / R.gp : 0;
-  const interior = R && top('twop', 0.20) && twoA >= 4 && rate != null && rate < 40;
+  const interior = R && top('twop', 0.20) && twoA >= 4 && rate != null && rate < 25;
   if (interior) add('Interior scorer', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa}), ${(100 - rate).toFixed(0)}% of his shots inside`);
   const allAround = R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}`);
@@ -5177,7 +5177,7 @@ const LABEL_GUIDE = [
     ['Efficient role player', 'Top 10% of his %Poss band on offensive rating, on under 20% usage.'],
     ['Inefficient volume', 'Uses 24%+ of possessions with a TS% in the bottom 30%.']]],
   ['How he scores', [
-    ['Interior scorer', '2P% top 20% on 4+ two-point tries a game, with most of his shots inside.'],
+    ['Interior scorer', '2P% top 20% on 4+ two-point tries a game, with threes under 25% of his shots.'],
     ['All-Around', 'Can do it all: TS% top 35%, 25-55% of his shots are threes, FT rate in the top half.'],
     ['Elite shooter', '3P% top 10%, on 2.0+ threes a game or 35%+ of his shots.'],
     ['Shooter', '3P% top 35%, on 2.0+ threes a game or 35%+ of his shots.'],

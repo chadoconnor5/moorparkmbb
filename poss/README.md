@@ -547,7 +547,7 @@ five has 25+ offensive possessions).
     - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
       possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).
-    - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, most of his shots inside) ·
+    - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
       *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half) · *Elite shooter* / *Shooter* (3P% top
       10% / 35%, on 2.0+ threes a game or 35%+ of his shots) · *Slasher* (a non-shooter who gets to the line) ·
       *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *3PT heavy* (55%+
