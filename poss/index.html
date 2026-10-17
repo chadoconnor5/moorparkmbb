@@ -1161,7 +1161,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.133';
+const VERSION = 'v2026.10.17.134';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5020,7 +5020,7 @@ function fiveStrip(g, t, five) {
      Rebounder (DR%) · Off. rebounder (OR%) · Passer (ARate) · TO-prone (TORate) · Foul-prone (FC/40) · Bad FT (FT%).
    Teams with analytics (reliable minutes) get ranked labels only; a player there with too few minutes to be ranked
    just doesn't get that label. Low-info teams fall back to per-40 lines (60+ minutes) and the shooting estimate
-   (Shooter 25+ threes, Bad FT 20+ FTA). Only players who play get labels (10%+ of minutes; low-info teams 4+ ppg or 3+ rpg over half
+   (Shooter 25+ threes, Bad FT 20+ FTA). Only players who play get labels (30%+ of minutes; low-info teams 4+ ppg or 3+ rpg over half
    the games); team-leader labels have their own bar.
    The bubble shows each label's numbers, not the ranks. */
 const AUTO_CUT = { top: 0.20, topTight: 0.15, shooter: 0.35, cantShoot: 0.30, draws: 0.25, bottom: 0.20, aaTs: 0.35, aaFtr: 0.50, aaRateLo: 25, aaRateHi: 55 };
@@ -5037,7 +5037,7 @@ function autoRow(g, t, id) {
   return { R, F };
 }
 /* TEAM LEADERS: who his team runs through, whatever the state thinks. One player per label per team, among the
-   players who play: 10+ games (half the team's games early in the season) and 20%+ of the minutes (minutes only
+   players who play: 10+ games (half the team's games early in the season) and 30%+ of the minutes (minutes only
    where the team's minutes are reliable).
    Analytics when the team's file has them (reliable minutes), per-game box stats when it doesn't (never mixed):
      Top scorer     points produced per game (Oliver)   | PPG
@@ -5060,7 +5060,7 @@ function teamLeaders(F) {
   const adv = F.table.adv === 1, players = F.players || {}, advOf = r => { const k = Object.keys(players).find(n => n.toLowerCase() === String(r.name).toLowerCase()); return k ? players[k].adv : null; };
   const games = Math.max(...rows.map(r => r.gp || 0)), minG = Math.min(10, Math.max(3, Math.ceil(games / 2)));
   // Minutes only count where they're reliable (the analytics teams); elsewhere games played decide who plays.
-  const pool = rows.filter(r => (r.gp || 0) >= minG && (!adv || (r.min_pct || 0) >= 20)), out = {};
+  const pool = rows.filter(r => (r.gp || 0) >= minG && (!adv || (r.min_pct || 0) >= 30)), out = {};
   LEADERS.forEach(([l, A, B]) => {
     let M = adv ? A : B, S = pool.map(r => ({ r, v: M.f(r, advOf(r)) })).filter(x => x.v != null && x.v > 0);
     S.sort((a, b) => b.v - a.v); if (!S.length) return;
@@ -5080,10 +5080,10 @@ function autoLabels(g, t, id) {
   if (!R && (!q || q.est == null)) return out;   // nothing on him yet
   const LD = R ? teamLeaders(F)[R.name] || [] : [], led = new Set(LD.map(x => LEAD_REPLACES[x.l]).filter(Boolean));
   LD.forEach(x => out.push(x));
-  // Only players who play get the rest: 10%+ of the minutes where minutes are reliable; elsewhere (no reliable
+  // Only players who play get the rest: 30%+ of the minutes where minutes are reliable (the State Ranks' bar); elsewhere (no reliable
   // minutes) 4+ points or 3+ rebounds a game over half the team's games. End-of-bench samples are noise.
   if (R) { const rows = F.table.rows, games = Math.max(...rows.map(r => r.gp || 0)), minG = Math.min(10, Math.max(3, Math.ceil(games / 2)));
-    const plays = F.table.adv === 1 ? (R.min_pct || 0) >= 10 : (R.gp || 0) >= minG && ((R.ppg || 0) >= 4 || (R.rpg || 0) >= 3);
+    const plays = F.table.adv === 1 ? (R.min_pct || 0) >= 30 : (R.gp || 0) >= minG && ((R.ppg || 0) >= 4 || (R.rpg || 0) >= 3);
     if (!plays) return out; }
   // Shooting: ranked 3P% first; else the THIS FIVE estimate (his own 3P% history, volume).
   const tpa = R ? R.tpa || 0 : q.a3, fga = R ? R.fga || 0 : null, rate = fga ? 100 * tpa / fga : q && q.rate, pg = R && R.gp ? tpa / R.gp : q && q.pg3;

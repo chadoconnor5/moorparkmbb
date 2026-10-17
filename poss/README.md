@@ -549,10 +549,10 @@ five has 25+ offensive possessions).
     *Off. rebounder* (OR%) · *Passer* (ARate) · *TO-prone* (TORate) · *Foul-prone* (FC/40) · *Bad FT* (FT%).
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
     that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
-    estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (10%+ of the minutes; on teams without reliable minutes,
+    estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
     4+ points or 3+ rebounds a game over half the games), so end-of-bench samples don't.
     **Team leaders** (★, first on the card): one player per label per team among those who play (10+ games, half the
-    games early in the season; 20%+ of the minutes where minutes are reliable). Analytics when the team's file has
+    games early in the season; 30%+ of the minutes where minutes are reliable). Analytics when the team's file has
     them, per-game box stats for low-info teams (never mixed): *Top scorer* (points produced per game | PPG), *Top rebounder* (OR% +
     DR% | RPG), *Top passer* (assist rate | APG), *Top shooter* (best 3P% on 2.0+ threes a game, 20+ | most 3PM at
     33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). The bubble gives the margin ("19.3 pts produced/g
