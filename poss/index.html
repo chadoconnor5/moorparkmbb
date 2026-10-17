@@ -1161,7 +1161,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.134';
+const VERSION = 'v2026.10.17.135';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5036,7 +5036,8 @@ function autoRow(g, t, id) {
   if (!R && p.name) { const c = rows.filter(r => ln(r.name) === ln(p.name)); if (c.length === 1) R = c[0]; }
   return { R, F };
 }
-/* TEAM LEADERS: who his team runs through, whatever the state thinks. One player per label per team, among the
+/* TEAM LEADERS (low-info teams only: no reliable minutes, so no state ranks to lean on; a team with analytics gets the
+   state labels instead): who his team runs through. One player per label per team, among the
    players who play: 10+ games (half the team's games early in the season) and 30%+ of the minutes (minutes only
    where the team's minutes are reliable).
    Analytics when the team's file has them (reliable minutes), per-game box stats when it doesn't (never mixed):
@@ -5056,7 +5057,7 @@ const LEADERS = [
   ['Top defender', { f: r => r.stl_pct != null && r.blk_pct != null ? r.stl_pct + r.blk_pct : null, u: 'Stl%+Blk%' }, { f: r => (r.spg || 0) + (r.bpg || 0), u: 'stl+blk/g' }]];
 const LEAD_REPLACES = { 'Top rebounder': 'Rebounder', 'Top passer': 'Passer', 'Top shooter': 'Shooter' };
 function teamLeaders(F) {
-  const rows = (F && F.table && F.table.rows) || []; if (!rows.length) return {};
+  const rows = (F && F.table && F.table.rows) || []; if (!rows.length || F.table.adv === 1) return {};   // analytics teams: state labels only
   const adv = F.table.adv === 1, players = F.players || {}, advOf = r => { const k = Object.keys(players).find(n => n.toLowerCase() === String(r.name).toLowerCase()); return k ? players[k].adv : null; };
   const games = Math.max(...rows.map(r => r.gp || 0)), minG = Math.min(10, Math.max(3, Math.ceil(games / 2)));
   // Minutes only count where they're reliable (the analytics teams); elsewhere games played decide who plays.
