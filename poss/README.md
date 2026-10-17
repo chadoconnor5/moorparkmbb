@@ -538,7 +538,7 @@ five has 25+ offensive possessions).
     the latest box score), keeping the numbers already on the roster. Check them, then Save.
   - Labels are short tags (Shooter, Lefty, Foul): type one and tap **Add** (or Enter); tap **✕** on a chip to remove
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
-  - **Labels from stats** (outlined; yours are filled and come first): every player, ours and every opponent with a
+  - **Labels from stats** (outlined; yours are filled and come first, except *Star*, which is always first): every player, ours and every opponent with a
     leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
     qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
     noted). A player can have several; the card shows them in this order:

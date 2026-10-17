@@ -1161,7 +1161,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.137';
+const VERSION = 'v2026.10.17.138';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1738,7 +1738,7 @@ function fitLabels() {
 // A small light-grey bubble above the player's card with every label; ✕ (or any other tap) closes it, and it fades on its own after 8 s.
 function labelPop(b, L, rows, auto) {
   const card = b.closest('.pbtn, .five-lbl') || b, r = card.getBoundingClientRect(), d = document.createElement('div'); d.className = 'nt-pop';
-  d.innerHTML = `<div class="nt-pop-l">${rows ? `<div class="nt-pop-h">${esc(L)}</div>${rows.map(x => `<div class="nt-pop-r">${x}</div>`).join('')}` : L.map(x => `<span class="nt">${esc(x)}</span>`).join('') + (auto || []).map(x => `<span class="nt auto${x.lead ? ' lead' : ''}">${esc(x.l)}<i>${esc(x.why)}</i></span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
+  d.innerHTML = `<div class="nt-pop-l">${rows ? `<div class="nt-pop-h">${esc(L)}</div>${rows.map(x => `<div class="nt-pop-r">${x}</div>`).join('')}` : (auto || []).filter(x => x.l === 'Star').map(x => `<span class="nt auto">${esc(x.l)}<i>${esc(x.why)}</i></span>`).join('') + L.map(x => `<span class="nt">${esc(x)}</span>`).join('') + (auto || []).filter(x => x.l !== 'Star').map(x => `<span class="nt auto${x.lead ? ' lead' : ''}">${esc(x.l)}<i>${esc(x.why)}</i></span>`).join('')}</div><button class="nt-pop-x" data-act="nt-pop-x" aria-label="Close">✕</button>`;
   document.body.appendChild(d);
   d.style.width = (rows ? Math.min(Math.max(r.width, 290), window.innerWidth - 16) : Math.min(r.width, 320)) + 'px';
   d.style.left = (Math.max(8, Math.min(r.left, window.innerWidth - 8 - d.offsetWidth)) + window.scrollX) + 'px'; d.style.top = (r.top + window.scrollY - d.offsetHeight - 6) + 'px';
@@ -1755,7 +1755,8 @@ function playerCards(g, D, t) {
     const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat));   // fouls and free throws take a player
     return `<button class="pbtn ${cls} ${pl ? 'hot' : ''} ${UI.stat && !pl ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
-      ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${L.map(x => `<span class="nt">${esc(x)}</span>`).join('')}${AU.map(x => `<span class="nt auto${x.lead ? ' lead' : ''}" title="${esc(x.why)}">${esc(x.l)}</span>`).join('')}${L.length + AU.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
+      ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${(() => { const au = x => `<span class="nt auto${x.lead ? ' lead' : ''}" title="${esc(x.why)}">${esc(x.l)}</span>`;   // Star always first, then yours, then the rest
+          return AU.filter(x => x.l === 'Star').map(au).join('') + L.map(x => `<span class="nt">${esc(x)}</span>`).join('') + AU.filter(x => x.l !== 'Star').map(au).join(''); })()}${L.length + AU.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
       <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${out ? 'OUT' : pf + ' PF'}</span></button>`; };
   const noRoster = !teamPlayers(g, t).length;
