@@ -548,8 +548,9 @@ five has 25+ offensive possessions).
     (at the rim, 3PT, catch-and-shoot, pull-up) join the blend. Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
     `comp` / `compCut` / `syn`); older files fall back to the single-stat rules. A player can have several; the card
     shows them in this order:
-    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
-      possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
+    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Scorer* (top 10% on points
+      produced a game, points a game and usage; not with Star) · *Go-to* (over 28% of
+      possessions; not with Star or Scorer) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).
     - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
       *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Elite shooter* / *Shooter* (3P% top

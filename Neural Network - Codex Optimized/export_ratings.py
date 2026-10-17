@@ -220,6 +220,8 @@ COMPOSITES = {
     "ineff_vol": (lambda p: (p.get("usage_pct") or 0) >= 24, {"ts_pct": 50, "ind_ortg": 30, "tov_pct": 20}, {}, 0.30, True),
     "floor_gen": (lambda p: True, {"ast_rate": 60, "tov_pct": 25, "usage_pct": 15}, {}, 0.10, False),
     "rim_prot": (lambda p: True, {"blk_pct": 75, "dreb_pct": 25}, {}, 0.15, False),
+    # Scorer: the volume scoring threat, whatever the style (points produced a game leads; points a game and usage back it)
+    "scorer": (lambda p: True, {"pprod_pg": 60, "ppg": 20, "usage_pct": 20}, {}, 0.10, False),
 }
 
 
@@ -260,7 +262,8 @@ def composites(pool, ranks, totals, syn):
         import bisect
         return lambda x: None if x is None or not n else 100 * bisect.bisect_right(v, x) / n
     raw = {"usage_pct": lambda p: p.get("usage_pct"), "tpa_rate": _rate, "tpa_pg": lambda p: _pg(p, "tpa"),
-           "twoa_pg": lambda p: _pg(p, "twoa")}
+           "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
+           "ppg": lambda p: p.get("ppg")}
     pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
 
     def factors(p):

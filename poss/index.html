@@ -1165,7 +1165,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.148';
+const VERSION = 'v2026.10.17.149';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5138,7 +5138,11 @@ function autoLabels(g, t, id) {
   const ortgWhy = R && R.ind_ortg != null && bandN ? `ORtg ${f1(R.ind_ortg)} (${ordinal(rk.ind_ortg)} of ${bandN} ${BANDS[band]}), ${f1(R.usage_pct)}% of possessions` : '';
   const usg = R && R.usage_pct != null ? R.usage_pct : null, star = top('porp', 0.05);
   if (star) add('Star', `PORPAGATU! ${f1(R.porp)}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
-  if (!star && usg != null && usg > 28) add('Go-to', `${f1(usg)}% of possessions${ortgWhy ? ' · ' + ortgWhy.split(',')[0] : ''}`);
+  // Scorer: top 10% on points produced a game, points a game and usage together. Star already says it; Scorer says
+  // more than Go-to, so it takes Go-to's place.
+  const scorer = !star && cut('scorer');
+  if (scorer) add('Scorer', `${f1(R.ppg)} pts/g${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
+  if (!star && !scorer && usg != null && usg > 28) add('Go-to', `${f1(usg)}% of possessions${ortgWhy ? ' · ' + ortgWhy.split(',')[0] : ''}`);
   if (!star && (hasC ? cut('eff_role') : usg != null && usg < 20 && bandTop(0.10))) add('Efficient role player', ortgWhy + (R.ts_pct != null ? ` · TS ${f1(R.ts_pct)}%` : ''));
   if (hasC ? cut('ineff_vol') : usg != null && usg >= 24 && bot('ts_pct', 0.30)) add('Inefficient volume', `TS ${f1(R.ts_pct)}% on ${f1(usg)}% of possessions${R.ind_ortg != null ? ` · ORtg ${f1(R.ind_ortg)}` : ''}`);
   /* HOW HE SCORES. Interior scorer = 2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots (25%+
@@ -5196,7 +5200,8 @@ const LABEL_GUIDE = [
     ['Low-info teams', 'Teams whose box scores don\'t have reliable minutes get ★ team-leader labels and shooting labels instead of the state ones.']]],
   ['Role', [
     ['Star', 'Top 5% of the state in PORPAGATU! (points over replacement per adjusted game). Always shown first.'],
-    ['Go-to', 'Uses over 28% of his team\'s possessions while on the floor.'],
+    ['Scorer', 'Top 10% on points produced a game, points a game and usage together: the volume scoring threat, whatever his style. Not shown with Star.'],
+    ['Go-to', 'Uses over 28% of his team\'s possessions while on the floor (not shown with Star or Scorer).'],
     ['Efficient role player', 'Under 20% usage; top 10% on a blend of ORtg within his %Poss band, TS% and ball security.'],
     ['Inefficient volume', 'Uses 24%+ of possessions; bottom 30% on a blend of TS%, band ORtg and turnovers.']]],
   ['How he scores', [
