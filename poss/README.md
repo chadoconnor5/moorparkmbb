@@ -177,7 +177,9 @@ player would replace is shooting free throws and has to stay in: hold that sub, 
 him straight back.
 
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
-show the current five for each team: possessions, ORtg, DRtg, net and +/-.
+show the current five for each team: possessions, ORtg, DRtg, net and +/-. Each player's +/- rows start
+minimized (every time the app opens); the boxed **+** at the card's top right shows them, **−** hides them again
+(Moorpark's and the opponent's separately).
 
 **Their best five (2nd half and OT only):** the opponent five with the best net rating so far, among
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)

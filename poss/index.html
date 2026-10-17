@@ -296,6 +296,9 @@ table{border-collapse:collapse}
 .sub-team.a{color:var(--us)} .sub-team.b{color:var(--them-text)}
 .lpm-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#fff;padding-bottom:5px;margin-bottom:2px;border-bottom:1px solid var(--border)}
 .lpm-head .lpm-val{font-size:15px;letter-spacing:0}
+.lpm-hr{display:flex;align-items:center;gap:6px}
+.lpm.min .lpm-stats{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.lpm-tg{width:24px;height:22px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:15px;font-weight:700;line-height:1;padding:0;cursor:pointer}
 .lpm-team.a{color:var(--us)} .lpm-team.b{color:var(--them-text)}
 .lpm-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
 .lpm-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1166,7 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.154';
+const VERSION = 'v2026.10.17.155';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1816,11 +1819,13 @@ function lpmCard(g, D, t) {
   const L = lineupUnits(g, D, t, 'game'), u = L.units.find(x => fiveKey(x.five) === fiveKey(f)) || { oPoss: 0, dPoss: 0, pf: 0, pa: 0 };
   const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), net = typeof o === 'number' && typeof d === 'number' ? Math.round(10 * (o - d)) / 10 : null, pm = u.pf - u.pa;
   const best = t === 'b' ? theirBestOn(g, D) : null;
-  return `<div class="lpm ${best ? 'best-on' : ''}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span>${t === 'a' && tipWindow(g, D) ? `<button class="tip-btn ${lineupTip(g, D) ? 'hot' : ''}" data-act="tip" title="Lineup suggestions (lights up when the five on is struggling late)">💡 Try</button>` : ''}</div>
+  // The players' +/- rows start minimized (every time the app opens); the boxed +/− shows or hides them.
+  const open = !!(UI.lpmOpen && UI.lpmOpen[t]);
+  return `<div class="lpm ${best ? 'best-on' : ''} ${open ? '' : 'min'}"><div class="lpm-head"><span class="lpm-team ${t}">${esc(teamName(g, t))} — this five</span><span class="lpm-hr">${t === 'a' && tipWindow(g, D) ? `<button class="tip-btn ${lineupTip(g, D) ? 'hot' : ''}" data-act="tip" title="Lineup suggestions (lights up when the five on is struggling late)">💡 Try</button>` : ''}<button class="lpm-tg" data-act="lpm-tg" data-team="${t}" aria-label="${open ? 'Hide' : 'Show'} the players">${open ? '−' : '+'}</button></span></div>
     ${best ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * best.net) / 10)} · ${best.poss} poss</span></div>` : ''}
     <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
-    ${fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
+    ${!open ? '' : fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
 }
 
 function feedText(g, x) {
@@ -3413,6 +3418,7 @@ document.addEventListener('click', ev => {
     case 'au-off': case 'au-on': { const all = lsGet(LS_AUTO_OFF, {}) || {}, k = autoKey(b.dataset.team, { num: b.dataset.num, name: b.dataset.name }), L = (all[k] || []).filter(x => x.toLowerCase() !== b.dataset.l.toLowerCase());
       if (act === 'au-off') L.push(b.dataset.l); if (L.length) all[k] = L; else delete all[k]; lsSet(LS_AUTO_OFF, all);
       const sp = b.closest('.nt'); if (sp) { sp.classList.toggle('offd', act === 'au-off'); b.dataset.act = act === 'au-off' ? 'au-on' : 'au-off'; b.textContent = act === 'au-off' ? '+' : '✕'; } break; }
+    case 'lpm-tg': { UI.lpmOpen = UI.lpmOpen || {}; UI.lpmOpen[b.dataset.team] = !UI.lpmOpen[b.dataset.team]; render(); break; }
     case 'rd-add': { collectSched(); const i = b.parentElement.querySelector('.rd-in'); readyAdd(i && i.value, b.dataset.ev); render(); break; }
     case 'rd-del': { collectSched(); const L = readyGet(b.dataset.ev).slice(); L.splice(+b.dataset.i, 1); readySet(b.dataset.ev, L); render(); break; }
     case 'oo-shoot': UI.ooShoot = !UI.ooShoot; lsSet('pt2_oo_shoot', UI.ooShoot); render(); break;
