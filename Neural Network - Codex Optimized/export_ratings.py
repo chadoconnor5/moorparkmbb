@@ -189,6 +189,125 @@ def state_ranks(pool):
     return ranks, totals
 
 
+# ---- Composite role labels: each role blends the related factors, as 0-100 percentiles ----
+# A factor is a percentile among the state's qualified players (30%+ of minutes): a ranked stat's State Rank turned
+# into "how good" (ORtg within its %Poss band), or a raw share (usage, 3PA rate, attempts a game) by how much.
+# When a Synergy export exists for the player (internal_data/synergy_players_<team>_<season>.json, or
+# synergy_archetypes.json for Moorpark), its shot-type percentiles (at the rim, 3PT, catch-and-shoot, pull-up; already
+# national percentiles) join the blend with their own weights. Each composite has a gate (who it can describe at all)
+# and a cut calibrated on the state's box-score scores: the label goes to scores at or past that percentile of the
+# gated, qualified pool (top = strengths, weak = shortcomings, scored as 100 - the blend). The tracker reads row["comp"]
+# (scores, null when the gate fails) and rankOf["compCut"] (the cuts); sit.js autoLabels holds the why lines.
+SYN_KEYS = {"syn_rim": "at_rim_pps_rank", "syn_three": "three_pt_pps_rank", "syn_cs": "catch_shoot_pps_rank",
+            "syn_pull": "dribble_jumper_pps_rank"}
+_pg = lambda p, k: (p.get(k) or 0) / p["gp"] if p.get("gp") else 0
+_rate = lambda p: p["tpa_rate"] if p.get("tpa_rate") is not None else (100 * (p.get("tpa") or 0) / p["fga"] if p.get("fga") else None)
+COMPOSITES = {
+    # name: (gate, box factors, Synergy factors, cut, weak)
+    "interior": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 3,
+                 {"twop": 35, "inside": 20, "ft_rate": 20, "twoa_pg": 15, "oreb_pct": 10}, {"syn_rim": 40}, 0.20, False),
+    "shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
+                {"tpp": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.35, False),
+    "elite_shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
+                      {"tpp": 80, "tpa_pg": 10, "tpa_rate": 10}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),   # the elite tier is about accuracy
+    "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
+    "slasher": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 2,
+                {"ft_rate": 35, "fd_per_40": 30, "twoa_pg": 20, "usage_pct": 15}, {"syn_rim": 25}, 0.25, False),
+    "all_around": (lambda p: 25 <= (_rate(p) or 0) <= 55, {"ts_pct": 40, "ft_rate": 30, "balance": 30}, {"syn_rim": 15, "syn_three": 15}, 0.25, False),
+    "draws": (lambda p: True, {"fd_per_40": 50, "ft_rate": 50}, {}, 0.20, False),
+    "struggles_in": (lambda p: _pg(p, "twoa") >= 3, {"twop": 100}, {"syn_rim": 40}, 0.20, True),
+    "eff_role": (lambda p: (p.get("usage_pct") or 99) < 20, {"ind_ortg": 50, "ts_pct": 30, "tov_pct": 20}, {}, 0.10, False),
+    "ineff_vol": (lambda p: (p.get("usage_pct") or 0) >= 24, {"ts_pct": 50, "ind_ortg": 30, "tov_pct": 20}, {}, 0.30, True),
+    "floor_gen": (lambda p: True, {"ast_rate": 60, "tov_pct": 25, "usage_pct": 15}, {}, 0.10, False),
+    "rim_prot": (lambda p: True, {"blk_pct": 75, "dreb_pct": 25}, {}, 0.15, False),
+    # Scorer: the volume scoring threat, whatever the style (points produced a game leads; points a game and usage back it)
+    "scorer": (lambda p: True, {"pprod_pg": 60, "ppg": 20, "usage_pct": 20}, {}, 0.10, False),
+}
+
+
+def load_synergy(season):
+    """{(name, team slug): Synergy shot_types} from every synergy_players_<team>_<season>.json and synergy_archetypes.json."""
+    d, out = Path(__file__).resolve().parent / "internal_data", {}
+    tag = (season or "").replace("-", "_")
+    for f in d.glob(f"synergy_players_*_{tag}.json"):
+        slug = f.name[len("synergy_players_"):-len(f"_{tag}.json")]
+        for p in _load(f) if isinstance(_load(f), list) else []:
+            out[(p["name"], slug)] = p
+    a = d / "synergy_archetypes.json"
+    if a.exists() and tag == "2025_26":   # the archetypes file is the 2025-26 Moorpark export
+        for p in json.load(open(a)):
+            out.setdefault((p["name"], SLUG(p.get("team") or "Moorpark")), p)
+    return out
+
+
+def syn_summary(p):
+    """The compact Synergy line a team file carries for the why text: shares and FG% (no ranks)."""
+    st = p.get("shot_types") or {}
+    pt = [m.groups() for m in re.finditer(r"([A-Za-z&/\- ]+?) (\d+)% \(([^,)]*)(?:, ([\d.]+))?", p.get("scoring_summary") or "")]
+    return {k: v for k, v in {
+        "rim": [st.get("at_rim_pct_fga"), st.get("at_rim_fg_pct")] if st.get("at_rim_fg_pct") is not None else None,
+        "three": [st.get("three_pt_att"), st.get("three_pt_fg_pct")] if st.get("three_pt_fg_pct") is not None else None,
+        "cs": [st.get("catch_shoot_pct_of_js"), st.get("catch_shoot_fg_pct")] if st.get("catch_shoot_fg_pct") is not None else None,
+        "pull": st.get("dribble_jumper_fg_pct"),
+        "plays": [[n.strip(), int(s)] for n, s, _, _ in pt[:3]] or None}.items() if v is not None}
+
+
+def composites(pool, ranks, totals, syn):
+    """Adds {"comp": {name: score}} to ranks and {"compCut": {name: cut}} to totals (see COMPOSITES)."""
+    qual = [p for p in pool if (p.get("min_pct") or 0) >= MIN_PCT_QUAL and p.get("gp")]
+
+    def pct_of(vals):   # value -> 0-100 percentile (share of the pool at or below it)
+        v = sorted(vals)
+        n = len(v)
+        import bisect
+        return lambda x: None if x is None or not n else 100 * bisect.bisect_right(v, x) / n
+    raw = {"usage_pct": lambda p: p.get("usage_pct"), "tpa_rate": _rate, "tpa_pg": lambda p: _pg(p, "tpa"),
+           "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
+           "ppg": lambda p: p.get("ppg")}
+    pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
+
+    def factors(p):
+        rk, f = ranks.get((p["name"], p["school"]), {}), {}
+        for k, _, _ in TS_RANK_STATS:
+            n = totals["ortg_band"][rk["ortg_band"]] if k == "ind_ortg" and "ortg_band" in rk else totals.get(k)
+            if rk.get(k) is not None and n:
+                f[k] = 100 * (1 - (rk[k] - 1) / max(1, n - 1))
+        for k, fn in raw.items():
+            f[k] = pf[k](fn(p))
+        if f.get("tpa_rate") is not None:
+            f["inside"] = 100 - f["tpa_rate"]
+        if _rate(p) is not None:
+            f["balance"] = max(0.0, 100 - 4 * abs(_rate(p) - 40))   # 40% threes is the even split; 15% or 65% is none
+        s = (syn.get((p["name"], SLUG(p["school"]))) or {}).get("shot_types") or {}
+        for k, sk in SYN_KEYS.items():
+            if s.get(sk) is not None:
+                f[k] = float(s[sk])
+        return f
+
+    def blend(f, w):   # weighted mean over the factors he has; None under 60% of the weight
+        have = {k: v for k, v in w.items() if f.get(k) is not None}
+        if sum(have.values()) < 0.6 * sum(w.values()):
+            return None
+        return sum(f[k] * v for k, v in have.items()) / sum(have.values())
+    F = {(p["name"], p["school"]): factors(p) for p in qual}
+    cuts = {}
+    for name, (gate, box, sw, cut, weak) in COMPOSITES.items():
+        box_scores = []
+        for p in qual:
+            if not gate(p):
+                continue
+            f = F[(p["name"], p["school"])]
+            b = blend(f, box)
+            if b is None:
+                continue
+            box_scores.append(100 - b if weak else b)
+            full = blend(f, dict(box, **sw)) if any(f.get(k) is not None for k in sw) else b
+            ranks.setdefault((p["name"], p["school"]), {}).setdefault("comp", {})[name] = round(100 - full if weak else full, 1)
+        box_scores.sort(reverse=True)
+        cuts[name] = round(box_scores[max(0, round(cut * len(box_scores)) - 1)], 1) if box_scores else None
+    totals["compCut"] = cuts
+
+
 _TABLES = None
 
 
@@ -207,10 +326,15 @@ def leaderboard_tables():
         totals["porp"] = len(q)
         for i, p in enumerate(q):
             ranks.setdefault((p["name"], p["school"]), {})["porp"] = i + 1
+        syn = load_synergy(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
+        composites(pool, ranks, totals, syn)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:
                 row["porp"] = porp.get((row["name"], team))
+                sp = syn.get((row["name"], SLUG(team)))
+                if sp:
+                    row["syn"] = syn_summary(sp)
         _TABLES = (rosters, ranks, totals)
     return _TABLES
 

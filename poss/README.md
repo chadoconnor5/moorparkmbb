@@ -46,6 +46,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
 - **⏱ Set time** (scoreboard, beside ± Fouls / TOs): enter the game clock any time on the same big keypad
   (7, 4, 2 → 7:42). It works like a timeout's clock: time left, leverage, clutch and garbage time run from
   it, the scoreboard shows **Clock 4:30**, and it goes in the feed as "Game clock · 4:30" (tap it to fix or delete).
+  Each period starts showing its full clock: **Clock 20:00** at tip-off and the start of the 2nd half, **5:00** each
+  overtime, until a clock is entered. That start-of-period clock is display only: leverage keeps its possession
+  estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
 - **Free throws name the shooter.** The trip's first **FT Make / FT Miss**: tap the shooter's card (the player
   cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
@@ -507,7 +510,8 @@ five has 25+ offensive possessions).
 - **Play-by-Play:** everything in order by period: each possession with its plays and the score,
   plus fouls, subs, technicals and timeouts. Filter by team. Tap any line to fix it.
 - **Schedule:** the game tracker's Schedule tab, same look, same shared schedule.
-  - Edit rows, Paste schedule, + Add game, Save schedule.
+  - Edit rows, Paste schedule, + Add game. Edits save as you make them (date, time, site, opponent, Conf, Scrim), so
+    switching tabs never loses one; a new row saves once it has a date and an opponent. Save schedule sorts and checks.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
 - **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file (record, averages for and
@@ -540,15 +544,21 @@ five has 25+ offensive possessions).
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
   - **Labels guide:** the **Labels** button in the Moorpark header on the Live screen (and **Labels guide** on
     Rosters) opens a glossary of every label and what earns it.
-  - **Labels from stats** (outlined; yours are filled and come first, except *Star*, which is always first): every player, ours and every opponent with a
+  - **Labels from stats** (same solid, square gold chip as yours; yours come first, except *Star*, which is always first): every player, ours and every opponent with a
     leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
     qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
-    noted). A player can have several; the card shows them in this order:
-    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
-      possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
+    noted). Roles are **composites**: each blends the related stats as state percentiles (e.g. Interior scorer = 2P%,
+    share of shots inside, FT rate, 2PA a game, OR%), and when the team has a Synergy export its shot-type percentiles
+    (at the rim, 3PT, catch-and-shoot, pull-up) join the blend. Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
+    `comp` / `compCut` / `syn`); older files fall back to the single-stat rules. A player can have several; the card
+    shows them in this order:
+    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Scorer* (top 10% on points
+      produced a game, points a game and usage; not with Star) · *Go-to* (over 28% of
+      possessions; not with Star or Scorer) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).
-    - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, most of his shots inside) ·
-      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half) · *Elite shooter* / *Shooter* (3P% top
+    - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
+      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Balanced* (All-Around's mix without its efficiency bar: 30-55% of his shots threes, FT
+      rate top half, 20%+ of possessions) · *Elite shooter* / *Shooter* (3P% top
       10% / 35%, on 2.0+ threes a game or 35%+ of his shots) · *Slasher* (a non-shooter who gets to the line) ·
       *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *3PT heavy* (55%+
       of his shots threes, 2.0+ a game) · *Poor 3PT* (takes them, 3P% bottom 30%: let him shoot) · *Non-shooter* (under
@@ -567,9 +577,8 @@ five has 25+ offensive possessions).
     games early in the season; 30%+ of the minutes where minutes are reliable). Analytics when the team's file has
     them, per-game box stats for low-info teams (never mixed): *Top scorer* (points produced per game | PPG), *Top rebounder* (OR% +
     DR% | RPG), *Top passer* (assist rate | APG), *Top shooter* (best 3P% on 2.0+ threes a game, 20+ | most 3PM at
-    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). The bubble gives the margin ("19.3 pts produced/g
-    (next: 19.0)"). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
-    Top shooter → no Shooter). The +N bubble shows each one's numbers ("Ball hawk · Stl% 4.2"), not the ranks. In the roster editor they
+    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
+    Top shooter → no Shooter). The +N bubble shows label names only (each label's numbers are kept for a future player page). In the roster editor they
     sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
     already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note

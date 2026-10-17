@@ -183,7 +183,15 @@ This copy keeps the original project intact and starts consolidating the working
   ORtg State Rank is statewide WITHIN the player's %Poss band (TS_USAGE_BANDS: >28 / 24-28 / 20-24 / 16-20 / 12-16 /
   <12): `__tsUsageBand()` in the page, `usage_band()` in export_ratings.py. Every other ranked stat is overall.
   Rows also carry `porp` (PORPAGATU!, via `attach_porpagatu(load_players(), load_teams())`) with `rank.porp` =
-  statewide rank among players with 30%+ of minutes; the tracker's *Star* label is the top 5%. Each holds `team` (team_summary.json's record / totals /
+  statewide rank among players with 30%+ of minutes; the tracker's *Star* label is the top 5%.
+  Composite role labels (COMPOSITES / composites() in export_ratings.py): per player, factors = State Rank turned into
+  a 0-100 "how good" percentile (ORtg within band) plus raw-share percentiles (usage, 3PA rate, 3PA/g, 2PA/g, inside =
+  100 - 3PA rate, balance = 100 - 4*|3PA rate - 40|) among min% >= 30, plus Synergy shot-type pps ranks (national
+  percentiles) from internal_data/synergy_players_<slug>_<season>.json / synergy_archetypes.json (2025-26 Moorpark).
+  Each composite = gate + weighted mean (renormalized over present factors, null under 60% of the weight); the cut
+  is the quantile of the gated pool's BOX-ONLY scores (Synergy scores compared against the same cut). Rows carry
+  rank.comp {name: score} (sit.js reads it as rk.comp), totals["compCut"], and row["syn"] (shares / FG% only, for the why text). Scorer = pprod/g 60 · ppg 20 · usage 20 (top 10%). sit.js
+  autoLabels uses them when present; keep its why lines and LABEL_GUIDE in step with COMPOSITES. Each holds `team` (team_summary.json's record / totals /
   averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
   `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's
   advanced_analytics.json row). `load_players` now finds a team's side of a box with `resolve_opponent()` (box labels
