@@ -548,7 +548,7 @@ five has 25+ offensive possessions).
     rate or FD/40 top 25%) · *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) · *Rebounder* (DR%) ·
     *Off. rebounder* (OR%) · *Passer* (ARate) · *TO-prone* (TORate) · *Foul-prone* (FC/40) · *Bad FT* (FT%).
     A player with too few minutes to be ranked falls back to per-40 lines (60+ minutes) and the shooting estimate (15+
-    threes). The +N bubble shows each one's numbers ("Ball hawk · Stl% 4.2 · #30 of 404"). In the roster editor they
+    threes). The +N bubble shows each one's numbers ("Ball hawk · Stl% 4.2"), not the ranks. In the roster editor they
     sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
     already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
