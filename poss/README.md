@@ -543,7 +543,12 @@ five has 25+ offensive possessions).
   - **Labels from stats** (outlined; yours are filled and come first, except *Star*, which is always first): every player, ours and every opponent with a
     leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
     qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
-    noted). A player can have several; the card shows them in this order:
+    noted). Roles are **composites**: each blends the related stats as state percentiles (e.g. Interior scorer = 2P%,
+    share of shots inside, FT rate, 2PA a game, OR%), and when the team has a Synergy export its shot-type percentiles
+    (at the rim, 3PT, catch-and-shoot, pull-up) join the blend and the bubble's why line ("Synergy: rim 74% on 63% of
+    shots"). Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
+    `comp` / `compCut` / `syn`); older files fall back to the single-stat rules. A player can have several; the card
+    shows them in this order:
     - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Go-to* (over 28% of
       possessions) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).

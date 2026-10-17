@@ -40,6 +40,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 export_ratings.py                 # -> ../poss/ratings.json + ../poss/teams/<team>.json (season and player
                                             #    stats for Moorpark's schedule + tracker_teams.txt, potential opponents
                                             #    like a tournament field: one team per line, short names ok)
+                                            #    Team files also carry composite role-label scores (COMPOSITES),
+                                            #    blending Synergy shot data from internal_data/synergy_players_*.json
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:
