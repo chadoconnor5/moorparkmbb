@@ -1165,7 +1165,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.17.149';
+const VERSION = 'v2026.10.17.150';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5153,6 +5153,10 @@ function autoLabels(g, t, id) {
   if (interior) add('Interior scorer', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa}), ${(100 - rate).toFixed(0)}% of his shots inside · FT rate ${f1(R.ft_rate)}${synW('rim')}`);
   const allAround = hasC ? cut('all_around') : R && rate != null && rate >= AUTO_CUT.aaRateLo && rate <= AUTO_CUT.aaRateHi && top('ts_pct', AUTO_CUT.aaTs) && top('ft_rate', AUTO_CUT.aaFtr);
   if (allAround) add('All-Around', `TS ${f1(R.ts_pct)}% · ${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate != null ? R.ft_rate : R.fga ? 100 * R.fta / R.fga : null)}${synW('rim', 'pull')}`);
+  /* Balanced: All-Around's inside-and-out shot mix (30-55% of his shots threes, FT rate in the top half: he gets to the
+     rim too) without its efficiency bar, for players the offense uses (20%+ of possessions). */
+  const balanced = !allAround && R && rate != null && rate >= 30 && rate <= 55 && top('ft_rate', 0.50) && usg != null && usg >= 20;
+  if (balanced) add('Balanced', `${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate)}`);
   // All-Around already says he shoots it: plain Shooter is left off; Elite shooter still shows (it says more).
   const elite = shooter && (hasC ? cut('elite_shooter') : rk.tpp != null && top('tpp', 0.10));
   if (shooter && (elite || !allAround)) add(elite ? 'Elite shooter' : 'Shooter', shootWhy + synW('cs', 'pull'));
@@ -5163,7 +5167,7 @@ function autoLabels(g, t, id) {
   if (!shooter && !allAround && cold) add('Poor 3PT', shootWhy + synW('cs', 'pull'));
   // Shot diet: 55%+ of his shots are threes on 2.0+ a game (about the top 20%), whether or not they go in.
   if (rate != null && rate >= 55 && pg != null && pg >= 2) add('3PT heavy', `${rate.toFixed(0)}% of his shots are threes, ${pg.toFixed(1)} a game`);
-  if (!slasher && !allAround && (hasC ? cut('draws') : top('fd_per_40', 0.20) || top('ft_rate', 0.15))) add('Draws fouls', `FD/40 ${f1(R.fd_per_40)} · FT rate ${f1(R.ft_rate)}`);
+  if (!slasher && !allAround && !balanced && (hasC ? cut('draws') : top('fd_per_40', 0.20) || top('ft_rate', 0.15))) add('Draws fouls', `FD/40 ${f1(R.fd_per_40)} · FT rate ${f1(R.ft_rate)}`);
   if (hasC ? cut('struggles_in') : R && (R.twoa || 0) >= 3 * (R.gp || 1) && bot('twop', 0.20)) add('Struggles inside', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa})${synW('rim')}`);
   // GLASS: both ends top 20% = Glass cleaner; else whichever end.
   const dr = top('dreb_pct', AUTO_CUT.top), or = top('oreb_pct', AUTO_CUT.top);
@@ -5207,6 +5211,7 @@ const LABEL_GUIDE = [
   ['How he scores', [
     ['Interior scorer', 'Threes under 25% of his shots, 3+ 2PA a game; top 20% on 2P%, share of shots inside, FT rate, 2PA a game and OR% (plus Synergy finishing at the rim).'],
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS%, FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
+    ['Balanced', 'Scores inside and out without All-Around\'s efficiency: 30-55% of his shots are threes, FT rate in the top half, 20%+ of possessions.'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
     ['Shooter', 'Not shown with All-Around (implied). 2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
