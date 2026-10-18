@@ -374,7 +374,8 @@ def sixth_men(pool, ranks, teams):
 
 
 def ft_volume(pool, ranks):
-    """rank["ftv"] = 1 for players with 30%+ of minutes who get to the line at volume, by rate so it works from week one:
+    """rank["ftv"] = 1 for players who get to the line at volume (that he gets there proves he plays, so no minutes bar and
+    low-info teams count too), by rate so it works from week one:
     2+ attempts a game, in half or more of his team's games, 10+ attempts. The tracker labels them by fixed FT% (fouling is a
     points decision): FT shooter 80%+ on 20+ attempts (don't foul him), Bad FT under 65% (foul him). A bench guy who is
     9-for-11 over the season is no volume."""
@@ -383,7 +384,7 @@ def ft_volume(pool, ranks):
         if x.get("gp"):
             team_gp[x["school"]] = max(team_gp.get(x["school"], 0), x["gp"])
     for x in pool:
-        if ((x.get("min_pct") or 0) >= MIN_PCT_QUAL and x.get("gp") and x.get("ftp") is not None and (x.get("fta") or 0) >= 10
+        if (x.get("gp") and x.get("ftp") is not None and (x.get("fta") or 0) >= 10
                 and x["fta"] / x["gp"] >= 2 and x["gp"] >= 0.5 * team_gp[x["school"]]):
             ranks.setdefault((x["name"], x["school"]), {})["ftv"] = 1
 
