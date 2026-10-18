@@ -359,7 +359,20 @@ def sixth_men(pool, ranks, teams):
                  and rs.get(x["name"], (0, 0))[0] <= 3]
         best = max(bench, key=score, default=None)
         if best and score(best) >= 30:
-            ranks.setdefault((best["name"], team), {})["roles"] = ["Sixth man"]
+            ranks.setdefault((best["name"], team), {}).setdefault("roles", []).append("Sixth man")
+
+
+def glue_guys(pool, ranks):
+    """Glue guy: low usage, low scoring, but does the dirty work. Usage under 17% and top 30% of the state (players with
+    30%+ of minutes) in at least two of offensive rebound %, defensive rebound %, steal %, block % and assist rate."""
+    import bisect
+    qual = [x for x in pool if (x.get("min_pct") or 0) >= MIN_PCT_QUAL and x.get("gp")]
+    keys = ["oreb_pct", "dreb_pct", "stl_pct", "blk_pct", "ast_rate"]
+    sv = {k: sorted(x[k] for x in qual if x.get(k) is not None) for k in keys}
+    pct = lambda x, k: 0 if x.get(k) is None else 100 * bisect.bisect_right(sv[k], x[k]) / len(sv[k])
+    for x in qual:
+        if (x.get("usage_pct") or 99) < 17 and sum(pct(x, k) >= 70 for k in keys) >= 2:
+            ranks.setdefault((x["name"], x["school"]), {}).setdefault("roles", []).append("Glue guy")
 
 
 _TABLES = None
@@ -383,6 +396,7 @@ def leaderboard_tables(teams=()):
         syn = load_synergy(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
         composites(pool, ranks, totals, syn)
         sixth_men(pool, ranks, {x["school"] for x in pool})
+        glue_guys(pool, ranks)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:
