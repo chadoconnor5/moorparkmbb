@@ -196,8 +196,8 @@ This copy keeps the original project intact and starts consolidating the working
   percentiles, min% >= 30 pool), score >= 30; rank["roles"] = ["Sixth man"]. 2025-26: 28 teams have one.
   Glue guy (glue_guys()): usage < 17 and >= 2 of OR%, DR%, Stl%, Blk%, ARate at the 70th percentile+ (min% >= 30
   pool); appended to rank["roles"]. 2025-26: 19 players.
-  Help off (help_off()): gs >= 60% of gp, gp >= half the team's games, ppg < 7, usage < 16 (or unknown on low-info
-  teams). 2025-26: 47 players on 38 teams. sit.js
+  Help off (help_off()): gs >= 60% of gp, gp >= half the team's games, ppg < 5, usage < 16 (or unknown on low-info
+  teams). sit.js
   autoLabels uses them when present; keep its why lines and LABEL_GUIDE in step with COMPOSITES. Each holds `team` (team_summary.json's record / totals /
   averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
   `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's

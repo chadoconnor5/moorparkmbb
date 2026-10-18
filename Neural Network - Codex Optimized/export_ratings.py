@@ -364,7 +364,7 @@ def sixth_men(pool, ranks, teams):
 
 def help_off(pool, ranks):
     """Help off: a starter who doesn't score, so the defense can sag off him from the opening tip to key on their scorers.
-    Started 60%+ of his games, in half or more of the team's games, under 7 points a game, and (where usage is known) under
+    Started 60%+ of his games, in half or more of the team's games, under 5 points a game, and (where usage is known) under
     16% of possessions."""
     games = {}
     for x in pool:
@@ -373,7 +373,7 @@ def help_off(pool, ranks):
     for x in pool:
         if not x.get("gp") or x["gp"] < 0.5 * games[x["school"]] or (x.get("gs") or 0) < 0.6 * x["gp"]:
             continue
-        if (x.get("ppg") or 0) < 7 and (x.get("usage_pct") is None or x["usage_pct"] < 16):
+        if (x.get("ppg") or 0) < 5 and (x.get("usage_pct") is None or x["usage_pct"] < 16):
             ranks.setdefault((x["name"], x["school"]), {}).setdefault("roles", []).append("Help off")
 
 
