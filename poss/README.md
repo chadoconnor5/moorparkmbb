@@ -578,10 +578,11 @@ five has 25+ offensive possessions).
       of his shots threes, 2.0+ a game) · *Poor 3PT* (takes them, 3P% bottom 30%: let him shoot) · *Non-shooter* (under
       10% of his shots threes: sag off him).
     - **Glass:** *Glass cleaner* (OR% and DR% both top 20%) · *Rebounder* (DR%) · *Off. rebounder* (OR%).
-    - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer* · *Ball secure* (TORate top 20%)
+    - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer*
       · *Non-passer* (assist rate bottom 10%) · *TO-prone*.
-    - **Defense:** *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) · *Disciplined* (fouls / 40 top 20%) ·
-      *Foul-prone*. **FT:** *FT shooter* (top 20%) · *Bad FT*.
+    - **Defense:** *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) ·
+      *Foul-prone*. **FT:** *Bad FT*. (No Ball secure, Disciplined or FT
+      shooter: only who *isn't* those things matters: TO-prone, Foul-prone, Bad FT.)
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
     that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
     estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
