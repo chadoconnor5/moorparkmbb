@@ -190,7 +190,17 @@ This copy keeps the original project intact and starts consolidating the working
   percentiles) from internal_data/synergy_players_<slug>_<season>.json / synergy_archetypes.json (2025-26 Moorpark).
   Each composite = gate + weighted mean (renormalized over present factors, null under 60% of the weight); the cut
   is the quantile of the gated pool's BOX-ONLY scores (Synergy scores compared against the same cut). Rows carry
-  rank.comp {name: score} (sit.js reads it as rk.comp), totals["compCut"], and row["syn"] (shares / FG% only, for the why text). Scorer = pprod/g 60 · ppg 20 · usage 20 (top 10%). sit.js
+  rank.comp {name: score} (sit.js reads it as rk.comp), totals["compCut"], and row["syn"] (shares / FG% only, for the why text). Scorer = pprod/g 60 · ppg 20 · usage 20 (top 10%).
+  Shooter / Elite shooter / Poor 3PT use tpp_vol, not the State Rank: 3P% percentile among volume shooters (2+ 3PA/g or
+  35%+ of FGA, 40+ attempts) with min% >= 30. The State Rank ranks 3P% only at 50%+ minutes, which left 117 volume
+  shooters (bench shooters, sixth men) with no shooting label; now 3 (under 40 attempts).
+  Sixth man (sixth_men()): per team, bench = gs/gp <= .35 and <= 3 starts in the last 10 box scores (recent_starts(),
+  the box's starter flags), gp >= 60% of the team's games, 15+ mpg; best by mpg 40 · usage 30 · pprod/g 30 (state
+  percentiles, min% >= 30 pool), score >= 30; rank["roles"] = ["Sixth man"]. 2025-26: 28 teams have one.
+  Glue guy (glue_guys()): usage < 17 and >= 3 of OR%, DR%, Stl%, Blk%, ARate at the 70th percentile+ (min% >= 30
+  pool); appended to rank["roles"].
+  Help off (help_off()): gs >= 60% of gp, gp >= half the team's games, ppg < 5, usage < 16 (or unknown on low-info
+  teams). sit.js
   autoLabels uses them when present; keep its why lines and LABEL_GUIDE in step with COMPOSITES. Each holds `team` (team_summary.json's record / totals /
   averages for and against, plus advanced_analytics.json's team block without `game_ratings` / `game_ff`) and
   `players` (`adjust_lineups.load_players(team=...)`: {name: {num, all, quality, adv}}; `adv` = the player's

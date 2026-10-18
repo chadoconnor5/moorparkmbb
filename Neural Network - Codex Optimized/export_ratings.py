@@ -207,10 +207,10 @@ COMPOSITES = {
     "interior": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 3,
                  {"twop": 35, "inside": 20, "ft_rate": 20, "twoa_pg": 15, "oreb_pct": 10}, {"syn_rim": 40}, 0.20, False),
     "shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
-                {"tpp": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.35, False),
+                {"tpp_vol": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.35, False),
     "elite_shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
-                      {"tpp": 80, "tpa_pg": 10, "tpa_rate": 10}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),   # the elite tier is about accuracy
-    "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
+                      {"tpp_vol": 80, "tpa_pg": 10, "tpa_rate": 10}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),   # the elite tier is about accuracy
+    "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp_vol": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
     "slasher": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 2,
                 {"ft_rate": 35, "fd_per_40": 30, "twoa_pg": 20, "usage_pct": 15}, {"syn_rim": 25}, 0.25, False),
     "all_around": (lambda p: 25 <= (_rate(p) or 0) <= 55, {"ts_pct": 40, "ft_rate": 30, "balance": 30}, {"syn_rim": 15, "syn_three": 15}, 0.25, False),
@@ -265,6 +265,8 @@ def composites(pool, ranks, totals, syn):
            "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
            "ppg": lambda p: p.get("ppg")}
     pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
+    shooters = [p for p in qual if (p.get("tpa") or 0) >= 40 and (_pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35) and p.get("tpp") is not None]
+    tpp_pct = (lambda P: lambda p: P(p.get("tpp")))(pct_of([p["tpp"] for p in shooters]))
 
     def factors(p):
         rk, f = ranks.get((p["name"], p["school"]), {}), {}
@@ -274,6 +276,9 @@ def composites(pool, ranks, totals, syn):
                 f[k] = 100 * (1 - (rk[k] - 1) / max(1, n - 1))
         for k, fn in raw.items():
             f[k] = pf[k](fn(p))
+        # 3P% for the shooting labels: ranked among every volume shooter with 30%+ of minutes (2+ threes a game or 35%+
+        # of his shots, 40+ attempts), not only the State Ranks' 50%+ minutes, so bench shooters and sixth men are judged too.
+        f["tpp_vol"] = tpp_pct(p) if (p.get("tpa") or 0) >= 40 else None
         if f.get("tpa_rate") is not None:
             f["inside"] = 100 - f["tpa_rate"]
         if _rate(p) is not None:
@@ -308,10 +313,92 @@ def composites(pool, ranks, totals, syn):
     totals["compCut"] = cuts
 
 
+# ---- Sixth man: each team's best bench player (rank["roles"] = ["Sixth man"]) ----
+def recent_starts(team, n=10):
+    """{player: (starts, games played)} over the team's last n box scores (from the box's starter flags; else the first
+    five listed, as _team_games_started does)."""
+    import generate_leaderboard as gl
+    d = next((p for p in Path(gl.STATS_DIR).glob("*/*") if p.is_dir() and p.name == team), None)
+    s = Path(str(d).replace(" Team Statistics", " Teams Schedules")) if d else None
+    if not s or not s.exists():
+        return {}
+    games = []
+    for g in sorted(x for x in s.iterdir() if x.is_dir()):
+        f = next(iter(sorted(g.glob("*.json"))), None)
+        try:
+            box = json.load(open(f)) if f else None
+        except Exception:
+            box = None
+        rows = next((r for tn, r in ((box or {}).get("teams") or {}).items() if gl._box_norm(tn) == gl._box_norm(team)), None)
+        if rows:
+            games.append(rows)
+    out = {}
+    for rows in games[-n:]:
+        flags = any(r.get("is_starter") is not None or r.get("role") for r in rows)
+        for i, r in enumerate(rows):
+            nm = re.sub(r"^#\d+\s+", "", r.get("name", ""))
+            st = bool(r.get("is_starter") or r.get("role") == "starter") if flags else i < 5
+            a, b = out.get(nm, (0, 0))
+            out[nm] = (a + st, b + 1)
+    return out
+
+
+def sixth_men(pool, ranks, teams):
+    """Each team's Sixth man: the bench player who produces. Bench = started 35% or fewer of his games (GS / GP) and 3 or
+    fewer of his last 10; a rotation player = in 60%+ of the team's games at 15+ minutes. The best of them by minutes 40 ·
+    usage 30 · points produced a game 30 (state percentiles among players with 30%+ of minutes), at 30 or more (a bench
+    whose best plays 15 minutes for 4 points has none)."""
+    import bisect
+    qual = [x for x in pool if (x.get("min_pct") or 0) >= MIN_PCT_QUAL and x.get("gp")]
+    f = {"mpg": lambda x: x.get("mpg"), "usage_pct": lambda x: x.get("usage_pct"),
+         "pprod_pg": lambda x: _pg(x, "pprod") if x.get("pprod") is not None else None}
+    sv = {k: sorted(v for v in map(fn, qual) if v is not None) for k, fn in f.items()}
+    pct = lambda x, k: 0 if f[k](x) is None or not sv[k] else 100 * bisect.bisect_right(sv[k], f[k](x)) / len(sv[k])
+    score = lambda x: 0.4 * pct(x, "mpg") + 0.3 * pct(x, "usage_pct") + 0.3 * pct(x, "pprod_pg")
+    for team in teams:
+        T = [x for x in pool if x["school"] == team and x.get("gp")]
+        if not T:
+            continue
+        G, rs = max(x["gp"] for x in T), recent_starts(team)
+        bench = [x for x in T if x["gp"] >= 0.6 * G and (x.get("gs") or 0) <= 0.35 * x["gp"] and (x.get("mpg") or 0) >= 15
+                 and rs.get(x["name"], (0, 0))[0] <= 3]
+        best = max(bench, key=score, default=None)
+        if best and score(best) >= 30:
+            ranks.setdefault((best["name"], team), {}).setdefault("roles", []).append("Sixth man")
+
+
+def help_off(pool, ranks):
+    """Help off: a starter who doesn't score, so the defense can sag off him from the opening tip to key on their scorers.
+    Started 60%+ of his games, in half or more of the team's games, under 5 points a game, and (where usage is known) under
+    16% of possessions."""
+    games = {}
+    for x in pool:
+        if x.get("gp"):
+            games[x["school"]] = max(games.get(x["school"], 0), x["gp"])
+    for x in pool:
+        if not x.get("gp") or x["gp"] < 0.5 * games[x["school"]] or (x.get("gs") or 0) < 0.6 * x["gp"]:
+            continue
+        if (x.get("ppg") or 0) < 5 and (x.get("usage_pct") is None or x["usage_pct"] < 16):
+            ranks.setdefault((x["name"], x["school"]), {}).setdefault("roles", []).append("Help off")
+
+
+def glue_guys(pool, ranks):
+    """Glue guy: low usage, low scoring, but does the dirty work. Usage under 17% and top 30% of the state (players with
+    30%+ of minutes) in at least three of offensive rebound %, defensive rebound %, steal %, block % and assist rate."""
+    import bisect
+    qual = [x for x in pool if (x.get("min_pct") or 0) >= MIN_PCT_QUAL and x.get("gp")]
+    keys = ["oreb_pct", "dreb_pct", "stl_pct", "blk_pct", "ast_rate"]
+    sv = {k: sorted(x[k] for x in qual if x.get(k) is not None) for k in keys}
+    pct = lambda x, k: 0 if x.get(k) is None else 100 * bisect.bisect_right(sv[k], x[k]) / len(sv[k])
+    for x in qual:
+        if (x.get("usage_pct") or 99) < 17 and sum(pct(x, k) >= 70 for k in keys) >= 3:
+            ranks.setdefault((x["name"], x["school"]), {}).setdefault("roles", []).append("Glue guy")
+
+
 _TABLES = None
 
 
-def leaderboard_tables():
+def leaderboard_tables(teams=()):
     """(full rosters, state ranks, totals) for the leaderboard's current season, built once per export."""
     global _TABLES
     if _TABLES is None:
@@ -328,6 +415,9 @@ def leaderboard_tables():
             ranks.setdefault((p["name"], p["school"]), {})["porp"] = i + 1
         syn = load_synergy(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
         composites(pool, ranks, totals, syn)
+        sixth_men(pool, ranks, {x["school"] for x in pool})
+        glue_guys(pool, ranks)
+        help_off(pool, ranks)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:
