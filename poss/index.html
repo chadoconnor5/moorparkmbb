@@ -659,7 +659,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .pbtn .pnote{display:block;font-size:11.5px;font-weight:500;color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:38px;margin-top:1px}
 /* Player labels: one line under the name (position first), the rest behind +N. */
 .nt-row{display:flex;flex-wrap:nowrap;gap:4px;margin-top:4px;overflow:hidden;min-width:0}
-.nt{display:inline-flex;align-items:center;flex:none;font-size:11px;font-weight:700;line-height:1;padding:4px 7px;border-radius:4px;border:1px solid rgba(251,191,36,.45);color:#fbbf24;background:rgba(251,191,36,.08);white-space:nowrap}
+.nt{display:inline-flex;align-items:center;flex:none;font-size:11px;font-weight:700;line-height:1;padding:4px 7px;border-radius:4px;border:1px solid #d97706;color:#713f12;background:#fcd34d;white-space:nowrap}   /* every label: solid gold, square */
 .nt[hidden]{display:none}
 .nt.pos{border-color:var(--border);color:var(--text2);background:rgba(255,255,255,.04)}
 .nt.more{cursor:pointer;padding:4px 8px}   /* same gold as the labels */
@@ -673,10 +673,10 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ned{display:flex;flex-direction:column;gap:6px;min-width:170px}
 .redit input[data-k="name"]{min-width:170px}
 .ned-chips{display:flex;flex-wrap:wrap;gap:4px}.ned-chips:empty{display:none}
-.nt-x{border:0;background:none;color:var(--muted);font-weight:800;font-size:11px;padding:0 0 0 6px;cursor:pointer}
+.nt-x{border:0;background:none;color:#713f12;font-weight:800;font-size:11px;padding:0 0 0 6px;cursor:pointer}
 .ned-in{display:flex;gap:6px}.ned-in input{flex:1;min-width:0}
 .ned-q{display:flex;flex-wrap:wrap;gap:4px}.ned-q:empty{display:none}
-.ned-pick{font-size:11px;padding:4px 8px;border-radius:999px;border:1px dashed var(--border);background:none;color:var(--text2);cursor:pointer}
+.ned-pick{font-size:11px;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:none;color:var(--text2);cursor:pointer}
 .pbp-feed{max-height:none;font-size:13.5px;border-top:0;padding-top:0}
 .pbp-feed div{padding:7px 10px;cursor:pointer}
 .rost{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start}
@@ -1079,7 +1079,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .five-lbl{position:relative;display:flex;align-items:center;min-height:40px;padding:0 8px;border:1px dashed var(--border2);border-radius:var(--r,10px)}
 .five-lbl-t{position:absolute;top:-7px;left:10px;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--muted);padding:0 5px;line-height:12px;background:var(--card)}
 .five-lbl-ch{display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;min-width:0}
-.lc{flex:none;font:inherit;font-size:11px;font-weight:700;line-height:1;padding:5px 7px;border-radius:999px;border:1px solid;white-space:nowrap;cursor:pointer}
+.lc{flex:none;font:inherit;font-size:11px;font-weight:700;line-height:1;padding:5px 7px;border-radius:4px;border:1px solid;white-space:nowrap;cursor:pointer}
 .lc.g{color:#4ade80;border-color:rgba(74,222,128,.45);background:rgba(74,222,128,.10)}
 .lc.r{color:#f87171;border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.10)}
 .lc.n{color:var(--text2);border-color:var(--border2);background:rgba(255,255,255,.04)}
@@ -1169,7 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.18.160';
+const VERSION = 'v2026.10.18.162';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5209,6 +5209,13 @@ function autoLabels(g, t, id) {
   // Glue guy: low usage (under 17%), low scoring, but top 30% in two or more of OR%, DR%, Stl%, Blk%, assist rate (export_ratings.py
   // glue_guys). His other labels say which dirty work.
   if ((rk.roles || []).includes('Glue guy')) add('Glue guy', `${f1(usg)}% of possessions · ${f1(R.ppg)} pts/g`);
+  /* 2nd option: his team's second-leading scorer (points a game, among its regulars: 30%+ of minutes on analytics teams,
+     half the games on low-info ones), at 10+ a game and 1.5+ ahead of the #3: a team whose #2 and #3 are even is balanced,
+     and has none. A Star or Scorer already says it. */
+  const second = R && F && F.table && (() => { const rows = F.table.rows, G = Math.max(...rows.map(r => r.gp || 0)), mG = Math.min(10, Math.max(3, Math.ceil(G / 2)));
+    const S = rows.filter(r => (r.gp || 0) >= mG && (F.table.adv !== 1 || (r.min_pct || 0) >= 30) && r.ppg != null).sort((a, b) => b.ppg - a.ppg);
+    return S.length >= 3 && S[1] === R && R.ppg >= 10 && R.ppg - S[2].ppg >= 1.5 ? S : null; })();
+  if (second && !out.some(x => x.l === 'Star' || x.l === 'Scorer')) add('2nd option', `${f1(R.ppg)} pts/g (#1 ${second[0].name} ${f1(second[0].ppg)}, #3 ${f1(second[2].ppg)})`);
   if (!star && (hasC ? cut('eff_role') : usg != null && usg < 20 && bandTop(0.10))) add('Efficient role player', ortgWhy + (R.ts_pct != null ? ` · TS ${f1(R.ts_pct)}%` : ''));
   if (hasC ? cut('ineff_vol') : usg != null && usg >= 24 && bot('ts_pct', 0.30)) add('Inefficient volume', `TS ${f1(R.ts_pct)}% on ${f1(usg)}% of possessions${R.ind_ortg != null ? ` · ORtg ${f1(R.ind_ortg)}` : ''}`);
   /* HOW HE SCORES. Interior scorer = 2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots (25%+
@@ -5229,6 +5236,9 @@ function autoLabels(g, t, id) {
   // Slasher: the composite gates on threes under 25% of his shots; the old rule wants a non-shooter who draws fouls.
   const slasher = !shooter && !allAround && !interior && draws && (hasC || nonShooter);
   if (slasher) add('Slasher', drawWhy + (twoA ? `, ${twoA.toFixed(1)} 2PA/g` : '') + synW('rim'));
+  // Finisher: scores efficiently near the basket without the Interior scorer's or Slasher's volume: threes under 20% of his
+  // shots (40+ shots), TS 58%+.
+  if (!interior && !slasher && R && (R.fga || 0) >= 40 && rate != null && rate < 20 && (R.ts_pct || 0) >= 58) add('Finisher', `TS ${f1(R.ts_pct)}% · ${(100 - rate).toFixed(0)}% of his shots inside`);
   else if (!shooter && !allAround && nonShooter && !interior) add('Non-shooter', `${rate != null ? rate.toFixed(0) : '—'}% of his shots are threes`);
   if (!shooter && !allAround && cold) add('Poor 3PT', shootWhy + synW('cs', 'pull'));
   // Shot diet: 55%+ of his shots are threes on 2.0+ a game (about the top 20%), whether or not they go in.
@@ -5275,10 +5285,12 @@ const LABEL_GUIDE = [
     ['Sixth man', 'His team\'s best bench player: starts 35% or fewer of his games (and 3 or fewer of the last 10), plays 15+ minutes, and leads their bench on minutes, usage and points produced. When he checks in, he produces.'],
     ['Glue guy', 'Low usage (under 17%), low scoring, but does the dirty work: top 30% of the state in at least two of offensive rebounding, defensive rebounding, steals, blocks and assists.'],
     ['Help off', 'A starter who doesn\'t score: starts 60%+ of his games, under 5 points a game, under 16% of possessions. Sag off him from the tip and key on their scorers.'],
+    ['2nd option', 'His team\'s second-leading scorer: 10+ points a game and 1.5+ ahead of the #3 (a team whose #2 and #3 are even has none). Not shown with Star or Scorer.'],
     ['Efficient role player', 'Under 20% usage; top 10% on a blend of ORtg within his %Poss band, TS% and ball security.'],
     ['Inefficient volume', 'Uses 24%+ of possessions; bottom 30% on a blend of TS%, band ORtg and turnovers.']]],
   ['How he scores', [
     ['Interior scorer', 'Threes under 25% of his shots, 3+ 2PA a game; top 20% on 2P%, share of shots inside, FT rate, 2PA a game and OR% (plus Synergy finishing at the rim).'],
+    ['Finisher', 'Scores efficiently near the basket: threes under 20% of his shots, TS 58%+ (not already an Interior scorer or Slasher).'],
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS%, FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
     ['Balanced', 'Scores inside and out without All-Around\'s efficiency: 30-55% of his shots are threes, FT rate in the top half, 20%+ of possessions.'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],

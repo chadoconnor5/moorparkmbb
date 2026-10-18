@@ -552,7 +552,7 @@ five has 25+ offensive possessions).
     it. While you edit a row, labels already used on any roster show as **+ quick picks** under it.
   - **Labels guide:** the **Labels** button in the Moorpark header on the Live screen (and **Labels guide** on
     Rosters) opens a glossary of every label and what earns it.
-  - **Labels from stats** (same solid, square gold chip as yours; yours come first, except *Star*, which is always first): every player, ours and every opponent with a
+  - **Labels from stats** (the same solid gold, square chip as yours, filled everywhere; yours come first, except *Star*, which is always first): every player, ours and every opponent with a
     leaderboard file, gets labels that say who he is, how he scores and what else he does, from his season numbers
     qualified against the state (the leaderboard's State Ranks; top 20% = a strength, bottom 20% = a weakness unless
     noted). Roles are **composites**: each blends the related stats as state percentiles (e.g. Interior scorer = 2P%,
@@ -565,10 +565,12 @@ five has 25+ offensive possessions).
       possessions; not with Star or Scorer) · *Sixth man* (his team's best bench player: starts 35% or
       fewer of his games and 3 or fewer of the last 10, 15+ minutes, tops their bench on minutes, usage and points produced) · *Glue guy* (usage under 17%, low scoring,
       but top 30% in two or more of OR%, DR%, Stl%, Blk%, assist rate) · *Help off* (a starter who doesn't score: starts 60%+ of his
-      games, under 5 points a game, usage under 16%; shown even below the who-plays bar) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
+      games, under 5 points a game, usage under 16%; shown even below the who-plays bar) · *2nd option* (his team's second-leading scorer:
+      10+ ppg and 1.5+ ahead of the #3; none on a balanced team; not with Star or Scorer) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).
     - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
-      *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Balanced* (All-Around's mix without its efficiency bar: 30-55% of his shots threes, FT
+      *Finisher* (threes under 20% of his shots, TS 58%+, not
+      already an Interior scorer or Slasher) · *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Balanced* (All-Around's mix without its efficiency bar: 30-55% of his shots threes, FT
       rate top half, 20%+ of possessions) · *Elite shooter* / *Shooter* (3P% top
       10% / 35%, on 2.0+ threes a game or 35%+ of his shots; 3P% judged among every volume shooter with 30%+ of minutes
       and 40+ attempts, not only the State Ranks' 50%+) · *Slasher* (a non-shooter who gets to the line) ·
