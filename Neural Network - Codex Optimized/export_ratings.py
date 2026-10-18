@@ -207,10 +207,10 @@ COMPOSITES = {
     "interior": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 3,
                  {"twop": 35, "inside": 20, "ft_rate": 20, "twoa_pg": 15, "oreb_pct": 10}, {"syn_rim": 40}, 0.20, False),
     "shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
-                {"tpp": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.35, False),
+                {"tpp_vol": 60, "tpa_pg": 20, "tpa_rate": 20}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.35, False),
     "elite_shooter": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35,
-                      {"tpp": 80, "tpa_pg": 10, "tpa_rate": 10}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),   # the elite tier is about accuracy
-    "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
+                      {"tpp_vol": 80, "tpa_pg": 10, "tpa_rate": 10}, {"syn_three": 30, "syn_cs": 15, "syn_pull": 10}, 0.10, False),   # the elite tier is about accuracy
+    "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp_vol": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
     "slasher": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 2,
                 {"ft_rate": 35, "fd_per_40": 30, "twoa_pg": 20, "usage_pct": 15}, {"syn_rim": 25}, 0.25, False),
     "all_around": (lambda p: 25 <= (_rate(p) or 0) <= 55, {"ts_pct": 40, "ft_rate": 30, "balance": 30}, {"syn_rim": 15, "syn_three": 15}, 0.25, False),
@@ -265,6 +265,8 @@ def composites(pool, ranks, totals, syn):
            "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
            "ppg": lambda p: p.get("ppg")}
     pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
+    shooters = [p for p in qual if (p.get("tpa") or 0) >= 40 and (_pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35) and p.get("tpp") is not None]
+    tpp_pct = (lambda P: lambda p: P(p.get("tpp")))(pct_of([p["tpp"] for p in shooters]))
 
     def factors(p):
         rk, f = ranks.get((p["name"], p["school"]), {}), {}
@@ -274,6 +276,9 @@ def composites(pool, ranks, totals, syn):
                 f[k] = 100 * (1 - (rk[k] - 1) / max(1, n - 1))
         for k, fn in raw.items():
             f[k] = pf[k](fn(p))
+        # 3P% for the shooting labels: ranked among every volume shooter with 30%+ of minutes (2+ threes a game or 35%+
+        # of his shots, 40+ attempts), not only the State Ranks' 50%+ minutes, so bench shooters and sixth men are judged too.
+        f["tpp_vol"] = tpp_pct(p) if (p.get("tpa") or 0) >= 40 else None
         if f.get("tpa_rate") is not None:
             f["inside"] = 100 - f["tpa_rate"]
         if _rate(p) is not None:

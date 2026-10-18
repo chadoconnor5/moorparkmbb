@@ -570,7 +570,8 @@ five has 25+ offensive possessions).
     - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
       *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Balanced* (All-Around's mix without its efficiency bar: 30-55% of his shots threes, FT
       rate top half, 20%+ of possessions) · *Elite shooter* / *Shooter* (3P% top
-      10% / 35%, on 2.0+ threes a game or 35%+ of his shots) · *Slasher* (a non-shooter who gets to the line) ·
+      10% / 35%, on 2.0+ threes a game or 35%+ of his shots; 3P% judged among every volume shooter with 30%+ of minutes
+      and 40+ attempts, not only the State Ranks' 50%+) · *Slasher* (a non-shooter who gets to the line) ·
       *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *3PT heavy* (55%+
       of his shots threes, 2.0+ a game) · *Poor 3PT* (takes them, 3P% bottom 30%: let him shoot) · *Non-shooter* (under
       10% of his shots threes: sag off him).
