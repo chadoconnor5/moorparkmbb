@@ -564,7 +564,7 @@ five has 25+ offensive possessions).
       produced a game, points a game and usage; not with Star) · *Go-to* (over 28% of
       possessions; not with Star or Scorer) · *Sixth man* (his team's best bench player: starts 35% or
       fewer of his games and 3 or fewer of the last 10, 15+ minutes, tops their bench on minutes, usage and points produced) · *Glue guy* (usage under 17%, low scoring,
-      but top 30% in two or more of OR%, DR%, Stl%, Blk%, assist rate) · *Help off* (a starter who doesn't score: starts 60%+ of his
+      but top 30% in three or more of OR%, DR%, Stl%, Blk%, assist rate) · *Help off* (a starter who doesn't score: starts 60%+ of his
       games, under 5 points a game, usage under 16%; shown even below the who-plays bar) · *2nd option* (his team's second-leading scorer:
       10+ ppg and 1.5+ ahead of the #3; none on a balanced team; not with Star or Scorer) · *Efficient role player* (top 10% of his %Poss band on ORtg, under 20% usage) · *Inefficient
       volume* (24%+ usage, TS% bottom 30%).

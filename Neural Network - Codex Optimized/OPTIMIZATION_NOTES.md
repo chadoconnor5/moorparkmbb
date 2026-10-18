@@ -197,8 +197,8 @@ This copy keeps the original project intact and starts consolidating the working
   Sixth man (sixth_men()): per team, bench = gs/gp <= .35 and <= 3 starts in the last 10 box scores (recent_starts(),
   the box's starter flags), gp >= 60% of the team's games, 15+ mpg; best by mpg 40 · usage 30 · pprod/g 30 (state
   percentiles, min% >= 30 pool), score >= 30; rank["roles"] = ["Sixth man"]. 2025-26: 28 teams have one.
-  Glue guy (glue_guys()): usage < 17 and >= 2 of OR%, DR%, Stl%, Blk%, ARate at the 70th percentile+ (min% >= 30
-  pool); appended to rank["roles"]. 2025-26: 19 players.
+  Glue guy (glue_guys()): usage < 17 and >= 3 of OR%, DR%, Stl%, Blk%, ARate at the 70th percentile+ (min% >= 30
+  pool); appended to rank["roles"].
   Help off (help_off()): gs >= 60% of gp, gp >= half the team's games, ppg < 5, usage < 16 (or unknown on low-info
   teams). sit.js
   autoLabels uses them when present; keep its why lines and LABEL_GUIDE in step with COMPOSITES. Each holds `team` (team_summary.json's record / totals /
