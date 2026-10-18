@@ -362,6 +362,21 @@ def sixth_men(pool, ranks, teams):
             ranks.setdefault((best["name"], team), {}).setdefault("roles", []).append("Sixth man")
 
 
+def help_off(pool, ranks):
+    """Help off: a starter who doesn't score, so the defense can sag off him from the opening tip to key on their scorers.
+    Started 60%+ of his games, in half or more of the team's games, under 7 points a game, and (where usage is known) under
+    16% of possessions."""
+    games = {}
+    for x in pool:
+        if x.get("gp"):
+            games[x["school"]] = max(games.get(x["school"], 0), x["gp"])
+    for x in pool:
+        if not x.get("gp") or x["gp"] < 0.5 * games[x["school"]] or (x.get("gs") or 0) < 0.6 * x["gp"]:
+            continue
+        if (x.get("ppg") or 0) < 7 and (x.get("usage_pct") is None or x["usage_pct"] < 16):
+            ranks.setdefault((x["name"], x["school"]), {}).setdefault("roles", []).append("Help off")
+
+
 def glue_guys(pool, ranks):
     """Glue guy: low usage, low scoring, but does the dirty work. Usage under 17% and top 30% of the state (players with
     30%+ of minutes) in at least two of offensive rebound %, defensive rebound %, steal %, block % and assist rate."""
@@ -397,6 +412,7 @@ def leaderboard_tables(teams=()):
         composites(pool, ranks, totals, syn)
         sixth_men(pool, ranks, {x["school"] for x in pool})
         glue_guys(pool, ranks)
+        help_off(pool, ranks)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:
