@@ -265,7 +265,13 @@ def composites(pool, ranks, totals, syn):
            "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
            "ppg": lambda p: p.get("ppg")}
     pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
-    shooters = [p for p in qual if (p.get("tpa") or 0) >= 40 and (_pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35) and p.get("tpp") is not None]
+    team_gp = {}
+    for p in pool:
+        if p.get("gp"):
+            team_gp[p["school"]] = max(team_gp.get(p["school"], 0), p["gp"])
+    # Volume by rate, so it works from week one: 2+ threes a game or 35%+ of his shots, in half his team's games, 10+ attempts.
+    vol3 = lambda p: (p.get("tpa") or 0) >= 10 and p["gp"] >= 0.5 * team_gp.get(p["school"], 0) and (_pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35)
+    shooters = [p for p in qual if vol3(p) and p.get("tpp") is not None]
     tpp_pct = (lambda P: lambda p: P(p.get("tpp")))(pct_of([p["tpp"] for p in shooters]))
 
     def factors(p):
@@ -276,9 +282,9 @@ def composites(pool, ranks, totals, syn):
                 f[k] = 100 * (1 - (rk[k] - 1) / max(1, n - 1))
         for k, fn in raw.items():
             f[k] = pf[k](fn(p))
-        # 3P% for the shooting labels: ranked among every volume shooter with 30%+ of minutes (2+ threes a game or 35%+
-        # of his shots, 40+ attempts), not only the State Ranks' 50%+ minutes, so bench shooters and sixth men are judged too.
-        f["tpp_vol"] = tpp_pct(p) if (p.get("tpa") or 0) >= 40 else None
+        # 3P% for the shooting labels: ranked among every volume shooter with 30%+ of minutes (vol3), not only the State
+        # Ranks' 50%+ minutes, so bench shooters and sixth men are judged too.
+        f["tpp_vol"] = tpp_pct(p) if vol3(p) else None
         if f.get("tpa_rate") is not None:
             f["inside"] = 100 - f["tpa_rate"]
         if _rate(p) is not None:
@@ -367,6 +373,22 @@ def sixth_men(pool, ranks, teams):
             ranks.setdefault((best["name"], team), {}).setdefault("roles", []).append("Sixth man")
 
 
+def ft_volume(pool, ranks):
+    """rank["ftv"] = 1 for players who get to the line at volume (that he gets there proves he plays, so no minutes bar and
+    low-info teams count too), by rate so it works from week one:
+    2+ attempts a game, in half or more of his team's games, 10+ attempts. The tracker labels them by fixed FT% (fouling is a
+    points decision): FT shooter 75%+ (don't foul him), Bad FT under 65% (foul him). A bench guy who is
+    9-for-11 over the season is no volume."""
+    team_gp = {}
+    for x in pool:
+        if x.get("gp"):
+            team_gp[x["school"]] = max(team_gp.get(x["school"], 0), x["gp"])
+    for x in pool:
+        if (x.get("gp") and x.get("ftp") is not None and (x.get("fta") or 0) >= 10
+                and x["fta"] / x["gp"] >= 2 and x["gp"] >= 0.5 * team_gp[x["school"]]):
+            ranks.setdefault((x["name"], x["school"]), {})["ftv"] = 1
+
+
 def help_off(pool, ranks):
     """Help off: a starter who doesn't score, so the defense can sag off him from the opening tip to key on their scorers.
     Started 60%+ of his games, in half or more of the team's games, under 5 points a game, and (where usage is known) under
@@ -418,6 +440,7 @@ def leaderboard_tables(teams=()):
         sixth_men(pool, ranks, {x["school"] for x in pool})
         glue_guys(pool, ranks)
         help_off(pool, ranks)
+        ft_volume(pool, ranks)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:

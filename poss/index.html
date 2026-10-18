@@ -1169,7 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.18.164';
+const VERSION = 'v2026.10.18.169';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5255,9 +5255,16 @@ function autoLabels(g, t, id) {
   // DEFENSE.
   if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : basic && q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}` : `${f1(q.stl)} stl/40`);
   if (hasC && C.rim_prot != null ? cut('rim_prot') : rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : basic && q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)} · DR% ${f1(R.dreb_pct)}` : `${f1(q.blk)} blk/40`);
-  // FREE THROWS. Only the weakness: who you foul. (Ball secure, Disciplined and FT shooter were dropped: you only need
-  // to know who ISN'T those things — TO-prone, Foul-prone, Bad FT.)
-  if (rk.ftp != null ? bot('ftp', AUTO_CUT.bottom) : basic && q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', rk.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
+  // FREE THROWS: FT shooter = who NOT to foul late; Bad FT = who to foul. (Ball secure and Disciplined were dropped: only who
+  // ISN'T those things matters: TO-prone, Foul-prone.)
+  // Fixed FT% (fouling is a points decision: two shots from an 80% shooter are worth ~1.6, from a 60% one ~1.2), for players
+  // with 30%+ of minutes who get to the line (rank.ftv: 2+ FTA a game in half the team's games, 10+ attempts): FT shooter
+  // 75%+ = don't foul him; Bad FT under 65% = foul him; both on 2 attempts per team game played (capped at 40: FT% is noise
+  // on small samples, and the floor grows with the season). Files without ftv fall back to the State Rank.
+  const ftMin = Math.min(40, 2 * Math.max(0, ...((F && F.table && F.table.rows) || []).map(r => r.gp || 0))), ftOk = ftv => ftv && (R.fta || 0) >= ftMin;
+  const ftv = rk.ftv, ftTop = ftv ? ftOk(ftv) && R.ftp >= 75 : top('ftp', 0.10), ftBad = ftv ? ftOk(ftv) && R.ftp < 65 : rk.ftp != null && bot('ftp', AUTO_CUT.bottom);
+  if (ftTop) add('FT shooter', `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})`);
+  if (ftv != null || rk.ftp != null ? ftBad : basic && q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', R && R.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
   // WEAKNESSES.
   if (bot('ast_rate', 0.10)) add('Non-passer', `ARate ${f1(R.ast_rate)}`);
   if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : basic && q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : `${f1(q.to)} TO/40`);
@@ -5292,7 +5299,7 @@ const LABEL_GUIDE = [
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS%, FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
     ['Balanced', 'Scores inside and out without All-Around\'s efficiency: 30-55% of his shots are threes, FT rate in the top half, 20%+ of possessions.'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
-    ['Shooter', 'Not shown with All-Around (implied). 2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight; judged among every volume shooter with 30%+ of minutes and 40+ attempts), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
+    ['Shooter', 'Not shown with All-Around (implied). 2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight; judged among every volume shooter with 30%+ of minutes), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
     ['Draws fouls', 'Fouls drawn per 40 and FT rate together in the top 20%.'],
     ['Struggles inside', '3+ 2PA a game; 2P% (plus Synergy at the rim) in the bottom 20%.'],
@@ -5313,7 +5320,8 @@ const LABEL_GUIDE = [
     ['Rim protector', 'Top 15% on block % and defensive rebound %.'],
     ['Foul-prone', 'Fouls per 40 bottom 20%.']]],
   ['Free throws', [
-    ['Bad FT', 'FT% bottom 20%: who they\'ll want to keep off the line, and who to foul late.']]],
+    ['FT shooter', '75%+ from the line (two shots are worth ~1.5 points: fouling him gains nothing), and gets there (2+ a game; 2 attempts per team game, up to 40). Don\'t foul him late.'],
+    ['Bad FT', 'Under 65% from the line, and gets there (2+ a game; 2 attempts per team game, up to 40). Foul him late.']]],
   ['★ Team leaders (low-info teams)', [
     ['Top scorer', 'Leads his team in points per game.'],
     ['Top rebounder', 'Leads in rebounds per game.'],
