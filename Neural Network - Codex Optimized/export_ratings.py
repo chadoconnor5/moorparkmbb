@@ -377,7 +377,7 @@ def ft_volume(pool, ranks):
     """rank["ftv"] = 1 for players who get to the line at volume (that he gets there proves he plays, so no minutes bar and
     low-info teams count too), by rate so it works from week one:
     2+ attempts a game, in half or more of his team's games, 10+ attempts. The tracker labels them by fixed FT% (fouling is a
-    points decision): FT shooter 80%+ on 20+ attempts (don't foul him), Bad FT under 65% (foul him). A bench guy who is
+    points decision): FT shooter 75%+ (don't foul him), Bad FT under 65% (foul him). A bench guy who is
     9-for-11 over the season is no volume."""
     team_gp = {}
     for x in pool:

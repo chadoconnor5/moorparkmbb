@@ -581,7 +581,7 @@ five has 25+ offensive possessions).
     - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer*
       · *Non-passer* (assist rate bottom 10%) · *TO-prone*.
     - **Defense:** *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) ·
-      *Foul-prone*. **FT:** *FT shooter* (80%+: don't foul him late) · *Bad FT* (under
+      *Foul-prone*. **FT:** *FT shooter* (75%+: don't foul him late) · *Bad FT* (under
       65%: foul him), both only for players who get to the line: 2+ FTA a game in half the team's games,
       on 2 attempts per team game played (up to 40). (No Ball secure or Disciplined: only who *isn't* those things matters: TO-prone, Foul-prone.)
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get

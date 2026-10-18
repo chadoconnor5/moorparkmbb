@@ -196,7 +196,7 @@ This copy keeps the original project intact and starts consolidating the working
   shooters (bench shooters, sixth men) with no shooting label. Volume is a rate (works from week one): 2+ 3PA/g or 35%+
   of FGA, in half the team's games, 10+ attempts.
   FT: rank["ftv"] = 1 (any minutes) for 2+ FTA/g in half the team's games and 10+ FTA (ft_volume()); the tracker's
-  FT shooter = 80%+, Bad FT = under 65%, on min(40, 2 x team games) FTA (fixed: fouling is a points decision).
+  FT shooter = 75%+, Bad FT = under 65%, on min(40, 2 x team games) FTA (fixed: fouling is a points decision).
   Sixth man (sixth_men()): per team, bench = gs/gp <= .35 and <= 3 starts in the last 10 box scores (recent_starts(),
   the box's starter flags), gp >= 60% of the team's games, 15+ mpg; best by mpg 40 · usage 30 · pprod/g 30 (state
   percentiles, min% >= 30 pool), score >= 30; rank["roles"] = ["Sixth man"]. 2025-26: 28 teams have one.
