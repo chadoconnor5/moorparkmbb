@@ -581,8 +581,8 @@ five has 25+ offensive possessions).
     - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer*
       · *Non-passer* (assist rate bottom 10%) · *TO-prone*.
     - **Defense:** *Ball hawk* (Stl%) · *Rim protector* (Blk% top 15%) ·
-      *Foul-prone*. **FT:** *Bad FT*. (No Ball secure, Disciplined or FT
-      shooter: only who *isn't* those things matters: TO-prone, Foul-prone, Bad FT.)
+      *Foul-prone*. **FT:** *FT shooter* (elite: FT% top 10%, don't foul him late) · *Bad FT*
+      (who to foul). (No Ball secure or Disciplined: only who *isn't* those things matters: TO-prone, Foul-prone.)
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
     that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
     estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
