@@ -590,7 +590,7 @@ five has 25+ offensive possessions).
       what a three from him is worth against an average trip (the state's rotation players shoot 32.4% = 0.97 points
       a shot). *Est.* = his 3P% as if he'd also taken 25 threes at 32.4%, so one hot or cold night doesn't flip it:
       *Shooter* (close out: est. 35%+ = 1.05+ points a three; *Elite shooter* = the top 10% of those; plain Shooter
-      is left off when he's *All-Around*) · *Average 3PT* (guard him straight: 30-35%) · *Poor 3PT* (let him shoot:
+      is left off when he's *All-Around*) · *Avg 3PT* (guard him straight: 30-35%) · *Poor 3PT* (let him shoot:
       under 30% = under 0.90 points a three) · *Non-shooter* (sag off: under 15 threes, or under 10% of his shots).
       The bubble shows his 3P%, the est. and the points a three.
     - **Glass:** *Glass cleaner* (OR% and DR% both top 20%) · *Rebounder* (DR%) · *Off. rebounder* (OR%).
