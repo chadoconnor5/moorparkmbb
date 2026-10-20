@@ -842,6 +842,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .of-g .l{color:var(--bad);font-weight:800} .of-g .w{color:var(--good);font-weight:800}
 .of-five{background:var(--surface);border-radius:10px;padding:9px 11px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
 .of-five b{font-size:14px} .of-five .tiny{display:block} .of-five .n{font-weight:800;font-size:17px;text-align:right}
+.of-rt{grid-column:1/-1;display:flex;gap:14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px}
+.of-rt b{font-size:13px;color:var(--text);font-variant-numeric:tabular-nums} .of-rt b.pos{color:var(--good)} .of-rt b.neg{color:var(--bad)}
+.of-ff{grid-column:1/-1;width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.of-ff th,.of-ff td{padding:2px 4px;text-align:right} .of-ff thead th{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.of-ff tbody th{text-align:left;font-size:10.5px;color:var(--muted);font-weight:700;width:34px}
 .of-badge{margin-left:6px;padding:1px 6px;border-radius:99px;background:#facc15;color:#111;font-size:9.5px;font-weight:800;letter-spacing:.06em;vertical-align:middle}
 .of-banner{display:flex;align-items:center;gap:12px;border-radius:12px;padding:10px 12px;border:1px solid var(--warn);background:rgba(220,176,90,.1);margin:-2px 0 12px}
 .of-banner .ic{font-size:20px}
@@ -890,6 +895,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .fx-none{padding:6px 0}
 
 .fx-stat{margin-left:6px;font-size:13px}
+.fx-sum{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:2px 0 8px}
+.fx-sum-h{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.fx-sum-h span{font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);margin-left:6px}
+.fx-sum-r{display:grid;grid-template-columns:110px 70px 1fr 70px 80px;gap:8px;align-items:baseline;padding:3px 0;font-size:14px;font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
+.fx-sum-r span:nth-child(n+3),.fx-sum-r b:last-child{text-align:right}
+.fx-sum-r.win{opacity:.6} .fx-sum-r.lose b:first-child{color:var(--bad)}
 .fx-ask{font-size:12.5px;font-weight:700;color:var(--text2);margin:0 0 6px}
 
 /* Leverage scope buttons and a five's leverage mix */
@@ -1169,7 +1180,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.172';
+const VERSION = 'v2026.10.20.177';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1188,7 +1199,7 @@ let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
 const cur = () => games.find(g => g.id === curId) || null;
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
-const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); };
+const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); try { bkTick(); } catch (e) {} };
 const D0 = g => derive(g).score;
 const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'season', luOpen: null, ooShoot: (() => { try { return localStorage.getItem('pt2_oo_shoot') === 'true'; } catch (e) { return false; } })() };
 
@@ -1672,7 +1683,7 @@ function render() {
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
   if (!g && ['pbp', 'sheet', 'lineups', 'ff', 'report'].includes(UI.tab)) { v.className = 'page mid'; v.innerHTML = noGame; return; }
-  if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); }
+  if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); }
   else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
@@ -2297,7 +2308,24 @@ function fixCard(g, D, o, cur) {
   const losing = !L ? [] : FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
   const night = a ? { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr } : {};
   const N = seasonNorm(g), bad = k => { const S = FIX_STATS[k], v = night[k], n = N.v[k]; return v == null || n == null ? 0 : S.hi ? n - v : v - n; };
-  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => bad(y) - bad(x));
+  /* What each factor is costing us in points (ours minus theirs, so negative = losing), so a 2-point TO% gap and a
+     15-point rebounding gap can be weighed side by side: eFG% gap × 2 × FGA; TO% gap × possessions × points per
+     possession; OREB% gap × missed shots × points per possession; FT rate gap × FGA × FT%. FGA, possessions, misses,
+     points per possession and FT% are the two teams' averages this half. */
+  const cost = !L ? {} : (() => { const n = (t, k) => +t[k] || 0, av = f => (f(L.a) + f(L.b)) / 2;
+    const fga = av(t => n(t, 'fga')), poss = (a.poss + b.poss) / 2, ppp = poss > 0 ? (a.pts + b.pts) / (a.poss + b.poss) : 1, miss = av(t => n(t, 'fga') - n(t, 'fgm'));
+    const fta = n(L.a, 'fta') + n(L.b, 'fta'), ftp = fta ? (n(L.a, 'ftm') + n(L.b, 'ftm')) / fta : 0.7, d = k => a[k] == null || b[k] == null ? null : a[k] - b[k];
+    const r = { efg: d('efg') == null ? null : d('efg') / 100 * 2 * fga, to: d('to') == null ? null : -d('to') / 100 * poss * ppp,
+      orb: d('orb') == null ? null : d('orb') / 100 * miss * ppp, ftr: d('ftr') == null ? null : d('ftr') / 100 * fga * ftp };
+    return r; })();
+  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => {
+    const fx = Object.keys(FIX_PAIRS).find(f => FIX_PAIRS[f].includes(x)), fy = Object.keys(FIX_PAIRS).find(f => FIX_PAIRS[f].includes(y));
+    return (cost[fx] || 0) - (cost[fy] || 0) || bad(y) - bad(x); });
+  // The summary at the top: all four factors, most points lost first; the ones we're losing in red.
+  const sumRows = !L ? [] : FIX_FACTORS.filter(([k]) => a[k] != null && b[k] != null).sort((x, y) => (cost[x[0]] || 0) - (cost[y[0]] || 0));
+  const summary = !sumRows.length ? '' : `<div class="fx-sum"><div class="fx-sum-h">What's hurting us <span>${o.half} · us / them · our edge · ≈ points</span></div>
+    ${sumRows.map(([k, nm, st, hi]) => { const lose = losing.some(x => x[0] === k), gap = hi ? a[k] - b[k] : b[k] - a[k], c = cost[k];   // gap for us: negative = losing it
+      return `<div class="fx-sum-r ${lose ? 'lose' : 'win'}"><b>${nm}</b><span class="muted">${st}</span><span>${P(a[k])} / ${P(b[k])}</span><span class="${lose ? 'neg' : 'pos'}">${(gap < 0 ? '−' : '+') + Math.abs(gap).toFixed(1)}</span><b class="${c == null ? '' : c < -0.05 ? 'neg' : c > 0.05 ? 'pos' : ''}">${c == null ? '—' : (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(c).toFixed(1) + ' pts'}</b></div>`; }).join('')}</div>`;
   problems.forEach(k => { const S = FIX_STATS[k], n = N.v[k], end = S.end === 'o' ? 'oP' : 'dP';
     const rank = (list, min) => list.filter(u => u[end] >= min && u.v[k] != null && (n == null || (S.hi ? u.v[k] > n : u.v[k] < n)))
       .sort((x, y) => S.hi ? y.v[k] - x.v[k] : x.v[k] - y.v[k]).slice(0, 2).map(u => Object.assign({}, u, { p: u[end] }));
@@ -2307,8 +2335,8 @@ function fixCard(g, D, o, cur) {
       <div class="fx-ask">→ the ${S.rank} fives</div>
       ${cols(T, Sn, (u, both) => row(u, both, P(u.v[k]), S.name, pl), pl, `No five has been better than ${P(n)} today.`, `No available five has been better than ${P(n)}.`)}</div>`; });
   if (!o.overall && !problems.length) return { html: '', any: false };
-  return { any, html: `<div class="card fix-card">${o.overall ? '' : `<h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>`}${levBtns(o.sk, o.def)}${html}
-    <div class="tiny muted" style="margin-top:6px">${o.overall ? 'Best overall = the four factors combined, better than the five on now. ' : ''}What's hurting us = each four factor we're losing ${o.half}, the end that's off our norm, and the fives best at that one stat. Today = as played; Season = every game, adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Only fives with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>` };
+  return { any, html: `<div class="card fix-card">${o.overall ? '' : `<h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>`}${summary}${levBtns(o.sk, o.def)}${html}
+    <div class="tiny muted" style="margin-top:6px">${o.overall ? 'Best overall = the four factors combined, better than the five on now. ' : ''}What's hurting us = each four factor we're losing ${o.half}, biggest points cost first (≈ points: what the gap is worth at this half's shots and possessions), the end that's off our norm, and the fives best at that one stat. Today = as played; Season = every game, adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Only fives with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>` };
 }
 function lineupsView(g) {
   const D = derive(g);
@@ -2736,6 +2764,9 @@ function gamesView() {
         <button class="btn btn-sm" data-act="open" data-id="${g.id}">${g.id === curId ? 'Live ▸' : 'Open'}</button><button class="btn btn-sm" data-act="export" data-id="${g.id}">Export</button><button class="btn btn-sm btn-bad" data-act="del" data-id="${g.id}">Delete</button></div>`; }).join('')
       : '<div class="card muted">No games yet. + New game to start.</div>'}
     <div class="row" style="gap:8px;margin-top:6px"><button class="btn btn-sm" data-act="import">Import a game file</button><button class="btn btn-sm" data-act="roster">Moorpark roster</button>${cur() ? '<button class="btn btn-sm" data-act="details">This game\'s details</button>' : ''}</div>
+    ${seasonCard()}
+    <div class="page-head" style="margin-top:18px"><h2>Backups</h2><span class="small muted" style="margin-left:8px">copies of each game at halftime, at Final, before a delete, and every few minutes while tracking</span></div>
+    <div id="backups"><div class="muted small">Loading…</div></div>
     <div class="page-head" style="margin-top:18px"><h2>Saved reports</h2><span class="small muted" style="margin-left:8px">kept even if a game is edited or deleted</span></div>
     <div id="saved-reports"><div class="muted small">Loading…</div></div>
     <div class="small muted" style="margin-top:14px">${VERSION} · saved on this iPad</div>`;
@@ -3139,7 +3170,7 @@ function exportLeaderboard(g, side) {
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 function exportGame(g) {
-  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, game: g }, null, 1)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, appVersion: VERSION, dataVersion: DATA_V, game: g }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -3147,8 +3178,11 @@ function importGame() {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
   inp.onchange = () => { const f = inp.files[0]; if (!f) return; f.text().then(t => {
     let d; try { d = JSON.parse(t); } catch (e) { toast('Not a game file', 'bad'); return; }
+    if (d && d.kind === 'season') { toast('That\'s a season file: use Import season', 'bad'); return; }
     const g = d && d.game; if (!g || !Array.isArray(g.ev) || d.version !== 2) { toast('Not a possession-tracker game file', 'bad'); return; }
-    if (games.some(x => x.id === g.id) && !confirm('This game is already here. Replace it with the file?')) return;
+    upgradeGame(g);
+    const old = games.find(x => x.id === g.id); if (old && !confirm('This game is already here. Replace it with the file? (The one on the iPad is backed up first.)')) return;
+    if (old) backupGame(old, 'replaced');
     games = games.filter(x => x.id !== g.id).concat(g); curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp, 'good');
   }); };
   inp.click();
@@ -3202,9 +3236,18 @@ document.addEventListener('click', ev => {
       break; }
     case 'open': curId = b.dataset.id; UI.tab = 'live'; UI.redo = []; save(); render(); break;
     case 'export': exportGame(games.find(x => x.id === b.dataset.id)); break;
+    case 'season-export': exportSeason(); break;
+    case 'season-import': importSeason(); break;
+    case 'bk-restore': bkRestore(b.dataset.id); break;
+    case 'base-load': baselineModal(); break;
+    case 'base-open': { const v = ($('#base-pass') || {}).value || ''; if (!v) return; applyBaseline(v).then(ok => { if (ok) closeModal(); }); break; }
+    case 'base-make-open': makeBaselineModal(); break;
+    case 'base-make': { const a = ($('#mb-pass') || {}).value || '', c = ($('#mb-pass2') || {}).value || '';
+      if (a.length < 6) { toast('At least 6 characters', 'bad'); return; } if (a !== c) { toast('The two passcodes don\'t match', 'bad'); return; }
+      closeModal(); makeBaseline(a).catch(e => { if (e && e.name !== 'AbortError') toast('Could not make the baseline: ' + e.message, 'bad'); }); break; }
     case 'import': importGame(); break;
     case 'del': { const d = games.find(x => x.id === b.dataset.id);
-      if (d && confirm(`Delete the ${d.opp} game (${d.date})? This can't be undone.`)) { games = games.filter(x => x !== d); if (curId === d.id) curId = null; save(); render(); } break; }
+      if (d && confirm(`Delete the ${d.opp} game (${d.date})? A copy stays in Games → Backups.`)) { backupGame(d, 'deleted'); games = games.filter(x => x !== d); if (curId === d.id) curId = null; save(); render(); } break; }
     case 'roster': rosterModal(); break;
     case 'roster-save': lsSet(LS_ROSTER, parseLines($('#r-txt').value)); closeModal(); render(); toast('Roster saved', 'good'); break;
     case 'roster-reset': localStorage.removeItem(LS_ROSTER); closeModal(); render(); break;
@@ -3332,9 +3375,9 @@ document.addEventListener('click', ev => {
       if (!confirm(`End ${PER_NAME(g.per)}?`)) return;
       // Halftime: straight to the halftime report; its button starts the 2nd half.
       g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); UI.tab = 'report'; UI.rep = 'half'; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
-    case 'start-2h': snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
+    case 'start-2h': backupGame(g, 'half'); snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
     case 'scout': openScout(); break;
-    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); snapReport(g, 'post', true); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game saved. Games → Export season keeps a copy off the iPad.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
     case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
     case 'gt-here': g.gtFrom = b.dataset.id; g.gtOff = false; save(); closeModal(); render(); toast('Garbage time starts at that possession'); break;
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
@@ -4492,9 +4535,16 @@ function ofTeamLines(gs) {
 function ofFives(gs) {
   const U = {};
   gs.forEach(g => { lineupUnits(g, derive(g), 'b', 'game', 'all', 5).units.forEach(u => { const k = fiveKey(u.five);
-    const m = U[k] = U[k] || { five: u.five, g, oPoss: 0, dPoss: 0, pf: 0, pa: 0 }; ['oPoss', 'dPoss', 'pf', 'pa'].forEach(x => { m[x] += u[x]; }); m.g = g; }); });
-  return Object.values(U).map(u => Object.assign(u, { poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null, pm: u.pf - u.pa }));
+    const m = U[k] = U[k] || { five: u.five, g, oPoss: 0, dPoss: 0, pf: 0, pa: 0, o: {}, d: {} }; ['oPoss', 'dPoss', 'pf', 'pa'].forEach(x => { m[x] += u[x]; }); m.g = g;
+    ['o', 'd'].forEach(s => Object.keys(u[s]).forEach(x => { m[s][x] = (m[s][x] || 0) + u[s][x]; })); }); });
+  // o = their box, d = ours against that five: fixVals gives their offense (efg, tov, orb, ftr) and their defense (oefg, otov, drb, oftr).
+  return Object.values(U).map(u => Object.assign(u, { poss: Math.floor((u.oPoss + u.dPoss) / 2), ortg: u.oPoss ? 100 * u.pf / u.oPoss : null, drtg: u.dPoss ? 100 * u.pa / u.dPoss : null,
+    net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null, pm: u.pf - u.pa, fx: fixVals(u.o, u.d, u.oPoss, u.dPoss) }));
 }
+// Best against us is ranked by net weighted for sample size: the net is pulled toward 0 as if the five had also played
+// NET_PRIOR possessions at even, so 18 possessions at +40 (≈ +11) outranks 5 at +100 (≈ +9). The card still shows the real net.
+const NET_PRIOR = 50;
+const netW = u => u.net * u.poss / (u.poss + NET_PRIOR);
 // Their players from the stat sheets (final sheet if read, else halftime), added up by number.
 function ofPlayers(gs) {
   const P = {}, tm = { a: [], b: [] };
@@ -4547,9 +4597,15 @@ function oppFileHtml(name) {
       ${B ? `<div class="ins good"><span><b>Our best five</b> · ${esc(fiveSorted(g, 'a', B.five).map(id => pShort(g, 'a', id)).join(', '))} — net ${SG(B.net)} on ${B.poss} poss</span></div>` : ''}`; }).join('');
   // Their lineups.
   const FV = ofFives(gs), nm5 = u => fiveSorted(u.g, 'b', u.five).map(id => pInfo(u.g, 'b', id)), lbl = u => nm5(u).map(p => esc(p.num || '—')).join(' · '), names = u => esc(nm5(u).map(p => p.name ? lastName(p.name) : '#' + p.num).join(', '));
-  const five = (u, val, cls) => `<div class="of-five"><div><b>${lbl(u)}</b><span class="tiny muted">${names(u)}</span></div><div class="n ${cls || ''}">${val}</div><div class="small muted">${u.poss} poss<br>${sgn(u.pm)}</div></div>`;
-  const used = FV.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), best = FV.filter(u => u.net != null && u.poss >= 5).sort((x, y) => y.net - x.net).slice(0, 3);
-  const lineups = FV.length ? `<div class="card"><h3>Their lineups <span class="muted">· most used / best against us (their net)</span></h3><div class="ff-who">
+  // Under each five: their ORtg / DRtg / Net, then the four factors at both ends (Off = their offense, Def = what we did against it).
+  const pc = v => v == null ? '—' : f1(v), nc = v => v == null ? '' : v > 0 ? 'neg' : v < 0 ? 'pos' : '';
+  const ffx = u => `<div class="of-rt"><span>ORtg <b>${pc(u.ortg)}</b></span><span>DRtg <b>${pc(u.drtg)}</b></span><span>Net <b class="${nc(u.net)}">${u.net == null ? '—' : sg1(Math.round(10 * u.net) / 10)}</b></span></div>
+    <table class="of-ff"><thead><tr><th></th><th>eFG%</th><th>TO%</th><th>OREB%</th><th>FT rate</th></tr></thead><tbody>
+    <tr><th>Off</th><td>${pc(u.fx.efg)}</td><td>${pc(u.fx.tov)}</td><td>${pc(u.fx.orb)}</td><td>${pc(u.fx.ftr)}</td></tr>
+    <tr><th>Def</th><td>${pc(u.fx.oefg)}</td><td>${pc(u.fx.otov)}</td><td>${pc(u.fx.drb == null ? null : 100 - u.fx.drb)}</td><td>${pc(u.fx.oftr)}</td></tr></tbody></table>`;
+  const five = (u, val, cls) => `<div class="of-five"><div><b>${lbl(u)}</b><span class="tiny muted">${names(u)}</span></div><div class="n ${cls || ''}">${val}</div><div class="small muted">${u.poss} poss<br>${sgn(u.pm)}</div>${ffx(u)}</div>`;
+  const used = FV.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), best = FV.filter(u => u.net != null && u.poss >= 5).sort((x, y) => netW(y) - netW(x)).slice(0, 3);
+  const lineups = FV.length ? `<div class="card"><h3>Their lineups <span class="muted">· most used / best against us (their net, weighted for sample size)</span></h3><div class="ff-who">
       <div><div class="ff-who-h" style="color:var(--them-text)">Most used</div>${used.map(u => five(u, '', '')).join('')}</div>
       <div><div class="ff-who-h" style="color:var(--them-text)">Best against us</div>${best.map(u => five(u, SG(u.net), u.net > 0 ? 'neg' : 'pos')).join('') || '<div class="muted small">No five with 5+ possessions.</div>'}</div></div></div>`
     : `<div class="card"><h3>Their lineups</h3><div class="muted small">Their fives weren't tracked (no roster for them in those games).</div></div>`;
@@ -6128,10 +6184,201 @@ function killNear(g, D, t) {
   return `<span class="kill-near neg">${s} stops on us${bad != null ? ` · this five allows ${bad.toFixed(1)} kills / 100` : ''}</span>`;
 }
 
+/* ---------- BACKUPS ----------
+   1) Automatic copies of every game, kept on the iPad apart from the live data (IndexedDB 'pt2_backups'): at Start 2nd
+      half, at Final, before a game is deleted or replaced by an import, and every 5 minutes while a game is tracked.
+      Games → Backups → Restore brings one back (it replaces that game, or adds it back if it was deleted). Kept: every
+      halftime / final / before-delete copy, and the last 3 timed copies of each game.
+   2) The season file: Games → Export season saves everything (every game, the rosters, the schedule, labels turned
+      off, tournament fields) in one file to keep in Files or Drive: the copy that survives a cleared or lost iPad.
+      Import season adds the file's games (one already here is replaced only if the file's copy has more plays; the one
+      on the iPad is backed up first) and fills in rosters / schedule / settings this iPad doesn't have. */
+const BK_DB = 'pt2_backups', LS_LAST_EXPORT = 'pt2_last_export';
+const BK_KIND = { half: 'Halftime', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
+function bkDb() {
+  return new Promise((res, rej) => { const q = indexedDB.open(BK_DB, 1);
+    q.onupgradeneeded = () => q.result.createObjectStore('b', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+}
+async function bkTx(mode, fn) { const db = await bkDb(); return new Promise((res, rej) => { const tx = db.transaction('b', mode), st = tx.objectStore('b'), r = fn(st);
+  tx.oncomplete = () => res(r && 'result' in r ? r.result : undefined); tx.onerror = () => rej(tx.error); }); }
+const bkAll = () => bkTx('readonly', st => st.getAll());
+async function backupGame(g, kind) {
+  if (!g || !window.indexedDB) return;
+  try {
+    const S = perSums(derive(g), null), at = new Date().toISOString();
+    const rec = { id: g.id + ':' + kind + ':' + at, gameId: g.id, kind, opp: g.opp, date: g.date, loc: g.loc, score: { a: S.pts.a, b: S.pts.b },
+      plays: g.ev.length, per: g.per, final: !!g.final, at, game: JSON.parse(JSON.stringify(g)) };
+    await bkTx('readwrite', st => st.put(rec));
+    if (kind === 'auto') {   // only the last 3 timed copies of a game
+      const old = (await bkAll()).filter(r => r.gameId === g.id && r.kind === 'auto').sort((x, y) => y.at.localeCompare(x.at)).slice(3);
+      if (old.length) await bkTx('readwrite', st => old.forEach(r => st.delete(r.id)));
+    }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  } catch (e) {}
+}
+// Every 5 minutes while a game is tracked (called on every save).
+let BK_LAST = 0;
+function bkTick() { const g = cur(); if (!g || g.final || !g.ev.length) return; if (Date.now() - BK_LAST < 300000) return; BK_LAST = Date.now(); backupGame(g, 'auto'); }
+async function paintBackups() {
+  const el = document.getElementById('backups'); if (!el) return;
+  let list = []; try { list = await bkAll(); } catch (e) { el.innerHTML = '<div class="muted small">Backups aren\'t available in this browser.</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="card muted small">No backups yet. They save themselves at Start 2nd half, at Final and every few minutes while you track.</div>'; return; }
+  const by = {}; list.forEach(r => (by[r.gameId] = by[r.gameId] || []).push(r));
+  const groups = Object.values(by).map(L => L.sort((x, y) => y.at.localeCompare(x.at))).sort((x, y) => (y[0].date || '').localeCompare(x[0].date || ''));
+  el.innerHTML = groups.map(L => { const r0 = L[0], here = games.some(g => g.id === r0.gameId);
+    return `<div class="card"><div class="row" style="gap:8px;align-items:baseline"><b>${esc(r0.loc === 'A' ? '@' : 'vs')} ${esc(r0.opp)}</b><span class="small muted">${esc(r0.date)}${here ? '' : ' · <b class="neg">not on this iPad any more</b>'}</span></div>
+      ${L.map(r => `<div class="row bk-row" style="gap:10px;align-items:center"><div style="flex:1" class="small"><b>${esc(BK_KIND[r.kind] || r.kind)}</b> · Moorpark ${r.score.a} – ${r.score.b} · ${r.plays} plays · saved ${esc(rpWhen(r.at))}</div>
+        <button class="btn btn-sm btn-good" data-act="bk-restore" data-id="${esc(r.id)}">Restore</button></div>`).join('')}</div>`; }).join('');
+}
+async function bkRestore(id) {
+  const r = (await bkAll()).find(x => x.id === id); if (!r) return;
+  const here = games.find(g => g.id === r.gameId);
+  if (here && !confirm(`Replace ${here.opp} (${here.date}) on this iPad with the ${(BK_KIND[r.kind] || r.kind).toLowerCase()} copy from ${rpWhen(r.at)}? The game as it is now is backed up first.`)) return;
+  if (here) await backupGame(here, 'replaced');
+  games = games.filter(g => g.id !== r.gameId).concat(upgradeGame(r.game)); save(); render(); toast(`Restored ${r.opp} · ${r.score.a}–${r.score.b}`, 'good');
+}
+// The season file: everything this tracker keeps, in one file.
+const SEASON_KEYS = ['pl_roster', 'gt_opp_rosters', 'gt_schedule', 'pt2_auto_off', 'pt2_ready', 'pt2_fields', 'pt2_lu_adj'];
+async function exportSeason() {
+  const body = JSON.stringify(seasonBody());
+  const name = `mbb_season_${today()}.json`, file = new File([body], name, { type: 'application/json' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });   // iPad: Save to Files / Drive
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+    lsSet(LS_LAST_EXPORT, new Date().toISOString()); render(); toast(`Season saved: ${games.length} game${games.length === 1 ? '' : 's'}`, 'good');
+  } catch (e) { if (e && e.name !== 'AbortError') toast('Could not save the season file: ' + e.message, 'bad'); }
+}
+function importSeason() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = () => { const f = inp.files[0]; if (!f) return; f.text().then(async t => {
+    let d; try { d = JSON.parse(t); } catch (e) { toast('Not a season file', 'bad'); return; }
+    if (!d || d.kind !== 'season' || !Array.isArray(d.games)) { toast('Not a possession-tracker season file (a single game? use Import a game file)', 'bad'); return; }
+    const n = await mergeSeason(d); if (!n) return;
+    toast(`Season file: ${n.added} added, ${n.replaced} replaced with a longer copy, ${n.kept} already up to date${n.filled ? `, ${n.filled} roster/schedule/setting lists filled in` : ''}`, 'good');
+  }); };
+  inp.click();
+}
+// Merge a season (from a file or the baseline): add games this iPad doesn't have; replace one only with a copy that has
+// more plays (the iPad's is backed up first); fill rosters / schedule / settings that are empty here. Never deletes.
+async function mergeSeason(d, quiet) {
+    if ((d.dataVersion || 0) > DATA_V && !confirm('This file was saved by a newer version of the tracker. Reload the tracker with signal to update it first. Import anyway?')) return;
+    let added = 0, replaced = 0, kept = 0;
+    for (const g0 of d.games) { if (!g0 || !g0.id || !Array.isArray(g0.ev)) continue; const g = upgradeGame(g0);
+      const here = games.find(x => x.id === g.id);
+      if (!here) { games.push(g); added++; }
+      else if (g.ev.length > here.ev.length) { await backupGame(here, 'replaced'); games = games.filter(x => x.id !== g.id).concat(g); replaced++; }
+      else kept++; }
+    let filled = 0; Object.entries(d.data || {}).forEach(([k, v]) => { if (!SEASON_KEYS.includes(k)) return; const now = lsGet(k, null);
+      if (now == null || (Array.isArray(now) && !now.length) || (typeof now === 'object' && !Array.isArray(now) && !Object.keys(now).length)) { lsSet(k, v); filled++; } });
+    save(); render();
+    return { added, replaced, kept, filled };
+}
+function seasonCard() {
+  const last = lsGet(LS_LAST_EXPORT, null), days = last ? Math.floor((Date.now() - Date.parse(last)) / 864e5) : null;
+  const stale = days == null || days >= 7;
+  return `<div class="card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b>Season backup file</b>
+      <span class="small ${stale && games.length ? 'neg' : 'muted'}">${last ? `last saved ${days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago'}` : 'never saved'}</span>
+      <span style="margin-left:auto"></span><button class="btn btn-sm btn-good" data-act="season-export">Export season</button><button class="btn btn-sm" data-act="season-import">Import season</button><button class="btn btn-sm" data-act="base-make-open">Make baseline file</button></div>
+    <div class="small muted" style="margin-top:6px">Every game, the rosters and the schedule in one file. Save it to Files or Drive after each game: it's the copy that survives a cleared or lost iPad. Updating the tracker never touches your games.</div>${baselineLine()}</div>`;
+}
+/* ---------- UPGRADING OLD DATA ----------
+   Every game that comes in (the iPad's own games when the app opens, a game file, a season file, a backup) goes
+   through upgradeGame first, so a game saved by any older version works with every new feature. Almost everything
+   (labels, lineups, reports, situations) is worked out fresh from the plays each time, so this only fixes the raw
+   format; situation tags re-stamp themselves when their version changes (sitlog.js). When the raw format changes, bump
+   DATA_V and add the step below: it must work on any older game and be safe to run twice. */
+const DATA_V = 1;
+function upgradeGame(g) {
+  if (!g || typeof g !== 'object') return g;
+  g.v = g.v || 2; g.ev = Array.isArray(g.ev) ? g.ev : []; g.box = g.box || {};
+  g.ev.forEach((e, i) => { if (!e.id) e.id = 'u' + i.toString(36) + Math.random().toString(36).slice(2, 6); if (e.t === 'to' && e.kind === '30') e.kind = 's30'; });
+  if (!Array.isArray(g.periods) || !g.periods.length) g.periods = [...new Set(['1H', ...g.ev.map(e => e.per).filter(Boolean)])];
+  g.ev.forEach(e => { if (!e.per) e.per = g.periods[0]; });
+  if (!g.per || !g.periods.includes(g.per)) g.per = g.periods[g.periods.length - 1];
+  if (g.astBlk == null) g.astBlk = g.ev.some(e => e.ast || e.blk);
+  if (!g.created) g.created = Date.parse((g.date || today()) + 'T19:00:00') || Date.now();
+  g.dv = DATA_V;
+  return g;
+}
+function upgradeAll() { let n = 0; games.forEach(g => { if ((g.dv || 0) < DATA_V) { upgradeGame(g); n++; } }); if (n) lsSet(LS_GAMES, games); return n; }
+/* ---------- THE BASELINE: the season built into the site, locked with a passcode ----------
+   Games → Make baseline file: the season (as Export season) encrypted on the iPad with a passcode you choose
+   (PBKDF2-SHA256, 250,000 rounds → AES-GCM 256). The file is put on the site as poss/baseline.enc.json; the passcode
+   never leaves the iPad. When the tracker opens and the site has a baseline newer than the last one merged here, it
+   asks for the passcode (once; this iPad remembers it), unlocks it and merges it like Import season: adds what's
+   missing, replaces a game only with a longer copy, never deletes. A fresh or wiped iPad is never blank. */
+const LS_BASE_AT = 'pt2_baseline_at', LS_BASE_KEY = 'pt2_baseline_pass', BASE_URL = 'baseline.enc.json';
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))), unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function baseKey(pass, salt, iter) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+function seasonBody() {
+  const data = {}; SEASON_KEYS.forEach(k => { const v = lsGet(k, null); if (v != null) data[k] = v; });
+  return { app: 'moorpark-possession-tracker', kind: 'season', version: 1, appVersion: VERSION, dataVersion: DATA_V, exportedAt: new Date().toISOString(), games, data };
+}
+async function makeBaseline(pass) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 250000;
+  const S = seasonBody(), key = await baseKey(pass, salt, iter);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(S)));
+  const out = { app: 'moorpark-possession-tracker', kind: 'baseline', version: 1, exportedAt: S.exportedAt, salt: b64(salt), iv: b64(iv), iter, data: b64(ct) };
+  const file = new File([JSON.stringify(out)], 'baseline.enc.json', { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'baseline.enc.json' });
+  else { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = 'baseline.enc.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+  try { localStorage.setItem(LS_BASE_KEY, pass); } catch (e) {}
+  toast(`Baseline file saved (${games.length} games, locked). Upload it to put it on the site.`, 'good');
+}
+async function openBaseline(B, pass) {
+  const key = await baseKey(pass, unb64(B.salt), B.iter || 250000);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(B.iv) }, key, unb64(B.data));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+let BASE = null;   // the site's baseline file, once fetched: { file, pending }
+async function checkBaseline() {
+  if (!window.fetch || !window.crypto || !crypto.subtle) return;
+  let B; try { const r = await fetch(BASE_URL, { cache: 'no-cache' }); if (!r.ok) return; B = await r.json(); } catch (e) { return; }
+  if (!B || B.kind !== 'baseline') return;
+  const seen = lsGet(LS_BASE_AT, null); BASE = { file: B, pending: !seen || seen < B.exportedAt };
+  if (!BASE.pending) return;
+  let pass = null; try { pass = localStorage.getItem(LS_BASE_KEY); } catch (e) {}
+  if (pass && await applyBaseline(pass, true)) return;
+  if (UI.tab === 'games' || !games.length) baselineModal(); else render();
+}
+async function applyBaseline(pass, quiet) {
+  if (!BASE) return false;
+  let S; try { S = await openBaseline(BASE.file, pass); } catch (e) { if (!quiet) toast('Wrong passcode', 'bad'); return false; }
+  try { localStorage.setItem(LS_BASE_KEY, pass); } catch (e) {}
+  const n = await mergeSeason(S, true); if (!n) return false;
+  lsSet(LS_BASE_AT, BASE.file.exportedAt); BASE.pending = false; render();
+  toast(`Baseline loaded: ${n.added} game${n.added === 1 ? '' : 's'} added${n.replaced ? `, ${n.replaced} updated` : ''}${n.filled ? ', rosters and schedule filled in' : ''}`, 'good');
+  return true;
+}
+function baselineModal() {
+  if (!BASE) return;
+  modal(`<h2>Load the season baseline</h2><div class="small muted" style="margin-bottom:10px">The site has the team's season saved ${esc(rpWhen(BASE.file.exportedAt))}, locked. Enter the passcode to load it on this iPad (it only adds what's missing; nothing here is deleted). This iPad remembers it.</div>
+    <input type="password" id="base-pass" autocomplete="current-password" style="width:100%" placeholder="Passcode" enterkeyhint="done">
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Not now</button><button class="btn btn-good btn-lg" data-act="base-open">Load</button></div>`);
+  setTimeout(() => { const i = $('#base-pass'); if (i) i.focus(); }, 50);
+}
+function makeBaselineModal() {
+  modal(`<h2>Make the baseline file</h2><div class="small muted" style="margin-bottom:10px">Every game, the rosters and the schedule, locked with a passcode, to put on the site so any iPad (a new one, or one that was wiped) starts with the season. The site is public: without the passcode the file is unreadable. Pick one you'll remember: it can't be recovered.</div>
+    <input type="password" id="mb-pass" autocomplete="new-password" style="width:100%;margin-bottom:8px" placeholder="Passcode (6+ characters)">
+    <input type="password" id="mb-pass2" autocomplete="new-password" style="width:100%" placeholder="Passcode again">
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="base-make">Save baseline file</button></div>`);
+}
+function baselineLine() {
+  if (!BASE) return '';
+  const at = rpWhen(BASE.file.exportedAt);
+  return BASE.pending ? `<div class="row" style="gap:8px;align-items:center;margin-top:8px"><span class="small neg">The site has a newer season baseline (${esc(at)}) not loaded on this iPad.</span><button class="btn btn-sm btn-good" data-act="base-load">Load it</button></div>`
+    : `<div class="small muted" style="margin-top:8px">Season baseline on the site: ${esc(at)} · loaded on this iPad ✓</div>`;
+}
+
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+try { upgradeAll(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
 fetchRatings();
+checkBaseline();
 </script>
 </body>
 </html>

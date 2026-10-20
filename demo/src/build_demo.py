@@ -51,7 +51,7 @@ sub('</style>', css + '</style>')
 sub('<nav class="nav">', banner + '\n<nav class="nav">')
 i = html.index('<script>')
 html = html[:i] + shim + html[i:]
-sub('\nfetchRatings();\n', '\n/* DEMO: frozen on the seeded 2025-26 ratings and team files; no refresh. */\n')
+sub('\nfetchRatings();\ncheckBaseline();\n', '\n/* DEMO: frozen on the seeded 2025-26 ratings and team files; no refresh, no season baseline. */\n')
 html = html.replace("'vendor/tess/", "'../poss/vendor/tess/").replace("corePath: 'vendor/tess'", "corePath: '../poss/vendor/tess'").replace("langPath: 'vendor/tess'", "langPath: '../poss/vendor/tess'")
 os.makedirs(OUT, exist_ok=True)
 open(f'{OUT}/index.html', 'w').write(html)

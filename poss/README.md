@@ -309,7 +309,12 @@ built its numbers in low-leverage minutes ranks lower. Smaller scopes need fewer
 All 25 / High+Med 15 / High 10 / Clutch 6 at that end; today 6 / 5 / 4 / 3), and when no five qualifies
 the next wider scope is shown, saying so. The Lineups tab filters add High+Med and High.
 
-**Halftime: lineups for what's hurting us, today and season.** Each four factor we're losing in the 1st
+**Halftime: lineups for what's hurting us, today and season.** A **What's hurting us** box on top (also in 💡 Try
+and the situations) lists all four factors this half: us / them, our edge, and about how many points the gap is
+worth, most points lost first, the ones we're losing in red. The points: eFG% gap × 2 × FGA; TO% gap ×
+possessions × points per possession; OREB% gap × missed shots × points per possession; FT rate gap × FGA × FT%
+(the two teams' averages this half). So a 2% TO% gap and a 15% rebounding gap can be weighed at a glance, and the
+problem sections below come in the same order. Each four factor we're losing in the 1st
 half is split into its two ends, and only the end that's off our norm tonight is worked on (our season
 norm once 2 games are in, league average before). Each problem is one stat with one direction, and the
 fives are ranked on that stat alone:
@@ -686,7 +691,7 @@ five has 25+ offensive possessions).
   scouting PDF.
   - The **opponent file** is built from every game on this iPad against that team, plus their stat sheets — nothing
     to enter: what decided it (the full report's hurting / helping lines when a sheet was read, else the four
-    factors), their biggest run and our best five, their lineups (most used, best against us), their players (sheet
+    factors), their biggest run and our best five, their lineups (most used, best against us — ranked by net weighted for sample size, as if each five had also played 50 possessions at even, so 18 possessions at +40 outranks 5 at +100; under each five its ORtg, DRtg and net, and the four factors at both ends: Off = their offense, Def = ours against that five), their players (sheet
     numbers and your notes) and their tendencies (pace, PPP, TO% / non-steal, eFG% / FT rate, kills, biggest run,
     timeouts after our runs). Two or more games → a chip per game plus All games.
   - Opened from: the Scouting tab (a LAST TIME badge shows when there's a file), 📄 Scout on the live screen,
@@ -695,6 +700,24 @@ five has 25+ offensive possessions).
 - **Scouting PDF:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
+- **Your data and updates.** Updating the tracker replaces its code, never your games: they live in the iPad's
+  website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
+  Clear History and Website Data. The home-screen app and a Safari tab keep separate data: always open it the same way.
+- **Backups** (Games tab): a full copy of each game, kept on the iPad apart from the live data, at Start 2nd half, at
+  Final, before a delete or an import replaces it, and every 5 minutes while tracking (the last 3 of those per game).
+  **Restore** puts one back (the game as it is now is backed up first); a deleted game comes back too.
+- **Season backup file** (Games tab): **Export season** saves every game, the rosters, the schedule and the label /
+  tournament settings in one file (iPad: Save to Files / Drive); the card shows when it was last saved and turns red
+  after 7 days. **Import season** adds the file's games (one already here is replaced only if the file's copy has more
+  plays, after a backup) and fills rosters / schedule / settings this iPad doesn't have. After Final a reminder says so.
+- **The season baseline** (encrypted, on the site): Games → **Make baseline file** saves the season (as Export
+  season) locked with a passcode you choose (PBKDF2-SHA256 250k → AES-GCM; the passcode never leaves the iPad). Put that
+  file on the site as `poss/baseline.enc.json`. When the tracker opens and the site's baseline is newer than the last
+  one merged on that iPad, it asks for the passcode once (remembered after), unlocks it and merges it like Import
+  season: adds what's missing, replaces a game only with a longer copy, never deletes. A new or wiped iPad is never
+  blank. The site is public; without the passcode the file is unreadable. The baseline is saved for offline use.
+- **Old data always comes forward** (backup.js upgradeGame): every game, from the iPad, a game file, a season file or a
+  backup, is upgraded to the current format before it's used; everything else is worked out fresh from the plays.
 - **Saved reports** (Games tab): a copy of each halftime and post-game report as it was, kept on the iPad apart
   from the game, so it stays even if the game is edited or deleted. They save themselves at **Start 2nd half**,
   at **Final** and whenever a stat sheet is saved; **💾 Save report** on the report saves one any time. One halftime
