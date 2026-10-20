@@ -230,6 +230,8 @@ This copy keeps the original project intact and starts consolidating the working
   Cover strip: record, conference record, ORTg, DRTg, net rating, net rank (no WAB). Player cards run by share of the team's
   possessions used (%Poss x MPG / 40), highest first, so a high-usage bench player doesn't rank over the starters (by
   points on teams without reliable minutes).
+  Heights come from generate_leaderboard._load_player_heights() (the same roster scrape and team-name matching as the
+  leaderboard's Height tab; 761 of 804 rotation players in 2025-26).
   Rotation: 10+ MPG in 40%+ of games; players absent from the team's last 6 games are listed, not profiled (finds the
   Ventura report's hand-dropped Aukuso), only when player_game_ratings covers 80%+ of the games. Teams without reliable
   minutes (box minutes under 75% of 200 a game) use 4+ PPG or 3+ RPG and show no per-minute numbers (usage, ORtg/DRtg,
