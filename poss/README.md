@@ -77,9 +77,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
     *Closing FTs*) and its worst weakness (red ✕: *1 shooter*, *G can't shoot*, *No handler*, *Thin glass*, *TO risk*,
     *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists who earned it, with their numbers. Nothing
     is logged.
-    - **Thin glass** is the five itself, not its players: its own OREB% and DREB% as a group from the lineup data
-      (ours: every tracked game; theirs: every game we've tracked against them), 2+ points under the team's average
-      over the same games at **both** ends, on 10+ rebound chances at each end. The bubble shows both with the team's.
+    - **Elite glass / Thin glass** are the five itself, not its players: its own OREB% and DREB% as a group from the lineup data
+      (ours: every tracked game; theirs: every game we've tracked against them), 2+ points over (Elite) or under (Thin) the
+      team's average over the same games at **both** ends, on 10+ rebound chances at each end. The bubble shows both with the team's.
     - **No handler**: nobody on the floor is listed at PG or is a *Floor general* (his stats label, or typed on his
       card). Pressure that five. Only when 4+ of the five have a position or a stats line; the bubble shows each
       player's position and assist rate.

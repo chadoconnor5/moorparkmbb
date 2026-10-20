@@ -1180,7 +1180,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.180';
+const VERSION = 'v2026.10.20.181';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5052,7 +5052,7 @@ function plugCard(g, D, outId) {
    shoot but gets to the line reads differently from one who does neither.
    SLASHER = a non-shooter who attacks the rim (FT rate 45%+). He counts toward Attack the rim, and a slasher guard
    is not "G can't shoot": that is a guard who neither shoots nor attacks. */
-const FL = { K3: 50, TAG_SH: 3, TAG_NS: -4, VOL_RATE: 40, VOL_PG: 2.0, SH_EST: 32, SH_EST_HI: 36, SH_VOL_HI: 0.75, NS_EST: 28, NS_RATE: 15, NS_FGA: 20, NS_PG: 0.5, NS_GAMES: 3, FTR_HI: 45, FTR_FGA: 15, HAWK: 2.5, RIM: 2.5, TO: 4, PF: 6, FT_LO: 62, FT_HI: 75, FT_MIN: 6, GLASS_HI: 40, GLASS_LO: 26, AST_HI: 18 };
+const FL = { K3: 50, TAG_SH: 3, TAG_NS: -4, VOL_RATE: 40, VOL_PG: 2.0, SH_EST: 32, SH_EST_HI: 36, SH_VOL_HI: 0.75, NS_EST: 28, NS_RATE: 15, NS_FGA: 20, NS_PG: 0.5, NS_GAMES: 3, FTR_HI: 45, FTR_FGA: 15, HAWK: 2.5, RIM: 2.5, TO: 4, PF: 6, FT_LO: 62, FT_HI: 75, FT_MIN: 6, AST_HI: 18 };
 const flTag = (p, re) => noteLabels(p.note).some(x => re.test(x));
 // An opponent's player in his team's leaderboard file: by jersey number, else by last name.
 function oppFileLine(g, p) {
@@ -5119,8 +5119,9 @@ function fiveLabels(g, t, five) {
   const atk = P.filter(q => q.attacker); if (atk.length >= 2) add('g', 'Attack the rim', atk.length - 0.75, who(atk, q => (q.slasher ? 'Slasher · ' : '') + (q.ftr != null ? `FTr ${q.ftr.toFixed(0)}%` : 'tagged')));
   const hawks = P.filter(q => q.hawk); if (hawks.length >= 2) add('g', 'Ball hawks', hawks.length - 0.5, who(hawks, q => q.stl != null ? `${q.stl.toFixed(1)} stl/40` : 'tagged'));
   const rim = P.filter(q => q.rim); if (rim.length) add('g', 'Rim protector', 1.5, who(rim, q => q.blk != null ? `${q.blk.toFixed(1)} blk/40` : 'tagged'));
-  const R = P.filter(q => q.reb != null), reb = R.length >= 4 ? R.reduce((s, q) => s + q.reb, 0) * 5 / R.length : null;
-  if (reb != null && reb >= FL.GLASS_HI) add('g', 'Elite glass', 1 + (reb - FL.GLASS_HI) / 5, who(R, q => `${q.reb.toFixed(1)} reb/40`));
+  // Elite glass / Thin glass: the five's own OREB% and DREB% (fiveGlass), GLASS_MARGIN+ over / under the team's at both ends.
+  const gl = fiveGlass(g, t, five), glRows = gl && [`<b>OREB%</b><span>${gl.or.toFixed(1)} (${gl.m.oo}/${gl.m.oc}) · team ${gl.tor.toFixed(1)}</span>`, `<b>DREB%</b><span>${gl.dr.toFixed(1)} (${gl.m.dd}/${gl.m.dc}) · team ${gl.tdr.toFixed(1)}</span>`];
+  if (gl && gl.or >= gl.tor + GLASS_MARGIN && gl.dr >= gl.tdr + GLASS_MARGIN) add('g', 'Elite glass', 1 + (gl.or - gl.tor + gl.dr - gl.tdr) / 10, glRows);
   const A = P.filter(q => q.ast != null), ast = A.length >= 4 ? A.reduce((s, q) => s + q.ast, 0) * 5 / A.length : null;
   if (ast != null && ast >= FL.AST_HI) add('g', 'Passers', 1 + (ast - FL.AST_HI) / 4, who(A, q => `${q.ast.toFixed(1)} ast/40`));
   const F = P.filter(q => q.ft != null), ftLo = F.slice().sort((a, b) => a.ft - b.ft)[0];
@@ -5128,9 +5129,7 @@ function fiveLabels(g, t, five) {
   // Weaknesses
   if (known >= 4 && sh.length <= 1) add('r', sh.length ? '1 shooter' : 'No shooter', sh.length ? 2 : 3, sh.length ? who(sh, f3) : ['<b>Nobody on the floor shoots it</b><span></span>']);
   const gns = P.filter(q => q.guard && q.nonShooter && !q.attacker); if (gns.length) add('r', 'G can\'t shoot', 1.5, who(gns, q => f3(q) + (q.ftr != null ? ` · FTr ${q.ftr.toFixed(0)}%` : '')));
-  const gl = fiveGlass(g, t, five);
-  if (gl && gl.or <= gl.tor - GLASS_MARGIN && gl.dr <= gl.tdr - GLASS_MARGIN) add('r', 'Thin glass', 1 + (gl.tor - gl.or + gl.tdr - gl.dr) / 10,
-    [`<b>OREB%</b><span>${gl.or.toFixed(1)} (${gl.m.oo}/${gl.m.oc}) · team ${gl.tor.toFixed(1)}</span>`, `<b>DREB%</b><span>${gl.dr.toFixed(1)} (${gl.m.dd}/${gl.m.dc}) · team ${gl.tdr.toFixed(1)}</span>`]);
+  if (gl && gl.or <= gl.tor - GLASS_MARGIN && gl.dr <= gl.tdr - GLASS_MARGIN) add('r', 'Thin glass', 1 + (gl.tor - gl.or + gl.tdr - gl.dr) / 10, glRows);
   /* No handler: nobody on the floor is a Floor general (his stats label, or typed on his card) or listed at PG. Pressure
      that five. Only when 4+ of the five have a position or a stats line, so an unknown roster doesn't read as no handler. */
   // A listed PG settles it before any stats labels are worked out (most fives have one; this runs every render).
