@@ -9,8 +9,14 @@ rules (nothing typed per team), so two reports always say the same kind of thing
     python3 generate_opponent_report.py --team "Ventura" --season 2025-26
     python3 generate_opponent_report.py --list
 
-Output: scouting_reports/<team>_scouting_report_<season>.pdf. An existing report is never overwritten: the next free
-name gets _v2, _v3... (the hand-built reports elsewhere in the repo are never touched).
+Two editions, picked by the data in the repo: PRE-SYNERGY (box scores and the leaderboard) until the team's Synergy export
+is in internal_data (synergy_team_<team>_<season>.json, synergy_players_<team>_<season>.json), then SYNERGY, which adds
+the Moorpark report's Synergy layer: the play-type page (offense / defense tables, key takeaways), and on each player card
+the Synergy and bball-index archetypes, play-type mix, the left-hand driver flag, the shot-profile strip, the export's
+written scouting notes and Synergy sentences in his profile.
+
+Output: scouting_reports/<team>_scouting_report_<season>_<pre_synergy|synergy>.pdf. An existing report is never
+overwritten: the next free name gets _v2, _v3... (the hand-built reports elsewhere in the repo are never touched).
 
 The build refuses to write a report that falls short of the standard (check_report): every section present, a card
 with a written profile for every rotation player, and no coaching-scheme or film language (lint_scouting_prose.py's
@@ -285,6 +291,7 @@ def load(team, season):
     c.OPP = colors.HexColor(hexv); c.OPP_TXT = WHITE if luminance(hexv) < 0.6 else DARK
     c.OPP_TINT = colors.HexColor(mix(hexv, '#FFFFFF', 0.9)); c.OPP_DEEP = colors.HexColor(mix(hexv, '#000000', 0.45))
     ini = ''.join(w[0] for w in team.replace('.', '').split())
+    load_synergy(c)
     c.abbr = (ini + 'C' if len(ini) == 2 else ini if len(ini) > 2 else team[:3]).upper()[:4]   # IVC, SBC, VEN
     return c
 
@@ -416,7 +423,8 @@ def page_cover(c):
     e, T, me = [], c.team, c.me
     season_d = c.season.replace('-', '–')
     for row, sz, bg, tc in [([T.upper()], 24, c.OPP, c.OPP_TXT),
-                            ([f'{season_d}  ·  OPPONENT SCOUTING REPORT  ·  PREPARED BY MOORPARK RAIDERS ANALYTICS'], 10, DARK, GOLD)]:
+                            ([f'{season_d}  ·  OPPONENT SCOUTING REPORT  ·  ' + ('SYNERGY EDITION' if c.syn_team else 'PRE-SYNERGY EDITION')
+                              + '  ·  MOORPARK RAIDERS ANALYTICS'], 10, DARK, GOLD)]:
         t = Table([row], colWidths=[7.5 * inch])
         t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), bg), ('TEXTCOLOR', (0, 0), (-1, -1), tc), ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), sz), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('TOPPADDING', (0, 0), (-1, -1), 14), ('BOTTOMPADDING', (0, 0), (-1, -1), 14)]))
@@ -664,6 +672,270 @@ def page_analytics(c):
     return e
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
+# SYNERGY (the Moorpark report's Synergy layer, for any team with an export)
+#   internal_data/synergy_team_<team>_<season>.json     play types, offense and defense
+#   internal_data/synergy_players_<team>_<season>.json  players: scoring_summary, shot_types, drive_direction, notes
+#   (players also come from synergy_archetypes.json rows whose "team" is this team)
+# Both team-file layouts in use are read: Moorpark's (play_type, time_rank, ppp_rank, ppp_rating, two_fg_pct, to_pct)
+# and Ventura's (name, pctile, rating, efg). A table shows the columns its file has.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+def nkey(n): return re.sub(r'[^a-z0-9]', '', (n or '').lower())
+def x_(t): return (t or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')   # export text into a Paragraph
+
+def syn_path(kind, team, season):
+    return os.path.join(HERE, 'internal_data', f'synergy_{kind}_{slug(team)}_{season.replace("-", "_")}.json')
+
+def norm_pt(pt):
+    return {'name': x_((pt.get('play_type') or pt.get('name') or '').replace('Offensive Rebounds (Put Backs)', 'OREB / Put Backs').replace('Miscellaneous Plays', 'Miscellaneous')),
+            'poss': pt.get('poss', 0) or 0, 'pct_time': pt.get('pct_time'), 'time_rank': pt.get('time_rank'), 'ppp': pt.get('ppp'),
+            'pctile': pt.get('ppp_rank', pt.get('pctile')), 'rating': pt.get('ppp_rating', pt.get('rating')) or '',
+            'two_fg_pct': pt.get('two_fg_pct'), 'efg': pt.get('efg_pct', pt.get('efg')), 'to_pct': pt.get('to_pct')}
+
+def load_team_syn(team, season):
+    path = syn_path('team', team, season)
+    if not os.path.exists(path): return None
+    d = jload(path)
+    return {'games': d.get('games_played', d.get('games')), 'off': [norm_pt(x) for x in d.get('offense', {}).get('play_types', [])],
+            'def': [norm_pt(x) for x in d.get('defense', {}).get('play_types', [])], 'path': os.path.relpath(path, HERE)}
+
+def load_synergy(c):
+    c.syn_team, c.syn_mp, c.syn_players = load_team_syn(c.team, c.season), load_team_syn('Moorpark', c.season), {}
+    arch = os.path.join(HERE, 'internal_data', 'synergy_archetypes.json')
+    if os.path.exists(arch):
+        for x in jload(arch):
+            if x.get('team') == c.team: c.syn_players[nkey(x['name'])] = x
+    pp = syn_path('players', c.team, c.season)
+    if os.path.exists(pp):
+        for x in jload(pp): c.syn_players[nkey(x['name'])] = x
+
+def SYNP(c, p): return c.syn_players.get(nkey(p['name']))
+
+def ordn(n):
+    n = int(round(n)); return f'{n}{"th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")}'
+
+# The Moorpark report's two archetypes, unchanged (generate_moorpark_scouting_report.py): computed from the Synergy
+# play-type mix and shot profile; never shown without Synergy data.
+_BIG_POS, _GUARD_POS = {'S-PF', 'PF/C', 'C'}, {'PG', 's-PG', 'CG'}
+_BI_PATS = [('spotup', r'spot ?up|spots up'), ('pnr_bh', r'p&?r bh|pick.?and.?roll bh'),
+            ('postup', r'post.?up'), ('iso', r'isolation|iso\b'), ('transition', r'transition'),
+            ('offscreen', r'off.?screen'), ('handoff', r'hand.?off|dho'), ('cut', r'\bcut'),
+            ('roll', r'roll man|p&?r man|p&?r roll'), ('putback', r'put.?back')]
+def _parse_playtypes(summary):
+    s_ = (summary or '').lower(); out = {}
+    for k, pat in _BI_PATS:
+        m = re.search('(?:' + pat + r')[^0-9]{0,18}?(\d+)\s*%', s_)
+        if m and m.group(1): out[k] = int(m.group(1))
+    return out
+
+def bball_index_archetype(pos, adv, tot, sa):
+    if not sa: return None
+    st = sa.get('shot_types') or {}; pt = _parse_playtypes(sa.get('scoring_summary'))
+    usg = adv.get('usage_pct', 0) or 0; ast = adv.get('ast_rate', 0) or 0
+    fga = tot.get('FGA', 0) or 0
+    ftr = (tot.get('FTA', 0) / fga * 100) if fga else 0
+    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
+    rim = st.get('at_rim_pct_fga', 0) or 0; js = st.get('jump_shot_pct_fga', 0) or 0
+    cs = st.get('catch_shoot_pct_of_js', 0) or 0; pullup = 100 - cs
+    move = pt.get('offscreen', 0) + pt.get('handoff', 0)
+    if pos in _BIG_POS:
+        if tpar >= 20: return 'Stretch Big'
+        if pt.get('postup', 0) >= 15 or usg >= 24: return 'Post-Up Big'
+        if rim >= 45 or pt.get('cut', 0) + pt.get('roll', 0) + pt.get('putback', 0) >= 18: return 'Roll + Cut Big'
+        return 'Versatile Big'
+    creator = pt.get('pnr_bh', 0) + pt.get('iso', 0)
+    if ast >= 22 and (creator >= 6 or usg >= 18): return 'Primary Ball Handler' if usg >= 22 else 'Secondary Ball Handler'
+    if rim >= 45: return 'Slasher' if (ftr >= 20 or pt.get('iso', 0) >= 6) else 'Athletic Finisher'
+    if (usg >= 23 and (creator >= 14 or pullup >= 45)) or creator >= 22: return 'Primary Ball Handler' if ast >= 18 else 'Shot Creator'
+    has_shots = bool(st)
+    if (has_shots and js >= 50 and cs >= 50) or (not has_shots and pt.get('spotup', 0) >= 28):
+        if move >= 10: return 'Movement Shooter'
+        if pt.get('spotup', 0) >= 30: return 'Stationary Shooter'
+        return 'Off-Ball Shooter'
+    if rim >= 30 or ftr >= 28 or pt.get('iso', 0) >= 10: return 'Slasher' if (ftr >= 25 or pt.get('iso', 0) >= 8) else 'Athletic Finisher'
+    if ast >= 15 and creator >= 8: return 'Secondary Ball Handler'
+    if cs >= 48 and js >= 45: return 'Off-Ball Shooter'
+    return 'Connector / Role'
+
+def synergy_archetype(pos, sa, tot, apg):
+    if not sa: return None
+    pt = _parse_playtypes(sa.get('scoring_summary'))
+    fga = tot.get('FGA', 0) or 0
+    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
+    ftar = (tot.get('FTA', 0) / fga * 100) if fga else 0
+    spot = pt.get('spotup', 0); move = pt.get('offscreen', 0) + pt.get('handoff', 0)
+    rim = (sa.get('shot_types') or {}).get('at_rim_pct_fga', 0) or 0
+    if pos in _BIG_POS:
+        if apg >= 2.0: return 'Playmaking Big'
+        if ftar >= 40 and tpar <= 12: return 'Post-up Big'
+        if tpar >= 18: return 'Stretch Big'
+        return 'Rim-finishing'
+    if pos in _GUARD_POS:
+        if apg >= 3.5: return 'Playmaking Ball Handler'
+        if tpar >= 45 or spot >= 30: return 'Secondary Ball Handler'
+        return 'Scoring Ball Handler'
+    if apg >= 2.5: return 'Playmaking Wing'
+    if rim >= 45 or (ftar >= 28 and tpar <= 30): return 'Slashing Wing'
+    if tpar >= 55 or spot >= 45: return 'Spot-up Wing'
+    if tpar >= 22 or move >= 10: return 'Dynamic Wing'
+    return 'Slashing Wing'
+
+RATING_COLORS = {'Excellent': (GREEN_BG, GREEN_TXT), 'Very Good': (colors.HexColor('#c8e6c9'), GREEN_TXT),
+                 'Good': (YELLOW_BG, colors.HexColor('#5c4200')), 'Average': (colors.HexColor('#f5f5f5'), MID),
+                 'Below Average': (RED_BG, RED_TXT), 'Poor': (colors.HexColor('#f5c6cb'), RED_TXT)}
+
+def pt_line(x, defense=False):
+    pct = f'{x["pct_time"]:.1f}% of possessions, ' if x.get('pct_time') is not None else ''
+    return (f'{x["name"]} ({pct}{x["ppp"]:.3f} PPP' + (f', {ordn(x["pctile"])} pctile' if x.get('pctile') is not None else '')
+            + (f' — {x["rating"]}' if x.get('rating') else '') + ')')
+
+def page_synergy(c):
+    if not c.syn_team: return []   # the pre-Synergy edition has no Synergy section
+    T = c.team
+    e = section('Synergy Sports — Play Type Profile',
+                (f'Play type breakdown across {c.syn_team["games"]} games. ' if c.syn_team and c.syn_team.get('games') else '')
+                + f'Offense: how {T} generates offense by play type. Defense: how opponents score against {T} by play type. '
+                'T-Rank = percentile for how often they run it vs. peers. Pctile = PPP percentile: on offense higher is better; '
+                'on defense higher means opponents were held down (better defense).')
+    def table(rows, defense):
+        rows = sorted(rows, key=lambda x: -x['poss'])
+        cols = [('Play Type', None, 2.1), ('Poss', lambda x: str(x['poss']), 0.6),
+                ('%Time', lambda x: f'{x["pct_time"]:.1f}%' if x.get('pct_time') is not None else '—', 0.65)]
+        if any(x.get('time_rank') is not None for x in rows): cols.append(('T-Rank', lambda x: str(x['time_rank']) if x.get('time_rank') is not None else '—', 0.6))
+        cols += [('PPP', lambda x: f'{x["ppp"]:.3f}', 0.6), ('Pctile', lambda x: str(x['pctile']) if x.get('pctile') is not None else '—', 0.6), ('Rating', None, 1.1)]
+        if any(x.get('two_fg_pct') is not None for x in rows): cols.append(('2FG%', lambda x: f'{x["two_fg_pct"]:.1f}%' if x.get('two_fg_pct') is not None else '—', 0.65))
+        elif any(x.get('efg') is not None for x in rows): cols.append(('eFG%', lambda x: f'{x["efg"]:.1f}%' if x.get('efg') is not None else '—', 0.65))
+        if any(x.get('to_pct') is not None for x in rows): cols.append(('TO%', lambda x: f'{x["to_pct"]:.1f}%' if x.get('to_pct') is not None else '—', 0.55))
+        hdr = [Paragraph(h, S(8, True, WHITE, TA_CENTER)) for h, _, _ in cols]
+        ri_rating, ri_ppp = [h for h, _, _ in cols].index('Rating'), [h for h, _, _ in cols].index('PPP')
+        body, dyn = [], []
+        for i, x in enumerate(rows, 1):
+            bg, tc = RATING_COLORS.get(x['rating'], (WHITE, BLACK))
+            dyn += [('BACKGROUND', (ri_rating, i), (ri_rating, i), bg)]
+            if defense and x['ppp'] is not None:
+                if x['ppp'] >= 1.0: dyn += [('TEXTCOLOR', (ri_ppp, i), (ri_ppp, i), RED_TXT), ('FONTNAME', (ri_ppp, i), (ri_ppp, i), 'Helvetica-Bold')]
+                elif x['ppp'] < 0.75: dyn += [('TEXTCOLOR', (ri_ppp, i), (ri_ppp, i), GREEN_TXT), ('FONTNAME', (ri_ppp, i), (ri_ppp, i), 'Helvetica-Bold')]
+            body.append([Paragraph(x['name'], S(8)) if h == 'Play Type' else Paragraph(x['rating'], S(8, True, tc, TA_CENTER)) if h == 'Rating' else f(x)
+                         for h, f, _ in cols])
+        widths = [w for _, _, w in cols]; k = 7.5 / sum(widths)
+        t = Table([hdr] + body, colWidths=[w * k * inch for w in widths], repeatRows=1)
+        t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), TH_BG), ('FONTSIZE', (0, 1), (-1, -1), 8), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, ALT]), ('INNERGRID', (0, 0), (-1, -1), 0.3, MGRAY),
+            ('BOX', (0, 0), (-1, -1), 0.5, TH_BG), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')] + dyn))
+        return t
+    st = c.syn_team
+    e += [Spacer(1, 8), Paragraph(f'OFFENSE — How {T} Creates', S(10, True, BLUE)), Spacer(1, 4), table(st['off'], False)]
+    e += [Spacer(1, 10), Paragraph(f'DEFENSE — How Opponents Score Against {T}', S(10, True, BLUE)),
+          Paragraph('Pctile = how well they hold opponents vs. other teams; higher = better defense. PPP of 1.0+ in red, under 0.75 in green.',
+                    S(8, False, MID, space_after=4)), Spacer(1, 4), table(st['def'], True)]
+    # Key takeaways: the Moorpark report's box, written by rule from the tables.
+    sig = lambda rows: [x for x in rows if (x.get('pct_time') or 0) >= 5 and x.get('ppp') is not None and x['name'] != 'Miscellaneous']
+    take = []
+    off, dfn = sorted(st['off'], key=lambda x: -x['poss']), sorted(st['def'], key=lambda x: -x['poss'])
+    so, sd = sig(st['off']), sig(st['def'])
+    if off:
+        best = max(so, key=lambda x: x['ppp']) if so else None; worst = min(so, key=lambda x: x['ppp']) if so else None
+        take.append((f'<b>Offensive Identity:</b> {T}’s most-used play types are ' + ' and '.join(pt_line(x) for x in off[:2]) + '.'
+                     + (f' Most efficient of their regular play types (5%+ of possessions): {pt_line(best)}.' if best else '')
+                     + (f' Least efficient: {pt_line(worst)}.' if worst and worst is not best else ''), LGRAY))
+    if dfn:
+        sd_p = [x for x in sd if x.get('pctile') is not None]
+        bd = max(sd_p, key=lambda x: x['pctile']) if sd_p else None; wd = min(sd_p, key=lambda x: x['pctile']) if sd_p else None
+        take.append((f'<b>Defense:</b> Opponents most often score against {T} through ' + ' and '.join(pt_line(x, True) for x in dfn[:2]) + '.'
+                     + (f' Best-defended play type: {pt_line(bd, True)}.' if bd else '') + (f' Weakest: {pt_line(wd, True)}.' if wd and wd is not bd else ''), LGRAY))
+    if c.syn_mp and dfn:
+        dmap = {nkey(x['name']): x for x in st['def']}
+        mo = [x for x in sorted(c.syn_mp['off'], key=lambda x: -x['poss']) if nkey(x['name']) in dmap and x['name'] != 'Miscellaneous'][:3]
+        if mo:
+            take.append(('<b>Moorpark’s Offense vs. Their Defense:</b> Moorpark’s most-used play types against how ' + T + ' defends them: '
+                         + '; '.join(f'{x["name"]} — Moorpark {x["ppp"]:.3f} PPP ({ordn(x["pctile"])} pctile), {T} allows '
+                                     f'{dmap[nkey(x["name"])]["ppp"]:.3f} ({ordn(dmap[nkey(x["name"])]["pctile"])} pctile)' for x in mo) + '.', ALT))
+    e += [Spacer(1, 10), Paragraph('KEY TAKEAWAYS', S(9, True, BLUE)), HR(GOLD, 1, 2, 4)]
+    for txt, bg in take:
+        t = Table([[P(txt, S(8.5))]], colWidths=[7.5 * inch])
+        t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), bg), ('BOX', (0, 0), (-1, -1), 0.5, MGRAY), ('TOPPADDING', (0, 0), (-1, -1), 6),
+                               ('BOTTOMPADDING', (0, 0), (-1, -1), 6), ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8)]))
+        e += [t, Spacer(1, 4)]
+    e.append(PageBreak())
+    return e
+
+SHOTS = [('at_rim', 'at the rim'), ('catch_shoot', 'catch-and-shoot'), ('dribble_jumper', 'off the dribble'), ('three_pt', 'from three')]
+
+def syn_sentences(c, p):
+    """The Moorpark report's Synergy narrative, written by rule: where his shots come from and how each grades."""
+    sa = SYNP(c, p)
+    if not sa: return []
+    st, out = sa.get('shot_types') or {}, []
+    if st.get('at_rim_pct_fga') is not None:
+        out.append(f'Synergy shot data: {st["at_rim_pct_fga"]:.1f}% of his attempts come at the rim ({st.get("at_rim_fg_pct", 0):.1f}% FG, '
+                   f'{ordn(st.get("at_rim_pps_rank", 0))} pctile — {st.get("at_rim_pps_rating", "")})'
+                   + (f'; {st["jump_shot_pct_fga"]:.1f}% are jumpers, {st.get("catch_shoot_pct_of_js", 0):.1f}% of them catch-and-shoot' if st.get('jump_shot_pct_fga') is not None else '') + '.')
+    graded = [(st.get(f'{k}_pps_rank'), lab, st.get(f'{k}_fg_pct'), st.get(f'{k}_pps_rating')) for k, lab in SHOTS if st.get(f'{k}_pps_rank') is not None]
+    if len(graded) >= 2:
+        hi, lo = max(graded, key=lambda x: x[0]), min(graded, key=lambda x: x[0])
+        out.append(f'His best-graded shot is {hi[1]} ({hi[2]:.1f}% FG, {ordn(hi[0])} pctile — {hi[3]}); his lowest is {lo[1]} '
+                   f'({lo[2]:.1f}% FG, {ordn(lo[0])} pctile — {lo[3]}).')
+    pts = _parse_playtypes(sa.get('scoring_summary'))
+    if pts:
+        names = {'spotup': 'Spot Up', 'pnr_bh': 'P&amp;R ball handler', 'postup': 'Post-Up', 'iso': 'Isolation', 'transition': 'Transition',
+                 'offscreen': 'Off Screen', 'handoff': 'Handoffs', 'cut': 'Cuts', 'roll': 'P&amp;R roll man', 'putback': 'Put Backs'}
+        top = sorted(pts.items(), key=lambda kv: -kv[1])[:3]
+        out.append('Most-used play types: ' + ', '.join(f'{names[k]} {v}%' for k, v in top) + ' of his possessions.')
+    return out
+
+def syn_rows(c, p):
+    """The Moorpark report's Synergy rows under a player's header: archetypes and play-type mix, the left-hand driver flag,
+    the shot profile strip, and the written scouting notes from the export."""
+    sa = SYNP(c, p)
+    if not sa: return []
+    avg, tot, adv = A(p), p['totals'], ADV(c, p)
+    pos = c.pos.get(p['name']) or sa.get('pos') or ''
+    out = []
+    cells = [Paragraph(f'<b>Synergy Archetype:</b>  {synergy_archetype(pos, sa, tot, avg.get("AST", 0))}', S(8.5, False, GOLD))]
+    bi = bball_index_archetype(pos, adv, tot, sa)
+    if bi: cells.append(Paragraph(f'<b>bball-index Archetype:</b>  {bi}', S(8.5, False, colors.HexColor('#6fa8ff'))))
+    if sa.get('scoring_summary'): cells.append(P(x_(sa['scoring_summary']), S(7.5, False, colors.HexColor('#aab8d0')), 'note'))
+    t = Table([[x] for x in cells], colWidths=[7.5 * inch])
+    t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0d1a2e')), ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                           ('LEFTPADDING', (0, 0), (-1, -1), 10), ('RIGHTPADDING', (0, 0), (-1, -1), 10), ('BOX', (0, 0), (-1, -1), 0.5, BLUE)]))
+    out.append(t)
+    dd = sa.get('drive_direction')
+    if dd:   # flagged only for LEFT-dominant drivers (right is the norm): 55%+ of 10+ left/right drives
+        lp = dd.get('drives_left_poss', dd.get('spot_up_left_poss', 0) + dd.get('iso_left_poss', 0))
+        rp = dd.get('drives_right_poss', dd.get('spot_up_right_poss', 0) + dd.get('iso_right_poss', 0))
+        mid = dd.get('drives_straight_poss', 0); dt = lp + rp
+        if dt >= 10 and lp > rp and lp / dt >= 0.55:
+            lppp = dd.get('drives_left_ppp', dd.get('spot_up_left_ppp', 0)) or 0; rppp = dd.get('drives_right_ppp', dd.get('spot_up_right_ppp', 0)) or 0
+            eff = '  He is also more efficient going left.' if lppp > rppp + 0.05 else '  He is less efficient going left.' if rppp > lppp + 0.05 else ''
+            note = dd.get('scouting_note', '')
+            TEXT.append(('note', note))
+            ft = (f'<b>&#9668; LEFT-HAND DOMINANT DRIVER &mdash;</b>  Of his directional drives, {round(lp / dt * 100)}% go left ({lp} left vs {rp} right'
+                  f'{f", {mid} middle" if mid else ""}).' + eff + (f'<br/><i>{x_(note)}</i>' if note else ''))
+            r = Table([[Paragraph(ft, S(8, False, colors.HexColor('#ffd54f')))]], colWidths=[7.5 * inch])
+            r.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2a1500')), ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                                   ('LEFTPADDING', (0, 0), (-1, -1), 10), ('RIGHTPADDING', (0, 0), (-1, -1), 10), ('BOX', (0, 0), (-1, -1), 0.8, colors.HexColor('#e8a000'))]))
+            out.append(r)
+    st = sa.get('shot_types')
+    if st:
+        TEAL, TEAL_DK, TEAL_BD = colors.HexColor('#b2dfdb'), colors.HexColor('#001a18'), colors.HexColor('#26a69a')
+        labs = [f'AT RIM ({st["at_rim_att"]} att)' if st.get('at_rim_att') else 'AT RIM', 'CATCH & SHOOT', 'DRIB. JUMPER',
+                f'3-PT ({st["three_pt_att"]} att)' if st.get('three_pt_att') else '3-PT']
+        vals = [(st.get(f'{k}_fg_pct', 0) or 0, st.get(f'{k}_pps_rating', '')) for k, _ in SHOTS]
+        inner = Table([[Paragraph(l, S(6.5, True, TEAL, TA_CENTER)) for l in labs],
+                       [Paragraph(f'<b>{v:.1f}%</b>  <font color="#b2dfdb">{r_}</font>', S(8.5, False, WHITE, TA_CENTER)) for v, r_ in vals]], colWidths=[1.875 * inch] * 4)
+        inner.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), TEAL_DK), ('INNERGRID', (0, 0), (-1, -1), 0.3, TEAL_BD), ('BOX', (0, 0), (-1, -1), 0.5, TEAL_BD),
+                                   ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                                   ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
+        out.append(inner)
+        if st.get('scouting_note'):
+            TEXT.append(('note', st['scouting_note']))
+            n = Table([[Paragraph(f'<i>{x_(st["scouting_note"])}</i>', S(7.5, False, TEAL))]], colWidths=[7.5 * inch])
+            n.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), TEAL_DK), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                                   ('LEFTPADDING', (0, 0), (-1, -1), 10), ('RIGHTPADDING', (0, 0), (-1, -1), 10), ('BOX', (0, 0), (-1, -1), 0.5, TEAL_BD)]))
+            out.append(n)
+    return out
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
 # PLAYER PROFILES
 # ═══════════════════════════════════════════════════════════════════════════════════════
 def narrative(c, p, idx):
@@ -710,6 +982,7 @@ def narrative(c, p, idx):
             r, n = pool_rank(c.adv_players, 'tov_pct', tv, False)
             if r >= 0.8 * n: s.append(f'TOV% {tv:.1f}% (#{r}/{n}) — among the highest turnover rates statewide.')
             elif r <= 0.2 * n: s.append(f'TOV% {tv:.1f}% (#{r}/{n}) — among the lowest turnover rates statewide.')
+    s += syn_sentences(c, p)
     pf40 = 40 * tot.get('PF', 0) / max(tot.get('MIN', 1), 1) if c.min_ok else 0
     if pf40 >= 5.0: s.append(f'Fouls: {avg.get("PF", 0):.1f} PF a game in {mpg:.1f} MPG ({pf40:.1f} per 40 minutes).')
     if gp < 0.8 * c.n_games: s.append(f'Played in {gp} of {c.n_games} team games.')
@@ -735,7 +1008,7 @@ def player_card(c, p):
                             S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.8 * inch, 2.5 * inch, 2.2 * inch])
     hdr.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), DARK), ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
-    items = [hdr]
+    items = [hdr] + syn_rows(c, p)
     txt = narrative(c, p, 0)
     top100 = get_top100(c, avg, adv, tot, mpg)
     if top100: txt += ' Ranks top 100 statewide in ' + ', '.join(f'<b>{l} {v:.1f}{u}</b> (#{r}/{n})' for l, v, u, r, n in top100) + '.'
@@ -943,20 +1216,23 @@ REQUIRED = ['Who Is {T}?', 'Advanced Offense / Defense tables', 'Advanced Analyt
 def check_report(c):
     probs = []
     L = sum(g['result'] == 'L' for g in c.games)
-    for s in REQUIRED:
+    for s in REQUIRED + (['Synergy Sports — Play Type Profile'] if c.syn_team else []):
         want = s.format(T=c.team, L=L, S=c.season)
         if want not in SECTIONS: probs.append(f'missing section: {want}')
     if len(c.rotation) < 5: probs.append(f'only {len(c.rotation)} rotation players (need 5+)')
     for p in c.rotation:
         txt = next((t for k, t in TEXT if k == 'player:' + p['name']), '')
         if len(re.findall(r'[.!?](?:\s|$)', txt)) < 3: probs.append(f'thin profile: {p["name"]}')
+    if c.syn_team:
+        miss = [p['name'] for p in c.rotation if not SYNP(c, p)]
+        if miss: print(f'  note: {c.team} has a Synergy team export but no Synergy player data for: ' + ', '.join(miss))
     if getattr(c, 'n_keys', 0) < 4: probs.append(f'only {getattr(c, "n_keys", 0)} keys to victory (need 4+)')
     if len(c.games) < 10: probs.append(f'only {len(c.games)} games in the log')
     # Descriptive data only outside the Keys: lint_scouting_prose.py's patterns.
     sys.path.insert(0, HERE)
     import lint_scouting_prose as lint
     for kind, txt in TEXT:
-        if kind == 'keys': continue
+        if kind in ('keys', 'note'): continue   # Keys may direct; the export's written notes are shown as submitted
         low = txt.lower()
         for label, pats in (('directive', lint.DIRECTIVE), ('film', lint.FILM), ('hedge', lint.HEDGE)):
             for pt in pats:
@@ -975,17 +1251,21 @@ def build(team, season, out=None, out_dir=None):
     TEXT.clear(); SECTIONS.clear()
     if team == 'Moorpark': sys.exit('Moorpark is the home team: scout an opponent.')
     c = load(team, season)
-    story = page_cover(c) + page_analytics(c) + page_players(c) + page_situations(c) + page_scouting_guide(c)
+    story = page_cover(c) + page_analytics(c) + page_synergy(c) + page_players(c) + page_situations(c) + page_scouting_guide(c)
     probs = check_report(c)
     if probs:
         print(f'{team}: not written — below the report standard:\n  ' + '\n  '.join(probs)); return None
     od = out_dir or OUT_DIR; os.makedirs(od, exist_ok=True)
-    path = next_free(out or os.path.join(od, f'{slug(team)}_scouting_report_{season.replace("-", "_")}.pdf'))
+    # Two editions: pre-Synergy (box scores and leaderboard only) until the team's Synergy export is in internal_data, then
+    # Synergy. Different file names, so the Synergy edition never replaces (or is mistaken for) the earlier one.
+    ed = 'synergy' if c.syn_team else 'pre_synergy'
+    path = next_free(out or os.path.join(od, f'{slug(team)}_scouting_report_{season.replace("-", "_")}_{ed}.pdf'))
     today = date.today().strftime('%B ') + str(date.today().day) + date.today().strftime(', %Y')
     def on_page(canvas, doc):
         canvas.saveState(); canvas.setFillColor(c.OPP); canvas.rect(0.5 * inch, 10.32 * inch, 7.5 * inch, 0.28 * inch, fill=1, stroke=0)
         canvas.setFillColor(c.OPP_TXT); canvas.setFont('Helvetica-Bold', 7.5)
-        canvas.drawString(0.62 * inch, 10.39 * inch, f'MOORPARK RAIDERS  |  OPPONENT SCOUTING REPORT  |  {team.upper()}  |  ' + season.replace('-', '–'))
+        canvas.drawString(0.62 * inch, 10.39 * inch, f'MOORPARK RAIDERS  |  OPPONENT SCOUTING REPORT  |  {team.upper()}  |  ' + season.replace('-', '–')
+                          + ('  |  SYNERGY EDITION' if c.syn_team else '  |  PRE-SYNERGY EDITION'))
         canvas.setFont('Helvetica', 7.5); canvas.drawRightString(7.9 * inch, 10.39 * inch, f'Page {doc.page}')
         canvas.setFillColor(MID); canvas.setFont('Helvetica', 6.5)
         canvas.drawCentredString(4.25 * inch, 0.35 * inch, f'Internal Use Only  |  Moorpark Raiders Analytics  |  {today}')
@@ -993,7 +1273,7 @@ def build(team, season, out=None, out_dir=None):
     doc = SimpleDocTemplate(path, pagesize=letter, leftMargin=0.5 * inch, rightMargin=0.5 * inch, topMargin=0.72 * inch, bottomMargin=0.55 * inch,
                             title=f'{team} Scouting Report {season}', author='Moorpark Raiders Analytics')
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
-    print(f'Saved: {path} ({round(os.path.getsize(path) / 1024)} KB, {len(c.rotation)} rotation players)')
+    print(f'Saved: {path} ({round(os.path.getsize(path) / 1024)} KB, {len(c.rotation)} rotation players, {ed.replace("_", "-")} edition)')
     return path
 
 if __name__ == '__main__':

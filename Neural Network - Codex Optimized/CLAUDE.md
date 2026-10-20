@@ -44,7 +44,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
                                             #    blending Synergy shot data from internal_data/synergy_players_*.json
 - Opponent scouting report, the standard (the Ventura report's layout and detail) for any team; never overwrites a
   report (an existing name gets _v2, _v3...), and refuses to write one that falls short of the standard:
-  python3 generate_opponent_report.py "Irvine Valley"   # -> scouting_reports/irvine_valley_scouting_report_2025_26.pdf
+  python3 generate_opponent_report.py "Irvine Valley"   # -> scouting_reports/irvine_valley_scouting_report_2025_26_pre_synergy.pdf
+                                                        #    (_synergy.pdf once internal_data/synergy_team_irvine_valley_2025_26.json
+                                                        #    and synergy_players_irvine_valley_2025_26.json are added)
   python3 generate_opponent_report.py --all --out-dir <dir>   # every team (a check that the standard holds statewide)
 - List all teams:
   python3 scrape_team.py --list-teams

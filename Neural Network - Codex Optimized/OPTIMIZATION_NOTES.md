@@ -238,7 +238,17 @@ This copy keeps the original project intact and starts consolidating the working
   Team foul rate is PF a game (the advanced fc_per_40 is unusable on false-minutes teams); state averages skip zeros.
   check_report() refuses to write a report below the standard: every section, 5+ rotation players each with a 3+
   sentence profile, 4+ keys, 10+ games, and no lint_scouting_prose.py directive / film / hedge language outside the Keys.
-  Output: scouting_reports/<team>_scouting_report_<season>.pdf, never overwritten (_v2, _v3...). 2025-26: all 99
+  Synergy: two editions by the data in the repo. PRE-SYNERGY until internal_data/synergy_team_<slug>_<season>.json exists,
+  then SYNERGY: the Moorpark report's Synergy layer (generate_moorpark_scouting_report.py) for any team: play-type page
+  (offense / defense tables with the columns the file has; both team-file layouts, Moorpark's play_type/time_rank/
+  ppp_rank/two_fg_pct/to_pct and Ventura's name/pctile/rating/efg, are read), rule-written key takeaways (most-used,
+  most / least efficient at 5%+ of possessions, best / weakest defended, Moorpark's top play types vs their defense),
+  and on player cards (synergy_players_<slug>_<season>.json, or synergy_archetypes.json rows with this "team") the
+  Synergy + bball-index archetypes (the Moorpark functions, copied unchanged), play-type mix, the left-hand driver flag
+  (55%+ of 10+ L/R drives), the shot strip, the export's written scouting notes (shown as submitted, exempt from the
+  prose lint like the Keys) and Synergy sentences in the profile. Rotation players missing from the player export are
+  printed as a note at build time.
+  Output: scouting_reports/<team>_scouting_report_<season>_<pre_synergy|synergy>.pdf, never overwritten (_v2, _v3...). 2025-26: all 99
   opponents pass (~25 s for --all).
 
 ## Example commands
