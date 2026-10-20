@@ -1,7 +1,7 @@
 /* Offline support for the coaches' demo (a copy of the possession tracker's), the same way the game tracker does it: the page
    network first (5 seconds, then the cached copy, so one bar of signal never hangs it), logos
    and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
-const CACHE = 'mbbdemo-v1-26bcd4bd';
+const CACHE = 'mbbdemo-v1-fe07ba13';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png',
                '../game/logos/allan_hancock.png', '../game/logos/bakersfield.png', '../game/logos/chaffey.png', '../game/logos/cuesta.png', '../game/logos/irvine_valley.png', '../game/logos/la_pierce.png', '../game/logos/la_valley.png', '../game/logos/moorpark.png', '../game/logos/oxnard.png', '../game/logos/riverside.png', '../game/logos/santa_barbara.png', '../game/logos/ventura.png', '../game/logos/west_la.png'];
 // The stat-sheet photo reader (Tesseract, ~11 MB), saved up front so it works with no signal. Best effort:

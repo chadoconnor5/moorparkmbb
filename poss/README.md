@@ -586,8 +586,11 @@ five has 25+ offensive possessions).
       65%: foul him), both only for players who get to the line: 2+ FTA a game in half the team's games,
       on 2 attempts per team game played (up to 40). (No Ball secure or Disciplined: only who *isn't* those things matters: TO-prone, Foul-prone.)
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
-    that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
-    estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
+    that label). Low-info teams (no reliable minutes) are judged against the same state cuts on what needs no minutes:
+    the scoring labels from TS%, 2P%, FT rate, shot diet and 3P% (their percentile among the state's qualified players),
+    and Rebounder / Off. rebounder / Glass cleaner, Ball hawk, Rim protector, Passer / Floor general, Non-passer and
+    TO-prone from per-game numbers and per-possession ratios (export_ratings.py box_pct); the per-40 estimate is the
+    last fallback. Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
     4+ points or 3+ rebounds a game over half the games), so end-of-bench samples don't.
     **Team leaders** (★, first on the card; low-info teams only, a team with analytics gets the state labels): one
     player per label per team among those who play (10+ games, half the

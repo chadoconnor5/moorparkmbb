@@ -194,6 +194,10 @@ This copy keeps the original project intact and starts consolidating the working
   Star (tiers()): one statewide top 20. Analytics players by rank.porp; low-info players (fm) get rank.eqr = where
   their Game Score per game (game_score_pg, box score only) falls among the porp-ranked players' Game Scores; ties go
   to the analytics player. rank.tier = "Star", rank.srank = place, totals["starTop"] = 20.
+  Low-info players (fm, gp >= half the team's games): composites() also scores them (cuts from the qualified pool only),
+  with efg/ts/ft_rate/ftp/twop/tpp as value percentiles among the qualified players when the State Rank skips them, and
+  blends allowed on half the weight (no fd_per_40 / usage). box_pct() adds rank.box: spg, bpg, orpg, drpg, apg, tor
+  (TO per possession used), astr (AST per possession used) as percentiles vs the qualified players.
   Shooter / Elite shooter / Poor 3PT use tpp_vol, not the State Rank: 3P% percentile among volume shooters (2+ 3PA/g or
   35%+ of FGA, 40+ attempts) with min% >= 30. The State Rank ranks 3P% only at 50%+ minutes, which left 117 volume
   shooters (bench shooters, sixth men) with no shooting label. Volume is a rate (works from week one): 2+ 3PA/g or 35%+
