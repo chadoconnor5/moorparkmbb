@@ -1210,7 +1210,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.183';
+const VERSION = 'v2026.10.20.184';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3575,8 +3575,9 @@ function oppScoutKey(g) {
 }
 async function openScout(fromFile) {
   const g = cur(); $('#scout').classList.remove('hidden');
-  // The opponent file: this game's opponent, unless opened for another team (Schedule / Rosters / New game).
-  if (!fromFile) { OF.opp = g ? g.opp : null; OF.sel = null; OF.mode = OF.opp && oppGames(OF.opp).length ? 'file' : 'pdf'; }
+  // The opponent file: this game's opponent, unless opened for another team (Schedule / Rosters / New game). The Scout
+  // button opens on the scouting PDF; its Last time tab (or 📁 Last time elsewhere) shows the file.
+  if (!fromFile) { OF.opp = g ? g.opp : null; OF.sel = null; OF.mode = 'pdf'; }
   scoutTabs();
   let keys = [];
   try { keys = await idbKeys(); } catch (e) { toast('This browser blocks offline file storage'); }

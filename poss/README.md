@@ -697,8 +697,8 @@ five has 25+ offensive possessions).
     tracker's formulas. No assists.
   - Tap a box to type the official printout's number over a tracked one; **Back to tracked**
     undoes the typed numbers.
-- **Scouting:** two tabs. **Last time vs <opponent>** (when we've tracked them before; it opens first) and the
-  scouting PDF.
+- **Scouting:** two tabs. The **scouting PDF** (📄 Scout and the Scouting tab open on it) and **Last time vs
+  <opponent>** (when we've tracked them before; 📁 Last time on Schedule / Rosters opens straight to it).
   - The **opponent file** is built from every game on this iPad against that team, plus their stat sheets — nothing
     to enter: what decided it (the full report's hurting / helping lines when a sheet was read, else the four
     factors), their biggest run and our best five, their lineups (most used, best against us — ranked by net weighted for sample size, as if each five had also played 50 possessions at even, so 18 possessions at +40 outranks 5 at +100; under each five its ORtg, DRtg and net, and the four factors at both ends: Off = their offense, Def = ours against that five), their players (sheet
