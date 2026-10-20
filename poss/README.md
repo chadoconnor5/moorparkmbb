@@ -592,13 +592,7 @@ five has 25+ offensive possessions).
     TO-prone from per-game numbers and per-possession ratios (export_ratings.py box_pct); the per-40 estimate is the
     last fallback. Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
     4+ points or 3+ rebounds a game over half the games), so end-of-bench samples don't.
-    **Team leaders** (★, first on the card; low-info teams only, a team with analytics gets the state labels): one
-    player per label per team among those who play (10+ games, half the
-    games early in the season; 30%+ of the minutes where minutes are reliable). Analytics when the team's file has
-    them, per-game box stats for low-info teams (never mixed): *Top scorer* (points produced per game | PPG), *Top rebounder* (OR% +
-    DR% | RPG), *Top passer* (assist rate | APG), *Top shooter* (best 3P% on 2.0+ threes a game, 20+ | most 3PM at
-    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
-    Top shooter → no Shooter). The +N bubble shows label names only (each label's numbers are kept for a future player page). In the roster editor they
+    (The ★ team-leader labels, Top scorer and the rest, are gone: low-info players get the state labels.) The +N bubble shows label names only (each label's numbers are kept for a future player page). In the roster editor they
     sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
     already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
