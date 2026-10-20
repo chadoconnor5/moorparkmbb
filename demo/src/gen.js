@@ -29,7 +29,7 @@ const POS = JSON.parse(fs.readFileSync(__dirname + '/pos.json'));
       return out.sort((x, y) => y.mpg - x.mpg); };
     const M = model('Moorpark');
     // ---- rosters (Moorpark's own list; opponents in the game tracker's store), a few typed labels for flavor ----
-    const note = { 'Matt Mowers': 'Lefty', 'Ahmad Alhammouri': 'Drives right', 'Eric Kubel': '' };
+    const note = {};   // no typed labels: every label in the demo comes from real stats
     lsSet(LS_ROSTER, M.map(x => ({ num: x.num, name: x.name, pos: x.pos, note: note[x.name] || '' })));
     lsSet('gt_opp_rosters', OPPS.map(t => ({ name: t, players: model(t).map(x => ({ num: x.num, name: x.name, pos: x.pos, ht: x.ht, yr: '', note: note[x.name] || '' })) })));
     // ---- rotations: a fixed set of fives per team, so the same lineups come back game after game ----
