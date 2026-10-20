@@ -686,7 +686,7 @@ five has 25+ offensive possessions).
   scouting PDF.
   - The **opponent file** is built from every game on this iPad against that team, plus their stat sheets — nothing
     to enter: what decided it (the full report's hurting / helping lines when a sheet was read, else the four
-    factors), their biggest run and our best five, their lineups (most used, best against us), their players (sheet
+    factors), their biggest run and our best five, their lineups (most used, best against us; under each five its ORtg, DRtg and net, and the four factors at both ends: Off = their offense, Def = ours against that five), their players (sheet
     numbers and your notes) and their tendencies (pace, PPP, TO% / non-steal, eFG% / FT rate, kills, biggest run,
     timeouts after our runs). Two or more games → a chip per game plus All games.
   - Opened from: the Scouting tab (a LAST TIME badge shows when there's a file), 📄 Scout on the live screen,

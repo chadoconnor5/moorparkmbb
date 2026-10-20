@@ -842,6 +842,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .of-g .l{color:var(--bad);font-weight:800} .of-g .w{color:var(--good);font-weight:800}
 .of-five{background:var(--surface);border-radius:10px;padding:9px 11px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
 .of-five b{font-size:14px} .of-five .tiny{display:block} .of-five .n{font-weight:800;font-size:17px;text-align:right}
+.of-rt{grid-column:1/-1;display:flex;gap:14px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px}
+.of-rt b{font-size:13px;color:var(--text);font-variant-numeric:tabular-nums} .of-rt b.pos{color:var(--good)} .of-rt b.neg{color:var(--bad)}
+.of-ff{grid-column:1/-1;width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.of-ff th,.of-ff td{padding:2px 4px;text-align:right} .of-ff thead th{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.of-ff tbody th{text-align:left;font-size:10.5px;color:var(--muted);font-weight:700;width:34px}
 .of-badge{margin-left:6px;padding:1px 6px;border-radius:99px;background:#facc15;color:#111;font-size:9.5px;font-weight:800;letter-spacing:.06em;vertical-align:middle}
 .of-banner{display:flex;align-items:center;gap:12px;border-radius:12px;padding:10px 12px;border:1px solid var(--warn);background:rgba(220,176,90,.1);margin:-2px 0 12px}
 .of-banner .ic{font-size:20px}
@@ -1169,7 +1174,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.174';
+const VERSION = 'v2026.10.20.175';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4507,8 +4512,11 @@ function ofTeamLines(gs) {
 function ofFives(gs) {
   const U = {};
   gs.forEach(g => { lineupUnits(g, derive(g), 'b', 'game', 'all', 5).units.forEach(u => { const k = fiveKey(u.five);
-    const m = U[k] = U[k] || { five: u.five, g, oPoss: 0, dPoss: 0, pf: 0, pa: 0 }; ['oPoss', 'dPoss', 'pf', 'pa'].forEach(x => { m[x] += u[x]; }); m.g = g; }); });
-  return Object.values(U).map(u => Object.assign(u, { poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null, pm: u.pf - u.pa }));
+    const m = U[k] = U[k] || { five: u.five, g, oPoss: 0, dPoss: 0, pf: 0, pa: 0, o: {}, d: {} }; ['oPoss', 'dPoss', 'pf', 'pa'].forEach(x => { m[x] += u[x]; }); m.g = g;
+    ['o', 'd'].forEach(s => Object.keys(u[s]).forEach(x => { m[s][x] = (m[s][x] || 0) + u[s][x]; })); }); });
+  // o = their box, d = ours against that five: fixVals gives their offense (efg, tov, orb, ftr) and their defense (oefg, otov, drb, oftr).
+  return Object.values(U).map(u => Object.assign(u, { poss: Math.floor((u.oPoss + u.dPoss) / 2), ortg: u.oPoss ? 100 * u.pf / u.oPoss : null, drtg: u.dPoss ? 100 * u.pa / u.dPoss : null,
+    net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null, pm: u.pf - u.pa, fx: fixVals(u.o, u.d, u.oPoss, u.dPoss) }));
 }
 // Their players from the stat sheets (final sheet if read, else halftime), added up by number.
 function ofPlayers(gs) {
@@ -4562,7 +4570,13 @@ function oppFileHtml(name) {
       ${B ? `<div class="ins good"><span><b>Our best five</b> · ${esc(fiveSorted(g, 'a', B.five).map(id => pShort(g, 'a', id)).join(', '))} — net ${SG(B.net)} on ${B.poss} poss</span></div>` : ''}`; }).join('');
   // Their lineups.
   const FV = ofFives(gs), nm5 = u => fiveSorted(u.g, 'b', u.five).map(id => pInfo(u.g, 'b', id)), lbl = u => nm5(u).map(p => esc(p.num || '—')).join(' · '), names = u => esc(nm5(u).map(p => p.name ? lastName(p.name) : '#' + p.num).join(', '));
-  const five = (u, val, cls) => `<div class="of-five"><div><b>${lbl(u)}</b><span class="tiny muted">${names(u)}</span></div><div class="n ${cls || ''}">${val}</div><div class="small muted">${u.poss} poss<br>${sgn(u.pm)}</div></div>`;
+  // Under each five: their ORtg / DRtg / Net, then the four factors at both ends (Off = their offense, Def = what we did against it).
+  const pc = v => v == null ? '—' : f1(v), nc = v => v == null ? '' : v > 0 ? 'neg' : v < 0 ? 'pos' : '';
+  const ffx = u => `<div class="of-rt"><span>ORtg <b>${pc(u.ortg)}</b></span><span>DRtg <b>${pc(u.drtg)}</b></span><span>Net <b class="${nc(u.net)}">${u.net == null ? '—' : sg1(Math.round(10 * u.net) / 10)}</b></span></div>
+    <table class="of-ff"><thead><tr><th></th><th>eFG%</th><th>TO%</th><th>OREB%</th><th>FT rate</th></tr></thead><tbody>
+    <tr><th>Off</th><td>${pc(u.fx.efg)}</td><td>${pc(u.fx.tov)}</td><td>${pc(u.fx.orb)}</td><td>${pc(u.fx.ftr)}</td></tr>
+    <tr><th>Def</th><td>${pc(u.fx.oefg)}</td><td>${pc(u.fx.otov)}</td><td>${pc(u.fx.drb == null ? null : 100 - u.fx.drb)}</td><td>${pc(u.fx.oftr)}</td></tr></tbody></table>`;
+  const five = (u, val, cls) => `<div class="of-five"><div><b>${lbl(u)}</b><span class="tiny muted">${names(u)}</span></div><div class="n ${cls || ''}">${val}</div><div class="small muted">${u.poss} poss<br>${sgn(u.pm)}</div>${ffx(u)}</div>`;
   const used = FV.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), best = FV.filter(u => u.net != null && u.poss >= 5).sort((x, y) => y.net - x.net).slice(0, 3);
   const lineups = FV.length ? `<div class="card"><h3>Their lineups <span class="muted">· most used / best against us (their net)</span></h3><div class="ff-who">
       <div><div class="ff-who-h" style="color:var(--them-text)">Most used</div>${used.map(u => five(u, '', '')).join('')}</div>
