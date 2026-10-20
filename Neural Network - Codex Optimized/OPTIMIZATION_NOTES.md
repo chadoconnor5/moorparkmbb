@@ -220,6 +220,25 @@ This copy keeps the original project intact and starts consolidating the working
   offline gyms, and refetches when ratings.json's `generatedAt` changes. Same compact JSON as ratings.json; written in
   ~1 s; nothing is added to the leaderboard HTML.
 
+- Opponent scouting reports (Oct 2026): `generate_opponent_report.py` is the one standard report for any team, built
+  on the Ventura report's layout (generate_ventura_scouting_report.py: cover strip, head-to-head box, Who Is X, advanced
+  offense / defense tables, statewide context, four factors vs Moorpark, player cards, splits and quadrants, losses,
+  head-to-head, strengths / vulnerabilities, keys to victory). Every sentence is a rule on the team's numbers (no
+  per-team prose), with one tier wording for every rank (Elite top 15% / Above Avg 35 / Average 65 / Below Avg 85 /
+  Poor). Reads this repo's season folders, internal_data (positions, heights, position dependence) and ../wab_results.json;
+  the opponent's color is the game tracker's TEAM_COLORS (../game/index.html).
+  Rotation: 10+ MPG in 40%+ of games; players absent from the team's last 6 games are listed, not profiled (finds the
+  Ventura report's hand-dropped Aukuso), only when player_game_ratings covers 80%+ of the games. Teams without reliable
+  minutes (box minutes under 75% of 200 a game) use 4+ PPG or 3+ RPG and show no per-minute numbers (usage, ORtg/DRtg,
+  rates). internal_data/scouting_exclusions.json ({team: [names]}) drops anyone else.
+  Four-factor edges are matchup edges: expected = offense + what the defense allows - state average, edge = expected vs
+  the average (the older reports compared raw numbers, which credited a defense that allows a high FT rate with an edge).
+  Team foul rate is PF a game (the advanced fc_per_40 is unusable on false-minutes teams); state averages skip zeros.
+  check_report() refuses to write a report below the standard: every section, 5+ rotation players each with a 3+
+  sentence profile, 4+ keys, 10+ games, and no lint_scouting_prose.py directive / film / hedge language outside the Keys.
+  Output: scouting_reports/<team>_scouting_report_<season>.pdf, never overwritten (_v2, _v3...). 2025-26: all 99
+  opponents pass (~25 s for --all).
+
 ## Example commands
 
 ```bash
