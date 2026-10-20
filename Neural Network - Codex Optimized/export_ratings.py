@@ -265,6 +265,10 @@ def composites(pool, ranks, totals, syn):
            "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
            "ppg": lambda p: p.get("ppg")}
     pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
+    # Low-info players often miss the State Ranks' games bar for these (20 games): their value's percentile among the
+    # qualified players stands in for the rank.
+    CAT = ["efg_pct", "ts_pct", "ft_rate", "ftp", "twop", "tpp"]
+    pcat = {k: pct_of([p[k] for p in qual if p.get(k) is not None]) for k in CAT}
     team_gp = {}
     for p in pool:
         if p.get("gp"):
@@ -282,6 +286,10 @@ def composites(pool, ranks, totals, syn):
                 f[k] = 100 * (1 - (rk[k] - 1) / max(1, n - 1))
         for k, fn in raw.items():
             f[k] = pf[k](fn(p))
+        if p.get("fm"):
+            for k in CAT:
+                if f.get(k) is None and p.get(k) is not None:
+                    f[k] = pcat[k](p[k])
         # 3P% for the shooting labels: ranked among every volume shooter with 30%+ of minutes (vol3), not only the State
         # Ranks' 50%+ minutes, so bench shooters and sixth men are judged too.
         f["tpp_vol"] = tpp_pct(p) if vol3(p) else None
@@ -295,12 +303,16 @@ def composites(pool, ranks, totals, syn):
                 f[k] = float(s[sk])
         return f
 
-    def blend(f, w):   # weighted mean over the factors he has; None under 60% of the weight
+    def blend(f, w, need=0.6):   # weighted mean over the factors he has; None under 60% of the weight (50% low-info)
         have = {k: v for k, v in w.items() if f.get(k) is not None}
-        if sum(have.values()) < 0.6 * sum(w.values()):
+        if sum(have.values()) < need * sum(w.values()):
             return None
         return sum(f[k] * v for k, v in have.items()) / sum(have.values())
     F = {(p["name"], p["school"]): factors(p) for p in qual}
+    # Players on low-info teams (no reliable minutes) are scored too, on the factors that need no minutes (TS%, 2P%,
+    # FT rate, shot diet, 3P%...), against the same cuts; the cuts themselves come from the qualified players only.
+    low = [p for p in pool if p.get("fm") and p.get("gp") and p["gp"] >= 0.5 * team_gp.get(p["school"], 0)]
+    F.update({(p["name"], p["school"]): factors(p) for p in low})
     cuts = {}
     for name, (gate, box, sw, cut, weak) in COMPOSITES.items():
         box_scores = []
@@ -314,9 +326,43 @@ def composites(pool, ranks, totals, syn):
             box_scores.append(100 - b if weak else b)
             full = blend(f, dict(box, **sw)) if any(f.get(k) is not None for k in sw) else b
             ranks.setdefault((p["name"], p["school"]), {}).setdefault("comp", {})[name] = round(100 - full if weak else full, 1)
+        for p in low:
+            if not gate(p):
+                continue
+            f = F[(p["name"], p["school"])]
+            full = blend(f, dict(box, **sw), 0.5)   # no minutes: no fouls drawn per 40 or usage, so half the weight will do
+            if full is not None:
+                ranks.setdefault((p["name"], p["school"]), {}).setdefault("comp", {})[name] = round(100 - full if weak else full, 1)
         box_scores.sort(reverse=True)
         cuts[name] = round(box_scores[max(0, round(cut * len(box_scores)) - 1)], 1) if box_scores else None
     totals["compCut"] = cuts
+
+
+def box_pct(pool, ranks):
+    """rank["box"] for players on low-info teams (no reliable minutes, so no rebound / steal / block / assist rates):
+    per-game numbers and minutes-free ratios as percentiles (0-100) against the state's qualified players (30%+ of
+    minutes), so the tracker's Rebounder / Ball hawk / Rim protector / Passer / TO-prone use the same cuts.
+    tor = turnovers per own possession used (TO / (FGA + 0.44 FTA + TO)); astr = assists per own possession used."""
+    import bisect
+    team_gp = {}
+    for x in pool:
+        if x.get("gp"):
+            team_gp[x["school"]] = max(team_gp.get(x["school"], 0), x["gp"])
+    use = lambda x: (x.get("fga") or 0) / x["gp"] + 0.44 * (x.get("fta") or 0) / x["gp"] + (x.get("topg") or 0)
+    stat = {"spg": lambda x: x.get("spg"), "bpg": lambda x: x.get("bpg"), "orpg": lambda x: x.get("orpg"), "drpg": lambda x: x.get("drpg"),
+            "apg": lambda x: x.get("apg"), "tor": lambda x: (x.get("topg") or 0) / use(x) if use(x) > 1 else None,
+            "astr": lambda x: (x.get("apg") or 0) / use(x) if use(x) > 1 else None}
+    qual = [x for x in pool if (x.get("min_pct") or 0) >= MIN_PCT_QUAL and x.get("gp") and not x.get("fm")]
+    sv = {k: sorted(v for v in map(f, qual) if v is not None) for k, f in stat.items()}
+    for x in pool:
+        if not (x.get("fm") and x.get("gp") and x["gp"] >= 0.5 * team_gp[x["school"]]):
+            continue
+        b = {}
+        for k, f in stat.items():
+            v = f(x)
+            if v is not None and sv[k]:
+                b[k] = round(100 * bisect.bisect_right(sv[k], v) / len(sv[k]), 1)
+        ranks.setdefault((x["name"], x["school"]), {})["box"] = b
 
 
 # ---- Sixth man: each team's best bench player (rank["roles"] = ["Sixth man"]) ----
@@ -371,6 +417,46 @@ def sixth_men(pool, ranks, teams):
         best = max(bench, key=score, default=None)
         if best and score(best) >= 30:
             ranks.setdefault((best["name"], team), {}).setdefault("roles", []).append("Sixth man")
+
+
+def game_score_pg(x):
+    """Hollinger's Game Score per game, from the box score alone (no minutes): every player in the state has one."""
+    g = x.get("gp") or 1
+    n = lambda k: x.get(k) or 0
+    return ((n("pts") + 0.4 * n("fgm") - 0.7 * n("fga") - 0.4 * (n("fta") - n("ftm"))) / g + 0.7 * n("orpg") + 0.3 * n("drpg")
+            + n("spg") + 0.7 * n("apg") + 0.7 * n("bpg") - n("topg"))
+
+
+STAR_TOP = 20
+
+
+def tiers(pool, ranks, totals):
+    """Star: the state's top 20, North and South together, in one list. Analytics players are ranked by PORPAGATU!
+    (rank["porp"]); a player on a low-info team (no reliable minutes, so no PORPAGATU!) gets the rank his Game Score per
+    game would have among the analytics players (rank["eqr"]). At the same rank the analytics player goes first (his
+    number is the better-measured one), then Game Score. rank["tier"] = "Star", rank["srank"] = place on the list."""
+    import bisect
+    team_gp = {}
+    for x in pool:
+        if x.get("gp"):
+            team_gp[x["school"]] = max(team_gp.get(x["school"], 0), x["gp"])
+    played = [x for x in pool if x.get("gp") and x["gp"] >= 0.5 * team_gp[x["school"]]]
+    ana = sorted(-game_score_pg(x) for x in played if ranks.get((x["name"], x["school"]), {}).get("porp"))
+    eq, gsc = {}, {}
+    for x in played:
+        key, rk = (x["name"], x["school"]), ranks.get((x["name"], x["school"]), {})
+        gsc[key] = game_score_pg(x)
+        if rk.get("porp"):
+            eq[key] = rk["porp"]
+        elif x.get("fm"):
+            eq[key] = bisect.bisect_left(ana, -gsc[key]) + 1
+            ranks.setdefault(key, {})["eqr"] = eq[key]
+            ranks[key]["gsc"] = round(gsc[key], 1)
+    order = sorted(eq, key=lambda k: (eq[k], 0 if ranks.get(k, {}).get("porp") else 1, -gsc.get(k, 0)))
+    for i, key in enumerate(order[:STAR_TOP]):
+        ranks.setdefault(key, {})["tier"] = "Star"
+        ranks[key]["srank"] = i + 1
+    totals["starTop"] = STAR_TOP
 
 
 def ft_volume(pool, ranks):
@@ -441,6 +527,8 @@ def leaderboard_tables(teams=()):
         glue_guys(pool, ranks)
         help_off(pool, ranks)
         ft_volume(pool, ranks)
+        tiers(pool, ranks, totals)
+        box_pct(pool, ranks)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:

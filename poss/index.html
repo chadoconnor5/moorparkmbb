@@ -1169,7 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.18.169';
+const VERSION = 'v2026.10.20.172';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5114,40 +5114,6 @@ function editDist(a, b) {
     prev = cur; }
   return prev[b.length];
 }
-/* TEAM LEADERS (low-info teams only: no reliable minutes, so no state ranks to lean on; a team with analytics gets the
-   state labels instead): who his team runs through. One player per label per team, among the
-   players who play: 10+ games (half the team's games early in the season) and 30%+ of the minutes (minutes only
-   where the team's minutes are reliable).
-   Analytics when the team's file has them (reliable minutes), per-game box stats when it doesn't (never mixed):
-     Top scorer     points produced per game (Oliver)   | PPG
-     Top rebounder  OR% + DR%                            | RPG
-     Top passer     assist rate                          | APG
-     Top shooter    best 3P% on 2.0+ threes a game (20+) | most 3PM at 33%+
-     Top defender   Stl% + Blk%                          | steals + blocks per game
-   Shown first on the card (★); the bubble gives the number and the margin ("16.4 pts produced/g (next: 12.1)"). A
-   leader label replaces the matching state label (Top rebounder → no Rebounder, Top passer → no Passer, Top shooter →
-   no Shooter). */
-const LEADERS = [
-  ['Top scorer', { f: (r, a) => a && a.pprod != null && r.gp ? a.pprod / r.gp : null, u: 'pts produced/g' }, { f: r => r.ppg, u: 'ppg' }],
-  ['Top rebounder', { f: r => r.oreb_pct != null && r.dreb_pct != null ? r.oreb_pct + r.dreb_pct : null, u: 'OR%+DR%' }, { f: r => r.rpg, u: 'rpg' }],
-  ['Top passer', { f: r => r.ast_rate, u: 'assist rate' }, { f: r => r.apg, u: 'apg' }],
-  ['Top shooter', { f: r => (r.tpa || 0) >= 20 && r.gp && r.tpa / r.gp >= 2 ? r.tpp : null, u: '% from 3', d: 1, x: r => ` (${r.tpm}-${r.tpa})` }, { f: r => (r.tpp || 0) >= 33 ? r.tpm : null, u: '3PM', d: 0, x: r => ` at ${(+r.tpp).toFixed(1)}%` }],
-  ['Top defender', { f: r => r.stl_pct != null && r.blk_pct != null ? r.stl_pct + r.blk_pct : null, u: 'Stl%+Blk%' }, { f: r => (r.spg || 0) + (r.bpg || 0), u: 'stl+blk/g' }]];
-const LEAD_REPLACES = { 'Top rebounder': 'Rebounder', 'Top passer': 'Passer', 'Top shooter': 'Shooter' };
-function teamLeaders(F) {
-  const rows = (F && F.table && F.table.rows) || []; if (!rows.length || F.table.adv === 1) return {};   // analytics teams: state labels only
-  const adv = F.table.adv === 1, players = F.players || {}, advOf = r => { const k = Object.keys(players).find(n => n.toLowerCase() === String(r.name).toLowerCase()); return k ? players[k].adv : null; };
-  const games = Math.max(...rows.map(r => r.gp || 0)), minG = Math.min(10, Math.max(3, Math.ceil(games / 2)));
-  // Minutes only count where they're reliable (the analytics teams); elsewhere games played decide who plays.
-  const pool = rows.filter(r => (r.gp || 0) >= minG && (!adv || (r.min_pct || 0) >= 30)), out = {};
-  LEADERS.forEach(([l, A, B]) => {
-    let M = adv ? A : B, S = pool.map(r => ({ r, v: M.f(r, advOf(r)) })).filter(x => x.v != null && x.v > 0);
-    S.sort((a, b) => b.v - a.v); if (!S.length) return;
-    const d = M.d == null ? 1 : M.d, top = S[0];
-    out[top.r.name] = (out[top.r.name] || []).concat({ l, lead: true, why: `${top.v.toFixed(d)}${M.u[0] === '%' ? '' : ' '}${M.u}${M.x ? M.x(top.r) : ''}${S[1] ? ` (next: ${S[1].v.toFixed(d)})` : ''}` });
-  });
-  return out;
-}
 function autoLabels(g, t, id) {
   let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
   const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
@@ -5166,8 +5132,6 @@ function autoLabels(g, t, id) {
     if (ks.includes('pull') && S.pull != null) p.push(`pull-up ${f1(S.pull)}%`);
     return p.length ? ' · Synergy: ' + p.join(', ') : ''; };
   if (!R && (!q || q.est == null)) return out;   // nothing on him yet
-  const LD = R ? teamLeaders(F)[R.name] || [] : [], led = new Set(LD.map(x => LEAD_REPLACES[x.l]).filter(Boolean));
-  LD.forEach(x => out.push(x));
   // Help off: a starter who doesn't score (export_ratings.py help_off: starts 60%+ of his games, under 5 points a game, usage under
   // 16%): sag off him from the tip and key on their scorers. Before the who-plays gate: a starter always counts.
   if ((rk.roles || []).includes('Help off')) add('Help off', `${f1(R.ppg)} pts/g as a starter`);
@@ -5196,8 +5160,10 @@ function autoLabels(g, t, id) {
   const band = rk.ortg_band, bandN = band != null && tot.ortg_band ? tot.ortg_band[band] : null, BANDS = ['Go-to Guys', 'Major Contributors', 'Significant Contributors', 'Role Players', 'Limited Roles', 'Nearly Invisible'];
   const bandTop = cut => rk.ind_ortg != null && bandN ? rk.ind_ortg <= Math.max(1, Math.round(cut * bandN)) : false;
   const ortgWhy = R && R.ind_ortg != null && bandN ? `ORtg ${f1(R.ind_ortg)} (${ordinal(rk.ind_ortg)} of ${bandN} ${BANDS[band]}), ${f1(R.usage_pct)}% of possessions` : '';
-  const usg = R && R.usage_pct != null ? R.usage_pct : null, star = top('porp', 0.05);
-  if (star) add('Star', `PORPAGATU! ${f1(R.porp)}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
+  /* Star: the state's top 20, North and South together (export_ratings.py tiers): PORPAGATU! on analytics teams, Game
+     Score per game placed on the same list on low-info teams. Older files without the list: PORPAGATU! top 5%. */
+  const usg = R && R.usage_pct != null ? R.usage_pct : null, star = tot.starTop ? rk.tier === 'Star' : top('porp', 0.05);
+  if (star) add('Star', `#${rk.srank || '—'} in the state · ${R.porp != null ? `PORPAGATU! ${f1(R.porp)}` : `Game Score ${f1(rk.gsc)} a game`}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
   // Scorer: top 10% on points produced a game, points a game and usage together. Star already says it; Scorer says
   // more than Go-to, so it takes Go-to's place.
   const scorer = !star && cut('scorer');
@@ -5245,16 +5211,23 @@ function autoLabels(g, t, id) {
   if (rate != null && rate >= 55 && pg != null && pg >= 2) add('3PT heavy', `${rate.toFixed(0)}% of his shots are threes, ${pg.toFixed(1)} a game`);
   if (!slasher && !allAround && !balanced && (hasC ? cut('draws') : top('fd_per_40', 0.20) || top('ft_rate', 0.15))) add('Draws fouls', `FD/40 ${f1(R.fd_per_40)} · FT rate ${f1(R.ft_rate)}`);
   if (hasC ? cut('struggles_in') : R && (R.twoa || 0) >= 3 * (R.gp || 1) && bot('twop', 0.20)) add('Struggles inside', `2P ${f1(R.twop)}% (${R.twom}-${R.twoa})${synW('rim')}`);
+  /* Low-info teams (no reliable minutes, so no rebound / steal / block / assist rates): rank.box holds his per-game
+     numbers (and turnovers / assists per possession used) as percentiles against the state's qualified players
+     (export_ratings.py box_pct), judged with the same cuts. */
+  const bx = rk.box, bTop = (k, c) => !!bx && bx[k] != null && bx[k] >= 100 * (1 - c), bBot = (k, c) => !!bx && bx[k] != null && bx[k] <= 100 * c;
   // GLASS: both ends top 20% = Glass cleaner; else whichever end.
-  const dr = top('dreb_pct', AUTO_CUT.top), or = top('oreb_pct', AUTO_CUT.top);
-  if (dr && or) add('Glass cleaner', `OR% ${f1(R.oreb_pct)} · DR% ${f1(R.dreb_pct)}`);
-  else { if (dr) add('Rebounder', `DR% ${f1(R.dreb_pct)}`); if (or) add('Off. rebounder', `OR% ${f1(R.oreb_pct)}`); }
+  const dr = rk.dreb_pct != null ? top('dreb_pct', AUTO_CUT.top) : bTop('drpg', AUTO_CUT.top), or = rk.oreb_pct != null ? top('oreb_pct', AUTO_CUT.top) : bTop('orpg', AUTO_CUT.top);
+  const glW = (o, d) => R.oreb_pct != null || R.dreb_pct != null ? `${o ? `OR% ${f1(R.oreb_pct)}` : ''}${o && d ? ' · ' : ''}${d ? `DR% ${f1(R.dreb_pct)}` : ''}` : `${o ? `${f1(R.orpg)} OR/g` : ''}${o && d ? ' · ' : ''}${d ? `${f1(R.drpg)} DR/g` : ''}`;
+  if (dr && or) add('Glass cleaner', glW(true, true));
+  else { if (dr) add('Rebounder', glW(false, true)); if (or) add('Off. rebounder', glW(true, false)); }
   // BALL: Floor general = assist rate top 10% without turning it over (TORate not bottom 30%); Passer = top 20%.
   if (hasC ? cut('floor_gen') && top('ast_rate', AUTO_CUT.top) : top('ast_rate', 0.10) && !bot('tov_pct', 0.30)) add('Floor general', `ARate ${f1(R.ast_rate)} · TORate ${f1(R.tov_pct)} · ${f1(usg)}% of possessions`);
   else if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}`);
+  else if (rk.ast_rate == null && bTop('apg', 0.10) && !bTop('tor', 0.30)) add('Floor general', `${f1(R.apg)} apg · ${f1(R.topg)} TO/g`);
+  else if (rk.ast_rate == null && bTop('apg', AUTO_CUT.top)) add('Passer', `${f1(R.apg)} apg`);
   // DEFENSE.
-  if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : basic && q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}` : `${f1(q.stl)} stl/40`);
-  if (hasC && C.rim_prot != null ? cut('rim_prot') : rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : basic && q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)} · DR% ${f1(R.dreb_pct)}` : `${f1(q.blk)} blk/40`);
+  if (rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : bx ? bTop('spg', AUTO_CUT.top) : basic && q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}` : bx ? `${f1(R.spg)} stl/g` : `${f1(q.stl)} stl/40`);
+  if (hasC && C.rim_prot != null ? cut('rim_prot') : rk.blk_pct != null ? top('blk_pct', AUTO_CUT.topTight) : bx ? bTop('bpg', AUTO_CUT.topTight) : basic && q && q.blk != null && q.blk >= FL.RIM) add('Rim protector', rk.blk_pct != null ? `Blk% ${f1(R.blk_pct)} · DR% ${f1(R.dreb_pct)}` : bx ? `${f1(R.bpg)} blk/g` : `${f1(q.blk)} blk/40`);
   // FREE THROWS: FT shooter = who NOT to foul late; Bad FT = who to foul. (Ball secure and Disciplined were dropped: only who
   // ISN'T those things matters: TO-prone, Foul-prone.)
   // Fixed FT% (fouling is a points decision: two shots from an 80% shooter are worth ~1.6, from a 60% one ~1.2), for players
@@ -5266,10 +5239,10 @@ function autoLabels(g, t, id) {
   if (ftTop) add('FT shooter', `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})`);
   if (ftv != null || rk.ftp != null ? ftBad : basic && q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', R && R.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
   // WEAKNESSES.
-  if (bot('ast_rate', 0.10)) add('Non-passer', `ARate ${f1(R.ast_rate)}`);
-  if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : basic && q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : `${f1(q.to)} TO/40`);
+  if (rk.ast_rate != null ? bot('ast_rate', 0.10) : bBot('astr', 0.10)) add('Non-passer', rk.ast_rate != null ? `ARate ${f1(R.ast_rate)}` : `${f1(R.apg)} apg`);
+  if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : bx ? bTop('tor', AUTO_CUT.bottom) : basic && q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : bx ? `${f1(R.topg)} TO/g` : `${f1(q.to)} TO/40`);
   if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : basic && q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `${f1(R.fc_per_40)} fouls / 40` : `${f1(q.pf)} PF/40`);
-  return out.filter(x => x.lead || !led.has(x.l));
+  return out;
 }
 // The labels a card shows from stats: minus the ones typed already and the ones vetoed for him.
 function cardAutoLabels(g, t, p, typed) {
@@ -5282,9 +5255,9 @@ const LABEL_GUIDE = [
   ['How labels work', [
     ['Your labels', 'What you typed in the roster editor; they come first (after Star).'],
     ['From stats', 'From his season numbers on the leaderboard, judged against every qualified player in the state. Roles blend several related stats (and Synergy shot data when we have it) into one score; the label goes to roughly the top 20% (bottom 20% for a weakness) unless noted. Only players with 30%+ of their team\'s minutes. ✕ in the roster editor turns one off for a player.'],
-    ['Low-info teams', 'Teams whose box scores don\'t have reliable minutes get ★ team-leader labels and shooting labels instead of the state ones.']]],
+    ['Low-info teams', 'Teams whose box scores don\'t have reliable minutes get the scoring labels from rates that need no minutes (TS%, FT rate, shot diet, 3P%) and the rebounding, steal, block and assist labels from per-game numbers, judged against the same state cuts.']]],
   ['Role', [
-    ['Star', 'Top 5% of the state in PORPAGATU! (points over replacement per adjusted game). Always shown first.'],
+    ['Star', 'The state\'s top 20, North and South together: PORPAGATU! (points over replacement per adjusted game), or for teams without reliable minutes, Game Score per game placed on the same list. Always shown first.'],
     ['Scorer', 'Top 10% on points produced a game, points a game and usage together: the volume scoring threat, whatever his style. Not shown with Star.'],
     ['Go-to', 'Uses over 28% of his team\'s possessions while on the floor (not shown with Star or Scorer).'],
     ['Sixth man', 'His team\'s best bench player: starts 35% or fewer of his games (and 3 or fewer of the last 10), plays 15+ minutes, and leads their bench on minutes, usage and points produced. When he checks in, he produces.'],
@@ -5321,13 +5294,7 @@ const LABEL_GUIDE = [
     ['Foul-prone', 'Fouls per 40 bottom 20%.']]],
   ['Free throws', [
     ['FT shooter', '75%+ from the line (two shots are worth ~1.5 points: fouling him gains nothing), and gets there (2+ a game; 2 attempts per team game, up to 40). Don\'t foul him late.'],
-    ['Bad FT', 'Under 65% from the line, and gets there (2+ a game; 2 attempts per team game, up to 40). Foul him late.']]],
-  ['★ Team leaders (low-info teams)', [
-    ['Top scorer', 'Leads his team in points per game.'],
-    ['Top rebounder', 'Leads in rebounds per game.'],
-    ['Top passer', 'Leads in assists per game.'],
-    ['Top shooter', 'Leads in made threes, shooting 33%+.'],
-    ['Top defender', 'Leads in steals + blocks per game.']]]];
+    ['Bad FT', 'Under 65% from the line, and gets there (2+ a game; 2 attempts per team game, up to 40). Foul him late.']]]];
 function labelGuide() {
   modal(`<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h2 style="margin:0">Player labels</h2><button class="btn btn-lg" data-act="lg-close">Close</button></div>
     <div class="lg-grid">${LABEL_GUIDE.map(([h, L]) => `<div class="lg-sec"><div class="lg-h">${esc(h)}</div>${L.map(([l, d]) => `<div class="lg-row"><span class="nt ${h === 'How labels work' ? (l === 'Your labels' ? '' : 'auto') : 'auto'}${h.startsWith('★') ? ' lead' : ''}">${esc(l)}</span><span class="lg-d">${esc(d)}</span></div>`).join('')}</div>`).join('')}</div>`, 'lg-modal');

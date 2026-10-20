@@ -560,7 +560,8 @@ five has 25+ offensive possessions).
     (at the rim, 3PT, catch-and-shoot, pull-up) join the blend. Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
     `comp` / `compCut` / `syn`); older files fall back to the single-stat rules. A player can have several; the card
     shows them in this order:
-    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Scorer* (top 10% on points
+    - **Role:** *Star* (the state's top 20, North and South together: PORPAGATU! on analytics teams, and on
+      teams without reliable minutes Game Score per game placed on the same list) · *Scorer* (top 10% on points
       produced a game, points a game and usage; not with Star) · *Go-to* (over 28% of
       possessions; not with Star or Scorer) · *Sixth man* (his team's best bench player: starts 35% or
       fewer of his games and 3 or fewer of the last 10, 15+ minutes, tops their bench on minutes, usage and points produced) · *Glue guy* (usage under 17%, low scoring,
@@ -585,16 +586,13 @@ five has 25+ offensive possessions).
       65%: foul him), both only for players who get to the line: 2+ FTA a game in half the team's games,
       on 2 attempts per team game played (up to 40). (No Ball secure or Disciplined: only who *isn't* those things matters: TO-prone, Foul-prone.)
     Teams with analytics get ranked labels only (a player there with too few minutes to be ranked just doesn't get
-    that label); low-info teams (no reliable minutes) fall back to per-40 lines (60+ minutes) and the shooting
-    estimate (25+ threes; Bad FT 20+ FTA). Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
+    that label). Low-info teams (no reliable minutes) are judged against the same state cuts on what needs no minutes:
+    the scoring labels from TS%, 2P%, FT rate, shot diet and 3P% (their percentile among the state's qualified players),
+    and Rebounder / Off. rebounder / Glass cleaner, Ball hawk, Rim protector, Passer / Floor general, Non-passer and
+    TO-prone from per-game numbers and per-possession ratios (export_ratings.py box_pct); the per-40 estimate is the
+    last fallback. Only players who play get these (30%+ of the minutes on teams with analytics; on teams without reliable minutes,
     4+ points or 3+ rebounds a game over half the games), so end-of-bench samples don't.
-    **Team leaders** (★, first on the card; low-info teams only, a team with analytics gets the state labels): one
-    player per label per team among those who play (10+ games, half the
-    games early in the season; 30%+ of the minutes where minutes are reliable). Analytics when the team's file has
-    them, per-game box stats for low-info teams (never mixed): *Top scorer* (points produced per game | PPG), *Top rebounder* (OR% +
-    DR% | RPG), *Top passer* (assist rate | APG), *Top shooter* (best 3P% on 2.0+ threes a game, 20+ | most 3PM at
-    33%+), *Top defender* (Stl% + Blk% | steals + blocks per game). A leader label replaces the matching one (Top rebounder → no Rebounder; Top passer → no Passer;
-    Top shooter → no Shooter). The +N bubble shows label names only (each label's numbers are kept for a future player page). In the roster editor they
+    (The ★ team-leader labels, Top scorer and the rest, are gone: low-info players get the state labels.) The +N bubble shows label names only (each label's numbers are kept for a future player page). In the roster editor they
     sit under **From stats**: ✕ turns one off for that player (it stays off), + brings it back. A label you typed
     already isn't repeated.
   - Opponent rosters are shared with the game tracker. Labels are saved as one comma-separated note
