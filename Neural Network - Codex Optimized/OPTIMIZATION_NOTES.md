@@ -220,6 +220,37 @@ This copy keeps the original project intact and starts consolidating the working
   offline gyms, and refetches when ratings.json's `generatedAt` changes. Same compact JSON as ratings.json; written in
   ~1 s; nothing is added to the leaderboard HTML.
 
+- Opponent scouting reports (Oct 2026): `generate_opponent_report.py` is the one standard report for any team, built
+  on the Ventura report's layout (generate_ventura_scouting_report.py: cover strip, head-to-head box, Who Is X, advanced
+  offense / defense tables, statewide context, four factors vs Moorpark, player cards, splits and quadrants, losses,
+  head-to-head, strengths / vulnerabilities, keys to victory). Every sentence is a rule on the team's numbers (no
+  per-team prose), with one tier wording for every rank (Elite top 15% / Above Avg 35 / Average 65 / Below Avg 85 /
+  Poor). Reads this repo's season folders, internal_data (positions, heights, position dependence) and ../wab_results.json;
+  the opponent's color is the game tracker's TEAM_COLORS (../game/index.html).
+  Cover strip: record, conference record, ORTg, DRTg, net rating, net rank (no WAB). Player cards run by %Poss (usage),
+  highest first (by points on teams without reliable minutes).
+  Rotation: 10+ MPG in 40%+ of games; players absent from the team's last 6 games are listed, not profiled (finds the
+  Ventura report's hand-dropped Aukuso), only when player_game_ratings covers 80%+ of the games. Teams without reliable
+  minutes (box minutes under 75% of 200 a game) use 4+ PPG or 3+ RPG and show no per-minute numbers (usage, ORtg/DRtg,
+  rates). internal_data/scouting_exclusions.json ({team: [names]}) drops anyone else.
+  Four-factor edges are matchup edges: expected = offense + what the defense allows - state average, edge = expected vs
+  the average (the older reports compared raw numbers, which credited a defense that allows a high FT rate with an edge).
+  Team foul rate is PF a game (the advanced fc_per_40 is unusable on false-minutes teams); state averages skip zeros.
+  check_report() refuses to write a report below the standard: every section, 5+ rotation players each with a 3+
+  sentence profile, 4+ keys, 10+ games, and no lint_scouting_prose.py directive / film / hedge language outside the Keys.
+  Synergy: two editions by the data in the repo. PRE-SYNERGY until internal_data/synergy_team_<slug>_<season>.json exists,
+  then SYNERGY: the Moorpark report's Synergy layer (generate_moorpark_scouting_report.py) for any team: play-type page
+  (offense / defense tables with the columns the file has; both team-file layouts, Moorpark's play_type/time_rank/
+  ppp_rank/two_fg_pct/to_pct and Ventura's name/pctile/rating/efg, are read), rule-written key takeaways (most-used,
+  most / least efficient at 5%+ of possessions, best / weakest defended, Moorpark's top play types vs their defense),
+  and on player cards (synergy_players_<slug>_<season>.json, or synergy_archetypes.json rows with this "team") the
+  Synergy + bball-index archetypes (the Moorpark functions, copied unchanged), play-type mix, the left-hand driver flag
+  (55%+ of 10+ L/R drives), the shot strip, the export's written scouting notes (shown as submitted, exempt from the
+  prose lint like the Keys) and Synergy sentences in the profile. Rotation players missing from the player export are
+  printed as a note at build time.
+  Output: scouting_reports/<team>_scouting_report_<season>_<pre_synergy|synergy>.pdf, never overwritten (_v2, _v3...). 2025-26: all 99
+  opponents pass (~25 s for --all).
+
 ## Example commands
 
 ```bash
