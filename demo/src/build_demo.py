@@ -11,10 +11,12 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 OUT = f'{REPO}/demo'
 html = open(f'{REPO}/poss/index.html').read()
 seed = json.load(open(f'{HERE}/seed.json'))
-# The scouting PDF on Irvine Valley (the real 2025-26 report in Irvine Valley's colors: recolor_ivc.py): attached to them and to the live game, and
-# stored in the page's offline file store on first open (and after Reset demo).
+# The scouting PDF on Irvine Valley: the standard report from generate_opponent_report.py (copied here as ivc_scout.pdf),
+# attached to them and to the live game, and stored in the page's offline file store on first open, after Reset demo, and
+# whenever the PDF changes (PDF_V).
 SCOUT_KEY = 'scout_demo_ivc'
-pdf_b64 = base64.b64encode(open(f'{HERE}/ivc_scout.pdf', 'rb').read()).decode()
+pdf_bytes = open(f'{HERE}/ivc_scout.pdf', 'rb').read()
+pdf_b64, PDF_V = base64.b64encode(pdf_bytes).decode(), hashlib.md5(pdf_bytes).hexdigest()[:8]
 opp = json.loads(seed['gt_opp_rosters'])
 for o in opp:
     if o['name'] == 'Irvine Valley': o['scoutKey'] = SCOUT_KEY
@@ -47,12 +49,12 @@ shim = '''<script>
   if (window.indexedDB) try { const r = indexedDB.open('gt_files', 1);
     r.onupgradeneeded = () => r.result.createObjectStore('files');
     r.onsuccess = () => { const db = r.result, q = db.transaction('files').objectStore('files').get(%s);
-      q.onsuccess = () => { if (q.result) return; const b = atob(%s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
-        db.transaction('files', 'readwrite').objectStore('files').put({ name: 'Irvine Valley scouting report 2025-26.pdf', data: u.buffer, added: new Date().toISOString() }, %s); }; };
+      q.onsuccess = () => { if (q.result && q.result.v === %s) return; const b = atob(%s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+        db.transaction('files', 'readwrite').objectStore('files').put({ name: 'Irvine Valley scouting report 2025-26.pdf', data: u.buffer, v: %s, added: new Date().toISOString() }, %s); }; };
   } catch (e) {}
 })();
 </script>
-''' % (json.dumps(SEED_V), json.dumps(seed, separators=(',', ':')).replace('</', '<\\/'), json.dumps(SEED_V), json.dumps(SCOUT_KEY), json.dumps(pdf_b64), json.dumps(SCOUT_KEY))
+''' % (json.dumps(SEED_V), json.dumps(seed, separators=(',', ':')).replace('</', '<\\/'), json.dumps(SEED_V), json.dumps(SCOUT_KEY), json.dumps(PDF_V), json.dumps(pdf_b64), json.dumps(PDF_V), json.dumps(SCOUT_KEY))
 
 banner = '''<div class="demo-bar"><b>DEMO</b> · last season's Moorpark vs Irvine Valley · simulated games<button class="btn btn-sm" onclick="if(confirm('Reset the demo to the start (3:12 left, down 3)?'))demoReset()">Reset demo</button></div>'''
 css = '''.demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
