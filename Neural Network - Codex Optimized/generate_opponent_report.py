@@ -185,8 +185,10 @@ def load(team, season):
     regular = [p for p in c.players_raw if plays(p) and p['averages'].get('games', 0) >= ROT_GP_SHARE * team_g]
     c.gone = [p for p in regular if cut and p['name'] in last_g and last_g[p['name']] < cut]
     c.last_date = {p['name']: '%d/%d/%d' % (last_g[p['name']][1], last_g[p['name']][2], last_g[p['name']][0]) for p in c.gone}
-    # Profiles run by %Poss, the biggest share of the offense first (by points where minutes, and so usage, aren't kept).
-    use = lambda p: (c.plyr_adv.get(p['name'], {}).get('usage_pct') or 0) if c.min_ok else p['averages'].get('PTS', 0)
+    # Profiles run by share of the TEAM's possessions: %Poss (usage while on the floor) x share of the minutes, so a
+    # high-usage bench player doesn't rank over the starters the offense runs through (by points where minutes, and so
+    # usage, aren't kept).
+    use = lambda p: (c.plyr_adv.get(p['name'], {}).get('usage_pct') or 0) * p['averages'].get('MIN', 0) / 40 if c.min_ok else p['averages'].get('PTS', 0)
     c.rotation = sorted([p for p in regular if p not in c.gone], key=lambda p: -use(p))
 
     # Positions and heights (the leaderboard's position model and the roster scrape).
@@ -1040,7 +1042,7 @@ def player_card(c, p):
 
 def page_players(c):
     e = section(f'Player Profiles — {c.team} Rotation',
-                (f'All rotation players ({ROT_MPG:.0f}+ MPG in {round(100 * ROT_GP_SHARE)}%+ of games), sorted by %Poss (share of possessions used).' if c.min_ok else
+                (f'All rotation players ({ROT_MPG:.0f}+ MPG in {round(100 * ROT_GP_SHARE)}%+ of games), sorted by share of the team\u2019s possessions used (%Poss \u00d7 minutes).' if c.min_ok else
                  f'All rotation players (4+ PPG or 3+ RPG in {round(100 * ROT_GP_SHARE)}%+ of games; {c.team}’s box scores don’t keep reliable minutes), '
                  f'sorted by points.'))
     e += [player_card(c, p) for p in c.rotation]
