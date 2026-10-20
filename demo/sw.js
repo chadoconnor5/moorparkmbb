@@ -3,6 +3,7 @@
    and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
 const CACHE = 'pl-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png',
+               '../game/vendor/pdf.min.mjs', '../game/vendor/pdf.worker.min.mjs',
                '../game/logos/allan_hancock.png', '../game/logos/bakersfield.png', '../game/logos/chaffey.png', '../game/logos/cuesta.png', '../game/logos/irvine_valley.png', '../game/logos/la_pierce.png', '../game/logos/la_valley.png', '../game/logos/moorpark.png', '../game/logos/oxnard.png', '../game/logos/riverside.png', '../game/logos/santa_barbara.png', '../game/logos/ventura.png', '../game/logos/west_la.png'];
 // The stat-sheet photo reader (Tesseract, ~11 MB), saved up front so it works with no signal. Best effort:
 // a failed download never blocks the app from installing; it is fetched again on first use.

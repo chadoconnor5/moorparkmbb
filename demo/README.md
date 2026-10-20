@@ -20,6 +20,10 @@ A standalone copy of the possession tracker for showing the staff, at
   timeout. Team fouls: ours 6 (one from their bonus), theirs 8 (we're in the 1-and-1). Timeouts left: ours 1 full
   + 1 thirty, theirs 2 full + 1 thirty. Foul trouble: Finney 4, Kubel 3; Mowers 4, Alhammouri 3. A halftime stat
   sheet is loaded, so the halftime report is the full version.
+- **The Irvine Valley scouting report** (📄 Scout → Scouting PDF, also on the Scouting tab): the real 2025-26 report
+  (the Ventura report's layout, 11 pages: identity, analytics, four factors, every player's profile, splits, keys
+  to victory) in Irvine Valley's blue. Its head-to-head is the real February game, not the demo's simulated one.
+  It's stored on the iPad the first time the demo opens and opens offline.
 
 ## A walk-through for the staff
 
@@ -32,13 +36,15 @@ A standalone copy of the possession tracker for showing the staff, at
 4. **Report → Halftime:** key takeaways, who's behind the four factors, the box score with advanced numbers,
    on/off, best fives and combos.
 5. **Rosters → Irvine Valley:** their roster with labels, their Basic / Advanced stats with state ranks.
-6. **Schedule:** last season's results; the Irvine Valley game has **📁 Last time** (the November meeting).
-7. **Runs, Play-by-Play, Four factors:** kills, kill shots and runs; every possession; the factors by half.
-8. **Log a few plays** (2PT Make, a foul, a sub): everything updates. **Reset demo** when done.
+6. **📄 Scout:** Last time vs Irvine Valley (the November meeting), then the Scouting PDF tab.
+7. **Schedule:** last season's results; the Irvine Valley game has **📁 Last time** (the November meeting).
+8. **Runs, Play-by-Play, Four factors:** kills, kill shots and runs; every possession; the factors by half.
+9. **Log a few plays** (2PT Make, a foul, a sub): everything updates. **Reset demo** when done.
 
 ## Rebuilding
 
 `demo/src/`: `gen.js` simulates the season inside the real tracker (served from the repo root on port 8765) and
-writes `seed.json`; `build_demo.py` copies `poss/index.html`, adds the storage prefix, the seed and the banner, and
+writes `seed.json`; `recolor_ivc.py` turns the real Irvine Valley report into `ivc_scout.pdf` (Irvine Valley's
+colors); `build_demo.py` copies `poss/index.html`, adds the storage prefix, the seed, the PDF and the banner, and
 writes `demo/index.html`, `demo/sw.js` and `demo/manifest.webmanifest`. Rebuild after a tracker change you want in
 the demo.
