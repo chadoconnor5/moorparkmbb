@@ -1174,7 +1174,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.175';
+const VERSION = 'v2026.10.20.176';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4518,6 +4518,10 @@ function ofFives(gs) {
   return Object.values(U).map(u => Object.assign(u, { poss: Math.floor((u.oPoss + u.dPoss) / 2), ortg: u.oPoss ? 100 * u.pf / u.oPoss : null, drtg: u.dPoss ? 100 * u.pa / u.dPoss : null,
     net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null, pm: u.pf - u.pa, fx: fixVals(u.o, u.d, u.oPoss, u.dPoss) }));
 }
+// Best against us is ranked by net weighted for sample size: the net is pulled toward 0 as if the five had also played
+// NET_PRIOR possessions at even, so 18 possessions at +40 (≈ +11) outranks 5 at +100 (≈ +9). The card still shows the real net.
+const NET_PRIOR = 50;
+const netW = u => u.net * u.poss / (u.poss + NET_PRIOR);
 // Their players from the stat sheets (final sheet if read, else halftime), added up by number.
 function ofPlayers(gs) {
   const P = {}, tm = { a: [], b: [] };
@@ -4577,8 +4581,8 @@ function oppFileHtml(name) {
     <tr><th>Off</th><td>${pc(u.fx.efg)}</td><td>${pc(u.fx.tov)}</td><td>${pc(u.fx.orb)}</td><td>${pc(u.fx.ftr)}</td></tr>
     <tr><th>Def</th><td>${pc(u.fx.oefg)}</td><td>${pc(u.fx.otov)}</td><td>${pc(u.fx.drb == null ? null : 100 - u.fx.drb)}</td><td>${pc(u.fx.oftr)}</td></tr></tbody></table>`;
   const five = (u, val, cls) => `<div class="of-five"><div><b>${lbl(u)}</b><span class="tiny muted">${names(u)}</span></div><div class="n ${cls || ''}">${val}</div><div class="small muted">${u.poss} poss<br>${sgn(u.pm)}</div>${ffx(u)}</div>`;
-  const used = FV.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), best = FV.filter(u => u.net != null && u.poss >= 5).sort((x, y) => y.net - x.net).slice(0, 3);
-  const lineups = FV.length ? `<div class="card"><h3>Their lineups <span class="muted">· most used / best against us (their net)</span></h3><div class="ff-who">
+  const used = FV.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), best = FV.filter(u => u.net != null && u.poss >= 5).sort((x, y) => netW(y) - netW(x)).slice(0, 3);
+  const lineups = FV.length ? `<div class="card"><h3>Their lineups <span class="muted">· most used / best against us (their net, weighted for sample size)</span></h3><div class="ff-who">
       <div><div class="ff-who-h" style="color:var(--them-text)">Most used</div>${used.map(u => five(u, '', '')).join('')}</div>
       <div><div class="ff-who-h" style="color:var(--them-text)">Best against us</div>${best.map(u => five(u, SG(u.net), u.net > 0 ? 'neg' : 'pos')).join('') || '<div class="muted small">No five with 5+ possessions.</div>'}</div></div></div>`
     : `<div class="card"><h3>Their lineups</h3><div class="muted small">Their fives weren't tracked (no roster for them in those games).</div></div>`;
