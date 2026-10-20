@@ -74,12 +74,15 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   - both fives on the floor: fouls (foul-trouble colours), +/-, notes, and the five's ratings.
   - **THIS FIVE** (where the Team / bench foul row was, once a five is set): two labels on one line for each five
     on the floor: its best strength (green: *3 shooters*, *Attack the rim*, *Ball hawks*, *Rim protector*, *Elite glass*, *Passers*,
-    *Closing FTs*) and its worst weakness (red ✕: *1 shooter*, *G can't shoot*, *Thin glass*, *TO risk*,
+    *Closing FTs*) and its worst weakness (red ✕: *1 shooter*, *G can't shoot*, *No handler*, *Thin glass*, *TO risk*,
     *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists who earned it, with their numbers. Nothing
     is logged.
     - **Thin glass** is the five itself, not its players: its own OREB% and DREB% as a group from the lineup data
       (ours: every tracked game; theirs: every game we've tracked against them), 2+ points under the team's average
       over the same games at **both** ends, on 10+ rebound chances at each end. The bubble shows both with the team's.
+    - **No handler**: nobody on the floor is listed at PG or is a *Floor general* (his stats label, or typed on his
+      card). Pressure that five. Only when 4+ of the five have a position or a stats line; the bubble shows each
+      player's position and assist rate.
     - The rest come from each player's season line (quality games: stat sheets / leaderboard; at halftime the 1st-half sheet
       joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no line
       yet (every opponent for now), from his position and his card labels (Shooter, Big, Ball hawk, Can't shoot...).
