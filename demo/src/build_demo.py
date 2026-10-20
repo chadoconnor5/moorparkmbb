@@ -79,14 +79,15 @@ open(f'{OUT}/index.html', 'w').write(html)
 
 logos = sorted({re.sub(r'[^a-z0-9]+', '_', t.lower()).strip('_') for t in json.loads(seed['pt2_team_files'])})
 sw = open(f'{REPO}/poss/sw.js').read()
-sw = sw.replace("const CACHE = 'pl-v5';", f"const CACHE = 'mbbdemo-{SEED_V}';")
+# Its own cache, renamed on every new seed / PDF (so an installed demo picks the update up), whatever the tracker's is called.
+sw = re.sub(r"const CACHE = '[^']*';", f"const CACHE = 'mbbdemo-{SEED_V}';", sw)
 sw = re.sub(r"const SHELL = \[[^\]]*\];", "const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png',\n               '../game/vendor/pdf.min.mjs', '../game/vendor/pdf.worker.min.mjs',\n               "
             + ', '.join(f"'../game/logos/{l}.png'" for l in logos) + "];", sw, flags=re.S)
 sw = sw.replace("TESS.map(u => c.add(u)", "TESS.map(u => c.add('../poss/' + u)")
 sw = sw.replace("k.startsWith('pl-') && k !== CACHE", "k.startsWith('mbbdemo-') && k !== CACHE")
 sw = sw.replace("url.pathname.endsWith('/poss/') || url.pathname.endsWith('/poss/index.html')", "url.pathname.endsWith('/demo/') || url.pathname.endsWith('/demo/index.html')")
 sw = sw.replace('/* Offline support for the possession tracker,', '/* Offline support for the coaches\' demo (a copy of the possession tracker\'s),')
-assert 'mbbdemo-' in sw and '/demo/' in sw
+assert f"const CACHE = 'mbbdemo-{SEED_V}';" in sw and '/demo/' in sw
 open(f'{OUT}/sw.js', 'w').write(sw)
 man = json.load(open(f'{REPO}/poss/manifest.webmanifest'))
 man.update(name='Moorpark MBB Demo', short_name='MBB Demo')
