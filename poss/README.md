@@ -151,6 +151,9 @@ Hudl's per-game lineup export still supplies offense and minutes.
 - **Kill** = every 3 straight stops (6 = two kills). **Skunk** = the run reaches 6. **Dead skunk** = it
   reaches 9. Counted on top of the kills. The scoreboard shows kills this half, pips toward the next
   kill, and a SKUNK / DEAD SKUNK tag while the run is alive.
+  - **The KILL flash:** the play that completes a kill flashes the word over the score bug, then it fades (about 2
+    seconds; taps go through it): gold for ours, red for theirs. KILL at 3 straight stops, SKUNK at 6, DEAD SKUNK at 9,
+    then DEAD SKUNK +1, +2... for each kill after that. Only on a play just logged, never on undo or a reload.
 - **Killshots:** a run is every point one side scores before the other scores again (technical FTs
   included), across halves. 10-0, 15-0 and 20-0 are counted, nested (a 22-0 is one of each). The
   current run (6+) shows under Poss.

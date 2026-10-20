@@ -1148,6 +1148,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lg-h{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:2px 0 6px}
 .lg-row{display:flex;gap:8px;align-items:flex-start;margin:0 0 7px}.lg-row .nt{flex:none}.lg-d{font-size:12.5px;color:var(--text2);line-height:1.35}
 
+/* KILL flash over the score bug (killFx): in fast, hold, fade; gold = ours, red = theirs. */
+.kill-fx{position:fixed;z-index:60;display:flex;align-items:center;justify-content:center;pointer-events:none;border-radius:16px;animation:kfx 2.2s ease-out forwards}
+.kill-fx span{display:block;font-weight:900;line-height:1;letter-spacing:.12em;padding-left:.12em;text-align:center;white-space:nowrap;text-shadow:0 0 22px currentColor,0 3px 0 rgba(0,0,0,.6)}
+.kill-fx.us{color:#f5c518;background:radial-gradient(ellipse at center,rgba(70,56,8,.97),rgba(14,16,22,.96) 75%)}
+.kill-fx.them{color:#ff4d4f;background:radial-gradient(ellipse at center,rgba(80,14,16,.97),rgba(14,16,22,.96) 75%)}
+@keyframes kfx{0%{opacity:0;transform:scale(.86)}10%{opacity:1;transform:scale(1.05)}16%{transform:scale(1)}50%{opacity:1}100%{opacity:0}}
+
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
 </style>
@@ -1210,7 +1217,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.185';
+const VERSION = 'v2026.10.20.186';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1715,7 +1722,7 @@ function render() {
   if (!g && ['pbp', 'sheet', 'lineups', 'ff', 'report'].includes(UI.tab)) { v.className = 'page mid'; v.innerHTML = noGame; return; }
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
-  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); }
+  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
   else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
   else if (UI.tab === 'lineups') v.innerHTML = lineupsView(g);
   else if (UI.tab === 'ff') { v.innerHTML = '<div id="ff"></div>'; renderFF(); }
@@ -1730,6 +1737,27 @@ function render() {
   if (g && UI.tab === 'live' && !g.final && !$('#modal-root').innerHTML && outOnFloor(g, derive(g)).length) { SUB = null; UI.stat = null; subModal(); }
 }
 
+/* KILL flash: when a logged play completes a kill (every 3rd straight stop), the word flashes over the score bug and
+   fades: gold for ours, red for theirs. 3 = KILL, 6 = SKUNK, 9 = DEAD SKUNK, then DEAD SKUNK +1, +2... for each kill
+   after that. Only on a play just logged (the game's event count went up); never on undo, a reload or another tab's
+   render. On the page itself (not inside the score bug), so a re-render during the flash doesn't cut it off; it never
+   blocks a tap. */
+function killWord(st) { return st >= 12 ? `DEAD SKUNK +${(st - 9) / 3}` : st >= 9 ? 'DEAD SKUNK' : st >= 6 ? 'SKUNK' : 'KILL'; }
+function killFx(g) {
+  const S = perSums(derive(g), g.per), n = (g.ev || []).length, prev = UI.kfPrev;
+  UI.kfPrev = { id: g.id, per: g.per, n, kills: { ...S.kills } };
+  if (!prev || prev.id !== g.id || prev.per !== g.per || n <= prev.n) return;
+  const t = ['a', 'b'].find(x => S.kills[x] > prev.kills[x]); if (!t) return;
+  const bar = document.querySelector('.scorebar'); if (!bar) return;
+  const r = bar.getBoundingClientRect(), word = killWord(S.streak[t] || 3);
+  document.querySelectorAll('.kill-fx').forEach(x => x.remove());
+  const d = document.createElement('div');
+  d.className = 'kill-fx ' + (t === 'a' ? 'us' : 'them');
+  Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  d.innerHTML = `<span style="font-size:${word.length <= 5 ? 104 : word.length <= 10 ? 84 : 66}px">${word}</span>`;
+  d.addEventListener('animationend', () => d.remove());
+  document.body.appendChild(d);
+}
 function scorebar(g, D) {
   const per = g.per, S = perSums(D, per), G = perSums(D, null);
   const dots = t => { const ot = otCount(g), s30 = S30_TOS + ot, uf = tosUsed(g, t, 'full'), us = tosUsed(g, t, 's30');
