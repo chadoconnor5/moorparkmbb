@@ -1,7 +1,7 @@
 /* Offline support for the coaches' demo (a copy of the possession tracker's), the same way the game tracker does it: the page
    network first (5 seconds, then the cached copy, so one bar of signal never hangs it), logos
    and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
-const CACHE = 'mbbdemo-v1-6ba1f01b';
+const CACHE = 'pl-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png',
                '../game/logos/allan_hancock.png', '../game/logos/bakersfield.png', '../game/logos/chaffey.png', '../game/logos/cuesta.png', '../game/logos/irvine_valley.png', '../game/logos/la_pierce.png', '../game/logos/la_valley.png', '../game/logos/moorpark.png', '../game/logos/oxnard.png', '../game/logos/riverside.png', '../game/logos/santa_barbara.png', '../game/logos/ventura.png', '../game/logos/west_la.png'];
 // The stat-sheet photo reader (Tesseract, ~11 MB), saved up front so it works with no signal. Best effort:
@@ -36,7 +36,8 @@ self.addEventListener('fetch', e => {
     })));
     return;
   }
-  const isShell = req.mode === 'navigate' || url.pathname.endsWith('/demo/') || url.pathname.endsWith('/demo/index.html');
+  // The page, and the season baseline (baseline.enc.json): network first, the saved copy offline.
+  const isShell = req.mode === 'navigate' || url.pathname.endsWith('/demo/') || url.pathname.endsWith('/demo/index.html') || url.pathname.endsWith('/baseline.enc.json');
   e.respondWith(
     withTimeout(fetch(req, isShell ? { cache: 'no-cache' } : {}), isShell ? 5000 : 8000).then(res => {
       if (res.ok && isShell) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }

@@ -1,7 +1,7 @@
 /* Offline support for the possession tracker, the same way the game tracker does it: the page
    network first (5 seconds, then the cached copy, so one bar of signal never hangs it), logos
    and the game tracker's pdf.js cache first. Bump CACHE when what is cached changes shape. */
-const CACHE = 'pl-v5';
+const CACHE = 'pl-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg', '../game/icon-180.png', '../game/logos/moorpark.png',
                '../game/vendor/pdf.min.mjs', '../game/vendor/pdf.worker.min.mjs'];
 // The stat-sheet photo reader (Tesseract, ~11 MB), saved up front so it works with no signal. Best effort:
@@ -36,7 +36,8 @@ self.addEventListener('fetch', e => {
     })));
     return;
   }
-  const isShell = req.mode === 'navigate' || url.pathname.endsWith('/poss/') || url.pathname.endsWith('/poss/index.html');
+  // The page, and the season baseline (baseline.enc.json): network first, the saved copy offline.
+  const isShell = req.mode === 'navigate' || url.pathname.endsWith('/poss/') || url.pathname.endsWith('/poss/index.html') || url.pathname.endsWith('/baseline.enc.json');
   e.respondWith(
     withTimeout(fetch(req, isShell ? { cache: 'no-cache' } : {}), isShell ? 5000 : 8000).then(res => {
       if (res.ok && isShell) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }

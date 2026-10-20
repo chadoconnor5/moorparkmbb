@@ -705,6 +705,12 @@ five has 25+ offensive possessions).
   tournament settings in one file (iPad: Save to Files / Drive); the card shows when it was last saved and turns red
   after 7 days. **Import season** adds the file's games (one already here is replaced only if the file's copy has more
   plays, after a backup) and fills rosters / schedule / settings this iPad doesn't have. After Final a reminder says so.
+- **The season baseline** (encrypted, on the site): Games → **Make baseline file** saves the season (as Export
+  season) locked with a passcode you choose (PBKDF2-SHA256 250k → AES-GCM; the passcode never leaves the iPad). Put that
+  file on the site as `poss/baseline.enc.json`. When the tracker opens and the site's baseline is newer than the last
+  one merged on that iPad, it asks for the passcode once (remembered after), unlocks it and merges it like Import
+  season: adds what's missing, replaces a game only with a longer copy, never deletes. A new or wiped iPad is never
+  blank. The site is public; without the passcode the file is unreadable. The baseline is saved for offline use.
 - **Old data always comes forward** (backup.js upgradeGame): every game, from the iPad, a game file, a season file or a
   backup, is upgraded to the current format before it's used; everything else is worked out fresh from the plays.
 - **Saved reports** (Games tab): a copy of each halftime and post-game report as it was, kept on the iPad apart

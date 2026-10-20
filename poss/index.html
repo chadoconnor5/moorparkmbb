@@ -1169,7 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.173';
+const VERSION = 'v2026.10.20.174';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3211,6 +3211,12 @@ document.addEventListener('click', ev => {
     case 'season-export': exportSeason(); break;
     case 'season-import': importSeason(); break;
     case 'bk-restore': bkRestore(b.dataset.id); break;
+    case 'base-load': baselineModal(); break;
+    case 'base-open': { const v = ($('#base-pass') || {}).value || ''; if (!v) return; applyBaseline(v).then(ok => { if (ok) closeModal(); }); break; }
+    case 'base-make-open': makeBaselineModal(); break;
+    case 'base-make': { const a = ($('#mb-pass') || {}).value || '', c = ($('#mb-pass2') || {}).value || '';
+      if (a.length < 6) { toast('At least 6 characters', 'bad'); return; } if (a !== c) { toast('The two passcodes don\'t match', 'bad'); return; }
+      closeModal(); makeBaseline(a).catch(e => { if (e && e.name !== 'AbortError') toast('Could not make the baseline: ' + e.message, 'bad'); }); break; }
     case 'import': importGame(); break;
     case 'del': { const d = games.find(x => x.id === b.dataset.id);
       if (d && confirm(`Delete the ${d.opp} game (${d.date})? A copy stays in Games → Backups.`)) { backupGame(d, 'deleted'); games = games.filter(x => x !== d); if (curId === d.id) curId = null; save(); render(); } break; }
@@ -6193,8 +6199,7 @@ async function bkRestore(id) {
 // The season file: everything this tracker keeps, in one file.
 const SEASON_KEYS = ['pl_roster', 'gt_opp_rosters', 'gt_schedule', 'pt2_auto_off', 'pt2_ready', 'pt2_fields', 'pt2_lu_adj'];
 async function exportSeason() {
-  const data = {}; SEASON_KEYS.forEach(k => { const v = lsGet(k, null); if (v != null) data[k] = v; });
-  const body = JSON.stringify({ app: 'moorpark-possession-tracker', kind: 'season', version: 1, appVersion: VERSION, dataVersion: DATA_V, exportedAt: new Date().toISOString(), games, data });
+  const body = JSON.stringify(seasonBody());
   const name = `mbb_season_${today()}.json`, file = new File([body], name, { type: 'application/json' });
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });   // iPad: Save to Files / Drive
@@ -6207,6 +6212,14 @@ function importSeason() {
   inp.onchange = () => { const f = inp.files[0]; if (!f) return; f.text().then(async t => {
     let d; try { d = JSON.parse(t); } catch (e) { toast('Not a season file', 'bad'); return; }
     if (!d || d.kind !== 'season' || !Array.isArray(d.games)) { toast('Not a possession-tracker season file (a single game? use Import a game file)', 'bad'); return; }
+    const n = await mergeSeason(d); if (!n) return;
+    toast(`Season file: ${n.added} added, ${n.replaced} replaced with a longer copy, ${n.kept} already up to date${n.filled ? `, ${n.filled} roster/schedule/setting lists filled in` : ''}`, 'good');
+  }); };
+  inp.click();
+}
+// Merge a season (from a file or the baseline): add games this iPad doesn't have; replace one only with a copy that has
+// more plays (the iPad's is backed up first); fill rosters / schedule / settings that are empty here. Never deletes.
+async function mergeSeason(d, quiet) {
     if ((d.dataVersion || 0) > DATA_V && !confirm('This file was saved by a newer version of the tracker. Reload the tracker with signal to update it first. Import anyway?')) return;
     let added = 0, replaced = 0, kept = 0;
     for (const g0 of d.games) { if (!g0 || !g0.id || !Array.isArray(g0.ev)) continue; const g = upgradeGame(g0);
@@ -6217,17 +6230,15 @@ function importSeason() {
     let filled = 0; Object.entries(d.data || {}).forEach(([k, v]) => { if (!SEASON_KEYS.includes(k)) return; const now = lsGet(k, null);
       if (now == null || (Array.isArray(now) && !now.length) || (typeof now === 'object' && !Array.isArray(now) && !Object.keys(now).length)) { lsSet(k, v); filled++; } });
     save(); render();
-    toast(`Season file: ${added} added, ${replaced} replaced with a longer copy, ${kept} already up to date${filled ? `, ${filled} roster/schedule/setting lists filled in` : ''}`, 'good');
-  }); };
-  inp.click();
+    return { added, replaced, kept, filled };
 }
 function seasonCard() {
   const last = lsGet(LS_LAST_EXPORT, null), days = last ? Math.floor((Date.now() - Date.parse(last)) / 864e5) : null;
   const stale = days == null || days >= 7;
   return `<div class="card"><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b>Season backup file</b>
       <span class="small ${stale && games.length ? 'neg' : 'muted'}">${last ? `last saved ${days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago'}` : 'never saved'}</span>
-      <span style="margin-left:auto"></span><button class="btn btn-sm btn-good" data-act="season-export">Export season</button><button class="btn btn-sm" data-act="season-import">Import season</button></div>
-    <div class="small muted" style="margin-top:6px">Every game, the rosters and the schedule in one file. Save it to Files or Drive after each game: it's the copy that survives a cleared or lost iPad. Updating the tracker never touches your games.</div></div>`;
+      <span style="margin-left:auto"></span><button class="btn btn-sm btn-good" data-act="season-export">Export season</button><button class="btn btn-sm" data-act="season-import">Import season</button><button class="btn btn-sm" data-act="base-make-open">Make baseline file</button></div>
+    <div class="small muted" style="margin-top:6px">Every game, the rosters and the schedule in one file. Save it to Files or Drive after each game: it's the copy that survives a cleared or lost iPad. Updating the tracker never touches your games.</div>${baselineLine()}</div>`;
 }
 /* ---------- UPGRADING OLD DATA ----------
    Every game that comes in (the iPad's own games when the app opens, a game file, a season file, a backup) goes
@@ -6249,12 +6260,84 @@ function upgradeGame(g) {
   return g;
 }
 function upgradeAll() { let n = 0; games.forEach(g => { if ((g.dv || 0) < DATA_V) { upgradeGame(g); n++; } }); if (n) lsSet(LS_GAMES, games); return n; }
+/* ---------- THE BASELINE: the season built into the site, locked with a passcode ----------
+   Games → Make baseline file: the season (as Export season) encrypted on the iPad with a passcode you choose
+   (PBKDF2-SHA256, 250,000 rounds → AES-GCM 256). The file is put on the site as poss/baseline.enc.json; the passcode
+   never leaves the iPad. When the tracker opens and the site has a baseline newer than the last one merged here, it
+   asks for the passcode (once; this iPad remembers it), unlocks it and merges it like Import season: adds what's
+   missing, replaces a game only with a longer copy, never deletes. A fresh or wiped iPad is never blank. */
+const LS_BASE_AT = 'pt2_baseline_at', LS_BASE_KEY = 'pt2_baseline_pass', BASE_URL = 'baseline.enc.json';
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))), unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function baseKey(pass, salt, iter) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+function seasonBody() {
+  const data = {}; SEASON_KEYS.forEach(k => { const v = lsGet(k, null); if (v != null) data[k] = v; });
+  return { app: 'moorpark-possession-tracker', kind: 'season', version: 1, appVersion: VERSION, dataVersion: DATA_V, exportedAt: new Date().toISOString(), games, data };
+}
+async function makeBaseline(pass) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 250000;
+  const S = seasonBody(), key = await baseKey(pass, salt, iter);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(S)));
+  const out = { app: 'moorpark-possession-tracker', kind: 'baseline', version: 1, exportedAt: S.exportedAt, salt: b64(salt), iv: b64(iv), iter, data: b64(ct) };
+  const file = new File([JSON.stringify(out)], 'baseline.enc.json', { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'baseline.enc.json' });
+  else { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = 'baseline.enc.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+  try { localStorage.setItem(LS_BASE_KEY, pass); } catch (e) {}
+  toast(`Baseline file saved (${games.length} games, locked). Upload it to put it on the site.`, 'good');
+}
+async function openBaseline(B, pass) {
+  const key = await baseKey(pass, unb64(B.salt), B.iter || 250000);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(B.iv) }, key, unb64(B.data));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+let BASE = null;   // the site's baseline file, once fetched: { file, pending }
+async function checkBaseline() {
+  if (!window.fetch || !window.crypto || !crypto.subtle) return;
+  let B; try { const r = await fetch(BASE_URL, { cache: 'no-cache' }); if (!r.ok) return; B = await r.json(); } catch (e) { return; }
+  if (!B || B.kind !== 'baseline') return;
+  const seen = lsGet(LS_BASE_AT, null); BASE = { file: B, pending: !seen || seen < B.exportedAt };
+  if (!BASE.pending) return;
+  let pass = null; try { pass = localStorage.getItem(LS_BASE_KEY); } catch (e) {}
+  if (pass && await applyBaseline(pass, true)) return;
+  if (UI.tab === 'games' || !games.length) baselineModal(); else render();
+}
+async function applyBaseline(pass, quiet) {
+  if (!BASE) return false;
+  let S; try { S = await openBaseline(BASE.file, pass); } catch (e) { if (!quiet) toast('Wrong passcode', 'bad'); return false; }
+  try { localStorage.setItem(LS_BASE_KEY, pass); } catch (e) {}
+  const n = await mergeSeason(S, true); if (!n) return false;
+  lsSet(LS_BASE_AT, BASE.file.exportedAt); BASE.pending = false; render();
+  toast(`Baseline loaded: ${n.added} game${n.added === 1 ? '' : 's'} added${n.replaced ? `, ${n.replaced} updated` : ''}${n.filled ? ', rosters and schedule filled in' : ''}`, 'good');
+  return true;
+}
+function baselineModal() {
+  if (!BASE) return;
+  modal(`<h2>Load the season baseline</h2><div class="small muted" style="margin-bottom:10px">The site has the team's season saved ${esc(rpWhen(BASE.file.exportedAt))}, locked. Enter the passcode to load it on this iPad (it only adds what's missing; nothing here is deleted). This iPad remembers it.</div>
+    <input type="password" id="base-pass" autocomplete="current-password" style="width:100%" placeholder="Passcode" enterkeyhint="done">
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Not now</button><button class="btn btn-good btn-lg" data-act="base-open">Load</button></div>`);
+  setTimeout(() => { const i = $('#base-pass'); if (i) i.focus(); }, 50);
+}
+function makeBaselineModal() {
+  modal(`<h2>Make the baseline file</h2><div class="small muted" style="margin-bottom:10px">Every game, the rosters and the schedule, locked with a passcode, to put on the site so any iPad (a new one, or one that was wiped) starts with the season. The site is public: without the passcode the file is unreadable. Pick one you'll remember: it can't be recovered.</div>
+    <input type="password" id="mb-pass" autocomplete="new-password" style="width:100%;margin-bottom:8px" placeholder="Passcode (6+ characters)">
+    <input type="password" id="mb-pass2" autocomplete="new-password" style="width:100%" placeholder="Passcode again">
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-good btn-lg" data-act="base-make">Save baseline file</button></div>`);
+}
+function baselineLine() {
+  if (!BASE) return '';
+  const at = rpWhen(BASE.file.exportedAt);
+  return BASE.pending ? `<div class="row" style="gap:8px;align-items:center;margin-top:8px"><span class="small neg">The site has a newer season baseline (${esc(at)}) not loaded on this iPad.</span><button class="btn btn-sm btn-good" data-act="base-load">Load it</button></div>`
+    : `<div class="small muted" style="margin-top:8px">Season baseline on the site: ${esc(at)} · loaded on this iPad ✓</div>`;
+}
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
 fetchRatings();
+checkBaseline();
 </script>
 </body>
 </html>
