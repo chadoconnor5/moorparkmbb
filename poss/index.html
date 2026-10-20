@@ -1180,7 +1180,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.177';
+const VERSION = 'v2026.10.20.178';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5089,6 +5089,22 @@ function flPlayer(g, t, id) {
     rim: per40('BLK') != null ? per40('BLK') >= FL.RIM : flTag(p, /rim|shot ?block|blocker/i),
     foulish: per40('PF') != null ? per40('PF') >= FL.PF : flTag(p, /foul/i) };
 }
+/* A five's own rebounding from the lineup data: its OREB% and DREB% on the court, against the team's over the same games
+   (ours: every tracked game; theirs: every game we've tracked against them). Thin glass = under the team's average at
+   both ends, on GLASS_MIN+ rebound chances at each end. Cached until a play is logged or a game is added. */
+const GLASS_MIN = 10, glassMemo = {};
+function fiveGlass(g, t, five) {
+  const gs = games.filter(x => x.ev && x.ev.length && (t === 'a' || normOpp(x.opp) === normOpp(g.opp)));
+  const key = t + ':' + gs.map(x => x.id + '.' + x.ev.length).join(',');
+  if (!glassMemo[key]) { const U = {}, T = { oo: 0, oc: 0, dd: 0, dc: 0 };
+    gs.forEach(x => lineupUnits(x, derive(x), t, 'game', 'all', 5).units.forEach(u => { const k = fiveKey(u.five), m = U[k] = U[k] || { oo: 0, oc: 0, dd: 0, dc: 0 };
+      [m, T].forEach(z => { z.oo += u.o.oreb; z.oc += u.o.oreb + u.d.dreb; z.dd += u.o.dreb; z.dc += u.o.dreb + u.d.oreb; }); }));
+    Object.keys(glassMemo).filter(k => k.startsWith(t + ':')).forEach(k => delete glassMemo[k]);
+    glassMemo[key] = { U, T }; }
+  const { U, T } = glassMemo[key], m = U[fiveKey(five)], pc = (a, b) => b ? 100 * a / b : null;
+  if (!m || m.oc < GLASS_MIN || m.dc < GLASS_MIN || !T.oc || !T.dc) return null;
+  return { or: pc(m.oo, m.oc), dr: pc(m.dd, m.dc), tor: pc(T.oo, T.oc), tdr: pc(T.dd, T.dc), m, games: gs.length };
+}
 function fiveLabels(g, t, five) {
   if (!five || five.length !== 5) return [];
   const P = five.map(id => flPlayer(g, t, id)), nn = q => q.num ? '#' + q.num : lastName(q.name || q.id);
@@ -5112,7 +5128,9 @@ function fiveLabels(g, t, five) {
   // Weaknesses
   if (known >= 4 && sh.length <= 1) add('r', sh.length ? '1 shooter' : 'No shooter', sh.length ? 2 : 3, sh.length ? who(sh, f3) : ['<b>Nobody on the floor shoots it</b><span></span>']);
   const gns = P.filter(q => q.guard && q.nonShooter && !q.attacker); if (gns.length) add('r', 'G can\'t shoot', 1.5, who(gns, q => f3(q) + (q.ftr != null ? ` · FTr ${q.ftr.toFixed(0)}%` : '')));
-  if (reb != null && reb <= FL.GLASS_LO) add('r', 'Thin glass', 1 + (FL.GLASS_LO - reb) / 5, who(R, q => `${q.reb.toFixed(1)} reb/40`));
+  const gl = fiveGlass(g, t, five);
+  if (gl && gl.or < gl.tor && gl.dr < gl.tdr) add('r', 'Thin glass', 1 + (gl.tor - gl.or + gl.tdr - gl.dr) / 10,
+    [`<b>OREB%</b><span>${gl.or.toFixed(1)} (${gl.m.oo}/${gl.m.oc}) · team ${gl.tor.toFixed(1)}</span>`, `<b>DREB%</b><span>${gl.dr.toFixed(1)} (${gl.m.dd}/${gl.m.dc}) · team ${gl.tdr.toFixed(1)}</span>`]);
   const tos = P.filter(q => q.to != null && q.to >= FL.TO); if (tos.length >= 2) add('r', 'TO risk', tos.length, who(tos, q => `${q.to.toFixed(1)} TO/40`));
   const fp = P.filter(q => q.foulish); if (fp.length >= 2) add('r', 'Foul-prone', fp.length - 0.5, who(fp, q => q.pf != null ? `${q.pf.toFixed(1)} PF/40` : 'tagged'));
   const badFt = P.filter(q => q.ft != null && q.ft < FL.FT_LO).sort((a, b) => a.ft - b.ft)[0] || P.find(q => q.ft == null && flTag(pInfo(g, t, q.id), /bad ft|can'?t shoot ft|hack/i));
