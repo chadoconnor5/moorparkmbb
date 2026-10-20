@@ -179,7 +179,9 @@ def load(team, season):
     regular = [p for p in c.players_raw if plays(p) and p['averages'].get('games', 0) >= ROT_GP_SHARE * team_g]
     c.gone = [p for p in regular if cut and p['name'] in last_g and last_g[p['name']] < cut]
     c.last_date = {p['name']: '%d/%d/%d' % (last_g[p['name']][1], last_g[p['name']][2], last_g[p['name']][0]) for p in c.gone}
-    c.rotation = sorted([p for p in regular if p not in c.gone], key=lambda p: -(p['totals'].get('MIN', 0) if c.min_ok else p['totals'].get('PTS', 0)))
+    # Profiles run by %Poss, the biggest share of the offense first (by points where minutes, and so usage, aren't kept).
+    use = lambda p: (c.plyr_adv.get(p['name'], {}).get('usage_pct') or 0) if c.min_ok else p['averages'].get('PTS', 0)
+    c.rotation = sorted([p for p in regular if p not in c.gone], key=lambda p: -use(p))
 
     # Positions and heights (the leaderboard's position model and the roster scrape).
     c.pos, c.height = {}, {}
@@ -233,8 +235,6 @@ def load(team, season):
         if not r: continue
         q = quad(r, g.get('location', 'Neutral'))
         c.quad_rec[q][0 if g['result'] == 'W' else 1] += 1; c.quad_games[q].append(dict(g, opp_rank=r))
-    wab_all = sorted(c.wab_data, key=lambda x: x.get('wab', 0), reverse=True)
-    c.wab_rank = next((i + 1 for i, t in enumerate(wab_all) if t.get('team') == team), None); c.wab_total = len(wab_all)
 
     # Statewide team pool (same derived metrics as the Ventura report).
     c.all_teams = []
@@ -422,16 +422,17 @@ def page_cover(c):
             ('FONTSIZE', (0, 0), (-1, -1), sz), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('TOPPADDING', (0, 0), (-1, -1), 14), ('BOTTOMPADDING', (0, 0), (-1, -1), 14)]))
         e.append(t)
     e.append(Spacer(1, 12))
-    net_r, ortg_r = R(c, 'net_rtg'), R(c, 'ortg')
+    net_r, ortg_r, drtg_r = R(c, 'net_rtg'), R(c, 'ortg'), R(c, 'drtg')
     def hcell(top, mid, bot, tc=BLUE):
         return [Paragraph(top, S(14, True, tc, TA_CENTER)), Paragraph(mid, S(7.5, False, MID, TA_CENTER)), Paragraph(bot, S(7, False, MID, TA_CENTER))]
+    # Record, conference record, ORTg, DRTg, net rating, net rank (each rating with its state rank).
     strip = [hcell(c.rec_all, 'OVERALL', 'RECORD'), hcell(c.rec_conf, 'CONF. RECORD', c.conf),
-             hcell(f'#{net_r}/{c.n}', 'NET RATING', 'Statewide Rank'),
-             hcell(f'#{c.wab_rank}/{c.wab_total}' if c.wab_rank else '—', 'WAB RANK', 'Statewide'),
-             hcell(sg(c.ta['net_rtg']), 'NET RATING', 'Pts per 100 Poss', RED_TXT),
-             hcell(f'{c.ta["ortg"]:.1f}', 'OFF. RATING', f'#{ortg_r} of {c.n} CCCAA', GREEN_TXT)]
+             hcell(f'{c.ta["ortg"]:.1f}', 'OFF. RATING', f'#{ortg_r} of {c.n} CCCAA'),
+             hcell(f'{c.ta["drtg"]:.1f}', 'DEF. RATING', f'#{drtg_r} of {c.n} CCCAA'),
+             hcell(sg(c.ta['net_rtg']), 'NET RATING', 'Pts per 100 Poss', GREEN_TXT if c.ta['net_rtg'] >= 0 else RED_TXT),
+             hcell(f'#{net_r}/{c.n}', 'NET RANK', 'Statewide')]
     t2 = Table([strip], colWidths=[1.25 * inch] * 6)
-    t2.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), LGRAY), ('BACKGROUND', (4, 0), (4, 0), RED_BG), ('BACKGROUND', (5, 0), (5, 0), GREEN_BG),
+    t2.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), LGRAY), ('BACKGROUND', (4, 0), (4, 0), GREEN_BG if c.ta['net_rtg'] >= 0 else RED_BG),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, MGRAY), ('BOX', (0, 0), (-1, -1), 1.5, c.OPP), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8)]))
     e += [t2, Spacer(1, 14)]
@@ -451,7 +452,6 @@ def page_cover(c):
     e += [hb, Spacer(1, 10)]
 
     e += section(f'Who Is {T}?', 'Team identity, style of play, and four-factors analysis.')
-    drtg_r = R(c, 'drtg')
     o_t, d_t = tw(ortg_r, c.n), tw(drtg_r, c.n)
     if ortg_r <= 35 and drtg_r <= 35: ident = f'a two-way team — top 35 statewide at both ends'
     elif ortg_r <= 35 and ortg_r + 20 < drtg_r: ident = f'an offense-first team — they win by outscoring opponents, with a defense that is {d_t}'
@@ -767,7 +767,7 @@ def player_card(c, p):
 
 def page_players(c):
     e = section(f'Player Profiles — {c.team} Rotation',
-                (f'All rotation players ({ROT_MPG:.0f}+ MPG in {round(100 * ROT_GP_SHARE)}%+ of games), sorted by minutes played.' if c.min_ok else
+                (f'All rotation players ({ROT_MPG:.0f}+ MPG in {round(100 * ROT_GP_SHARE)}%+ of games), sorted by %Poss (share of possessions used).' if c.min_ok else
                  f'All rotation players (4+ PPG or 3+ RPG in {round(100 * ROT_GP_SHARE)}%+ of games; {c.team}’s box scores don’t keep reliable minutes), '
                  f'sorted by points.'))
     e += [player_card(c, p) for p in c.rotation]

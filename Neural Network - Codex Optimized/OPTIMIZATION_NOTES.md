@@ -227,6 +227,8 @@ This copy keeps the original project intact and starts consolidating the working
   per-team prose), with one tier wording for every rank (Elite top 15% / Above Avg 35 / Average 65 / Below Avg 85 /
   Poor). Reads this repo's season folders, internal_data (positions, heights, position dependence) and ../wab_results.json;
   the opponent's color is the game tracker's TEAM_COLORS (../game/index.html).
+  Cover strip: record, conference record, ORTg, DRTg, net rating, net rank (no WAB). Player cards run by %Poss (usage),
+  highest first (by points on teams without reliable minutes).
   Rotation: 10+ MPG in 40%+ of games; players absent from the team's last 6 games are listed, not profiled (finds the
   Ventura report's hand-dropped Aukuso), only when player_game_ratings covers 80%+ of the games. Teams without reliable
   minutes (box minutes under 75% of 200 a game) use 4+ PPG or 3+ RPG and show no per-minute numbers (usage, ORtg/DRtg,
