@@ -78,8 +78,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
     *Foul-prone*, *FT #21*). Tap one: a light-grey bubble above it lists who earned it, with their numbers. Nothing
     is logged.
     - **Thin glass** is the five itself, not its players: its own OREB% and DREB% as a group from the lineup data
-      (ours: every tracked game; theirs: every game we've tracked against them), under the team's average over the
-      same games at **both** ends, on 10+ rebound chances at each end. The bubble shows both with the team's.
+      (ours: every tracked game; theirs: every game we've tracked against them), 2+ points under the team's average
+      over the same games at **both** ends, on 10+ rebound chances at each end. The bubble shows both with the team's.
     - The rest come from each player's season line (quality games: stat sheets / leaderboard; at halftime the 1st-half sheet
       joins it when the game is close against a good team, so the 2nd half adapts) and, where a player has no line
       yet (every opponent for now), from his position and his card labels (Shooter, Big, Ball hawk, Can't shoot...).
