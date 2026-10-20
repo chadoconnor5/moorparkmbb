@@ -191,6 +191,9 @@ This copy keeps the original project intact and starts consolidating the working
   Each composite = gate + weighted mean (renormalized over present factors, null under 60% of the weight); the cut
   is the quantile of the gated pool's BOX-ONLY scores (Synergy scores compared against the same cut). Rows carry
   rank.comp {name: score} (sit.js reads it as rk.comp), totals["compCut"], and row["syn"] (shares / FG% only, for the why text). Scorer = pprod/g 60 · ppg 20 · usage 20 (top 10%).
+  Star (tiers()): one statewide top 20. Analytics players by rank.porp; low-info players (fm) get rank.eqr = where
+  their Game Score per game (game_score_pg, box score only) falls among the porp-ranked players' Game Scores; ties go
+  to the analytics player. rank.tier = "Star", rank.srank = place, totals["starTop"] = 20.
   Shooter / Elite shooter / Poor 3PT use tpp_vol, not the State Rank: 3P% percentile among volume shooters (2+ 3PA/g or
   35%+ of FGA, 40+ attempts) with min% >= 30. The State Rank ranks 3P% only at 50%+ minutes, which left 117 volume
   shooters (bench shooters, sixth men) with no shooting label. Volume is a rate (works from week one): 2+ 3PA/g or 35%+

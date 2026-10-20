@@ -1169,7 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.18.169';
+const VERSION = 'v2026.10.20.170';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5196,8 +5196,10 @@ function autoLabels(g, t, id) {
   const band = rk.ortg_band, bandN = band != null && tot.ortg_band ? tot.ortg_band[band] : null, BANDS = ['Go-to Guys', 'Major Contributors', 'Significant Contributors', 'Role Players', 'Limited Roles', 'Nearly Invisible'];
   const bandTop = cut => rk.ind_ortg != null && bandN ? rk.ind_ortg <= Math.max(1, Math.round(cut * bandN)) : false;
   const ortgWhy = R && R.ind_ortg != null && bandN ? `ORtg ${f1(R.ind_ortg)} (${ordinal(rk.ind_ortg)} of ${bandN} ${BANDS[band]}), ${f1(R.usage_pct)}% of possessions` : '';
-  const usg = R && R.usage_pct != null ? R.usage_pct : null, star = top('porp', 0.05);
-  if (star) add('Star', `PORPAGATU! ${f1(R.porp)}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
+  /* Star: the state's top 20, North and South together (export_ratings.py tiers): PORPAGATU! on analytics teams, Game
+     Score per game placed on the same list on low-info teams. Older files without the list: PORPAGATU! top 5%. */
+  const usg = R && R.usage_pct != null ? R.usage_pct : null, star = tot.starTop ? rk.tier === 'Star' : top('porp', 0.05);
+  if (star) add('Star', `#${rk.srank || '—'} in the state · ${R.porp != null ? `PORPAGATU! ${f1(R.porp)}` : `Game Score ${f1(rk.gsc)} a game`}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
   // Scorer: top 10% on points produced a game, points a game and usage together. Star already says it; Scorer says
   // more than Go-to, so it takes Go-to's place.
   const scorer = !star && cut('scorer');
@@ -5284,7 +5286,7 @@ const LABEL_GUIDE = [
     ['From stats', 'From his season numbers on the leaderboard, judged against every qualified player in the state. Roles blend several related stats (and Synergy shot data when we have it) into one score; the label goes to roughly the top 20% (bottom 20% for a weakness) unless noted. Only players with 30%+ of their team\'s minutes. ✕ in the roster editor turns one off for a player.'],
     ['Low-info teams', 'Teams whose box scores don\'t have reliable minutes get ★ team-leader labels and shooting labels instead of the state ones.']]],
   ['Role', [
-    ['Star', 'Top 5% of the state in PORPAGATU! (points over replacement per adjusted game). Always shown first.'],
+    ['Star', 'The state\'s top 20, North and South together: PORPAGATU! (points over replacement per adjusted game), or for teams without reliable minutes, Game Score per game placed on the same list. Always shown first.'],
     ['Scorer', 'Top 10% on points produced a game, points a game and usage together: the volume scoring threat, whatever his style. Not shown with Star.'],
     ['Go-to', 'Uses over 28% of his team\'s possessions while on the floor (not shown with Star or Scorer).'],
     ['Sixth man', 'His team\'s best bench player: starts 35% or fewer of his games (and 3 or fewer of the last 10), plays 15+ minutes, and leads their bench on minutes, usage and points produced. When he checks in, he produces.'],

@@ -560,7 +560,8 @@ five has 25+ offensive possessions).
     (at the rim, 3PT, catch-and-shoot, pull-up) join the blend. Each composite's cut is calibrated on the state's scores (`export_ratings.py` COMPOSITES; team files carry
     `comp` / `compCut` / `syn`); older files fall back to the single-stat rules. A player can have several; the card
     shows them in this order:
-    - **Role:** *Star* (top 5% of the state in PORPAGATU!, players at 30%+ of minutes) · *Scorer* (top 10% on points
+    - **Role:** *Star* (the state's top 20, North and South together: PORPAGATU! on analytics teams, and on
+      teams without reliable minutes Game Score per game placed on the same list) · *Scorer* (top 10% on points
       produced a game, points a game and usage; not with Star) · *Go-to* (over 28% of
       possessions; not with Star or Scorer) · *Sixth man* (his team's best bench player: starts 35% or
       fewer of his games and 3 or fewer of the last 10, 15+ minutes, tops their bench on minutes, usage and points produced) · *Glue guy* (usage under 17%, low scoring,

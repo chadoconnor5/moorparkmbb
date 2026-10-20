@@ -373,6 +373,46 @@ def sixth_men(pool, ranks, teams):
             ranks.setdefault((best["name"], team), {}).setdefault("roles", []).append("Sixth man")
 
 
+def game_score_pg(x):
+    """Hollinger's Game Score per game, from the box score alone (no minutes): every player in the state has one."""
+    g = x.get("gp") or 1
+    n = lambda k: x.get(k) or 0
+    return ((n("pts") + 0.4 * n("fgm") - 0.7 * n("fga") - 0.4 * (n("fta") - n("ftm"))) / g + 0.7 * n("orpg") + 0.3 * n("drpg")
+            + n("spg") + 0.7 * n("apg") + 0.7 * n("bpg") - n("topg"))
+
+
+STAR_TOP = 20
+
+
+def tiers(pool, ranks, totals):
+    """Star: the state's top 20, North and South together, in one list. Analytics players are ranked by PORPAGATU!
+    (rank["porp"]); a player on a low-info team (no reliable minutes, so no PORPAGATU!) gets the rank his Game Score per
+    game would have among the analytics players (rank["eqr"]). At the same rank the analytics player goes first (his
+    number is the better-measured one), then Game Score. rank["tier"] = "Star", rank["srank"] = place on the list."""
+    import bisect
+    team_gp = {}
+    for x in pool:
+        if x.get("gp"):
+            team_gp[x["school"]] = max(team_gp.get(x["school"], 0), x["gp"])
+    played = [x for x in pool if x.get("gp") and x["gp"] >= 0.5 * team_gp[x["school"]]]
+    ana = sorted(-game_score_pg(x) for x in played if ranks.get((x["name"], x["school"]), {}).get("porp"))
+    eq, gsc = {}, {}
+    for x in played:
+        key, rk = (x["name"], x["school"]), ranks.get((x["name"], x["school"]), {})
+        gsc[key] = game_score_pg(x)
+        if rk.get("porp"):
+            eq[key] = rk["porp"]
+        elif x.get("fm"):
+            eq[key] = bisect.bisect_left(ana, -gsc[key]) + 1
+            ranks.setdefault(key, {})["eqr"] = eq[key]
+            ranks[key]["gsc"] = round(gsc[key], 1)
+    order = sorted(eq, key=lambda k: (eq[k], 0 if ranks.get(k, {}).get("porp") else 1, -gsc.get(k, 0)))
+    for i, key in enumerate(order[:STAR_TOP]):
+        ranks.setdefault(key, {})["tier"] = "Star"
+        ranks[key]["srank"] = i + 1
+    totals["starTop"] = STAR_TOP
+
+
 def ft_volume(pool, ranks):
     """rank["ftv"] = 1 for players who get to the line at volume (that he gets there proves he plays, so no minutes bar and
     low-info teams count too), by rate so it works from week one:
@@ -441,6 +481,7 @@ def leaderboard_tables(teams=()):
         glue_guys(pool, ranks)
         help_off(pool, ranks)
         ft_volume(pool, ranks)
+        tiers(pool, ranks, totals)
         porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:
