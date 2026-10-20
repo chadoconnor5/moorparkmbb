@@ -895,6 +895,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .fx-none{padding:6px 0}
 
 .fx-stat{margin-left:6px;font-size:13px}
+.fx-sum{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:2px 0 8px}
+.fx-sum-h{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.fx-sum-h span{font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);margin-left:6px}
+.fx-sum-r{display:grid;grid-template-columns:110px 70px 1fr 70px 80px;gap:8px;align-items:baseline;padding:3px 0;font-size:14px;font-variant-numeric:tabular-nums;border-top:1px solid var(--border)}
+.fx-sum-r span:nth-child(n+3),.fx-sum-r b:last-child{text-align:right}
+.fx-sum-r.win{opacity:.6} .fx-sum-r.lose b:first-child{color:var(--bad)}
 .fx-ask{font-size:12.5px;font-weight:700;color:var(--text2);margin:0 0 6px}
 
 /* Leverage scope buttons and a five's leverage mix */
@@ -1174,7 +1180,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.176';
+const VERSION = 'v2026.10.20.177';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2302,7 +2308,24 @@ function fixCard(g, D, o, cur) {
   const losing = !L ? [] : FIX_FACTORS.filter(([k, , , hi]) => a[k] != null && b[k] != null && a[k].toFixed(1) !== b[k].toFixed(1) && (a[k] > b[k]) !== hi);
   const night = a ? { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr } : {};
   const N = seasonNorm(g), bad = k => { const S = FIX_STATS[k], v = night[k], n = N.v[k]; return v == null || n == null ? 0 : S.hi ? n - v : v - n; };
-  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => bad(y) - bad(x));
+  /* What each factor is costing us in points (ours minus theirs, so negative = losing), so a 2-point TO% gap and a
+     15-point rebounding gap can be weighed side by side: eFG% gap × 2 × FGA; TO% gap × possessions × points per
+     possession; OREB% gap × missed shots × points per possession; FT rate gap × FGA × FT%. FGA, possessions, misses,
+     points per possession and FT% are the two teams' averages this half. */
+  const cost = !L ? {} : (() => { const n = (t, k) => +t[k] || 0, av = f => (f(L.a) + f(L.b)) / 2;
+    const fga = av(t => n(t, 'fga')), poss = (a.poss + b.poss) / 2, ppp = poss > 0 ? (a.pts + b.pts) / (a.poss + b.poss) : 1, miss = av(t => n(t, 'fga') - n(t, 'fgm'));
+    const fta = n(L.a, 'fta') + n(L.b, 'fta'), ftp = fta ? (n(L.a, 'ftm') + n(L.b, 'ftm')) / fta : 0.7, d = k => a[k] == null || b[k] == null ? null : a[k] - b[k];
+    const r = { efg: d('efg') == null ? null : d('efg') / 100 * 2 * fga, to: d('to') == null ? null : -d('to') / 100 * poss * ppp,
+      orb: d('orb') == null ? null : d('orb') / 100 * miss * ppp, ftr: d('ftr') == null ? null : d('ftr') / 100 * fga * ftp };
+    return r; })();
+  const problems = losing.flatMap(([k]) => FIX_PAIRS[k].filter(x => bad(x) > 0)).sort((x, y) => {
+    const fx = Object.keys(FIX_PAIRS).find(f => FIX_PAIRS[f].includes(x)), fy = Object.keys(FIX_PAIRS).find(f => FIX_PAIRS[f].includes(y));
+    return (cost[fx] || 0) - (cost[fy] || 0) || bad(y) - bad(x); });
+  // The summary at the top: all four factors, most points lost first; the ones we're losing in red.
+  const sumRows = !L ? [] : FIX_FACTORS.filter(([k]) => a[k] != null && b[k] != null).sort((x, y) => (cost[x[0]] || 0) - (cost[y[0]] || 0));
+  const summary = !sumRows.length ? '' : `<div class="fx-sum"><div class="fx-sum-h">What's hurting us <span>${o.half} · us / them · our edge · ≈ points</span></div>
+    ${sumRows.map(([k, nm, st, hi]) => { const lose = losing.some(x => x[0] === k), gap = hi ? a[k] - b[k] : b[k] - a[k], c = cost[k];   // gap for us: negative = losing it
+      return `<div class="fx-sum-r ${lose ? 'lose' : 'win'}"><b>${nm}</b><span class="muted">${st}</span><span>${P(a[k])} / ${P(b[k])}</span><span class="${lose ? 'neg' : 'pos'}">${(gap < 0 ? '−' : '+') + Math.abs(gap).toFixed(1)}</span><b class="${c == null ? '' : c < -0.05 ? 'neg' : c > 0.05 ? 'pos' : ''}">${c == null ? '—' : (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(c).toFixed(1) + ' pts'}</b></div>`; }).join('')}</div>`;
   problems.forEach(k => { const S = FIX_STATS[k], n = N.v[k], end = S.end === 'o' ? 'oP' : 'dP';
     const rank = (list, min) => list.filter(u => u[end] >= min && u.v[k] != null && (n == null || (S.hi ? u.v[k] > n : u.v[k] < n)))
       .sort((x, y) => S.hi ? y.v[k] - x.v[k] : x.v[k] - y.v[k]).slice(0, 2).map(u => Object.assign({}, u, { p: u[end] }));
@@ -2312,8 +2335,8 @@ function fixCard(g, D, o, cur) {
       <div class="fx-ask">→ the ${S.rank} fives</div>
       ${cols(T, Sn, (u, both) => row(u, both, P(u.v[k]), S.name, pl), pl, `No five has been better than ${P(n)} today.`, `No available five has been better than ${P(n)}.`)}</div>`; });
   if (!o.overall && !problems.length) return { html: '', any: false };
-  return { any, html: `<div class="card fix-card">${o.overall ? '' : `<h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>`}${levBtns(o.sk, o.def)}${html}
-    <div class="tiny muted" style="margin-top:6px">${o.overall ? 'Best overall = the four factors combined, better than the five on now. ' : ''}What's hurting us = each four factor we're losing ${o.half}, the end that's off our norm, and the fives best at that one stat. Today = as played; Season = every game, adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Only fives with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>` };
+  return { any, html: `<div class="card fix-card">${o.overall ? '' : `<h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>`}${summary}${levBtns(o.sk, o.def)}${html}
+    <div class="tiny muted" style="margin-top:6px">${o.overall ? 'Best overall = the four factors combined, better than the five on now. ' : ''}What's hurting us = each four factor we're losing ${o.half}, biggest points cost first (≈ points: what the gap is worth at this half's shots and possessions), the end that's off our norm, and the fives best at that one stat. Today = as played; Season = every game, adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Only fives with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>` };
 }
 function lineupsView(g) {
   const D = derive(g);

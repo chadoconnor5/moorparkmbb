@@ -309,7 +309,12 @@ built its numbers in low-leverage minutes ranks lower. Smaller scopes need fewer
 All 25 / High+Med 15 / High 10 / Clutch 6 at that end; today 6 / 5 / 4 / 3), and when no five qualifies
 the next wider scope is shown, saying so. The Lineups tab filters add High+Med and High.
 
-**Halftime: lineups for what's hurting us, today and season.** Each four factor we're losing in the 1st
+**Halftime: lineups for what's hurting us, today and season.** A **What's hurting us** box on top (also in 💡 Try
+and the situations) lists all four factors this half: us / them, our edge, and about how many points the gap is
+worth, most points lost first, the ones we're losing in red. The points: eFG% gap × 2 × FGA; TO% gap ×
+possessions × points per possession; OREB% gap × missed shots × points per possession; FT rate gap × FGA × FT%
+(the two teams' averages this half). So a 2% TO% gap and a 15% rebounding gap can be weighed at a glance, and the
+problem sections below come in the same order. Each four factor we're losing in the 1st
 half is split into its two ends, and only the end that's off our norm tonight is worked on (our season
 norm once 2 games are in, league average before). Each problem is one stat with one direction, and the
 fives are ranked on that stat alone:
