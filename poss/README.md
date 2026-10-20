@@ -583,12 +583,16 @@ five has 25+ offensive possessions).
     - **How he scores:** *Interior scorer* (2P% top 20% on 4+ two-point tries a game, threes under 25% of his shots) ·
       *Finisher* (threes under 20% of his shots, TS 58%+, not
       already an Interior scorer or Slasher) · *All-Around* (TS% top 35%, 25-55% of his shots threes, FT rate top half; plain *Shooter* is implied and left off, *Elite shooter* still shows) · *Balanced* (All-Around's mix without its efficiency bar: 30-55% of his shots threes, FT
-      rate top half, 20%+ of possessions) · *Elite shooter* / *Shooter* (3P% top
-      10% / 35%, on 2.0+ threes a game or 35%+ of his shots; 3P% judged among every volume shooter with 30%+ of minutes
-      and 40+ attempts, not only the State Ranks' 50%+) · *Slasher* (a non-shooter who gets to the line) ·
+      rate top half, 20%+ of possessions) · *Slasher* (a non-shooter who gets to the line) ·
       *Draws fouls* (FD/40 top 20% or FT rate top 15%) · *Struggles inside* (2P% bottom 20%) · *3PT heavy* (55%+
-      of his shots threes, 2.0+ a game) · *Poor 3PT* (takes them, 3P% bottom 30%: let him shoot) · *Non-shooter* (under
-      10% of his shots threes: sag off him).
+      of his shots threes, 2.0+ a game).
+    - **The shooting call:** every player who plays gets exactly one, from his own threes, never a state rank. It's
+      what a three from him is worth against an average trip (the state's rotation players shoot 32.4% = 0.97 points
+      a shot). *Est.* = his 3P% as if he'd also taken 25 threes at 32.4%, so one hot or cold night doesn't flip it:
+      *Shooter* (close out: est. 36%+ = 1.08+ points a three; *Elite shooter* = the top 10% of those; plain Shooter
+      is left off when he's *All-Around*) · *Average 3PT* (guard him straight: 30-36%) · *Poor 3PT* (let him shoot:
+      under 30% = under 0.90 points a three) · *Non-shooter* (sag off: under 15 threes, or under 10% of his shots).
+      The bubble shows his 3P%, the est. and the points a three.
     - **Glass:** *Glass cleaner* (OR% and DR% both top 20%) · *Rebounder* (DR%) · *Off. rebounder* (OR%).
     - **Ball:** *Floor general* (assist rate top 10%, not turnover-prone) · *Passer*
       · *Non-passer* (assist rate bottom 10%) · *TO-prone*.

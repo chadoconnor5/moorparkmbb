@@ -1180,7 +1180,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.181';
+const VERSION = 'v2026.10.20.182';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5157,9 +5157,8 @@ function fiveStrip(g, t, five) {
    Ranked labels use his State Rank on the leaderboard's advanced numbers (the same ranks as Rosters → Advanced:
    qualified players statewide, 30% of minutes; shooting by the leaderboard's qualifications). Top 20% of the state
    (top 15% for Efficient / Rim protector, top 35% for Shooter) earns a strength; bottom 20% a weakness:
-     Go-to (%Poss over 28) · Efficient (TS%) · Shooter (3P% top 35% and volume: 2.0+ threes a game or 35%+ of his
-     shots; unranked: the THIS FIVE estimate on 15+ attempts) ·
-     Non-shooter (under 10% of his shots are threes) · Poor 3PT (takes them, 3P% bottom 30%) · 3PT heavy (55%+ of
+     Go-to (%Poss over 28) · Efficient (TS%) · one shooting call for everyone, from his own threes, not a rank
+     (Shooter / Average 3PT / Poor 3PT / Non-shooter: see THE SHOOTING CALL below) · 3PT heavy (55%+ of
      his shots threes, 2.0+ a game) · All-Around (can do it all: TS% top 35%, a balanced
      shot diet of 25-55% threes, FT rate top half; replaces Shooter on him) · Slasher (a non-shooter who draws fouls:
      FT rate or FD/40 top 25%) · Ball hawk (Stl%) · Rim protector (Blk%) ·
@@ -5195,6 +5194,7 @@ function editDist(a, b) {
     prev = cur; }
   return prev[b.length];
 }
+const SH3 = { K: 25, LG: 32.4, HI: 36, LO: 30, MIN_A: 15 };
 function autoLabels(g, t, id) {
   let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
   const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
@@ -5221,17 +5221,18 @@ function autoLabels(g, t, id) {
   if (R) { const rows = F.table.rows, games = Math.max(...rows.map(r => r.gp || 0)), minG = Math.min(10, Math.max(3, Math.ceil(games / 2)));
     const plays = F.table.adv === 1 ? (R.min_pct || 0) >= 30 : (R.gp || 0) >= minG && ((R.ppg || 0) >= 4 || (R.rpg || 0) >= 3);
     if (!plays) return out; }
-  // Shooting: ranked 3P% first; else the THIS FIVE estimate (his own 3P% history, volume).
+  // Shooting: his season threes (the leaderboard's box scores; else our tracked games).
   const tpa = R ? R.tpa || 0 : q.a3, fga = R ? R.fga || 0 : null, rate = fga ? 100 * tpa / fga : q && q.rate, pg = R && R.gp ? tpa / R.gp : q && q.pg3;
-  const shootWhy = (R && R.tpa ? `3P ${f1(R.tpp)}% (${R.tpm}-${R.tpa})` : q && q.est != null ? `est ${q.est.toFixed(0)}%` : '') + (pg != null ? `, ${pg.toFixed(1)} 3PA/g` : '') ;
-  // A shooter also takes them: 2.0+ threes a game or 35%+ of his shots; unranked, 15+ attempts too.
-  const volume = (pg != null && pg >= 2.0) || (rate != null && rate >= 35);
-  const shooter = hasC ? cut('shooter') : volume && (rk.tpp != null ? top('tpp', AUTO_CUT.shooter) : basic && !!(q && q.shooter && q.est != null) && tpa >= 25);
-  // Two different calls: a NON-SHOOTER doesn't take threes (under 10% of his shots; unranked low-volume non-shooters on
-  // low-info teams too): sag off him. POOR 3PT takes them (the shooter's volume) but misses (3P% bottom 30%): let him shoot.
-  const never = fga >= 20 && rate != null && rate < 10;
-  const nonShooter = never || (rk.tpp == null && !volume && basic && !!(q && q.nonShooter && q.est != null));
-  const cold = hasC ? cut('poor3') : volume && (rk.tpp != null ? bot('tpp', AUTO_CUT.cantShoot) : basic && !!(q && q.nonShooter && q.est != null) && tpa >= 25);
+  /* THE SHOOTING CALL: every player who plays gets exactly one, from his own threes, never a state rank. What a three
+     from him is worth against an average trip (the state's rotation players shoot 32.4% = 0.97 points a shot):
+       Shooter (close out) est 36%+ = 1.08+ points a three · Average 3PT (guard him straight) 30-36% ·
+       Poor 3PT (let him shoot) under 30% = under 0.90 · Non-shooter (sag off) under 15 threes, or under 10% of his shots.
+     est = his 3P% as if he'd also taken SH3.K threes at the state's 32.4%, so one hot or cold night doesn't flip the call. */
+  const m3 = R ? R.tpm || 0 : q ? q.m3 || 0 : 0, est3 = 100 * (m3 + SH3.K * SH3.LG / 100) / (tpa + SH3.K);
+  const nonShooter = tpa < SH3.MIN_A || (fga >= 20 && rate != null && rate < 10);
+  const call = nonShooter ? 'Non-shooter' : est3 >= SH3.HI ? 'Shooter' : est3 >= SH3.LO ? 'Average 3PT' : 'Poor 3PT';
+  const shooter = call === 'Shooter';
+  const shootWhy3 = `${tpa ? `3P ${(100 * m3 / tpa).toFixed(1)}% (${m3}-${tpa})` : 'no threes'}${!nonShooter ? ` · est ${est3.toFixed(1)}% = ${(3 * est3 / 100).toFixed(2)} pts a three` : ''}${pg != null ? ` · ${pg.toFixed(1)} 3PA/g` : ''}`;
   const draws = hasC ? cut('slasher') : top('ft_rate', AUTO_CUT.draws) || top('fd_per_40', AUTO_CUT.draws) || (basic && rk.ft_rate == null && rk.fd_per_40 == null && q && q.ftr != null && q.ftr >= FL.FTR_HI);
   const drawWhy = R && (R.ft_rate != null || R.fd_per_40 != null) ? `FT rate ${f1(R.ft_rate)}, FD/40 ${f1(R.fd_per_40)}` : q && q.ftr != null ? `FT rate ${q.ftr.toFixed(0)}%` : '';
   /* Who he is, how he scores, and what else he does, in that order (the card shows the first that fit).
@@ -5279,15 +5280,15 @@ function autoLabels(g, t, id) {
   if (balanced) add('Balanced', `${rate.toFixed(0)}% of shots threes · FT rate ${f1(R.ft_rate)}`);
   // All-Around already says he shoots it: plain Shooter is left off; Elite shooter still shows (it says more).
   const elite = shooter && (hasC ? cut('elite_shooter') : rk.tpp != null && top('tpp', 0.10));
-  if (shooter && (elite || !allAround)) add(elite ? 'Elite shooter' : 'Shooter', shootWhy + synW('cs', 'pull'));
+  if (shooter && (elite || !allAround)) add(elite ? 'Elite shooter' : 'Shooter', shootWhy3 + synW('cs', 'pull'));
   // Slasher: the composite gates on threes under 25% of his shots; the old rule wants a non-shooter who draws fouls.
   const slasher = !shooter && !allAround && !interior && draws && (hasC || nonShooter);
   if (slasher) add('Slasher', drawWhy + (twoA ? `, ${twoA.toFixed(1)} 2PA/g` : '') + synW('rim'));
   // Finisher: scores efficiently near the basket without the Interior scorer's or Slasher's volume: threes under 20% of his
   // shots (40+ shots), TS 58%+.
   if (!interior && !slasher && R && (R.fga || 0) >= 40 && rate != null && rate < 20 && (R.ts_pct || 0) >= 58) add('Finisher', `TS ${f1(R.ts_pct)}% · ${(100 - rate).toFixed(0)}% of his shots inside`);
-  else if (!shooter && !allAround && nonShooter && !interior) add('Non-shooter', `${rate != null ? rate.toFixed(0) : '—'}% of his shots are threes`);
-  if (!shooter && !allAround && cold) add('Poor 3PT', shootWhy + synW('cs', 'pull'));
+  if (call === 'Non-shooter') add('Non-shooter', `${shootWhy3}${rate != null ? ` · ${rate.toFixed(0)}% of his shots are threes` : ''}`);
+  if (call === 'Average 3PT' || call === 'Poor 3PT') add(call, shootWhy3 + synW('cs', 'pull'));
   // Shot diet: 55%+ of his shots are threes on 2.0+ a game (about the top 20%), whether or not they go in.
   if (rate != null && rate >= 55 && pg != null && pg >= 2) add('3PT heavy', `${rate.toFixed(0)}% of his shots are threes, ${pg.toFixed(1)} a game`);
   if (!slasher && !allAround && !balanced && (hasC ? cut('draws') : top('fd_per_40', 0.20) || top('ft_rate', 0.15))) add('Draws fouls', `FD/40 ${f1(R.fd_per_40)} · FT rate ${f1(R.ft_rate)}`);
@@ -5353,13 +5354,14 @@ const LABEL_GUIDE = [
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS%, FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
     ['Balanced', 'Scores inside and out without All-Around\'s efficiency: 30-55% of his shots are threes, FT rate in the top half, 20%+ of possessions.'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
-    ['Shooter', 'Not shown with All-Around (implied). 2.0+ threes a game or 35%+ of his shots; top 35% on 3P% (most weight; judged among every volume shooter with 30%+ of minutes), 3PA a game and 3PA rate (plus Synergy 3PT, catch-and-shoot and pull-up).'],
+    ['Shooter', 'Close out. 15+ threes, est. 3P% 36%+ (1.08+ points a three; the state averages 32.4% = 0.97). Est. = his 3P% as if he\'d also taken 25 threes at 32.4%, so one night doesn\'t flip it. Not shown with All-Around (implied).'],
+    ['Average 3PT', 'Guard him straight: a three from him is about an average trip. 15+ threes, est. 3P% 30-36%.'],
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
     ['Draws fouls', 'Fouls drawn per 40 and FT rate together in the top 20%.'],
     ['Struggles inside', '3+ 2PA a game; 2P% (plus Synergy at the rim) in the bottom 20%.'],
-    ['Non-shooter', 'Doesn\'t take threes: under 10% of his shots. Sag off him.'],
+    ['Non-shooter', 'Sag off him: under 15 threes, or threes are under 10% of his shots.'],
     ['3PT heavy', '55%+ of his shots are threes, on 2.0+ a game: his shot diet, whether or not they go in.'],
-    ['Poor 3PT', 'Takes threes (2.0+ a game or 35%+ of his shots) but 3P% (plus Synergy 3PT) is in the bottom 30%. Let him shoot.']]],
+    ['Poor 3PT', 'Let him shoot: 15+ threes, est. 3P% under 30% (under 0.90 points a three).']]],
   ['Glass', [
     ['Glass cleaner', 'Offensive and defensive rebound % both top 20%.'],
     ['Rebounder', 'Defensive rebound % top 20%.'],
