@@ -102,6 +102,7 @@ def list_teams(season):
 
 def _parse_height_in(h):
     h = (h or '').strip().replace('"', '').replace('Ht.: ', '')
+    if h.isdigit(): return int(h)   # the position model's CSV keeps inches
     if "'" in h:
         ft, _, inc = h.partition("'")
         try: return int(ft.strip()) * 12 + (int(inc.strip()) if inc.strip().isdigit() else 0)
@@ -199,15 +200,22 @@ def load(team, season):
             if r['team'].strip() == team:
                 c.pos[r['name'].strip()] = r['pos_class']
                 if _parse_height_in(r.get('height', '')) > 60: c.height[r['name'].strip()] = _parse_height_in(r['height'])
-    c.all_team_h, team_h = {}, []
-    h_csv = os.path.join(HERE, 'internal_data', f'roster_heights_{season.replace("-", "_")}.csv')
-    if os.path.exists(h_csv):
-        for r in csv.DictReader(open(h_csv)):
-            hin = _parse_height_in(r.get('height', ''))
-            if hin > 60:
-                c.all_team_h.setdefault(r['team'], []).append(hin)
-                if re.match(re.escape(team) + r'\b', r['team']): team_h.append(hin); c.height.setdefault(r['player'].strip(), hin)
+    # Heights: the leaderboard's own loader (generate_leaderboard._load_player_heights: the roster scrape, its team-name
+    # matching and height formats), the position model's CSV filling in a player it misses.
+    hk = lambda n: re.sub(r'\s+', ' ', re.sub(r'[^a-z0-9\s]', ' ', (n or '').lower())).strip()
+    try:
+        sys.path.insert(0, HERE); import generate_leaderboard as gl
+        H = {k: _parse_height_in(v) for k, v in gl._load_player_heights().items()}; hk = gl._height_player_key
+    except Exception:
+        H = {}
+    for p in c.players_raw:
+        h = H.get((team, hk(p['name'])))
+        if h: c.height[p['name']] = h
+    c.all_team_h = {}
+    for (tn, _), h in H.items():
+        if h > 60: c.all_team_h.setdefault(tn, []).append(h)
     all_h = [h for hs in c.all_team_h.values() for h in hs]
+    team_h = c.all_team_h.get(team, [])
     c.state_avg_h = sum(all_h) / len(all_h) if all_h else 0
     c.avg_h = sum(team_h) / len(team_h) if len(team_h) >= 5 else 0
     team_avgs_h = sorted([sum(hs) / len(hs) for hs in c.all_team_h.values() if len(hs) >= 5], reverse=True)
