@@ -695,6 +695,18 @@ five has 25+ offensive possessions).
 - **Scouting PDF:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
+- **Your data and updates.** Updating the tracker replaces its code, never your games: they live in the iPad's
+  website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
+  Clear History and Website Data. The home-screen app and a Safari tab keep separate data: always open it the same way.
+- **Backups** (Games tab): a full copy of each game, kept on the iPad apart from the live data, at Start 2nd half, at
+  Final, before a delete or an import replaces it, and every 5 minutes while tracking (the last 3 of those per game).
+  **Restore** puts one back (the game as it is now is backed up first); a deleted game comes back too.
+- **Season backup file** (Games tab): **Export season** saves every game, the rosters, the schedule and the label /
+  tournament settings in one file (iPad: Save to Files / Drive); the card shows when it was last saved and turns red
+  after 7 days. **Import season** adds the file's games (one already here is replaced only if the file's copy has more
+  plays, after a backup) and fills rosters / schedule / settings this iPad doesn't have. After Final a reminder says so.
+- **Old data always comes forward** (backup.js upgradeGame): every game, from the iPad, a game file, a season file or a
+  backup, is upgraded to the current format before it's used; everything else is worked out fresh from the plays.
 - **Saved reports** (Games tab): a copy of each halftime and post-game report as it was, kept on the iPad apart
   from the game, so it stays even if the game is edited or deleted. They save themselves at **Start 2nd half**,
   at **Final** and whenever a stat sheet is saved; **💾 Save report** on the report saves one any time. One halftime
