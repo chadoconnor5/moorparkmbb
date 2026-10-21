@@ -558,8 +558,8 @@ five has 25+ offensive possessions).
     event), each with its own Add box, plus **Other teams**. Every team in every section downloads its stats
     (pt2_fields / pt2_ready). An old single list moved, once, into the next tournament with TBD games.
     The known fields come filled in once on each iPad (San Bernardino: West LA, East LA, RCC, CCSF, Chaffey, Compton,
-    SBVC; Grossmont: LA Trade Tech), and a saved schedule gets its known first-round opponents (West LA Nov 14, LA
-    Trade Tech Dec 5). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
+    SBVC; Grossmont: LA Trade Tech), and a saved schedule gets its known first-round opponents (West LA Nov 13, LA
+    Trade Tech Dec 4), and its tournament games move to their dates (San Bernardino Nov 13–15, Grossmont Dec 4–6). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
     opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
