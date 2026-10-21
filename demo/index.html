@@ -1248,7 +1248,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.206';
+const VERSION = 'v2026.10.21.207';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1288,7 +1288,9 @@ function roster() {
   const gt = (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name, note: '' }));
   return gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r));
 }
-const byNum = (a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || String(a.name).localeCompare(b.name);
+// Jersey order: 0, 00, 1, 2 … (no number last). parseInt('0') is 0, so it can't be an "|| 999" fallback.
+const numKey = n => { const s = String(n == null ? '' : n).trim(); return /^\d+$/.test(s) ? parseInt(s, 10) + (s.length > 1 && /^0+$/.test(s) ? 0.5 : 0) : 999; };
+const byNum = (a, b) => numKey(a.num) - numKey(b.num) || String(a.name).localeCompare(b.name);
 const lastName = n => String(n).split(' ').slice(-1)[0];
 // Players are keyed by name for Moorpark and by 'o:<num>' for the opponent.
 function teamPlayers(g, t) {
@@ -2409,7 +2411,7 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
   const AV = builder && t === 'a' && !UI.luRaw ? luAdjView(g, k) : null;
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
-    const v = { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
+    const v = { five: f.map(id => String(numKey(pInfo(g, t, id).num) * 2).padStart(4, '0')).join('.'),   // sorts as text: 0, 00, 1 … 99 poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
       ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, onsto: O.nsto, dnsto: X.nsto, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
       ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null };
     const A = AV && AV.map.get(fiveKey(u.five));
@@ -5146,7 +5148,7 @@ const SITS = [
     on: c => c.night.drb != null && c.night.drb < c.N.drb - 5 ? `DREB% ${c.night.drb.toFixed(0)} tonight (norm ${c.N.drb.toFixed(0)})` : '' },
   { id: 'foul', name: 'Stop fouling', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
     on: c => c.tf >= 7 && c.perLeft != null && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} on the clock` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
-  { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
+  { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'run-ending',
     on: c => c.run ? `They're on a ${c.run}-${c.runA || 0} run` : '' },
   { id: 'ast', name: 'Move the ball', stat: 'asp', hi: true, end: 'o', def: 'hm', rank: 'best assist rate (AST%)',
     on: c => c.ab.asp != null && c.ab.fgm >= 8 && c.ab.asp < c.N.asp - 12 ? `AST% ${c.ab.asp.toFixed(0)} tonight (norm ${c.N.asp.toFixed(0)}): the ball is sticking` : '' },
@@ -5230,8 +5232,10 @@ function sitStatCard(g, D, S, c, sk) {
     return { five: f, oP: R.oT, dP: R.dT, mix: u.mix, v, x: blendX(f, val(f, v)) }; });
   const AB = AB_STATS.includes(S.stat), anyAB = AB && games.some(x => x.astBlk);
   const enough = (u, min) => S.end === 'o' ? u.oP >= min : S.end === 'd' ? u.dP >= min : u.oP >= min && u.dP >= min;
-  const rank = (list, min) => list.filter(u => enough(u, min) && u.x != null && (S.player || n == null || (S.hi ? u.x > n : u.x < n)))
-    .sort((a, b) => S.hi ? b.x - a.x : a.x - b.x).slice(0, 2);
+  // Stop the run ranks on runs ended (the five on the floor for the basket that ended their run), then stop %.
+  const ended = f => { const r = S.id === 'run' && recOf(f); return r ? r.ended || 0 : 0; };
+  const rank = (list, min) => list.filter(u => (enough(u, min) || ended(u.five) > 0) && u.x != null && (ended(u.five) > 0 || S.player || n == null || (S.hi ? u.x > n : u.x < n)))
+    .sort((a, b) => ended(b.five) - ended(a.five) || (S.hi ? b.x - a.x : a.x - b.x)).slice(0, 2);
   const pick = (get, mins) => { for (let sc = sc0(); sc; sc = LEV_WIDER[sc]) { const l = rank(get(sc), mins[sc]); if (l.length) return { l, sc, min: mins[sc] }; } return { l: [], sc: sc0(), min: mins[sc0()] }; };
   const T = pick(today, LEV_MIN.today), Sn = pick(season, LEV_MIN.season);
   const pl = S.end === 'o' ? 'off poss' : S.end === 'd' ? 'def poss' : 'poss each way';
@@ -5259,7 +5263,7 @@ function sitStatCard(g, D, S, c, sk) {
     <div class="fx-cols">
       <div class="fx-col"><div class="fx-lbl today">TODAY <span>this game · ${lbl(T)}</span></div>${T.l.map(u => row(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.player ? (plSeason().src ? 'No five today with enough possessions.' : 'Needs players\' season stats: final stat sheets here, or the ⬆ Adjusted file.') : `No five has been better than ${P(n)} today.`}</div>`}</div>
       <div class="fx-col"><div class="fx-lbl season">SEASON <span>${FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
-    <div class="tiny muted" style="margin-top:6px">Ranked by ${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}${AB ? ` Assists and blocks come only from games logged with the Assist / Block buttons${anyAB ? '' : ' (none yet: until then Stop the 2s ranks on opp 2P% and fouls)'}; a small sample is pulled toward our norm.${S.stat === 'rim' ? ' Rim D = opp 2P% − half of BLK% above our norm + a quarter of fouls / 100 above our norm (lower is better).' : ''}` : ''}</div></div>`;
+    <div class="tiny muted" style="margin-top:6px">Ranked by ${S.id === 'run' ? 'runs ended (on the floor for the basket that ended their run; any five that has ended one shows), then ' : ''}${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}${AB ? ` Assists and blocks come only from games logged with the Assist / Block buttons${anyAB ? '' : ' (none yet: until then Stop the 2s ranks on opp 2P% and fouls)'}; a small sample is pulled toward our norm.${S.stat === 'rim' ? ' Rim D = opp 2P% − half of BLK% above our norm + a quarter of fouls / 100 above our norm (lower is better).' : ''}` : ''}</div></div>`;
 }
 const AB_STATS = ['asp', 'rim'];
 // The raw counts behind a five's AST% / BLK%, under its name: "AST 9/14 made, AST/TO 3.0" · "opp 2P 41% · BLK 4/30 · 1.3 blk/PF".
