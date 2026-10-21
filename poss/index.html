@@ -1231,7 +1231,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.222';
+const VERSION = 'v2026.10.21.223';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3503,27 +3503,30 @@ function exportLeaderboard(g, side) {
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 // tag: 'half' / 'final' for the automatic copies (end of the 1st half, Final), so they never overwrite each other.
-/* Opponent rosters travel with the files: a game file carries its opponent's roster (names, position, height, year,
-   labels), and importing one (or a season file / the baseline) merges rosters team by team and player by player:
-   new teams and players are added and blank fields filled, nothing typed on this iPad is overwritten. */
-const rosterOf = name => { const o = oppStore().find(x => normOpp(x.name) === normOpp(name)); return o && (o.players || []).length ? o.players : null; };
+/* Opponent rosters travel with the files: a game file carries its opponent's roster, and the baseline / a season
+   file carries every roster. Importing one keeps, team by team, the most recently SAVED roster (each Save stamps it):
+   a newer one replaces this iPad's whole roster for that team (players added or taken away), an older one is ignored.
+   Rosters from before the stamp (none on either side) are merged: missing players added, blank fields filled. */
+const rosterOf = name => { const o = oppStore().find(x => normOpp(x.name) === normOpp(name)); return o && (o.players || []).length ? o : null; };
 function mergeRosters(list) {
   if (!Array.isArray(list)) return 0;
   const st = oppStore(); let n = 0;
   list.forEach(t => { if (!t || !t.name || !Array.isArray(t.players)) return;
-    let o = st.find(x => normOpp(x.name) === normOpp(t.name));
-    if (!o) { o = { id: t.id || 'opp_' + uid(), name: t.name, players: [] }; st.push(o); }
+    const o = st.find(x => normOpp(x.name) === normOpp(t.name));
+    if (!o) { st.push({ id: t.id || 'opp_' + uid(), name: t.name, players: t.players.map(p => Object.assign({}, p)), updatedAt: t.updatedAt || null }); n++; return; }
+    // A newer save replaces this iPad's roster (an empty one here always takes it).
+    if (!(o.players || []).length || (t.updatedAt && (!o.updatedAt || t.updatedAt > o.updatedAt))) { o.players = t.players.map(p => Object.assign({}, p)); o.updatedAt = t.updatedAt; n++; return; }
+    if (t.updatedAt || o.updatedAt) return;   // this iPad's is the newer save
     o.players = o.players || [];
     t.players.forEach(p => { if (!p || (!p.num && !p.name)) return;
       const q = o.players.find(x => (p.num && String(x.num) === String(p.num)) || (!p.num && p.name && x.name === p.name));
       if (!q) { o.players.push(Object.assign({ num: '', name: '', pos: '', ht: '', yr: '', note: '' }, p)); n++; return; }
-      ['name', 'pos', 'ht', 'yr', 'note'].forEach(k => { if (!q[k] && p[k]) { q[k] = p[k]; n++; } }); });
-    if (n) o.updatedAt = new Date().toISOString(); });
+      ['name', 'pos', 'ht', 'yr', 'note'].forEach(k => { if (!q[k] && p[k]) { q[k] = p[k]; n++; } }); }); });
   if (n) lsSet('gt_opp_rosters', st);
   return n;
 }
 function exportGame(g, tag) {
-  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, appVersion: VERSION, dataVersion: DATA_V, game: g, oppRoster: rosterOf(g.opp) }, null, 1)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, appVersion: VERSION, dataVersion: DATA_V, game: g, oppRoster: rosterOf(g.opp) && rosterOf(g.opp).players, oppRosterAt: rosterOf(g.opp) && rosterOf(g.opp).updatedAt || null }, null, 1)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}${tag ? '_' + tag : ''}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -3536,7 +3539,7 @@ function importGame() {
     upgradeGame(g);
     const old = games.find(x => x.id === g.id); if (old && !confirm('This game is already here. Replace it with the file? (The one on the iPad is backed up first.)')) return;
     if (old) backupGame(old, 'replaced');
-    const rn = d.oppRoster ? mergeRosters([{ name: g.opp, players: d.oppRoster }]) : 0;
+    const rn = d.oppRoster ? mergeRosters([{ name: g.opp, players: d.oppRoster, updatedAt: d.oppRosterAt || null }]) : 0;
     games = games.filter(x => x.id !== g.id).concat(g); curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp + (rn ? ` · ${g.opp} roster updated` : ''), 'good');
   }); };
   inp.click();
