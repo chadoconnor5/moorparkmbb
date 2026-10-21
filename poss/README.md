@@ -219,7 +219,7 @@ underlined gold in their rows. Blue is the one open.
 | Ball security | up 1-10, last 4:00 | lowest TO% |
 | Need steals | down 4+, last 4:00 | most steals per defensive possession |
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
-| Stop the run | they're on a 6-0 run or more | best stop % |
+| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | best stop % |
 | Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
 | Stop the 2s | their 2P% 8+ over our norm (10+ twos) | best **rim D**: low opponent 2P%, blocks, without fouling (below) |
 | Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
@@ -489,7 +489,7 @@ existed are filled in when the tracker opens.
 | Last stop | their ball, up 1-3, last minute | stops |
 | Need steals | their ball, down 4+, late | steals, TOs forced |
 | Need a 3 | our ball, down 4-9, late | pts / trip |
-| Stop the run | their ball while they're on a 6-0 or more | stops |
+| Stop the run | both ends, from when their run counts (6-0, or +8 holding us to 40%) until our first score after its peak ends it | stops on their trips; its line adds our points on our trips and **runs ended** (the five on when that score went in) |
 | Stop fouling | their ball with our 7+ team fouls | trips without sending them to the line |
 
 **Late is never estimated:** during a game, the clock you entered (4:00 or less in the 2nd half, any OT;

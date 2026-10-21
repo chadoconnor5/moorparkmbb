@@ -1248,7 +1248,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.205';
+const VERSION = 'v2026.10.21.206';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5835,7 +5835,7 @@ function luAdjView(g, k) {
    "Late" is never estimated: during a game it is the clock you entered (4:00 or less in the 2nd half, any
    OT); once the game is final, the exact count of possessions left in the half also counts (the last 16
    possessions of the 2nd half; the last 4 for "Last stop"). */
-const SITLOG_V = 1, LATE_SECS = 240, LAST_SECS = 60, LATE_POSS = 16, LAST_POSS = 4;
+const SITLOG_V = 2, LATE_SECS = 240, LAST_SECS = 60, LATE_POSS = 16, LAST_POSS = 4;
 // What each situation counts, from the five's side: possessions (ours = offense 'o', theirs = defense 'd') and success.
 const SITLOG = {
   ft:    { end: 'o', lbl: 'Closing FTs', on: c => c.late && c.m >= 1 && c.m <= 8, res: 'pts', how: 'pts / trip' },
@@ -5843,7 +5843,7 @@ const SITLOG = {
   stop:  { end: 'd', lbl: 'Last stop', on: c => c.last && c.m >= 1 && c.m <= 3, res: 'stop', how: 'stops' },
   steal: { end: 'd', lbl: 'Need steals', on: c => c.late && c.m <= -4, res: 'fto', how: 'forced TOs' },
   three: { end: 'o', lbl: 'Need a 3', on: c => c.late && c.m <= -4 && c.m >= -9, res: 'pts', how: 'pts / trip' },
-  run:   { end: 'd', lbl: 'Stop the run', on: c => c.run >= 6, res: 'stop', how: 'stops' },
+  run:   { end: 'd', lbl: 'Stop the run', on: () => false, res: 'stop', how: 'stops' },   // tagged from their runs below, both ends
   foul:  { end: 'd', lbl: 'Stop fouling', on: c => c.tf >= 7, res: 'nofoul', how: 'trips without FTs' } };
 function sitLogGame(g) {
   const D = derive(g), P = D.poss, out = {};
@@ -5858,6 +5858,14 @@ function sitLogGame(g) {
     if (foulBucket(p.per) !== curPer) { curPer = foulBucket(p.per); tf = 0; }
     runAt.set(p, run.team === 'b' ? run.pts : 0); foulsAt.set(p, tf);
     if (p.pts) { if (run.team === p.team) run.pts += p.pts; else run = { team: p.team, pts: p.pts }; } });
+  /* STOP THE RUN: every possession, both ends, from the moment their run counts as a run (teamRuns: 6-0, or +8
+     holding us to 40%) until Moorpark's first score after its peak, which ends it: that possession is the run
+     ended, credited to the five on the floor. A run still going is tagged up to now. */
+  const inRun = new Set(), ender = new Set();
+  g.periods.forEach(per => { const H = P.filter(p => p.per === per);
+    teamRuns(H, 'b').forEach(r => {
+      let k0 = r.i0; for (let k = r.i0; k <= r.i1; k++) { const f = H[k].score.b - H[r.i0].before.b, a = H[k].score.a - H[r.i0].before.a; if (isRun(f, a)) { k0 = k + 1; break; } }
+      for (let k = k0; k < H.length; k++) { inRun.add(H[k]); if (k > r.i1 && H[k].team === 'a' && H[k].pts > 0) { ender.add(H[k]); break; } } }); });   // a basket inside the run (10-2) doesn't end it
   P.forEach(p => {
     if (p.gt || (p.five.a || []).length !== 5) return;
     const ot = p.per.startsWith('OT'), ck = p.clockSecs, n = left.get(p);
@@ -5865,11 +5873,12 @@ function sitLogGame(g) {
     const last = (p.per === '2H' || ot) && ((ck != null && ck <= LAST_SECS) || (g.final && n != null && n <= LAST_POSS) || (ot && g.final && P.filter(q => q.per === p.per).slice(-LAST_POSS).includes(p)));
     const c = { late, last, m: p.before.a - p.before.b, run: runAt.get(p) || 0, tf: foulsAt.get(p) || 0 };
     const side = p.team === 'a' ? 'o' : 'd', tags = Object.entries(SITLOG).filter(([, s]) => s.end === side && s.on(c)).map(([k]) => k);
+    if (inRun.has(p)) tags.push('run');
     if (!tags.length) return;
     const ft = p.plays.filter(e => isFT(e.k) && e.team === p.team);
     out[p.id] = { t: tags, per: p.per, end: side, five: p.five.a.slice().sort(), opp: (p.five.b || []).slice(), m: c.m, clock: ck == null ? null : ck,
       pts: p.pts, stop: p.team === 'b' ? !!p.stop : undefined, to: ['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col) ? 1 : 0, ftm: ft.filter(e => e.k === 'ftm').length, fta: ft.length,
-      stl: p.end.col === 'STL' ? 1 : 0, fouls: p.team === 'b' && ft.length ? 1 : 0 };   // fouled = they went to the line
+      stl: p.end.col === 'STL' ? 1 : 0, fouls: p.team === 'b' && ft.length ? 1 : 0, ended: ender.has(p) ? 1 : 0 };   // fouled = they went to the line
   });
   return out;
 }
@@ -5892,19 +5901,20 @@ function sitRecords(sitId) {
   const useQ = !!(A && A.live), recs = {};
   games.forEach(g => { if (!g.sitLog) try { stampSits(g); } catch (e) {} if (!g.sitLog || !g.sitLog.poss) return; if (!seasonPool().includes(g)) return;
     if (useQ && g.final && !Q[g.id] && !gSched(g).scrim) return;
-    Object.values(g.sitLog.poss).forEach(r => { if (!r.t.includes(sitId)) return; const k = r.five.join('|'), x = recs[k] = recs[k] || { n: 0, pts: 0, stops: 0, to: 0, stl: 0, ftm: 0, fta: 0, fouls: 0, nofoul: 0, games: new Set() };
+    Object.values(g.sitLog.poss).forEach(r => { if (!r.t.includes(sitId)) return; const k = r.five.join('|'), x = recs[k] = recs[k] || { n: 0, pts: 0, stops: 0, to: 0, stl: 0, ftm: 0, fta: 0, fouls: 0, nofoul: 0, on: 0, opts: 0, ended: 0, games: new Set() };
+      if (r.end !== SITLOG[sitId].end) { x.on++; x.opts += r.pts || 0; x.ended += r.ended || 0; x.games.add(g.id); return; }   // Stop the run: our trips during it
       x.n++; x.pts += r.pts || 0; x.stops += r.stop ? 1 : 0; x.to += r.to || 0; x.stl += r.stl || 0; x.ftm += r.ftm || 0; x.fta += r.fta || 0; x.fouls += r.fouls || 0; x.nofoul += r.fouls ? 0 : 1; x.games.add(g.id); }); });
   return { recs, quality: useQ };
 }
 // The record as one number on the situation's stat (same units as the Lineups ranking), and as words.
 function sitRecVal(sitId, x) {
-  if (!x || !x.n) return null;
+  if (!x || !x.n) return null;   // (Stop the run ranks on stops; points and runs ended show in its line)
   return { stop: 100 * x.stops / x.n, run: 100 * x.stops / x.n, ball: 100 * x.to / x.n, steal: 100 * x.stl / x.n, foul: 100 * x.fouls / x.n, ft: x.pts / x.n, three: x.pts / x.n }[sitId];
 }
 function sitRecText(sitId, x) {
-  if (!x || !x.n) return '';
+  if (!x || (!x.n && !x.on)) return '';
   const g = x.games.size, gs = ` · ${g} game${g === 1 ? '' : 's'}`;
-  return { stop: `${x.stops}/${x.n} stops`, run: `${x.stops}/${x.n} stops`, ball: `${x.to} TO on ${x.n} trips`, steal: `${x.stl} steals, ${x.to} TO forced on ${x.n} trips`,
+  return { stop: `${x.stops}/${x.n} stops`, run: `${x.stops}/${x.n} stops, ${x.opts} pts on ${x.on} of our trips · ended ${x.ended} run${x.ended === 1 ? '' : 's'}`, ball: `${x.to} TO on ${x.n} trips`, steal: `${x.stl} steals, ${x.to} TO forced on ${x.n} trips`,
     foul: `${x.nofoul}/${x.n} trips without sending them to the line`, ft: `${(x.pts / x.n).toFixed(2)} pts/trip on ${x.n} trips${x.fta ? ` · ${x.ftm}/${x.fta} FT` : ''}`, three: `${(x.pts / x.n).toFixed(2)} pts/trip on ${x.n} trips` }[sitId] + gs;
 }
 // How much the record counts in the ranking: n / (n + 12). 3 trips → 20%, 12 → 50%, 24 → 67%.
