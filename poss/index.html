@@ -1155,15 +1155,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .kill-fx.them{color:#ff4d4f;background:radial-gradient(ellipse at center,rgba(80,14,16,.97),rgba(14,16,22,.96) 75%)}
 @keyframes kfx{0%{opacity:0;transform:scale(.86)}10%{opacity:1;transform:scale(1.05)}16%{transform:scale(1)}50%{opacity:1}100%{opacity:0}}
 
-/* Team stats (teamStatsCard): both teams, grouped rows, the better number bold. */
+/* Team stats (teamStatsCard): Moorpark | stat | opponent, the better number bold. */
 .ts-tbl td,.ts-tbl th{text-align:center;font-variant-numeric:tabular-nums}
 .ts-tbl{table-layout:fixed}
 .ts-tbl .ts-a,.ts-tbl .ts-b{width:36%;text-align:center!important}
 .ts-tbl .ts-lbl{text-align:center!important}
 .ts-tbl .ts-lbl{font-weight:700}
-.ts-tbl .ts-grp td{text-align:center;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:10px}
 .ts-tbl .ts-win{font-weight:800}
-.ts-tbl .ts-pct{color:var(--muted);font-size:.9em;margin-left:4px}
 
 </style>
 </head>
@@ -1197,7 +1195,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.189';
+const VERSION = 'v2026.10.21.190';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2063,25 +2061,25 @@ function teamStats(g, D, sc) {
 }
 function teamStatsCard(g, D, sc, label) {
   const X = teamStats(g, D, sc), pc = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
-  const md = (m, a) => `${m}-${a}`, line = (m, a) => `${md(m, a)} <span class="ts-pct">${P(pc(m, a))}</span>`;
-  // Rows: label, value for a team (shown), the number compared (null = no comparison), higher is better.
-  const rows = [['Scoring'],
+  const md = (m, a) => `${m}-${a}`;
+  // Rows: label, value for a team (shown), the number compared (null = no comparison), higher is better. Each
+  // percentage on its own row under its makes-attempts; no section headers.
+  const shot = (lbl, m, a) => [[lbl, t => md(m(t), a(t)), t => m(t), true], [lbl + '%', t => P(pc(m(t), a(t))), t => pc(m(t), a(t)), true]];
+  const rows = [
     ['Points', t => X[t].pts, t => X[t].pts, true],
-    ['FG', t => line(X[t].fgm, X[t].fga), t => pc(X[t].fgm, X[t].fga), true],
-    ['2PT', t => line(X[t].fgm - X[t].fg3m, X[t].fga - X[t].fg3a), t => pc(X[t].fgm - X[t].fg3m, X[t].fga - X[t].fg3a), true],
-    ['3PT', t => line(X[t].fg3m, X[t].fg3a), t => pc(X[t].fg3m, X[t].fg3a), true],
-    ['FT', t => line(X[t].ftm, X[t].fta), t => pc(X[t].ftm, X[t].fta), true],
-    ['Rebounds'],
+    ...shot('FG', t => X[t].fgm, t => X[t].fga),
+    ...shot('2PT', t => X[t].fgm - X[t].fg3m, t => X[t].fga - X[t].fg3a),
+    ...shot('3PT', t => X[t].fg3m, t => X[t].fg3a),
+    ...shot('FT', t => X[t].ftm, t => X[t].fta),
     ['Offensive rebounds', t => X[t].oreb, t => X[t].oreb, true],
     ['Defensive rebounds', t => X[t].dreb, t => X[t].dreb, true],
     ['Total rebounds', t => X[t].oreb + X[t].dreb, t => X[t].oreb + X[t].dreb, true],
-    ['Ball'],
     ['Assists', t => X[t].ast, t => X[t].ast, true],
     ['Steals', t => X[t].stl, t => X[t].stl, true],
     ['Blocks', t => X[t].blk, t => X[t].blk, true],
-    ['Turnovers', t => `${X[t].tov}${X[t].stov ? ` <span class="ts-pct">${X[t].stov} on steals</span>` : ''}`, t => X[t].tov, false],
+    ['Turnovers', t => X[t].tov, t => X[t].tov, false],
+    ['Turnovers on steals', t => X[t].stov, t => X[t].stov, false],
     ['Fouls', t => X[t].pf, t => X[t].pf, false],
-    ['Advanced'],
     ['Possessions', t => X[t].n, null],
     ['Points per possession', t => X[t].n ? (X[t].pts / X[t].n).toFixed(2) : '—', t => X[t].n ? X[t].pts / X[t].n : null, true],
     ['eFG%', t => P(pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga)), t => pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga), true],
@@ -2094,8 +2092,7 @@ function teamStatsCard(g, D, sc, label) {
     ['2nd-chance points', t => X[t].sc2, t => X[t].sc2, true],
     ['Points off turnovers', t => X[t].pot, t => X[t].pot, true]];
   // Moorpark always on the left, the stat in the middle, the opponent on the right.
-  const body = rows.map(r => { if (r.length === 1) return `<tr class="ts-grp"><td colspan="3">${r[0]}</td></tr>`;
-    const [lbl, show, val, hi] = r, va = val ? val('a') : null, vb = val ? val('b') : null;
+  const body = rows.map(r => { const [lbl, show, val, hi] = r, va = val ? val('a') : null, vb = val ? val('b') : null;
     const win = va == null || vb == null || va === vb ? '' : (va > vb) === hi ? 'a' : 'b';
     return `<tr><td class="ts-a ${win === 'a' ? 'ts-win' : ''}">${show('a')}</td><td class="ts-lbl">${lbl}</td><td class="ts-b ${win === 'b' ? 'ts-win' : ''}">${show('b')}</td></tr>`; }).join('');
   return `<div class="card ts-card"><h3>Team stats <span class="muted">· ${esc(label)}, from the tracked plays</span></h3><div class="tbl-wrap"><table class="tbl rep-tbl zebra ts-tbl">
