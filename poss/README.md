@@ -371,6 +371,10 @@ under the current scope (game / half / season) and leverage filter; the table na
 pick, so a full pick is one row. A pick that stops fitting after a filter change is kept and the panel says
 so. Clear empties it.
 
+**Min. possessions**, the slider under the Lineup Builder (as on the practice tracker): units with fewer
+possessions together are hidden in both lineup tables on the Lineups tab, live as you slide, with "N of M
+fives" beside it. Starts at 1; remembered on this iPad. Report tables always show every unit.
+
 **WOWY** (With Or Without You), the button after 2-man: five slots, pick 2-5 of our players and every on/off
 combination of them gets a row (2 picks = 4 rows, 3 = 8 ...): GP, possessions, +/-, ORtg, DRtg, net and the
 four factors at both ends, over the possessions with exactly that pattern on the floor (green chip = on, red =
