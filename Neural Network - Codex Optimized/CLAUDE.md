@@ -29,7 +29,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   list in "Terminal Commands README.md". Keep it low-traffic: one request at a
   time, never fetch a box score that's already COMPLETE.
   python3 scrape.py master      # once, when schedules post
-  python3 scrape.py nightly     # every night
+  python3 scrape.py nightly     # every night; then rebuilds stats, the leaderboard (ratings + team files)
+                                # and the tracker's scouting reports for the teams that played (--no-rebuild skips)
   python3 scrape.py status      # what's missing (no network)
 - Opponent-adjust the trackers' lineups (game tracker Season page, or possession tracker
   Lineups -> Season -> Lineup file); ratings AND four factors, the four factors against
@@ -48,6 +49,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
                                                         #    (_synergy.pdf once internal_data/synergy_team_irvine_valley_2025_26.json
                                                         #    and synergy_players_irvine_valley_2025_26.json are added)
   python3 generate_opponent_report.py --all --out-dir <dir>   # every team (a check that the standard holds statewide)
+  python3 generate_opponent_report.py --latest                # the tracker's copies: every team it has files for, one
+                                                              #    current PDF each in ../poss/reports/ (replaced each time)
+                                                              #    + index.json; scrape.py runs it with --only <teams that played>
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:

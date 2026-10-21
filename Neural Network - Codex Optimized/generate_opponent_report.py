@@ -28,7 +28,7 @@ strengths and vulnerabilities, keys to victory.
 """
 
 import argparse, csv, json, os, re, sys
-from datetime import date
+from datetime import date, datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -1257,7 +1257,40 @@ def next_free(path):
     while os.path.exists(f'{base}_v{i}{ext}'): i += 1
     return f'{base}_v{i}{ext}'
 
-def build(team, season, out=None, out_dir=None):
+# The tracker's copies (--latest): one current report per team at ../poss/reports/<slug>.pdf, replaced each time, and
+# ../poss/reports/index.json {team: {file, edition, generatedAt, season}}; the iPad downloads them and Scout opens them.
+# The dated, never-overwritten archive in scouting_reports/ is for reports built by hand.
+LATEST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'poss', 'reports')
+
+def tracker_teams(season):
+    """The teams the tracker has files for (Moorpark's schedule + tracker_teams.txt): ../poss/ratings.json teamFiles."""
+    try:
+        R = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'poss', 'ratings.json')))
+    except (OSError, ValueError):
+        return []
+    return [t for t in (R.get('teamFiles') or {}) if t != 'Moorpark'] if R.get('season') == season else []
+
+def build_latest(teams, season):
+    os.makedirs(LATEST_DIR, exist_ok=True)
+    ip = os.path.join(LATEST_DIR, 'index.json')
+    try: index = json.load(open(ip))
+    except (OSError, ValueError): index = {}
+    done = []
+    for t in teams:
+        f = f'{slug(t)}.pdf'; p = os.path.join(LATEST_DIR, f)
+        tmp = p + '.new'
+        if build(t, season, tmp, replace=True):
+            os.replace(tmp, p); ed = 'synergy' if LAST_ED[0] == 'synergy' else 'pre_synergy'
+            index[t] = {'file': f, 'edition': ed, 'generatedAt': datetime.now().astimezone().isoformat(timespec='seconds'), 'season': season}
+            done.append(t)
+        elif os.path.exists(tmp): os.remove(tmp)
+    json.dump(index, open(ip, 'w'), indent=1, sort_keys=True)
+    print(f'{len(done)} of {len(teams)} tracker reports updated -> {os.path.normpath(LATEST_DIR)}')
+    return done
+
+LAST_ED = [None]
+
+def build(team, season, out=None, out_dir=None, replace=False):
     TEXT.clear(); SECTIONS.clear()
     if team == 'Moorpark': sys.exit('Moorpark is the home team: scout an opponent.')
     c = load(team, season)
@@ -1269,7 +1302,8 @@ def build(team, season, out=None, out_dir=None):
     # Two editions: pre-Synergy (box scores and leaderboard only) until the team's Synergy export is in internal_data, then
     # Synergy. Different file names, so the Synergy edition never replaces (or is mistaken for) the earlier one.
     ed = 'synergy' if c.syn_team else 'pre_synergy'
-    path = next_free(out or os.path.join(od, f'{slug(team)}_scouting_report_{season.replace("-", "_")}_{ed}.pdf'))
+    LAST_ED[0] = ed
+    path = out if (out and replace) else next_free(out or os.path.join(od, f'{slug(team)}_scouting_report_{season.replace("-", "_")}_{ed}.pdf'))
     today = date.today().strftime('%B ') + str(date.today().day) + date.today().strftime(', %Y')
     def on_page(canvas, doc):
         canvas.saveState(); canvas.setFillColor(c.OPP); canvas.rect(0.5 * inch, 10.32 * inch, 7.5 * inch, 0.28 * inch, fill=1, stroke=0)
@@ -1291,8 +1325,15 @@ if __name__ == '__main__':
     ap.add_argument('team', nargs='?'); ap.add_argument('--team', dest='team_opt'); ap.add_argument('--season', default='2025-26')
     ap.add_argument('--out'); ap.add_argument('--out-dir'); ap.add_argument('--list', action='store_true')
     ap.add_argument('--all', action='store_true', help='every team in the season (Moorpark excluded)')
+    ap.add_argument('--latest', action='store_true', help="the tracker's copies: every team it has files for (schedule + tracker_teams.txt), "
+                    'or only those in --only, written to ../poss/reports/ (replaced each time) with index.json')
+    ap.add_argument('--only', nargs='+', help='with --latest: just these teams (scrape.py passes the teams that played)')
     a = ap.parse_args()
     if a.list: list_teams(a.season); sys.exit(0)
+    if a.latest:
+        T = tracker_teams(a.season)
+        if a.only: T = [t for t in T if t in set(a.only)]
+        build_latest(T, a.season); sys.exit(0)
     if a.all:
         root = stats_root(a.season)
         teams = sorted(t for cf in os.listdir(root) if os.path.isdir(os.path.join(root, cf)) for t in os.listdir(os.path.join(root, cf))

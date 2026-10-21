@@ -563,6 +563,11 @@ five has 25+ offensive possessions).
     opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
+- **Scouting reports on the iPad.** Every scrape that brings in new box scores also remakes the scouting report of each
+  team that played and is on our schedule or in a tournament field (`poss/reports/`, one current PDF each, listed in
+  `reports/index.json`). When the tracker opens with signal it saves each new one on the iPad, and **📄 Scout** opens
+  the opponent's latest report (a PDF you added for that game or opponent still comes first; every report is in the
+  picker). Works offline once saved.
 - **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file (record, averages for and
   against, advanced numbers, and every player's jersey number, season lines and advanced numbers) for each team on
   Moorpark's schedule and each potential opponent in the leaderboard's `tracker_teams.txt` (a tournament field: one
