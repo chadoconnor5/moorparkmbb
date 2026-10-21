@@ -1248,7 +1248,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.203';
+const VERSION = 'v2026.10.21.204';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2270,9 +2270,10 @@ function pickGame(v) {
   else { UI.repId = v; UI.rep = null; UI.repSeason = false; if (UI.tab === 'lineups') UI.luScope = 'game'; if (UI.tab === 'runs') UI.rnScope = 'game'; }
   UI.luOpen = null; UI.rnFive = null; render(); window.scrollTo(0, 0);
 }
-/* Season report: the team stats summed over every game played (scrimmages included, and marked), and each game's line. */
+/* Season report: the team stats summed over the season's games (seasonPool: scrimmages only until the first
+   regular-season game is final), and each game's line. */
 function seasonReportView() {
-  const P = playedGames(), sch = x => (schedule().find(r => r.id === x.schedId) || {}).scrim;
+  const P = playedGames().filter(x => seasonPool().includes(x)), sch = x => (schedule().find(r => r.id === x.schedId) || {}).scrim;
   const X = { a: {}, b: {} };
   P.forEach(x => { const T = teamStats(x, derive(x), 'G'); ['a', 'b'].forEach(t => Object.entries(T[t]).forEach(([k, v]) => { if (typeof v === 'number') X[t][k] = (X[t][k] || 0) + v; })); });
   let w = 0, l = 0; const rows = P.map(x => { const S = perSums(derive(x), null), r = S.pts.a > S.pts.b ? 'W' : S.pts.a < S.pts.b ? 'L' : 'T'; if (x.final) { if (r === 'W') w++; else if (r === 'L') l++; }
@@ -5985,8 +5986,11 @@ function wowyView(g) {
    The Lineups dropdown picks which games count: this game, or a split of the season. Halves (All / 1H / 2H /
    OT) and the Possessions filter (leverage, clutch, garbage time) apply on top of it. Quads and Top 25 use the
    leaderboard's nightly ratings: the opponent's rank by adjusted net among every in-system team, with the
-   leaderboard's own quadrant lines (see QUAD_LINES). Scrimmages count (every game builds who's played together);
-   No scrimmages leaves them out. */
+   leaderboard's own quadrant lines (see QUAD_LINES). Scrimmages count only until the first regular-season game is
+   final (Nov 2, Antelope Valley): until then every game builds who's played together; after it they drop out of
+   every season number on their own (the games stay, to open one at a time). No scrimmages leaves them out sooner. */
+const seasonStarted = () => games.some(g => g.final && g.ev && g.ev.length && !gSched(g).scrim);
+const seasonPool = () => { const on = !seasonStarted(); return games.filter(g => g.ev && g.ev.length && (on || !gSched(g).scrim)); };
 const SPLITS = [
   ['full', 'Full season'], ['noscrim', 'No scrimmages'], ['last5', 'Last 5 games'], ['last10', 'Last 10 games'],
   ['conf', 'Conference games'], ['nonconf', 'Non-conference games'], ['confW', 'Conference wins'], ['confL', 'Conference losses'],
@@ -6016,7 +6020,7 @@ function isPost(g) { const s = gSched(g); return !!(g.post || s.post || /playoff
 // The games a split covers, oldest first (the game in progress counts where it fits; W/L only once final).
 function splitGames(split) {
   split = split || UI.luSplit || 'full';
-  const all = games.filter(g => g.ev && g.ev.length).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const all = seasonPool().sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const f = {
     full: () => true, noscrim: g => !gSched(g).scrim, conf: g => !!g.conf, nonconf: g => !g.conf && !isPost(g), post: isPost,
     confW: g => g.conf && g.final && gWon(g), confL: g => g.conf && g.final && !gWon(g), won: g => g.final && gWon(g), lost: g => g.final && !gWon(g),
@@ -6039,7 +6043,7 @@ function splitSelect(g) {
 // "Select your own games": a chip per game.
 function splitPicker() {
   if (UI.luScope !== 'season' || UI.luSplit !== 'pick') return '';
-  const all = games.filter(g => g.ev && g.ev.length).sort((a, b) => String(a.date).localeCompare(String(b.date))), P = UI.luPick || [];
+  const all = seasonPool().sort((a, b) => String(a.date).localeCompare(String(b.date))), P = UI.luPick || [];
   return `<div class="split-pick"><span class="small muted">Games:</span>${all.map(g => `<button class="btn btn-sm ${P.includes(g.id) ? 'btn-primary' : ''}" data-act="lu-pick" data-id="${esc(g.id)}">${esc(String(g.date).slice(5))} ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</button>`).join('')}</div>`;
 }
 

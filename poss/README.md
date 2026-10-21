@@ -372,8 +372,10 @@ Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away 
 **Q1A, Q1, Q2, Q1 + Q2, Q3, Q4**, vs top 25 / outside the top 25, and Select your own games (a
 chip per game). Quads are the leaderboard's (its Quads tab), exactly: opponents ranked by net among every rated team,
 NCAA cutoffs of 353 scaled to the league (Q1A home 15 / neutral 25 / away 40, Q1 30/50/75, Q2 75/100/135, Q3
-160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages count in every split (every game adds to who's played together and
-the sample); **No scrimmages** leaves them out. Season 2H =
+160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages count in every split only until the first regular-season game is Final
+(Nov 2, Antelope Valley): until then every game adds to who's played together and the sample; after it they drop
+out of every season number (lineups, WOWY, the Season report) on their own. The scrimmage games stay on the iPad and
+open one at a time. **No scrimmages** leaves them out sooner. Season 2H =
 every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
 This game is picked).
 
