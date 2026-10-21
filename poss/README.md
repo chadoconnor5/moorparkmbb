@@ -507,7 +507,10 @@ scrolling.
 **Runs** tracks three things, ours and theirs (green = ours / red = theirs):
 - **Kill** = 3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules.
 - **Kill shot** = 10-0 unanswered (technical FTs count; it carries across the half), as on the Report.
-- **Run** = 6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4); overlapping ones merge.
+- **Run** = 6-0 unanswered, or outscoring the other side by 8+ while holding it to 40% of your points or less
+  (10-2, 12-4, 15-6, 22-5; never 8-7 or 14-7). It runs inside a half from your first points to your peak margin,
+  however long that is, and stops at the other side's own 6-0. The score bug shows the run going on now
+  ("MPK 22-5 run"), and so do the Huddle and the Stop the run lineup call.
 
 **This game / Season / Season · quality opp** (quality = positive adjusted net, needs the ⬆ Adjusted file).
 It opens on This game during a game, Season otherwise. Garbage time is always out, and so are scrimmages.

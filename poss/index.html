@@ -1217,7 +1217,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.198';
+const VERSION = 'v2026.10.21.200';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1618,6 +1618,40 @@ const ppp = (pts, n) => n ? (pts / n).toFixed(2) : '—';
    scores again (technical FTs included), carrying across the half. 10-0 is a killshot; 15 and 20
    are counted on top of it, so a 22-0 run is one 10-0, one 15-0 and one 20-0. */
 const RUN_MARKS = [10, 15, 20];
+/* RUNS: a stretch inside a half, starting and ending on the running side's points, where it scores 6+ unanswered
+   (6-0, 8-0) or outscores the other side by 8+ while holding it to 40% of its points or less (10-2, 12-4, 15-6,
+   22-5; never 8-7 or 14-7). It stops at the other side's own 6-0 (that's their run) and ends at its peak margin;
+   biggest margin first, and runs of one side never overlap. Scores come off the scoreboard, so
+   technical free throws count. */
+const RUN_NET = 8, RUN_SHARE = 0.4, RUN_UNANS = 6;
+const isRun = (f, a) => (a === 0 && f >= RUN_UNANS) || (f - a >= RUN_NET && a <= RUN_SHARE * f);
+function teamRuns(P, t) {
+  const o = other(t), got = (q, x) => q.score[x] - q.before[x], C = [];
+  for (let i = 0; i < P.length; i++) {
+    if (P[i].gt || !got(P[i], t)) continue;
+    let best = null, ans = 0;
+    for (let j = i; j < P.length && P[j].per === P[i].per && !P[j].gt; j++) {
+      if (got(P[j], t)) ans = 0; else if ((ans += got(P[j], o)) >= RUN_UNANS) break;
+      const f = P[j].score[t] - P[i].before[t], a = P[j].score[o] - P[i].before[o];
+      if (got(P[j], t) && isRun(f, a) && (!best || f - a > best.f - best.a)) best = { i0: i, i1: j, f, a };   // ends at its peak
+    }
+    if (best) C.push(best);
+  }
+  const out = [];
+  C.sort((x, y) => (y.f - y.a) - (x.f - x.a) || (y.i1 - y.i0) - (x.i1 - x.i0) || x.i0 - y.i0)
+    .forEach(c => { if (!out.some(r => c.i0 <= r.i1 && r.i0 <= c.i1)) out.push(c); });
+  return out.sort((x, y) => x.i0 - y.i0);
+}
+// The run going on right now (this half, still a run counting the other side's points since): { team, f, a } or null.
+function liveRun(g, D) {
+  const P = D.poss.filter(p => p.per === g.per), last = P[P.length - 1]; if (!last || g.final) return null;
+  let best = null;
+  ['a', 'b'].forEach(t => { const o = other(t), R = teamRuns(P, t), r = R[R.length - 1]; if (!r) return;
+    let ans = 0; for (let k = r.i1 + 1; k < P.length; k++) ans = P[k].score[t] > P[k].before[t] ? 0 : ans + P[k].score[o] - P[k].before[o];
+    const f = last.score[t] - P[r.i0].before[t], a = last.score[o] - P[r.i0].before[o];
+    if (ans < RUN_UNANS && isRun(f, a) && (!best || f - a > best.f - best.a)) best = { team: t, f, a }; });
+  return best;
+}
 function scoringRuns(g) {
   const runs = [], sc = { a: 0, b: 0 }, five = { a: [], b: [] }; let cur = null;
   g.ev.forEach(e => {
@@ -1783,7 +1817,7 @@ function scorebar(g, D) {
       <div class="sb-score">${G.pts.a}</div></div>
     <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockShown(g, D); return c ? `<div class="sb-cap sb-time" title="${c.start ? 'Start of the period' : 'The last game clock you entered (timeout or Set time)'}">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
-      ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
+      ${(() => { const r = liveRun(g, D); return r ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.f}-${r.a} run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
       <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
@@ -3095,7 +3129,7 @@ function huddleOpen(g, calledBy, kind, clock) {
   const W = { a: huddleBox(D, winList, 'a'), b: huddleBox(D, winList, 'b') }, GB = { a: huddleBox(D, D.poss, 'a'), b: huddleBox(D, D.poss, 'b') };
   const h1 = per === '1H';
   const empty = t => { let n = 0; const ps = D.poss.filter(p => p.team === t && p.per === per); for (let i = ps.length - 1; i >= 0 && ps[i].pts === 0 && ps[i].done; i--) n++; return n; };
-  const R = scoringRuns(g), run = R[R.length - 1];
+  const run = liveRun(g, D);
   // Talk points, most pressing first (four at most).
   const pts = [], add = (w, good, t) => pts.push({ w, good, t });
   const a = W.a, b = W.b, opp = g.opp;
@@ -3104,8 +3138,8 @@ function huddleOpen(g, calledBy, kind, clock) {
   if (b.oreb >= 2) add(b.oreb + 0.5, false, `They have ${b.oreb} offensive boards in their last ${b.n} trips.`);
   if (a.oreb >= 3) add(a.oreb - 1, true, `${a.oreb} offensive boards for us in our last ${a.n} trips.`);
   if (b.n >= 5 && b.pts / b.n >= 1.3) add(b.pts / b.n * 3, false, `They're scoring ${ppp(b.pts, b.n)} a trip over their last ${b.n}.`);
-  if (run && run.team === 'b' && run.pts >= 6) add(run.pts / 2, false, `They're on a ${run.pts}-0 run.`);
-  if (run && run.team === 'a' && run.pts >= 8) add(run.pts / 3, true, `We're on a ${run.pts}-0 run.`);
+  if (run && run.team === 'b') add((run.f - run.a) / 2, false, `They're on a ${run.f}-${run.a} run.`);
+  if (run && run.team === 'a' && run.f - run.a >= 8) add((run.f - run.a) / 3, true, `We're on a ${run.f}-${run.a} run.`);
   const eA = empty('a'); if (eA >= 3) add(eA, false, `${eA} straight empty trips for us.`);
   const stA = S.streak.a || 0; if (stA >= 3) add(stA - 0.5, true, `${stA} stops in a row.`);
   const fa = teamFouls(g, 'a', per), fb = teamFouls(g, 'b', per);
@@ -5043,7 +5077,7 @@ const SITS = [
   { id: 'foul', name: 'Stop fouling', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
     on: c => c.tf >= 7 && c.perLeft != null && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} on the clock` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
   { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
-    on: c => c.run >= 6 ? `They're on a ${c.run}-0 run` : '' },
+    on: c => c.run ? `They're on a ${c.run}-${c.runA || 0} run` : '' },
   { id: 'ast', name: 'Move the ball', stat: 'asp', hi: true, end: 'o', def: 'hm', rank: 'best assist rate (AST%)',
     on: c => c.ab.asp != null && c.ab.fgm >= 8 && c.ab.asp < c.N.asp - 12 ? `AST% ${c.ab.asp.toFixed(0)} tonight (norm ${c.N.asp.toFixed(0)}): the ball is sticking` : '' },
   { id: 'best', name: 'vs their best five', def: 'hm', on: c => c.theirBest ? `${esc(c.oppName)}'s best five is on` : '' },
@@ -5059,11 +5093,11 @@ function sitCtx(g, D) {
   const night = L ? (() => { const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
     return { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr,
       o2p: pct1((L.b.fgm || 0) - (L.b.fg3m || 0), (L.b.fga || 0) - (L.b.fg3a || 0)), o3ar: pct1(L.b.fg3a || 0, L.b.fga || 0) }; })() : {};
-  const runs = scoringRuns(g), lr = runs[runs.length - 1];
+  const lr = liveRun(g, D);   // the run on right now (teamRuns: 6-0, or +8 holding us to 40%)
   const ck = clockNow(g, D), perLeft = ck ? ck.clock : null;   // shown times: only the clock you entered
   const hurt = !!fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, ffSc: half === '1H' ? '1H' : '2H' })).html;
   const clockLate = !g.final && g.per !== '1H' && perLeft != null && perLeft <= 240;
-  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, clockLate, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
+  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, clockLate, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.f : 0, runA: lr && lr.team === 'b' ? lr.a : 0,
     att2: L ? (L.b.fga || 0) - (L.b.fg3a || 0) : 0, fga: L ? L.b.fga || 0 : 0, tf: teamFouls(g, 'a', g.per), perLeft, hurt,
     theirBest: theirBestOn(g, D), oppName: g.opp, tip: tipCur(g, D), ab: abTonight(g, D) };
 }
@@ -6205,13 +6239,14 @@ function projectedView(g) {
 /* ---------- Runs: kills, kill shots and runs ----------
    KILL       3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules, per half / OT.
    KILL SHOT  10-0 unanswered (technical FTs count, it carries across the half), as on the Report.
-   RUN        6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4), merged when they overlap.
+   RUN        6-0 unanswered, or +8 holding the other side to 40% of the points (10-2, 15-6, 22-5; not 8-7),
+              as wide as it goes inside a half, stopped by the other side's own 6-0 (teamRuns in app.js).
    For each one: who achieved it, the five on the floor (ours and theirs), the half and how many trips into
    it (possession count, never a clock estimate), the score, what started it and what ended it. A kill is
    credited to the five on the floor when its 3rd stop happens; a kill shot or run to the five on when it
    started. Garbage time is out. Season = every game tracked here (no scrimmages); Quality = only against
    an opponent with a positive adjusted net (needs the ⬆ Adjusted file). */
-const SPURT_NET = 8, SPURT_TRIPS = 6, RN_MIN_POSS = 25;
+const RN_MIN_POSS = 25;
 const RN_START = [['half', 'Start of a half'], ['to-own', 'Out of their own timeout'], ['to-opp', "After the other side's timeout"], ['sub-own', 'Fresh five (2+ subs)'],
   ['sub-opp', 'Other side just subbed 2+'], ['lbto', 'After forcing a live-ball TO'], ['to', 'After forcing a dead-ball TO'], ['ftx', 'After the other side missed FTs'], ['miss', 'After a stop on a missed shot']];
 const RN_END = [['3', 'Made 3'], ['2', 'Made 2'], ['FT', 'Foul → FTs'], ['timeout', 'Timeout, then they scored'], ['half', 'End of the half'], ['tech', 'Technical FTs']];
@@ -6269,22 +6304,11 @@ function runsGame(g) {
       if (nxt > 0) { const ev = g.ev.slice(st(P[k6]) + 1, st(P[nxt])), did = ev.some(e => e.t === 'to' && e.team === vic) ? 'timeout' : ev.some(e => e.t === 'sub' && e.team === vic) ? 'sub' : 'nothing';
         const next = P.filter((q, k) => k > k6 && q.team === r.team).slice(0, 3);
         if (next.length === 3) answers.push({ team: r.team, did, pts: next.reduce((s, q) => s + q.pts, 0), gid: g.id }); } } });
-  // SPURTS: +8 within 6 trips each, inside a half, then merged with unanswered 6-0s of the same side.
-  const spans = { a: [], b: [] };
-  un.forEach(r => { if (r.ep && r.pts >= 6) spans[r.team].push({ i0: r.ep.i0, i1: r.ep.i1, src: r }); });
-  ['a', 'b'].forEach(t => { for (let i = 0; i < P.length; i++) {
-    if (P[i].gt || P[i].team !== t || !P[i].pts) continue;
-    let f = 0, a = 0, n = { a: 0, b: 0 }, best = null;
-    for (let j = i; j < P.length && P[j].per === P[i].per && !P[j].gt; j++) { n[P[j].team]++; if (n.a > SPURT_TRIPS || n.b > SPURT_TRIPS) break;
-      if (P[j].team === t) f += P[j].pts; else a += P[j].pts; if (P[j].team === t && P[j].pts && f - a >= SPURT_NET) best = { i0: i, i1: j, f, a }; }
-    if (best) { spans[t].push(best); i = best.i1; } } });
+  // RUNS (teamRuns): 6-0 unanswered, or +8 holding the other side to 40% (10-2, 15-6, 22-5), each as wide as it goes.
   const runs = [];
-  ['a', 'b'].forEach(t => { const L = spans[t].sort((x, y) => x.i0 - y.i0), M = [];
-    L.forEach(s => { const l = M[M.length - 1]; if (l && s.i0 <= l.i1) { l.i1 = Math.max(l.i1, s.i1); l.srcs.push(s); } else M.push({ i0: s.i0, i1: s.i1, srcs: [s] }); });
-    M.forEach(m => { let f = 0, a = 0; for (let k = m.i0; k <= m.i1; k++) { if (P[k].team === t) f += P[k].pts; else a += P[k].pts; }
-      const u = m.srcs.find(s => s.src); f = Math.max(f, u ? u.src.pts : 0);
-      const nx = P.findIndex((q, k) => k > m.i1 && q.team !== t && q.pts > 0);
-      runs.push(ep({ kind: 'run', team: t, pts: f, against: a, from: P[m.i0].before, to: P[m.i1].score, start: started(m.i0, t), end: nx < 0 || P[nx].per !== P[m.i1].per ? 'half' : ended(nx, other(t), m.i0) }, m.i0)); }); });
+  ['a', 'b'].forEach(t => teamRuns(P, t).forEach(m => {
+    const nx = P.findIndex((q, k) => k > m.i1 && q.team !== t && q.pts > 0);
+    runs.push(ep({ kind: 'run', team: t, pts: m.f, against: m.a, from: P[m.i0].before, to: P[m.i1].score, start: started(m.i0, t), end: nx < 0 || P[nx].per !== P[m.i1].per ? 'half' : ended(nx, other(t), m.i0) }, m.i0)); }));
   // Possessions per five (ours), off / def, garbage time out.
   const fives = {};
   P.forEach(p => { if (p.gt || (p.five.a || []).length !== 5) return; const k = fiveKey(p.five.a), f = fives[k] = fives[k] || { five: p.five.a.slice(), o: 0, d: 0 }; if (p.team === 'a') f.o++; else f.d++; });
