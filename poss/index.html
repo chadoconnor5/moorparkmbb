@@ -736,8 +736,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lutx tr.grp th{background:var(--surface);font-size:10px;letter-spacing:.12em;padding:4px}
 .lutx th.go{color:var(--us)} .lutx th.gd{color:var(--them-text)}
 .lutx td.go{border-left:0} .lutx td.gd{}
-.lutx td:nth-child(8),.lutx th:nth-child(8){border-left:2px solid #9aa3af}
-.lutx td:nth-child(12),.lutx th:nth-child(12){border-left:2px solid #9aa3af}
+.lutx tr:not(.grp) > td:nth-child(7),.lutx tr:not(.grp) > th:nth-child(7){border-left:2px solid #9aa3af}
+.lutx tr:not(.grp) > td:nth-child(11),.lutx tr:not(.grp) > th:nth-child(11){border-left:2px solid #9aa3af}
 .lutx tr.grp th:nth-child(3){border-left:2px solid #9aa3af} .lutx tr.grp th:nth-child(4){border-left:2px solid #9aa3af}
 .lutx th,.lutx td{white-space:nowrap}
 .lutx td:first-child{max-width:140px;white-space:normal}
@@ -1218,7 +1218,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.209';
+const VERSION = 'v2026.10.21.210';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2381,7 +2381,8 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
   const AV = builder && t === 'a' && !UI.luRaw ? luAdjView(g, k) : null;
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
-    const v = { five: f.map(id => String(numKey(pInfo(g, t, id).num) * 2).padStart(4, '0')).join('.'),   // sorts as text: 0, 00, 1 … 99 poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
+    // five: sorts as text, jersey order 0, 00, 1 … 99
+    const v = { five: f.map(id => String(numKey(pInfo(g, t, id).num) * 2).padStart(4, '0')).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
       ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, onsto: O.nsto, dnsto: X.nsto, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
       ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null };
     const A = AV && AV.map.get(fiveKey(u.five));
