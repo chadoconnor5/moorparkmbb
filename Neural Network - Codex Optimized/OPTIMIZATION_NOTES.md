@@ -253,6 +253,16 @@ This copy keeps the original project intact and starts consolidating the working
   printed as a note at build time.
   Output: scouting_reports/<team>_scouting_report_<season>_<pre_synergy|synergy>.pdf, never overwritten (_v2, _v3...). 2025-26: all 99
   opponents pass (~25 s for --all).
+  The tracker's copies (--latest): one current PDF per team the tracker has files for (ratings.json teamFiles: our
+  schedule + tracker_teams.txt) at ../poss/reports/<slug>.pdf, REPLACED each time (written to .new, then renamed), and
+  ../poss/reports/index.json {team: {file, edition, generatedAt, season}}. The iPad (adjust.js fetchReports) saves each new
+  one in its scouting store (rep_<slug>) and Scout opens the opponent's. ~27 teams / ~1 MB / ~11 s. The archive above is
+  only for reports built by hand (a nightly dated copy of every team would grow the repo every game night).
+
+- scrape.py rebuild (after any scrape that saved box scores, unless --no-rebuild): generate_team_stats +
+  update_advanced_analytics for the teams that played, then `generate_leaderboard.py --cache` (which runs export_ratings),
+  then `generate_opponent_report.py --latest --only <those teams>`. Each step is check=False: one failing never stops
+  the next.
 
 ## Example commands
 

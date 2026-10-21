@@ -1259,7 +1259,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.215';
+const VERSION = 'v2026.10.21.216';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3902,7 +3902,8 @@ async function openScout(fromFile) {
   try { keys = await idbKeys(); } catch (e) { toast('This browser blocks offline file storage'); }
   const recs = await Promise.all(keys.map(async k => ({ k, r: await idbGet(k) })));
   const same = !OF.opp || !g || normOpp(OF.opp) === normOpp(g.opp);
-  const pref = [same && g && g.scoutKey, OF.opp && oppScoutKey({ opp: OF.opp }), same && SC.key].find(k => k && keys.includes(k)) || '';
+  // A PDF picked for this game or opponent first, then the opponent's current report from the site (fetchReports).
+  const pref = [same && g && g.scoutKey, OF.opp && oppScoutKey({ opp: OF.opp }), OF.opp && repKey(OF.opp), same && SC.key].find(k => k && keys.includes(k)) || '';
   $('#sc-sel').innerHTML = recs.length ? `${pref ? '' : '<option value="">— pick a report —</option>'}${recs.map(x => `<option value="${esc(x.k)}" ${x.k === pref ? 'selected' : ''}>${esc(x.r && x.r.name || x.k)}</option>`).join('')}`
     : '<option value="">No PDFs on this iPad yet — Add PDF…</option>';
   if (pref !== SC.key || !SC.doc) showScout(pref);
@@ -5766,10 +5767,28 @@ function fetchRatings() {
   if (!window.fetch) return;
   fetch('ratings.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
     if (!d || d.kind !== 'team-ratings' || !d.teams) return;
-    const old = ratingsData(); if (old && old.generatedAt === d.generatedAt) { fetchTeamFiles(d); return; }
+    const old = ratingsData(); if (old && old.generatedAt === d.generatedAt) { fetchTeamFiles(d); fetchReports(); return; }
     if (lsSet(LS_RATINGS, d)) { LIVE_ADJ = null; render(); }
-    fetchTeamFiles(d);
+    fetchTeamFiles(d); fetchReports();
   }).catch(() => {});
+}
+/* Scouting reports (generate_opponent_report.py --latest, run by scrape.py after new box scores): reports/index.json
+   lists one current PDF per team on our schedule / in a tournament field. Each new or updated one is saved on the
+   iPad (the scouting store, key rep_<team>), so Scout opens the opponent's latest report with no signal. */
+const repKey = name => { const R = ratingsData(), t = (R && R.teams && resolveTeam(name, R)) || name; return 'rep_' + String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); };
+async function fetchReports() {
+  if (!window.fetch || !window.indexedDB) return;
+  let I; try { I = await fetch('reports/index.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null); } catch (e) { return; }
+  if (!I || typeof I !== 'object') return;
+  for (const [team, e] of Object.entries(I)) {
+    try {
+      const key = 'rep_' + e.file.replace(/\.pdf$/, ''), have = await idbGet(key);
+      if (have && have.gen === e.generatedAt) continue;
+      const r = await fetch('reports/' + e.file + '?v=' + encodeURIComponent(e.generatedAt), { cache: 'no-store' }); if (!r.ok) continue;
+      const day = fmtDay(String(e.generatedAt).slice(0, 10));
+      await idbPut(key, { name: `${team} scouting report · ${day} · ${e.edition === 'synergy' ? 'Synergy' : 'pre-Synergy'}`, data: await r.arrayBuffer(), added: new Date().toISOString(), gen: e.generatedAt, team });
+    } catch (err) {}
+  }
 }
 /* Every team's stats file (teams/<team>.json, export_ratings.py): season stats, and every player's jersey number,
    season lines (all / quality games) and advanced numbers. Downloaded for the opponents on our schedule (the
