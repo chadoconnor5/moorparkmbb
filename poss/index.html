@@ -1195,6 +1195,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .stat-col .sgrid .ftsh.set.two{flex-direction:column;align-items:stretch;gap:4px;padding:6px 8px}
 .ftsh.set.two .ftsh-who{text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ftsh.set.two .ftsh-row{display:flex;align-items:center;gap:6px}.ftsh.set.two .ftsh-of{flex:1;text-align:center;white-space:nowrap}
+.ftsh-n button.oo{min-width:40px;font-size:12.5px}
 
 </style>
 </head>
@@ -1228,7 +1229,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.212';
+const VERSION = 'v2026.10.21.213';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1865,12 +1866,15 @@ const FT_K = new Set(['ftm', 'ftx']);
    fouls, and his FT Make / FT Miss taps log straight to him; any other play clears him (✕ on the button too).
    How many he's shooting (1 / 2 / 3 on the strip, 2 to start) ends the trip on its own after the last one, and until
    then he can't be subbed out by accident: his card in Sub is greyed AT THE LINE (a tap asks first). */
-const ftDone = g => { const n = g.ftNext; if (!n) return 0; const i = n.after ? g.ev.findIndex(e => e.id === n.after) : -1;
-  return g.ev.slice(i + 1).filter(e => e.t === 'play' && FT_K.has(e.k) && e.team === n.team).length; };
+const ftShots = g => { const n = g.ftNext; if (!n) return []; const i = n.after ? g.ev.findIndex(e => e.id === n.after) : -1;
+  return g.ev.slice(i + 1).filter(e => e.t === 'play' && FT_K.has(e.k) && e.team === n.team); };
+const ftDone = g => ftShots(g).length;
+// How many he shoots: 1, 2 or 3, or '1+1' (1-and-1: a miss on the front end is the whole trip, a make earns the second).
+const ftOf = g => { const n = g.ftNext; if (!n) return 0; if (n.n !== '1+1') return n.n || 2; const S = ftShots(g); return S.length && S[0].k === 'ftx' ? 1 : 2; };
 const atLine = (g, t, id) => !!(g.ftNext && g.ftNext.team === t && g.ftNext.player === id);
 function ftShooterBtn(g, st) {
-  const n = g.ftNext, who = n && (n.player === 'TEAM' ? teamName(g, n.team) : pShort(g, n.team, n.player)), of = n && (n.n || 2), d = n ? ftDone(g) : 0;
-  return n ? `<div class="ftsh set two ${n.team}"><div class="ftsh-who">FTs: <b>${esc(who)}</b></div><div class="ftsh-row"><b class="ftsh-of">${Math.min(d + 1, of)} of ${of}</b><span class="ftsh-n">${[1, 2, 3].map(k => `<button class="${k === of ? 'on' : ''}" data-act="ftsh-n" data-n="${k}" ${st || k <= d ? 'disabled' : ''}>${k}</button>`).join('')}</span><button class="ftsh-x" data-act="ftsh-x" aria-label="Clear the shooter" ${st ? 'disabled' : ''}>✕</button></div></div>`
+  const n = g.ftNext, who = n && (n.player === 'TEAM' ? teamName(g, n.team) : pShort(g, n.team, n.player)), of = n ? ftOf(g) : 0, d = n ? ftDone(g) : 0, oo = n && n.n === '1+1';
+  return n ? `<div class="ftsh set two ${n.team}"><div class="ftsh-who">FTs: <b>${esc(who)}</b></div><div class="ftsh-row"><b class="ftsh-of">${oo ? (d ? '2nd of 1-and-1' : '1-and-1') : `${Math.min(d + 1, of)} of ${of}`}</b><span class="ftsh-n">${['1+1', 1, 2, 3].map(k => `<button class="${k === (n.n || 2) ? 'on' : ''} ${k === '1+1' ? 'oo' : ''}" data-act="ftsh-n" data-n="${k}" ${st || (k !== '1+1' && k <= d) || (k === '1+1' && d > 1) ? 'disabled' : ''}>${k}</button>`).join('')}</span><button class="ftsh-x" data-act="ftsh-x" aria-label="Clear the shooter" ${st ? 'disabled' : ''}>✕</button></div></div>`
     : `<button class="sbtn ftsh ${st === 'ftsh' ? 'on' : ''} ${st && st !== 'ftsh' ? 'dim' : ''}" data-act="stat" data-k="ftsh" ${st && st !== 'ftsh' ? 'disabled' : ''}>FT Shooter</button>`;
 }
 function ftTrip(g) {
@@ -3381,7 +3385,7 @@ function logStat(team, player) {
   if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
   else push(g, Object.assign({ t: 'play', team, player, k }, extra));
   // His last free throw ends the trip (kept as ftPrev, so Undo of that shot puts the strip back).
-  if (FT_K.has(k) && g.ftNext && ftDone(g) >= (g.ftNext.n || 2)) { g.ftPrev = g.ftNext; delete g.ftNext; }
+  if (FT_K.has(k) && g.ftNext && ftDone(g) >= ftOf(g)) { g.ftPrev = g.ftNext; delete g.ftNext; }
   save(); render();
   if (k === 'foul' || k === 'chg' || k === 'offf') {
     const n = playerFouls(g, team, player); if (player !== 'TEAM' && n >= 4) toast(`${pShort(g, team, player)}: ${n} fouls${n >= 5 ? ' — FOULED OUT' : ''}`, n >= 5 ? 'bad' : 'warn');
@@ -3467,7 +3471,9 @@ document.addEventListener('click', ev => {
     const on = hr.classList.contains('hl'); hr.closest('.huddle').querySelectorAll('tr.hl').forEach(r => r.classList.remove('hl')); if (!on) hr.classList.add('hl'); return;
   }
   const go = ev.target.closest('[data-tab-go]'); if (go) { UI.tab = go.dataset.tabGo; render(); return; }
-  const b = ev.target.closest('[data-act],[data-tab]'); if (!b) return;
+  let b = ev.target.closest('[data-act],[data-tab]'); if (!b) return;
+  // A stat waiting for its player: a tap anywhere on a card (its labels and +N included) picks that player.
+  const pc = UI.stat && ev.target.closest('.pbtn[data-act="player"]'); if (pc) b = pc;
   if (b.dataset.tab && !b.dataset.act) {
     if (b.dataset.tab === 'scout') { openScout(); return; }
     UI.tab = b.dataset.tab; UI.stat = null; render(); return;
@@ -3536,13 +3542,13 @@ document.addEventListener('click', ev => {
         toast(`${k === 'ftm' ? 'FT make' : 'FT miss'} · ${tr.player === 'TEAM' ? teamName(g, tr.team) : pShort(g, tr.team, tr.player)}`, 'good'); break; } }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
     case 'ftsh-x': delete g.ftNext; save(); render(); break;
-    case 'ftsh-n': { if (!g.ftNext) return; g.ftNext.n = +b.dataset.n; if (ftDone(g) >= g.ftNext.n) delete g.ftNext; save(); render(); break; }
+    case 'ftsh-n': { if (!g.ftNext) return; g.ftNext.n = b.dataset.n === '1+1' ? '1+1' : +b.dataset.n; if (ftDone(g) >= ftOf(g)) delete g.ftNext; save(); render(); break; }
     case 'stat-cancel': UI.stat = null; UI.ast = false; UI.blk = false; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
     case 'no-reb': UI.reb = null; UI.rebFt = false; render(); break;
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
-      if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p, n: 2, after: g.ev.length ? g.ev[g.ev.length - 1].id : null }; delete g.ftPrev; save(); render();
+      if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p, n: (n => n >= 7 && n < 10 ? '1+1' : 2)(teamFouls(g, other(b.dataset.team), g.per)), after: g.ev.length ? g.ev[g.ev.length - 1].id : null }; delete g.ftPrev; save(); render();
         toast(`FT shooter: ${pShort(g, b.dataset.team, b.dataset.p)} — FT Make / FT Miss go to him`, 'good'); break; }
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
       if (!PLAYER_STATS.has(UI.stat) && !FT_K.has(UI.stat)) { toast('Tap the team button at the top'); return; }
