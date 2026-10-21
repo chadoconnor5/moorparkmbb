@@ -1157,8 +1157,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 
 /* Team stats (teamStatsCard): both teams, grouped rows, the better number bold. */
 .ts-tbl td,.ts-tbl th{text-align:center;font-variant-numeric:tabular-nums}
-.ts-tbl td.l{text-align:left}
-.ts-tbl .ts-grp td{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:10px}
+.ts-tbl{table-layout:fixed}
+.ts-tbl .ts-a,.ts-tbl .ts-b{width:36%;text-align:center!important}
+.ts-tbl .ts-lbl{text-align:center!important}
+.ts-tbl .ts-lbl{font-weight:700}
+.ts-tbl .ts-grp td{text-align:center;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:10px}
 .ts-tbl .ts-win{font-weight:800}
 .ts-tbl .ts-pct{color:var(--muted);font-size:.9em;margin-left:4px}
 
@@ -1224,7 +1227,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.188';
+const VERSION = 'v2026.10.21.189';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2120,12 +2123,13 @@ function teamStatsCard(g, D, sc, label) {
     ['3PA rate', t => P(pc(X[t].fg3a, X[t].fga)), null],
     ['2nd-chance points', t => X[t].sc2, t => X[t].sc2, true],
     ['Points off turnovers', t => X[t].pot, t => X[t].pot, true]];
+  // Moorpark always on the left, the stat in the middle, the opponent on the right.
   const body = rows.map(r => { if (r.length === 1) return `<tr class="ts-grp"><td colspan="3">${r[0]}</td></tr>`;
     const [lbl, show, val, hi] = r, va = val ? val('a') : null, vb = val ? val('b') : null;
     const win = va == null || vb == null || va === vb ? '' : (va > vb) === hi ? 'a' : 'b';
-    return `<tr><td class="l">${lbl}</td><td class="${win === 'a' ? 'ts-win' : ''}">${show('a')}</td><td class="${win === 'b' ? 'ts-win' : ''}">${show('b')}</td></tr>`; }).join('');
+    return `<tr><td class="ts-a ${win === 'a' ? 'ts-win' : ''}">${show('a')}</td><td class="ts-lbl">${lbl}</td><td class="ts-b ${win === 'b' ? 'ts-win' : ''}">${show('b')}</td></tr>`; }).join('');
   return `<div class="card ts-card"><h3>Team stats <span class="muted">· ${esc(label)}, from the tracked plays</span></h3><div class="tbl-wrap"><table class="tbl rep-tbl zebra ts-tbl">
-    <thead><tr><th></th><th style="color:var(--us)">${esc(teamName(g, 'a'))}</th><th style="color:var(--them-text)">${esc(teamName(g, 'b'))}</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+    <thead><tr><th class="ts-a" style="color:var(--us)">${esc(teamName(g, 'a'))}</th><th></th><th class="ts-b" style="color:var(--them-text)">${esc(teamName(g, 'b'))}</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
 
 /* ---------- reports: halftime and post-game ---------- */
