@@ -1201,6 +1201,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lu-min{display:flex;align-items:center;gap:10px;margin:10px 0;padding:10px 0;border-top:1px solid var(--bd)}.lu-min label{font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap}.lu-min input{flex:1;max-width:260px;accent-color:var(--gold,#d8b860)}.lu-min b{min-width:28px;font-size:15px}
 .lutx tr.unit[hidden],.lutx tr.drillwrap[hidden]{display:none}
 
+/* Report: free throws & fouls by player, two teams side by side (stacked on a narrow screen). */
+.ftf-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:640px){.ftf-2{grid-template-columns:1fr}}
+.ftf td,.ftf th{text-align:center}
+.ftf tr.ftf-tot td{background:#d4a017;color:#111;border-top:2px solid #111}
+
 </style>
 </head>
 <body>
@@ -1233,7 +1239,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.226';
+const VERSION = 'v2026.10.21.227';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1720,6 +1726,8 @@ const FOULING = e => (e.t === 'foul') || (e.t === 'tech' && !e.coach) || (e.t ==
 function teamFouls(g, t, per) { const b = foulBucket(per); return g.ev.filter(e => FOULING(e) && e.team === t && foulBucket(e.per) === b).length; }
 const playerFouls = (g, t, id) => g.ev.filter(e => FOULING(e) && e.team === t && e.player === id).length;
 const playerTechs = (g, t, id) => g.ev.filter(e => e.t === 'tech' && e.team === t && e.player === id).length;
+// A player's free throws from the logged plays (the shooter you tapped): { m, a }. per: '1H' = 1st half only.
+const playerFT = (g, t, id, per) => { const x = { m: 0, a: 0 }; g.ev.forEach(e => { if (e.t !== 'play' || !isFT(e.k) || e.team !== t || e.player !== id || per && e.per !== per) return; x.a++; if (e.k === 'ftm') x.m++; }); return x; };
 // Fouled out: 5 fouls or 2 technicals.
 const isOut = (g, t, id) => !!id && id !== 'TEAM' && (playerFouls(g, t, id) >= 5 || playerTechs(g, t, id) >= 2);
 // Only forced off when there are five eligible players left to put on.
@@ -1940,7 +1948,7 @@ function playerCards(g, D, t) {
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
       ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${(() => { const au = x => `<span class="nt auto${x.lead ? ' lead' : ''}" title="${esc(x.why)}">${esc(x.l)}</span>`;   // Star always first, then yours, then the rest
           return AU.filter(x => x.l === 'Star').map(au).join('') + L.map(x => `<span class="nt">${esc(x)}</span>`).join('') + AU.filter(x => x.l !== 'Star').map(au).join(''); })()}${L.length + AU.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
-      <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
+      <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${(() => { const x = playerFT(g, t, p.id); return x.a ? ` · FT ${x.m}-${x.a}` : ''; })()}${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${out ? 'OUT' : pf + ' PF'}</span></button>`; };
   const noRoster = !teamPlayers(g, t).length;
   return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
@@ -2312,6 +2320,7 @@ function reportView(g) {
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
     ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
+    ${ftFoulCard(g, half)}
     ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + (half ? seasonFixCard(g, D) : '') + clutchCard(g, D, half) : `
     <div class="card sh-cta"><span>📷 Have the ${half ? 'halftime' : 'final'} stat sheet? Add a photo for the full report: team, player and lineup analytics.</span><button class="btn btn-good" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">Add stat sheet</button></div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
@@ -2323,6 +2332,29 @@ function reportView(g) {
     <div class="card"><h3><span style="color:var(--us)">Moorpark</span> lineups <span class="muted">· ${half ? '1st half' : 'the game'}</span></h3><div class="tbl-wrap">${lineupTable(g, D, 'a', half ? '1H' : 'game', 'all')}</div></div>
     <div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> lineups</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', half ? '1H' : 'game', 'all')}</div></div>
     ${clutchCard(g, D, half)}`}`;
+}
+
+/* Free throws & fouls by player, from the logged plays (the shooter and fouler you tapped), so it's there live
+   without a stat sheet: both teams, everyone with an FT attempt or a foul, in jersey order; Team = FTs or fouls
+   put on the team logo. Fouls include charges, offensive fouls and technicals (as on the player cards). */
+function ftFoulCard(g, half) {
+  const per = half ? '1H' : null;
+  const fouls = (t, id) => g.ev.filter(e => FOULING(e) && e.team === t && (e.player || 'TEAM') === id && (!per || e.per === per)).length;
+  const side = t => {
+    const ids = new Set(teamPlayers(g, t).map(p => p.id));
+    g.ev.forEach(e => { if (e.team === t && (FOULING(e) || e.t === 'play' && isFT(e.k))) ids.add(e.player || 'TEAM'); });
+    const rows = [...ids].map(id => { const p = pInfo(g, t, id), ft = id === 'TEAM' ? { m: 0, a: 0 } : playerFT(g, t, id, per);
+      if (id === 'TEAM') g.ev.forEach(e => { if (e.t === 'play' && isFT(e.k) && e.team === t && (!e.player || e.player === 'TEAM') && (!per || e.per === per)) { ft.a++; if (e.k === 'ftm') ft.m++; } });
+      return { p, ft, pf: fouls(t, id) }; }).filter(r => r.ft.a || r.pf)
+      .sort((x, y) => (x.p.id === 'TEAM') - (y.p.id === 'TEAM') || byNum(x.p, y.p));
+    const tot = rows.reduce((s, r) => ({ m: s.m + r.ft.m, a: s.a + r.ft.a, pf: s.pf + r.pf }), { m: 0, a: 0, pf: 0 });
+    const pc = (m, a) => a ? Math.round(100 * m / a) + '%' : '—';
+    return `<div><div class="small" style="margin:0 0 6px;font-weight:700;color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</div>
+      ${rows.length ? `<table class="tbl zebra ftf"><thead><tr><th style="text-align:left">PLAYER</th><th>FT</th><th>FT%</th><th>PF</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td style="text-align:left">${esc(r.p.id === 'TEAM' ? 'Team' : pShort(g, t, r.p.id))}</td><td>${r.ft.m}-${r.ft.a}</td><td>${pc(r.ft.m, r.ft.a)}</td><td class="${r.pf >= 5 ? 'neg' : ''}">${r.pf}</td></tr>`).join('')}
+      <tr class="ftf-tot"><td style="text-align:left"><b>Total</b></td><td><b>${tot.m}-${tot.a}</b></td><td><b>${pc(tot.m, tot.a)}</b></td><td><b>${tot.pf}</b></td></tr></tbody></table>` : '<div class="small muted">No free throws or fouls yet.</div>'}</div>`; };
+  return `<div class="card"><h3>Free throws &amp; fouls <span class="muted">· by player, ${half ? '1st half' : g.final ? 'the game' : 'the game so far'}, from the tracked plays</span></h3>
+    <div class="ftf-2">${side('a')}${side('b')}</div></div>`;
 }
 
 /* ---------- lineups view ---------- */
