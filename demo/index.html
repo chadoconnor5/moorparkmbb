@@ -1248,7 +1248,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.204';
+const VERSION = 'v2026.10.21.208';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1288,7 +1288,9 @@ function roster() {
   const gt = (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: r.name, note: '' }));
   return gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r));
 }
-const byNum = (a, b) => (parseInt(a.num) || 999) - (parseInt(b.num) || 999) || String(a.name).localeCompare(b.name);
+// Jersey order: 0, 00, 1, 2 … (no number last). parseInt('0') is 0, so it can't be an "|| 999" fallback.
+const numKey = n => { const s = String(n == null ? '' : n).trim(); return /^\d+$/.test(s) ? parseInt(s, 10) + (s.length > 1 && /^0+$/.test(s) ? 0.5 : 0) : 999; };
+const byNum = (a, b) => numKey(a.num) - numKey(b.num) || String(a.name).localeCompare(b.name);
 const lastName = n => String(n).split(' ').slice(-1)[0];
 // Players are keyed by name for Moorpark and by 'o:<num>' for the opponent.
 function teamPlayers(g, t) {
@@ -2409,7 +2411,7 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
   const AV = builder && t === 'a' && !UI.luRaw ? luAdjView(g, k) : null;
   const rows = L.units.map(u => { const o = rtg(u.pf, u.oPoss), d = rtg(u.pa, u.dPoss), O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), f = fiveSorted(g, t, u.five);
     const num = v => typeof v === 'number' ? v : null;
-    const v = { five: f.map(id => parseInt(pInfo(g, t, id).num) || 999).join('.'), poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
+    const v = { five: f.map(id => String(numKey(pInfo(g, t, id).num) * 2).padStart(4, '0')).join('.'),   // sorts as text: 0, 00, 1 … 99 poss: Math.floor((u.oPoss + u.dPoss) / 2), pts: u.pf, pm: u.pf - u.pa,
       ortg: num(o), drtg: num(d), net: num(o) != null && num(d) != null ? Math.round(10 * (o - d)) / 10 : null, oefg: O.efg, oto: O.to, onsto: O.nsto, dnsto: X.nsto, oorb: O.orb, oftr: O.ftr, defg: X.efg, dto: X.to,
       ddrb: (u.d.dreb + u.d.oreb) ? Math.round(1000 * u.d.dreb / (u.d.dreb + u.d.oreb)) / 10 : null, dftr: X.ftr, stops: u.stops, stopPct: u.dPoss ? Math.round(1000 * u.stops / u.dPoss) / 10 : null };
     const A = AV && AV.map.get(fiveKey(u.five));
@@ -4982,7 +4984,7 @@ function abSeason(sc) {
   if (AB_MEMO && AB_MEMO.stamp === stamp) return AB_MEMO.v;
   const Q = {}; ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null) Q[x.id] = x.oppOrtg - x.oppDrtg > 0; });
   const m = new Map();
-  games.forEach(g => { if (!g.final || !g.astBlk || !g.ev || !g.ev.length || Q[g.id] === false) return; const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+  games.forEach(g => { if (!g.final || !g.astBlk || !g.ev || !g.ev.length || Q[g.id] === false) return; if (!seasonPool().includes(g)) return;   // scrimmages until the first regular-season game is final
     lineupUnits(g, derive(g), 'a', 'game', sc === 'all' ? 'nogt' : sc).units.forEach(u => { const k = fiveKey(u.five), a = abOf(u), x = m.get(k);
       if (!x) m.set(k, a); else Object.keys(a).forEach(f => { if (f !== 'tr') x[f] += a[f]; }); }); });
   AB_MEMO = { stamp, v: m };
@@ -5033,7 +5035,7 @@ function plSeason() {
   ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) oppNet[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
   games.forEach(g => { const live = g.id === curId && !g.final, sc = live ? (g.sheet && (g.sheet.G || g.sheet['1H'])) : g.final && g.sheet && g.sheet.G;
     const S = sc && sc.a; if (!S || !S.rows) return;
-    const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+    if (!seasonPool().includes(g)) return;   // scrimmages until the first regular-season game is final
     const net = oppNet[g.date + '|' + String(g.opp).toLowerCase()], D = derive(g);
     if (!(net > 0) || Math.abs(D.score.a - D.score.b) > Q_MARGIN) return;      // quality games only
     S.rows.forEach(r => { const id = byNum[String(r.num)] || (roster().find(x => r.name && lastName(x.name).toLowerCase() === lastName(String(r.name).replace(/,.*/, '')).toLowerCase()) || {}).name; if (!id) return;
@@ -5072,7 +5074,7 @@ function clutchFT() {
   const stamp = games.map(g => g.id + ':' + g.ev.length).join('|');
   if (CFT_MEMO && CFT_MEMO.stamp === stamp) return CFT_MEMO.v;
   const out = {};
-  games.forEach(g => { const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+  games.forEach(g => { if (!seasonPool().includes(g)) return;   // scrimmages until the first regular-season game is final
     derive(g).poss.forEach(p => { if (p.team !== 'a' || !p.clutch || p.clockSecs == null || p.gt) return;
       p.plays.forEach(e => { if (!isFT(e.k) || e.team !== 'a' || !e.player || e.player === 'TEAM') return;
         const x = out[e.player] = out[e.player] || { m: 0, a: 0 }; x.a++; if (e.k === 'ftm') x.m++; }); }); });
@@ -5146,7 +5148,7 @@ const SITS = [
     on: c => c.night.drb != null && c.night.drb < c.N.drb - 5 ? `DREB% ${c.night.drb.toFixed(0)} tonight (norm ${c.N.drb.toFixed(0)})` : '' },
   { id: 'foul', name: 'Stop fouling', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
     on: c => c.tf >= 7 && c.perLeft != null && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} on the clock` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
-  { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
+  { id: 'run', name: 'Stop the run', stat: 'runstop', hi: true, end: 'd', def: 'hm', rank: 'run-stopping',
     on: c => c.run ? `They're on a ${c.run}-${c.runA || 0} run` : '' },
   { id: 'ast', name: 'Move the ball', stat: 'asp', hi: true, end: 'o', def: 'hm', rank: 'best assist rate (AST%)',
     on: c => c.ab.asp != null && c.ab.fgm >= 8 && c.ab.asp < c.N.asp - 12 ? `AST% ${c.ab.asp.toFixed(0)} tonight (norm ${c.N.asp.toFixed(0)}): the ball is sticking` : '' },
@@ -5212,12 +5214,19 @@ function sitStatCard(g, D, S, c, sk) {
   /* The five's record in this exact situation (every game's saved situation log) moves its number toward that
      record as the trips add up: weight n / (n + 12). Player-skill situations show the record without blending. */
   const SL = SITLOG[S.id], RC = SL ? sitRecords(S.id) : null, recOf = f => RC && RC.recs[fiveKey(f)];
-  const blendX = (f, x) => { if (x == null || !SL || S.player) return x; const r = recOf(f), v = sitRecVal(S.id, r); if (v == null) return x; const w = sitRecWeight(r); return (1 - w) * x + w * v; };
+  const blendX = (f, x) => { if (x == null || !SL || S.player || S.id === 'run') return x; const r = recOf(f), v = sitRecVal(S.id, r); if (v == null) return x; const w = sitRecWeight(r); return (1 - w) * x + w * v; };
   const better = v => v != null && n != null && (S.hi === false || SL && SL.hi === false ? v < n : v > n);
   const recLine = f => { const r = recOf(f); if (!r) return ''; const v = sitRecVal(S.id, r), proven = r.n >= SITREC_PROVEN && !S.player && better(v);
     return `<div class="sit-rec">${proven ? '<span class="sit-proven">PROVEN</span>' : ''}In this spot: ${esc(sitRecText(S.id, r))}${S.player ? '' : ` · counts ${Math.round(100 * sitRecWeight(r))}%`}</div>`; };
   const today = sc => lineupUnits(g, D, 'a', 'game', sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok))
-    .map(u => { const v = abVals(sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa), g.astBlk ? abOf(u) : null, c.N); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, x: blendX(u.five, val(u.five, v)) }; });
+    .map(u => { const v = abVals(sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa), g.astBlk ? abOf(u) : null, c.N);
+      if (S.id === 'run') { const R = runStop(u.oPoss, u.dPoss, u.pf, u.pa, (RA_T || (RA_T = runsAgainst([g])))[fiveKey(u.five)] || 0); v.runstop = R && R.score; u.rs = R; }
+      return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, rs: u.rs, x: blendX(u.five, val(u.five, v)) }; });
+  // Stop the run, season: every game tracked here (seasonPool), not the adjusted file.
+  let RA_T = null, RA_S = null;
+  const seasonRun = sc => seasonUnits('a', sc === 'all' ? 'nogt' : sc, 5).units.filter(u => u.five.every(ok)).map(u => {
+    const R = runStop(u.oPoss, u.dPoss, u.pf, u.pa, (RA_S || (RA_S = runsAgainst(seasonPool())))[fiveKey(u.five)] || 0);
+    return { five: u.five, oP: u.oPoss, dP: u.dPoss, v: { runstop: R && R.score }, rs: R, x: R && R.score }; });
   // Four factors: opponent-adjusted. Everything else: raw counts from games against quality opponents only
   // (positive adjusted net), so nothing rests on possessions against bad teams.
   const FOURF = ['efg', 'oefg', 'tov', 'otov', 'orb', 'drb', 'ftr', 'oftr'], useQ = !FOURF.includes(S.stat) && !S.player;
@@ -5233,7 +5242,7 @@ function sitStatCard(g, D, S, c, sk) {
   const rank = (list, min) => list.filter(u => enough(u, min) && u.x != null && (S.player || n == null || (S.hi ? u.x > n : u.x < n)))
     .sort((a, b) => S.hi ? b.x - a.x : a.x - b.x).slice(0, 2);
   const pick = (get, mins) => { for (let sc = sc0(); sc; sc = LEV_WIDER[sc]) { const l = rank(get(sc), mins[sc]); if (l.length) return { l, sc, min: mins[sc] }; } return { l: [], sc: sc0(), min: mins[sc0()] }; };
-  const T = pick(today, LEV_MIN.today), Sn = pick(season, LEV_MIN.season);
+  const T = pick(today, LEV_MIN.today), Sn = pick(S.id === 'run' ? seasonRun : season, LEV_MIN.season);
   const pl = S.end === 'o' ? 'off poss' : S.end === 'd' ? 'def poss' : 'poss each way';
   const lbl = r => `${levName(r.sc)}${r.sc !== sc0() ? ` <b class="warn">(not enough ${levName(sc0())})</b>` : ''} · ${r.min}+ ${pl}`;
   const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
@@ -5241,7 +5250,7 @@ function sitStatCard(g, D, S, c, sk) {
   const swap = f => { const cur = D.five.a; if (cur.length !== 5) return ''; const i = f.filter(id => !cur.includes(id)), x = cur.filter(id => !f.includes(id)); if (!i.length) return '';
     const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); };
     return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(nn).join(' '))}</span> · <span class="neg">OUT ${esc(x.map(nn).join(' '))}</span></div>`; };
-  const extra = u => S.id === 'three' && u.v.my3ar != null ? ` · 3PA rate ${u.v.my3ar.toFixed(0)}%` : S.id === 'steal' && u.v.otov != null ? ` · forces TO ${u.v.otov.toFixed(1)}%` : S.id === 'ft' && u.v.ftr != null ? ` · FT rate ${u.v.ftr.toFixed(0)}` : S.id === 'two' ? abLine(u.v, 'd') : S.id === 'ast' || S.id === 'ball' ? abLine(u.v, 'o') : '';
+  const extra = u => S.id === 'run' && u.rs ? ` · ${u.rs.poss} poss · net ${sg1(Math.round(10 * u.rs.net) / 10)} · ${u.rs.ra} run${u.rs.ra === 1 ? '' : 's'} allowed` : S.id === 'three' && u.v.my3ar != null ? ` · 3PA rate ${u.v.my3ar.toFixed(0)}%` : S.id === 'steal' && u.v.otov != null ? ` · forces TO ${u.v.otov.toFixed(1)}%` : S.id === 'ft' && u.v.ftr != null ? ` · FT rate ${u.v.ftr.toFixed(0)}` : S.id === 'two' ? abLine(u.v, 'd') : S.id === 'ast' || S.id === 'ball' ? abLine(u.v, 'o') : '';
   const row = (u, both) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
       <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}${extra(u)}</div>${levMix(u.mix)}${recLine(u.five)}${swap(u.five)}</div>
       <div class="fx-v"><b class="pos">${P(u.x)}</b><span>${esc(sitLabel(S))}</span></div>
@@ -5254,21 +5263,32 @@ function sitStatCard(g, D, S, c, sk) {
     const f = L.map(x => x.id);
     return `<div class="sit-top"><div><b>Best 5 available</b> <span class="muted small">(season stats: ${esc(plSeason().src)})</span><b>:</b> ${esc(L.map(x => `${pShort(g, 'a', x.id)} ${x.v.toFixed(0)}% (${plSample(x.id, S.player[0], S.player[1])})`).join(', '))}${swap(f)}</div><button class="btn btn-sm btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`; })() : '';
   return `<div class="card fix-card">${levBtns(sk, S.def)}
-    <div class="fx-h"><b>→ the ${esc(S.rank)} fives</b> <span class="muted small">· ${S.player ? 'players\' season lines' : `${esc(c.nsrc)} ${P(n)}`}</span></div>
+    <div class="fx-h"><b>→ the ${esc(S.rank)} fives</b> <span class="muted small">· ${S.id === 'run' ? 'most possessions, best net, fewest runs allowed' : S.player ? 'players\' season lines' : `${esc(c.nsrc)} ${P(n)}`}</span></div>
     ${topPl}
     <div class="fx-cols">
       <div class="fx-col"><div class="fx-lbl today">TODAY <span>this game · ${lbl(T)}</span></div>${T.l.map(u => row(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.player ? (plSeason().src ? 'No five today with enough possessions.' : 'Needs players\' season stats: final stat sheets here, or the ⬆ Adjusted file.') : `No five has been better than ${P(n)} today.`}</div>`}</div>
-      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
-    <div class="tiny muted" style="margin-top:6px">Ranked by ${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}${AB ? ` Assists and blocks come only from games logged with the Assist / Block buttons${anyAB ? '' : ' (none yet: until then Stop the 2s ranks on opp 2P% and fouls)'}; a small sample is pulled toward our norm.${S.stat === 'rim' ? ' Rim D = opp 2P% − half of BLK% above our norm + a quarter of fouls / 100 above our norm (lower is better).' : ''}` : ''}</div></div>`;
+      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${S.id === 'run' ? 'every game' : FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA && S.id !== 'run' ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.id === 'run' ? `No available five has ${Sn.min}+ defensive possessions at this leverage yet.` : `No available five has been better than ${P(n)}.`}</div>`}</div></div>
+    <div class="tiny muted" style="margin-top:6px">Ranked by ${S.id === 'run' ? 'the stop-the-run score: net rating minus 10 for each run allowed per 20 defensive possessions (runs charged to the five on when they started), × poss / (poss + 20) so small samples count less' : esc(sitLabel(S))}${S.id === 'run' ? '' : S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}${AB ? ` Assists and blocks come only from games logged with the Assist / Block buttons${anyAB ? '' : ' (none yet: until then Stop the 2s ranks on opp 2P% and fouls)'}; a small sample is pulled toward our norm.${S.stat === 'rim' ? ' Rim D = opp 2P% − half of BLK% above our norm + a quarter of fouls / 100 above our norm (lower is better).' : ''}` : ''}</div></div>`;
 }
 const AB_STATS = ['asp', 'rim'];
+/* STOP THE RUN score: the five's net rating, minus 10 for each run it allowed per 20 defensive possessions (about a
+   half's worth; runs as on the Runs tab, charged to the five on when the run started), then pulled toward 0 by the
+   sample: × poss / (poss + 20), so 20 possessions count half. Most possessions, best net, fewest runs allowed. */
+const RUNSTOP_K = 20, RUNSTOP_PEN = 10, RUNSTOP_PER = 20;
+function runStop(oP, dP, pf, pa, ra) {
+  if (!oP || !dP) return null;
+  const poss = (oP + dP) / 2, net = 100 * pf / oP - 100 * pa / dP;
+  return { score: (net - RUNSTOP_PEN * RUNSTOP_PER * ra / dP) * poss / (poss + RUNSTOP_K), poss: Math.floor(poss), net, ra };
+}
+// Their runs charged to each of our fives (on the floor when the run started): this game, or the season's games.
+const runsAgainst = list => { const m = {}; list.forEach(gm => runsGame(gm).runs.forEach(r => { if (r.team === 'b' && r.fiveA.length === 5) { const k = fiveKey(r.fiveA); m[k] = (m[k] || 0) + 1; } })); return m; };
 // The raw counts behind a five's AST% / BLK%, under its name: "AST 9/14 made, AST/TO 3.0" · "opp 2P 41% · BLK 4/30 · 1.3 blk/PF".
 function abLine(v, end) {
   const a = v.ab;
   if (end === 'o') return a && a.fgm ? ` · AST ${a.ast}/${a.fgm} made${a.tov ? `, AST/TO ${(a.ast / a.tov).toFixed(1)}` : ''}` : '';
   return (v.o2p != null ? ` · opp 2P ${v.o2p.toFixed(0)}%` : '') + (a ? ` · BLK ${a.blk}/${a.o2a}${a.fouls ? ` · ${(a.blk / a.fouls).toFixed(1)} blk/PF` : ''}` : '') + (v.fouls != null ? ` · ${v.fouls.toFixed(0)} fouls/100` : '');
 }
-const sitLabel = S => ({ ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100', asp: 'AST%', rim: 'rim D' })[S.stat] || S.stat;
+const sitLabel = S => ({ runstop: 'score', ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100', asp: 'AST%', rim: 'rim D' })[S.stat] || S.stat;
 // vs their best five: our fives while that exact five of theirs was on, this game.
 function sitVsBest(g, D, c) {
   const B = c.theirBest || theirBest(g, D); if (!B) return '<div class="card muted">Their best five shows up in the 2nd half, once a five of theirs has 8+ possessions.</div>';
@@ -5835,7 +5855,7 @@ function luAdjView(g, k) {
    "Late" is never estimated: during a game it is the clock you entered (4:00 or less in the 2nd half, any
    OT); once the game is final, the exact count of possessions left in the half also counts (the last 16
    possessions of the 2nd half; the last 4 for "Last stop"). */
-const SITLOG_V = 1, LATE_SECS = 240, LAST_SECS = 60, LATE_POSS = 16, LAST_POSS = 4;
+const SITLOG_V = 2, LATE_SECS = 240, LAST_SECS = 60, LATE_POSS = 16, LAST_POSS = 4;
 // What each situation counts, from the five's side: possessions (ours = offense 'o', theirs = defense 'd') and success.
 const SITLOG = {
   ft:    { end: 'o', lbl: 'Closing FTs', on: c => c.late && c.m >= 1 && c.m <= 8, res: 'pts', how: 'pts / trip' },
@@ -5843,7 +5863,7 @@ const SITLOG = {
   stop:  { end: 'd', lbl: 'Last stop', on: c => c.last && c.m >= 1 && c.m <= 3, res: 'stop', how: 'stops' },
   steal: { end: 'd', lbl: 'Need steals', on: c => c.late && c.m <= -4, res: 'fto', how: 'forced TOs' },
   three: { end: 'o', lbl: 'Need a 3', on: c => c.late && c.m <= -4 && c.m >= -9, res: 'pts', how: 'pts / trip' },
-  run:   { end: 'd', lbl: 'Stop the run', on: c => c.run >= 6, res: 'stop', how: 'stops' },
+  run:   { end: 'd', lbl: 'Stop the run', on: () => false, res: 'stop', how: 'stops' },   // tagged from their runs below, both ends
   foul:  { end: 'd', lbl: 'Stop fouling', on: c => c.tf >= 7, res: 'nofoul', how: 'trips without FTs' } };
 function sitLogGame(g) {
   const D = derive(g), P = D.poss, out = {};
@@ -5858,6 +5878,14 @@ function sitLogGame(g) {
     if (foulBucket(p.per) !== curPer) { curPer = foulBucket(p.per); tf = 0; }
     runAt.set(p, run.team === 'b' ? run.pts : 0); foulsAt.set(p, tf);
     if (p.pts) { if (run.team === p.team) run.pts += p.pts; else run = { team: p.team, pts: p.pts }; } });
+  /* STOP THE RUN: every possession, both ends, from the moment their run counts as a run (teamRuns: 6-0, or +8
+     holding us to 40%) until Moorpark's first score after its peak, which ends it: that possession is the run
+     ended, credited to the five on the floor. A run still going is tagged up to now. */
+  const inRun = new Set(), ender = new Set();
+  g.periods.forEach(per => { const H = P.filter(p => p.per === per);
+    teamRuns(H, 'b').forEach(r => {
+      let k0 = r.i0; for (let k = r.i0; k <= r.i1; k++) { const f = H[k].score.b - H[r.i0].before.b, a = H[k].score.a - H[r.i0].before.a; if (isRun(f, a)) { k0 = k + 1; break; } }
+      for (let k = k0; k < H.length; k++) { inRun.add(H[k]); if (k > r.i1 && H[k].team === 'a' && H[k].pts > 0) { ender.add(H[k]); break; } } }); });   // a basket inside the run (10-2) doesn't end it
   P.forEach(p => {
     if (p.gt || (p.five.a || []).length !== 5) return;
     const ot = p.per.startsWith('OT'), ck = p.clockSecs, n = left.get(p);
@@ -5865,11 +5893,12 @@ function sitLogGame(g) {
     const last = (p.per === '2H' || ot) && ((ck != null && ck <= LAST_SECS) || (g.final && n != null && n <= LAST_POSS) || (ot && g.final && P.filter(q => q.per === p.per).slice(-LAST_POSS).includes(p)));
     const c = { late, last, m: p.before.a - p.before.b, run: runAt.get(p) || 0, tf: foulsAt.get(p) || 0 };
     const side = p.team === 'a' ? 'o' : 'd', tags = Object.entries(SITLOG).filter(([, s]) => s.end === side && s.on(c)).map(([k]) => k);
+    if (inRun.has(p)) tags.push('run');
     if (!tags.length) return;
     const ft = p.plays.filter(e => isFT(e.k) && e.team === p.team);
     out[p.id] = { t: tags, per: p.per, end: side, five: p.five.a.slice().sort(), opp: (p.five.b || []).slice(), m: c.m, clock: ck == null ? null : ck,
       pts: p.pts, stop: p.team === 'b' ? !!p.stop : undefined, to: ['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col) ? 1 : 0, ftm: ft.filter(e => e.k === 'ftm').length, fta: ft.length,
-      stl: p.end.col === 'STL' ? 1 : 0, fouls: p.team === 'b' && ft.length ? 1 : 0 };   // fouled = they went to the line
+      stl: p.end.col === 'STL' ? 1 : 0, fouls: p.team === 'b' && ft.length ? 1 : 0, ended: ender.has(p) ? 1 : 0 };   // fouled = they went to the line
   });
   return out;
 }
@@ -5886,25 +5915,26 @@ function backfillSits() {
 }
 /* A five's season record in one situation, from every game's saved log: trips, and the result.
    Quality opponents only once ratings are on this iPad (an in-system opponent with a positive net), all games
-   until then; scrimmages never. */
+   until then. Scrimmages count until the first regular-season game is final (seasonPool), never in the quality cut. */
 function sitRecords(sitId) {
   const A = luAdj(), Q = {}; ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null) Q[x.id] = x.oppOrtg - x.oppDrtg > 0; });
   const useQ = !!(A && A.live), recs = {};
-  games.forEach(g => { if (!g.sitLog) try { stampSits(g); } catch (e) {} if (!g.sitLog || !g.sitLog.poss) return; const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
-    if (useQ && g.final && !Q[g.id]) return;
-    Object.values(g.sitLog.poss).forEach(r => { if (!r.t.includes(sitId)) return; const k = r.five.join('|'), x = recs[k] = recs[k] || { n: 0, pts: 0, stops: 0, to: 0, stl: 0, ftm: 0, fta: 0, fouls: 0, nofoul: 0, games: new Set() };
+  games.forEach(g => { if (!g.sitLog) try { stampSits(g); } catch (e) {} if (!g.sitLog || !g.sitLog.poss) return; if (!seasonPool().includes(g)) return;
+    if (useQ && g.final && !Q[g.id] && !gSched(g).scrim) return;
+    Object.values(g.sitLog.poss).forEach(r => { if (!r.t.includes(sitId)) return; const k = r.five.join('|'), x = recs[k] = recs[k] || { n: 0, pts: 0, stops: 0, to: 0, stl: 0, ftm: 0, fta: 0, fouls: 0, nofoul: 0, on: 0, opts: 0, ended: 0, games: new Set() };
+      if (r.end !== SITLOG[sitId].end) { x.on++; x.opts += r.pts || 0; x.ended += r.ended || 0; x.games.add(g.id); return; }   // Stop the run: our trips during it
       x.n++; x.pts += r.pts || 0; x.stops += r.stop ? 1 : 0; x.to += r.to || 0; x.stl += r.stl || 0; x.ftm += r.ftm || 0; x.fta += r.fta || 0; x.fouls += r.fouls || 0; x.nofoul += r.fouls ? 0 : 1; x.games.add(g.id); }); });
   return { recs, quality: useQ };
 }
 // The record as one number on the situation's stat (same units as the Lineups ranking), and as words.
 function sitRecVal(sitId, x) {
-  if (!x || !x.n) return null;
+  if (!x || !x.n) return null;   // (Stop the run ranks on stops; points and runs ended show in its line)
   return { stop: 100 * x.stops / x.n, run: 100 * x.stops / x.n, ball: 100 * x.to / x.n, steal: 100 * x.stl / x.n, foul: 100 * x.fouls / x.n, ft: x.pts / x.n, three: x.pts / x.n }[sitId];
 }
 function sitRecText(sitId, x) {
-  if (!x || !x.n) return '';
+  if (!x || (!x.n && !x.on)) return '';
   const g = x.games.size, gs = ` · ${g} game${g === 1 ? '' : 's'}`;
-  return { stop: `${x.stops}/${x.n} stops`, run: `${x.stops}/${x.n} stops`, ball: `${x.to} TO on ${x.n} trips`, steal: `${x.stl} steals, ${x.to} TO forced on ${x.n} trips`,
+  return { stop: `${x.stops}/${x.n} stops`, run: `${x.stops}/${x.n} stops, ${x.opts} pts on ${x.on} of our trips · ended ${x.ended} run${x.ended === 1 ? '' : 's'}`, ball: `${x.to} TO on ${x.n} trips`, steal: `${x.stl} steals, ${x.to} TO forced on ${x.n} trips`,
     foul: `${x.nofoul}/${x.n} trips without sending them to the line`, ft: `${(x.pts / x.n).toFixed(2)} pts/trip on ${x.n} trips${x.fta ? ` · ${x.ftm}/${x.fta} FT` : ''}`, three: `${(x.pts / x.n).toFixed(2)} pts/trip on ${x.n} trips` }[sitId] + gs;
 }
 // How much the record counts in the ranking: n / (n + 12). 3 trips → 20%, 12 → 50%, 24 → 67%.
@@ -6395,7 +6425,7 @@ function rnGames(scope) {
   if (scope === 'game') { const g = cur(); return g ? [g] : []; }
   const A = luAdj(), net = {};
   ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) net[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
-  return games.filter(g => g.ev && g.ev.length && !((schedule().find(x => x.id === g.schedId) || {}).scrim))
+  return seasonPool()   // scrimmages until the first regular-season game is final
     .filter(g => scope !== 'quality' || net[g.date + '|' + String(g.opp).toLowerCase()] > 0);
 }
 function rnAgg(list) {

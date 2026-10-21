@@ -219,7 +219,7 @@ underlined gold in their rows. Blue is the one open.
 | Ball security | up 1-10, last 4:00 | lowest TO% |
 | Need steals | down 4+, last 4:00 | most steals per defensive possession |
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
-| Stop the run | they're on a 6-0 run or more | best stop % |
+| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | the stop-the-run score: most possessions, best net, fewest runs allowed = (net − 10 per run allowed per 20 def poss) × poss / (poss + 20); runs charged to the five on when they started; season = every game tracked here |
 | Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
 | Stop the 2s | their 2P% 8+ over our norm (10+ twos) | best **rim D**: low opponent 2P%, blocks, without fouling (below) |
 | Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
@@ -245,7 +245,7 @@ next three on the bench, a red line naming the weakest shooter on the floor ("Th
 and **Sub these five in**. Closing FT% = the player's season FT% (quality games, pulled toward the team
 rate when attempts are few; 10+ FTA to be picked) moved toward their **clutch FTs** as those add up: clutch
 attempts weigh against 20 attempts at the season rate, so one 0/2 night can't sink anyone. Clutch FTs =
-FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, in every game (no scrimmages),
+FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, in every game (scrimmages only until the first regular-season game is final),
 only where a clock you set stands behind the possession. Fewer than five qualified players → it says so
 and leaves the rest to you. No leverage row here (FT% is the players' own numbers). Plug in uses the same
 closing FT%.
@@ -374,7 +374,8 @@ chip per game). Quads are the leaderboard's (its Quads tab), exactly: opponents 
 NCAA cutoffs of 353 scaled to the league (Q1A home 15 / neutral 25 / away 40, Q1 30/50/75, Q2 75/100/135, Q3
 160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages count in every split only until the first regular-season game is Final
 (Nov 2, Antelope Valley): until then every game adds to who's played together and the sample; after it they drop
-out of every season number (lineups, WOWY, the Season report) on their own. The scrimmage games stay on the iPad and
+out of every season number (lineups, WOWY, the Season report, the situation lineups like Stop the run, clutch FTs)
+on their own. The scrimmage games stay on the iPad and
 open one at a time. **No scrimmages** leaves them out sooner. Season 2H =
 every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
 This game is picked).
@@ -488,7 +489,7 @@ existed are filled in when the tracker opens.
 | Last stop | their ball, up 1-3, last minute | stops |
 | Need steals | their ball, down 4+, late | steals, TOs forced |
 | Need a 3 | our ball, down 4-9, late | pts / trip |
-| Stop the run | their ball while they're on a 6-0 or more | stops |
+| Stop the run | both ends, from when their run counts (6-0, or +8 holding us to 40%) until our first score after its peak ends it | stops on their trips; its line adds our points on our trips and **runs ended** (the five on when that score went in) |
 | Stop fouling | their ball with our 7+ team fouls | trips without sending them to the line |
 
 **Late is never estimated:** during a game, the clock you entered (4:00 or less in the 2nd half, any OT;
