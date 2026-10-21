@@ -1261,7 +1261,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.219';
+const VERSION = 'v2026.10.21.220';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2460,7 +2460,7 @@ function lineupTable(g, D, t, scope, filter, k, builder) {
     return (c * S.dir) || (y.v.poss - x.v.poss); });
   const th = ([key, label, cls]) => `<th class="${cls} sortable ${S.key === key ? 'on' : ''}" data-act="lu-sort" data-s="${key}">${key === 'five' ? (k === 5 ? 'FIVE' : k + '-MAN') : label}${S.key === key ? (S.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
   return `<table class="tbl zebra lut lutx"><thead>
-    <tr class="grp"><th></th><th colspan="5" class="lu-mode">${builder && t === 'a' ? (AV ? 'OPP-ADJUSTED RATINGS' : 'RAW') : ''}</th><th colspan="4" class="go">OFFENSE</th><th colspan="4" class="gd">DEFENSE</th></tr>
+    <tr class="grp"><th></th><th colspan="5" class="lu-mode">${builder && t === 'a' ? (AV && rows.some(x => !x.v.rawOnly) ? 'OPP-ADJUSTED RATINGS' : 'RAW RATINGS') : ''}</th><th colspan="4" class="go">OFFENSE</th><th colspan="4" class="gd">DEFENSE</th></tr>
     <tr>${LU_COLS.map(th).join('')}</tr></thead><tbody>
     ${rows.map(({ u, f, v }) => { const key = t + ':' + k + ':' + fiveKey(u.five);
       return `<tr class="unit ${k === 5 && fiveKey(u.five) === nowKey ? 'now' : ''} ${v.rawOnly ? 'rawonly' : ''}" title="${v.rawOnly ? 'Raw: no rated opponent in this view' : ''}" data-act="lu-open" data-k="${esc(key)}"><td><b>${f.map(id => esc(pInfo(g, t, id).num || '—')).join(' · ')}</b><div class="tiny muted">${esc(f.map(id => pInfo(g, t, id).name ? lastName(pInfo(g, t, id).name) : '#' + pInfo(g, t, id).num).join(', '))}</div></td>
@@ -2527,7 +2527,7 @@ function adjUnits(A, scope) {
 /* The backup corner: where the adjusted numbers come from, raw numbers on request, and the lineup files. */
 function luDataCard() {
   const r = ratingsAge(), up = lsGet(LS_LU_ADJ, null);
-  return `<div class="lu-data"><div><b>Data</b> <span class="small muted">· ${r ? `opponent ratings as of ${esc(r.date)} (leaderboard, nightly)${r.days > 7 ? ' · <span class="neg">more than a week old: open the tracker online</span>' : ''}` : '<span class="neg">no opponent ratings on this iPad yet: open the tracker online once (until then the numbers are raw)</span>'} · ${splitGames().length} game${splitGames().length === 1 ? '' : 's'} in this split</span></div>
+  return `<div class="lu-data"><div><b>Data</b> <span class="small muted">· ${r && !Object.keys(r.R.teams || {}).length ? `no ${esc(r.R.season || 'this season')} opponent ratings yet (they come with the season's scraped games), so every five is raw` : r ? `opponent ratings as of ${esc(r.date)} (leaderboard, nightly)${r.days > 7 ? ' · <span class="neg">more than a week old: open the tracker online</span>' : ''}` : '<span class="neg">no opponent ratings on this iPad yet: open the tracker online once (until then the numbers are raw)</span>'} · ${splitGames().length} game${splitGames().length === 1 ? '' : 's'} in this split</span></div>
     <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn btn-sm ${UI.luRaw ? 'btn-primary' : ''}" data-act="lu-raw">${UI.luRaw ? 'Showing raw · back to adjusted' : 'Show raw numbers'}</button><button class="btn btn-sm" data-act="lu-export">⬇ Lineup file</button><button class="btn btn-sm" data-act="lu-adj">⬆ Adjusted file</button>${up ? '<button class="btn btn-sm" data-act="lu-adj-clear">Clear file</button>' : ''}</div></div>`;
 }
 // The four factors at halftime: which we're losing (ours vs theirs on ffCalc).
