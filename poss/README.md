@@ -776,6 +776,11 @@ five has 25+ offensive possessions).
   the top performers join what decided it, and both teams' box scores follow (+/- from the tracker, game score).
   **📄 Coaches' PDF** on the Post-game report makes it again (say, once the stat sheet is in). Made on the iPad with no
   signal needed (html2canvas + jsPDF in `vendor/pdf`, MIT, saved for offline).
+- **Rosters from the stats.** Every opponent with a stats file on the iPad (our schedule and tournament fields, once
+  the season's games are scraped) gets its roster filled automatically: number and name of everyone who has played
+  (zero-padded numbers like 01 read as 1). A roster you've never saved keeps getting new players as they appear; one
+  you've saved stays as you made it (removed players stay removed) and only gets blank names filled. Height and year
+  aren't in the stats.
 - **Opponent rosters travel with the files.** A game file carries its opponent's roster (names, position, height,
   year, labels) and the baseline / a season file carries every roster, so a roster you type is in the next baseline you
   make and every iPad gets it. Each **Save** stamps the roster; importing keeps, team by team, the most recently saved

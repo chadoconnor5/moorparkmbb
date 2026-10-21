@@ -1261,7 +1261,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.223';
+const VERSION = 'v2026.10.21.224';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5884,7 +5884,32 @@ function fetchTeamFiles(R) {
     .then(L => { const cur = teamFiles(); let n = 0; L.forEach(d => { if (d && d.kind === 'team-file' && d.name) { cur[d.name] = d; n++; } });
       // Only teams we play (or keep a roster for) are kept, so the iPad's storage stays small.
       Object.keys(cur).forEach(t => { if (!want.has(t)) delete cur[t]; });
-      if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
+      if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; autoRosters(); if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
+}
+/* Rosters from the stats: every opponent with a stats file gets its roster filled from it (number + name of everyone
+   who has played, the most minutes winning a shared number), under the name the schedule / tournament field uses.
+   A roster never saved by hand keeps getting new players as they appear; one you've saved stays as you made it (a
+   player you took away stays away) and only gets blank names filled. Height / year aren't in the stats: type them. */
+function autoRosters() {
+  const R = ratingsData(); if (!R || !R.teams) return 0;
+  const names = [...schedule().map(r => r.opp), ...readyList(), ...games.map(g => g.opp), ...oppStore().map(o => o.name)].filter(n => n && !isTBD(n));
+  const st = oppStore(); let n = 0;
+  Object.values(teamFiles()).forEach(F => { if (!F || !F.name || F.name === 'Moorpark' || !F.players) return;
+    // Zero-padded numbers ("01") are the plain number; 0 and 00 stay apart.
+    const jn = x => { const t = String(x == null ? '' : x).trim(); return /^0+$/.test(t) ? t : t.replace(/^0+(?=\d)/, ''); };
+    const best = {}; Object.entries(F.players).forEach(([nm, v]) => { const k = jn(v.num); if (!k || ((v.all || {}).games || 0) < 1) return;
+      if (!best[k] || ((v.all || {}).MIN || 0) > ((best[k][1].all || {}).MIN || 0)) best[k] = [nm, v]; });
+    if (!Object.keys(best).length) return;
+    const show = names.find(x => resolveTeam(x, R) === F.name) || F.name;
+    let o = st.find(x => normOpp(x.name) === normOpp(show)) || st.find(x => resolveTeam(x.name, R) === F.name);
+    if (!o) { o = { id: 'opp_' + uid(), name: show, players: [] }; st.push(o); }
+    o.players = o.players || [];
+    const hand = !!o.updatedAt && o.players.length;
+    Object.entries(best).forEach(([k, [nm]]) => { const q = o.players.find(x => jn(x.num) === k);
+      if (q) { if (!q.name) { q.name = nm; n++; } return; }
+      if (!hand) { o.players.push({ num: k, name: nm, pos: '', ht: '', yr: '', note: '' }); n++; } }); });
+  if (n) lsSet('gt_opp_rosters', st);
+  return n;
 }
 const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 // update_advanced_analytics.resolve_opponent: canonical name match (longest first), then the alias table.
@@ -7040,7 +7065,7 @@ async function coachReportPdf(g, quiet) {
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
-try { seedPicks(); fieldsAll(); } catch (e) {}
+try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
 /* DEMO: frozen on the seeded 2025-26 ratings and team files; no refresh, no season baseline. */
