@@ -2,7 +2,11 @@
 
 from pathlib import Path
 
-DEFAULT_SEASON = "2025-26"
+DEFAULT_SEASON = "2026-27"
+# The possession tracker (../poss) only ever carries this season's data: ratings, team files (Moorpark too) and the
+# scouting reports. Until the season has stats, export_ratings publishes them empty. (The leaderboard page has its
+# own season wiring; this doesn't touch it.)
+TRACKER_SEASON = "2026-27"
 
 
 CONFERENCES = {

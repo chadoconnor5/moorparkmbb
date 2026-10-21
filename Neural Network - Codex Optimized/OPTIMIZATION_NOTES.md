@@ -170,6 +170,12 @@ This copy keeps the original project intact and starts consolidating the working
   folds into November). `adjust()` takes `phase` and shifts both ends of each game by -phase[month], so a
   five's net is unchanged and its O/D split is put on the season-average scale.
 
+- One season on the tracker (Oct 2026): ccc_config.TRACKER_SEASON (2026-27) is the only season export_ratings and
+  generate_opponent_report --latest publish to ../poss (ratings, team files, Moorpark's playerSeason, reports). Before it
+  has ratings they're written EMPTY (team files / reports from another season removed); the iPad drops any other
+  season's cached team files and reports when it next opens online. DEFAULT_SEASON is 2026-27 (scrape / stats
+  defaults). The leaderboard page keeps its own (2025-26) season wiring.
+
 - Team files for the tracker (Oct 2026): `export_ratings.py` also writes `../poss/teams/<team>.json` (~10-20 KB
   each) for Moorpark, every team on Moorpark's schedule.json (`scheduled`) and every team in `tracker_teams.txt`
   (potential opponents, e.g. a tournament field: one per line, short names like RCC / CCSF / SBVC map through

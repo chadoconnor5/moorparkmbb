@@ -563,6 +563,9 @@ five has 25+ offensive possessions).
     opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
+- **This season only.** Ratings, team stats (Moorpark's too), stat labels and scouting reports are 2026-27 only
+  (`TRACKER_SEASON`); until the season has stats they're empty, and the iPad drops any older season's saved copies
+  the next time it opens with signal. Labels you typed yourself stay.
 - **Scouting reports on the iPad.** Every scrape that brings in new box scores also remakes the scouting report of each
   team that played and is on our schedule or in a tournament field (`poss/reports/`, one current PDF each, listed in
   `reports/index.json`). When the tracker opens with signal it saves each new one on the iPad, and **📄 Scout** opens
