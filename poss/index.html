@@ -1184,6 +1184,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .final-panel .fp-h{font-size:24px;font-weight:800;margin-bottom:18px}
 .final-panel .fp-btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:12px}
 .sb-tags{gap:6px} .sb-tags .skunk{margin-left:0}
+.between-note{max-width:900px;margin:0 auto 10px;padding:8px 12px;border-radius:8px;background:var(--card2);border:1px solid var(--bd);font-size:13px;color:var(--text2);text-align:center}
 
 </style>
 </head>
@@ -1217,7 +1218,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.200';
+const VERSION = 'v2026.10.21.201';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1234,7 +1235,12 @@ const pmCls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
 
 let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
-const cur = () => games.find(g => g.id === curId) || null;
+/* Between games (Live on the new-game setup, or nothing started yet) the game's data tabs keep showing a game: the
+   one picked in Report, else the last game played. Live, Games and Schedule only ever see the game in progress. */
+const DATA_TABS = new Set(['report', 'lineups', 'pbp', 'sheet', 'ff', 'runs']);
+const liveGame = () => games.find(g => g.id === curId) || null;
+const viewGame = () => games.find(g => g.id === UI.repId) || playedGames()[0] || null;
+const cur = () => liveGame() || (DATA_TABS.has(UI.tab) ? viewGame() : null);
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
 const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); try { bkTick(); } catch (e) {} };
 const D0 = g => derive(g).score;
@@ -1761,15 +1767,17 @@ function render() {
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
   if (!g && ['pbp', 'sheet', 'lineups', 'ff'].includes(UI.tab) || UI.tab === 'report' && !repGame()) { v.className = 'page mid'; v.innerHTML = noGame; return; }
+  const between = g && !liveGame() && DATA_TABS.has(UI.tab) && UI.tab !== 'report'   // Report has its own game list
+    ? `<div class="between-note">Between games · showing <b>${esc(fmtDay(g.date))} ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</b>${g.final ? ' (Final)' : ''} · pick another in Report</div>` : '';
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
-  else if (UI.tab === 'sheet') v.innerHTML = sheetView(g);
-  else if (UI.tab === 'lineups') v.innerHTML = lineupsView(g);
-  else if (UI.tab === 'ff') { v.innerHTML = '<div id="ff"></div>'; renderFF(); }
-  else if (UI.tab === 'pbp') v.innerHTML = pbpView(g);
+  else if (UI.tab === 'sheet') v.innerHTML = between + sheetView(g);
+  else if (UI.tab === 'lineups') v.innerHTML = between + lineupsView(g);
+  else if (UI.tab === 'ff') { v.innerHTML = between + '<div id="ff"></div>'; renderFF(); }
+  else if (UI.tab === 'pbp') v.innerHTML = between + pbpView(g);
   else if (UI.tab === 'report') v.innerHTML = reportView(repGame());
-  else if (UI.tab === 'runs') v.innerHTML = runsView();
+  else if (UI.tab === 'runs') v.innerHTML = between + runsView();
   else if (UI.tab === 'sched') v.innerHTML = schedView();
   else if (UI.tab === 'rosters') v.innerHTML = rostersView();
   document.querySelectorAll('.nav .tab[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));

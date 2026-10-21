@@ -669,7 +669,9 @@ five has 25+ offensive possessions).
   After Final, Live stops taking plays and shows the final score with **Start next game →** (the new-game setup),
   **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
   first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
-  latest report: Post-game once it's final, Halftime until then (the buttons still switch). Both start with
+  latest report: Post-game once it's final, Halftime until then (the buttons still switch). **Between games** (Live on
+  the new-game setup) Lineups, Play-by-Play, Sheet, Four factors and Runs keep showing that same game (the one picked
+  in Report, else the last game played), with a note saying which. Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
   half or 8+ for the game. The Post-game report adds **Best combos**: each team's top 2-, 3- and 4-man combos (top 3 of each) and
   by net rating, among those on the floor together for 20+ possessions. Combos that were
