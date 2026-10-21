@@ -37,7 +37,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   each opponent's opponent-adjusted factors (adj_ff, from update_advanced_analytics.py):
   python3 adjust_lineups.py <lineup file>   # -> internal_data/moorpark_lineups_adj.json
 - Publish the team ratings the possession tracker re-adjusts every game against (runs automatically at the
-  end of generate_leaderboard.py and in run_pipeline.py):
+  end of generate_leaderboard.py and in run_pipeline.py). The tracker only carries ccc_config.TRACKER_SEASON (2026-27):
+  until that season has ratings, everything it publishes is empty (no last-season numbers, Moorpark included):
   python3 export_ratings.py                 # -> ../poss/ratings.json + ../poss/teams/<team>.json (season and player
                                             #    stats for Moorpark's schedule + tracker_teams.txt, potential opponents
                                             #    like a tournament field: one team per line, short names ok)

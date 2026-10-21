@@ -37,6 +37,7 @@ from pathlib import Path
 
 import update_advanced_analytics as uaa
 import adjust_lineups as al
+from ccc_config import TRACKER_SEASON
 
 OUT = Path(__file__).resolve().parent.parent / "poss" / "ratings.json"
 SLUG = lambda t: re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")
@@ -587,14 +588,21 @@ def export_teams(season, ratings, out_dir, generated, teams):
 
 
 def export(season=None, out=OUT):
-    season = season or al.latest_ratings_season()
-    if not season:
-        print("export_ratings: no '<season> Team Statistics' folder with ratings; skipped.")
-        return None
-    ratings = al.load_ratings(season)
+    # Only the tracker's season (ccc_config.TRACKER_SEASON) is ever published. Before it has ratings the files are
+    # written empty (and older team files removed), so the iPad never shows another season's numbers.
+    season = season or TRACKER_SEASON
+    ratings = al.load_ratings(season) if (Path(f"{season} Team Statistics").exists()) else {}
     if not ratings:
-        print(f"export_ratings: no team ratings in '{season} Team Statistics'; skipped.")
-        return None
+        out = Path(out)
+        res = {"app": "moorpark-possession-tracker", "kind": "team-ratings", "version": 1,
+               "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"), "season": season,
+               "homeAdvantage": uaa.HOME_ADVANTAGE, "qualityMargin": al.QUALITY_MARGIN, "aliases": dict(uaa.OPPONENT_ALIASES),
+               "teams": {}, "phase": al.season_phase(), "playerSeason": {}, "scheduled": [], "teamFiles": {}}
+        export_teams(season, {}, out.parent / "teams", res["generatedAt"], [])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        json.dump(res, open(out, "w"), separators=(",", ":"))
+        print(f"export_ratings: no {season} ratings yet: wrote an empty {out.name} and cleared the team files (the tracker shows {season} only)")
+        return res
     factors = al.load_factors(season)
     teams = {}
     for team in uaa.all_stat_teams():
@@ -631,7 +639,7 @@ def export(season=None, out=OUT):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--season", help="e.g. 2026-27 (default: newest with ratings)")
+    ap.add_argument("--season", help="e.g. 2026-27 (default: ccc_config.TRACKER_SEASON)")
     ap.add_argument("--out", default=str(OUT))
     a = ap.parse_args()
     export(a.season, a.out)

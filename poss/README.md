@@ -563,6 +563,9 @@ five has 25+ offensive possessions).
     opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
+- **This season only.** Ratings, team stats (Moorpark's too), stat labels and scouting reports are 2026-27 only
+  (`TRACKER_SEASON`); until the season has stats they're empty, and the iPad drops any older season's saved copies
+  the next time it opens with signal. Labels you typed yourself stay.
 - **Scouting reports on the iPad.** Every scrape that brings in new box scores also remakes the scouting report of each
   team that played and is on our schedule or in a tournament field (`poss/reports/`, one current PDF each, listed in
   `reports/index.json`). When the tracker opens with signal it saves each new one on the iPad, and **📄 Scout** opens
@@ -579,7 +582,9 @@ five has 25+ offensive possessions).
     the leaderboard doesn't publish says *not published: add to tracker_teams.txt*),
   - every opponent you keep a roster for.
   An opponent's THIS FIVE labels then come from his players' real numbers, matched by jersey number.
-- **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
+- **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**. A dropdown at the top picks the team: Moorpark,
+  our schedule (date order), each tournament field, other teams to have ready, and any other saved roster (✓ = one is
+  saved). Any team on it can be edited; Save creates its roster.
   - **Roster · Basic · Advanced** (every team with leaderboard stats, Moorpark too): the leaderboard's Team Stats
     table. *Basic*: per-game lines (G, MPG, PPG, rebounds, AST, STL, BLK, TO, FG / 2P / 3P / FT, eFG%, TS%), sorted
     by PPG; tap a header to sort (the table stays scrolled where it was). The %Poss band labels stay pinned at the left when the table is scrolled right. *Advanced*: %Min, ORtg, %Poss, %Shots, eFG%, TS%, OR%, DR%, ARate, TORate, Blk%,

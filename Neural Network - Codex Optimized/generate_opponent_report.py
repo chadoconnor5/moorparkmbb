@@ -1275,6 +1275,8 @@ def build_latest(teams, season):
     ip = os.path.join(LATEST_DIR, 'index.json')
     try: index = json.load(open(ip))
     except (OSError, ValueError): index = {}
+    # Only this season's reports stay (the tracker shows one season): others leave the index and the folder.
+    index = {t: e for t, e in index.items() if e.get('season') == season}
     done = []
     for t in teams:
         f = f'{slug(t)}.pdf'; p = os.path.join(LATEST_DIR, f)
@@ -1284,6 +1286,9 @@ def build_latest(teams, season):
             index[t] = {'file': f, 'edition': ed, 'generatedAt': datetime.now().astimezone().isoformat(timespec='seconds'), 'season': season}
             done.append(t)
         elif os.path.exists(tmp): os.remove(tmp)
+    keep = {e['file'] for e in index.values()}
+    for f in os.listdir(LATEST_DIR):
+        if f.endswith('.pdf') and f not in keep: os.remove(os.path.join(LATEST_DIR, f))
     json.dump(index, open(ip, 'w'), indent=1, sort_keys=True)
     print(f'{len(done)} of {len(teams)} tracker reports updated -> {os.path.normpath(LATEST_DIR)}')
     return done
@@ -1331,6 +1336,8 @@ if __name__ == '__main__':
     a = ap.parse_args()
     if a.list: list_teams(a.season); sys.exit(0)
     if a.latest:
+        if '--season' not in sys.argv:   # the tracker's copies are always its season
+            from ccc_config import TRACKER_SEASON; a.season = TRACKER_SEASON
         T = tracker_teams(a.season)
         if a.only: T = [t for t in T if t in set(a.only)]
         build_latest(T, a.season); sys.exit(0)
