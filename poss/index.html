@@ -1197,6 +1197,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ftsh.set.two .ftsh-row{display:flex;align-items:center;gap:6px}.ftsh.set.two .ftsh-of{flex:1;text-align:center;white-space:nowrap}
 .ftsh-n button.oo{min-width:40px;font-size:12.5px}
 .rpick{display:flex;gap:8px;align-items:center}.r-pick{flex:1;min-width:0;font-size:16px;padding:10px 12px;border-radius:8px;background:var(--card2);color:var(--text);border:1px solid var(--bd)}
+#upd-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:9999;display:flex;gap:10px;align-items:center;background:#1e293b;border:1px solid var(--gold,#d8b860);color:#f3f4f6;padding:10px 14px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);font-weight:700}
 
 </style>
 </head>
@@ -1230,7 +1231,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.218';
+const VERSION = 'v2026.10.21.219';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1399,6 +1400,18 @@ function applyTeamColors(g) {
 }
 const teamColor = name => TEAM_COLORS[logoSlug(name)] || null;
 const logoSrc = name => { const k = logoSlug(name); return k ? `../game/logos/${k}.png` : null; };
+/* A newer version on the site: the home-screen app can stay open (in the background) for days without reloading, so
+   the page asks the site for its own index.html when it opens and whenever it comes back to the front, and compares
+   VERSION. Newer → a bar at the top: Update reloads (never on its own, so a game is never interrupted). */
+function checkUpdate() {
+  if (!window.fetch || !location.protocol.startsWith('http') || document.getElementById('upd-bar')) return;
+  fetch('index.html?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
+    const m = t.match(/const VERSION = '([^']+)'/); if (!m || m[1] === VERSION || m[1] < VERSION) return;
+    const d = document.createElement('div'); d.id = 'upd-bar';
+    d.innerHTML = `<span>New version of the tracker (${esc(m[1].replace(/^v/, ''))})</span><button class="btn btn-sm btn-good" onclick="location.reload()">Update</button><button class="btn btn-sm" onclick="this.parentNode.remove()">Later</button>`;
+    document.body.appendChild(d); }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 /* Every logo saved for offline up front: the offline copy (sw.js) keeps a logo only once it has loaded, so an
    opponent first seen in a gym with no signal had none (the button fell back to the name). Once the offline copy
    is running, each logo is asked for one at a time; the ones it already has come straight back from the iPad. */
@@ -6955,6 +6968,7 @@ render();
 fetchRatings();
 checkBaseline();
 saveLogos();
+checkUpdate();
 </script>
 </body>
 </html>

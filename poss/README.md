@@ -795,7 +795,9 @@ five has 25+ offensive possessions).
   and one post-game copy per game (the newest kept). **Open** shows it as saved with Print / PDF; **Delete**
   removes it.
 
-Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened. Every team logo
+Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened. **Updates:** the home-screen app can stay
+open in the background for days, so each time it opens or comes back to the front it checks the site for a newer
+version and shows a **New version · Update** bar (it never reloads on its own, so a game is never interrupted). Every team logo
 (`game/logos/`, ~1.8 MB) is saved for offline as soon as the app opens with signal, so an opponent's logo shows in a gym
 with none even if it was never opened before.
 The page is built from the game tracker's stylesheet, copied into `poss/index.html`. If the game
