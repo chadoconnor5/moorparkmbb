@@ -51,6 +51,11 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
 - **Picking a player:** once a stat is tapped, a tap anywhere on a player card picks him — his labels and the +N chip
   too (they only open their pop-up when no stat is waiting).
+- **Auto rebounds.** Tap rebounds as always; one you forget is filled in from the next play, so a possession is never
+  split: after a miss, the same team playing on (shot, FTs, turnover, the other side's steal) = their offensive
+  rebound; the other team playing = its defensive rebound. Not between FTs of one trip, not across periods, not after
+  **No rebound**. It shows as "(auto)" in the feed, a toast says so, and Undo takes it with the play. Games saved before
+  get the same fill once (a backup is kept first: Games → Backups, "Before auto rebounds").
 - **Free throws name the shooter.** The trip's first **FT Make / FT Miss**: tap the shooter's card (the player
   cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
@@ -795,7 +800,9 @@ five has 25+ offensive possessions).
   and one post-game copy per game (the newest kept). **Open** shows it as saved with Print / PDF; **Delete**
   removes it.
 
-Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened. Every team logo
+Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened. **Updates:** the home-screen app can stay
+open in the background for days, so each time it opens or comes back to the front it checks the site for a newer
+version and shows a **New version · Update** bar (it never reloads on its own, so a game is never interrupted). Every team logo
 (`game/logos/`, ~1.8 MB) is saved for offline as soon as the app opens with signal, so an opponent's logo shows in a gym
 with none even if it was never opened before.
 The page is built from the game tracker's stylesheet, copied into `poss/index.html`. If the game
