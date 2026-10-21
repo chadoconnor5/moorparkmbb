@@ -8,7 +8,9 @@ const SHELL = ['./', './index.html', './manifest.webmanifest', '../game/icon.svg
 // The stat-sheet photo reader (Tesseract, ~11 MB), saved up front so it works with no signal. Best effort:
 // a failed download never blocks the app from installing; it is fetched again on first use.
 const TESS = ['vendor/tess/tesseract.min.js', 'vendor/tess/worker.min.js', 'vendor/tess/tesseract-core-simd-lstm.wasm.js',
-              'vendor/tess/tesseract-core-lstm.wasm.js', 'vendor/tess/eng.traineddata.gz'];
+              'vendor/tess/tesseract-core-lstm.wasm.js', 'vendor/tess/eng.traineddata.gz',
+              // and the post-game report PDF maker (html2canvas + jsPDF), so Final makes the PDF in a gym with no signal
+              'vendor/pdf/html2canvas.min.js', 'vendor/pdf/jspdf.umd.min.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).then(() => Promise.all(TESS.map(u => c.add('../poss/' + u).catch(() => {})))))

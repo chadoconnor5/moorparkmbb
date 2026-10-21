@@ -1218,7 +1218,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.208';
+const VERSION = 'v2026.10.21.209';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2268,7 +2268,7 @@ function reportView(g) {
     ${dataPicker(g)}
     <div class="page-head"><h2>${half ? 'Halftime report' : 'Post-game report'}</h2>
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
-      <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button><button class="btn btn-sm" data-act="print">Print / PDF</button></div>
+      <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button>${half ? '' : '<button class="btn btn-sm btn-good" data-act="coach-pdf">📄 Coaches\' PDF</button>'}<button class="btn btn-sm" data-act="print">Print / PDF</button></div>
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
@@ -3637,7 +3637,7 @@ document.addEventListener('click', ev => {
       if (!g.h2Need.length) { delete g.h2Need; SUB = null; toast('2nd half: both fives in — logging is on', 'good'); }
       save(); render(); break; }
     case 'scout': openScout(); break;
-    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; UI.repId = g.id; UI.repSeason = false; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => coachReportPdf(g, true), 1200); setTimeout(() => toast('Game file and post-game report PDF downloaded (Files → Downloads). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; UI.repId = g.id; UI.repSeason = false; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
     // End of regulation / an OT going into another OT: the game file downloads (poss_…_reg.json, _ot1, _ot2…).
     case 'start-ot': { const nx = 'OT' + (otCount(g) + 1), was = g.per === '2H' ? 'reg' : g.per.toLowerCase();
       backupGame(g, was === 'reg' ? 'reg' : 'ot'); exportGame(g, was);
@@ -3652,6 +3652,7 @@ document.addEventListener('click', ev => {
     case 'rep': UI.rep = b.dataset.r; render(); break;
     case 'rep-save': { const rg = repGame(); snapReport(rg, repHalf(rg) ? 'half' : 'post'); break; }
     case 'rep-game-row': pickGame(b.dataset.id); break;
+    case 'coach-pdf': toast('Making the PDF…'); coachReportPdf(repGame()); break;
     case 'rep-open': UI.repSeason = false; UI.repId = b.dataset.id; UI.rep = 'post'; UI.tab = 'report'; render(); window.scrollTo(0, 0); break;
     case 'rp-open': UI.savedId = b.dataset.id; UI.tab = 'saved'; render(); window.scrollTo(0, 0); break;
     case 'rp-back': UI.tab = 'games'; render(); break;
@@ -6688,6 +6689,175 @@ function baselineLine() {
   const at = rpWhen(BASE.file.exportedAt);
   return BASE.pending ? `<div class="row" style="gap:8px;align-items:center;margin-top:8px"><span class="small neg">The site has a newer season baseline (${esc(at)}) not loaded on this iPad.</span><button class="btn btn-sm btn-good" data-act="base-load">Load it</button></div>`
     : `<div class="small muted" style="margin-top:8px">Season baseline on the site: ${esc(at)} · loaded on this iPad ✓</div>`;
+}
+
+/* ---------- coaches' post-game report ----------
+   A clean, printable page to send to the staff after a game: the score by half, the key numbers, what decided it
+   (written out from the numbers), team stats, the runs, and the lineups. Dark, like the app; it prints dark too
+   (print-color-adjust). With the final stat sheet read in, the shooting / rebounding / assist counts come from the
+   box score, a players page (both teams' box, +/- from the tracker, game score) is added, and the top performers
+   join "what decided it". */
+const CR_CSS = `
+:root{--bg:#0d1016;--card:#151a22;--line:#262d38;--txt:#e5e7eb;--mut:#8b95a5;--acc:#4fc3f7;--gold:#d8b860;--good:#4ade80;--bad:#f87171}
+*{box-sizing:border-box}html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.cr{max-width:760px;margin:0 auto;padding:22px 26px}
+.cr-top{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--gold);padding-bottom:12px}
+.cr-top img{width:46px;height:46px;object-fit:contain}
+.cr-sc{flex:1;text-align:center}.cr-sc .n{font-size:30px;font-weight:800;letter-spacing:.01em}.cr-sc .n span{color:var(--muted);font-weight:600;margin:0 8px}
+.cr-sc .n .us{color:var(--acc)}.cr-sc .n .them{color:var(--them)}
+.cr-sc .t{font-size:12px;color:var(--gold);text-transform:uppercase;letter-spacing:.12em;font-weight:800}
+.cr-sc .m{font-size:12px;color:var(--muted);margin-top:2px}
+.cr-res{display:inline-block;padding:1px 8px;border-radius:4px;font-weight:800;color:#0d1016;margin-right:6px}.cr-res.w{background:var(--good)}.cr-res.l{background:var(--bad)}.cr-res.t{background:var(--muted)}
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:13px 0 5px;border-bottom:1px solid var(--line);padding-bottom:3px}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:6px;overflow:hidden}th,td{padding:3px 6px;text-align:center;border-bottom:1px solid var(--line)}
+th{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;background:#11151c}
+td.l,th.l{text-align:left}.b{font-weight:800}.pos{color:var(--good)}.neg{color:var(--bad)}.mut{color:var(--muted)}.us{color:var(--acc)}.them{color:var(--them)}
+.cr-keys{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.cr-k{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 4px;text-align:center}.cr-k .h{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.cr-k .v{font-size:13px;margin-top:2px}.cr-k .v b{font-size:15px}.cr-k .v .w{color:var(--good)}
+ul.cr-why{margin:4px 0 0;padding-left:18px}ul.cr-why li{margin:2px 0}
+.cr-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.ts-tbl td.ts-a,.ts-tbl th.ts-a{text-align:right;width:28%}.ts-tbl td.ts-b,.ts-tbl th.ts-b{text-align:left;width:28%}.ts-tbl td.ts-lbl{color:var(--muted);font-size:12px}.ts-win{font-weight:800;color:var(--txt)}
+.ts-tbl td{padding:3px 6px;color:#c5cad3}.ts-tbl td.ts-lbl{white-space:nowrap}
+td.nw{white-space:nowrap}
+.bx td,.bx th{padding:3px 4px;font-size:11.5px}.bx td.l{white-space:nowrap}.bx tr.tot td{font-weight:800;border-top:1px solid var(--muted)}.bx tr.bench td:first-child{border-top:1px dashed var(--line)}
+.cr-foot{margin-top:16px;font-size:10.5px;color:var(--muted);text-align:center}
+.cr-bar{position:sticky;top:0;background:#11151c;border-bottom:1px solid var(--line);padding:8px 12px;display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.cr-bar button{font:inherit;font-weight:700;border:0;border-radius:6px;padding:8px 14px;background:var(--gold);color:#1a1300}
+@media print{.pg+.pg{break-before:page}.cr-bar{display:none}.cr{max-width:none;padding:0}.pg{padding:11mm 12mm}h2{break-after:avoid}table,.cr-keys{break-inside:avoid}}
+@page{size:letter;margin:0}`;
+
+function coachReportHtml(g, bar) {
+  const D = derive(g), S = perSums(D, null), X = teamStats(g, D, 'G'), opp = g.opp, sch = schedule().find(r => r.id === g.schedId) || {};
+  // The final stat sheet, when it's been read in: its counts replace the tracked ones (possessions, PPP, points off
+  // turnovers and second-chance points stay the tracker's).
+  const SH = g.sheet && g.sheet.G && ['a', 'b'].every(t => g.sheet.G[t] && (g.sheet.G[t].rows || []).length) ? g.sheet.G : null;
+  const SL = SH ? { a: sheetTeamLine(SH.a), b: sheetTeamLine(SH.b) } : null;
+  if (SL) ['a', 'b'].forEach(t => ['fgm', 'fga', 'fg3m', 'fg3a', 'ftm', 'fta', 'oreb', 'dreb', 'ast', 'stl', 'blk', 'tov', 'pf', 'pts'].forEach(k => { if (SL[t][k] != null) X[t][k] = +SL[t][k] || 0; }));
+  const pc = (n, d) => d ? 100 * n / d : null, f1 = v => v == null ? '—' : v.toFixed(1), pp = v => v == null ? '—' : v.toFixed(1) + '%';
+  const res = S.pts.a > S.pts.b ? 'w' : S.pts.a < S.pts.b ? 'l' : 't';
+  const site = { H: 'Home', A: 'Away', N: 'Neutral' }[g.loc] || '';
+  const abs = p => { try { return new URL(p, location.href).href; } catch (e) { return p; } };
+  const lg = n => { const s = logoSrc(n); return s ? `<img src="${abs(s)}" alt="">` : '<span style="width:46px"></span>'; };
+  // The four factors (and PPP) from the tracked plays, both teams.
+  const F = t => { const x = X[t], o = X[other(t)];
+    return { ppp: x.n ? x.pts / x.n : null, efg: pc(x.fgm + 0.5 * x.fg3m, x.fga), to: pc(x.tov, x.n), orb: pc(x.oreb, x.oreb + o.dreb), ftr: pc(x.fta, x.fga), p3: pc(x.fg3m, x.fg3a) }; };
+  const A = F('a'), B = F('b');
+  const key = (h, k, hi, fmt) => { const a = A[k], b = B[k], w = a == null || b == null || a === b ? '' : (a > b) === hi ? 'a' : 'b';
+    return `<div class="cr-k"><div class="h">${h}</div><div class="v"><b class="${w === 'a' ? 'w' : ''}">${fmt(a)}</b> <span class="mut">·</span> <span class="${w === 'b' ? 'b' : ''}">${fmt(b)}</span></div></div>`; };
+  const ppS = v => v == null ? '—' : v.toFixed(2), pctS = v => v == null ? '—' : Math.round(v) + '%';
+  // What decided it: the edges big enough to matter, biggest first.
+  const why = [], add = (w, t) => why.push({ w, t });
+  if (A.ppp != null && B.ppp != null) add(99, `${A.ppp >= B.ppp ? 'We' : 'They'} were the more efficient team: ${ppS(A.ppp)} points per possession to ${ppS(B.ppp)} over ${Math.floor((S.poss.a + S.poss.b) / 2)} possessions.`);
+  const dEfg = A.efg - B.efg; if (Math.abs(dEfg) >= 3) add(Math.abs(dEfg) / 2, dEfg > 0 ? `We shot it better: ${pctS(A.efg)} eFG to their ${pctS(B.efg)} (3s: ${X.a.fg3m}-${X.a.fg3a} vs ${X.b.fg3m}-${X.b.fg3a}).` : `They shot it better: ${pctS(B.efg)} eFG to our ${pctS(A.efg)} (3s: ${X.b.fg3m}-${X.b.fg3a} vs our ${X.a.fg3m}-${X.a.fg3a}).`);
+  const dTo = B.to - A.to; if (Math.abs(dTo) >= 3) add(Math.abs(dTo) / 2, dTo > 0 ? `We won the turnover battle: ${X.a.tov} turnovers to their ${X.b.tov} (${pctS(A.to)} vs ${pctS(B.to)} of possessions), ${X.a.pot} points off their turnovers to ${X.b.pot}.` : `Turnovers hurt us: ${X.a.tov} to their ${X.b.tov} (${pctS(A.to)} vs ${pctS(B.to)}), ${X.b.pot} points off our turnovers.`);
+  const dOrb = A.orb - B.orb; if (Math.abs(dOrb) >= 6) add(Math.abs(dOrb) / 3, dOrb > 0 ? `We owned the offensive glass: ${pctS(A.orb)} OREB to their ${pctS(B.orb)}, ${X.a.sc2} second-chance points to ${X.b.sc2}.` : `They beat us on the offensive glass: ${pctS(B.orb)} OREB to our ${pctS(A.orb)}, ${X.b.sc2} second-chance points to our ${X.a.sc2}.`);
+  const dFt = A.ftr - B.ftr; if (Math.abs(dFt) >= 10) add(Math.abs(dFt) / 5, dFt > 0 ? `We got to the line more: ${X.a.fta} FTA to ${X.b.fta} (made ${X.a.ftm}).` : `They got to the line more: ${X.b.fta} FTA to our ${X.a.fta} (they made ${X.b.ftm}).`);
+  const RG = runsGame(g), big = t => RG.runs.filter(r => r.team === t).sort((x, y) => (y.pts - y.against) - (x.pts - x.against))[0];
+  const ba = big('a'), bb = big('b');
+  if (ba) add(4 + (ba.pts - ba.against) / 4, `Our biggest run: ${ba.pts}-${ba.against} in the ${PER_NAME(ba.per).toLowerCase()} (${ba.from.a}-${ba.from.b} to ${ba.to.a}-${ba.to.b}).`);
+  if (bb) add(3 + (bb.pts - bb.against) / 4, `Their biggest run: ${bb.pts}-${bb.against} in the ${PER_NAME(bb.per).toLowerCase()} (${bb.from.a}-${bb.from.b} to ${bb.to.a}-${bb.to.b}).`);
+  if (S.kills.a || S.kills.b) add(2.5, `Kills (3 stops in a row): us ${S.kills.a}, them ${S.kills.b}.`);
+  // Top performers (box score): our two best by game score, and their leading scorer.
+  const played = r => r.min || r.fga || r.fta || r.pts || r.oreb || r.dreb || r.ast || r.tov;
+  const line = r => { const n = v => +v || 0, reb = n(r.oreb) + n(r.dreb);
+    return `${n(r.pts)} pts (${n(r.fgm)}-${n(r.fga)} FG${n(r.fg3a) ? `, ${n(r.fg3m)}-${n(r.fg3a)} 3PT` : ''}${n(r.fta) ? `, ${n(r.ftm)}-${n(r.fta)} FT` : ''})${reb ? `, ${reb} reb` : ''}${n(r.ast) ? `, ${n(r.ast)} ast` : ''}${n(r.stl) ? `, ${n(r.stl)} stl` : ''}`; };
+  const who = r => (r.num ? '#' + r.num + ' ' : '') + lastName(r.name || '');
+  if (SH) {
+    const ours = SH.a.rows.filter(played).map(r => ({ r, x: sheetAdv(r, SL.a, SL.b) })).sort((p, q) => q.x.gmsc - p.x.gmsc).slice(0, 2);
+    ours.forEach((o, i) => add(6 - i, `${i ? 'Also' : 'Top performer'}: ${who(o.r)}, ${line(o.r)}.`));
+    const th = SH.b.rows.filter(played).sort((p, q) => (+q.pts || 0) - (+p.pts || 0))[0]; if (th) add(4.5, `Their leading scorer: ${who(th)}, ${line(th)}.`);
+  }
+  const whyL = why.sort((x, y) => y.w - x.w).slice(0, SH ? 8 : 6).map(x => `<li>${esc(x.t)}</li>`).join('');
+  // By half.
+  const half = g.periods.map(per => { const P = perSums(D, per); return `<tr><td class="l">${esc(PER_NAME(per))}</td><td class="b">${P.pts.a}</td><td>${P.pts.b}</td><td>${ppp(P.pts.a, P.poss.a)}</td><td>${ppp(P.pts.b, P.poss.b)}</td><td>${P.kills.a}</td><td>${P.kills.b}</td></tr>`; }).join('')
+    + `<tr><td class="l b">Game</td><td class="b">${S.pts.a}</td><td class="b">${S.pts.b}</td><td class="b">${ppp(S.pts.a, S.poss.a)}</td><td class="b">${ppp(S.pts.b, S.poss.b)}</td><td class="b">${S.kills.a}</td><td class="b">${S.kills.b}</td></tr>`;
+  // Runs, both teams, in order.
+  const runs = RG.runs.slice().sort((x, y) => g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || (x.from.a + x.from.b) - (y.from.a + y.from.b));
+  const five = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return (p.num ? '#' + p.num + ' ' : '') + lastName(p.name || id); }).join(', ');
+  const runRows = runs.map(r => `<tr><td class="l nw ${r.team === 'a' ? 'pos' : 'neg'} b">${r.team === 'a' ? 'Moorpark' : esc(opp)}</td><td class="b nw">${r.pts}-${r.against}</td><td class="nw">${esc(PER_NAME(r.per))}</td><td class="nw">${r.from.a}-${r.from.b} → ${r.to.a}-${r.to.b}</td><td class="l" style="font-size:11.5px">${esc(five(r.fiveA))}</td></tr>`).join('');
+  // Lineups: most used, best and worst by net (enough possessions).
+  const U = lineupUnits(g, D, 'a', 'game', 'all').units.map(u => Object.assign({ poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null }, u)).filter(u => u.net != null);
+  let min = 5; while (min > 1 && !U.some(u => u.poss >= min)) min--;
+  const ok = U.filter(u => u.poss >= min), best = ok.slice().sort((x, y) => y.net - x.net || (y.pf - y.pa) - (x.pf - x.pa)).slice(0, 3);
+  const most = U.slice().sort((x, y) => y.poss - x.poss).slice(0, 3), worst = ok.filter(u => !best.includes(u) && u.net < 0).sort((x, y) => x.net - y.net).slice(0, 2);
+  const luRow = u => `<tr><td class="l" style="font-size:11.5px">${esc(five(u.five))}</td><td>${u.poss}</td><td class="${u.pf - u.pa > 0 ? 'pos' : u.pf - u.pa < 0 ? 'neg' : ''}">${sgn(u.pf - u.pa)}</td><td class="b ${u.net > 0 ? 'pos' : u.net < 0 ? 'neg' : ''}">${sg1(Math.round(10 * u.net) / 10)}</td></tr>`;
+  const luTbl = (h, L) => `<table><thead><tr><th class="l">${h}</th><th>Poss</th><th>+/-</th><th>Net</th></tr></thead><tbody>${L.map(luRow).join('') || '<tr><td class="l mut" colspan="4">Not enough possessions.</td></tr>'}</tbody></table>`;
+  // Team stats: the same rows as the report, split into two tables side by side so the page stays short.
+  const tsRows = [...teamStatsCard(g, D, 'G', 'the game').matchAll(/<tr><td class="ts-a[\s\S]*?<\/tr>/g)].map(m => m[0]), mid = tsRows.findIndex(r => />Offensive rebounds</.test(r));
+  const tsT = L => `<table class="ts-tbl"><thead><tr><th class="ts-a">MPK</th><th></th><th class="ts-b">${esc(teamAbbr(g, 'b'))}</th></tr></thead><tbody>${L.join('')}</tbody></table>`;
+  const ts = `<div class="cr-2">${tsT(tsRows.slice(0, mid))}${tsT(tsRows.slice(mid))}</div>`;
+  // Players page: both teams' box, starters then bench, totals; +/- from the tracker (matched by jersey number).
+  const pm = t => { const U = {}; lineupUnits(g, D, t, 'game', 'all', 1).units.forEach(u => { U[u.five[0]] = u.pf - u.pa; }); return U; };
+  const idOf = (t, num) => { if (t === 'b') return 'o:' + num; const p = teamPlayers(g, 'a').find(x => String(x.num) === String(num)); return p ? p.id : null; };
+  const box = t => { if (!SH) return ''; const PM = pm(t), rows = SH[t].rows.filter(played), st = rows.filter(r => r.starter), bn = rows.filter(r => !r.starter);
+    const n = v => +v || 0, mk = (m, a) => `${n(m)}-${n(a)}`;
+    const tr = (r, cls) => { const p = PM[idOf(t, r.num)], x = sheetAdv(r, SL[t], SL[other(t)]);
+      return `<tr class="${cls || ''}"><td class="l">${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name || '')}</td><td>${n(r.min) || ''}</td><td class="b">${n(r.pts)}</td><td>${mk(r.fgm, r.fga)}</td><td>${mk(r.fg3m, r.fg3a)}</td><td>${mk(r.ftm, r.fta)}</td><td>${n(r.oreb)}</td><td>${n(r.dreb)}</td><td class="b">${n(r.oreb) + n(r.dreb)}</td><td>${n(r.ast)}</td><td>${n(r.stl)}</td><td>${n(r.blk)}</td><td>${n(r.tov)}</td><td>${n(r.pf)}</td><td class="${p > 0 ? 'pos' : p < 0 ? 'neg' : ''}">${p == null ? '—' : sgn(p)}</td><td>${x.gmsc.toFixed(1)}</td></tr>`; };
+    const T = SL[t];
+    return `<h2>${t === 'a' ? '<span class="us">Moorpark</span>' : `<span class="them">${esc(opp)}</span>`} box score</h2><table class="bx"><thead><tr><th class="l">Player</th><th>Min</th><th>Pts</th><th>FG</th><th>3PT</th><th>FT</th><th>OR</th><th>DR</th><th>Reb</th><th>Ast</th><th>Stl</th><th>Blk</th><th>TO</th><th>PF</th><th>+/-</th><th>GmSc</th></tr></thead><tbody>
+      ${st.map(r => tr(r)).join('')}${bn.map((r, i) => tr(r, i ? '' : 'bench')).join('')}
+      <tr class="tot"><td class="l">Team</td><td></td><td>${n(T.pts)}</td><td>${mk(T.fgm, T.fga)}</td><td>${mk(T.fg3m, T.fg3a)}</td><td>${mk(T.ftm, T.fta)}</td><td>${n(T.oreb)}</td><td>${n(T.dreb)}</td><td>${n(T.oreb) + n(T.dreb)}</td><td>${n(T.ast)}</td><td>${n(T.stl)}</td><td>${n(T.blk)}</td><td>${n(T.tov)}</td><td>${n(T.pf)}</td><td></td><td></td></tr></tbody></table>`; };
+  const them = teamColor(opp) ? teamPalette(opp).text : '#fdba74';
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(`Moorpark ${S.pts.a}-${S.pts.b} ${opp} · ${g.date}`)}</title><style>${CR_CSS}:root{--them:${them}}</style></head><body>
+  ${bar ? '<div class="cr-bar"><button onclick="print()">Print / Save PDF / Send</button><button onclick="close()">Close</button></div>' : ''}
+  <div class="cr"><div class="pg">
+    <div class="cr-top">${lg('Moorpark')}<div class="cr-sc"><div class="t">Post-game report</div>
+      <div class="n"><span class="us" style="margin:0">Moorpark</span> ${S.pts.a}<span>–</span>${S.pts.b} <span class="them" style="margin:0">${esc(opp)}</span></div>
+      <div class="m"><span class="cr-res ${res}">${res === 'w' ? 'W' : res === 'l' ? 'L' : 'T'}</span>${esc(fmtDay(g.date))}, ${esc(String(g.date).slice(0, 4))} · ${site}${sch.conf ? ' · Conference' : ''}${sch.scrim ? ' · Scrimmage' : ''}${sch.event ? ' · ' + esc(sch.event) : ''}${g.final ? '' : ' · <b>not final</b>'}</div></div>${lg(opp)}</div>
+    <h2>By half</h2>
+    <table><thead><tr><th class="l"></th><th>Moorpark</th><th>${esc(opp)}</th><th>MPK PPP</th><th>Opp PPP</th><th>MPK kills</th><th>Opp kills</th></tr></thead><tbody>${half}</tbody></table>
+    <h2>Key numbers <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:500">· Moorpark · ${esc(opp)}</span></h2>
+    <div class="cr-keys">${key('PPP', 'ppp', true, ppS)}${key('eFG%', 'efg', true, pctS)}${key('3P%', 'p3', true, pctS)}${key('TO%', 'to', false, pctS)}${key('OREB%', 'orb', true, pctS)}${key('FT rate', 'ftr', true, pctS)}</div>
+    <h2>What decided it</h2><ul class="cr-why">${whyL}</ul>
+    <h2>Runs</h2>${runRows ? `<table><thead><tr><th class="l">By</th><th>Run</th><th>Half</th><th>Score</th><th class="l">Moorpark five at the start</th></tr></thead><tbody>${runRows}</tbody></table>` : '<div class="mut">No runs (6-0, or +8 holding the other side to 40%).</div>'}
+    <h2>Lineups</h2>
+    <div class="cr-2"><div>${luTbl('Most used', most)}</div><div>${luTbl(`Best (${min}+ poss)`, best)}<div style="height:8px"></div>${luTbl(`Worst (${min}+ poss)`, worst)}</div></div>
+    </div><div class="pg"><h2>Team stats <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:500">· ${SH ? 'box score (stat sheet); possessions, PPP, points off TOs and 2nd-chance points from the tracker' : 'from the tracked plays'}</span></h2>${ts}
+    ${SH ? `${box('a')}</div><div class="pg">${box('b')}<div class="mut" style="font-size:10.5px;margin-top:4px">+/- from the tracker (points for minus against while on the floor) · GmSc = game score (Hollinger)</div>` : ''}
+    <div class="cr-foot">Moorpark Basketball · from the possession tracker${SH ? ' and the final stat sheet' : ' (tracked plays)'} · garbage time included · Net = points per 100 possessions scored minus allowed</div>
+  </div></div></body></html>`;
+}
+/* The PDF, made on the iPad (no signal needed: html2canvas + jsPDF in vendor/pdf, saved for offline by sw.js):
+   the report is laid out in a hidden letter-width frame, each page block drawn to an image and put on its own
+   Letter page (a block taller than a page carries on to the next). It downloads like the game file:
+   Moorpark_vs_<Opponent>_<date>_postgame.pdf, in Files → Downloads, ready to text. Automatic at Final; the
+   Post-game report's button makes it again (say, once the stat sheet is in). */
+const CR_LIB = 'vendor/pdf/';
+let CR_LOAD = null;
+const crLib = () => CR_LOAD = CR_LOAD || Promise.all(['html2canvas.min.js', 'jspdf.umd.min.js'].map(f => new Promise((res, rej) => {
+  const s = document.createElement('script'); s.src = CR_LIB + f; s.onload = res; s.onerror = () => { CR_LOAD = null; rej(new Error(f)); }; document.head.appendChild(s); })));
+const crName = g => `Moorpark_vs_${String(g.opp || 'Opponent').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '')}_${g.date}_postgame.pdf`;
+async function coachReportPdf(g, quiet) {
+  if (!g) return;
+  try {
+    await crLib();
+    const W = 816, H = 1056, f = document.createElement('iframe');   // Letter at 96 dpi
+    Object.assign(f.style, { position: 'fixed', left: '-10000px', top: '0', width: W + 'px', height: H + 'px', border: '0' });
+    document.body.appendChild(f);
+    const d = f.contentDocument; d.open(); d.write(coachReportHtml(g, false).replace('</style>', '.cr{max-width:none;padding:0}.pg{width:' + W + 'px;min-height:' + H + 'px;padding:40px 44px}</style>')); d.close();
+    await new Promise(r => setTimeout(r, 50));
+    await Promise.all([...d.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+    const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' }), PW = 612, PH = 792, k = PW / W;
+    let first = true;
+    for (const el of d.querySelectorAll('.pg')) {
+      const cv = await window.html2canvas(el, { scale: 2, backgroundColor: '#0d1016', windowWidth: W, logging: false });
+      const pagePx = H * 2;
+      for (let y = 0; y < cv.height; y += pagePx) {
+        const sl = document.createElement('canvas'); sl.width = cv.width; sl.height = Math.min(pagePx, cv.height - y);
+        const x = sl.getContext('2d'); x.fillStyle = '#0d1016'; x.fillRect(0, 0, sl.width, sl.height); x.drawImage(cv, 0, -y);
+        if (!first) pdf.addPage(); first = false;
+        pdf.setFillColor(13, 16, 22); pdf.rect(0, 0, PW, PH, 'F');
+        pdf.addImage(sl.toDataURL('image/jpeg', 0.88), 'JPEG', 0, 0, PW, sl.height / 2 * k);
+      }
+    }
+    f.remove();
+    const blob = pdf.output('blob'), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = crName(g); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    if (!quiet) toast('Post-game report PDF downloaded: Files → Downloads, ready to text', 'good');
+  } catch (e) { toast('Couldn\'t make the report PDF (' + (e && e.message || e) + ')', 'bad'); }
 }
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
