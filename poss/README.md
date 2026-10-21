@@ -364,7 +364,7 @@ so. Clear empties it.
 combination of them gets a row (2 picks = 4 rows, 3 = 8 ...): GP, possessions, +/-, ORtg, DRtg, net and the
 four factors at both ends, over the possessions with exactly that pattern on the floor (green chip = on, red =
 off). Off means he sat: a game only counts if every pick played in it; the others are counted under the table.
-Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages out), whatever the Lineups scope; the leverage filter applies.
+Moorpark only (the opponent lineups are hidden in WOWY). Combinations that never happened stay, dimmed and last. Always the whole season (every game tracked, scrimmages in), whatever the Lineups scope; the leverage filter applies.
 
 **Lineups opens on Full season.** The controls sit in one panel: **Games** (This game or a season split), **Half**, **View** (5- to 2-man, WOWY), then **Possessions** and **Situation**. **Scope** on Lineups: a dropdown of **This game** or a **season split** (as CBB Analytics has them), then **All · 1H ·
 2H · OT** and the Possessions filter on top. Splits (game counts shown): Full season, Last 5, Last 10, Conference,
@@ -372,7 +372,8 @@ Non-conference, Conference wins / losses, Postseason, Home, Away, Neutral, Away 
 **Q1A, Q1, Q2, Q1 + Q2, Q3, Q4**, vs top 25 / outside the top 25, and Select your own games (a
 chip per game). Quads are the leaderboard's (its Quads tab), exactly: opponents ranked by net among every rated team,
 NCAA cutoffs of 353 scaled to the league (Q1A home 15 / neutral 25 / away 40, Q1 30/50/75, Q2 75/100/135, Q3
-160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages never count. Season 2H =
+160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages count in every split (every game adds to who's played together and
+the sample); **No scrimmages** leaves them out. Season 2H =
 every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
 This game is picked).
 
@@ -669,7 +670,13 @@ five has 25+ offensive possessions).
   After Final, Live stops taking plays and shows the final score with **Start next game →** (the new-game setup),
   **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
   first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
-  latest report: Post-game once it's final, Halftime until then (the buttons still switch). Both start with
+  latest report: Post-game once it's final, Halftime until then (the buttons still switch).
+- **Game list** at the top of Report, Play-by-Play, Sheet and Four factors: pick any game played (newest first); the
+  pick carries across them and is Lineups' and Runs' **This game**. Report also has **Season** (the **Season report**:
+  record, each game's score and PPP, tap one to open it, and the team stats summed over every game, scrimmages
+  included and marked). Lineups and Runs keep their own Game / Season controls and open on Season. By default the game
+  is the one in progress once it has a play, else the last game played, so between games (Live on the new-game setup)
+  nothing goes blank. Halftime, Final and starting a game move the pick to that game. Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
   half or 8+ for the game. The Post-game report adds **Best combos**: each team's top 2-, 3- and 4-man combos (top 3 of each) and
   by net rating, among those on the floor together for 20+ possessions. Combos that were
