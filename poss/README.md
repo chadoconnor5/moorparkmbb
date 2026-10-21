@@ -655,8 +655,9 @@ five has 25+ offensive possessions).
     defensive stops with him on — best on/off first.
   - **Lineups:** best fives, best combos (post-game), every five for both teams.
   Without a sheet the report is the one below, with an **Add stat sheet** button.
-- **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
-  to the 2nd-half starting fives), and **Final** brings up the Post-game report. Both start with
+- **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button puts the
+  2nd-half starting fives on the Live screen: a panel, not a pop-up, that stays until each team's five is confirmed with
+  its own **Confirm** button; logging is paused until both are in, and the other tabs work meanwhile), and **Final** brings up the Post-game report. Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
   half or 8+ for the game. The Post-game report adds **Best combos**: each team's top 2-, 3- and 4-man combos (top 3 of each) and
   by net rating, among those on the floor together for 20+ possessions. Combos that were

@@ -1163,6 +1163,12 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ts-tbl .ts-lbl{font-weight:700}
 .ts-tbl .ts-win{font-weight:800}
 
+.ts-card .tbl-wrap{max-width:560px;margin:0 auto}
+/* 2nd-half starters panel on Live (startersPanel) */
+.h2-panel .h2-confirm{width:100%;margin-top:10px}
+.h2-panel .h2-ok{margin-left:8px;font-size:12px;color:var(--good,#4c9);font-weight:800;letter-spacing:.04em}
+.h2-panel div.sub-p{cursor:default}
+
 </style>
 </head>
 <body>
@@ -1195,7 +1201,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.191';
+const VERSION = 'v2026.10.21.192';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1908,8 +1914,22 @@ function tipBanner(g, D) {
   return `<div class="tip-ban"><div><b>Lineup suggestion</b> · the five on is at a net of ${sg1(T.cur.net)}${left ? ` with ${left} left` : ''}. Better fives are ready.</div>
     <div class="tip-ban-r"><button class="btn btn-sm" data-act="tip">See lineups</button><button class="tip-ban-x" data-act="tip-ban-x" data-k="${esc(key)}" title="Close for this five">✕</button></div></div>`;
 }
+/* 2nd-half starting fives: on the Live screen (not a pop-up a stray tap closes) from Start 2nd half until both teams'
+   fives are confirmed (g.h2Need = the teams still to confirm). Logging is frozen meanwhile; the other tabs work. */
+function startersPanel(g, D) {
+  if (!SUB || !SUB.h2) SUB = { a: new Set(D.five.a), b: new Set(D.five.b), forced: [], pend: { a: new Set(), b: new Set() }, title: '', h2: true };
+  const need = g.h2Need, done = t => !need.includes(t);
+  const side = t => done(t)
+    ? `<div><div class="sub-team ${t}">${esc(teamName(g, t))} <span class="h2-ok">✓ Confirmed</span></div><div class="sub-grid sub-floor">${fiveSorted(g, t, D.five[t]).map(id => { const p = pInfo(g, t, id);
+        return `<div class="sub-p in">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</div>`; }).join('')}</div></div>`
+    : `<div>${subSide(g, t)}<button class="btn btn-good btn-lg h2-confirm" data-act="h2-ok" data-t="${t}" ${SUB[t].size === 5 && subOk(g, t) ? '' : 'disabled'}>Confirm ${esc(teamName(g, t))}'s five</button></div>`;
+  return `<div class="card h2-panel"><div class="sub-head"><h2>Starting fives — 2nd half</h2></div>
+    <div class="small muted" style="margin:-4px 0 10px">Logging is paused until both teams' fives are confirmed. The other tabs work in the meantime.</div>
+    <div class="sub-sides two">${side('a')}${side('b')}</div></div>`;
+}
 function liveView(g) {
   const D = derive(g);
+  if (g.h2Need && g.h2Need.length && !g.final) return `${scorebar(g, D)}${startersPanel(g, D)}`;
   const st = UI.stat;
   const status = UI.ins ? `Inserting before the selected play — ${st ? STAT_LABEL[st] + ': ' + (STAT_HINT[st] || 'tap the player') : 'tap a stat, then the team or player'} <button class="btn btn-sm" data-act="ins-cancel">Cancel</button>`
     : st ? `<b>${STAT_LABEL[st]}</b> — ${PLAYER_STATS.has(st) ? STAT_HINT[st] : STAT_HINT_TEAM[st]} <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
@@ -2904,16 +2924,8 @@ function pendStrip(g, D, t) {
   return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b></span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
 }
 let SUB = null;
-function subModal(title) {
-  const g = cur(), D = derive(g);
-  if (!SUB) {
-    const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
-    // Pending players come in already; the screen then only needs who's coming off.
-    const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
-    SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
-      title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : pend.a.size || pend.b.size ? 'Sub — tap who’s coming off' : title || 'Sub — who is on the floor?' };
-  }
-  const side = t => { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set();
+/* The sub screen's team side and its check, shared by the Sub pop-up and the 2nd-half starters panel on Live. */
+function subSide(g, t) { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set();
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
           return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : ''}</button>`; };
@@ -2927,8 +2939,18 @@ function subModal(title) {
         return `${pend.length ? `<div class="sub-lbl">Checking in <span class="muted">${going} going in${pend.length - going ? ` · ${pend.length - going} holding` : ''}</span></div><div class="sub-grid sub-floor">${pend.map(pbtn).join('')}</div>` : ''}
           <div class="sub-lbl">On the floor ${n > 5 ? '' : `<span class="muted">${n}/5</span>`}${n > 5 ? ` <b class="sub-off">tap ${n - 5} coming off</b>` : ''}</div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
           <div class="sub-lbl">Bench</div><div class="sub-grid">${bench.map(btn).join('') || '<div class="muted small">No one on the bench.</div>'}</div>`; })()
-        : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; };
-  const ok = t => (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id)));
+        : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; }
+function subOk(g, t) { return (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id))); }
+function subModal(title) {
+  const g = cur(), D = derive(g);
+  if (!SUB) {
+    const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
+    // Pending players come in already; the screen then only needs who's coming off.
+    const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
+    SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
+      title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : pend.a.size || pend.b.size ? 'Sub — tap who’s coming off' : title || 'Sub — who is on the floor?' };
+  }
+  const side = t => subSide(g, t), ok = t => subOk(g, t);
   const fx = SUB.forced.length;
   modal(`<div class="sub-head"><h2>${esc(SUB.title)}</h2><div class="sub-top">${fx ? SUB.forced.map(o => `<button class="btn btn-lg" data-act="fouls" data-t="${o.t}" data-p="${esc(o.id)}">Edit ${esc(pShort(g, o.t, o.id))}'s fouls</button>`).join('') : '<button class="btn btn-lg" data-act="sub-cancel">Cancel</button>'}<button class="btn btn-good btn-lg" data-act="sub-ok" ${ok('a') && ok('b') ? '' : 'disabled'}>Confirm</button></div></div>
     ${fx ? '<div class="small muted" style="margin:6px 0 10px">Five fouls (or two technicals) and he has to come out. Wrong player on a foul? Edit fouls to move it.</div>' : ''}
@@ -3395,9 +3417,9 @@ document.addEventListener('click', ev => {
       SUB = { a: new Set(f), b: new Set(derive(g).five.b), forced: [], title: 'Sub — suggested five (Confirm to put them in)' }; subModal(); break; }
     // Over five is fine (players checking in, or adding more): the screen says how many to tap off, and
     // Confirm waits until each team is back to five.
-    case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else s.add(p); subModal(); break; }
+    case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else s.add(p); if (SUB.h2) render(); else subModal(); break; }
     case 'sub-ok': subConfirm(); break;
-    case 'sub-hold': { const S0 = SUB[b.dataset.t], id = b.dataset.p; if (S0.has(id)) S0.delete(id); else S0.add(id); subModal(); break; }
+    case 'sub-hold': { const S0 = SUB[b.dataset.t], id = b.dataset.p; if (S0.has(id)) S0.delete(id); else S0.add(id); if (SUB.h2) render(); else subModal(); break; }
     case 'plug': { const D0 = derive(g), out = b.dataset.out, cand = b.dataset.p; SUB.a.delete(out); if (!SUB.a.has(cand)) {
         // His spot: if the five is already full (a pending player filled it), the plug-in replaces that one.
         if (SUB.a.size >= 5) { const extra = [...SUB.a].find(id => !D0.five.a.includes(id)); if (extra) SUB.a.delete(extra); } SUB.a.add(cand); } subModal(); break; }
@@ -3470,7 +3492,11 @@ document.addEventListener('click', ev => {
       g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); backupGame(g, 'half'); exportGame(g, 'half');
       UI.tab = 'report'; UI.rep = 'half'; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
     // The halftime backup and game file were made when the half ended.
-    case 'start-2h': snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
+    case 'start-2h': snapReport(g, 'half', true); g.half = false; g.h2Need = ['a', 'b']; SUB = null; save(); UI.tab = 'live'; render(); window.scrollTo(0, 0); break;
+    case 'h2-ok': { const t = b.dataset.t, f = [...SUB[t]]; if (f.length !== 5) return;
+      push(g, { t: 'sub', team: t, five: f, per: g.per }); g.h2Need = (g.h2Need || []).filter(x => x !== t);
+      if (!g.h2Need.length) { delete g.h2Need; SUB = null; toast('2nd half: both fives in — logging is on', 'good'); }
+      save(); render(); break; }
     case 'scout': openScout(); break;
     case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
     case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
