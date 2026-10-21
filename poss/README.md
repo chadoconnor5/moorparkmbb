@@ -54,12 +54,22 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
   a sub, timeout or Set time in between doesn't end it; a foul or any other play does, so the next trip asks
   again. Wrong shooter? Tap the line in the feed.
+- **FT Shooter** (gold, two buttons wide, above FT Make / FT Miss): name the shooter before the shots. Tap it, then
+  his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
+  and everything is live again: sub, timeout, log the foul. His first FT Make / FT Miss then logs straight to him
+  (no card tap) and the rest of the trip follows. Any other play (not a foul) clears him, and so does ✕.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
   so changing the ball never moves the logos): moves only when you tap it — at the tip, at the start of the
   2nd half, after a jump ball. Plays, subs and timeouts never move it. Tapped mid-half it asks: **Held
   ball: steal** (a steal for the team that gets the ball, ending the other team's possession; shown as "steal (held ball)") or **Just switch**.
+- **Team stats** (Huddle, Halftime report, Post-game report; with or without a stat sheet): Moorpark on the left, the
+  stat in the middle, the opponent on the right, one row each, from the tracked plays: points, FG / 2PT / 3PT / FT
+  made-attempted, each with its % on the next row (eFG% right after 3PT%, TS% right after FT%), offensive / defensive /
+  total rebounds, assists, steals, blocks, turnovers, turnovers on steals, fouls; then possessions, points per
+  possession, TO%, OREB%, DREB%, FT rate,
+  3PA rate, 2nd-chance points and points off turnovers. The better number in each row is bold. The Huddle and Post-game show the game so far; Halftime shows the 1st half.
 - **Huddle** opens after every timeout (and from **📋 Huddle** on the scoreboard), the game tracker's
   timeout sheet by possessions:
   - the score, fouls and timeouts left; up to four talk points (turnovers and the points off them,
@@ -497,7 +507,10 @@ scrolling.
 **Runs** tracks three things, ours and theirs (green = ours / red = theirs):
 - **Kill** = 3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules.
 - **Kill shot** = 10-0 unanswered (technical FTs count; it carries across the half), as on the Report.
-- **Run** = 6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4); overlapping ones merge.
+- **Run** = 6-0 unanswered, or outscoring the other side by 8+ while holding it to 40% of your points or less
+  (10-2, 12-4, 15-6, 22-5; never 8-7 or 14-7). It runs inside a half from your first points to your peak margin,
+  however long that is, and stops at the other side's own 6-0. The score bug shows the run going on now
+  ("MPK 22-5 run"), and so do the Huddle and the Stop the run lineup call.
 
 **This game / Season / Season · quality opp** (quality = positive adjusted net, needs the ⬆ Adjusted file).
 It opens on This game during a game, Season otherwise. Garbage time is always out, and so are scrimmages.
@@ -650,8 +663,13 @@ five has 25+ offensive possessions).
     defensive stops with him on — best on/off first.
   - **Lineups:** best fives, best combos (post-game), every five for both teams.
   Without a sheet the report is the one below, with an **Add stat sheet** button.
-- **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button goes
-  to the 2nd-half starting fives), and **Final** brings up the Post-game report. Both start with
+- **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button puts the
+  2nd-half starting fives on the Live screen: a panel, not a pop-up, that stays until each team's five is confirmed with
+  its own **Confirm** button; logging is paused until both are in, and the other tabs work meanwhile), and **Final** brings up the Post-game report.
+  After Final, Live stops taking plays and shows the final score with **Start next game →** (the new-game setup),
+  **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
+  first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
+  latest report: Post-game once it's final, Halftime until then (the buttons still switch). Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
   half or 8+ for the game. The Post-game report adds **Best combos**: each team's top 2-, 3- and 4-man combos (top 3 of each) and
   by net rating, among those on the floor together for 20+ possessions. Combos that were
@@ -716,8 +734,11 @@ five has 25+ offensive possessions).
 - **Your data and updates.** Updating the tracker replaces its code, never your games: they live in the iPad's
   website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
   Clear History and Website Data. The home-screen app and a Safari tab keep separate data: always open it the same way.
-- **Backups** (Games tab): a full copy of each game, kept on the iPad apart from the live data, at Start 2nd half, at
-  Final, before a delete or an import replaces it, and every 5 minutes while tracking (the last 3 of those per game).
+- **Game file downloads automatically** at the end of the 1st half (`poss_<date>_<opponent>_half.json`), at the end of
+  regulation when the game goes to OT (`..._reg.json`), at the end of each OT that goes to another (`..._ot1.json`,
+  `..._ot2.json`…) and at Final (`..._final.json`): a copy off the iPad, in Files → Downloads. Games → Import game reads it back.
+- **Backups** (Games tab): a full copy of each game, kept on the iPad apart from the live data, at the end of the 1st half, at
+  the end of regulation and each OT, at Final, before a delete or an import replaces it, and every 5 minutes while tracking (the last 3 of those per game).
   **Restore** puts one back (the game as it is now is backed up first); a deleted game comes back too.
 - **Season backup file** (Games tab): **Export season** saves every game, the rosters, the schedule and the label /
   tournament settings in one file (iPad: Save to Files / Drive); the card shows when it was last saved and turns red
@@ -737,6 +758,8 @@ five has 25+ offensive possessions).
   and one post-game copy per game (the newest kept). **Open** shows it as saved with Print / PDF; **Delete**
   removes it.
 
-Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened.
+Games are saved on the iPad (localStorage `pt2_games`), and the app works offline once opened. Every team logo
+(`game/logos/`, ~1.8 MB) is saved for offline as soon as the app opens with signal, so an opponent's logo shows in a gym
+with none even if it was never opened before.
 The page is built from the game tracker's stylesheet, copied into `poss/index.html`. If the game
 tracker's look changes, copy its `<style>` block across again.

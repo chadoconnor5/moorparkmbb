@@ -797,7 +797,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .lutx th,.lutx td{padding-left:1px;padding-right:1px} .lutx td:first-child{padding-left:5px}
 .ff-who{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ff-who>div{display:flex;flex-direction:column;gap:6px}.ff-who-h{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}.ff-who .ins{font-size:13.5px;color:var(--text)}
 /* saved reports: shown as saved, nothing in them is tappable */
-.snap button,.snap .ht-banner,.snap .page-head .row,.snap .sh-cta{display:none!important}
+.snap button,.snap .rep-pick,.snap .ht-banner,.snap .page-head .row,.snap .sh-cta{display:none!important}
 .snap [data-act]{pointer-events:none}
 @media print{.snap-head{display:none!important}}
 /* The possession pill fits its own text, but sits in a slot as wide as this game's widest pill (Moorpark /
@@ -1155,6 +1155,36 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .kill-fx.them{color:#ff4d4f;background:radial-gradient(ellipse at center,rgba(80,14,16,.97),rgba(14,16,22,.96) 75%)}
 @keyframes kfx{0%{opacity:0;transform:scale(.86)}10%{opacity:1;transform:scale(1.05)}16%{transform:scale(1)}50%{opacity:1}100%{opacity:0}}
 
+/* Team stats (teamStatsCard): Moorpark | stat | opponent, the better number bold. */
+.ts-tbl td,.ts-tbl th{text-align:center;font-variant-numeric:tabular-nums}
+.ts-tbl{table-layout:fixed}
+.ts-tbl .ts-a,.ts-tbl .ts-b{width:36%;text-align:center!important}
+.ts-tbl .ts-lbl{text-align:center!important}
+.ts-tbl .ts-lbl{font-weight:700}
+.ts-tbl .ts-win{font-weight:800}
+
+.ts-card .tbl-wrap{max-width:560px;margin:0 auto}
+/* 2nd-half starters panel on Live (startersPanel) */
+.h2-panel .h2-confirm{width:100%;margin-top:10px}
+.h2-panel .h2-ok{margin-left:8px;font-size:12px;color:var(--good,#4c9);font-weight:800;letter-spacing:.04em}
+.h2-panel div.sub-p{cursor:default}
+
+/* FT Shooter: two buttons wide, above FT Make / FT Miss; once named, the shooter sits there with ✕ */
+.stat-col .sgrid .ftsh{grid-column:1/-1;background:#fcd34d;color:#713f12;border:1px solid #d97706;border-radius:4px;font-weight:800}
+.stat-col .sgrid .ftsh.on{outline:2px solid #fff;outline-offset:1px}
+.stat-col .sgrid .ftsh.set{display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;min-height:44px;font-size:15px}
+.stat-col .sgrid .ftsh.set span{flex:1;text-align:center}
+.ftsh-x{background:rgba(113,63,18,.15);border:1px solid #d97706;color:#713f12;border-radius:4px;width:34px;height:32px;font-size:16px;font-weight:800}
+.ftsh-x:disabled{opacity:.35}
+.ctrls.mute .btn{opacity:.2;pointer-events:none}   /* picking the FT shooter: only a player card */
+/* Report: which game */
+.rep-pick{display:block;width:100%;max-width:560px;margin:0 auto 10px;font-size:16px;padding:10px 12px;border-radius:8px;background:var(--card2);color:var(--text);border:1px solid var(--bd)}
+/* Live after Final */
+.final-panel{text-align:center;padding:28px 18px;margin-top:12px}
+.final-panel .fp-h{font-size:24px;font-weight:800;margin-bottom:18px}
+.final-panel .fp-btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:12px}
+.sb-tags{gap:6px} .sb-tags .skunk{margin-left:0}
+
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
 </style>
@@ -1217,7 +1247,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.187';
+const VERSION = 'v2026.10.21.200';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1379,6 +1409,13 @@ function applyTeamColors(g) {
 }
 const teamColor = name => TEAM_COLORS[logoSlug(name)] || null;
 const logoSrc = name => { const k = logoSlug(name); return k ? `../game/logos/${k}.png` : null; };
+/* Every logo saved for offline up front: the offline copy (sw.js) keeps a logo only once it has loaded, so an
+   opponent first seen in a gym with no signal had none (the button fell back to the name). Once the offline copy
+   is running, each logo is asked for one at a time; the ones it already has come straight back from the iPad. */
+function saveLogos() {
+  if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+  navigator.serviceWorker.ready.then(async () => { for (const k of LOGO_FILES) { try { await fetch(`../game/logos/${k}.png`); } catch (e) { return; } } }).catch(() => {});
+}
 const logo = (name, px) => { const src = logoSrc(name); return src ? `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="${src}" alt="" onerror="this.remove()">` : ''; };
 
 /* ---------- periods ---------- */
@@ -1611,6 +1648,40 @@ const ppp = (pts, n) => n ? (pts / n).toFixed(2) : '—';
    scores again (technical FTs included), carrying across the half. 10-0 is a killshot; 15 and 20
    are counted on top of it, so a 22-0 run is one 10-0, one 15-0 and one 20-0. */
 const RUN_MARKS = [10, 15, 20];
+/* RUNS: a stretch inside a half, starting and ending on the running side's points, where it scores 6+ unanswered
+   (6-0, 8-0) or outscores the other side by 8+ while holding it to 40% of its points or less (10-2, 12-4, 15-6,
+   22-5; never 8-7 or 14-7). It stops at the other side's own 6-0 (that's their run) and ends at its peak margin;
+   biggest margin first, and runs of one side never overlap. Scores come off the scoreboard, so
+   technical free throws count. */
+const RUN_NET = 8, RUN_SHARE = 0.4, RUN_UNANS = 6;
+const isRun = (f, a) => (a === 0 && f >= RUN_UNANS) || (f - a >= RUN_NET && a <= RUN_SHARE * f);
+function teamRuns(P, t) {
+  const o = other(t), got = (q, x) => q.score[x] - q.before[x], C = [];
+  for (let i = 0; i < P.length; i++) {
+    if (P[i].gt || !got(P[i], t)) continue;
+    let best = null, ans = 0;
+    for (let j = i; j < P.length && P[j].per === P[i].per && !P[j].gt; j++) {
+      if (got(P[j], t)) ans = 0; else if ((ans += got(P[j], o)) >= RUN_UNANS) break;
+      const f = P[j].score[t] - P[i].before[t], a = P[j].score[o] - P[i].before[o];
+      if (got(P[j], t) && isRun(f, a) && (!best || f - a > best.f - best.a)) best = { i0: i, i1: j, f, a };   // ends at its peak
+    }
+    if (best) C.push(best);
+  }
+  const out = [];
+  C.sort((x, y) => (y.f - y.a) - (x.f - x.a) || (y.i1 - y.i0) - (x.i1 - x.i0) || x.i0 - y.i0)
+    .forEach(c => { if (!out.some(r => c.i0 <= r.i1 && r.i0 <= c.i1)) out.push(c); });
+  return out.sort((x, y) => x.i0 - y.i0);
+}
+// The run going on right now (this half, still a run counting the other side's points since): { team, f, a } or null.
+function liveRun(g, D) {
+  const P = D.poss.filter(p => p.per === g.per), last = P[P.length - 1]; if (!last || g.final) return null;
+  let best = null;
+  ['a', 'b'].forEach(t => { const o = other(t), R = teamRuns(P, t), r = R[R.length - 1]; if (!r) return;
+    let ans = 0; for (let k = r.i1 + 1; k < P.length; k++) ans = P[k].score[t] > P[k].before[t] ? 0 : ans + P[k].score[o] - P[k].before[o];
+    const f = last.score[t] - P[r.i0].before[t], a = last.score[o] - P[r.i0].before[o];
+    if (ans < RUN_UNANS && isRun(f, a) && (!best || f - a > best.f - best.a)) best = { team: t, f, a }; });
+  return best;
+}
 function scoringRuns(g) {
   const runs = [], sc = { a: 0, b: 0 }, five = { a: [], b: [] }; let cur = null;
   g.ev.forEach(e => {
@@ -1719,7 +1790,7 @@ function render() {
   const v = $('#view');
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
-  if (!g && ['pbp', 'sheet', 'lineups', 'ff', 'report'].includes(UI.tab)) { v.className = 'page mid'; v.innerHTML = noGame; return; }
+  if (!g && ['pbp', 'sheet', 'lineups', 'ff'].includes(UI.tab) || UI.tab === 'report' && !repGame()) { v.className = 'page mid'; v.innerHTML = noGame; return; }
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
@@ -1727,7 +1798,7 @@ function render() {
   else if (UI.tab === 'lineups') v.innerHTML = lineupsView(g);
   else if (UI.tab === 'ff') { v.innerHTML = '<div id="ff"></div>'; renderFF(); }
   else if (UI.tab === 'pbp') v.innerHTML = pbpView(g);
-  else if (UI.tab === 'report') v.innerHTML = reportView(g);
+  else if (UI.tab === 'report') v.innerHTML = reportView(repGame());
   else if (UI.tab === 'runs') v.innerHTML = runsView();
   else if (UI.tab === 'sched') v.innerHTML = schedView();
   else if (UI.tab === 'rosters') v.innerHTML = rostersView();
@@ -1763,24 +1834,27 @@ function scorebar(g, D) {
   const dots = t => { const ot = otCount(g), s30 = S30_TOS + ot, uf = tosUsed(g, t, 'full'), us = tosUsed(g, t, 's30');
     return `<span class="to-dots" title="Timeouts left">${Array.from({ length: s30 }, (_, i) => `<span class="to-dot ${i < us ? 'used' : ''}"></span>`).join('')}<span style="width:4px"></span>${Array.from({ length: FULL_TOS }, (_, i) => `<span class="to-dot full ${i < uf ? 'used' : ''}"></span>`).join('')}</span>`; };
   const kills = t => { const st = S.streak[t] || 0, pip = st % 3;
-    return `<span class="kills" title="Kills this half (3 straight stops). Skunk = 6, dead skunk = 9.">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < pip ? 'on' : ''}"></span>`).join('')}${st >= 9 ? '<span class="skunk dead">DEAD SKUNK</span>' : st >= 6 ? '<span class="skunk">SKUNK</span>' : ''}</span>`; };
+    return `<span class="kills" title="Kills this half (3 straight stops). Skunk = 6, dead skunk = 9.">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < pip ? 'on' : ''}"></span>`).join('')}</span>`; };
+  const skunk = t => { const st = S.streak[t] || 0; return st >= 9 ? '<span class="skunk dead">DEAD SKUNK</span>' : st >= 6 ? '<span class="skunk">SKUNK</span>' : ''; };
+  // Bonus and skunk get a row of their own under KILLS, so neither pushes the row off the edge.
+  const tags = t => { const x = t === 'a' ? bonus(t) + skunk(t) : skunk(t) + bonus(t); return x ? `<div class="sb-meta sb-tags">${x}</div>` : ''; };
   const bonus = t => { const n = teamFouls(g, other(t), per); return n >= 10 ? '<span class="bonus-tag dbl">DBL BONUS</span>' : n >= 7 ? '<span class="bonus-tag">BONUS</span>' : ''; };
   return `<div class="scorebar">
     <div class="sb-team a"><div class="sb-id"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div>
       <div class="sb-meta"><span>Fouls ${teamFouls(g, 'a', per)}</span>${dots('a')}</div>
-      <div class="sb-meta">${bonus('a')}${kills('a')}</div>${killNear(g, D, 'a')}
+      <div class="sb-meta">${kills('a')}</div>${tags('a')}${killNear(g, D, 'a')}
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
     <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockShown(g, D); return c ? `<div class="sb-cap sb-time" title="${c.start ? 'Start of the period' : 'The last game clock you entered (timeout or Set time)'}">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
-      ${(() => { const R = scoringRuns(g), r = R[R.length - 1]; return r && r.pts >= 6 ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.pts}-0 run</div>` : ''; })()}
+      ${(() => { const r = liveRun(g, D); return r ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.f}-${r.a} run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
       <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
-      <div class="sb-meta">${kills('b')}${bonus('b')}</div>${killNear(g, D, 'b')}
+      <div class="sb-meta">${kills('b')}</div>${tags('b')}${killNear(g, D, 'b')}
       <div class="sb-meta">${ppp(S.pts.b, S.poss.b)} PPP</div></div></div>
   </div>`;
 }
@@ -1796,7 +1870,16 @@ const PLAYER_STATS = new Set(['foul', 'chg', 'offf']);
    The rest of the trip logs on the FT Make / FT Miss tap alone, to the same shooter (or team). A trip = free
    throws in a row by one team; a sub, timeout or clock in between doesn't end it, a foul or any other play does. */
 const FT_K = new Set(['ftm', 'ftx']);
+/* FT SHOOTER (the 2-wide button above FT Make / FT Miss): name the shooter before the shots. Tap it, then his card
+   (either team); everything else is muted until then. He's held as g.ftNext through subs, timeouts, the clock and
+   fouls, and his first FT Make / FT Miss logs straight to him; any other play clears him (✕ on the button too). */
+function ftShooterBtn(g, st) {
+  const n = g.ftNext, who = n && (n.player === 'TEAM' ? teamName(g, n.team) : pShort(g, n.team, n.player));
+  return n ? `<div class="ftsh set ${n.team}"><span>FTs: <b>${esc(who)}</b></span><button class="ftsh-x" data-act="ftsh-x" aria-label="Clear the shooter" ${st ? 'disabled' : ''}>✕</button></div>`
+    : `<button class="sbtn ftsh ${st === 'ftsh' ? 'on' : ''} ${st && st !== 'ftsh' ? 'dim' : ''}" data-act="stat" data-k="ftsh" ${st && st !== 'ftsh' ? 'disabled' : ''}>FT Shooter</button>`;
+}
 function ftTrip(g) {
+  if (g.ftNext) return g.ftNext;
   for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i];
     if (e.t === 'sub' || e.t === 'to' || e.t === 'clock') continue;
     return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
@@ -1833,7 +1916,7 @@ function playerCards(g, D, t) {
     // Foul trouble: 1st half — 2 yellow, 3-4 red; 2nd half / OT — 3 yellow, 4 red; 5 (or 2 technicals) fouled out.
     const out = pf >= 5 || te >= 2, h1 = g.per === '1H';
     const cls = out ? 'ft-danger ft-out' : h1 ? (pf >= 3 ? 'ft-danger' : pf === 2 ? 'ft-warn' : '') : (pf >= 4 ? 'ft-danger' : pf === 3 ? 'ft-warn' : '');
-    const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat));   // fouls and free throws take a player
+    const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat) || UI.stat === 'ftsh');   // fouls and free throws take a player
     return `<button class="pbtn ${cls} ${pl ? 'hot' : ''} ${UI.stat && !pl ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
       ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${(() => { const au = x => `<span class="nt auto${x.lead ? ' lead' : ''}" title="${esc(x.why)}">${esc(x.l)}</span>`;   // Star always first, then yours, then the rest
@@ -1843,7 +1926,7 @@ function playerCards(g, D, t) {
   const noRoster = !teamPlayers(g, t).length;
   return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
       : `<button class="btn btn-good btn-lg" style="width:100%;margin-bottom:7px" data-act="sub">Set ${esc(teamName(g, t))}'s five</button>`) : ''}
-    <div class="pgrid">${list.map(card).join('')}${f.length === 5 ? fiveStrip(g, t, f) : `<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button>`}</div>`;
+    <div class="pgrid">${list.map(card).join('')}${f.length === 5 ? fiveStrip(g, t, f) : `<button class="pbtn team ${UI.stat && (!PLAYER_STATS.has(UI.stat) || UI.stat === 'ftsh') ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button>`}</div>`;
 }
 
 /* Their best five (2nd half and OT only): the opponent five with the best net rating over the game,
@@ -1930,10 +2013,26 @@ function tipBanner(g, D) {
   return `<div class="tip-ban"><div><b>Lineup suggestion</b> · the five on is at a net of ${sg1(T.cur.net)}${left ? ` with ${left} left` : ''}. Better fives are ready.</div>
     <div class="tip-ban-r"><button class="btn btn-sm" data-act="tip">See lineups</button><button class="tip-ban-x" data-act="tip-ban-x" data-k="${esc(key)}" title="Close for this five">✕</button></div></div>`;
 }
+/* 2nd-half starting fives: on the Live screen (not a pop-up a stray tap closes) from Start 2nd half until both teams'
+   fives are confirmed (g.h2Need = the teams still to confirm). Logging is frozen meanwhile; the other tabs work. */
+function startersPanel(g, D) {
+  if (!SUB || !SUB.h2) SUB = { a: new Set(D.five.a), b: new Set(D.five.b), forced: [], pend: { a: new Set(), b: new Set() }, title: '', h2: true };
+  const need = g.h2Need, done = t => !need.includes(t);
+  const side = t => done(t)
+    ? `<div><div class="sub-team ${t}">${esc(teamName(g, t))} <span class="h2-ok">✓ Confirmed</span></div><div class="sub-grid sub-floor">${fiveSorted(g, t, D.five[t]).map(id => { const p = pInfo(g, t, id);
+        return `<div class="sub-p in">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</div>`; }).join('')}</div></div>`
+    : `<div>${subSide(g, t)}<button class="btn btn-good btn-lg h2-confirm" data-act="h2-ok" data-t="${t}" ${SUB[t].size === 5 && subOk(g, t) ? '' : 'disabled'}>Confirm ${esc(teamName(g, t))}'s five</button></div>`;
+  return `<div class="card h2-panel"><div class="sub-head"><h2>Starting fives — 2nd half</h2></div>
+    <div class="small muted" style="margin:-4px 0 10px">Logging is paused until both teams' fives are confirmed. The other tabs work in the meantime.</div>
+    <div class="sub-sides two">${side('a')}${side('b')}</div></div>`;
+}
 function liveView(g) {
   const D = derive(g);
+  if (g.h2Need && g.h2Need.length && !g.final) return `${scorebar(g, D)}${startersPanel(g, D)}`;
+  if (g.final) return `${scorebar(g, D)}${finalPanel(g, D)}`;
   const st = UI.stat;
   const status = UI.ins ? `Inserting before the selected play — ${st ? STAT_LABEL[st] + ': ' + (STAT_HINT[st] || 'tap the player') : 'tap a stat, then the team or player'} <button class="btn btn-sm" data-act="ins-cancel">Cancel</button>`
+    : st === 'ftsh' ? `<b>FT Shooter</b> — tap the shooter's card (either team) <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
     : st ? `<b>${STAT_LABEL[st]}</b> — ${PLAYER_STATS.has(st) ? STAT_HINT[st] : STAT_HINT_TEAM[st]} <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
     : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb <button class="btn btn-sm btn-warn no-reb" data-act="no-reb">No rebound${UI.rebFt ? ' (1st of 2)' : ''}</button>`
     : 'Tap the stat, then the team — fouls: then the player';
@@ -1941,14 +2040,14 @@ function liveView(g) {
   return `${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span><button class="btn btn-sm" data-act="lg-open">Labels</button></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
-    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
+    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st) && st !== 'ftsh') || (!st && UI.reb) ? 'hot' : ''} ${st && (PLAYER_STATS.has(st) || st === 'ftsh') ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => { const mut = shotMute(st, k), on = st === k;
-        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? ((k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : 'addready') : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}</button>`; }).join('')}</div>
+        return (k === 'ftm' ? ftShooterBtn(g, st) : '') + `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? ((k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : 'addready') : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}</button>`; }).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
         // Three across: subs and timeout; fix a tap and end the half; scout, situational lineups, flag.
-        return `<div class="ctrls">
+        return `<div class="ctrls ${st === 'ftsh' ? 'mute' : ''}">
         <button class="btn ${n ? 'btn-good' : ''}" data-act="sub">⇄ Sub${n ? ` (${n})` : ''}</button><button class="btn pend-btn ${n ? 'on' : ''}" data-act="pend">⏳ Pending</button><button class="btn btn-warn" data-act="timeout">Timeout</button>
         <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button>
         <button class="btn" data-act="scout">📄 Scout</button><button class="btn sit-btn" data-act="sit">Lineups</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'}</button></div>`; })()}
@@ -1959,6 +2058,14 @@ function liveView(g) {
       ${pendStrip(g, D, 'b')}${playerCards(g, D, 'b')}
       <div class="lpm2">${lpmCard(g, D, 'a')}${lpmCard(g, D, 'b')}</div></div>
   </div>`;
+}
+
+/* After Final, Live stops taking plays: the score, then on to the next game, this game's report, or Reopen. */
+function finalPanel(g, D) {
+  const S = perSums(D, null), w = S.pts.a > S.pts.b;
+  return `<div class="card final-panel"><div class="fp-h">Final · <span class="${w ? 'pos' : 'neg'}">${w ? 'W' : S.pts.a < S.pts.b ? 'L' : 'T'} ${S.pts.a}–${S.pts.b}</span> ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</div>
+    <div class="fp-btns"><button class="btn btn-good btn-lg" data-act="new">Start next game →</button><button class="btn btn-lg" data-act="rep-open" data-id="${esc(g.id)}">Post-game report</button><button class="btn btn-lg" data-act="end-per">Reopen game</button></div>
+    <div class="small muted">The game is saved (and its file downloaded). Reports keeps it under the game list.</div></div>`;
 }
 
 /* ---------- sheet: every possession in order, both teams ---------- */
@@ -2067,6 +2174,60 @@ function bestCard(g, D, scope) {
   return `<div class="ks-grid">${side('a')}${side('b')}</div>`;
 }
 
+/* ---------- team stats: every basic stat the tracker logs, both teams, plus the advanced numbers ----------
+   From the tracked plays (the same counts as the four factors: ffTracked), for a scope: '1H', '2H' (2nd half + OT) or
+   'G'. On the halftime and post-game reports (with or without a stat sheet) and in the Huddle, so "how many offensive
+   rebounds do they have" is one glance. The better number in each row is bold. */
+function teamStats(g, D, sc) {
+  const pers = ffPers(g, sc), T = ffTracked(g, sc), L = D.poss.filter(p => pers.includes(p.per)), X = {};
+  ['a', 'b'].forEach(t => { const o = other(t), mine = L.filter(p => p.team === t), B = mine.map(possBox);
+    const sum = k => B.reduce((x, b) => x + b[k], 0);
+    let pot = 0; L.forEach((p, i) => { if (p.team !== o || !['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col)) return; const nx = L[i + 1]; if (nx && nx.team === t && nx.per === p.per) pot += nx.pts; });
+    X[t] = Object.assign({}, T[t], { pts: mine.reduce((x, p) => x + p.pts, 0), n: mine.length, ast: sum('ast'), sc2: sum('sc2'), pot,
+      blk: L.filter(p => p.team === o).map(possBox).reduce((x, b) => x + b.blkd, 0), stl: T[o].stov,
+      pf: g.ev.filter(e => e.t === 'foul' && e.team === t && pers.includes(e.per)).length }); });
+  return X;
+}
+function teamStatsCard(g, D, sc, label) {
+  const X = teamStats(g, D, sc), pc = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
+  const md = (m, a) => `${m}-${a}`;
+  // Rows: label, value for a team (shown), the number compared (null = no comparison), higher is better. Each
+  // percentage on its own row under its makes-attempts; no section headers.
+  const shot = (lbl, m, a) => [[lbl, t => md(m(t), a(t)), t => m(t), true], [lbl + '%', t => P(pc(m(t), a(t))), t => pc(m(t), a(t)), true]];
+  const rows = [
+    ['Points', t => X[t].pts, t => X[t].pts, true],
+    ...shot('FG', t => X[t].fgm, t => X[t].fga),
+    ...shot('2PT', t => X[t].fgm - X[t].fg3m, t => X[t].fga - X[t].fg3a),
+    ...shot('3PT', t => X[t].fg3m, t => X[t].fg3a),
+    ['eFG%', t => P(pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga)), t => pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga), true],
+    ...shot('FT', t => X[t].ftm, t => X[t].fta),
+    ['TS%', t => P(pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta))), t => pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta)), true],
+    ['Offensive rebounds', t => X[t].oreb, t => X[t].oreb, true],
+    ['Defensive rebounds', t => X[t].dreb, t => X[t].dreb, true],
+    ['Total rebounds', t => X[t].oreb + X[t].dreb, t => X[t].oreb + X[t].dreb, true],
+    ['Assists', t => X[t].ast, t => X[t].ast, true],
+    ['Steals', t => X[t].stl, t => X[t].stl, true],
+    ['Blocks', t => X[t].blk, t => X[t].blk, true],
+    ['Turnovers', t => X[t].tov, t => X[t].tov, false],
+    ['Turnovers on steals', t => X[t].stov, t => X[t].stov, false],
+    ['Fouls', t => X[t].pf, t => X[t].pf, false],
+    ['Possessions', t => X[t].n, null],
+    ['Points per possession', t => X[t].n ? (X[t].pts / X[t].n).toFixed(2) : '—', t => X[t].n ? X[t].pts / X[t].n : null, true],
+    ['TO%', t => P(pc(X[t].tov, X[t].n)), t => pc(X[t].tov, X[t].n), false],
+    ['OREB%', t => P(pc(X[t].oreb, X[t].oreb + X[other(t)].dreb)), t => pc(X[t].oreb, X[t].oreb + X[other(t)].dreb), true],
+    ['DREB%', t => P(pc(X[t].dreb, X[t].dreb + X[other(t)].oreb)), t => pc(X[t].dreb, X[t].dreb + X[other(t)].oreb), true],
+    ['FT rate', t => P(pc(X[t].fta, X[t].fga)), t => pc(X[t].fta, X[t].fga), true],
+    ['3PA rate', t => P(pc(X[t].fg3a, X[t].fga)), null],
+    ['2nd-chance points', t => X[t].sc2, t => X[t].sc2, true],
+    ['Points off turnovers', t => X[t].pot, t => X[t].pot, true]];
+  // Moorpark always on the left, the stat in the middle, the opponent on the right.
+  const body = rows.map(r => { const [lbl, show, val, hi] = r, va = val ? val('a') : null, vb = val ? val('b') : null;
+    const win = va == null || vb == null || va === vb ? '' : (va > vb) === hi ? 'a' : 'b';
+    return `<tr><td class="ts-a ${win === 'a' ? 'ts-win' : ''}">${show('a')}</td><td class="ts-lbl">${lbl}</td><td class="ts-b ${win === 'b' ? 'ts-win' : ''}">${show('b')}</td></tr>`; }).join('');
+  return `<div class="card ts-card"><h3>Team stats <span class="muted">· ${esc(label)}, from the tracked plays</span></h3><div class="tbl-wrap"><table class="tbl rep-tbl zebra ts-tbl">
+    <thead><tr><th class="ts-a" style="color:var(--us)">${esc(teamName(g, 'a'))}</th><th></th><th class="ts-b" style="color:var(--them-text)">${esc(teamName(g, 'b'))}</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+}
+
 /* ---------- reports: halftime and post-game ---------- */
 function clutchCard(g, D, half) {
   return `${!half ? `<div class="card"><h3>Clutch &amp; garbage time</h3>${(() => { const c = D.poss.filter(p => p.clutch), gt = D.poss.filter(p => p.gt);
@@ -2076,19 +2237,31 @@ function clutchCard(g, D, half) {
         <tr><td>Garbage time</td><td>${Math.floor(gt.length / 2)}</td><td>${pts(gt, 'a')}</td><td>${ppp(pts(gt, 'a'), n(gt, 'a'))}</td><td>${pts(gt, 'b')}</td><td>${ppp(pts(gt, 'b'), n(gt, 'b'))}</td></tr></tbody></table>
         <div class="small muted" style="margin-top:6px">${g.final ? 'Graded exactly (game is final).' : 'Estimated until the game is marked Final.'}</div>`; })()}</div>` : ''}`;
 }
+/* The Report tab's game: the one picked in its game list, else the game on Live once it has a play, else the last
+   game played (so after Final, with Live on to the next game, the report stays on that game). Each game opens on
+   its latest report: Post-game once it's final, Halftime until then. */
+const playedGames = () => games.map((x, i) => ({ x, i })).filter(o => o.x.ev.some(e => e.t === 'play' || e.t === 'foul'))
+  .sort((p, q) => String(q.x.date).localeCompare(String(p.x.date)) || q.i - p.i).map(o => o.x);
+function repGame() {
+  const c = cur(), P = playedGames();
+  return games.find(x => x.id === UI.repId) || (c && P.includes(c) ? c : null) || P[0] || c;
+}
+const repHalf = g => UI.rep === 'half' || (UI.rep == null && !g.final);
 function reportView(g) {
-  const D = derive(g), half = UI.rep === 'half' || (UI.rep == null && !g.final && g.per === '1H');
+  const D = derive(g), half = repHalf(g), P = playedGames();
   const scope = half ? '1H' : null, S = perSums(D, scope), G = perSums(D, null);
   const avg = Math.floor((S.poss.a + S.poss.b) / 2);
   const tile = (t, x) => `<div class="rp-team ${t}"><div class="rp-nm">${logo(teamName(g, t), 30)}<span>${esc(teamName(g, t))}</span></div><div class="rp-sc">${x.pts[t]}</div>
     <div class="small muted">${x.poss[t]} poss · <b>${ppp(x.pts[t], x.poss[t])}</b> PPP · ${x.kills[t]} kills</div></div>`;
   return `${half && g.half ? `<div class="card ht-banner"><div><b>Halftime</b> · ${G.pts.a}–${G.pts.b}</div><button class="btn btn-good btn-lg" data-act="start-2h">Start 2nd half → starting fives</button></div>` : ''}
+    ${P.length > 1 || (P.length && P[0] !== g) ? `<select class="rep-pick" data-act="rep-game">${(P.includes(g) ? P : [g, ...P]).map(x => `<option value="${esc(x.id)}" ${x === g ? 'selected' : ''}>${esc(fmtDay(x.date))} · ${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)} · ${(() => { const S = perSums(derive(x), null); return S.pts.a + '–' + S.pts.b; })()}${x.final ? ' · Final' : x === cur() ? ' · Live' : ''}</option>`).join('')}</select>` : ''}
     <div class="page-head"><h2>${half ? 'Halftime report' : 'Post-game report'}</h2>
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
       <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button><button class="btn btn-sm" data-act="print">Print / PDF</button></div>
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
+    ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
     ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + (half ? seasonFixCard(g, D) : '') + clutchCard(g, D, half) : `
     <div class="card sh-cta"><span>📷 Have the ${half ? 'halftime' : 'final'} stat sheet? Add a photo for the full report: team, player and lineup analytics.</span><button class="btn btn-good" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">Add stat sheet</button></div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
@@ -2871,16 +3044,8 @@ function pendStrip(g, D, t) {
   return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b></span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
 }
 let SUB = null;
-function subModal(title) {
-  const g = cur(), D = derive(g);
-  if (!SUB) {
-    const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
-    // Pending players come in already; the screen then only needs who's coming off.
-    const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
-    SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
-      title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : pend.a.size || pend.b.size ? 'Sub — tap who’s coming off' : title || 'Sub — who is on the floor?' };
-  }
-  const side = t => { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set();
+/* The sub screen's team side and its check, shared by the Sub pop-up and the 2nd-half starters panel on Live. */
+function subSide(g, t) { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set();
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
           return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : ''}</button>`; };
@@ -2894,8 +3059,18 @@ function subModal(title) {
         return `${pend.length ? `<div class="sub-lbl">Checking in <span class="muted">${going} going in${pend.length - going ? ` · ${pend.length - going} holding` : ''}</span></div><div class="sub-grid sub-floor">${pend.map(pbtn).join('')}</div>` : ''}
           <div class="sub-lbl">On the floor ${n > 5 ? '' : `<span class="muted">${n}/5</span>`}${n > 5 ? ` <b class="sub-off">tap ${n - 5} coming off</b>` : ''}</div><div class="sub-grid sub-floor">${on.map(btn).join('') || '<div class="muted small">Tap players on the bench to put them in.</div>'}</div>
           <div class="sub-lbl">Bench</div><div class="sub-grid">${bench.map(btn).join('') || '<div class="muted small">No one on the bench.</div>'}</div>`; })()
-        : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; };
-  const ok = t => (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id)));
+        : `<div class="muted small" style="margin-top:8px">No roster${t === 'b' ? ' — use Roster on the live screen to add their numbers' : ''}.</div>`}</div>`; }
+function subOk(g, t) { return (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.forced.some(o => o.t === t))) && !(canReplace(g, t) && [...SUB[t]].some(id => isOut(g, t, id))); }
+function subModal(title) {
+  const g = cur(), D = derive(g);
+  if (!SUB) {
+    const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
+    // Pending players come in already; the screen then only needs who's coming off.
+    const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
+    SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
+      title: forced.length ? `${forced.map(o => pShort(g, o.t, o.id)).join(' & ')} fouled out — pick a replacement` : pend.a.size || pend.b.size ? 'Sub — tap who’s coming off' : title || 'Sub — who is on the floor?' };
+  }
+  const side = t => subSide(g, t), ok = t => subOk(g, t);
   const fx = SUB.forced.length;
   modal(`<div class="sub-head"><h2>${esc(SUB.title)}</h2><div class="sub-top">${fx ? SUB.forced.map(o => `<button class="btn btn-lg" data-act="fouls" data-t="${o.t}" data-p="${esc(o.id)}">Edit ${esc(pShort(g, o.t, o.id))}'s fouls</button>`).join('') : '<button class="btn btn-lg" data-act="sub-cancel">Cancel</button>'}<button class="btn btn-good btn-lg" data-act="sub-ok" ${ok('a') && ok('b') ? '' : 'disabled'}>Confirm</button></div></div>
     ${fx ? '<div class="small muted" style="margin:6px 0 10px">Five fouls (or two technicals) and he has to come out. Wrong player on a foul? Edit fouls to move it.</div>' : ''}
@@ -2984,7 +3159,7 @@ function huddleOpen(g, calledBy, kind, clock) {
   const W = { a: huddleBox(D, winList, 'a'), b: huddleBox(D, winList, 'b') }, GB = { a: huddleBox(D, D.poss, 'a'), b: huddleBox(D, D.poss, 'b') };
   const h1 = per === '1H';
   const empty = t => { let n = 0; const ps = D.poss.filter(p => p.team === t && p.per === per); for (let i = ps.length - 1; i >= 0 && ps[i].pts === 0 && ps[i].done; i--) n++; return n; };
-  const R = scoringRuns(g), run = R[R.length - 1];
+  const run = liveRun(g, D);
   // Talk points, most pressing first (four at most).
   const pts = [], add = (w, good, t) => pts.push({ w, good, t });
   const a = W.a, b = W.b, opp = g.opp;
@@ -2993,8 +3168,8 @@ function huddleOpen(g, calledBy, kind, clock) {
   if (b.oreb >= 2) add(b.oreb + 0.5, false, `They have ${b.oreb} offensive boards in their last ${b.n} trips.`);
   if (a.oreb >= 3) add(a.oreb - 1, true, `${a.oreb} offensive boards for us in our last ${a.n} trips.`);
   if (b.n >= 5 && b.pts / b.n >= 1.3) add(b.pts / b.n * 3, false, `They're scoring ${ppp(b.pts, b.n)} a trip over their last ${b.n}.`);
-  if (run && run.team === 'b' && run.pts >= 6) add(run.pts / 2, false, `They're on a ${run.pts}-0 run.`);
-  if (run && run.team === 'a' && run.pts >= 8) add(run.pts / 3, true, `We're on a ${run.pts}-0 run.`);
+  if (run && run.team === 'b') add((run.f - run.a) / 2, false, `They're on a ${run.f}-${run.a} run.`);
+  if (run && run.team === 'a' && run.f - run.a >= 8) add((run.f - run.a) / 3, true, `We're on a ${run.f}-${run.a} run.`);
   const eA = empty('a'); if (eA >= 3) add(eA, false, `${eA} straight empty trips for us.`);
   const stA = S.streak.a || 0; if (stA >= 3) add(stA - 0.5, true, `${stA} stops in a row.`);
   const fa = teamFouls(g, 'a', per), fb = teamFouls(g, 'b', per);
@@ -3064,6 +3239,7 @@ function huddleOpen(g, calledBy, kind, clock) {
       <div class="hud-team b"><div><div class="hud-score">${G.pts.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logo(opp, 34)}</div>
     </div>
     ${eoh}<div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
+    ${teamStatsCard(g, D, 'G', 'the game so far')}
     <div class="card hud-floor"><h3>Last ${HUDDLE_N} possessions (~5:00) vs the game <span class="muted">${a.pts}–${b.pts} · ${a.n} ours, ${b.n} theirs · ▲▼ highlighted = moved well away from the game on enough attempts</span></h3>
       <div class="tbl-wrap">${cmp}</div></div>
     <div class="card hud-floor"><h3>Momentum</h3>
@@ -3161,6 +3337,7 @@ function push(g, e) {
    Block. Everything else is muted until the shot is logged or cancelled. */
 const MAKES = new Set(['2m', '3m']), MISSES = new Set(['2x', '3x']);
 function shotMute(st, k) {
+  if (st === 'ftsh') return true;   // FT Shooter: only a player card
   if (MAKES.has(st)) return k !== 'ast' && k !== st;
   if (MISSES.has(st)) return k !== 'blk' && k !== st;
   return k === 'ast' || k === 'blk';   // nothing to add onto yet
@@ -3172,6 +3349,7 @@ function logStat(team, player) {
   UI.ast = false; UI.blk = false;
   // After a miss the logos wait for the rebound: the shooting team's logo = offensive, the other = defensive.
   UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null; UI.rebFt = k === 'ftx';
+  if (k !== 'foul') delete g.ftNext;   // his first FT, or any other play, ends the wait (a foul doesn't)
   if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
   else push(g, Object.assign({ t: 'play', team, player, k }, extra));
   save(); render();
@@ -3227,9 +3405,10 @@ function exportLeaderboard(g, side) {
   a.download = side === 'off' ? `off_${g.date}__${g.opp}__${venue}__OFF.csv` : `def_${g.date}__${g.opp}__${venue}.csv`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-function exportGame(g) {
+// tag: 'half' / 'final' for the automatic copies (end of the 1st half, Final), so they never overwrite each other.
+function exportGame(g, tag) {
   const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, appVersion: VERSION, dataVersion: DATA_V, game: g }, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}${tag ? '_' + tag : ''}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 function importGame() {
@@ -3267,7 +3446,7 @@ document.addEventListener('click', ev => {
   switch (act) {
     case 'overlay': if (ev.target === b && !FOULS && !SHEET && !(SUB && SUB.forced && SUB.forced.length)) { SUB = null; TECH = null; closeModal(); } break;
     case 'close': closeModal(); render(); break;
-    case 'new': curId = null; SD = null; save(); UI.tab = 'live'; render(); break;
+    case 'new': curId = null; SD = null; UI.stat = null; UI.reb = null; save(); UI.tab = 'live'; render(); break;
     case 'su-player': { readSetup(); const n = b.dataset.p, d = SD;
       if (d.starters.includes(n)) { d.starters = d.starters.filter(x => x !== n); d.dressed = d.dressed.filter(x => x !== n); }
       else if (d.dressed.includes(n)) { if (d.starters.length >= 5) { toast('Five starters already — tap one to sit him first'); return; } d.starters.push(n); }
@@ -3320,16 +3499,20 @@ document.addEventListener('click', ev => {
         if (!ok) { toast(k === 'ast' ? 'Tap 2PT Make or 3PT Make first, then Assist' : 'Tap 2PT Miss or 3PT Miss first, then Block'); return; }
         UI[k] = !UI[k]; render(); return; }
       UI.ast = false; UI.blk = false;
+      if (k === 'ftsh') { UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); return; }
       if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
       // The rest of a free-throw trip: logged right away to the same shooter (or team).
       if (FT_K.has(k) && !UI.ins) { const tr = ftTrip(g); if (tr) { UI.reb = null; UI.stat = k; logStat(tr.team, tr.player);
         toast(`${k === 'ftm' ? 'FT make' : 'FT miss'} · ${tr.player === 'TEAM' ? teamName(g, tr.team) : pShort(g, tr.team, tr.player)}`, 'good'); break; } }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
+    case 'ftsh-x': delete g.ftNext; save(); render(); break;
     case 'stat-cancel': UI.stat = null; UI.ast = false; UI.blk = false; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
     case 'no-reb': UI.reb = null; UI.rebFt = false; render(); break;
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
+      if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p }; save(); render();
+        toast(`FT shooter: ${pShort(g, b.dataset.team, b.dataset.p)} — FT Make / FT Miss go to him`, 'good'); break; }
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
       if (!PLAYER_STATS.has(UI.stat) && !FT_K.has(UI.stat)) { toast('Tap the team button at the top'); return; }
       logStat(b.dataset.team, b.dataset.p); break;
@@ -3360,9 +3543,9 @@ document.addEventListener('click', ev => {
       SUB = { a: new Set(f), b: new Set(derive(g).five.b), forced: [], title: 'Sub — suggested five (Confirm to put them in)' }; subModal(); break; }
     // Over five is fine (players checking in, or adding more): the screen says how many to tap off, and
     // Confirm waits until each team is back to five.
-    case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else s.add(p); subModal(); break; }
+    case 'sub-p': { const s = SUB[b.dataset.t], p = b.dataset.p; if (s.has(p)) s.delete(p); else s.add(p); if (SUB.h2) render(); else subModal(); break; }
     case 'sub-ok': subConfirm(); break;
-    case 'sub-hold': { const S0 = SUB[b.dataset.t], id = b.dataset.p; if (S0.has(id)) S0.delete(id); else S0.add(id); subModal(); break; }
+    case 'sub-hold': { const S0 = SUB[b.dataset.t], id = b.dataset.p; if (S0.has(id)) S0.delete(id); else S0.add(id); if (SUB.h2) render(); else subModal(); break; }
     case 'plug': { const D0 = derive(g), out = b.dataset.out, cand = b.dataset.p; SUB.a.delete(out); if (!SUB.a.has(cand)) {
         // His spot: if the five is already full (a pending player filled it), the plug-in replaces that one.
         if (SUB.a.size >= 5) { const extra = [...SUB.a].find(id => !D0.five.a.includes(id)); if (extra) SUB.a.delete(extra); } SUB.a.add(cand); } subModal(); break; }
@@ -3388,7 +3571,9 @@ document.addEventListener('click', ev => {
       const e = { t: 'to', team: TOM.t, kind: TOM.k }; if (secs != null) e.clock = secs;
       push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); break; }
     case 'huddle': huddleOpen(g); break;
-    case 'sh-open': sheetOpen(b.dataset.s); break;
+    case 'sh-open': { const rg = UI.tab === 'report' ? repGame() : g;   // the report's game, when no other game is live
+      if (rg && rg !== g) { if (g && !g.final) { toast(`Finish the ${g.opp} game first (or open this one from Games)`, 'bad'); return; } curId = rg.id; save(); }
+      sheetOpen(b.dataset.s); break; }
     case 'of-open': ev.stopPropagation(); openOppFile(b.dataset.n); break;
     case 'of-sel': OF.sel = b.dataset.g; scoutTabs(); break;
     case 'sc-mode': OF.mode = b.dataset.m; scoutTabs(); if (OF.mode === 'pdf' && SC.doc) layoutScout(); break;
@@ -3431,12 +3616,21 @@ document.addEventListener('click', ev => {
       }
       if (g.per !== g.periods[g.periods.length - 1]) { g.per = g.periods[g.periods.length - 1]; save(); render(); return; }
       if (!confirm(`End ${PER_NAME(g.per)}?`)) return;
-      // Halftime: straight to the halftime report; its button starts the 2nd half.
-      g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); UI.tab = 'report'; UI.rep = 'half'; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
-    case 'start-2h': backupGame(g, 'half'); snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
+      // Halftime: straight to the halftime report; its button starts the 2nd half. The game file downloads (a copy off the iPad).
+      g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); backupGame(g, 'half'); exportGame(g, 'half');
+      UI.tab = 'report'; UI.rep = 'half'; UI.repId = g.id; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
+    // The halftime backup and game file were made when the half ended.
+    case 'start-2h': snapReport(g, 'half', true); g.half = false; g.h2Need = ['a', 'b']; SUB = null; save(); UI.tab = 'live'; render(); window.scrollTo(0, 0); break;
+    case 'h2-ok': { const t = b.dataset.t, f = [...SUB[t]]; if (f.length !== 5) return;
+      push(g, { t: 'sub', team: t, five: f, per: g.per }); g.h2Need = (g.h2Need || []).filter(x => x !== t);
+      if (!g.h2Need.length) { delete g.h2Need; SUB = null; toast('2nd half: both fives in — logging is on', 'good'); }
+      save(); render(); break; }
     case 'scout': openScout(); break;
-    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game saved. Games → Export season keeps a copy off the iPad.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
-    case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
+    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; UI.repId = g.id; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    // End of regulation / an OT going into another OT: the game file downloads (poss_…_reg.json, _ot1, _ot2…).
+    case 'start-ot': { const nx = 'OT' + (otCount(g) + 1), was = g.per === '2H' ? 'reg' : g.per.toLowerCase();
+      backupGame(g, was === 'reg' ? 'reg' : 'ot'); exportGame(g, was);
+      g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
     case 'gt-here': g.gtFrom = b.dataset.id; g.gtOff = false; save(); closeModal(); render(); toast('Garbage time starts at that possession'); break;
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
@@ -3445,7 +3639,8 @@ document.addEventListener('click', ev => {
     case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
-    case 'rep-save': { const half = UI.rep === 'half' || (UI.rep == null && !g.final && g.per === '1H'); snapReport(g, half ? 'half' : 'post'); break; }
+    case 'rep-save': { const rg = repGame(); snapReport(rg, repHalf(rg) ? 'half' : 'post'); break; }
+    case 'rep-open': UI.repId = b.dataset.id; UI.rep = 'post'; UI.tab = 'report'; render(); window.scrollTo(0, 0); break;
     case 'rp-open': UI.savedId = b.dataset.id; UI.tab = 'saved'; render(); window.scrollTo(0, 0); break;
     case 'rp-back': UI.tab = 'games'; render(); break;
     case 'rp-del': if (confirm('Delete this saved report?')) rpDel(b.dataset.id).then(() => { render(); toast('Saved report deleted'); }); break;
@@ -3569,7 +3764,9 @@ document.addEventListener('change', ev => {
     if (t.value === '__other') { SCH.other.add(r.id); r.picked = false; render(); const i = document.querySelector(`input[data-sr="${t.dataset.sr}"][data-f="opp"]`); if (i) { i.focus(); i.select(); } return; }
     collectSched(); r.picked = !isTBD(r.opp); schAutosaveRows(); render(); toast(`${fmtDay(r.date)}: ${isTBD(t.value) ? 'TBD' : t.value}`, 'good'); try { fetchTeamFiles(ratingsData()); } catch (e) {} return; }
   schAutosave(); });
-document.addEventListener('change', ev => { const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
+document.addEventListener('change', ev => { const rp = ev.target.closest && ev.target.closest('select[data-act="rep-game"]');
+  if (rp) { UI.repId = rp.value; UI.rep = null; render(); window.scrollTo(0, 0); return; }
+  const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
   if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }
   const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
   if (f) { UI.luFilter = f.value; UI.luOpen = null; render(); return; }
@@ -4910,7 +5107,7 @@ const SITS = [
   { id: 'foul', name: 'Stop fouling', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
     on: c => c.tf >= 7 && c.perLeft != null && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} on the clock` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
   { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'best stop %',
-    on: c => c.run >= 6 ? `They're on a ${c.run}-0 run` : '' },
+    on: c => c.run ? `They're on a ${c.run}-${c.runA || 0} run` : '' },
   { id: 'ast', name: 'Move the ball', stat: 'asp', hi: true, end: 'o', def: 'hm', rank: 'best assist rate (AST%)',
     on: c => c.ab.asp != null && c.ab.fgm >= 8 && c.ab.asp < c.N.asp - 12 ? `AST% ${c.ab.asp.toFixed(0)} tonight (norm ${c.N.asp.toFixed(0)}): the ball is sticking` : '' },
   { id: 'best', name: 'vs their best five', def: 'hm', on: c => c.theirBest ? `${esc(c.oppName)}'s best five is on` : '' },
@@ -4926,11 +5123,11 @@ function sitCtx(g, D) {
   const night = L ? (() => { const a = ffCalc(L.a, L.b), b = ffCalc(L.b, L.a);
     return { efg: a.efg, oefg: b.efg, tov: a.to, otov: b.to, orb: a.orb, drb: b.orb == null ? null : 100 - b.orb, ftr: a.ftr, oftr: b.ftr,
       o2p: pct1((L.b.fgm || 0) - (L.b.fg3m || 0), (L.b.fga || 0) - (L.b.fg3a || 0)), o3ar: pct1(L.b.fg3a || 0, L.b.fga || 0) }; })() : {};
-  const runs = scoringRuns(g), lr = runs[runs.length - 1];
+  const lr = liveRun(g, D);   // the run on right now (teamRuns: 6-0, or +8 holding us to 40%)
   const ck = clockNow(g, D), perLeft = ck ? ck.clock : null;   // shown times: only the clock you entered
   const hurt = !!fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, ffSc: half === '1H' ? '1H' : '2H' })).html;
   const clockLate = !g.final && g.per !== '1H' && perLeft != null && perLeft <= 240;
-  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, clockLate, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.pts : 0,
+  return { N: N.v, nsrc: N.src, secs, left: ck ? fmtSecs(ck.clock) : '', late, clockLate, m, ball: g.ball, night, run: lr && lr.team === 'b' ? lr.f : 0, runA: lr && lr.team === 'b' ? lr.a : 0,
     att2: L ? (L.b.fga || 0) - (L.b.fg3a || 0) : 0, fga: L ? L.b.fga || 0 : 0, tf: teamFouls(g, 'a', g.per), perLeft, hurt,
     theirBest: theirBestOn(g, D), oppName: g.opp, tip: tipCur(g, D), ab: abTonight(g, D) };
 }
@@ -6072,13 +6269,14 @@ function projectedView(g) {
 /* ---------- Runs: kills, kill shots and runs ----------
    KILL       3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules, per half / OT.
    KILL SHOT  10-0 unanswered (technical FTs count, it carries across the half), as on the Report.
-   RUN        6-0 unanswered, or a spurt of +8 within 6 possessions each (10-2, 12-4), merged when they overlap.
+   RUN        6-0 unanswered, or +8 holding the other side to 40% of the points (10-2, 15-6, 22-5; not 8-7),
+              as wide as it goes inside a half, stopped by the other side's own 6-0 (teamRuns in app.js).
    For each one: who achieved it, the five on the floor (ours and theirs), the half and how many trips into
    it (possession count, never a clock estimate), the score, what started it and what ended it. A kill is
    credited to the five on the floor when its 3rd stop happens; a kill shot or run to the five on when it
    started. Garbage time is out. Season = every game tracked here (no scrimmages); Quality = only against
    an opponent with a positive adjusted net (needs the ⬆ Adjusted file). */
-const SPURT_NET = 8, SPURT_TRIPS = 6, RN_MIN_POSS = 25;
+const RN_MIN_POSS = 25;
 const RN_START = [['half', 'Start of a half'], ['to-own', 'Out of their own timeout'], ['to-opp', "After the other side's timeout"], ['sub-own', 'Fresh five (2+ subs)'],
   ['sub-opp', 'Other side just subbed 2+'], ['lbto', 'After forcing a live-ball TO'], ['to', 'After forcing a dead-ball TO'], ['ftx', 'After the other side missed FTs'], ['miss', 'After a stop on a missed shot']];
 const RN_END = [['3', 'Made 3'], ['2', 'Made 2'], ['FT', 'Foul → FTs'], ['timeout', 'Timeout, then they scored'], ['half', 'End of the half'], ['tech', 'Technical FTs']];
@@ -6136,22 +6334,11 @@ function runsGame(g) {
       if (nxt > 0) { const ev = g.ev.slice(st(P[k6]) + 1, st(P[nxt])), did = ev.some(e => e.t === 'to' && e.team === vic) ? 'timeout' : ev.some(e => e.t === 'sub' && e.team === vic) ? 'sub' : 'nothing';
         const next = P.filter((q, k) => k > k6 && q.team === r.team).slice(0, 3);
         if (next.length === 3) answers.push({ team: r.team, did, pts: next.reduce((s, q) => s + q.pts, 0), gid: g.id }); } } });
-  // SPURTS: +8 within 6 trips each, inside a half, then merged with unanswered 6-0s of the same side.
-  const spans = { a: [], b: [] };
-  un.forEach(r => { if (r.ep && r.pts >= 6) spans[r.team].push({ i0: r.ep.i0, i1: r.ep.i1, src: r }); });
-  ['a', 'b'].forEach(t => { for (let i = 0; i < P.length; i++) {
-    if (P[i].gt || P[i].team !== t || !P[i].pts) continue;
-    let f = 0, a = 0, n = { a: 0, b: 0 }, best = null;
-    for (let j = i; j < P.length && P[j].per === P[i].per && !P[j].gt; j++) { n[P[j].team]++; if (n.a > SPURT_TRIPS || n.b > SPURT_TRIPS) break;
-      if (P[j].team === t) f += P[j].pts; else a += P[j].pts; if (P[j].team === t && P[j].pts && f - a >= SPURT_NET) best = { i0: i, i1: j, f, a }; }
-    if (best) { spans[t].push(best); i = best.i1; } } });
+  // RUNS (teamRuns): 6-0 unanswered, or +8 holding the other side to 40% (10-2, 15-6, 22-5), each as wide as it goes.
   const runs = [];
-  ['a', 'b'].forEach(t => { const L = spans[t].sort((x, y) => x.i0 - y.i0), M = [];
-    L.forEach(s => { const l = M[M.length - 1]; if (l && s.i0 <= l.i1) { l.i1 = Math.max(l.i1, s.i1); l.srcs.push(s); } else M.push({ i0: s.i0, i1: s.i1, srcs: [s] }); });
-    M.forEach(m => { let f = 0, a = 0; for (let k = m.i0; k <= m.i1; k++) { if (P[k].team === t) f += P[k].pts; else a += P[k].pts; }
-      const u = m.srcs.find(s => s.src); f = Math.max(f, u ? u.src.pts : 0);
-      const nx = P.findIndex((q, k) => k > m.i1 && q.team !== t && q.pts > 0);
-      runs.push(ep({ kind: 'run', team: t, pts: f, against: a, from: P[m.i0].before, to: P[m.i1].score, start: started(m.i0, t), end: nx < 0 || P[nx].per !== P[m.i1].per ? 'half' : ended(nx, other(t), m.i0) }, m.i0)); }); });
+  ['a', 'b'].forEach(t => teamRuns(P, t).forEach(m => {
+    const nx = P.findIndex((q, k) => k > m.i1 && q.team !== t && q.pts > 0);
+    runs.push(ep({ kind: 'run', team: t, pts: m.f, against: m.a, from: P[m.i0].before, to: P[m.i1].score, start: started(m.i0, t), end: nx < 0 || P[nx].per !== P[m.i1].per ? 'half' : ended(nx, other(t), m.i0) }, m.i0)); }));
   // Possessions per five (ours), off / def, garbage time out.
   const fives = {};
   P.forEach(p => { if (p.gt || (p.five.a || []).length !== 5) return; const k = fiveKey(p.five.a), f = fives[k] = fives[k] || { five: p.five.a.slice(), o: 0, d: 0 }; if (p.team === 'a') f.o++; else f.d++; });
@@ -6280,7 +6467,7 @@ function killNear(g, D, t) {
       Import season adds the file's games (one already here is replaced only if the file's copy has more plays; the one
       on the iPad is backed up first) and fills in rosters / schedule / settings this iPad doesn't have. */
 const BK_DB = 'pt2_backups', LS_LAST_EXPORT = 'pt2_last_export';
-const BK_KIND = { half: 'Halftime', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
+const BK_KIND = { half: 'Halftime', reg: 'End of regulation', ot: 'End of OT', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
 function bkDb() {
   return new Promise((res, rej) => { const q = indexedDB.open(BK_DB, 1);
     q.onupgradeneeded = () => q.result.createObjectStore('b', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
@@ -6464,6 +6651,7 @@ try { upgradeAll(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
 /* DEMO: frozen on the seeded 2025-26 ratings and team files; no refresh, no season baseline. */
+saveLogos();
 </script>
 </body>
 </html>
