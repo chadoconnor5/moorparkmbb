@@ -1231,7 +1231,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.220';
+const VERSION = 'v2026.10.21.221';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1999,14 +1999,14 @@ function feedText(g, x) {
 function feedText0(g, x) {
   if (x.kind === 'poss') {
     const p = x.p, t = p.team;
-    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'steal (held ball)' : STAT_LABEL[e.k].toLowerCase()}${e.ast ? ' (assisted)' : ''}${e.blk ? ' (blocked)' : ''}`);
+    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'steal (held ball)' : STAT_LABEL[e.k].toLowerCase()}${e.auto ? ' (auto)' : ''}${e.ast ? ' (assisted)' : ''}${e.blk ? ' (blocked)' : ''}`);
     const tail = p.dreb ? ' · def reb' : '';
     return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
   const e = x.e;
   if (x.kind === 'sub') return { cls: 's', html: `⇄ ${esc(teamName(g, e.team))}: ${esc(fiveSorted(g, e.team, e.five).map(id => pShort(g, e.team, id)).join(', '))}`, id: e.id };
   if (x.kind === 'tech') return { cls: 's', html: `<span style="color:var(--bad)">T</span> · ${esc(techText(g, e))}`, sc: `${x.score.a}–${x.score.b}`, id: e.id };
-  if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb`, id: e.id };
+  if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb${e.auto ? ' (auto)' : ''}`, id: e.id };
   if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
   if (x.kind === 'clock') return { cls: 's', html: `Game clock · ${fmtSecs(e.clock)}`, id: e.id };
   if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout${e.clock != null ? ' · ' + fmtSecs(e.clock) : ''}`, id: e.id };
@@ -3402,8 +3402,28 @@ const parseLines = txt => txt.split('\n').map(l => l.trim()).filter(Boolean).map
 const isLocked = (g, e) => !!e && (e.lock || (e.t === 'sub' && !g.ev.some(x => x !== e && x.t === 'sub' && x.team === e.team && g.ev.indexOf(x) < g.ev.indexOf(e))));
 
 /* ---------- logging ---------- */
+/* AUTO REBOUNDS: a missed shot with no rebound tapped gets one from the next play, so a forgotten tap never splits a
+   possession. The same team playing on (shot, FTs, turnover, the other side's steal) = their offensive rebound; the
+   other team playing = its defensive rebound. Not between FTs of one trip, not across periods, not after No rebound.
+   It's a real event (auto: true): in Play-by-Play as "(auto)", undone with the play that implied it. */
+const MISS_K = new Set(['2x', '3x', 'ftx']);
+function impliedReb(evs, i, e) {
+  if (!e || e.t !== 'play' || e.k === 'oreb' || e.k === 'dreb') return null;
+  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'foul', 'tech'].includes(x.t)) continue; L = x; break; }
+  if (!L || L.t !== 'play' || !MISS_K.has(L.k) || L.noReb || L.per !== e.per) return null;
+  if (L.k === 'ftx' && isFT(e.k) && offOf(e) === L.team) return null;   // the next free throw of the trip
+  const h = offOf(e);
+  return { t: 'play', team: h, player: 'TEAM', k: h === L.team ? 'oreb' : 'dreb', auto: true, per: e.per };
+}
+// Every missing rebound in a saved game (once, on upgrade): returns how many were added.
+function fillRebounds(g) {
+  let n = 0;
+  for (let i = 0; i < g.ev.length; i++) { const r = impliedReb(g.ev, i, g.ev[i]); if (r) { r.id = uid(); r.with = g.ev[i].id; g.ev.splice(i, 0, r); i++; n++; } }
+  return n;
+}
 function push(g, e) {
   e.id = e.id || uid(); e.per = e.per || g.per;
+  if (e.t === 'play' && !UI.ins && !e.auto) { const r = impliedReb(g.ev, g.ev.length, e); if (r) { r.id = uid(); r.with = e.id; g.ev.push(r); UI.autoReb = r; } }
   if (UI.ins) { const i = g.ev.findIndex(x => x.id === UI.ins); if (i >= 0) { g.ev.splice(i, 0, e); UI.ins = null; UI.redo = []; return; } UI.ins = null; }
   g.ev.push(e); UI.redo = [];
 }
@@ -3429,6 +3449,7 @@ function logStat(team, player) {
   // His last free throw ends the trip (kept as ftPrev, so Undo of that shot puts the strip back).
   if (FT_K.has(k) && g.ftNext && ftDone(g) >= ftOf(g)) { g.ftPrev = g.ftNext; delete g.ftNext; }
   save(); render();
+  if (UI.autoReb) { const r = UI.autoReb; UI.autoReb = null; toast(`${teamAbbr(g, r.team)} ${r.k === 'oreb' ? 'off' : 'def'} reb added (no rebound was tapped)`); }
   if (k === 'foul' || k === 'chg' || k === 'offf') {
     const n = playerFouls(g, team, player); if (player !== 'TEAM' && n >= 4) toast(`${pShort(g, team, player)}: ${n} fouls${n >= 5 ? ' — FOULED OUT' : ''}`, n >= 5 ? 'bad' : 'warn');
   }
@@ -3587,7 +3608,7 @@ document.addEventListener('click', ev => {
     case 'ftsh-n': { if (!g.ftNext) return; g.ftNext.n = b.dataset.n === '1+1' ? '1+1' : +b.dataset.n; if (ftDone(g) >= ftOf(g)) delete g.ftNext; save(); render(); break; }
     case 'stat-cancel': UI.stat = null; UI.ast = false; UI.blk = false; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
-    case 'no-reb': UI.reb = null; UI.rebFt = false; render(); break;
+    case 'no-reb': { UI.reb = null; UI.rebFt = false; const m = [...g.ev].reverse().find(e => e.t === 'play'); if (m && MISS_K.has(m.k)) { m.noReb = true; save(); } render(); break; }
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
       if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p, n: (n => n >= 7 && n < 10 ? '1+1' : 2)(teamFouls(g, other(b.dataset.team), g.per)), after: g.ev.length ? g.ev[g.ev.length - 1].id : null }; delete g.ftPrev; save(); render();
@@ -3604,7 +3625,8 @@ document.addEventListener('click', ev => {
     case 'flag': { ev.stopPropagation(); const e = g.ev.find(x => x.id === b.dataset.id); if (!e) return; e.flag = !e.flag; save(); render(); toast(e.flag ? '🚩 Flagged — find it under Play-by-Play → Flagged' : 'Flag removed'); break; }
     case 'undo': { UI.reb = null; const last = g.ev[g.ev.length - 1];
       if (!last || isLocked(g, last)) { toast('Nothing to undo — the starting fives stay (change them with ⇄ Sub)'); return; }
-      UI.redo.push(g.ev.pop());
+      const popped = g.ev.pop(); UI.redo.push(popped);
+      { const r = g.ev[g.ev.length - 1]; if (r && r.auto && r.with === popped.id) UI.redo.push(g.ev.pop()); }   // its auto rebound goes too
       if (!g.ftNext && g.ftPrev && last.t === 'play' && FT_K.has(last.k) && last.team === g.ftPrev.team) { g.ftNext = g.ftPrev; delete g.ftPrev; }   // un-ends the trip
       save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
@@ -6612,7 +6634,7 @@ function killNear(g, D, t) {
       Import season adds the file's games (one already here is replaced only if the file's copy has more plays; the one
       on the iPad is backed up first) and fills in rosters / schedule / settings this iPad doesn't have. */
 const BK_DB = 'pt2_backups', LS_LAST_EXPORT = 'pt2_last_export';
-const BK_KIND = { half: 'Halftime', reg: 'End of regulation', ot: 'End of OT', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
+const BK_KIND = { rebfill: 'Before auto rebounds', half: 'Halftime', reg: 'End of regulation', ot: 'End of OT', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
 function bkDb() {
   return new Promise((res, rej) => { const q = indexedDB.open(BK_DB, 1);
     q.onupgradeneeded = () => q.result.createObjectStore('b', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
@@ -6705,7 +6727,7 @@ function seasonCard() {
    (labels, lineups, reports, situations) is worked out fresh from the plays each time, so this only fixes the raw
    format; situation tags re-stamp themselves when their version changes (sitlog.js). When the raw format changes, bump
    DATA_V and add the step below: it must work on any older game and be safe to run twice. */
-const DATA_V = 1;
+const DATA_V = 2;
 function upgradeGame(g) {
   if (!g || typeof g !== 'object') return g;
   g.v = g.v || 2; g.ev = Array.isArray(g.ev) ? g.ev : []; g.box = g.box || {};
@@ -6715,6 +6737,8 @@ function upgradeGame(g) {
   if (!g.per || !g.periods.includes(g.per)) g.per = g.periods[g.periods.length - 1];
   if (g.astBlk == null) g.astBlk = g.ev.some(e => e.ast || e.blk);
   if (!g.created) g.created = Date.parse((g.date || today()) + 'T19:00:00') || Date.now();
+  // v2: missing rebounds filled in from the next play (impliedReb), after a backup of the game as it was.
+  if ((g.dv || 0) < 2) { const before = JSON.parse(JSON.stringify(g)); if (fillRebounds(g)) { try { backupGame(before, 'rebfill'); } catch (e) {} } }
   g.dv = DATA_V;
   return g;
 }
