@@ -1169,6 +1169,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .h2-panel .h2-ok{margin-left:8px;font-size:12px;color:var(--good,#4c9);font-weight:800;letter-spacing:.04em}
 .h2-panel div.sub-p{cursor:default}
 
+
 </style>
 </head>
 <body>
@@ -1201,7 +1202,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.194';
+const VERSION = 'v2026.10.21.195';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1363,6 +1364,13 @@ function applyTeamColors(g) {
 }
 const teamColor = name => TEAM_COLORS[logoSlug(name)] || null;
 const logoSrc = name => { const k = logoSlug(name); return k ? `../game/logos/${k}.png` : null; };
+/* Every logo saved for offline up front: the offline copy (sw.js) keeps a logo only once it has loaded, so an
+   opponent first seen in a gym with no signal had none (the button fell back to the name). Once the offline copy
+   is running, each logo is asked for one at a time; the ones it already has come straight back from the iPad. */
+function saveLogos() {
+  if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+  navigator.serviceWorker.ready.then(async () => { for (const k of LOGO_FILES) { try { await fetch(`../game/logos/${k}.png`); } catch (e) { return; } } }).catch(() => {});
+}
 const logo = (name, px) => { const src = logoSrc(name); return src ? `<img class="tlogo" style="--lg:${px}px;width:${px}px;height:${px}px;object-fit:contain" src="${src}" alt="" onerror="this.remove()">` : ''; };
 
 /* ---------- periods ---------- */
@@ -6531,6 +6539,7 @@ try { backfillSits(); } catch (e) {}
 render();
 fetchRatings();
 checkBaseline();
+saveLogos();
 </script>
 </body>
 </html>
