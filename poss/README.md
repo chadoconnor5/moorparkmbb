@@ -366,7 +366,10 @@ qualifies, none is listed.
 ## Free throws & fouls by player
 
 From the shooter and fouler you tap, so it's there live with no stat sheet photo:
-- **Live player cards:** FT made-attempted after the +/- (e.g. `+/- +6 · FT 2-2`) once a player has shot one.
+- **Live player cards:** `+/- +6 · 7 poss · FT 2-2`. *7 poss* = his current stint: possessions in a row on the
+  floor, counted back from the latest finished one in this half / OT (a sub out or the half resets it), both ends
+  halved and rounded like the lineup tables' POSS, so you can see who on the five has been out there longest. FT
+  made-attempted shows once a player has shot one.
 - **Report** (halftime and post-game), under Team stats: a *Free throws & fouls* card, both teams side by
   side, one row per player with an FT attempt or a foul (FT, FT%, PF), Team for ones put on the team logo,
   and a gold Total row. Fouls include charges, offensive fouls and technicals, as on the cards.
