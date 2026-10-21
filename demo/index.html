@@ -1183,6 +1183,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .final-panel{text-align:center;padding:28px 18px;margin-top:12px}
 .final-panel .fp-h{font-size:24px;font-weight:800;margin-bottom:18px}
 .final-panel .fp-btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:12px}
+.sb-tags{gap:6px} .sb-tags .skunk{margin-left:0}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1246,7 +1247,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.197';
+const VERSION = 'v2026.10.21.198';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1799,12 +1800,15 @@ function scorebar(g, D) {
   const dots = t => { const ot = otCount(g), s30 = S30_TOS + ot, uf = tosUsed(g, t, 'full'), us = tosUsed(g, t, 's30');
     return `<span class="to-dots" title="Timeouts left">${Array.from({ length: s30 }, (_, i) => `<span class="to-dot ${i < us ? 'used' : ''}"></span>`).join('')}<span style="width:4px"></span>${Array.from({ length: FULL_TOS }, (_, i) => `<span class="to-dot full ${i < uf ? 'used' : ''}"></span>`).join('')}</span>`; };
   const kills = t => { const st = S.streak[t] || 0, pip = st % 3;
-    return `<span class="kills" title="Kills this half (3 straight stops). Skunk = 6, dead skunk = 9.">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < pip ? 'on' : ''}"></span>`).join('')}${st >= 9 ? '<span class="skunk dead">DEAD SKUNK</span>' : st >= 6 ? '<span class="skunk">SKUNK</span>' : ''}</span>`; };
+    return `<span class="kills" title="Kills this half (3 straight stops). Skunk = 6, dead skunk = 9.">KILLS <b>${S.kills[t]}</b>${[0, 1, 2].map(i => `<span class="kpip ${i < pip ? 'on' : ''}"></span>`).join('')}</span>`; };
+  const skunk = t => { const st = S.streak[t] || 0; return st >= 9 ? '<span class="skunk dead">DEAD SKUNK</span>' : st >= 6 ? '<span class="skunk">SKUNK</span>' : ''; };
+  // Bonus and skunk get a row of their own under KILLS, so neither pushes the row off the edge.
+  const tags = t => { const x = t === 'a' ? bonus(t) + skunk(t) : skunk(t) + bonus(t); return x ? `<div class="sb-meta sb-tags">${x}</div>` : ''; };
   const bonus = t => { const n = teamFouls(g, other(t), per); return n >= 10 ? '<span class="bonus-tag dbl">DBL BONUS</span>' : n >= 7 ? '<span class="bonus-tag">BONUS</span>' : ''; };
   return `<div class="scorebar">
     <div class="sb-team a"><div class="sb-id"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div>
       <div class="sb-meta"><span>Fouls ${teamFouls(g, 'a', per)}</span>${dots('a')}</div>
-      <div class="sb-meta">${bonus('a')}${kills('a')}</div>${killNear(g, D, 'a')}
+      <div class="sb-meta">${kills('a')}</div>${tags('a')}${killNear(g, D, 'a')}
       <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
     <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockShown(g, D); return c ? `<div class="sb-cap sb-time" title="${c.start ? 'Start of the period' : 'The last game clock you entered (timeout or Set time)'}">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
@@ -1816,7 +1820,7 @@ function scorebar(g, D) {
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
-      <div class="sb-meta">${kills('b')}${bonus('b')}</div>${killNear(g, D, 'b')}
+      <div class="sb-meta">${kills('b')}</div>${tags('b')}${killNear(g, D, 'b')}
       <div class="sb-meta">${ppp(S.pts.b, S.poss.b)} PPP</div></div></div>
   </div>`;
 }
