@@ -1248,7 +1248,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.202';
+const VERSION = 'v2026.10.21.203';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1797,7 +1797,8 @@ function render() {
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
   if (!g && ['pbp', 'sheet', 'lineups', 'ff'].includes(UI.tab) || UI.tab === 'report' && !repGame() && !UI.repSeason) { v.className = 'page mid'; v.innerHTML = noGame; return; }
-  const between = g && DATA_TABS.has(UI.tab) && UI.tab !== 'report' ? dataPicker(g) : '';   // Report puts it in its own page
+  // Report puts the game list in its own page; Lineups and Runs have their own Game / Season controls.
+  const between = g && ['pbp', 'sheet', 'ff'].includes(UI.tab) ? dataPicker(g) : '';
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
@@ -2254,9 +2255,9 @@ function repGame() {
   return games.find(x => x.id === UI.repId) || (c && P.includes(c) ? c : null) || P[0] || c;
 }
 const repHalf = g => UI.rep === 'half' || (UI.rep == null && !g.final);
-/* The game list at the top of every data tab: each game played (newest first), plus Season where the tab has one
-   (Report: season team stats; Lineups and Runs: their season views). */
-const SEASON_TABS = new Set(['report', 'lineups', 'runs']);
+/* The game list at the top of Report, Play-by-Play, Sheet and Four factors: each game played (newest first), plus
+   Season on Report. Lineups and Runs keep their own Game / Season controls ("This game" = the game picked here). */
+const SEASON_TABS = new Set(['report']);
 const pickSeason = () => UI.tab === 'report' ? !!UI.repSeason : UI.tab === 'lineups' ? UI.luScope === 'season' : UI.tab === 'runs' ? (UI.rnScope || 'all') !== 'game' && !(UI.rnScope == null && liveGame() && !liveGame().final) : false;
 function dataPicker(g) {
   const P = playedGames(), L = g && !P.includes(g) ? [g, ...P] : P; if (!L.length) return '';
@@ -5984,9 +5985,10 @@ function wowyView(g) {
    The Lineups dropdown picks which games count: this game, or a split of the season. Halves (All / 1H / 2H /
    OT) and the Possessions filter (leverage, clutch, garbage time) apply on top of it. Quads and Top 25 use the
    leaderboard's nightly ratings: the opponent's rank by adjusted net among every in-system team, with the
-   leaderboard's own quadrant lines (see QUAD_LINES). Scrimmages never count. */
+   leaderboard's own quadrant lines (see QUAD_LINES). Scrimmages count (every game builds who's played together);
+   No scrimmages leaves them out. */
 const SPLITS = [
-  ['full', 'Full season'], ['last5', 'Last 5 games'], ['last10', 'Last 10 games'],
+  ['full', 'Full season'], ['noscrim', 'No scrimmages'], ['last5', 'Last 5 games'], ['last10', 'Last 10 games'],
   ['conf', 'Conference games'], ['nonconf', 'Non-conference games'], ['confW', 'Conference wins'], ['confL', 'Conference losses'],
   ['post', 'Postseason'], ['home', 'Home games'], ['away', 'Away games'], ['neutral', 'Neutral games'], ['awayN', 'Away + neutral games'],
   ['won', 'Games won'], ['lost', 'Games lost'],
@@ -6014,9 +6016,9 @@ function isPost(g) { const s = gSched(g); return !!(g.post || s.post || /playoff
 // The games a split covers, oldest first (the game in progress counts where it fits; W/L only once final).
 function splitGames(split) {
   split = split || UI.luSplit || 'full';
-  const all = games.filter(g => g.ev && g.ev.length && !gSched(g).scrim).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const all = games.filter(g => g.ev && g.ev.length).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const f = {
-    full: () => true, conf: g => !!g.conf, nonconf: g => !g.conf && !isPost(g), post: isPost,
+    full: () => true, noscrim: g => !gSched(g).scrim, conf: g => !!g.conf, nonconf: g => !g.conf && !isPost(g), post: isPost,
     confW: g => g.conf && g.final && gWon(g), confL: g => g.conf && g.final && !gWon(g), won: g => g.final && gWon(g), lost: g => g.final && !gWon(g),
     home: g => g.loc === 'H', away: g => g.loc === 'A', neutral: g => g.loc === 'N', awayN: g => g.loc === 'A' || g.loc === 'N',
     q1a: g => quadOf(g) === '1A', q1: g => ['1A', '1'].includes(quadOf(g)), q2: g => quadOf(g) === '2', q12: g => ['1A', '1', '2'].includes(quadOf(g)), q3: g => quadOf(g) === '3', q4: g => quadOf(g) === '4',
@@ -6037,7 +6039,7 @@ function splitSelect(g) {
 // "Select your own games": a chip per game.
 function splitPicker() {
   if (UI.luScope !== 'season' || UI.luSplit !== 'pick') return '';
-  const all = games.filter(g => g.ev && g.ev.length && !gSched(g).scrim).sort((a, b) => String(a.date).localeCompare(String(b.date))), P = UI.luPick || [];
+  const all = games.filter(g => g.ev && g.ev.length).sort((a, b) => String(a.date).localeCompare(String(b.date))), P = UI.luPick || [];
   return `<div class="split-pick"><span class="small muted">Games:</span>${all.map(g => `<button class="btn btn-sm ${P.includes(g.id) ? 'btn-primary' : ''}" data-act="lu-pick" data-id="${esc(g.id)}">${esc(String(g.date).slice(5))} ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</button>`).join('')}</div>`;
 }
 
