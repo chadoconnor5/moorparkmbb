@@ -1155,6 +1155,13 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .kill-fx.them{color:#ff4d4f;background:radial-gradient(ellipse at center,rgba(80,14,16,.97),rgba(14,16,22,.96) 75%)}
 @keyframes kfx{0%{opacity:0;transform:scale(.86)}10%{opacity:1;transform:scale(1.05)}16%{transform:scale(1)}50%{opacity:1}100%{opacity:0}}
 
+/* Team stats (teamStatsCard): both teams, grouped rows, the better number bold. */
+.ts-tbl td,.ts-tbl th{text-align:center;font-variant-numeric:tabular-nums}
+.ts-tbl td.l{text-align:left}
+.ts-tbl .ts-grp td{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:10px}
+.ts-tbl .ts-win{font-weight:800}
+.ts-tbl .ts-pct{color:var(--muted);font-size:.9em;margin-left:4px}
+
 </style>
 </head>
 <body>
@@ -1187,7 +1194,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.20.187';
+const VERSION = 'v2026.10.21.188';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2037,6 +2044,60 @@ function bestCard(g, D, scope) {
   return `<div class="ks-grid">${side('a')}${side('b')}</div>`;
 }
 
+/* ---------- team stats: every basic stat the tracker logs, both teams, plus the advanced numbers ----------
+   From the tracked plays (the same counts as the four factors: ffTracked), for a scope: '1H', '2H' (2nd half + OT) or
+   'G'. On the halftime and post-game reports (with or without a stat sheet) and in the Huddle, so "how many offensive
+   rebounds do they have" is one glance. The better number in each row is bold. */
+function teamStats(g, D, sc) {
+  const pers = ffPers(g, sc), T = ffTracked(g, sc), L = D.poss.filter(p => pers.includes(p.per)), X = {};
+  ['a', 'b'].forEach(t => { const o = other(t), mine = L.filter(p => p.team === t), B = mine.map(possBox);
+    const sum = k => B.reduce((x, b) => x + b[k], 0);
+    let pot = 0; L.forEach((p, i) => { if (p.team !== o || !['TO', 'STL', 'CHG', 'OFF'].includes(p.end.col)) return; const nx = L[i + 1]; if (nx && nx.team === t && nx.per === p.per) pot += nx.pts; });
+    X[t] = Object.assign({}, T[t], { pts: mine.reduce((x, p) => x + p.pts, 0), n: mine.length, ast: sum('ast'), sc2: sum('sc2'), pot,
+      blk: L.filter(p => p.team === o).map(possBox).reduce((x, b) => x + b.blkd, 0), stl: T[o].stov,
+      pf: g.ev.filter(e => e.t === 'foul' && e.team === t && pers.includes(e.per)).length }); });
+  return X;
+}
+function teamStatsCard(g, D, sc, label) {
+  const X = teamStats(g, D, sc), pc = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
+  const md = (m, a) => `${m}-${a}`, line = (m, a) => `${md(m, a)} <span class="ts-pct">${P(pc(m, a))}</span>`;
+  // Rows: label, value for a team (shown), the number compared (null = no comparison), higher is better.
+  const rows = [['Scoring'],
+    ['Points', t => X[t].pts, t => X[t].pts, true],
+    ['FG', t => line(X[t].fgm, X[t].fga), t => pc(X[t].fgm, X[t].fga), true],
+    ['2PT', t => line(X[t].fgm - X[t].fg3m, X[t].fga - X[t].fg3a), t => pc(X[t].fgm - X[t].fg3m, X[t].fga - X[t].fg3a), true],
+    ['3PT', t => line(X[t].fg3m, X[t].fg3a), t => pc(X[t].fg3m, X[t].fg3a), true],
+    ['FT', t => line(X[t].ftm, X[t].fta), t => pc(X[t].ftm, X[t].fta), true],
+    ['Rebounds'],
+    ['Offensive rebounds', t => X[t].oreb, t => X[t].oreb, true],
+    ['Defensive rebounds', t => X[t].dreb, t => X[t].dreb, true],
+    ['Total rebounds', t => X[t].oreb + X[t].dreb, t => X[t].oreb + X[t].dreb, true],
+    ['Ball'],
+    ['Assists', t => X[t].ast, t => X[t].ast, true],
+    ['Steals', t => X[t].stl, t => X[t].stl, true],
+    ['Blocks', t => X[t].blk, t => X[t].blk, true],
+    ['Turnovers', t => `${X[t].tov}${X[t].stov ? ` <span class="ts-pct">${X[t].stov} on steals</span>` : ''}`, t => X[t].tov, false],
+    ['Fouls', t => X[t].pf, t => X[t].pf, false],
+    ['Advanced'],
+    ['Possessions', t => X[t].n, null],
+    ['Points per possession', t => X[t].n ? (X[t].pts / X[t].n).toFixed(2) : '—', t => X[t].n ? X[t].pts / X[t].n : null, true],
+    ['eFG%', t => P(pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga)), t => pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga), true],
+    ['TS%', t => P(pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta))), t => pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta)), true],
+    ['TO%', t => P(pc(X[t].tov, X[t].n)), t => pc(X[t].tov, X[t].n), false],
+    ['OREB%', t => P(pc(X[t].oreb, X[t].oreb + X[other(t)].dreb)), t => pc(X[t].oreb, X[t].oreb + X[other(t)].dreb), true],
+    ['DREB%', t => P(pc(X[t].dreb, X[t].dreb + X[other(t)].oreb)), t => pc(X[t].dreb, X[t].dreb + X[other(t)].oreb), true],
+    ['FT rate', t => P(pc(X[t].fta, X[t].fga)), t => pc(X[t].fta, X[t].fga), true],
+    ['3PA rate', t => P(pc(X[t].fg3a, X[t].fga)), null],
+    ['2nd-chance points', t => X[t].sc2, t => X[t].sc2, true],
+    ['Points off turnovers', t => X[t].pot, t => X[t].pot, true]];
+  const body = rows.map(r => { if (r.length === 1) return `<tr class="ts-grp"><td colspan="3">${r[0]}</td></tr>`;
+    const [lbl, show, val, hi] = r, va = val ? val('a') : null, vb = val ? val('b') : null;
+    const win = va == null || vb == null || va === vb ? '' : (va > vb) === hi ? 'a' : 'b';
+    return `<tr><td class="l">${lbl}</td><td class="${win === 'a' ? 'ts-win' : ''}">${show('a')}</td><td class="${win === 'b' ? 'ts-win' : ''}">${show('b')}</td></tr>`; }).join('');
+  return `<div class="card ts-card"><h3>Team stats <span class="muted">· ${esc(label)}, from the tracked plays</span></h3><div class="tbl-wrap"><table class="tbl rep-tbl zebra ts-tbl">
+    <thead><tr><th></th><th style="color:var(--us)">${esc(teamName(g, 'a'))}</th><th style="color:var(--them-text)">${esc(teamName(g, 'b'))}</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+}
+
 /* ---------- reports: halftime and post-game ---------- */
 function clutchCard(g, D, half) {
   return `${!half ? `<div class="card"><h3>Clutch &amp; garbage time</h3>${(() => { const c = D.poss.filter(p => p.clutch), gt = D.poss.filter(p => p.gt);
@@ -2059,6 +2120,7 @@ function reportView(g) {
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
+    ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
     ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + (half ? seasonFixCard(g, D) : '') + clutchCard(g, D, half) : `
     <div class="card sh-cta"><span>📷 Have the ${half ? 'halftime' : 'final'} stat sheet? Add a photo for the full report: team, player and lineup analytics.</span><button class="btn btn-good" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">Add stat sheet</button></div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
@@ -3034,6 +3096,7 @@ function huddleOpen(g, calledBy, kind, clock) {
       <div class="hud-team b"><div><div class="hud-score">${G.pts.b}</div><div class="hud-meta"><span class="to-dots">${dots('b')}</span> · Fouls ${fouls('b')}</div></div>${logo(opp, 34)}</div>
     </div>
     ${eoh}<div class="hud-pts">${pts.length ? pts.map(p => `<div class="ins ${p.good ? 'good' : 'bad'}"><span>${esc(p.t)}</span></div>`).join('') : '<div class="ins"><span>Nothing pressing — keep doing what works.</span></div>'}</div>
+    ${teamStatsCard(g, D, 'G', 'the game so far')}
     <div class="card hud-floor"><h3>Last ${HUDDLE_N} possessions (~5:00) vs the game <span class="muted">${a.pts}–${b.pts} · ${a.n} ours, ${b.n} theirs · ▲▼ highlighted = moved well away from the game on enough attempts</span></h3>
       <div class="tbl-wrap">${cmp}</div></div>
     <div class="card hud-floor"><h3>Momentum</h3>
