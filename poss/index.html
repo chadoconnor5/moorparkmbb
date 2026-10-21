@@ -1195,7 +1195,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.190';
+const VERSION = 'v2026.10.21.191';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3261,9 +3261,10 @@ function exportLeaderboard(g, side) {
   a.download = side === 'off' ? `off_${g.date}__${g.opp}__${venue}__OFF.csv` : `def_${g.date}__${g.opp}__${venue}.csv`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-function exportGame(g) {
+// tag: 'half' / 'final' for the automatic copies (end of the 1st half, Final), so they never overwrite each other.
+function exportGame(g, tag) {
   const blob = new Blob([JSON.stringify({ app: 'moorpark-possession-tracker', version: 2, appVersion: VERSION, dataVersion: DATA_V, game: g }, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}.json`; a.click();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `poss_${g.date}_${slug(g.opp)}${tag ? '_' + tag : ''}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 function importGame() {
@@ -3465,11 +3466,13 @@ document.addEventListener('click', ev => {
       }
       if (g.per !== g.periods[g.periods.length - 1]) { g.per = g.periods[g.periods.length - 1]; save(); render(); return; }
       if (!confirm(`End ${PER_NAME(g.per)}?`)) return;
-      // Halftime: straight to the halftime report; its button starts the 2nd half.
-      g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); UI.tab = 'report'; UI.rep = 'half'; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
-    case 'start-2h': backupGame(g, 'half'); snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
+      // Halftime: straight to the halftime report; its button starts the 2nd half. The game file downloads (a copy off the iPad).
+      g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); backupGame(g, 'half'); exportGame(g, 'half');
+      UI.tab = 'report'; UI.rep = 'half'; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
+    // The halftime backup and game file were made when the half ended.
+    case 'start-2h': snapReport(g, 'half', true); g.half = false; save(); UI.tab = 'live'; render(); SUB = null; subModal('Starting fives — 2nd Half'); break;
     case 'scout': openScout(); break;
-    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game saved. Games → Export season keeps a copy off the iPad.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
     case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
     case 'gt-here': g.gtFrom = b.dataset.id; g.gtOff = false; save(); closeModal(); render(); toast('Garbage time starts at that possession'); break;
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
