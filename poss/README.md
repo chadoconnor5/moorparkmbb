@@ -744,6 +744,13 @@ five has 25+ offensive possessions).
 - **Your data and updates.** Updating the tracker replaces its code, never your games: they live in the iPad's
   website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
   Clear History and Website Data. The home-screen app and a Safari tab keep separate data: always open it the same way.
+- **Post-game report PDF** (for the staff, ready to text): at **Final** it downloads next to the game file as
+  `Moorpark_vs_<Opponent>_<date>_postgame.pdf` (Files → Downloads). Dark, Letter size. Page 1: the score, by half,
+  key numbers (PPP, eFG%, 3P%, TO%, OREB%, FT rate), what decided it (written out from the numbers), runs, lineups
+  (most used, best, worst). Page 2: team stats. With the final stat sheet read in, the counts come from the box score,
+  the top performers join what decided it, and both teams' box scores follow (+/- from the tracker, game score).
+  **📄 Coaches' PDF** on the Post-game report makes it again (say, once the stat sheet is in). Made on the iPad with no
+  signal needed (html2canvas + jsPDF in `vendor/pdf`, MIT, saved for offline).
 - **Game file downloads automatically** at the end of the 1st half (`poss_<date>_<opponent>_half.json`), at the end of
   regulation when the game goes to OT (`..._reg.json`), at the end of each OT that goes to another (`..._ot1.json`,
   `..._ot2.json`…) and at Final (`..._final.json`): a copy off the iPad, in Files → Downloads. Games → Import game reads it back.
