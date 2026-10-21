@@ -49,6 +49,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   Each period starts showing its full clock: **Clock 20:00** at tip-off and the start of the 2nd half, **5:00** each
   overtime, until a clock is entered. That start-of-period clock is display only: leverage keeps its possession
   estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
+- **Picking a player:** once a stat is tapped, a tap anywhere on a player card picks him — his labels and the +N chip
+  too (they only open their pop-up when no stat is waiting).
 - **Free throws name the shooter.** The trip's first **FT Make / FT Miss**: tap the shooter's card (the player
   cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
@@ -56,8 +58,12 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   again. Wrong shooter? Tap the line in the feed.
 - **FT Shooter** (gold, two buttons wide, above FT Make / FT Miss): name the shooter before the shots. Tap it, then
   his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
-  and everything is live again: sub, timeout, log the foul. His first FT Make / FT Miss then logs straight to him
-  (no card tap) and the rest of the trip follows. Any other play (not a foul) clears him, and so does ✕.
+  and everything is live again: sub, timeout, log the foul. His FT Make / FT Miss taps then log straight to him
+  (no card tap). The strip says which shot is next (**1 of 2**) and has **1+1 · 1 · 2 · 3** for how many he's shooting
+  (2 to start; **1+1** when the fouling team is in the bonus, 7–9 team fouls: a front-end miss is the whole trip, a make
+  earns the second — tap 2 for a shooting foul); after the last one the trip ends on its own (Undo of that shot brings it back). Until then he's **AT THE
+  LINE**: greyed in Sub (and the lineup suggestions' Sub this five in), and taking him off asks first. Any other play
+  (not a foul) clears him, and so does ✕.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
@@ -551,6 +557,10 @@ five has 25+ offensive possessions).
   - **Teams to have ready** has a section per tournament on the schedule (its name and dates, from the TBD games'
     event), each with its own Add box, plus **Other teams**. Every team in every section downloads its stats
     (pt2_fields / pt2_ready). An old single list moved, once, into the next tournament with TBD games.
+    The known fields come filled in once on each iPad (San Bernardino: West LA, East LA, RCC, CCSF, Chaffey, Compton,
+    SBVC; Grossmont: LA Trade Tech), and a saved schedule gets its known first-round opponents (West LA Nov 13, LA
+    Trade Tech Dec 4), and its tournament games move to their dates (San Bernardino Nov 13–15, Grossmont Dec 4–6). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
+    opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
 - **Leaderboard stats on the iPad.** Every leaderboard build also publishes a stats file (record, averages for and
