@@ -1169,6 +1169,14 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .h2-panel .h2-ok{margin-left:8px;font-size:12px;color:var(--good,#4c9);font-weight:800;letter-spacing:.04em}
 .h2-panel div.sub-p{cursor:default}
 
+/* FT Shooter: two buttons wide, above FT Make / FT Miss; once named, the shooter sits there with ✕ */
+.stat-col .sgrid .ftsh{grid-column:1/-1;background:#fcd34d;color:#713f12;border:1px solid #d97706;border-radius:4px;font-weight:800}
+.stat-col .sgrid .ftsh.on{outline:2px solid #fff;outline-offset:1px}
+.stat-col .sgrid .ftsh.set{display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;min-height:44px;font-size:15px}
+.stat-col .sgrid .ftsh.set span{flex:1;text-align:center}
+.ftsh-x{background:rgba(113,63,18,.15);border:1px solid #d97706;color:#713f12;border-radius:4px;width:34px;height:32px;font-size:16px;font-weight:800}
+.ftsh-x:disabled{opacity:.35}
+.ctrls.mute .btn{opacity:.2;pointer-events:none}   /* picking the FT shooter: only a player card */
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1232,7 +1240,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.195';
+const VERSION = 'v2026.10.21.196';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1818,7 +1826,16 @@ const PLAYER_STATS = new Set(['foul', 'chg', 'offf']);
    The rest of the trip logs on the FT Make / FT Miss tap alone, to the same shooter (or team). A trip = free
    throws in a row by one team; a sub, timeout or clock in between doesn't end it, a foul or any other play does. */
 const FT_K = new Set(['ftm', 'ftx']);
+/* FT SHOOTER (the 2-wide button above FT Make / FT Miss): name the shooter before the shots. Tap it, then his card
+   (either team); everything else is muted until then. He's held as g.ftNext through subs, timeouts, the clock and
+   fouls, and his first FT Make / FT Miss logs straight to him; any other play clears him (✕ on the button too). */
+function ftShooterBtn(g, st) {
+  const n = g.ftNext, who = n && (n.player === 'TEAM' ? teamName(g, n.team) : pShort(g, n.team, n.player));
+  return n ? `<div class="ftsh set ${n.team}"><span>FTs: <b>${esc(who)}</b></span><button class="ftsh-x" data-act="ftsh-x" aria-label="Clear the shooter" ${st ? 'disabled' : ''}>✕</button></div>`
+    : `<button class="sbtn ftsh ${st === 'ftsh' ? 'on' : ''} ${st && st !== 'ftsh' ? 'dim' : ''}" data-act="stat" data-k="ftsh" ${st && st !== 'ftsh' ? 'disabled' : ''}>FT Shooter</button>`;
+}
 function ftTrip(g) {
+  if (g.ftNext) return g.ftNext;
   for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i];
     if (e.t === 'sub' || e.t === 'to' || e.t === 'clock') continue;
     return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
@@ -1855,7 +1872,7 @@ function playerCards(g, D, t) {
     // Foul trouble: 1st half — 2 yellow, 3-4 red; 2nd half / OT — 3 yellow, 4 red; 5 (or 2 technicals) fouled out.
     const out = pf >= 5 || te >= 2, h1 = g.per === '1H';
     const cls = out ? 'ft-danger ft-out' : h1 ? (pf >= 3 ? 'ft-danger' : pf === 2 ? 'ft-warn' : '') : (pf >= 4 ? 'ft-danger' : pf === 3 ? 'ft-warn' : '');
-    const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat));   // fouls and free throws take a player
+    const pl = UI.stat && (PLAYER_STATS.has(UI.stat) || FT_K.has(UI.stat) || UI.stat === 'ftsh');   // fouls and free throws take a player
     return `<button class="pbtn ${cls} ${pl ? 'hot' : ''} ${UI.stat && !pl ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="${esc(p.id)}">
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
       ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${(() => { const au = x => `<span class="nt auto${x.lead ? ' lead' : ''}" title="${esc(x.why)}">${esc(x.l)}</span>`;   // Star always first, then yours, then the rest
@@ -1865,7 +1882,7 @@ function playerCards(g, D, t) {
   const noRoster = !teamPlayers(g, t).length;
   return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
       : `<button class="btn btn-good btn-lg" style="width:100%;margin-bottom:7px" data-act="sub">Set ${esc(teamName(g, t))}'s five</button>`) : ''}
-    <div class="pgrid">${list.map(card).join('')}${f.length === 5 ? fiveStrip(g, t, f) : `<button class="pbtn team ${UI.stat && !PLAYER_STATS.has(UI.stat) ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button>`}</div>`;
+    <div class="pgrid">${list.map(card).join('')}${f.length === 5 ? fiveStrip(g, t, f) : `<button class="pbtn team ${UI.stat && (!PLAYER_STATS.has(UI.stat) || UI.stat === 'ftsh') ? 'dim' : ''}" data-act="player" data-team="${t}" data-p="TEAM"><span class="pname"><span class="plabel">Team / bench foul</span></span></button>`}</div>`;
 }
 
 /* Their best five (2nd half and OT only): the opponent five with the best net rating over the game,
@@ -1970,6 +1987,7 @@ function liveView(g) {
   if (g.h2Need && g.h2Need.length && !g.final) return `${scorebar(g, D)}${startersPanel(g, D)}`;
   const st = UI.stat;
   const status = UI.ins ? `Inserting before the selected play — ${st ? STAT_LABEL[st] + ': ' + (STAT_HINT[st] || 'tap the player') : 'tap a stat, then the team or player'} <button class="btn btn-sm" data-act="ins-cancel">Cancel</button>`
+    : st === 'ftsh' ? `<b>FT Shooter</b> — tap the shooter's card (either team) <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
     : st ? `<b>${STAT_LABEL[st]}</b> — ${PLAYER_STATS.has(st) ? STAT_HINT[st] : STAT_HINT_TEAM[st]} <button class="btn btn-sm" data-act="stat-cancel">Cancel</button>`
     : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb <button class="btn btn-sm btn-warn no-reb" data-act="no-reb">No rebound${UI.rebFt ? ' (1st of 2)' : ''}</button>`
     : 'Tap the stat, then the team — fouls: then the player';
@@ -1977,14 +1995,14 @@ function liveView(g) {
   return `${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span><button class="btn btn-sm" data-act="lg-open">Labels</button></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
-    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st)) || (!st && UI.reb) ? 'hot' : ''} ${st && PLAYER_STATS.has(st) ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
+    <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st) && st !== 'ftsh') || (!st && UI.reb) ? 'hot' : ''} ${st && (PLAYER_STATS.has(st) || st === 'ftsh') ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
       <div class="sgrid">${STATS.filter(x => x[0] !== 'oreb' && x[0] !== 'dreb').map(([k, l, c]) => { const mut = shotMute(st, k), on = st === k;
-        return `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? ((k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : 'addready') : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}</button>`; }).join('')}</div>
+        return (k === 'ftm' ? ftShooterBtn(g, st) : '') + `<button class="sbtn sb-${c} ${on ? 'on' : ''} ${mut ? 'dim' : ''} ${(k === 'ast' || k === 'blk') && !mut ? ((k === 'ast' && UI.ast) || (k === 'blk' && UI.blk) ? 'addon' : 'addready') : ''}" data-act="stat" data-k="${k}" ${mut ? 'disabled' : ''}>${l}</button>`; }).join('')}</div>
       ${(() => { const last = [...g.ev].reverse().find(e => !isLocked(g, e)), n = pendCount(g, D);
         // Three across: subs and timeout; fix a tap and end the half; scout, situational lineups, flag.
-        return `<div class="ctrls">
+        return `<div class="ctrls ${st === 'ftsh' ? 'mute' : ''}">
         <button class="btn ${n ? 'btn-good' : ''}" data-act="sub">⇄ Sub${n ? ` (${n})` : ''}</button><button class="btn pend-btn ${n ? 'on' : ''}" data-act="pend">⏳ Pending</button><button class="btn btn-warn" data-act="timeout">Timeout</button>
         <button class="btn undo-btn" data-act="undo" ${g.ev.length && !isLocked(g, g.ev[g.ev.length - 1]) ? '' : 'disabled'}>↶ Undo</button><button class="btn" data-act="redo" ${UI.redo.length ? '' : 'disabled'}>↷ Redo</button><button class="btn btn-bad" data-act="end-per">${g.final ? 'Reopen' : 'End ' + esc(g.per)}</button>
         <button class="btn" data-act="scout">📄 Scout</button><button class="btn sit-btn" data-act="sit">Lineups</button><button class="btn flag-last ${last && last.flag ? 'on' : ''}" data-act="flag" data-id="${last ? last.id : ''}" ${last ? '' : 'disabled'}>🚩 ${last && last.flag ? 'Unflag' : 'Flag'}</button></div>`; })()}
@@ -3255,6 +3273,7 @@ function push(g, e) {
    Block. Everything else is muted until the shot is logged or cancelled. */
 const MAKES = new Set(['2m', '3m']), MISSES = new Set(['2x', '3x']);
 function shotMute(st, k) {
+  if (st === 'ftsh') return true;   // FT Shooter: only a player card
   if (MAKES.has(st)) return k !== 'ast' && k !== st;
   if (MISSES.has(st)) return k !== 'blk' && k !== st;
   return k === 'ast' || k === 'blk';   // nothing to add onto yet
@@ -3266,6 +3285,7 @@ function logStat(team, player) {
   UI.ast = false; UI.blk = false;
   // After a miss the logos wait for the rebound: the shooting team's logo = offensive, the other = defensive.
   UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null; UI.rebFt = k === 'ftx';
+  if (k !== 'foul') delete g.ftNext;   // his first FT, or any other play, ends the wait (a foul doesn't)
   if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
   else push(g, Object.assign({ t: 'play', team, player, k }, extra));
   save(); render();
@@ -3415,16 +3435,20 @@ document.addEventListener('click', ev => {
         if (!ok) { toast(k === 'ast' ? 'Tap 2PT Make or 3PT Make first, then Assist' : 'Tap 2PT Miss or 3PT Miss first, then Block'); return; }
         UI[k] = !UI[k]; render(); return; }
       UI.ast = false; UI.blk = false;
+      if (k === 'ftsh') { UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); return; }
       if (k === 'tech') { UI.stat = null; TECH = { team: 'b', coach: false, player: null, ftm: 2 }; techModal(); return; }
       // The rest of a free-throw trip: logged right away to the same shooter (or team).
       if (FT_K.has(k) && !UI.ins) { const tr = ftTrip(g); if (tr) { UI.reb = null; UI.stat = k; logStat(tr.team, tr.player);
         toast(`${k === 'ftm' ? 'FT make' : 'FT miss'} · ${tr.player === 'TEAM' ? teamName(g, tr.team) : pShort(g, tr.team, tr.player)}`, 'good'); break; } }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
+    case 'ftsh-x': delete g.ftNext; save(); render(); break;
     case 'stat-cancel': UI.stat = null; UI.ast = false; UI.blk = false; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
     case 'no-reb': UI.reb = null; UI.rebFt = false; render(); break;
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
+      if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p }; save(); render();
+        toast(`FT shooter: ${pShort(g, b.dataset.team, b.dataset.p)} — FT Make / FT Miss go to him`, 'good'); break; }
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
       if (!PLAYER_STATS.has(UI.stat) && !FT_K.has(UI.stat)) { toast('Tap the team button at the top'); return; }
       logStat(b.dataset.team, b.dataset.p); break;

@@ -54,6 +54,10 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
   a sub, timeout or Set time in between doesn't end it; a foul or any other play does, so the next trip asks
   again. Wrong shooter? Tap the line in the feed.
+- **FT Shooter** (gold, two buttons wide, above FT Make / FT Miss): name the shooter before the shots. Tap it, then
+  his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
+  and everything is live again: sub, timeout, log the foul. His first FT Make / FT Miss then logs straight to him
+  (no card tap) and the rest of the trip follows. Any other play (not a foul) clears him, and so does ✕.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
