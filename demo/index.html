@@ -1261,7 +1261,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.224';
+const VERSION = 'v2026.10.21.225';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1518,12 +1518,16 @@ function derive(g) {
   pers.forEach(per => {
     const n = { a: 0, b: 0 }, streak = { a: 0, b: 0 }, run = { a: null, b: null }; let seq = 0;
     const close = t => { if (run[t]) { stopRuns.push(run[t]); run[t] = null; } };
+    // The possession still going (the last one of the half being played, with no rebound / turnover yet) is no stop
+    // YET: a miss waits for the rebound, so an offensive rebound and a basket never make (or flash) a kill.
+    const lastP = [...items].reverse().find(x => x.kind === 'poss' && x.p.per === per), live = !g.final && per === g.per && lastP && !lastP.p.done ? lastP.p : null;
     items.forEach(x => {
       if (x.kind === 'tech' && x.e.per === per) { streak[x.e.team] = 0; close(x.e.team); return; }
       if (x.kind !== 'poss' || x.p.per !== per) return;
       const p = x.p, d = other(p.team);
       p.seq = ++seq; p.n = ++n[p.team]; p.end = endingOf(p);
-      p.stop = p.pts === 0 && p.end.col !== 'xFT'; p.kill = p.skunk = p.dead = false;
+      p.stop = p.pts === 0 && p.end.col !== 'xFT' && p !== live; p.pending = p === live && p.pts === 0; p.kill = p.skunk = p.dead = false;
+      if (p.pending) { p.streak = { ...streak }; return; }   // decided by what comes next
       if (p.stop) {
         const k = ++streak[d]; p.kill = k % 3 === 0; p.skunk = k === 6; p.dead = k === 9;
         if (!run[d]) run[d] = { team: d, len: 0, per, fromSeq: p.seq, from: { a: p.score.a, b: p.score.b }, five: p.five.a.slice() };

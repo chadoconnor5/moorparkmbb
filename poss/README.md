@@ -520,7 +520,10 @@ Schedule · Rosters · Games. On the iPad the title shrinks to "Moorpark" so all
 scrolling.
 
 **Runs** tracks three things, ours and theirs (green = ours / red = theirs):
-- **Kill** = 3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules.
+- **Kill** = 3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules. A stop counts only once the possession is
+  over: a defensive rebound, turnover, steal, charge or offensive foul, the other team having the ball next, or the end of
+  the half. A miss still waiting for its rebound is no stop yet, so an offensive rebound and a basket never make (or
+  flash) a kill.
 - **Kill shot** = 10-0 unanswered (technical FTs count; it carries across the half), as on the Report.
 - **Run** = 6-0 unanswered, or outscoring the other side by 8+ while holding it to 40% of your points or less
   (10-2, 12-4, 15-6, 22-5; never 8-7 or 14-7). It runs inside a half from your first points to your peak margin,
