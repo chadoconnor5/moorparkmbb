@@ -776,6 +776,12 @@ five has 25+ offensive possessions).
   the top performers join what decided it, and both teams' box scores follow (+/- from the tracker, game score).
   **📄 Coaches' PDF** on the Post-game report makes it again (say, once the stat sheet is in). Made on the iPad with no
   signal needed (html2canvas + jsPDF in `vendor/pdf`, MIT, saved for offline).
+- **Opponent rosters travel with the files.** A game file carries its opponent's roster (names, position, height,
+  year, labels) and the baseline / a season file carries every roster, so a roster you type is in the next baseline you
+  make and every iPad gets it. Each **Save** stamps the roster; importing keeps, team by team, the most recently saved
+  one: a newer save replaces this iPad's roster for that team (players added *or taken away*), an older one is ignored,
+  an empty roster always takes it. (The home-screen app and a Safari tab keep separate storage, so this is also how a
+  roster typed in one reaches the other.)
 - **Game file downloads automatically** at the end of the 1st half (`poss_<date>_<opponent>_half.json`), at the end of
   regulation when the game goes to OT (`..._reg.json`), at the end of each OT that goes to another (`..._ot1.json`,
   `..._ot2.json`…) and at Final (`..._final.json`): a copy off the iPad, in Files → Downloads. Games → Import game reads it back.
