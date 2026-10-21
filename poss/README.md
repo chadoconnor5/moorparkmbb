@@ -669,9 +669,13 @@ five has 25+ offensive possessions).
   After Final, Live stops taking plays and shows the final score with **Start next game →** (the new-game setup),
   **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
   first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
-  latest report: Post-game once it's final, Halftime until then (the buttons still switch). **Between games** (Live on
-  the new-game setup) Lineups, Play-by-Play, Sheet, Four factors and Runs keep showing that same game (the one picked
-  in Report, else the last game played), with a note saying which. Both start with
+  latest report: Post-game once it's final, Halftime until then (the buttons still switch).
+- **Game list on every data tab** (Report, Lineups, Play-by-Play, Sheet, Four factors, Runs): pick any game played
+  (newest first); the pick carries across those tabs. **Season** is in the list on Report (the **Season report**: record,
+  each game's score and PPP, tap one to open it, and the team stats summed over every game, scrimmages included and
+  marked), Lineups (season lineups) and Runs (season runs). By default the tabs show the game in progress once it has
+  a play, else the last game played, so between games (Live on the new-game setup) nothing goes blank. Halftime, Final
+  and starting a game move the pick to that game. Both start with
   **Best lineups**: each team's top 3 fives by net rating, among those with 5+ possessions at the
   half or 8+ for the game. The Post-game report adds **Best combos**: each team's top 2-, 3- and 4-man combos (top 3 of each) and
   by net rating, among those on the floor together for 20+ possessions. Combos that were

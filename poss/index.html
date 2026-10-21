@@ -1218,7 +1218,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.201';
+const VERSION = 'v2026.10.21.202';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1235,12 +1235,12 @@ const pmCls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
 
 let games = lsGet(LS_GAMES, []);
 let curId = lsGet(LS_CUR, null);
-/* Between games (Live on the new-game setup, or nothing started yet) the game's data tabs keep showing a game: the
-   one picked in Report, else the last game played. Live, Games and Schedule only ever see the game in progress. */
+/* The data tabs (Report, Lineups, Play-by-Play, Sheet, Four factors, Runs) show the game picked in the game list at
+   their top: by default the game in progress once it has a play, else the last game played, so between games they
+   keep showing it. Live, Games and Schedule only ever see the game in progress. */
 const DATA_TABS = new Set(['report', 'lineups', 'pbp', 'sheet', 'ff', 'runs']);
 const liveGame = () => games.find(g => g.id === curId) || null;
-const viewGame = () => games.find(g => g.id === UI.repId) || playedGames()[0] || null;
-const cur = () => liveGame() || (DATA_TABS.has(UI.tab) ? viewGame() : null);
+const cur = () => DATA_TABS.has(UI.tab) ? repGame() : liveGame();
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
 const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); try { bkTick(); } catch (e) {} };
 const D0 = g => derive(g).score;
@@ -1766,9 +1766,8 @@ function render() {
   const v = $('#view');
   v.className = 'page ' + (UI.tab === 'live' ? '' : 'mid');
   const noGame = `<div class="card" style="text-align:center;padding:36px"><h3 style="margin-bottom:10px">No game yet</h3><div class="muted" style="margin-bottom:14px">Start one on the Live tab, or open one from Games.</div><button class="btn btn-good" data-tab-go="live">Go to Live</button> <button class="btn" data-tab-go="games">Games</button></div>`;
-  if (!g && ['pbp', 'sheet', 'lineups', 'ff'].includes(UI.tab) || UI.tab === 'report' && !repGame()) { v.className = 'page mid'; v.innerHTML = noGame; return; }
-  const between = g && !liveGame() && DATA_TABS.has(UI.tab) && UI.tab !== 'report'   // Report has its own game list
-    ? `<div class="between-note">Between games · showing <b>${esc(fmtDay(g.date))} ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)}</b>${g.final ? ' (Final)' : ''} · pick another in Report</div>` : '';
+  if (!g && ['pbp', 'sheet', 'lineups', 'ff'].includes(UI.tab) || UI.tab === 'report' && !repGame() && !UI.repSeason) { v.className = 'page mid'; v.innerHTML = noGame; return; }
+  const between = g && DATA_TABS.has(UI.tab) && UI.tab !== 'report' ? dataPicker(g) : '';   // Report puts it in its own page
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
   else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
@@ -2166,8 +2165,8 @@ function teamStats(g, D, sc) {
       pf: g.ev.filter(e => e.t === 'foul' && e.team === t && pers.includes(e.per)).length }); });
   return X;
 }
-function teamStatsCard(g, D, sc, label) {
-  const X = teamStats(g, D, sc), pc = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
+function teamStatsCard(g, D, sc, label, X0, names) {
+  const X = X0 || teamStats(g, D, sc), pc = (n, d) => d ? 100 * n / d : null, P = v => v == null ? '—' : v.toFixed(1) + '%';
   const md = (m, a) => `${m}-${a}`;
   // Rows: label, value for a team (shown), the number compared (null = no comparison), higher is better. Each
   // percentage on its own row under its makes-attempts; no section headers.
@@ -2203,7 +2202,7 @@ function teamStatsCard(g, D, sc, label) {
     const win = va == null || vb == null || va === vb ? '' : (va > vb) === hi ? 'a' : 'b';
     return `<tr><td class="ts-a ${win === 'a' ? 'ts-win' : ''}">${show('a')}</td><td class="ts-lbl">${lbl}</td><td class="ts-b ${win === 'b' ? 'ts-win' : ''}">${show('b')}</td></tr>`; }).join('');
   return `<div class="card ts-card"><h3>Team stats <span class="muted">· ${esc(label)}, from the tracked plays</span></h3><div class="tbl-wrap"><table class="tbl rep-tbl zebra ts-tbl">
-    <thead><tr><th class="ts-a" style="color:var(--us)">${esc(teamName(g, 'a'))}</th><th></th><th class="ts-b" style="color:var(--them-text)">${esc(teamName(g, 'b'))}</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+    <thead><tr><th class="ts-a" style="color:var(--us)">${esc(names ? names[0] : teamName(g, 'a'))}</th><th></th><th class="ts-b" style="color:var(--them-text)">${esc(names ? names[1] : teamName(g, 'b'))}</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
 
 /* ---------- reports: halftime and post-game ---------- */
@@ -2221,18 +2220,48 @@ function clutchCard(g, D, half) {
 const playedGames = () => games.map((x, i) => ({ x, i })).filter(o => o.x.ev.some(e => e.t === 'play' || e.t === 'foul'))
   .sort((p, q) => String(q.x.date).localeCompare(String(p.x.date)) || q.i - p.i).map(o => o.x);
 function repGame() {
-  const c = cur(), P = playedGames();
+  const c = liveGame(), P = playedGames();
   return games.find(x => x.id === UI.repId) || (c && P.includes(c) ? c : null) || P[0] || c;
 }
 const repHalf = g => UI.rep === 'half' || (UI.rep == null && !g.final);
+/* The game list at the top of every data tab: each game played (newest first), plus Season where the tab has one
+   (Report: season team stats; Lineups and Runs: their season views). */
+const SEASON_TABS = new Set(['report', 'lineups', 'runs']);
+const pickSeason = () => UI.tab === 'report' ? !!UI.repSeason : UI.tab === 'lineups' ? UI.luScope === 'season' : UI.tab === 'runs' ? (UI.rnScope || 'all') !== 'game' && !(UI.rnScope == null && liveGame() && !liveGame().final) : false;
+function dataPicker(g) {
+  const P = playedGames(), L = g && !P.includes(g) ? [g, ...P] : P; if (!L.length) return '';
+  const sea = SEASON_TABS.has(UI.tab) && pickSeason(), live = liveGame();
+  return `<select class="rep-pick" data-act="rep-game">${SEASON_TABS.has(UI.tab) ? `<option value="__season" ${sea ? 'selected' : ''}>Season</option>` : ''}
+    ${L.map(x => `<option value="${esc(x.id)}" ${!sea && x === g ? 'selected' : ''}>${esc(fmtDay(x.date))} · ${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)} · ${(() => { const S = perSums(derive(x), null); return S.pts.a + '–' + S.pts.b; })()}${x.final ? ' · Final' : x === live ? ' · Live' : ''}</option>`).join('')}</select>`;
+}
+function pickGame(v) {
+  if (v === '__season') { if (UI.tab === 'report') UI.repSeason = true; else if (UI.tab === 'lineups') UI.luScope = 'season'; else if (UI.tab === 'runs') UI.rnScope = 'all'; }
+  else { UI.repId = v; UI.rep = null; UI.repSeason = false; if (UI.tab === 'lineups') UI.luScope = 'game'; if (UI.tab === 'runs') UI.rnScope = 'game'; }
+  UI.luOpen = null; UI.rnFive = null; render(); window.scrollTo(0, 0);
+}
+/* Season report: the team stats summed over every game played (scrimmages included, and marked), and each game's line. */
+function seasonReportView() {
+  const P = playedGames(), sch = x => (schedule().find(r => r.id === x.schedId) || {}).scrim;
+  const X = { a: {}, b: {} };
+  P.forEach(x => { const T = teamStats(x, derive(x), 'G'); ['a', 'b'].forEach(t => Object.entries(T[t]).forEach(([k, v]) => { if (typeof v === 'number') X[t][k] = (X[t][k] || 0) + v; })); });
+  let w = 0, l = 0; const rows = P.map(x => { const S = perSums(derive(x), null), r = S.pts.a > S.pts.b ? 'W' : S.pts.a < S.pts.b ? 'L' : 'T'; if (x.final) { if (r === 'W') w++; else if (r === 'L') l++; }
+    return `<tr data-act="rep-game-row" data-id="${esc(x.id)}" style="cursor:pointer"><td>${esc(fmtDay(x.date))}</td><td style="text-align:left">${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)}${sch(x) ? ' <span class="muted small">(scrim)</span>' : ''}</td><td class="${r === 'W' ? 'pos' : r === 'L' ? 'neg' : ''}"><b>${x.final ? r : '—'}</b> ${S.pts.a}–${S.pts.b}</td><td>${ppp(S.pts.a, S.poss.a)}</td><td>${ppp(S.pts.b, S.poss.b)}</td></tr>`; }).join('');
+  const nS = P.filter(sch).length;
+  return `${dataPicker(null)}<div class="page-head"><h2>Season report</h2><button class="btn btn-sm" data-act="print" style="margin-left:auto">Print / PDF</button></div>
+    <div class="card"><h3>${P.length} game${P.length === 1 ? '' : 's'} · ${w}–${l}${nS ? ` · ${nS} scrimmage${nS === 1 ? '' : 's'} included` : ''}</h3>
+      <div class="tbl-wrap"><table class="tbl zebra sumt"><thead><tr><th>DATE</th><th style="text-align:left">OPPONENT</th><th>RESULT</th><th>MPK PPP</th><th>OPP PPP</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="small muted" style="margin-top:6px">Tap a game to open its report.</div></div>
+    ${teamStatsCard(null, null, 'G', `season, ${P.length} game${P.length === 1 ? '' : 's'}`, X, ['Moorpark', 'Opponents'])}`;
+}
 function reportView(g) {
-  const D = derive(g), half = repHalf(g), P = playedGames();
+  if (UI.repSeason) return seasonReportView();
+  const D = derive(g), half = repHalf(g);
   const scope = half ? '1H' : null, S = perSums(D, scope), G = perSums(D, null);
   const avg = Math.floor((S.poss.a + S.poss.b) / 2);
   const tile = (t, x) => `<div class="rp-team ${t}"><div class="rp-nm">${logo(teamName(g, t), 30)}<span>${esc(teamName(g, t))}</span></div><div class="rp-sc">${x.pts[t]}</div>
     <div class="small muted">${x.poss[t]} poss · <b>${ppp(x.pts[t], x.poss[t])}</b> PPP · ${x.kills[t]} kills</div></div>`;
   return `${half && g.half ? `<div class="card ht-banner"><div><b>Halftime</b> · ${G.pts.a}–${G.pts.b}</div><button class="btn btn-good btn-lg" data-act="start-2h">Start 2nd half → starting fives</button></div>` : ''}
-    ${P.length > 1 || (P.length && P[0] !== g) ? `<select class="rep-pick" data-act="rep-game">${(P.includes(g) ? P : [g, ...P]).map(x => `<option value="${esc(x.id)}" ${x === g ? 'selected' : ''}>${esc(fmtDay(x.date))} · ${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)} · ${(() => { const S = perSums(derive(x), null); return S.pts.a + '–' + S.pts.b; })()}${x.final ? ' · Final' : x === cur() ? ' · Live' : ''}</option>`).join('')}</select>` : ''}
+    ${dataPicker(g)}
     <div class="page-head"><h2>${half ? 'Halftime report' : 'Post-game report'}</h2>
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
       <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button><button class="btn btn-sm" data-act="print">Print / PDF</button></div>
@@ -2657,7 +2686,7 @@ function createGame() {
   // Starting fives are locked: Undo and Delete never take them back (change them with ⇄ Sub).
   g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'a', five: d.starters.slice(), lock: true });
   if (d.oppStarters.length === 5) g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'b', five: d.oppStarters.map(n => 'o:' + n), lock: true });
-  games.push(g); curId = g.id; SD = null; UI.redo = []; save(); render();
+  games.push(g); curId = g.id; SD = null; UI.redo = []; UI.repId = null; UI.repSeason = false; save(); render();
   toast('Game created', 'good');
   if (d.oppStarters.length !== 5 && g.oppRoster.length >= 5) { SUB = null; subModal(`${g.opp} starting five`); }
 }
@@ -3446,7 +3475,7 @@ document.addEventListener('click', ev => {
       const f = { opp, date: $('#f-date').value || today(), loc: ($('#f-loc .btn-primary') || { dataset: { l: 'H' } }).dataset.l };
       if (act === 'create') {
         const ng = Object.assign({ id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], oppRoster: gtOppRoster(opp), box: {} }, f);
-        games.push(ng); curId = ng.id; UI.tab = 'live'; UI.redo = []; save(); closeModal(); render(); SUB = null; subModal('Starting fives');
+        games.push(ng); curId = ng.id; UI.repId = null; UI.repSeason = false; UI.tab = 'live'; UI.redo = []; save(); closeModal(); render(); SUB = null; subModal('Starting fives');
       } else { if (g.opp !== f.opp && !(g.oppRoster || []).length) g.oppRoster = gtOppRoster(f.opp); Object.assign(g, f); save(); closeModal(); render(); }
       break; }
     case 'open': curId = b.dataset.id; UI.tab = 'live'; UI.redo = []; save(); render(); break;
@@ -3596,7 +3625,7 @@ document.addEventListener('click', ev => {
       if (!confirm(`End ${PER_NAME(g.per)}?`)) return;
       // Halftime: straight to the halftime report; its button starts the 2nd half. The game file downloads (a copy off the iPad).
       g.periods.push(nx); g.per = nx; g.half = true; UI.stat = null; UI.reb = null; save(); backupGame(g, 'half'); exportGame(g, 'half');
-      UI.tab = 'report'; UI.rep = 'half'; UI.repId = g.id; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
+      UI.tab = 'report'; UI.rep = 'half'; UI.repId = g.id; UI.repSeason = false; render(); window.scrollTo(0, 0); sheetOpen('1H', true); break; }
     // The halftime backup and game file were made when the half ended.
     case 'start-2h': snapReport(g, 'half', true); g.half = false; g.h2Need = ['a', 'b']; SUB = null; save(); UI.tab = 'live'; render(); window.scrollTo(0, 0); break;
     case 'h2-ok': { const t = b.dataset.t, f = [...SUB[t]]; if (f.length !== 5) return;
@@ -3604,7 +3633,7 @@ document.addEventListener('click', ev => {
       if (!g.h2Need.length) { delete g.h2Need; SUB = null; toast('2nd half: both fives in — logging is on', 'good'); }
       save(); render(); break; }
     case 'scout': openScout(); break;
-    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; UI.repId = g.id; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
+    case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; UI.repId = g.id; UI.repSeason = false; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
     // End of regulation / an OT going into another OT: the game file downloads (poss_…_reg.json, _ot1, _ot2…).
     case 'start-ot': { const nx = 'OT' + (otCount(g) + 1), was = g.per === '2H' ? 'reg' : g.per.toLowerCase();
       backupGame(g, was === 'reg' ? 'reg' : 'ot'); exportGame(g, was);
@@ -3618,7 +3647,8 @@ document.addEventListener('click', ev => {
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
     case 'rep-save': { const rg = repGame(); snapReport(rg, repHalf(rg) ? 'half' : 'post'); break; }
-    case 'rep-open': UI.repId = b.dataset.id; UI.rep = 'post'; UI.tab = 'report'; render(); window.scrollTo(0, 0); break;
+    case 'rep-game-row': pickGame(b.dataset.id); break;
+    case 'rep-open': UI.repSeason = false; UI.repId = b.dataset.id; UI.rep = 'post'; UI.tab = 'report'; render(); window.scrollTo(0, 0); break;
     case 'rp-open': UI.savedId = b.dataset.id; UI.tab = 'saved'; render(); window.scrollTo(0, 0); break;
     case 'rp-back': UI.tab = 'games'; render(); break;
     case 'rp-del': if (confirm('Delete this saved report?')) rpDel(b.dataset.id).then(() => { render(); toast('Saved report deleted'); }); break;
@@ -3743,7 +3773,7 @@ document.addEventListener('change', ev => {
     collectSched(); r.picked = !isTBD(r.opp); schAutosaveRows(); render(); toast(`${fmtDay(r.date)}: ${isTBD(t.value) ? 'TBD' : t.value}`, 'good'); try { fetchTeamFiles(ratingsData()); } catch (e) {} return; }
   schAutosave(); });
 document.addEventListener('change', ev => { const rp = ev.target.closest && ev.target.closest('select[data-act="rep-game"]');
-  if (rp) { UI.repId = rp.value; UI.rep = null; render(); window.scrollTo(0, 0); return; }
+  if (rp) { pickGame(rp.value); return; }
   const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
   if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }
   const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
@@ -6359,11 +6389,11 @@ function rnAgg(list) {
 function rnFive(five) { if (!five || five.length !== 5) return null; const R = rnAgg(rnGames('all')), f = R.fives[fiveKey(five)]; return f ? Object.assign({ rate: R.rate }, f) : null; }
 
 function runsView() {
-  const scope = UI.rnScope || (cur() && !cur().final ? 'game' : 'all'), list = rnGames(scope), R = rnAgg(list), g0 = cur() || list[list.length - 1];
+  const scope = UI.rnScope || (liveGame() && !liveGame().final ? 'game' : 'all'), list = rnGames(scope), R = rnAgg(list), g0 = cur() || list[list.length - 1];
   const A = luAdj(), haveQ = !!(A && A.games && A.games.some(x => x.oppOrtg != null));
   const btn = (k, l, dis) => `<button class="btn btn-sm ${scope === k ? 'btn-primary' : ''}" data-act="rn-scope" data-s="${k}" ${dis ? 'disabled title="Needs the ⬆ Adjusted file (Lineups → Season)"' : ''}>${l}</button>`;
   const head = `<div class="page-head"><h2>Runs</h2><div class="row" style="gap:6px">${btn('game', 'This game', !cur())}${btn('all', 'Season')}${btn('quality', 'Season · quality opp', !haveQ)}</div></div>
-    <div class="small muted" style="margin:-4px 0 10px">Kill = 3 straight stops · Kill shot = 10-0 · Run = 6-0, or +8 within 6 possessions each (10-2, 12-4). ${scope === 'game' ? 'This game' : `${list.length} game${list.length === 1 ? '' : 's'}${scope === 'quality' ? ' vs quality opponents' : ''}`} · garbage time out. <span class="pos">Green = ours</span> / <span class="neg">red = theirs</span>.</div>`;
+    <div class="small muted" style="margin:-4px 0 10px">Kill = 3 straight stops · Kill shot = 10-0 · Run = 6-0, or +8 holding them to 40% (10-2, 15-6, 22-5). ${scope === 'game' ? 'This game' : `${list.length} game${list.length === 1 ? '' : 's'}${scope === 'quality' ? ' vs quality opponents' : ''}`} · garbage time out. <span class="pos">Green = ours</span> / <span class="neg">red = theirs</span>.</div>`;
   if (!list.length) return head + '<div class="card muted">No games tracked yet.</div>';
   if (!g0) return head;
   const kv = (u, t) => `<span class="pos">${u}</span> <span class="muted">/</span> <span class="neg">${t}</span>`;
