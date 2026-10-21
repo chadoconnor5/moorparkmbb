@@ -1196,6 +1196,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ftsh.set.two .ftsh-who{text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ftsh.set.two .ftsh-row{display:flex;align-items:center;gap:6px}.ftsh.set.two .ftsh-of{flex:1;text-align:center;white-space:nowrap}
 .ftsh-n button.oo{min-width:40px;font-size:12.5px}
+.rpick{display:flex;gap:8px;align-items:center}.r-pick{flex:1;min-width:0;font-size:16px;padding:10px 12px;border-radius:8px;background:var(--card2);color:var(--text);border:1px solid var(--bd)}
 
 </style>
 </head>
@@ -1229,7 +1230,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.217';
+const VERSION = 'v2026.10.21.218';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2921,9 +2922,7 @@ function rostersView() {
   const row = p => `<tr class="rrow">${cols.map(([k, , w]) => `<td>${k === 'note' ? noteCell(p.note, statsRow(p)) : `<input data-k="${k}" value="${esc(p[k] || '')}" ${k === 'num' ? 'inputmode="numeric"' : ''} style="${w ? 'width:' + w + 'px' : 'width:100%'}">`}</td>`).join('')}<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>`;
   return `<div class="page-head"><h2>Rosters</h2></div>
     <div class="rost">
-      <div class="card rlist"><button class="btn ${isM ? 'btn-primary' : ''}" data-act="r-sel" data-n="MPK">Moorpark</button>
-        ${opps.map(n => `<button class="btn ${sel === n ? 'btn-primary' : ''}" data-act="r-sel" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
-        <button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
+      <div class="card rlist rpick">${rosterPicker(sel, opps)}<button class="btn btn-sm" data-act="r-new">+ Opponent</button></div>
       <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : (teamPalette(sel) || {}).text || 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         ${teamLine(sel)}
@@ -2932,6 +2931,16 @@ function rostersView() {
         <div class="tbl-wrap rs-roster"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
         <div class="small muted rs-roster-note" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
     </div>`;
+}
+/* Which roster: every team we might see, not just the next one: Moorpark, our schedule (date order), each tournament
+   field, then any other roster saved on this iPad. ✓ = a roster is saved. Names as the schedule uses them. */
+function rosterPicker(sel, opps) {
+  const R = ratingsData(), nm = n => (R && R.teams && resolveTeam(n, R)) || n, saved = new Set(oppStore().filter(o => (o.players || []).length).map(o => o.name)), seen = new Set(['MPK']);
+  const opt = n => { if (seen.has(n)) return ''; seen.add(n); return `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}${saved.has(n) ? ' ✓' : ''}</option>`; };
+  const sch = schedule().filter(r => r.opp && !isTBD(r.opp)).map(r => nm(r.opp));
+  const grp = (l, L) => { const h = L.map(opt).join(''); return h ? `<optgroup label="${esc(l)}">${h}</optgroup>` : ''; };
+  const sg = grp('Our schedule', sch), ev = Object.keys(fieldsAll()).map(e => grp(e, readyGet(e).map(nm).sort((a, b) => a.localeCompare(b)))).join('');
+  return `<select class="r-pick" data-act="r-pick"><option value="MPK" ${sel === 'MPK' ? 'selected' : ''}>Moorpark</option>${sg}${ev}${grp('Other teams', readyOther().map(nm))}${grp('Other saved rosters', opps.slice().sort((a, b) => a.localeCompare(b)))}</select>`;
 }
 // The roster editor's label cell: chips (✕ removes), a box + Add, and quick picks from labels already used.
 const nedChips = L => L.map((x, i) => `<span class="nt">${esc(x)}<button class="nt-x" data-act="ned-del" data-i="${i}" aria-label="Remove ${esc(x)}">✕</button></span>`).join('');
@@ -2965,7 +2974,7 @@ window.addEventListener('resize', () => fitLabels());
 function teamLine(name) {
   if (name === 'MPK') name = 'Moorpark';
   const R = ratingsData(), t = R && R.teams ? resolveTeam(name, R) : null, F = teamFile(name);
-  if (!t) return `<div class="small muted" style="margin:0 0 8px">${R ? 'Not a team on the leaderboard (check the spelling).' : 'No leaderboard data on this iPad yet: open the tracker online once.'}</div>`;
+  if (!t) return `<div class="small muted" style="margin:0 0 8px">${R && R.teams && !Object.keys(R.teams).length ? `No ${esc(R.season || 'this season')} stats yet: they fill in once the season's games are scraped.` : R ? 'Not a team on the leaderboard (check the spelling).' : 'No leaderboard data on this iPad yet: open the tracker online once.'}</div>`;
   const x = R.teams[t], rank = Object.values(R.teams).filter(y => y.ortg - y.drtg > x.ortg - x.drtg).length + 1, n = Object.keys(R.teams).length;
   const rec = F && F.team && F.team.record ? Object.entries(F.team.record).find(([k]) => /^Overall/i.test(k)) : null, A = F && F.team && F.team.averages;
   return `<div class="tm-line"><b>${esc(t)}</b>${rec ? ` <span>${esc(rec[1])}</span>` : ''}<span>ORtg ${x.ortg.toFixed(1)}</span><span>DRtg ${x.drtg.toFixed(1)}</span><span class="${pmCls(x.ortg - x.drtg)}">Net ${sg1(Math.round(10 * (x.ortg - x.drtg)) / 10)} · #${rank} of ${n}</span>${A && A.PTS != null ? `<span>${(+A.PTS).toFixed(1)} ppg</span>` : ''}
@@ -3828,7 +3837,9 @@ document.addEventListener('change', ev => {
     if (t.value === '__other') { SCH.other.add(r.id); r.picked = false; render(); const i = document.querySelector(`input[data-sr="${t.dataset.sr}"][data-f="opp"]`); if (i) { i.focus(); i.select(); } return; }
     collectSched(); r.picked = !isTBD(r.opp); schAutosaveRows(); render(); toast(`${fmtDay(r.date)}: ${isTBD(t.value) ? 'TBD' : t.value}`, 'good'); try { fetchTeamFiles(ratingsData()); } catch (e) {} return; }
   schAutosave(); });
-document.addEventListener('change', ev => { const rp = ev.target.closest && ev.target.closest('select[data-act="rep-game"]');
+document.addEventListener('change', ev => { const rk = ev.target.closest && ev.target.closest('select[data-act="r-pick"]');
+  if (rk) { UI.rosterSel = rk.value; render(); return; }
+  const rp = ev.target.closest && ev.target.closest('select[data-act="rep-game"]');
   if (rp) { pickGame(rp.value); return; }
   const src = ev.target.closest && ev.target.closest('select[data-act="lu-src"]');
   if (src) { if (src.value === 'game') UI.luScope = 'game'; else { UI.luScope = 'season'; UI.luSplit = src.value; } UI.luOpen = null; render(); return; }

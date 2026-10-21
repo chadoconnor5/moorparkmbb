@@ -582,7 +582,9 @@ five has 25+ offensive possessions).
     the leaderboard doesn't publish says *not published: add to tracker_teams.txt*),
   - every opponent you keep a roster for.
   An opponent's THIS FIVE labels then come from his players' real numbers, matched by jersey number.
-- **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**.
+- **Rosters:** Moorpark and every opponent: #, name, position, height, year and **labels**. A dropdown at the top picks the team: Moorpark,
+  our schedule (date order), each tournament field, other teams to have ready, and any other saved roster (✓ = one is
+  saved). Any team on it can be edited; Save creates its roster.
   - **Roster · Basic · Advanced** (every team with leaderboard stats, Moorpark too): the leaderboard's Team Stats
     table. *Basic*: per-game lines (G, MPG, PPG, rebounds, AST, STL, BLK, TO, FG / 2P / 3P / FT, eFG%, TS%), sorted
     by PPG; tap a header to sort (the table stays scrolled where it was). The %Poss band labels stay pinned at the left when the table is scrolled right. *Advanced*: %Min, ORtg, %Poss, %Shots, eFG%, TS%, OR%, DR%, ARate, TORate, Blk%,
