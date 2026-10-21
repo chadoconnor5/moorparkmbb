@@ -1259,7 +1259,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.213';
+const VERSION = 'v2026.10.21.214';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1336,10 +1336,10 @@ const SEED_SCHEDULE = [
   { id: 'sch_seed_20261102', date: '2026-11-02', time: "", opp: "Antelope Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
   { id: 'sch_seed_20261103', date: '2026-11-03', time: "", opp: "San Bernardino Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
   { id: 'sch_seed_20261104', date: '2026-11-04', time: "5:00 PM", opp: "Palomar", site: 'away', conf: false, scrim: false },
-  { id: 'sch_seed_20261114', date: '2026-11-14', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
+  { id: 'sch_seed_20261114', date: '2026-11-14', time: "", opp: "West LA", picked: true, site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
   { id: 'sch_seed_20261115', date: '2026-11-15', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
   { id: 'sch_seed_20261116', date: '2026-11-16', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
-  { id: 'sch_seed_20261205', date: '2026-12-05', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
+  { id: 'sch_seed_20261205', date: '2026-12-05', time: "", opp: "LA Trade Tech", picked: true, site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
   { id: 'sch_seed_20261206', date: '2026-12-06', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
   { id: 'sch_seed_20261207', date: '2026-12-07', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
   { id: 'sch_seed_20261210', date: '2026-12-10', time: "5:00 PM", opp: "Cerro Coso", site: 'away', conf: false, scrim: false },
@@ -2860,11 +2860,26 @@ const LS_READY = 'pt2_ready', LS_FIELDS = 'pt2_fields';
    next tournament with TBD games (it was the SBVC field). Everything in both downloads. */
 const fmtDay = d => { const [y, m, dd] = String(d).split('-').map(Number); return y ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1] + ' ' + dd : ''; };
 const schTourneys = () => [...new Set(schedule().filter(r => r.event && (isTBD(r.opp) || r.picked) && r.date >= today()).map(r => r.event))];
+/* The known tournament fields, filled in once on each iPad (a team removed after that stays removed); the TBD games
+   of each tournament pick their opponent from it as the results come in (Other… types anyone else). */
+const SEED_FIELDS = { 'San Bernardino Tournament': ['West LA', 'East LA', 'RCC', 'CCSF', 'Chaffey', 'Compton', 'SBVC'], 'Grossmont Tournament': ['LA Trade Tech'] };
 function fieldsAll() {
   let F = lsGet(LS_FIELDS, null);
   if (!F || typeof F !== 'object') { F = {}; const flat = lsGet(LS_READY, []) || [], ev = schTourneys()[0];
     if (flat.length && ev) { F[ev] = flat; lsSet(LS_READY, []); } lsSet(LS_FIELDS, F); }
+  const done = lsGet('pt2_fields_seeded', []) || [];
+  const add = Object.keys(SEED_FIELDS).filter(ev => !done.includes(ev));
+  if (add.length) { add.forEach(ev => { const L = F[ev] || [], have = new Set(L.map(x => x.toLowerCase()));
+      SEED_FIELDS[ev].forEach(n => { if (!have.has(n.toLowerCase())) L.push(n); }); F[ev] = L; });
+    lsSet(LS_FIELDS, F); lsSet('pt2_fields_seeded', done.concat(add)); }
   return F;
+}
+/* Known opponents onto a schedule already saved on the iPad: a tournament game still TBD gets its team (once). */
+const SEED_PICKS = { sch_seed_20261114: 'West LA', sch_seed_20261205: 'LA Trade Tech' };
+function seedPicks() {
+  const s = lsGet('gt_schedule', null), done = lsGet('pt2_picks_seeded', []) || []; if (!Array.isArray(s) || !s.length) return;
+  let n = 0; Object.entries(SEED_PICKS).forEach(([id, opp]) => { if (done.includes(id)) return; const r = s.find(x => x.id === id); if (r && isTBD(r.opp)) { r.opp = opp; r.picked = true; n++; } done.push(id); });
+  if (n) lsSet('gt_schedule', s); lsSet('pt2_picks_seeded', done);
 }
 const readyOther = () => lsGet(LS_READY, []) || [];
 const readyList = () => [...new Set([...readyOther(), ...Object.values(fieldsAll()).flat()])];
@@ -6923,6 +6938,7 @@ async function coachReportPdf(g, quiet) {
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
+try { seedPicks(); fieldsAll(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
 /* DEMO: frozen on the seeded 2025-26 ratings and team files; no refresh, no season baseline. */
