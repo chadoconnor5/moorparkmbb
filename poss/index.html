@@ -1218,7 +1218,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.207';
+const VERSION = 'v2026.10.21.208';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5118,7 +5118,7 @@ const SITS = [
     on: c => c.night.drb != null && c.night.drb < c.N.drb - 5 ? `DREB% ${c.night.drb.toFixed(0)} tonight (norm ${c.N.drb.toFixed(0)})` : '' },
   { id: 'foul', name: 'Stop fouling', stat: 'fouls', hi: false, end: 'd', def: 'hm', rank: 'fewest fouls per 100 defensive possessions',
     on: c => c.tf >= 7 && c.perLeft != null && c.perLeft > 300 ? `${c.tf} team fouls with ${fmtSecs(c.perLeft)} on the clock` : c.night.oftr != null && c.night.oftr > c.N.oftr + 10 ? `Their FT rate ${c.night.oftr.toFixed(0)} (norm ${c.N.oftr.toFixed(0)})` : '' },
-  { id: 'run', name: 'Stop the run', stat: 'stop', hi: true, end: 'd', def: 'hm', rank: 'run-ending',
+  { id: 'run', name: 'Stop the run', stat: 'runstop', hi: true, end: 'd', def: 'hm', rank: 'run-stopping',
     on: c => c.run ? `They're on a ${c.run}-${c.runA || 0} run` : '' },
   { id: 'ast', name: 'Move the ball', stat: 'asp', hi: true, end: 'o', def: 'hm', rank: 'best assist rate (AST%)',
     on: c => c.ab.asp != null && c.ab.fgm >= 8 && c.ab.asp < c.N.asp - 12 ? `AST% ${c.ab.asp.toFixed(0)} tonight (norm ${c.N.asp.toFixed(0)}): the ball is sticking` : '' },
@@ -5184,12 +5184,19 @@ function sitStatCard(g, D, S, c, sk) {
   /* The five's record in this exact situation (every game's saved situation log) moves its number toward that
      record as the trips add up: weight n / (n + 12). Player-skill situations show the record without blending. */
   const SL = SITLOG[S.id], RC = SL ? sitRecords(S.id) : null, recOf = f => RC && RC.recs[fiveKey(f)];
-  const blendX = (f, x) => { if (x == null || !SL || S.player) return x; const r = recOf(f), v = sitRecVal(S.id, r); if (v == null) return x; const w = sitRecWeight(r); return (1 - w) * x + w * v; };
+  const blendX = (f, x) => { if (x == null || !SL || S.player || S.id === 'run') return x; const r = recOf(f), v = sitRecVal(S.id, r); if (v == null) return x; const w = sitRecWeight(r); return (1 - w) * x + w * v; };
   const better = v => v != null && n != null && (S.hi === false || SL && SL.hi === false ? v < n : v > n);
   const recLine = f => { const r = recOf(f); if (!r) return ''; const v = sitRecVal(S.id, r), proven = r.n >= SITREC_PROVEN && !S.player && better(v);
     return `<div class="sit-rec">${proven ? '<span class="sit-proven">PROVEN</span>' : ''}In this spot: ${esc(sitRecText(S.id, r))}${S.player ? '' : ` · counts ${Math.round(100 * sitRecWeight(r))}%`}</div>`; };
   const today = sc => lineupUnits(g, D, 'a', 'game', sc === 'all' ? 'nogt' : sc).units.filter(u => u.five.every(ok))
-    .map(u => { const v = abVals(sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa), g.astBlk ? abOf(u) : null, c.N); return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, x: blendX(u.five, val(u.five, v)) }; });
+    .map(u => { const v = abVals(sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa), g.astBlk ? abOf(u) : null, c.N);
+      if (S.id === 'run') { const R = runStop(u.oPoss, u.dPoss, u.pf, u.pa, (RA_T || (RA_T = runsAgainst([g])))[fiveKey(u.five)] || 0); v.runstop = R && R.score; u.rs = R; }
+      return { five: u.five, oP: u.oPoss, dP: u.dPoss, v, rs: u.rs, x: blendX(u.five, val(u.five, v)) }; });
+  // Stop the run, season: every game tracked here (seasonPool), not the adjusted file.
+  let RA_T = null, RA_S = null;
+  const seasonRun = sc => seasonUnits('a', sc === 'all' ? 'nogt' : sc, 5).units.filter(u => u.five.every(ok)).map(u => {
+    const R = runStop(u.oPoss, u.dPoss, u.pf, u.pa, (RA_S || (RA_S = runsAgainst(seasonPool())))[fiveKey(u.five)] || 0);
+    return { five: u.five, oP: u.oPoss, dP: u.dPoss, v: { runstop: R && R.score }, rs: R, x: R && R.score }; });
   // Four factors: opponent-adjusted. Everything else: raw counts from games against quality opponents only
   // (positive adjusted net), so nothing rests on possessions against bad teams.
   const FOURF = ['efg', 'oefg', 'tov', 'otov', 'orb', 'drb', 'ftr', 'oftr'], useQ = !FOURF.includes(S.stat) && !S.player;
@@ -5202,12 +5209,10 @@ function sitStatCard(g, D, S, c, sk) {
     return { five: f, oP: R.oT, dP: R.dT, mix: u.mix, v, x: blendX(f, val(f, v)) }; });
   const AB = AB_STATS.includes(S.stat), anyAB = AB && games.some(x => x.astBlk);
   const enough = (u, min) => S.end === 'o' ? u.oP >= min : S.end === 'd' ? u.dP >= min : u.oP >= min && u.dP >= min;
-  // Stop the run ranks on runs ended (the five on the floor for the basket that ended their run), then stop %.
-  const ended = f => { const r = S.id === 'run' && recOf(f); return r ? r.ended || 0 : 0; };
-  const rank = (list, min) => list.filter(u => (enough(u, min) || ended(u.five) > 0) && u.x != null && (ended(u.five) > 0 || S.player || n == null || (S.hi ? u.x > n : u.x < n)))
-    .sort((a, b) => ended(b.five) - ended(a.five) || (S.hi ? b.x - a.x : a.x - b.x)).slice(0, 2);
+  const rank = (list, min) => list.filter(u => enough(u, min) && u.x != null && (S.player || n == null || (S.hi ? u.x > n : u.x < n)))
+    .sort((a, b) => S.hi ? b.x - a.x : a.x - b.x).slice(0, 2);
   const pick = (get, mins) => { for (let sc = sc0(); sc; sc = LEV_WIDER[sc]) { const l = rank(get(sc), mins[sc]); if (l.length) return { l, sc, min: mins[sc] }; } return { l: [], sc: sc0(), min: mins[sc0()] }; };
-  const T = pick(today, LEV_MIN.today), Sn = pick(season, LEV_MIN.season);
+  const T = pick(today, LEV_MIN.today), Sn = pick(S.id === 'run' ? seasonRun : season, LEV_MIN.season);
   const pl = S.end === 'o' ? 'off poss' : S.end === 'd' ? 'def poss' : 'poss each way';
   const lbl = r => `${levName(r.sc)}${r.sc !== sc0() ? ` <b class="warn">(not enough ${levName(sc0())})</b>` : ''} · ${r.min}+ ${pl}`;
   const nums = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); }).join(' ');
@@ -5215,7 +5220,7 @@ function sitStatCard(g, D, S, c, sk) {
   const swap = f => { const cur = D.five.a; if (cur.length !== 5) return ''; const i = f.filter(id => !cur.includes(id)), x = cur.filter(id => !f.includes(id)); if (!i.length) return '';
     const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name); };
     return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(nn).join(' '))}</span> · <span class="neg">OUT ${esc(x.map(nn).join(' '))}</span></div>`; };
-  const extra = u => S.id === 'three' && u.v.my3ar != null ? ` · 3PA rate ${u.v.my3ar.toFixed(0)}%` : S.id === 'steal' && u.v.otov != null ? ` · forces TO ${u.v.otov.toFixed(1)}%` : S.id === 'ft' && u.v.ftr != null ? ` · FT rate ${u.v.ftr.toFixed(0)}` : S.id === 'two' ? abLine(u.v, 'd') : S.id === 'ast' || S.id === 'ball' ? abLine(u.v, 'o') : '';
+  const extra = u => S.id === 'run' && u.rs ? ` · ${u.rs.poss} poss · net ${sg1(Math.round(10 * u.rs.net) / 10)} · ${u.rs.ra} run${u.rs.ra === 1 ? '' : 's'} allowed` : S.id === 'three' && u.v.my3ar != null ? ` · 3PA rate ${u.v.my3ar.toFixed(0)}%` : S.id === 'steal' && u.v.otov != null ? ` · forces TO ${u.v.otov.toFixed(1)}%` : S.id === 'ft' && u.v.ftr != null ? ` · FT rate ${u.v.ftr.toFixed(0)}` : S.id === 'two' ? abLine(u.v, 'd') : S.id === 'ast' || S.id === 'ball' ? abLine(u.v, 'o') : '';
   const row = (u, both) => `<div class="fx-row ${fiveKey(u.five) === nowKey ? 'on' : ''}">
       <div class="fx-five"><b>${esc(nums(u.five))}</b>${both ? '<span class="fx-both">★ BOTH</span>' : ''}${fiveKey(u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}<div class="tiny muted">${esc(names(u.five))}${extra(u)}</div>${levMix(u.mix)}${recLine(u.five)}${swap(u.five)}</div>
       <div class="fx-v"><b class="pos">${P(u.x)}</b><span>${esc(sitLabel(S))}</span></div>
@@ -5228,21 +5233,32 @@ function sitStatCard(g, D, S, c, sk) {
     const f = L.map(x => x.id);
     return `<div class="sit-top"><div><b>Best 5 available</b> <span class="muted small">(season stats: ${esc(plSeason().src)})</span><b>:</b> ${esc(L.map(x => `${pShort(g, 'a', x.id)} ${x.v.toFixed(0)}% (${plSample(x.id, S.player[0], S.player[1])})`).join(', '))}${swap(f)}</div><button class="btn btn-sm btn-good" data-act="tip-sub" data-five="${esc(f.join('|'))}">Sub these five in</button></div>`; })() : '';
   return `<div class="card fix-card">${levBtns(sk, S.def)}
-    <div class="fx-h"><b>→ the ${esc(S.rank)} fives</b> <span class="muted small">· ${S.player ? 'players\' season lines' : `${esc(c.nsrc)} ${P(n)}`}</span></div>
+    <div class="fx-h"><b>→ the ${esc(S.rank)} fives</b> <span class="muted small">· ${S.id === 'run' ? 'most possessions, best net, fewest runs allowed' : S.player ? 'players\' season lines' : `${esc(c.nsrc)} ${P(n)}`}</span></div>
     ${topPl}
     <div class="fx-cols">
       <div class="fx-col"><div class="fx-lbl today">TODAY <span>this game · ${lbl(T)}</span></div>${T.l.map(u => row(u, sK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.player ? (plSeason().src ? 'No five today with enough possessions.' : 'Needs players\' season stats: final stat sheets here, or the ⬆ Adjusted file.') : `No five has been better than ${P(n)} today.`}</div>`}</div>
-      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">No available five has been better than ${P(n)}.</div>`}</div></div>
-    <div class="tiny muted" style="margin-top:6px">Ranked by ${S.id === 'run' ? 'runs ended (on the floor for the basket that ended their run; any five that has ended one shows), then ' : ''}${esc(sitLabel(S))}${S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}${AB ? ` Assists and blocks come only from games logged with the Assist / Block buttons${anyAB ? '' : ' (none yet: until then Stop the 2s ranks on opp 2P% and fouls)'}; a small sample is pulled toward our norm.${S.stat === 'rim' ? ' Rim D = opp 2P% − half of BLK% above our norm + a quarter of fouls / 100 above our norm (lower is better).' : ''}` : ''}</div></div>`;
+      <div class="fx-col"><div class="fx-lbl season">SEASON <span>${S.id === 'run' ? 'every game' : FOURF.includes(S.stat) ? 'opp-adjusted' : S.player ? 'players: quality games' : 'vs quality opponents'} · ${lbl(Sn)}</span></div>${!haveA && S.id !== 'run' ? '<div class="small muted fx-none">Load the adjusted season lineups (Lineups → Season → ⬆ Adjusted).</div>' : Sn.l.map(u => row(u, tK.has(fiveKey(u.five)))).join('') || `<div class="small muted fx-none">${S.id === 'run' ? `No available five has ${Sn.min}+ defensive possessions at this leverage yet.` : `No available five has been better than ${P(n)}.`}</div>`}</div></div>
+    <div class="tiny muted" style="margin-top:6px">Ranked by ${S.id === 'run' ? 'the stop-the-run score: net rating minus 10 for each run allowed per 20 defensive possessions (runs charged to the five on when they started), × poss / (poss + 20) so small samples count less' : esc(sitLabel(S))}${S.id === 'run' ? '' : S.player ? ' (the five players\' season numbers, weighted by attempts)' : `, only fives better than ${esc(c.nsrc)}`}. Garbage time out; nobody fouled out or not dressed${SIT && SIT.protect ? '; Protect fouls: nobody with 3+ fouls in the 1st half or 4+ after' : ''}. ★ BOTH = top two today and for the season.${SL && !S.player ? ` In this spot = the five's record in this exact situation this season (${RC.quality ? 'quality opponents' : 'all games'}), from every game's situation log; it moves the ranking as the trips add up (3 trips → 20%, 12 → 50%). PROVEN = ${SITREC_PROVEN}+ trips and better than our norm.` : ''}${AB ? ` Assists and blocks come only from games logged with the Assist / Block buttons${anyAB ? '' : ' (none yet: until then Stop the 2s ranks on opp 2P% and fouls)'}; a small sample is pulled toward our norm.${S.stat === 'rim' ? ' Rim D = opp 2P% − half of BLK% above our norm + a quarter of fouls / 100 above our norm (lower is better).' : ''}` : ''}</div></div>`;
 }
 const AB_STATS = ['asp', 'rim'];
+/* STOP THE RUN score: the five's net rating, minus 10 for each run it allowed per 20 defensive possessions (about a
+   half's worth; runs as on the Runs tab, charged to the five on when the run started), then pulled toward 0 by the
+   sample: × poss / (poss + 20), so 20 possessions count half. Most possessions, best net, fewest runs allowed. */
+const RUNSTOP_K = 20, RUNSTOP_PEN = 10, RUNSTOP_PER = 20;
+function runStop(oP, dP, pf, pa, ra) {
+  if (!oP || !dP) return null;
+  const poss = (oP + dP) / 2, net = 100 * pf / oP - 100 * pa / dP;
+  return { score: (net - RUNSTOP_PEN * RUNSTOP_PER * ra / dP) * poss / (poss + RUNSTOP_K), poss: Math.floor(poss), net, ra };
+}
+// Their runs charged to each of our fives (on the floor when the run started): this game, or the season's games.
+const runsAgainst = list => { const m = {}; list.forEach(gm => runsGame(gm).runs.forEach(r => { if (r.team === 'b' && r.fiveA.length === 5) { const k = fiveKey(r.fiveA); m[k] = (m[k] || 0) + 1; } })); return m; };
 // The raw counts behind a five's AST% / BLK%, under its name: "AST 9/14 made, AST/TO 3.0" · "opp 2P 41% · BLK 4/30 · 1.3 blk/PF".
 function abLine(v, end) {
   const a = v.ab;
   if (end === 'o') return a && a.fgm ? ` · AST ${a.ast}/${a.fgm} made${a.tov ? `, AST/TO ${(a.ast / a.tov).toFixed(1)}` : ''}` : '';
   return (v.o2p != null ? ` · opp 2P ${v.o2p.toFixed(0)}%` : '') + (a ? ` · BLK ${a.blk}/${a.o2a}${a.fouls ? ` · ${(a.blk / a.fouls).toFixed(1)} blk/PF` : ''}` : '') + (v.fouls != null ? ` · ${v.fouls.toFixed(0)} fouls/100` : '');
 }
-const sitLabel = S => ({ ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100', asp: 'AST%', rim: 'rim D' })[S.stat] || S.stat;
+const sitLabel = S => ({ runstop: 'score', ft: 'FT%', p3: '3P%', tov: 'TO%', stl: 'steal %', stop: 'stop %', o2p: 'opp 2P%', o3ar: 'opp 3PA rate', drb: 'DREB%', fouls: 'fouls / 100', asp: 'AST%', rim: 'rim D' })[S.stat] || S.stat;
 // vs their best five: our fives while that exact five of theirs was on, this game.
 function sitVsBest(g, D, c) {
   const B = c.theirBest || theirBest(g, D); if (!B) return '<div class="card muted">Their best five shows up in the 2nd half, once a five of theirs has 8+ possessions.</div>';
@@ -6379,7 +6395,7 @@ function rnGames(scope) {
   if (scope === 'game') { const g = cur(); return g ? [g] : []; }
   const A = luAdj(), net = {};
   ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) net[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
-  return games.filter(g => g.ev && g.ev.length && !((schedule().find(x => x.id === g.schedId) || {}).scrim))
+  return seasonPool()   // scrimmages until the first regular-season game is final
     .filter(g => scope !== 'quality' || net[g.date + '|' + String(g.opp).toLowerCase()] > 0);
 }
 function rnAgg(list) {

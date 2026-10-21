@@ -219,7 +219,7 @@ underlined gold in their rows. Blue is the one open.
 | Ball security | up 1-10, last 4:00 | lowest TO% |
 | Need steals | down 4+, last 4:00 | most steals per defensive possession |
 | Need a 3 | down 4-9, last 4:00 | players' season 3P% |
-| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | most runs ended (on the floor for the basket that ended one; any such five shows, however few its possessions), then best stop % |
+| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | the stop-the-run score: most possessions, best net, fewest runs allowed = (net − 10 per run allowed per 20 def poss) × poss / (poss + 20); runs charged to the five on when they started; season = every game tracked here |
 | Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
 | Stop the 2s | their 2P% 8+ over our norm (10+ twos) | best **rim D**: low opponent 2P%, blocks, without fouling (below) |
 | Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
