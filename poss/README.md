@@ -722,10 +722,11 @@ five has 25+ offensive possessions).
 - **Your data and updates.** Updating the tracker replaces its code, never your games: they live in the iPad's
   website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
   Clear History and Website Data. The home-screen app and a Safari tab keep separate data: always open it the same way.
-- **Game file downloads automatically** at the end of the 1st half (`poss_<date>_<opponent>_half.json`) and at Final
-  (`..._final.json`): a copy off the iPad, in Files → Downloads. Games → Import game reads it back.
+- **Game file downloads automatically** at the end of the 1st half (`poss_<date>_<opponent>_half.json`), at the end of
+  regulation when the game goes to OT (`..._reg.json`), at the end of each OT that goes to another (`..._ot1.json`,
+  `..._ot2.json`…) and at Final (`..._final.json`): a copy off the iPad, in Files → Downloads. Games → Import game reads it back.
 - **Backups** (Games tab): a full copy of each game, kept on the iPad apart from the live data, at the end of the 1st half, at
-  Final, before a delete or an import replaces it, and every 5 minutes while tracking (the last 3 of those per game).
+  the end of regulation and each OT, at Final, before a delete or an import replaces it, and every 5 minutes while tracking (the last 3 of those per game).
   **Restore** puts one back (the game as it is now is backed up first); a deleted game comes back too.
 - **Season backup file** (Games tab): **Export season** saves every game, the rosters, the schedule and the label /
   tournament settings in one file (iPad: Save to Files / Drive); the card shows when it was last saved and turns red

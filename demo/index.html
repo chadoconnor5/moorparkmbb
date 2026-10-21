@@ -1231,7 +1231,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.192';
+const VERSION = 'v2026.10.21.193';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3529,7 +3529,10 @@ document.addEventListener('click', ev => {
       save(); render(); break; }
     case 'scout': openScout(); break;
     case 'go-final': g.final = true; g.half = false; UI.stat = null; UI.reb = null; save(); backupGame(g, 'final'); exportGame(g, 'final'); snapReport(g, 'post', true); setTimeout(() => toast('Game file downloaded (a copy off the iPad). Games → Export season keeps the whole season.', 'good'), 2500); closeModal(); UI.tab = 'report'; UI.rep = 'post'; render(); window.scrollTo(0, 0); toast('Final ' + D0(g).a + '–' + D0(g).b, 'good'); break;
-    case 'start-ot': { const nx = 'OT' + (otCount(g) + 1); g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
+    // End of regulation / an OT going into another OT: the game file downloads (poss_…_reg.json, _ot1, _ot2…).
+    case 'start-ot': { const nx = 'OT' + (otCount(g) + 1), was = g.per === '2H' ? 'reg' : g.per.toLowerCase();
+      backupGame(g, was === 'reg' ? 'reg' : 'ot'); exportGame(g, was);
+      g.periods.push(nx); g.per = nx; UI.stat = null; save(); closeModal(); render(); SUB = null; subModal(`Starting fives — ${PER_NAME(nx)}`); break; }
     case 'gt-here': g.gtFrom = b.dataset.id; g.gtOff = false; save(); closeModal(); render(); toast('Garbage time starts at that possession'); break;
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
@@ -6373,7 +6376,7 @@ function killNear(g, D, t) {
       Import season adds the file's games (one already here is replaced only if the file's copy has more plays; the one
       on the iPad is backed up first) and fills in rosters / schedule / settings this iPad doesn't have. */
 const BK_DB = 'pt2_backups', LS_LAST_EXPORT = 'pt2_last_export';
-const BK_KIND = { half: 'Halftime', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
+const BK_KIND = { half: 'Halftime', reg: 'End of regulation', ot: 'End of OT', final: 'Final', auto: 'During the game', deleted: 'Before delete', replaced: 'Before import' };
 function bkDb() {
   return new Promise((res, rej) => { const q = indexedDB.open(BK_DB, 1);
     q.onupgradeneeded = () => q.result.createObjectStore('b', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
