@@ -56,8 +56,11 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   again. Wrong shooter? Tap the line in the feed.
 - **FT Shooter** (gold, two buttons wide, above FT Make / FT Miss): name the shooter before the shots. Tap it, then
   his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
-  and everything is live again: sub, timeout, log the foul. His first FT Make / FT Miss then logs straight to him
-  (no card tap) and the rest of the trip follows. Any other play (not a foul) clears him, and so does ✕.
+  and everything is live again: sub, timeout, log the foul. His FT Make / FT Miss taps then log straight to him
+  (no card tap). The strip says which shot is next (**1 of 2**) and has **1 · 2 · 3** for how many he's shooting (2 to
+  start); after the last one the trip ends on its own (Undo of that shot brings it back). Until then he's **AT THE
+  LINE**: greyed in Sub (and the lineup suggestions' Sub this five in), and taking him off asks first. Any other play
+  (not a foul) clears him, and so does ✕.
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
