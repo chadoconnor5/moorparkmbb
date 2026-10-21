@@ -1248,7 +1248,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.204';
+const VERSION = 'v2026.10.21.205';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4982,7 +4982,7 @@ function abSeason(sc) {
   if (AB_MEMO && AB_MEMO.stamp === stamp) return AB_MEMO.v;
   const Q = {}; ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null) Q[x.id] = x.oppOrtg - x.oppDrtg > 0; });
   const m = new Map();
-  games.forEach(g => { if (!g.final || !g.astBlk || !g.ev || !g.ev.length || Q[g.id] === false) return; const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+  games.forEach(g => { if (!g.final || !g.astBlk || !g.ev || !g.ev.length || Q[g.id] === false) return; if (!seasonPool().includes(g)) return;   // scrimmages until the first regular-season game is final
     lineupUnits(g, derive(g), 'a', 'game', sc === 'all' ? 'nogt' : sc).units.forEach(u => { const k = fiveKey(u.five), a = abOf(u), x = m.get(k);
       if (!x) m.set(k, a); else Object.keys(a).forEach(f => { if (f !== 'tr') x[f] += a[f]; }); }); });
   AB_MEMO = { stamp, v: m };
@@ -5033,7 +5033,7 @@ function plSeason() {
   ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null && x.oppDrtg != null) oppNet[x.date + '|' + String(x.opponent).toLowerCase()] = x.oppOrtg - x.oppDrtg; });
   games.forEach(g => { const live = g.id === curId && !g.final, sc = live ? (g.sheet && (g.sheet.G || g.sheet['1H'])) : g.final && g.sheet && g.sheet.G;
     const S = sc && sc.a; if (!S || !S.rows) return;
-    const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+    if (!seasonPool().includes(g)) return;   // scrimmages until the first regular-season game is final
     const net = oppNet[g.date + '|' + String(g.opp).toLowerCase()], D = derive(g);
     if (!(net > 0) || Math.abs(D.score.a - D.score.b) > Q_MARGIN) return;      // quality games only
     S.rows.forEach(r => { const id = byNum[String(r.num)] || (roster().find(x => r.name && lastName(x.name).toLowerCase() === lastName(String(r.name).replace(/,.*/, '')).toLowerCase()) || {}).name; if (!id) return;
@@ -5072,7 +5072,7 @@ function clutchFT() {
   const stamp = games.map(g => g.id + ':' + g.ev.length).join('|');
   if (CFT_MEMO && CFT_MEMO.stamp === stamp) return CFT_MEMO.v;
   const out = {};
-  games.forEach(g => { const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
+  games.forEach(g => { if (!seasonPool().includes(g)) return;   // scrimmages until the first regular-season game is final
     derive(g).poss.forEach(p => { if (p.team !== 'a' || !p.clutch || p.clockSecs == null || p.gt) return;
       p.plays.forEach(e => { if (!isFT(e.k) || e.team !== 'a' || !e.player || e.player === 'TEAM') return;
         const x = out[e.player] = out[e.player] || { m: 0, a: 0 }; x.a++; if (e.k === 'ftm') x.m++; }); }); });
@@ -5886,12 +5886,12 @@ function backfillSits() {
 }
 /* A five's season record in one situation, from every game's saved log: trips, and the result.
    Quality opponents only once ratings are on this iPad (an in-system opponent with a positive net), all games
-   until then; scrimmages never. */
+   until then. Scrimmages count until the first regular-season game is final (seasonPool), never in the quality cut. */
 function sitRecords(sitId) {
   const A = luAdj(), Q = {}; ((A && A.games) || []).forEach(x => { if (x.oppOrtg != null) Q[x.id] = x.oppOrtg - x.oppDrtg > 0; });
   const useQ = !!(A && A.live), recs = {};
-  games.forEach(g => { if (!g.sitLog) try { stampSits(g); } catch (e) {} if (!g.sitLog || !g.sitLog.poss) return; const sch = schedule().find(x => x.id === g.schedId); if (sch && sch.scrim) return;
-    if (useQ && g.final && !Q[g.id]) return;
+  games.forEach(g => { if (!g.sitLog) try { stampSits(g); } catch (e) {} if (!g.sitLog || !g.sitLog.poss) return; if (!seasonPool().includes(g)) return;
+    if (useQ && g.final && !Q[g.id] && !gSched(g).scrim) return;
     Object.values(g.sitLog.poss).forEach(r => { if (!r.t.includes(sitId)) return; const k = r.five.join('|'), x = recs[k] = recs[k] || { n: 0, pts: 0, stops: 0, to: 0, stl: 0, ftm: 0, fta: 0, fouls: 0, nofoul: 0, games: new Set() };
       x.n++; x.pts += r.pts || 0; x.stops += r.stop ? 1 : 0; x.to += r.to || 0; x.stl += r.stl || 0; x.ftm += r.ftm || 0; x.fta += r.fta || 0; x.fouls += r.fouls || 0; x.nofoul += r.fouls ? 0 : 1; x.games.add(g.id); }); });
   return { recs, quality: useQ };

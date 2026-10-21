@@ -245,7 +245,7 @@ next three on the bench, a red line naming the weakest shooter on the floor ("Th
 and **Sub these five in**. Closing FT% = the player's season FT% (quality games, pulled toward the team
 rate when attempts are few; 10+ FTA to be picked) moved toward their **clutch FTs** as those add up: clutch
 attempts weigh against 20 attempts at the season rate, so one 0/2 night can't sink anyone. Clutch FTs =
-FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, in every game (no scrimmages),
+FTs tagged to a shooter in the last 5:00 of the 2nd half or OT within 5, in every game (scrimmages only until the first regular-season game is final),
 only where a clock you set stands behind the possession. Fewer than five qualified players → it says so
 and leaves the rest to you. No leverage row here (FT% is the players' own numbers). Plug in uses the same
 closing FT%.
@@ -374,7 +374,8 @@ chip per game). Quads are the leaderboard's (its Quads tab), exactly: opponents 
 NCAA cutoffs of 353 scaled to the league (Q1A home 15 / neutral 25 / away 40, Q1 30/50/75, Q2 75/100/135, Q3
 160/200/240, Q4 the rest); Q1 includes Q1A and Q1 + 2 includes Q1A, Q1 and Q2. They use the nightly ratings. Scrimmages count in every split only until the first regular-season game is Final
 (Nov 2, Antelope Valley): until then every game adds to who's played together and the sample; after it they drop
-out of every season number (lineups, WOWY, the Season report) on their own. The scrimmage games stay on the iPad and
+out of every season number (lineups, WOWY, the Season report, the situation lineups like Stop the run, clutch FTs)
+on their own. The scrimmage games stay on the iPad and
 open one at a time. **No scrimmages** leaves them out sooner. Season 2H =
 every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
 This game is picked).
