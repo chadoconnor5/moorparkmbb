@@ -1201,7 +1201,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.193';
+const VERSION = 'v2026.10.21.194';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2090,7 +2090,9 @@ function teamStatsCard(g, D, sc, label) {
     ...shot('FG', t => X[t].fgm, t => X[t].fga),
     ...shot('2PT', t => X[t].fgm - X[t].fg3m, t => X[t].fga - X[t].fg3a),
     ...shot('3PT', t => X[t].fg3m, t => X[t].fg3a),
+    ['eFG%', t => P(pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga)), t => pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga), true],
     ...shot('FT', t => X[t].ftm, t => X[t].fta),
+    ['TS%', t => P(pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta))), t => pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta)), true],
     ['Offensive rebounds', t => X[t].oreb, t => X[t].oreb, true],
     ['Defensive rebounds', t => X[t].dreb, t => X[t].dreb, true],
     ['Total rebounds', t => X[t].oreb + X[t].dreb, t => X[t].oreb + X[t].dreb, true],
@@ -2102,8 +2104,6 @@ function teamStatsCard(g, D, sc, label) {
     ['Fouls', t => X[t].pf, t => X[t].pf, false],
     ['Possessions', t => X[t].n, null],
     ['Points per possession', t => X[t].n ? (X[t].pts / X[t].n).toFixed(2) : '—', t => X[t].n ? X[t].pts / X[t].n : null, true],
-    ['eFG%', t => P(pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga)), t => pc(X[t].fgm + 0.5 * X[t].fg3m, X[t].fga), true],
-    ['TS%', t => P(pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta))), t => pc(X[t].pts, 2 * (X[t].fga + 0.44 * X[t].fta)), true],
     ['TO%', t => P(pc(X[t].tov, X[t].n)), t => pc(X[t].tov, X[t].n), false],
     ['OREB%', t => P(pc(X[t].oreb, X[t].oreb + X[other(t)].dreb)), t => pc(X[t].oreb, X[t].oreb + X[other(t)].dreb), true],
     ['DREB%', t => P(pc(X[t].dreb, X[t].dreb + X[other(t)].oreb)), t => pc(X[t].dreb, X[t].dreb + X[other(t)].oreb), true],

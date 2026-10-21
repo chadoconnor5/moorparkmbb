@@ -62,8 +62,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   ball: steal** (a steal for the team that gets the ball, ending the other team's possession; shown as "steal (held ball)") or **Just switch**.
 - **Team stats** (Huddle, Halftime report, Post-game report; with or without a stat sheet): Moorpark on the left, the
   stat in the middle, the opponent on the right, one row each, from the tracked plays: points, FG / 2PT / 3PT / FT
-  made-attempted, each with its % on the next row, offensive / defensive / total rebounds, assists, steals, blocks,
-  turnovers, turnovers on steals, fouls; then possessions, points per possession, eFG%, TS%, TO%, OREB%, DREB%, FT rate,
+  made-attempted, each with its % on the next row (eFG% right after 3PT%, TS% right after FT%), offensive / defensive /
+  total rebounds, assists, steals, blocks, turnovers, turnovers on steals, fouls; then possessions, points per
+  possession, TO%, OREB%, DREB%, FT rate,
   3PA rate, 2nd-chance points and points off turnovers. The better number in each row is bold. The Huddle and Post-game show the game so far; Halftime shows the 1st half.
 - **Huddle** opens after every timeout (and from **📋 Huddle** on the scoreboard), the game tracker's
   timeout sheet by possessions:
