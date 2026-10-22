@@ -1240,6 +1240,7 @@ span.ssg-nb{cursor:default}
 .ssg-needs{font-size:15px}.ssg-needs b{color:#d4a017}
 .ssg-sug{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center}
 .ssg-sw>b{font-size:15px}
+.bxs+.bxs{margin-top:14px}.bxs-t td,.bxs-t th{text-align:center;white-space:nowrap}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1303,7 +1304,7 @@ span.ssg-nb{cursor:default}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.239';
+const VERSION = 'v2026.10.22.240';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2390,12 +2391,13 @@ function reportView(g) {
     ${dataPicker(g)}
     <div class="page-head"><h2>${half ? 'Halftime report' : 'Post-game report'}</h2>
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
-      <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button>${half ? '' : '<button class="btn btn-sm btn-good" data-act="coach-pdf">📄 Coaches\' PDF</button>'}<button class="btn btn-sm" data-act="print">Print / PDF</button></div>
+      <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="box-csv">📋 Box score CSV</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button>${half ? '' : '<button class="btn btn-sm btn-good" data-act="coach-pdf">📄 Coaches\' PDF</button>'}<button class="btn btn-sm" data-act="print">Print / PDF</button></div>
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
     ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
     ${ftFoulCard(g, half)}
+    ${boxScoreCard(g)}
     ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + (half ? seasonFixCard(g, D) : '') + clutchCard(g, D, half) : `
     <div class="card sh-cta"><span>📷 Have the ${half ? 'halftime' : 'final'} stat sheet? Add a photo for the full report: team, player and lineup analytics.</span><button class="btn btn-good" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">Add stat sheet</button></div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
@@ -3708,7 +3710,8 @@ function importGame() {
     const old = games.find(x => x.id === g.id); if (old && !confirm('This game is already here. Replace it with the file? (The one on the iPad is backed up first.)')) return;
     if (old) backupGame(old, 'replaced');
     const rn = d.oppRoster ? mergeRosters([{ name: g.opp, players: d.oppRoster, updatedAt: d.oppRosterAt || null }]) : 0;
-    games = games.filter(x => x.id !== g.id).concat(g); try { gameRosters(); } catch (e) {} curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp + (rn ? ` · ${g.opp} roster updated` : ''), 'good');
+    if (old && old.boxScore && !g.boxScore) g.boxScore = old.boxScore;   // a box score uploaded here stays with the game
+    games = games.filter(x => x.id !== g.id).concat(g); try { gameRosters(); seedBoxes(); } catch (e) {} curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp + (rn ? ` · ${g.opp} roster updated` : ''), 'good');
   }); };
   inp.click();
 }
@@ -3823,6 +3826,7 @@ document.addEventListener('click', ev => {
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
     case 'pend': UI.pendOut = []; pendModal(); break;
+    case 'box-csv': importBoxCsv(); break;
     case 'pend-out': { const id = b.dataset.p, o = UI.pendOut = UI.pendOut || [];
       if (o.includes(id)) UI.pendOut = o.filter(x => x !== id); else o.push(id);
       pendModal(); break; }
@@ -6836,6 +6840,97 @@ function projectedView(g) {
       <div class="rn-note">From the ${pool.length} players with 15+ possessions in this view. A projection is a starting point: small samples and players who never shared the floor are the least certain.</div></div>`;
 }
 
+/* ---------- BOX SCORES from the stats app's CSV ("MC vs ... — All Athletes — Averages") ----------
+   Player box scores only: kept on the game as g.boxScore = { a: {rows}, b: {rows}, at, files } and shown in the
+   Report's Box score card. Nothing else reads them: team stats, the four factors, possessions and lineups stay the
+   tracker's (that is what a stat sheet photo would change; this does not).
+   The file: a title line, then a header row; columns found by name (the first column with that name). Points are
+   worked out from the makes (2s, 3s, FTs) and checked against the file's points column, which it heads "PF";
+   personal fouls are its "FOUL" column. +/- comes as "+ 12.0". Which team a file is: ours when its players match
+   our roster (by number and last name), the opponent's otherwise ("Unknown Athlete" rows are just numbers). */
+function csvLines(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) { const c = text[i];
+    if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+    else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c; }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim()));
+}
+function parseBoxCsv(text) {
+  const L = csvLines(String(text || '').replace(/^﻿/, ''));
+  const hi = L.findIndex(r => r.some(x => x.trim() === 'Athletes') && r.some(x => x.trim() === 'FGM')); if (hi < 0) return null;
+  const H = L[hi].map(x => x.trim()), col = n => H.indexOf(n), title = hi > 0 ? L[hi - 1].join(',').trim() : '';
+  const num = (r, n) => { const i = col(n); if (i < 0) return 0; const v = parseFloat(String(r[i]).replace(/[^0-9.\-]/g, '')); return isFinite(v) ? v : 0; };
+  const rows = L.slice(hi + 1).filter(r => String(r[col('#')] || '').trim() !== '' || String(r[col('Athletes')] || '').trim()).map(r => {
+    const fgm = num(r, 'FGM'), fga = num(r, 'FGA'), fg3m = num(r, '3FGM'), fg3a = num(r, '3FGA'), ftm = num(r, 'FTM'), fta = num(r, 'FTA');
+    const pmRaw = String(r[col('+/-')] || '').replace(/\s+/g, ''), pm = /^[+-]?\d/.test(pmRaw) ? Math.round(parseFloat(pmRaw)) : null;
+    const name = String(r[col('Athletes')] || '').trim();
+    const o = { num: String(r[col('#')] || '').trim(), name: /^unknown athlete$/i.test(name) ? '' : name, min: num(r, 'MINS'),
+      fgm, fga, fg3m, fg3a, ftm, fta, pts: 2 * (fgm - fg3m) + 3 * fg3m + ftm, oreb: num(r, 'OREB'), dreb: num(r, 'DREB'),
+      ast: num(r, 'AST'), tov: num(r, 'TO'), stl: num(r, 'STL'), blk: num(r, 'BLK'), defl: num(r, 'DEFL'), pf: num(r, 'FOUL'), chg: num(r, 'CHG'), pm };
+    const filePts = num(r, 'PF'); if (col('PF') >= 0 && filePts !== o.pts) o.ptsFile = filePts;
+    return o; });
+  return rows.length ? { title, rows } : null;
+}
+// Ours or theirs: share of the file's players on our roster (number and last name).
+function boxSide(box) {
+  const R = roster(), hit = box.rows.filter(r => r.name && R.some(p => String(p.num) === r.num && lastName(p.name).toLowerCase() === lastName(r.name).toLowerCase())).length;
+  return hit >= Math.max(2, box.rows.length / 3) ? 'a' : 'b';
+}
+function setBox(g, side, box, file) {
+  g.boxScore = g.boxScore || {};
+  g.boxScore[side] = { title: box.title, rows: box.rows, file: file || '' };
+  g.boxScore.at = new Date().toISOString();
+}
+function importBoxCsv() {
+  const g = repGame() || cur(); if (!g) return;
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.csv,text/csv'; inp.multiple = true;
+  inp.onchange = async () => {
+    const got = [];
+    for (const f of inp.files) { const b = parseBoxCsv(await f.text()); if (b) got.push([f.name, b]); else toast(`${f.name}: not a box score`, 'bad'); }
+    if (!got.length) return;
+    // Two files: whichever matches our roster better is ours.
+    const sides = got.map(([, b]) => boxSide(b));
+    if (got.length === 2 && sides[0] === sides[1]) { const s0 = got[0][1].rows.filter(r => r.name).length, s1 = got[1][1].rows.filter(r => r.name).length; sides[0] = s0 >= s1 ? 'a' : 'b'; sides[1] = sides[0] === 'a' ? 'b' : 'a'; }
+    const had = ['a', 'b'].filter(t => sides.includes(t) && g.boxScore && g.boxScore[t]);
+    if (had.length && !confirm(`Replace the box score already here for ${had.map(t => teamName(g, t)).join(' and ')}?`)) return;
+    got.forEach(([n, b], i) => setBox(g, sides[i], b, n));
+    save(); render(); toast(`Box score added: ${sides.map(t => teamName(g, t)).join(' + ')}`, 'good');
+  };
+  inp.click();
+}
+/* The Report's Players box: the game tracker's box score (sbTable, the same table a stat sheet photo fills), drawn from
+   the uploaded box scores. Starters = each team's starting five in the tracker (first five on the floor); +/- is the
+   file's. Advanced columns are worked out from the box scores alone (the table's own formulas), never the tracker. */
+function boxScoreCard(g) {
+  const B = g.boxScore; if (!B || (!B.a && !B.b)) return '';
+  const D = derive(g), first = t => { const p = D.poss.find(x => (x.five[t] || []).length === 5); return p ? p.five[t] : []; };
+  const startNums = t => new Set(first(t).map(id => String(pInfo(g, t, id).num || (t === 'b' ? String(id).slice(2) : ''))).filter(Boolean));
+  const side = t => { const T = B[t], st = startNums(t); return { title: teamName(g, t), teamReb: null, totals: null,
+    rows: T ? T.rows.map(r => Object.assign({}, r, { starter: st.has(String(r.num)) })) : [] }; };
+  const S = { a: side('a'), b: side('b') }, gameMin = 40 + 5 * otCount(g);
+  const pmOf = t => num => { const r = B[t] && B[t].rows.find(x => String(x.num) === String(num)); return r ? r.pm : null; };
+  return `<div class="rp-sec"><span>Players</span><span class="muted">box score · starters / bench</span></div>
+    <div class="card sb-card">${B.a ? sbTable(g, S, 'a', gameMin, pmOf('a'), false) : ''}${B.b ? sbTable(g, S, 'b', gameMin, pmOf('b'), false) : ''}
+      <div class="small muted">The game tracker's box score, from the uploaded box score${[B.a, B.b].filter(Boolean).length > 1 ? 's' : ''}. Starters are the tracker's starting fives; +/- is the box score's. Grey = under 25% of the minutes.</div></div>`;
+}
+/* Box scores sent in, put on their game once on each device (matched by date and opponent), only where that team's
+   box isn't there yet. The CSV text itself, parsed the same way as an upload. */
+const SEED_BOXES = [{ date: '2026-10-15', opp: 'Mack Attack Prep', files: [['mpk', 'MC vs Mack Attack Prep — All Athletes — Averages.csv'], ['mack', 'MC vs Mack Attack Prep — All Athletes — Averages (1).csv']] }];
+function seedBoxes() {
+  const done = lsGet('pt2_boxes_seeded', []) || []; let n = 0;
+  SEED_BOXES.forEach(s => { const key = s.date + '|' + normOpp(s.opp); if (done.includes(key)) return;
+    const g = games.find(x => x.date === s.date && normOpp(x.opp) === normOpp(s.opp)); if (!g) return;   // not on this device yet: try again next time
+    s.files.forEach(([k, name]) => { const b = parseBoxCsv(SEED_BOX_CSV[k]); if (!b) return; const t = boxSide(b); if (g.boxScore && g.boxScore[t]) return; setBox(g, t, b, name); n++; });
+    done.push(key); });
+  lsSet('pt2_boxes_seeded', done);
+  if (n) lsSet(LS_GAMES, games);
+  return n;
+}
+const SEED_BOX_CSV = {"mpk": "MC vs Mack Attack Prep \u2014 All Athletes \u2014 Averages\n#,Athletes,GP,0,eFG%,TO%,OREB%,DREB%,FTF,VPS,0,FGM,FGA,FG%,eFG%,0,2FGM,2FGA,2FG%,0,3FGM,3FGA,3FG%,0,FTM,FTA,FT%,0,PF,PA,PPP,PPG,+/-,MINS,0,TP,PoT,SCP,PiP,0,OREB,OREB%,DREB,DREB%,REB,0,AST,TO,A/TO,TO%,0,DEFL,STL,BLK,FOUL,CHG\n1,Josh Castaniero,1,0,100.0%,33.3%,-,-,0,7.75,0,2,2,100.0%,100.0%,0,2,2,100.0%,0,0,0,-,0,0,0,-,0,4,-,-,4,+ 33.0,30,0,0,2,0,2,0,1,-,8,-,9,0,6,1,6,33.3%,0,6,2,1,1,0\n2,Quian Khawaja,1,0,33.3%,0.0%,-,-,0,2,0,1,3,33.3%,33.3%,0,1,2,50.0%,0,0,1,0.0%,0,0,0,-,0,2,-,-,2,+ 10.0,18,0,2,2,0,2,0,0,-,0,-,0,0,2,0,0,0.0%,0,2,1,0,0,0\n3,Eric Kubel,1,0,42.9%,20.1%,-,-,0.29,0.88,0,3,7,42.9%,42.9%,0,3,4,75.0%,0,0,3,0.0%,0,2,2,100.0%,0,8,-,-,8,+ 8.0,13,0,2,6,0,6,0,1,-,1,-,2,0,1,2,0.5,20.1%,0,1,1,0,2,0\n4,Axel Ostergard,1,0,53.6%,12.5%,-,-,0,1.95,0,6,14,42.9%,53.6%,0,3,9,33.3%,0,3,5,60.0%,0,0,0,-,0,15,-,-,15,+ 14.0,27,0,2,4,0,6,0,6,-,4,-,10,0,3,2,1.5,12.5%,0,4,1,3,0,0\n5,Ashton Carraway,1,0,40.0%,28.6%,-,-,0,0.75,0,2,5,40.0%,40.0%,0,2,3,66.7%,0,0,2,0.0%,0,0,0,-,0,4,-,-,4,+ 15.0,17,0,0,2,2,2,0,2,-,1,-,3,0,0,2,0,28.6%,0,0,0,1,1,0\n10,Brenden Banks-Speed,1,0,30.0%,0.0%,-,-,0.5,1.56,0,3,10,30.0%,30.0%,0,3,8,37.5%,0,0,2,0.0%,0,3,5,60.0%,0,9,-,-,9,+ 22.0,26,0,0,5,3,4,0,2,-,0,-,2,0,4,0,0,0.0%,0,7,3,0,0,0\n12,Souljah Niles,1,0,60.0%,26.5%,-,-,1.4,1.33,0,3,5,60.0%,60.0%,0,3,5,60.0%,0,0,0,-,0,5,7,71.4%,0,11,-,-,11,+ 10.0,15,0,4,3,0,6,0,0,-,3,-,3,0,2,3,0.67,26.5%,0,5,2,1,3,0\n14,Emmitt Claiborne,1,0,37.5%,20.0%,-,-,0,0.63,0,1,4,25.0%,37.5%,0,0,1,0.0%,0,1,3,33.3%,0,0,0,-,0,3,-,-,3,+ 3.0,9,0,0,0,0,0,0,0,-,0,-,0,0,1,1,1,20.0%,0,0,0,0,0,0\n15,Mathew Wilson,1,0,71.9%,0.0%,-,-,0,2.92,0,11,16,68.8%,71.9%,0,10,13,76.9%,0,1,3,33.3%,0,0,0,-,0,23,-,-,23,+ 12.0,24,0,6,7,4,18,0,0,-,2,-,2,0,1,0,0,0.0%,0,6,2,1,1,1\n21,George Hees,1,0,-,100.0%,-,-,0,1,0,0,0,-,-,0,0,0,-,0,0,0,-,0,0,0,-,0,0,-,-,0,- 2.0,1,0,0,0,0,0,0,0,-,0,-,0,0,0,1,0,100.0%,0,0,1,0,0,0\n22,Jaylen Smith,1,0,30.0%,0.0%,-,-,0,0.88,0,1,5,20.0%,30.0%,0,0,2,0.0%,0,1,3,33.3%,0,0,0,-,0,3,-,-,3,+ 1.0,10,0,0,0,0,0,0,2,-,2,-,4,0,0,0,0,0.0%,0,0,0,0,0,0\n30,Jack Johnson,1,0,-,0.0%,-,-,0,0,0,0,0,-,-,0,0,0,-,0,0,0,-,0,0,1,0.0%,0,0,-,-,0,- 8.0,4,0,0,0,0,0,0,0,-,0,-,0,0,0,0,0,0.0%,0,0,0,0,0,0\n31,Sean Castro,1,0,-,-,-,-,0,0,0,0,0,-,-,0,0,0,-,0,0,0,-,0,0,0,-,0,0,-,-,0,0,0,0,0,0,0,0,0,0,-,0,-,0,0,0,0,0,-,0,0,0,0,0,0\n32,Finn Ortiz,1,0,0.0%,0.0%,-,-,0,0,0,0,1,0.0%,0.0%,0,0,0,-,0,0,1,0.0%,0,0,0,-,0,0,-,-,0,- 8.0,4,0,0,0,0,0,0,0,-,0,-,0,0,0,0,0,0.0%,0,0,0,0,0,0\n", "mack": "MC vs Mack Attack Prep \u2014 All Athletes \u2014 Averages\n#,Athletes,GP,0,eFG%,TO%,OREB%,DREB%,FTF,VPS,0,FGM,FGA,FG%,eFG%,0,2FGM,2FGA,2FG%,0,3FGM,3FGA,3FG%,0,FTM,FTA,FT%,0,PF,PA,PPP,PPG,+/-,MINS,0,TP,PoT,SCP,PiP,0,OREB,OREB%,DREB,DREB%,REB,0,AST,TO,A/TO,TO%,0,DEFL,STL,BLK,FOUL,CHG\n0,Unknown Athlete,1,0,64.3%,41.7%,-,-,0,1,0,3,7,42.9%,64.3%,0,0,1,0.0%,0,3,6,50.0%,0,0,0,-,0,9,-,-,9,- 22.0,32,0,0,3,0,0,0,0,-,3,-,3,0,3,5,0.6,41.7%,0,4,0,1,1,0\n2,Unknown Athlete,1,0,50.0%,0.0%,-,-,0,1,0,3,9,33.3%,50.0%,0,0,1,0.0%,0,3,8,37.5%,0,0,0,-,0,9,-,-,9,- 22.0,30,0,0,6,3,0,0,0,-,1,-,1,0,2,0,0,0.0%,0,2,1,0,2,0\n5,Unknown Athlete,1,0,33.3%,40.0%,-,-,0,0.5,0,1,3,33.3%,33.3%,0,1,1,100.0%,0,0,2,0.0%,0,0,0,-,0,2,-,-,2,- 22.0,18,0,0,3,0,2,0,0,-,2,-,2,0,0,2,0,40.0%,0,1,0,0,0,0\n8,Unknown Athlete,1,0,62.5%,33.3%,-,-,0,0.83,0,5,8,62.5%,62.5%,0,5,7,71.4%,0,0,1,0.0%,0,0,0,-,0,10,-,-,10,- 19.0,17,0,4,7,2,8,0,1,-,0,-,1,0,1,4,0.25,33.3%,0,0,1,0,2,0\n10,Unknown Athlete,1,0,31.8%,31.3%,-,-,0,0.9,0,3,11,27.3%,31.8%,0,2,7,28.6%,0,1,4,25.0%,0,0,0,-,0,7,-,-,7,- 14.0,35,0,0,3,0,2,0,2,-,4,-,6,0,6,5,1.2,31.3%,0,5,1,0,2,0\n13,Unknown Athlete,1,0,0.0%,28.6%,-,-,0,0.72,0,0,5,0.0%,0.0%,0,0,5,0.0%,0,0,0,-,0,0,0,-,0,0,-,-,0,- 11.0,17,0,0,3,0,0,0,2,-,3,-,5,0,1,2,0.5,28.6%,0,2,1,2,2,0\n20,Unknown Athlete,1,0,80.0%,16.7%,-,-,0,2.5,0,4,5,80.0%,80.0%,0,4,4,100.0%,0,0,1,0.0%,0,0,0,-,0,8,-,-,8,+ 10.0,16,0,2,6,3,6,0,0,-,4,-,4,0,1,1,1,16.7%,0,2,1,2,2,0\n22,Unknown Athlete,1,0,16.7%,25.0%,-,-,0,0.44,0,1,6,16.7%,16.7%,0,1,4,25.0%,0,0,2,0.0%,0,0,0,-,0,2,-,-,2,- 2.0,7,0,0,6,5,2,0,3,-,1,-,4,0,0,2,0,25.0%,0,1,0,1,2,0\n23,Unknown Athlete,1,0,42.9%,31.6%,-,-,1.14,1.3,0,3,7,42.9%,42.9%,0,3,7,42.9%,0,0,0,-,0,7,8,87.5%,0,13,-,-,13,- 8.0,27,0,0,10,5,6,0,4,-,7,-,11,0,2,5,0.4,31.6%,0,1,0,1,2,0\n"};
+
 /* ---------- Runs: kills, kill shots and runs ----------
    KILL       3 straight stops (6 = skunk, 9 = dead skunk), the tracker's kill rules, per half / OT.
    KILL SHOT  10-0 unanswered (technical FTs count, it carries across the half), as on the Report.
@@ -7109,12 +7204,12 @@ async function mergeSeason(d, quiet) {
     for (const g0 of d.games) { if (!g0 || !g0.id || !Array.isArray(g0.ev)) continue; const g = upgradeGame(g0);
       const here = games.find(x => x.id === g.id);
       if (!here) { games.push(g); added++; }
-      else if (g.ev.length > here.ev.length) { await backupGame(here, 'replaced'); games = games.filter(x => x.id !== g.id).concat(g); replaced++; }
+      else if (g.ev.length > here.ev.length) { await backupGame(here, 'replaced'); if (here.boxScore && !g.boxScore) g.boxScore = here.boxScore; games = games.filter(x => x.id !== g.id).concat(g); replaced++; }
       else kept++; }
     let filled = 0; Object.entries(d.data || {}).forEach(([k, v]) => { if (!SEASON_KEYS.includes(k)) return; const now = lsGet(k, null);
       if (k === 'gt_opp_rosters') { if (mergeRosters(v)) filled++; return; }   // team by team, player by player
       if (now == null || (Array.isArray(now) && !now.length) || (typeof now === 'object' && !Array.isArray(now) && !Object.keys(now).length)) { lsSet(k, v); filled++; } });
-    try { if (gameRosters()) filled++; } catch (e) {}
+    try { if (gameRosters()) filled++; if (seedBoxes()) filled++; } catch (e) {}
     save(); render();
     return { added, replaced, kept, filled };
 }
@@ -7398,6 +7493,7 @@ async function coachReportPdf(g, quiet) {
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
 try { seedRosters(); gameRosters(); } catch (e) {}
+try { seedBoxes(); } catch (e) {}
 try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
