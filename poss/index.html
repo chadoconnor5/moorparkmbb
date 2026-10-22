@@ -1240,7 +1240,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.228';
+const VERSION = 'v2026.10.22.229';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1728,13 +1728,13 @@ function teamFouls(g, t, per) { const b = foulBucket(per); return g.ev.filter(e 
 const playerFouls = (g, t, id) => g.ev.filter(e => FOULING(e) && e.team === t && e.player === id).length;
 const playerTechs = (g, t, id) => g.ev.filter(e => e.t === 'tech' && e.team === t && e.player === id).length;
 // A player's free throws from the logged plays (the shooter you tapped): { m, a }. per: '1H' = 1st half only.
-/* Current stint: possessions in a row this player has been on the floor, counting back from the latest one in this
-   half / OT (a sub out breaks it; the half resets it). Both ends count, halved and rounded like the lineup tables'
+/* Current stint: possessions in a row this player has been on the floor, counting back from the latest one (a sub out
+   breaks it; halftime resets it, overtime doesn't: the 2nd half and every OT run on as one stretch). Both ends count, halved and rounded like the lineup tables'
    POSS, so it reads in trips down the floor. The possession still going isn't counted until it's over. */
 function playerStint(g, D, t, id) {
   let n = 0;
   for (let i = D.poss.length - 1; i >= 0; i--) { const p = D.poss[i];
-    if (p.per !== g.per) break;
+    if ((p.per === '1H') !== (g.per === '1H')) break;
     if (i === D.poss.length - 1 && !p.done && !g.final) continue;
     if (!(p.five[t] || []).includes(id)) break; n++; }
   return Math.round(n / 2);
