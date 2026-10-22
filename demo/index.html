@@ -1303,7 +1303,7 @@ span.ssg-nb{cursor:default}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.238';
+const VERSION = 'v2026.10.22.239';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3005,6 +3005,24 @@ function seedPicks() {
     done.push(k); });
   s.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   if (n) lsSet('gt_schedule', s); lsSet('pt2_picks_seeded', done);
+}
+/* Confirmed rosters, set once on each device: the team's roster becomes exactly these numbers (a name, position,
+   height, year or label already typed on one of them is kept), stamped `at` so it also wins over an older copy in
+   the baseline or a game file. A roster saved after `at` (on any iPad) is left alone. Games against the team follow. */
+const SEED_ROSTERS = { 'Mack Attack Prep': { at: '2026-10-22T20:00:00.000Z', nums: ['0', '2', '5', '7', '8', '10', '11', '13', '14', '15', '20', '22', '23'] } };
+function seedRosters() {
+  const done = lsGet('pt2_rosters_seeded', []) || [], st = oppStore(); let n = 0;
+  Object.entries(SEED_ROSTERS).forEach(([team, { at, nums }]) => { if (done.includes(team + '@' + at)) return; done.push(team + '@' + at);
+    let o = st.find(x => normOpp(x.name) === normOpp(team));
+    if (o && o.updatedAt && o.updatedAt > at) return;
+    if (!o) { o = { id: 'opp_' + uid(), name: team, players: [] }; st.push(o); }
+    const prev = o.players || [];
+    o.players = nums.map(k => Object.assign({ num: k, name: '', pos: '', ht: '', yr: '', note: '' }, prev.find(p => String(p.num) === k) || {}, { num: k }));
+    o.updatedAt = at; n++;
+    games.filter(g => normOpp(g.opp) === normOpp(team)).forEach(g => { g.oppRoster = o.players.map(p => ({ num: p.num, name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })); }); });
+  if (n) { lsSet('gt_opp_rosters', st); lsSet(LS_GAMES, games); }
+  lsSet('pt2_rosters_seeded', done);
+  return n;
 }
 const readyOther = () => lsGet(LS_READY, []) || [];
 const readyList = () => [...new Set([...readyOther(), ...Object.values(fieldsAll()).flat()])];
@@ -7379,7 +7397,7 @@ async function coachReportPdf(g, quiet) {
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
-try { gameRosters(); } catch (e) {}
+try { seedRosters(); gameRosters(); } catch (e) {}
 try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
