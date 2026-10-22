@@ -405,7 +405,8 @@ file is which team is worked out from our roster. The Report's **Players** box t
 box score (the same table a stat sheet photo fills): starters (the tracker's starting fives), BENCH, MIN, MIN%, ORTG,
 USG, SHOT%, EFG, TS%, FTR, OR%, DR%, AST%, TO%, STL%, BLK%, 2PT, 3PT, FT, the counting stats and the box score's
 +/-, with the TEAM line; players under 25% of the minutes (MIN%) greyed. **PF is always the tracker's** foul count for each player (as on
-the player cards), never the file's, and our players' names are our roster's (by number). Points are worked out
+the player cards), never the file's, and our players' names are our roster's (by number). The **coaches' PDF** uses them too
+(both teams' box and the top performers) when the game has no final stat sheet; its team stats stay the tracker's. Points are worked out
 from the makes (the file heads its points column "PF"; fouls are its FOUL column). **Players only:** saved on the game
 as its own box score, nothing else reads it, so team stats, the four factors, possessions and lineups stay the
 tracker's. It travels with the game in exports and the baseline. The Mack Attack Prep box scores are built in (put on

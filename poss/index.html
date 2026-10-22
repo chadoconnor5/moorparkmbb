@@ -1279,7 +1279,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.242';
+const VERSION = 'v2026.10.23.244';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2288,7 +2288,6 @@ function teamStatsCard(g, D, sc, label, X0, names) {
     ['Steals', t => X[t].stl, t => X[t].stl, true],
     ['Blocks', t => X[t].blk, t => X[t].blk, true],
     ['Turnovers', t => X[t].tov, t => X[t].tov, false],
-    ['Turnovers on steals', t => X[t].stov, t => X[t].stov, false],
     ['Fouls', t => X[t].pf, t => X[t].pf, false],
     ['Possessions', t => X[t].n, null],
     ['Points per possession', t => X[t].n ? (X[t].pts / X[t].n).toFixed(2) : '—', t => X[t].n ? X[t].pts / X[t].n : null, true],
@@ -6880,17 +6879,22 @@ function importBoxCsv() {
 /* The Report's Players box: the game tracker's box score (sbTable, the same table a stat sheet photo fills), drawn from
    the uploaded box scores. Starters = each team's starting five in the tracker (first five on the floor); +/- is the
    file's. Advanced columns are worked out from the box scores alone (the table's own formulas), never the tracker. */
-function boxScoreCard(g) {
-  const B = g.boxScore; if (!B || (!B.a && !B.b)) return '';
+/* The uploaded box scores as stat-sheet-shaped teams ({ a, b } with rows), for the Report's box and the coaches' PDF.
+   Fouls are never the file's: each player's PF is the tracker's count (as on his player card). Our players' names are
+   our roster's (by number), so a misspelling in the stats app never shows. Starters = the tracker's starting fives. */
+function boxSheet(g) {
+  const B = g.boxScore; if (!B || (!B.a && !B.b)) return null;
   const D = derive(g), first = t => { const p = D.poss.find(x => (x.five[t] || []).length === 5); return p ? p.five[t] : []; };
   const startNums = t => new Set(first(t).map(id => String(pInfo(g, t, id).num || (t === 'b' ? String(id).slice(2) : ''))).filter(Boolean));
-  // Fouls are never the file's: each player's PF is the tracker's count (as on his player card). Our players' names are
-  // our roster's (by number), so a misspelling in the stats app never shows.
   const pid = (t, num) => t === 'b' ? 'o:' + num : (teamPlayers(g, 'a').find(p => String(p.num) === String(num)) || {}).id;
   const side = t => { const T = B[t], st = startNums(t); return { title: teamName(g, t), teamReb: null, totals: null,
     rows: T ? T.rows.map(r => { const id = pid(t, r.num), nm = t === 'a' && id ? pInfo(g, 'a', id).name : r.name;
       return Object.assign({}, r, { name: nm || r.name, pf: id ? playerFouls(g, t, id) : 0, starter: st.has(String(r.num)) }); }) : [] }; };
-  const S = { a: side('a'), b: side('b') }, gameMin = 40 + 5 * otCount(g);
+  return { a: side('a'), b: side('b') };
+}
+function boxScoreCard(g) {
+  const B = g.boxScore, S = boxSheet(g); if (!S) return '';
+  const gameMin = 40 + 5 * otCount(g);
   const pmOf = t => num => { const r = B[t] && B[t].rows.find(x => String(x.num) === String(num)); return r ? r.pm : null; };
   return `<div class="rp-sec"><span>Players</span><span class="muted">box score · starters / bench</span></div>
     <div class="card sb-card">${B.a ? sbTable(g, S, 'a', gameMin, pmOf('a'), false) : ''}${B.b ? sbTable(g, S, 'b', gameMin, pmOf('b'), false) : ''}
@@ -7369,17 +7373,21 @@ function coachReportHtml(g, bar) {
   if (ba) add(4 + (ba.pts - ba.against) / 4, `Our biggest run: ${ba.pts}-${ba.against} in the ${PER_NAME(ba.per).toLowerCase()} (${ba.from.a}-${ba.from.b} to ${ba.to.a}-${ba.to.b}).`);
   if (bb) add(3 + (bb.pts - bb.against) / 4, `Their biggest run: ${bb.pts}-${bb.against} in the ${PER_NAME(bb.per).toLowerCase()} (${bb.from.a}-${bb.from.b} to ${bb.to.a}-${bb.to.b}).`);
   if (S.kills.a || S.kills.b) add(2.5, `Kills (3 stops in a row): us ${S.kills.a}, them ${S.kills.b}.`);
+  // Players: the final stat sheet's, else the uploaded box scores (players only: the team numbers above stay the sheet's
+  // or the tracker's). PL = each team's line summed from those rows, for game score and the box's Team row.
+  const PB = SH || boxSheet(g), fromBox = !SH && !!PB;
+  const PL = PB ? { a: sheetTeamLine(PB.a), b: sheetTeamLine(PB.b) } : null;
   // Top performers (box score): our two best by game score, and their leading scorer.
   const played = r => r.min || r.fga || r.fta || r.pts || r.oreb || r.dreb || r.ast || r.tov;
   const line = r => { const n = v => +v || 0, reb = n(r.oreb) + n(r.dreb);
     return `${n(r.pts)} pts (${n(r.fgm)}-${n(r.fga)} FG${n(r.fg3a) ? `, ${n(r.fg3m)}-${n(r.fg3a)} 3PT` : ''}${n(r.fta) ? `, ${n(r.ftm)}-${n(r.fta)} FT` : ''})${reb ? `, ${reb} reb` : ''}${n(r.ast) ? `, ${n(r.ast)} ast` : ''}${n(r.stl) ? `, ${n(r.stl)} stl` : ''}`; };
-  const who = r => (r.num ? '#' + r.num + ' ' : '') + lastName(r.name || '');
-  if (SH) {
-    const ours = SH.a.rows.filter(played).map(r => ({ r, x: sheetAdv(r, SL.a, SL.b) })).sort((p, q) => q.x.gmsc - p.x.gmsc).slice(0, 2);
+  const who = r => ((r.num ? '#' + r.num + ' ' : '') + lastName(r.name || '')).trim();
+  if (PB) {
+    const ours = PB.a.rows.filter(played).map(r => ({ r, x: sheetAdv(r, PL.a, PL.b) })).sort((p, q) => q.x.gmsc - p.x.gmsc).slice(0, 2);
     ours.forEach((o, i) => add(6 - i, `${i ? 'Also' : 'Top performer'}: ${who(o.r)}, ${line(o.r)}.`));
-    const th = SH.b.rows.filter(played).sort((p, q) => (+q.pts || 0) - (+p.pts || 0))[0]; if (th) add(4.5, `Their leading scorer: ${who(th)}, ${line(th)}.`);
+    const th = PB.b.rows.filter(played).sort((p, q) => (+q.pts || 0) - (+p.pts || 0))[0]; if (th) add(4.5, `Their leading scorer: ${who(th)}, ${line(th)}.`);
   }
-  const whyL = why.sort((x, y) => y.w - x.w).slice(0, SH ? 8 : 6).map(x => `<li>${esc(x.t)}</li>`).join('');
+  const whyL = why.sort((x, y) => y.w - x.w).slice(0, PB ? 8 : 6).map(x => `<li>${esc(x.t)}</li>`).join('');
   // By half.
   const half = g.periods.map(per => { const P = perSums(D, per); return `<tr><td class="l">${esc(PER_NAME(per))}</td><td class="b">${P.pts.a}</td><td>${P.pts.b}</td><td>${ppp(P.pts.a, P.poss.a)}</td><td>${ppp(P.pts.b, P.poss.b)}</td><td>${P.kills.a}</td><td>${P.kills.b}</td></tr>`; }).join('')
     + `<tr><td class="l b">Game</td><td class="b">${S.pts.a}</td><td class="b">${S.pts.b}</td><td class="b">${ppp(S.pts.a, S.poss.a)}</td><td class="b">${ppp(S.pts.b, S.poss.b)}</td><td class="b">${S.kills.a}</td><td class="b">${S.kills.b}</td></tr>`;
@@ -7401,11 +7409,11 @@ function coachReportHtml(g, bar) {
   // Players page: both teams' box, starters then bench, totals; +/- from the tracker (matched by jersey number).
   const pm = t => { const U = {}; lineupUnits(g, D, t, 'game', 'all', 1).units.forEach(u => { U[u.five[0]] = u.pf - u.pa; }); return U; };
   const idOf = (t, num) => { if (t === 'b') return 'o:' + num; const p = teamPlayers(g, 'a').find(x => String(x.num) === String(num)); return p ? p.id : null; };
-  const box = t => { if (!SH) return ''; const PM = pm(t), rows = SH[t].rows.filter(played), st = rows.filter(r => r.starter), bn = rows.filter(r => !r.starter);
+  const box = t => { if (!PB || !PB[t].rows.length) return ''; const PM = pm(t), rows = PB[t].rows.filter(played), st = rows.filter(r => r.starter), bn = rows.filter(r => !r.starter);
     const n = v => +v || 0, mk = (m, a) => `${n(m)}-${n(a)}`;
-    const tr = (r, cls) => { const p = PM[idOf(t, r.num)], x = sheetAdv(r, SL[t], SL[other(t)]);
+    const tr = (r, cls) => { const p = fromBox ? r.pm : PM[idOf(t, r.num)], x = sheetAdv(r, PL[t], PL[other(t)]);
       return `<tr class="${cls || ''}"><td class="l">${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name || '')}</td><td>${n(r.min) || ''}</td><td class="b">${n(r.pts)}</td><td>${mk(r.fgm, r.fga)}</td><td>${mk(r.fg3m, r.fg3a)}</td><td>${mk(r.ftm, r.fta)}</td><td>${n(r.oreb)}</td><td>${n(r.dreb)}</td><td class="b">${n(r.oreb) + n(r.dreb)}</td><td>${n(r.ast)}</td><td>${n(r.stl)}</td><td>${n(r.blk)}</td><td>${n(r.tov)}</td><td>${n(r.pf)}</td><td class="${p > 0 ? 'pos' : p < 0 ? 'neg' : ''}">${p == null ? '—' : sgn(p)}</td><td>${x.gmsc.toFixed(1)}</td></tr>`; };
-    const T = SL[t];
+    const T = PL[t];
     return `<h2>${t === 'a' ? '<span class="us">Moorpark</span>' : `<span class="them">${esc(opp)}</span>`} box score</h2><table class="bx"><thead><tr><th class="l">Player</th><th>Min</th><th>Pts</th><th>FG</th><th>3PT</th><th>FT</th><th>OR</th><th>DR</th><th>Reb</th><th>Ast</th><th>Stl</th><th>Blk</th><th>TO</th><th>PF</th><th>+/-</th><th>GmSc</th></tr></thead><tbody>
       ${st.map(r => tr(r)).join('')}${bn.map((r, i) => tr(r, i ? '' : 'bench')).join('')}
       <tr class="tot"><td class="l">Team</td><td></td><td>${n(T.pts)}</td><td>${mk(T.fgm, T.fga)}</td><td>${mk(T.fg3m, T.fg3a)}</td><td>${mk(T.ftm, T.fta)}</td><td>${n(T.oreb)}</td><td>${n(T.dreb)}</td><td>${n(T.oreb) + n(T.dreb)}</td><td>${n(T.ast)}</td><td>${n(T.stl)}</td><td>${n(T.blk)}</td><td>${n(T.tov)}</td><td>${n(T.pf)}</td><td></td><td></td></tr></tbody></table>`; };
@@ -7425,8 +7433,8 @@ function coachReportHtml(g, bar) {
     <h2>Lineups</h2>
     <div class="cr-2"><div>${luTbl('Most used', most)}</div><div>${luTbl(`Best (${min}+ poss)`, best)}<div style="height:8px"></div>${luTbl(`Worst (${min}+ poss)`, worst)}</div></div>
     </div><div class="pg"><h2>Team stats <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:500">· ${SH ? 'box score (stat sheet); possessions, PPP, points off TOs and 2nd-chance points from the tracker' : 'from the tracked plays'}</span></h2>${ts}
-    ${SH ? `${box('a')}</div><div class="pg">${box('b')}<div class="mut" style="font-size:10.5px;margin-top:4px">+/- from the tracker (points for minus against while on the floor) · GmSc = game score (Hollinger)</div>` : ''}
-    <div class="cr-foot">Moorpark Basketball · from the possession tracker${SH ? ' and the final stat sheet' : ' (tracked plays)'} · garbage time included · Net = points per 100 possessions scored minus allowed</div>
+    ${PB ? `${box('a')}</div><div class="pg">${box('b')}<div class="mut" style="font-size:10.5px;margin-top:4px">${fromBox ? 'Box scores uploaded after the game (players only) · PF from the tracker · +/- from the box score' : '+/- from the tracker (points for minus against while on the floor)'} · GmSc = game score (Hollinger)</div>` : ''}
+    <div class="cr-foot">Moorpark Basketball · from the possession tracker${SH ? ' and the final stat sheet' : fromBox ? ' (team numbers) and the uploaded box scores (players)' : ' (tracked plays)'} · garbage time included · Net = points per 100 possessions scored minus allowed</div>
   </div></div></body></html>`;
 }
 /* The PDF, made on the iPad (no signal needed: html2canvas + jsPDF in vendor/pdf, saved for offline by sw.js):
