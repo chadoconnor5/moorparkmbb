@@ -1210,7 +1210,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 /* ⏳ Pending → Sub for: our five to tap (who needs a sub), and the suggestions in the right-hand column. */
 .sub-p.out-sel{border-color:#d4a017;background:rgba(212,160,23,.16)}
 .sub-p .out-tag{display:inline-block;margin-top:3px;background:#d4a017;color:#111;border-radius:0;padding:1px 6px;font-weight:800;letter-spacing:.03em}
-.ssg{border:1px solid #d4a017;background:rgba(212,160,23,.07);border-radius:12px;padding:10px 12px;align-self:start}
+.ssg{border:1px solid #d4a017;background:rgba(212,160,23,.07);border-radius:12px;padding:10px 12px;margin-top:10px}
 .ssg-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
 .ssg-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px dashed var(--border)}
 .ssg-who>div+div{margin-top:4px}
@@ -1249,7 +1249,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.230';
+const VERSION = 'v2026.10.22.231';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3186,10 +3186,11 @@ function pendModal() {
         return `<button class="sub-p ${w ? 'pend' : ''}" data-act="pend-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; }).join('') || '<div class="muted small">No one on the bench.</div>'}</div>
       ${t === 'a' && D.five.a.length === 5 ? `<div class="sub-lbl" style="margin-top:12px">On the floor <span class="muted">· tap who needs a sub (up to 4) for suggestions</span></div>
       <div class="sub-grid">${fiveSorted(g, 'a', D.five.a).map(id => { const p = pInfo(g, 'a', id), sel = outs.includes(id), po = PO.includes(id);
-        return `<button class="sub-p ${sel ? 'out-sel' : ''}" data-act="pend-out" data-p="${esc(id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${sel ? '<span class="tiny out-tag">↓ NEEDS A SUB</span>' : po ? '<span class="tiny pend-tag">↓ COMING OUT</span>' : ''}</button>`; }).join('')}</div>` : ''}</div>`; };
+        return `<button class="sub-p ${sel ? 'out-sel' : ''}" data-act="pend-out" data-p="${esc(id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${sel ? '<span class="tiny out-tag">↓ NEEDS A SUB</span>' : po ? '<span class="tiny pend-tag">↓ COMING OUT</span>' : ''}</button>`; }).join('')}</div>
+      ${outs.length ? subSugPanel(g, D, outs) : ''}` : ''}</div>`; };
   modal(`<div class="sub-head"><h2>⏳ Pending subs — who's checking in?</h2><div class="sub-top">${pendCount(g, D) ? '<button class="btn btn-lg" data-act="pend-clear">Clear all</button>' : ''}<button class="btn btn-good btn-lg" data-act="pend-done">Done</button></div></div>
     <div class="small muted" style="margin:6px 0 10px">Tap the bench players waiting at the table. No need to say who they're replacing: when the sub happens, ⇄ Sub opens with them in, and you tap who's coming off. Need a sub for someone? Tap him under On the floor for the best fits off the bench.</div>
-    <div class="sub-sides two">${side('a')}${outs.length ? subSugPanel(g, D, outs) : side('b')}</div>`, 'sub-modal');
+    <div class="sub-sides two">${side('a')}${side('b')}</div>`, 'sub-modal');
 }
 // Who a suggestion (⏳ Pending on the sub card) said comes out: g.pendOut, while they're on the floor and the
 // players picked for them are still pending. ⇄ Sub then opens with the swap made.

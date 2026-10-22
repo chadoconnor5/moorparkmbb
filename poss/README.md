@@ -366,7 +366,7 @@ qualifies, none is listed.
 ## Sub for a player (⏳ Pending)
 
 Under the bench on the Pending screen, **On the floor** lists our five. Tap who needs a sub (1-4 of them, gold
-NEEDS A SUB) and the right-hand column turns into suggestions: the best bench players (the same number) to bring
+NEEDS A SUB) and suggestions open right under it, in our column: the best bench players (the same number) to bring
 in, top 5, ranked by how much better the new five projects than the one on the floor ("vs now", per 100
 possessions). The projection is the Projected fives model (adjusted plus-minus with pair synergy, opponent-adjusted,
 garbage time out) fit over the season's games plus tonight, with tonight's possessions counted 3× a season
@@ -376,7 +376,7 @@ players never come up.
 - **⏳ Pending** puts them at the table *for* the ones coming out (the Live strip says "Checking in: X for Y");
   ⇄ Sub then opens with the swap already made, so it's just Confirm.
 - **⇄ Sub now** opens the sub screen with the new five lit.
-- ✕ goes back to the opponent's bench.
+- ✕ clears the picks. The opponent's bench stays on the right the whole time.
 
 ## Free throws & fouls by player
 
