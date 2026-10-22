@@ -1207,6 +1207,39 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ftf td,.ftf th{text-align:center}
 .ftf tr.ftf-tot td{background:#d4a017;color:#111;border-top:2px solid #111}
 .pline .stn{color:var(--text);font-weight:800}
+/* ⏳ Pending → Sub for: our five to tap (who needs a sub), and the suggestions in the right-hand column. */
+.sub-p.out-sel{border-color:#d4a017;background:rgba(212,160,23,.16)}
+.sub-p .out-tag{display:inline-block;margin-top:3px;background:#d4a017;color:#111;border-radius:0;padding:1px 6px;font-weight:800;letter-spacing:.03em}
+.ssg{border:1px solid #d4a017;background:rgba(212,160,23,.07);border-radius:12px;padding:10px 12px;margin-top:10px}
+.ssg-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
+.ssg-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px dashed var(--border)}
+.ssg-who>div+div{margin-top:4px}
+.ssg-v{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}.ssg-v b{font-size:17px}.ssg-v span{font-size:10.5px;color:var(--muted)}
+.ssg-row{grid-template-columns:22px minmax(0,1fr) auto;cursor:pointer;border-radius:8px;padding:8px 6px}
+.ssg-row.on{background:rgba(212,160,23,.16);outline:2px solid #d4a017}
+.ssg-pick{display:inline-block;background:#d4a017;color:#111;border-radius:0;padding:1px 6px;font-size:10px;font-weight:800;letter-spacing:.04em;vertical-align:2px}
+.ssg-five{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:13px}
+.ssg-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.ssg-need{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 0 6px}.ssg-need .tiny{margin-right:4px;font-weight:800;letter-spacing:.05em}
+.ssg-nb{font:inherit;font-size:11px;font-weight:700;padding:3px 7px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:0;cursor:pointer}
+.ssg-nb.on{background:#d4a017;border-color:#d4a017;color:#111}
+.ssg-parts{display:flex;flex-direction:column;gap:2px;margin-top:3px;font-size:11.5px;color:var(--muted)}
+.ssg-parts>span{display:block;line-height:1.35;padding-left:40px;text-indent:-40px}.ssg-parts b{color:var(--text2);font-weight:700}
+.ssg-bar{display:inline-block;width:34px;height:6px;margin-right:6px;vertical-align:middle;background:var(--border);position:relative;text-indent:0}.ssg-bar>i{position:absolute;left:0;top:0;bottom:0;background:#d4a017}
+.ssg-bar.na{background:repeating-linear-gradient(90deg,var(--border) 0 3px,transparent 3px 6px)}
+.ssg-row{grid-template-columns:22px minmax(0,1fr)}
+.ssg-ind{display:block;padding-left:0;text-indent:0}.ssg-ind b{color:var(--text2)}
+.sub-p .fit-bar{display:block;margin-top:4px;line-height:0}
+.ssg-mode{display:inline-block;background:#d4a017;color:#111;border-radius:0;padding:1px 6px;font-size:10px;font-weight:800;letter-spacing:.04em;vertical-align:2px;margin-left:4px}
+.ssg-bt{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;margin:2px 0 6px}.ssg-bt b{color:var(--text2);margin-right:2px}
+.ssg-bt .neg{color:var(--bad)}.ssg-bt .warn{color:#d4a017}.ssg-bt .pos{color:var(--good)}
+span.ssg-nb{cursor:default}
+.ssg-sug{border-top:1px dashed var(--border);padding:8px 0}
+.ssg-sh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ssg-sh>b{font-size:15px}.ssg-sh .ssg-btns{margin:0 0 0 auto}
+.ssg-pl{margin:6px 0 0 30px}.ssg-nf{margin:6px 0 0 30px}
+.ssg-needs{font-size:15px}.ssg-needs b{color:#d4a017}
+.ssg-sug{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center}
+.ssg-sw>b{font-size:15px}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1270,7 +1303,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.229';
+const VERSION = 'v2026.10.22.236';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3198,20 +3231,33 @@ function pending(g, t, D) {
 const pendCount = (g, D) => pending(g, 'a', D).length + pending(g, 'b', D).length;
 function pendModal() {
   const g = cur(), D = derive(g); g.pending = g.pending || { a: [], b: [] };
-  const side = t => { const P = new Set(pending(g, t, D)), on = new Set(D.five[t]);
+  const outs = (UI.pendOut || []).filter(id => D.five.a.includes(id)); UI.pendOut = outs;
+  const side = t => { const P = new Set(pending(g, t, D)), on = new Set(D.five[t]), PO = pendOutOf(g, D);
     const bench = teamPlayers(g, t).filter(p => !on.has(p.id) && !isOut(g, t, p.id));   // the bench pool only
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       <div class="sub-lbl">Bench <span class="muted">· ${P.size} checking in</span></div>
       <div class="sub-grid">${bench.map(p => { const w = P.has(p.id);
-        return `<button class="sub-p ${w ? 'pend' : ''}" data-act="pend-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; }).join('') || '<div class="muted small">No one on the bench.</div>'}</div></div>`; };
+        return `<button class="sub-p ${w ? 'pend' : ''}" data-act="pend-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; }).join('') || '<div class="muted small">No one on the bench.</div>'}</div>
+      ${t === 'a' && D.five.a.length === 5 ? `<div class="sub-lbl" style="margin-top:12px">On the floor <span class="muted">· tap who needs a sub for suggestions</span></div>
+      <div class="sub-grid">${(() => { const SC = subCtx(g, D), F = new Map(((SC && SC.floor) || []).map(r => [r.id, r]));
+        return fiveSorted(g, 'a', D.five.a).map(id => { const p = pInfo(g, 'a', id), sel = outs.includes(id), po = PO.includes(id), r = F.get(id), wk = SC && SC.weakest === id;
+        return `<button class="sub-p ${sel ? 'out-sel' : ''}" data-act="pend-out" data-p="${esc(id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${r ? `<span class="fit-bar" title="fit right now">${ssgBar(r.score < 0 ? null : r.score)}</span>` : ''}${sel ? '<span class="tiny out-tag">↓ NEEDS A SUB</span>' : wk ? '<span class="tiny out-tag weak">WEAKEST FIT</span>' : po ? '<span class="tiny pend-tag">↓ COMING OUT</span>' : ''}</button>`; }).join(''); })()}</div>
+      ${outs.length ? subSugPanel(g, D, outs) : ''}` : ''}</div>`; };
   modal(`<div class="sub-head"><h2>⏳ Pending subs — who's checking in?</h2><div class="sub-top">${pendCount(g, D) ? '<button class="btn btn-lg" data-act="pend-clear">Clear all</button>' : ''}<button class="btn btn-good btn-lg" data-act="pend-done">Done</button></div></div>
-    <div class="small muted" style="margin:6px 0 10px">Tap the bench players waiting at the table. No need to say who they're replacing: when the sub happens, ⇄ Sub opens with them in, and you tap who's coming off.</div>
+    <div class="small muted" style="margin:6px 0 10px">Tap the bench players waiting at the table. No need to say who they're replacing: when the sub happens, ⇄ Sub opens with them in, and you tap who's coming off. Need a sub for someone? Tap him under On the floor for the best fits off the bench.</div>
     <div class="sub-sides two">${side('a')}${side('b')}</div>`, 'sub-modal');
+}
+// Who a suggestion (⏳ Pending on the sub card) said comes out: g.pendOut, while they're on the floor and the
+// players picked for them are still pending. ⇄ Sub then opens with the swap made.
+function pendOutOf(g, D) {
+  const P = pending(g, 'a', D); if (!P.length) return [];
+  return (g.pendOut || []).filter(id => D.five.a.includes(id)).slice(0, P.length);
 }
 // On the live screen, under each team's five: who's waiting to check in.
 function pendStrip(g, D, t) {
   const P = pending(g, t, D); if (!P.length) return '';
-  return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b></span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
+  const PO = t === 'a' ? pendOutOf(g, D) : [];
+  return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b>${PO.length ? ` for <b>${esc(fiveSorted(g, t, PO).map(id => pShort(g, t, id)).join(', '))}</b>` : ''}</span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
 }
 let SUB = null;
 /* The sub screen's team side and its check, shared by the Sub pop-up and the 2nd-half starters panel on Live. */
@@ -3235,7 +3281,7 @@ function subOk(g, t) { return (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.f
 function subModal(title) {
   const g = cur(), D = derive(g);
   if (!SUB) {
-    const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
+    const PO = pendOutOf(g, D), forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)) && !(t === 'a' && PO.includes(id)));
     // Pending players come in already; the screen then only needs who's coming off.
     const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
     SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
@@ -3253,6 +3299,7 @@ function subConfirm() {
   ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, Object.assign({ t: 'sub', team: t, five: f }, D.five[t].length ? {} : { lock: true })); });
   // Pending players who went in are done waiting; the rest stay pending.
   if (g.pending) ['a', 'b'].forEach(t => { g.pending[t] = (g.pending[t] || []).filter(id => !SUB[t].has(id)); });
+  if (g.pendOut) { g.pendOut = g.pendOut.filter(id => SUB.a.has(id)); if (!g.pendOut.length) delete g.pendOut; }
   SUB = null; save(); closeModal(); render();
   const B = theirBestOn(g, derive(g)); if (B && fiveKey(B.five) !== fiveKey(D.five.b)) toast(`★ ${g.opp}'s best five is on (net ${sg1(Math.round(10 * B.net) / 10)} on ${B.poss} poss)`, 'warn');
 }
@@ -3751,10 +3798,21 @@ document.addEventListener('click', ev => {
       save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
-    case 'pend': pendModal(); break;
+    case 'pend': UI.pendOut = []; pendModal(); break;
+    case 'pend-out': { const id = b.dataset.p, o = UI.pendOut = UI.pendOut || [];
+      if (o.includes(id)) UI.pendOut = o.filter(x => x !== id); else o.push(id);
+      pendModal(); break; }
+    case 'pend-out-clear': UI.pendOut = []; pendModal(); break;
+    // A suggestion: its bench players go pending, for the ones coming out (⇄ Sub opens with the swap made) ...
+    case 'pend-sug': { const ins = b.dataset.in.split('|'), outs = b.dataset.out.split('|');
+      g.pending = g.pending || { a: [], b: [] }; g.pending.a = ins.slice(); g.pendOut = outs; UI.pendOut = []; save(); pendModal(); break; }
+    // ... or straight in: the sub screen with the new five lit (Confirm puts them in).
+    case 'pend-subnow': { const ins = b.dataset.in.split('|'), outs = b.dataset.out.split('|'), D0 = derive(g);
+      if (g.ftNext && g.ftNext.team === 'a' && outs.includes(g.ftNext.player) && !confirm(`${pShort(g, 'a', g.ftNext.player)} is at the line. Sub him out anyway?`)) return;
+      UI.pendOut = []; SUB = { a: new Set([...D0.five.a.filter(id => !outs.includes(id)), ...ins]), b: new Set(D0.five.b), forced: [], title: 'Sub — suggested (Confirm to put them in)' }; subModal(); break; }
     case 'pend-p': { g.pending = g.pending || { a: [], b: [] }; const t = b.dataset.t, id = b.dataset.p, l = g.pending[t] = pending(g, t);
       if (l.includes(id)) g.pending[t] = l.filter(x => x !== id); else l.push(id); save(); pendModal(); break; }
-    case 'pend-clear': g.pending = { a: [], b: [] }; save(); pendModal(); break;
+    case 'pend-clear': g.pending = { a: [], b: [] }; delete g.pendOut; save(); pendModal(); break;
     case 'pend-done': closeModal(); render(); break;
     case 'tip': SIT = null; sitModal('overall'); break;
     case 'tip-ban-x': g.tipClosed = [...new Set([...(g.tipClosed || []), b.dataset.k])]; save(); render(); break;
@@ -6523,22 +6581,25 @@ function rapmY(g, p, R) {
   const H = (R.homeAdvantage || 3) / 2, h = ({ H: [-H, H], A: [H, -H] })[g.loc] || [0, 0], mo = String(g.date || '').slice(5, 7), ph = -((R.phase || {})[mo === '10' ? '11' : mo] || 0);
   return p.team === 'a' ? 100 * p.pts + h[0] + ph - r.drtg + lgD : 100 * p.pts + h[1] + ph - r.ortg + lgO;
 }
-function rapm(g) {
-  const G = ooPossessions(g), R = UI.luRaw ? null : ratingsData(), ids = [...new Set(G.flatMap(x => x.P.flatMap(it => it.p.five.a)))], ix = new Map(ids.map((id, i) => [id, i])), n = ids.length;
-  const fit = side => { const rows = []; G.forEach(({ g: gm, P }) => P.forEach(it => { if ((it.p.team === 'a') === (side === 'o')) rows.push({ x: it.p.five.a.map(id => ix.get(id)), y: rapmY(gm, it.p, R) }); }));
+function rapm(g) { return rapmFit(ooPossessions(g), UI.luRaw ? null : ratingsData()); }
+// The fit itself, over possession groups [{ g, P: [{ p }] }]; wt(game) weights a game's possessions (1 = as counted).
+function rapmFit(G, R, wt) {
+  wt = wt || (() => 1);
+  const ids = [...new Set(G.flatMap(x => x.P.flatMap(it => it.p.five.a)))], ix = new Map(ids.map((id, i) => [id, i])), n = ids.length;
+  const fit = side => { const rows = []; G.forEach(({ g: gm, P }) => { const w = wt(gm); P.forEach(it => { if ((it.p.team === 'a') === (side === 'o')) rows.push({ x: it.p.five.a.map(id => ix.get(id)), y: rapmY(gm, it.p, R), w }); }); });
     if (!rows.length) return { b0: null, b: Array(n).fill(0), n: 0, cnt: Array(n).fill(0) };
-    const b0 = rows.reduce((s, r) => s + r.y, 0) / rows.length, A = Array.from({ length: n }, () => Array(n).fill(0)), v = Array(n).fill(0), cnt = Array(n).fill(0);
-    rows.forEach(r => { r.x.forEach(i => { v[i] += r.y - b0; cnt[i]++; r.x.forEach(j => { A[i][j] += 1; }); }); });
+    const W = rows.reduce((s, r) => s + r.w, 0), b0 = rows.reduce((s, r) => s + r.w * r.y, 0) / W, A = Array.from({ length: n }, () => Array(n).fill(0)), v = Array(n).fill(0), cnt = Array(n).fill(0);
+    rows.forEach(r => { r.x.forEach(i => { v[i] += r.w * (r.y - b0); cnt[i]++; r.x.forEach(j => { A[i][j] += r.w; }); }); });
     for (let i = 0; i < n; i++) A[i][i] += RAPM_LAMBDA;
     return { b0, b: solve(A, v), n: rows.length, cnt }; };
   const O = fit('o'), D = fit('d');
   const players = ids.map((id, i) => ({ id, o: O.b[i], d: -D.b[i], net: O.b[i] - D.b[i], oPoss: O.cnt[i], dPoss: D.cnt[i] }));
   // Pair synergy: actual adjusted net with both on minus what the model expected on those possessions, shrunk.
   const pairs = {};
-  G.forEach(({ g: gm, P }) => P.forEach(it => { const f = it.p.five.a.slice().sort(), y = rapmY(gm, it.p, R), off = it.p.team === 'a', M = off ? O : D;
+  G.forEach(({ g: gm, P }) => { const w = wt(gm); P.forEach(it => { const f = it.p.five.a.slice().sort(), y = rapmY(gm, it.p, R), off = it.p.team === 'a', M = off ? O : D;
     if (M.b0 == null) return; const pred = M.b0 + f.reduce((s, id) => s + M.b[ix.get(id)], 0), res = y - pred;
     for (let a = 0; a < 5; a++) for (let c = a + 1; c < 5; c++) { const k = f[a] + '|' + f[c], x = pairs[k] = pairs[k] || { a: f[a], b: f[c], o: 0, on: 0, d: 0, dn: 0 };
-      if (off) { x.o += res; x.on++; } else { x.d += res; x.dn++; } } }));
+      if (off) { x.o += w * res; x.on += w; } else { x.d += w * res; x.dn += w; } } }); });
   const PK = 40;   // possessions a pair's residual needs before it counts half
   Object.values(pairs).forEach(x => { x.so = x.on ? (x.o / x.on) * x.on / (x.on + PK) : 0; x.sd = x.dn ? -(x.d / x.dn) * x.dn / (x.dn + PK) : 0; x.syn = x.so + x.sd; x.n = Math.floor((x.on + x.dn) / 2); });
   return { players, pairs, O, D, R: !!(R && R.teams) };
@@ -6551,6 +6612,179 @@ function projectFive(M, five) {
   for (let a = 0; a < 5; a++) for (let c = a + 1; c < 5; c++) { const x = M.pairs[f[a] + '|' + f[c]]; if (x) syn += x.syn / 2; }
   return { net: net + syn, o, d, syn };
 }
+/* SUB FOR (⏳ Pending → On the floor): tap any of our five (1-5) and get the top 3 subs, on actual numbers only (nothing
+   projected), with nothing to choose. The same scoring runs on the five on the floor, so the one who fits worst right
+   now is tagged WEAKEST FIT: who to take out.
+   1. THE PRESSING NEEDS, automatic: the four factor battles of this game so far (garbage time out): our eFG% vs
+      theirs, their TO% vs ours, our OREB% vs theirs, our FT rate vs theirs. A battle's urgency = how far it is from a
+      safe lead of SUB_SAFE points: losing it by 5 is 10, winning it by 2 is 3, winning it by 5+ is 0; times Dean
+      Oliver's weight (shooting 40, turnovers 25, rebounding 20, FTs 15). Each battle is split between our end and
+      theirs by which side is worse than our season norm (league average until 2 games are final): the eFG battle
+      into Shooting and Defense, turnovers into Ball security and Pressure, rebounding into Off and Def rebounding,
+      free throws into Get to the line and Fewer fouls. If we're safely ahead everywhere, the closest battle is it.
+   2. Each player, four parts, every number ranked against the others in the list (0 = worst, 1 = best):
+      FIT 50%: for each need, the numbers that answer it, ranked and averaged: his season analytics from the
+        leaderboard (DR%, OR%, STL%, BLK%, TO%, ARate, TS%, eFG%, FT rate, fouls / drawn per 40), his season
+        per-40 / % from quality games, how WE do on that factor with him on the floor TONIGHT and THIS SEASON (our
+        lineup data), and, in the STAT SHEET version (once a 1st-half or final sheet is read), his own line on it.
+        Without a sheet, tonight is the on-court numbers. The needs blended by their urgency.
+      WITH THE OTHERS 20%: our net per 100 with him on alongside each player staying in, every possession they've
+        shared this season and tonight (10+ at each end).
+      TONIGHT 15%: our net per 100 with him on tonight (3+ at each end) and his +/-.
+      SEASON 15%: his individual ORtg (leaderboard) and our net per 100 with him on this season (20+ at each end).
+      A number he doesn't have is left out; a part with none is left out and the others count for it.
+   3. TOP 3: one coming out = the 3 best players; more = the 3 best groups from the top players (a group's score =
+      its players' average). Fouled-out players never come up; 4 fouls is flagged. */
+const SUB_SAFE = 5;
+let SUBA = null;
+const netOf = u => u && u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null;
+const uZero = () => ({ oPoss: 0, dPoss: 0, pf: 0, pa: 0, o: {}, d: {} });
+const uAdd = (m, k, u) => { const x = m[k] = m[k] || uZero(); if (!u) return x; x.oPoss += u.oPoss; x.dPoss += u.dPoss; x.pf += u.pf; x.pa += u.pa;
+  ['o', 'd'].forEach(s => Object.keys(u[s] || {}).forEach(c => { x[s][c] = (x[s][c] || 0) + (u[s][c] || 0); })); return x; };
+// Our other games this season: each player on the floor (1), every pair (2) and every five (5), actual and raw.
+function subSeason(g) {
+  const list = seasonPool().filter(x => x.id !== g.id), stamp = list.map(x => x.id + ':' + x.ev.length).join('|');
+  if (SUBA && SUBA.stamp === stamp) return SUBA;
+  const one = {}, two = {}, five = {};
+  list.forEach(gm => { const D = derive(gm);
+    lineupUnits(gm, D, 'a', 'game', 'nogt', 1).units.forEach(u => uAdd(one, u.five[0], u));
+    lineupUnits(gm, D, 'a', 'game', 'nogt', 2).units.forEach(u => uAdd(two, fiveKey(u.five), u));
+    lineupUnits(gm, D, 'a', 'game', 'nogt', 5).units.forEach(u => uAdd(five, fiveKey(u.five), u)); });
+  SUBA = { stamp, one, two, five }; return SUBA;
+}
+// Tonight's units, same shapes.
+function subTonight(g, D) {
+  const one = {}, two = {}, five = {};
+  lineupUnits(g, D, 'a', 'game', 'nogt', 1).units.forEach(u => { one[u.five[0]] = u; });
+  lineupUnits(g, D, 'a', 'game', 'nogt', 2).units.forEach(u => { two[fiveKey(u.five)] = u; });
+  lineupUnits(g, D, 'a', 'game', 'nogt', 5).units.forEach(u => { five[fiveKey(u.five)] = u; });
+  return { one, two, five };
+}
+/* The needs: the factor (fixVals key) and which way is bad, and the numbers that answer it.
+   Each number: label, value from the player's context c (null = none), lo = lower is better. */
+const f1s = v => (Math.round(10 * v) / 10).toFixed(1);
+const per40x = (c, ks) => c.x && (c.x.MIN || 0) >= PL_MIN.MIN ? plPer40(c.id, ...ks) : null;
+const shPer40 = (c, f) => c.sh && +c.sh.min >= 4 ? 40 * f(c.sh) / +c.sh.min : null;
+const onT = (c, k) => c.onT && c.onTN >= 8 ? c.onT[k] : null, onS = (c, k) => c.onS && c.onSN >= 15 ? c.onS[k] : null;
+const adv = (c, k) => c.R && c.R[k] != null && (c.R.gp || 0) >= 3 ? +c.R[k] : null;
+const onPair = (lbl, k, lo) => [[`${lbl} w/ him tonight`, c => onT(c, k), lo], [`${lbl} w/ him season`, c => onS(c, k), lo]];
+const SUB_NEEDS = [
+  { k: 'def', lbl: 'Defense', ff: 'oefg', bad: 1, ind: [
+    ['BLK%', c => adv(c, 'blk_pct')], ['STL%', c => adv(c, 'stl_pct')], ['STL+BLK/40 on sheet', c => shPer40(c, r => (+r.stl || 0) + (+r.blk || 0))], ...onPair('their eFG%', 'oefg', 1)] },
+  { k: 'dreb', lbl: 'Def rebounding', ff: 'drb', bad: -1, ind: [
+    ['DR%', c => adv(c, 'dreb_pct')], ['DREB/40', c => per40x(c, ['DREB'])], ['DREB/40 on sheet', c => shPer40(c, r => +r.dreb || 0)], ...onPair('our DREB%', 'drb')] },
+  { k: 'press', lbl: 'Pressure', ff: 'otov', bad: -1, ind: [
+    ['STL%', c => adv(c, 'stl_pct')], ['STL/40', c => per40x(c, ['STL'])], ['STL/40 on sheet', c => shPer40(c, r => +r.stl || 0)], ...onPair('their TO%', 'otov')] },
+  { k: 'fouls', lbl: 'Fewer fouls', ff: 'oftr', bad: 1, ind: [
+    ['fouls/40', c => adv(c, 'fc_per_40'), 1], ['PF/40', c => per40x(c, ['PF']), 1], ['PF/40 on sheet', c => shPer40(c, r => +r.pf || 0), 1], ...onPair('their FT rate', 'oftr', 1)] },
+  { k: 'shoot', lbl: 'Shooting', ff: 'efg', bad: -1, ind: [
+    ['TS%', c => adv(c, 'ts_pct')], ['eFG%', c => adv(c, 'efg_pct') != null ? adv(c, 'efg_pct') : c.x && (c.x.FGA || 0) >= 20 ? 100 * ((c.x.FGM || 0) + 0.5 * (c.x['3PM'] || 0)) / c.x.FGA : null],
+    ['3P%', c => plPct(null, c.id, '3PM', '3PA')], ['eFG% on sheet', c => c.sh && +c.sh.fga >= 3 ? 100 * ((+c.sh.fgm || 0) + 0.5 * (+c.sh.fg3m || 0)) / +c.sh.fga : null], ...onPair('our eFG%', 'efg')] },
+  { k: 'ball', lbl: 'Ball security', ff: 'tov', bad: 1, ind: [
+    ['TO%', c => adv(c, 'tov_pct'), 1], ['ARate', c => adv(c, 'ast_rate')], ['TO/40', c => per40x(c, ['TO']), 1], ['TO/40 on sheet', c => shPer40(c, r => +r.tov || 0), 1], ...onPair('our TO%', 'tov', 1)] },
+  { k: 'oreb', lbl: 'Off rebounding', ff: 'orb', bad: -1, ind: [
+    ['OR%', c => adv(c, 'oreb_pct')], ['OREB/40', c => per40x(c, ['OREB'])], ['OREB/40 on sheet', c => shPer40(c, r => +r.oreb || 0)], ...onPair('our OREB%', 'orb')] },
+  { k: 'ftr', lbl: 'Get to the line', ff: 'ftr', bad: -1, ind: [
+    ['FT rate', c => adv(c, 'ft_rate') != null ? adv(c, 'ft_rate') : c.x && (c.x.FGA || 0) >= 20 ? 100 * (c.x.FTA || 0) / c.x.FGA : null], ['drawn/40', c => adv(c, 'fd_per_40')],
+    ['FT rate on sheet', c => c.sh && +c.sh.fga >= 3 ? 100 * (+c.sh.fta || 0) / +c.sh.fga : null], ...onPair('our FT rate', 'ftr')] }];
+const SUB_NEED = Object.fromEntries(SUB_NEEDS.map(n => [n.k, n]));
+// The four battles: our edge in points (+ = we're winning it), Oliver's weight, and our end / their end.
+const SUB_BATTLES = [
+  { lbl: 'eFG%', w: 0.4, f: ['efg', 'oefg'], edge: v => v.efg - v.oefg, us: 'shoot', them: 'def', show: v => `${f1s(v.efg)} vs ${f1s(v.oefg)}` },
+  { lbl: 'TO%', w: 0.25, f: ['tov', 'otov'], edge: v => v.otov - v.tov, us: 'ball', them: 'press', show: v => `${f1s(v.tov)} vs ${f1s(v.otov)}` },
+  { lbl: 'OREB%', w: 0.2, f: ['orb', 'drb'], edge: v => v.orb - (100 - v.drb), us: 'oreb', them: 'dreb', show: v => `${f1s(v.orb)} vs ${f1s(100 - v.drb)}` },
+  { lbl: 'FT rate', w: 0.15, f: ['ftr', 'oftr'], edge: v => v.ftr - v.oftr, us: 'ftr', them: 'fouls', show: v => `${f1s(v.ftr)} vs ${f1s(v.oftr)}` }];
+// The pressing needs from tonight's battles: { L: [{ n, wt }], B: battles with edge / urgency, poss }.
+function subNeeds(g, D, TN) {
+  const u = uZero(); Object.values(TN.five).forEach(x => uAdd({ t: u }, 't', x));
+  if (u.oPoss < 4 || u.dPoss < 4) return null;
+  const v = fixVals(u.o, u.d, u.oPoss, u.dPoss), N = seasonNorm(g).v, W = {};
+  const B = SUB_BATTLES.map(b => { const e = b.f.every(k => v[k] != null) ? b.edge(v) : null;
+    return Object.assign({ e, urg: e == null ? 0 : b.w * Math.max(0, SUB_SAFE - e) }, b); });
+  if (!B.some(b => b.urg > 0)) { const c = B.filter(b => b.e != null).sort((a, b) => a.e - b.e)[0]; if (c) c.urg = 1; }
+  B.forEach(b => { if (!b.urg) return;
+    const gap = n => v[n.ff] == null || N[n.ff] == null ? 0 : Math.max(0, n.bad * (v[n.ff] - N[n.ff])), gu = gap(SUB_NEED[b.us]), gt = gap(SUB_NEED[b.them]);
+    const su = gu + gt ? gu / (gu + gt) : 0.5; W[b.us] = (W[b.us] || 0) + b.urg * su; W[b.them] = (W[b.them] || 0) + b.urg * (1 - su); });
+  const tot = Object.values(W).reduce((s, x) => s + x, 0);
+  return { L: SUB_NEEDS.map(n => ({ n, wt: tot ? (W[n.k] || 0) / tot : 0 })), B, v, poss: Math.floor((u.oPoss + u.dPoss) / 2) };
+}
+// Rank within a list: 0 = worst, 1 = best (ties share), null values left out.
+function pctRank(vals, lo) {
+  const v = vals.filter(x => x != null).sort((a, b) => a - b), n = v.length;
+  return x => { if (x == null || !n) return null; if (n === 1) return 0.5; const below = v.filter(y => y < x).length, eq = v.filter(y => y === x).length, r = (below + (eq - 1) / 2) / (n - 1); return lo ? 1 - r : r; };
+}
+const avgOf = a => { const b = a.filter(x => x != null); return b.length ? b.reduce((s, x) => s + x, 0) / b.length : null; };
+const subSheet = g => { const sc = g.sheet && (g.sheet.G || g.sheet['1H']); return sc && sc.a && (sc.a.rows || []).length ? { sc, half: sc === g.sheet['1H'] && !g.sheet.G ? '1st half' : 'final' } : null; };
+// Score players (bench candidates, or the five on the floor) for the needs. others(id) = who he'd play alongside.
+function subScore(g, D, ids, others, NE, S, TN) {
+  const SH = subSheet(g), shRows = SH ? SH.sc.a.rows : [], { P } = plSeason(), pms = lineupUnits(g, D, 'a', 'game', 'all').players;
+  const rows = ids.map(id => {
+    const num = String(pInfo(g, 'a', id).num || ''), t = TN.one[id], su = S.one[id];
+    const c = { id, R: autoRow(g, 'a', id).R, x: P[id], sh: num ? shRows.find(r => String(r.num) === num) : null,
+      onT: t && t.oPoss && t.dPoss ? fixVals(t.o, t.d, t.oPoss, t.dPoss) : null, onTN: t ? Math.min(t.oPoss, t.dPoss) : 0,
+      onS: su && su.oPoss && su.dPoss ? fixVals(su.o, su.d, su.oPoss, su.dPoss) : null, onSN: su ? Math.min(su.oPoss, su.dPoss) : 0 };
+    const w = uZero(); others(id).forEach(k => { const pk = fiveKey([id, k]); uAdd({ w }, 'w', S.two[pk]); uAdd({ w }, 'w', TN.two[pk]); });
+    return { id, c, tNet: t && t.oPoss >= 3 && t.dPoss >= 3 ? netOf(t) : null, tP: t ? Math.floor((t.oPoss + t.dPoss) / 2) : 0, pm: (pms[id] || { pm: 0 }).pm, played: !!t,
+      wNet: w.oPoss >= 10 && w.dPoss >= 10 ? netOf(w) : null, wP: others(id).length ? Math.round((w.oPoss + w.dPoss) / 2 / others(id).length) : 0,
+      sNet: su && su.oPoss >= 20 && su.dPoss >= 20 ? netOf(su) : null, sP: su ? Math.floor((su.oPoss + su.dPoss) / 2) : 0, ortg: adv(c, 'ind_ortg'), pf: playerFouls(g, 'a', id) }; });
+  // Every need's numbers, ranked across the list; a need's fit = the average of its numbers' ranks.
+  (NE ? NE.L : []).forEach(x => x.n.ind.forEach(([, get, lo], j) => { const vals = rows.map(r => get(r.c)), rk = pctRank(vals, lo);
+    rows.forEach((r, i) => { r.ind = r.ind || {}; (r.ind[x.n.k] = r.ind[x.n.k] || [])[j] = { v: vals[i], r: rk(vals[i]) }; }); }));
+  const rW = pctRank(rows.map(r => r.wNet)), rT = pctRank(rows.map(r => r.tNet)), rP = pctRank(rows.map(r => r.played ? r.pm : null)), rO = pctRank(rows.map(r => r.ortg)), rS = pctRank(rows.map(r => r.sNet));
+  rows.forEach(r => {
+    let fit = null, fw = 0; (NE ? NE.L : []).forEach(x => { if (!x.wt) return; const a = avgOf((r.ind[x.n.k] || []).map(z => z && z.r)); if (a != null) { fit = (fit || 0) + a * x.wt; fw += x.wt; } });
+    r.parts = { need: fw ? fit / fw : null, with: rW(r.wNet), tonight: avgOf([rT(r.tNet), rP(r.played ? r.pm : null)]), season: avgOf([rO(r.ortg), rS(r.sNet)]) };
+    const W = { need: 0.5, with: 0.2, tonight: 0.15, season: 0.15 }, have = Object.keys(W).filter(k => r.parts[k] != null), tw = have.reduce((s, k) => s + W[k], 0);
+    r.score = tw ? have.reduce((s, k) => s + W[k] * r.parts[k], 0) / tw : -1; });
+  return rows.sort((a, b) => b.score - a.score || b.pm - a.pm);
+}
+function subCtx(g, D) {
+  if (D.five.a.length !== 5) return null;
+  const S = subSeason(g), TN = subTonight(g, D), NE = subNeeds(g, D, TN), f = D.five.a;
+  const floor = subScore(g, D, f, id => f.filter(x => x !== id), NE, S, TN);
+  return { S, TN, NE, floor, weakest: floor.length ? floor[floor.length - 1].id : null };
+}
+// A player's night so far, for the sub card: +/-, possessions since he last played, fouls, FTs.
+function subLine(g, D, id) {
+  let on = 0, rest = null; D.poss.forEach(p => { if ((p.five.a || []).includes(id)) on++; });
+  for (let i = D.poss.length - 1; i >= 0; i--) { if ((D.poss[i].five.a || []).includes(id)) { rest = D.poss.length - 1 - i; break; } }
+  const pm = (lineupUnits(g, D, 'a', 'game', 'all').players[id] || { pm: 0 }).pm, pf = playerFouls(g, 'a', id), ft = playerFT(g, 'a', id);
+  return `${on ? `+/- <span class="${pmCls(pm)}">${sgn(pm)}</span> · ${rest ? `sat ${Math.round(rest / 2)}` : 'on now'}` : 'hasn\'t played'}${pf ? ` · <span class="${pf >= 4 ? 'neg' : ''}">${pf} PF</span>` : ''}${ft.a ? ` · FT ${ft.m}-${ft.a}` : ''}`;
+}
+const ssgBar = v => v == null ? '<i class="ssg-bar na"></i>' : `<i class="ssg-bar"><i style="width:${Math.round(100 * v)}%"></i></i>`;
+// Why we need it, in a few words, from tonight's numbers.
+const SUB_WHY = { def: v => `they're shooting ${f1s(v.oefg)}% eFG`, dreb: v => `they're grabbing ${f1s(100 - v.drb)}% of their misses`,
+  press: v => `they're only turning it over ${f1s(v.otov)}%`, fouls: v => `they're living at the line (FT rate ${f1s(v.oftr)})`,
+  shoot: v => `we're shooting ${f1s(v.efg)}% eFG`, ball: v => `we're turning it over ${f1s(v.tov)}%`,
+  oreb: v => `we're getting only ${f1s(v.orb)}% of our misses`, ftr: v => `we're not getting to the line (FT rate ${f1s(v.ftr)})` };
+const SUB_NOUN = { def: 'defender', dreb: 'def rebounder', press: 'ball hawk', fouls: 'at defending without fouling', shoot: 'shooter', ball: 'with the ball', oreb: 'off rebounder', ftr: 'at getting to the line' };
+const ordS = n => n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n / 10) === 1 ? 0 : n % 10]);
+function subSugPanel(g, D, outs) {
+  const C = subCtx(g, D); if (!C) return '';
+  const { S, TN, NE } = C, k = outs.length, keep = D.five.a.filter(id => !outs.includes(id)), SH = subSheet(g);
+  const bench = teamPlayers(g, 'a').filter(p => !D.five.a.includes(p.id) && !isOut(g, 'a', p.id)).map(p => p.id);
+  const rows = subScore(g, D, bench, () => keep, NE, S, TN), by = new Map(rows.map(r => [r.id, r]));
+  const top = k === 1 ? rows.slice(0, 3).map(r => [r.id]) : kCombos(rows.slice(0, k + 3).map(r => r.id), k)
+    .map(c => ({ c, s: c.reduce((t, id) => t + by.get(id).score, 0) / k })).sort((a, b) => b.s - a.s).slice(0, 3).map(x => x.c);
+  const lit = NE ? NE.L.filter(x => x.wt >= 0.15).sort((a, b) => b.wt - a.wt).slice(0, 2) : [];
+  // A player's reason: the need he answers best, as his place on our bench for it; else his best other part.
+  const place = {}; lit.forEach(x => { rows.map(r => ({ id: r.id, v: avgOf((r.ind[x.n.k] || []).map(z => z && z.r)) })).filter(o => o.v != null)
+    .sort((a, b) => b.v - a.v).forEach((o, i) => { (place[o.id] = place[o.id] || []).push({ n: x.n, i: i + 1 }); }); });
+  const why = id => { const r = by.get(id), pl = (place[id] || []).sort((a, b) => a.i - b.i)[0], bits = [];
+    if (pl && pl.i <= 3) bits.push(`${pl.i === 1 ? 'best' : ordS(pl.i) + '-best'} ${SUB_NOUN[pl.n.k]} on the bench`);
+    if (r.wNet != null && r.parts.with >= 0.6) bits.push('good with this group');
+    if (r.played && r.pm > 0) bits.push(`+${r.pm} tonight`);
+    if (!bits.length && r.parts.season >= 0.6) bits.push('strong season');
+    if (r.pf >= 4) bits.push('4 fouls');
+    return bits.slice(0, 2).join(' · ') || 'best overall fit'; };
+  const head = `<div class="ssg-h"><div class="ssg-needs">${lit.length ? `Need <b>${lit.map(x => esc(x.n.lbl)).join(' + ')}</b><div class="small muted">${lit.map(x => esc(SUB_WHY[x.n.k](NE.v))).join(' · ')}</div>` : '<span class="small muted">Not enough possessions tonight yet</span>'}</div><button class="btn btn-sm" data-act="pend-out-clear">✕</button></div>`;
+  if (!top.length) return `<div class="ssg">${head}<div class="small muted">Not enough players on the bench.</div></div>`;
+  return `<div class="ssg">${head}${top.map((ins, i) => `<div class="ssg-sug"><span class="fix-rk">${i + 1}</span><div class="ssg-sw"><b>${esc(fiveSorted(g, 'a', ins).map(id => pShort(g, 'a', id)).join(' + '))}</b>
+      <div class="small muted">${k === 1 ? esc(why(ins[0])) : fiveSorted(g, 'a', ins).map(id => `${esc(lastName(pInfo(g, 'a', id).name || pShort(g, 'a', id)))}: ${esc(why(id))}`).join('<br>')}</div></div>
+      <span class="ssg-btns"><button class="btn btn-sm btn-good" data-act="pend-sug" data-in="${esc(ins.join('|'))}" data-out="${esc(outs.join('|'))}">⏳ Pending</button><button class="btn btn-sm" data-act="pend-subnow" data-in="${esc(ins.join('|'))}" data-out="${esc(outs.join('|'))}">⇄ Sub now</button></span></div>`).join('')}
+    <div class="tiny muted" style="margin-top:4px">${SH ? 'Uses tonight\'s stat sheet' : 'No stat sheet yet: tonight from the tracker'}, season analytics and lineup results.</div></div>`;
+}
+function kCombos(ids, k) { const out = []; const rec = (s, cur) => { if (cur.length === k) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
 function combos5(ids) { const out = []; const rec = (s, cur) => { if (cur.length === 5) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
 function projectedView(g) {
   const M = rapm(g); if (!M.players.length) return '<div class="muted small">No possessions with a full five in this view.</div>';

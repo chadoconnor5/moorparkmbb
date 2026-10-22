@@ -363,6 +363,41 @@ Each lists its top two, only fives better than the norm with everyone dressed an
 ★ BOTH marks a five in the top two of both columns; ON NOW marks the five on the floor. No five
 qualifies, none is listed.
 
+## Sub for a player (⏳ Pending)
+
+Under the bench on the Pending screen, **On the floor** lists our five, each with a bar for how well he fits what we
+need right now (same scoring as below, against the other four); the lowest is tagged **WEAKEST FIT**: who to take
+out. Tap any of them (1-5, gold NEEDS A SUB) and the **top 3 subs** show right under it, on actual numbers only (no
+projections), with nothing to choose:
+
+**The pressing needs, automatic.** The four factor battles of this game so far (garbage time out), shown us vs them,
+green = safe, gold = close, red = losing: eFG% · TO% · OREB% · FT rate. A battle's urgency = how far it is from a
+5-point cushion (losing by 5 = 10, winning by 2 = 3, winning by 5+ = 0) × Dean Oliver's weight (shooting 40,
+turnovers 25, rebounding 20, FTs 15). Each is split between our end and theirs by which side is worse than our
+season norm: eFG → Shooting / Defense, TO → Ball security / Pressure, rebounding → Off / Def rebounding, FTs → Get
+to the line / Fewer fouls. The needs show as gold chips with their share. Safely ahead everywhere: the closest
+battle.
+
+**Two versions**, labeled at the top: **STAT SHEET** once tonight's 1st-half (or final) sheet is read, which adds
+each player's own line from it; **NO STAT SHEET**, where tonight is the tracker's numbers.
+
+**Each player, four parts**, each a bar for where he ranks on our bench:
+- **Fit (50%)**: for each need, the numbers that answer it, ranked and averaged: his **season analytics** (DR%,
+  OR%, STL%, BLK%, TO%, ARate, TS%, eFG%, FT rate, fouls and fouls drawn per 40), his **season per 40 / %** (quality
+  games), **how we do on that factor with him on the floor tonight and this season** (our DREB%, their eFG%, our
+  TO%...), and in the stat sheet version **his line on the sheet**. Blended by the needs' shares; every number shows.
+- **With the others (20%)**: our net per 100 with him on alongside each player staying in, this season + tonight.
+- **Tonight (15%)**: our net per 100 with him on tonight and his +/-; plus how long he's sat, fouls (4 flagged), FTs.
+- **Season (15%)**: his individual ORtg and our net per 100 with him on this season.
+A number he doesn't have is left out; a part with none is left out and the others count for it.
+
+**What you see** is kept short for the bench: one line on top, **Need Defense + Def rebounding** (the top one or
+two), with why in plain words ("they're shooting 50.0% eFG · they're grabbing 32.3% of their misses"); then the
+**top 3** (one coming out = 3 players; more = the 3 best groups), each with a few words on why ("best defender on
+the bench · good with this group", "+11 tonight", "4 fouls") and its own **⏳ Pending** (at the table *for* the ones
+coming out; the Live strip says "Checking in: X for Y" and ⇄ Sub opens with the swap made) and **⇄ Sub now**. A
+footnote says whether tonight's stat sheet is in. ✕ clears. The opponent's bench stays on the right throughout.
+
 ## Free throws & fouls by player
 
 From the shooter and fouler you tap, so it's there live with no stat sheet photo:
