@@ -1309,7 +1309,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.244';
+const VERSION = 'v2026.10.23.246';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2318,6 +2318,8 @@ function teamStatsCard(g, D, sc, label, X0, names) {
     ['Steals', t => X[t].stl, t => X[t].stl, true],
     ['Blocks', t => X[t].blk, t => X[t].blk, true],
     ['Turnovers', t => X[t].tov, t => X[t].tov, false],
+    // A team's own turnovers that weren't the other side's steals (dead balls, travels, offensive fouls...).
+    ['Non-steal turnovers', t => Math.max(0, X[t].tov - (X[t].stov || 0)), t => Math.max(0, X[t].tov - (X[t].stov || 0)), false],
     ['Fouls', t => X[t].pf, t => X[t].pf, false],
     ['Possessions', t => X[t].n, null],
     ['Points per possession', t => X[t].n ? (X[t].pts / X[t].n).toFixed(2) : '—', t => X[t].n ? X[t].pts / X[t].n : null, true],
