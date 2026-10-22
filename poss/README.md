@@ -366,17 +366,16 @@ qualifies, none is listed.
 ## Sub for a player (⏳ Pending)
 
 Under the bench on the Pending screen, **On the floor** lists our five. Tap who needs a sub (1-4 of them, gold
-NEEDS A SUB) and suggestions open right under it, in our column: the best bench players (the same number) to bring
-in, top 5, ranked by how much better the new five projects than the one on the floor ("vs now", per 100
-possessions). The projection is the Projected fives model (adjusted plus-minus with pair synergy, opponent-adjusted,
-garbage time out) fit over the season's games plus tonight, with tonight's possessions counted 3× a season
-possession and the weights scaled back to the real possession count, so one game never looks bigger than it is.
-Each player shows his impact and his night: +/-, possessions on, how long he's sat, fouls, FTs. Fouled-out
-players never come up.
+NEEDS A SUB) and our bench is ranked right under it, on what has actually happened (nothing projected):
+- **Tonight on-court**: our points per 100 possessions minus theirs with him on the floor tonight (3+ possessions
+  at each end to count), garbage time out. Players without that much tonight come after, by **season on-court**
+  (same number over our other games, 10+ at each end), then the rest by tonight's +/-.
+- Each row also shows his +/- tonight, how long he's sat, fouls and FTs.
+- The top ones (as many as are coming out) start PICKED; tap a row to change. Under the list: how that exact new
+  five has done together, tonight and this season, or that it hasn't played together.
 - **⏳ Pending** puts them at the table *for* the ones coming out (the Live strip says "Checking in: X for Y");
-  ⇄ Sub then opens with the swap already made, so it's just Confirm.
-- **⇄ Sub now** opens the sub screen with the new five lit.
-- ✕ clears the picks. The opponent's bench stays on the right the whole time.
+  ⇄ Sub then opens with the swap already made, so it's just Confirm. **⇄ Sub now** opens the sub screen with the
+  new five lit. ✕ clears the picks. The opponent's bench stays on the right the whole time.
 
 ## Free throws & fouls by player
 
