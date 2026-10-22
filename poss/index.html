@@ -1206,6 +1206,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 @media (max-width:640px){.ftf-2{grid-template-columns:1fr}}
 .ftf td,.ftf th{text-align:center}
 .ftf tr.ftf-tot td{background:#d4a017;color:#111;border-top:2px solid #111}
+.pline .stn{color:var(--text);font-weight:800}
 
 </style>
 </head>
@@ -1239,7 +1240,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.21.227';
+const VERSION = 'v2026.10.21.228';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1727,6 +1728,17 @@ function teamFouls(g, t, per) { const b = foulBucket(per); return g.ev.filter(e 
 const playerFouls = (g, t, id) => g.ev.filter(e => FOULING(e) && e.team === t && e.player === id).length;
 const playerTechs = (g, t, id) => g.ev.filter(e => e.t === 'tech' && e.team === t && e.player === id).length;
 // A player's free throws from the logged plays (the shooter you tapped): { m, a }. per: '1H' = 1st half only.
+/* Current stint: possessions in a row this player has been on the floor, counting back from the latest one in this
+   half / OT (a sub out breaks it; the half resets it). Both ends count, halved and rounded like the lineup tables'
+   POSS, so it reads in trips down the floor. The possession still going isn't counted until it's over. */
+function playerStint(g, D, t, id) {
+  let n = 0;
+  for (let i = D.poss.length - 1; i >= 0; i--) { const p = D.poss[i];
+    if (p.per !== g.per) break;
+    if (i === D.poss.length - 1 && !p.done && !g.final) continue;
+    if (!(p.five[t] || []).includes(id)) break; n++; }
+  return Math.round(n / 2);
+}
 const playerFT = (g, t, id, per) => { const x = { m: 0, a: 0 }; g.ev.forEach(e => { if (e.t !== 'play' || !isFT(e.k) || e.team !== t || e.player !== id || per && e.per !== per) return; x.a++; if (e.k === 'ftm') x.m++; }); return x; };
 // Fouled out: 5 fouls or 2 technicals.
 const isOut = (g, t, id) => !!id && id !== 'TEAM' && (playerFouls(g, t, id) >= 5 || playerTechs(g, t, id) >= 2);
@@ -1948,7 +1960,7 @@ function playerCards(g, D, t) {
       <span class="pname"><span class="plabel">${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name || '')}</span></span>
       ${(() => { const L = noteLabels(p.note), AU = cardAutoLabels(g, t, p, L); return p.pos || L.length || AU.length ? `<span class="nt-row">${p.pos ? `<span class="nt pos">${esc(p.pos)}</span>` : ''}${(() => { const au = x => `<span class="nt auto${x.lead ? ' lead' : ''}" title="${esc(x.why)}">${esc(x.l)}</span>`;   // Star always first, then yours, then the rest
           return AU.filter(x => x.l === 'Star').map(au).join('') + L.map(x => `<span class="nt">${esc(x)}</span>`).join('') + AU.filter(x => x.l !== 'Star').map(au).join(''); })()}${L.length + AU.length ? `<span class="nt more" data-act="nt-more" data-team="${t}" data-p="${esc(p.id)}" hidden></span>` : ''}</span>` : ''; })()}
-      <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span>${(() => { const x = playerFT(g, t, p.id); return x.a ? ` · FT ${x.m}-${x.a}` : ''; })()}${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
+      <span class="pline">+/- <span class="${pmCls(pm)}">${sgn(pm)}</span> · <b class="stn">${playerStint(g, D, t, p.id)}</b> poss${(() => { const x = playerFT(g, t, p.id); return x.a ? ` · FT ${x.m}-${x.a}` : ''; })()}${te ? ` · <span class="neg">T${te > 1 ? te : ''}</span>` : ''}</span>
       <span class="pf">${out ? 'OUT' : pf + ' PF'}</span></button>`; };
   const noRoster = !teamPlayers(g, t).length;
   return `${!f.length ? (noRoster ? `<div class="small muted" style="padding:2px 4px 6px">No roster — tap Roster to add numbers, or put fouls on Team.</div>`
