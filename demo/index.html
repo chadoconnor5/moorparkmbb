@@ -1246,6 +1246,9 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 .sumt td{text-align:center}.sumt td:first-child{text-align:left}
 .sumt th.ta,.sumt td.ta{border-left:2px solid #6b7280}.sumt th.tb,.sumt td.tb{border-left:3px solid #111827}
 .sumt thead th.tb{border-left-color:#6b7280}
+.sub-p .se-tag{display:inline-block;margin-top:4px;padding:1px 6px;border-radius:0;background:#d4a017;color:#111;font-weight:800;letter-spacing:.04em}
+.se-sum{margin-top:12px;padding:10px 12px;border:1px solid #d4a017;border-radius:10px;background:rgba(212,160,23,.08)}
+.se-later{display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer}.se-later input{width:20px;height:20px}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1309,7 +1312,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.246';
+const VERSION = 'v2026.10.23.247';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3560,6 +3563,39 @@ function editModal(id) {
       <span class="row" style="gap:8px"><button class="btn" data-act="ed-ins" data-id="${id}">Insert a play before this</button><button class="btn btn-good btn-lg" data-act="close">Done</button></span></div>`);
 }
 
+/* FIX A SUB (tap a sub in the feed): who was really on the floor after it. Lit = on the floor; tap to swap until five
+   are lit, Save. Every possession from this sub to the next one is then counted with the fixed five (lineups, +/-,
+   stints, on/off: all worked out from the plays). Later subs are whole fives, so a mistake usually rode along: "Fix
+   the later subs too" makes the same swap in each later sub of that team that still has the wrong player, stopping
+   once he's been subbed out. Plays tagged to a player (fouls, free throws) stay his. */
+let SUBED = null;
+function subFixPlan(g, e, five) {
+  const was = new Set(e.five), now = new Set(five), out = [...was].filter(x => !now.has(x)), inn = [...now].filter(x => !was.has(x));
+  const later = g.ev.filter(x => x.t === 'sub' && x.team === e.team && g.ev.indexOf(x) > g.ev.indexOf(e));
+  const pairs = out.map((o, i) => ({ o, n: inn[i], live: true })), hits = [];
+  later.forEach(x => { const f = x.five.slice(); let ch = false;
+    pairs.forEach(pr => { if (!pr.live) return; const i = f.indexOf(pr.o);
+      if (i < 0 || f.includes(pr.n)) { pr.live = false; return; }   // he was subbed out (or the fix is already there): stop
+      f[i] = pr.n; ch = true; });
+    if (ch) hits.push({ x, five: f }); });
+  return { out, inn, hits };
+}
+function subEditModal(id) {
+  const g = cur(), e = g.ev.find(x => x.id === id); if (!e || e.t !== 'sub') return;
+  if (!SUBED || SUBED.id !== id) SUBED = { id, five: new Set(e.five), later: true };
+  const t = e.team, S = SUBED.five, n = S.size, plan = n === 5 ? subFixPlan(g, e, [...S]) : null, first = isLocked(g, e);
+  const ps = teamPlayers(g, t), btn = p => `<button class="sub-p ${S.has(p.id) ? 'in' : ''}" data-act="se-p" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${e.five.includes(p.id) && !S.has(p.id) ? '<span class="tiny se-tag">COMING OFF</span>' : !e.five.includes(p.id) && S.has(p.id) ? '<span class="tiny se-tag">GOING IN</span>' : ''}</button>`;
+  const changed = plan && plan.out.length;
+  modal(`<div class="sub-head"><h2>Fix this ${first ? 'starting five' : 'sub'} — ${esc(teamName(g, t))}</h2><div class="sub-top"><button class="btn btn-lg" data-act="se-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="se-save" ${n === 5 && changed ? '' : 'disabled'}>Save</button></div></div>
+    <div class="small muted" style="margin:6px 0 10px">${esc(PER_NAME(e.per))} · lit = on the floor after this ${first ? 'tip' : 'sub'}. Tap to swap players until the right five are lit. Every possession until the next sub is counted with this five.</div>
+    <div class="sub-lbl">On the floor <span class="muted">${n}/5</span>${n > 5 ? ` <b class="sub-off">tap ${n - 5} off</b>` : n < 5 ? ` <b class="sub-off">tap ${5 - n} on</b>` : ''}</div>
+    <div class="sub-grid sub-floor">${ps.filter(p => S.has(p.id)).map(btn).join('')}</div>
+    <div class="sub-lbl">Bench</div><div class="sub-grid">${ps.filter(p => !S.has(p.id)).map(btn).join('')}</div>
+    ${changed ? `<div class="se-sum"><b>${plan.out.map(id => esc(pShort(g, t, id))).join(', ')}</b> → <b>${plan.inn.map(id => esc(pShort(g, t, id))).join(', ')}</b>${plan.hits.length ? `
+      <label class="se-later"><input type="checkbox" data-act="se-later" ${SUBED.later ? 'checked' : ''}> Fix the later subs too <span class="muted">(${plan.hits.length} later sub${plan.hits.length > 1 ? 's' : ''} still ha${plan.hits.length > 1 ? 've' : 's'} ${plan.out.map(id => esc(pShort(g, t, id))).join(', ')} on)</span></label>` : '<span class="muted"> · no later sub has the wrong player</span>'}</div>` : ''}
+    ${first ? '' : `<div class="modal-foot" style="justify-content:flex-start"><button class="btn btn-bad" data-act="ed-del" data-id="${id}">Delete this sub</button></div>`}`, 'sub-modal');
+}
+
 function oppRosterModal() {
   const g = cur();
   modal(`<h2>${esc(g.opp)} roster</h2><p class="small muted" style="margin-bottom:8px">One player per line: number, then name (name optional). Numbers are enough to track.</p>
@@ -3985,7 +4021,16 @@ document.addEventListener('click', ev => {
       const cOut = e.coach && g.ev.filter(x => x.t === 'tech' && x.coach && x.team === e.team).length >= 2;
       toast(techText(g, e) + (out ? ' — OUT OF THE GAME' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : ''), out || cOut ? 'bad' : ''); break; }
 
-    case 'edit': editModal(b.dataset.id); break;
+    case 'edit': { const e = g && g.ev.find(x => x.id === b.dataset.id); if (e && e.t === 'sub') { SUBED = null; subEditModal(e.id); } else editModal(b.dataset.id); break; }
+    case 'se-p': { if (!SUBED) break; const id = b.dataset.p; if (SUBED.five.has(id)) SUBED.five.delete(id); else SUBED.five.add(id); subEditModal(SUBED.id); break; }
+    case 'se-cancel': SUBED = null; closeModal(); break;
+    case 'se-save': { if (!SUBED || SUBED.five.size !== 5) break; const e = g.ev.find(x => x.id === SUBED.id); if (!e) break;
+      const plan = subFixPlan(g, e, [...SUBED.five]);
+      const nl = SUBED.later ? plan.hits.length : 0;
+      e.five = [...SUBED.five]; if (nl) plan.hits.forEach(h => { h.x.five = h.five; });
+      SUBED = null; save(); closeModal(); render();
+      toast(`Sub fixed${nl ? ` · ${nl} later sub${nl > 1 ? 's' : ''} too` : ''}`, 'good'); break; }
+    case 'se-later': if (SUBED) { SUBED.later = !SUBED.later; subEditModal(SUBED.id); } break;
     case 'edc-key': EDC.d = padKey(EDC.d, b.dataset.k); editModal(EDC.id); break;
     case 'ed-clock': { const e = g.ev.find(x => x.id === b.dataset.id), secs = padSecs(EDC.d, perLen(e.per));
       if (secs == null) delete e.clock; else e.clock = secs; EDC = null; save(); closeModal(); render(); break; }

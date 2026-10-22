@@ -398,6 +398,16 @@ the bench · good with this group", "+11 tonight", "4 fouls") and its own **⏳ 
 coming out; the Live strip says "Checking in: X for Y" and ⇄ Sub opens with the swap made) and **⇄ Sub now**. A
 footnote says whether tonight's stat sheet is in. ✕ clears. The opponent's bench stays on the right throughout.
 
+## Fixing a sub (tap it in the feed)
+
+Tap a sub (⇄ line) in the Live feed: the team's roster with the five that was on the floor after it lit. Tap to swap
+until the right five are lit (GOING IN / COMING OFF show the change), Save. Every possession from that sub to the
+next one is then counted with the fixed five: lineups, +/-, possessions in a row, on/off, the five on now, all worked
+out from the plays. Later subs are whole fives, so a mistake usually rode along: **Fix the later subs too** (on by
+default) makes the same swap in each later sub of that team that still has the wrong player, stopping once he's been
+subbed out. Plays tagged to a player (fouls, free throws) stay his. The starting five can be fixed the same way (it
+can't be deleted); any other sub can also be deleted from there.
+
 ## Box scores (📋 Box score CSV on the Report)
 
 Upload the stats app's box score CSVs ("MC vs … — All Athletes — Averages", one per team; pick both at once). Which
