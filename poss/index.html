@@ -6871,23 +6871,20 @@ function importBoxCsv() {
   };
   inp.click();
 }
-// The Report's card: each team's box, starters as the file lists them, totals at the bottom.
+/* The Report's Players box: the game tracker's box score (sbTable, the same table a stat sheet photo fills), drawn from
+   the uploaded box scores. Starters = each team's starting five in the tracker (first five on the floor); +/- is the
+   file's. Advanced columns are worked out from the box scores alone (the table's own formulas), never the tracker. */
 function boxScoreCard(g) {
   const B = g.boxScore; if (!B || (!B.a && !B.b)) return '';
-  const cols = [['min', 'MIN'], ['pts', 'PTS'], ['fg', 'FG'], ['fg3', '3PT'], ['ft', 'FT'], ['oreb', 'OR'], ['dreb', 'DR'], ['reb', 'REB'], ['ast', 'AST'], ['tov', 'TO'], ['stl', 'STL'], ['blk', 'BLK'], ['defl', 'DEFL'], ['pf', 'PF'], ['chg', 'CHG'], ['pm', '+/-']];
-  const v = (r, k) => k === 'fg' ? `${r.fgm}-${r.fga}` : k === 'fg3' ? `${r.fg3m}-${r.fg3a}` : k === 'ft' ? `${r.ftm}-${r.fta}` : k === 'reb' ? r.oreb + r.dreb
-    : k === 'pm' ? (r.pm == null ? '—' : sgn(r.pm)) : k === 'min' ? (r.min ? Math.round(r.min) : '—') : r[k];
-  const side = t => { const T = B[t]; if (!T) return '';
-    const rows = T.rows.filter(r => r.min || r.fga || r.fta || r.pts || r.oreb + r.dreb || r.ast || r.tov || r.stl || r.pf);
-    const sum = Object.fromEntries(['min', 'pts', 'fgm', 'fga', 'fg3m', 'fg3a', 'ftm', 'fta', 'oreb', 'dreb', 'ast', 'tov', 'stl', 'blk', 'defl', 'pf', 'chg'].map(k => [k, rows.reduce((s, r) => s + (+r[k] || 0), 0)]));
-    sum.pm = null; sum.min = Math.round(sum.min);
-    const pc = (m, a) => a ? Math.round(100 * m / a) + '%' : '—';
-    return `<div class="bxs"><div class="small" style="font-weight:700;margin:0 0 6px;color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</div>
-      <div class="tbl-wrap"><table class="tbl zebra bxs-t"><thead><tr><th style="text-align:left">PLAYER</th>${cols.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>
-      ${rows.map(r => `<tr><td style="text-align:left;white-space:nowrap">${r.num ? '#' + esc(r.num) + ' ' : ''}${esc(r.name ? lastName(r.name) : '')}</td>${cols.map(([k]) => `<td class="${k === 'pm' && r.pm ? pmCls(r.pm) : ''}">${v(r, k)}</td>`).join('')}</tr>`).join('')}
-      <tr class="ftf-tot"><td style="text-align:left"><b>Total</b></td>${cols.map(([k]) => `<td><b>${k === 'pm' ? '' : v(sum, k)}</b></td>`).join('')}</tr></tbody></table></div>
-      <div class="tiny muted" style="margin-top:4px">FG ${pc(sum.fgm, sum.fga)} · 3PT ${pc(sum.fg3m, sum.fg3a)} · FT ${pc(sum.ftm, sum.fta)}${T.file ? ' · ' + esc(T.file) : ''}</div></div>`; };
-  return `<div class="card"><h3>Box score <span class="muted">· from the uploaded box score (players only; the team numbers above stay the tracker's)</span></h3>${side('a')}${side('b')}</div>`;
+  const D = derive(g), first = t => { const p = D.poss.find(x => (x.five[t] || []).length === 5); return p ? p.five[t] : []; };
+  const startNums = t => new Set(first(t).map(id => String(pInfo(g, t, id).num || (t === 'b' ? String(id).slice(2) : ''))).filter(Boolean));
+  const side = t => { const T = B[t], st = startNums(t); return { title: teamName(g, t), teamReb: null, totals: null,
+    rows: T ? T.rows.map(r => Object.assign({}, r, { starter: st.has(String(r.num)) })) : [] }; };
+  const S = { a: side('a'), b: side('b') }, gameMin = 40 + 5 * otCount(g);
+  const pmOf = t => num => { const r = B[t] && B[t].rows.find(x => String(x.num) === String(num)); return r ? r.pm : null; };
+  return `<div class="rp-sec"><span>Players</span><span class="muted">box score · starters / bench</span></div>
+    <div class="card sb-card">${B.a ? sbTable(g, S, 'a', gameMin, pmOf('a'), false) : ''}${B.b ? sbTable(g, S, 'b', gameMin, pmOf('b'), false) : ''}
+      <div class="small muted">The game tracker's box score, from the uploaded box score${[B.a, B.b].filter(Boolean).length > 1 ? 's' : ''}. Starters are the tracker's starting fives; +/- is the box score's. Grey = under 25% of the minutes.</div></div>`;
 }
 /* Box scores sent in, put on their game once on each device (matched by date and opponent), only where that team's
    box isn't there yet. The CSV text itself, parsed the same way as an upload. */

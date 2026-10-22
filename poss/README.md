@@ -401,8 +401,10 @@ footnote says whether tonight's stat sheet is in. ✕ clears. The opponent's ben
 ## Box scores (📋 Box score CSV on the Report)
 
 Upload the stats app's box score CSVs ("MC vs … — All Athletes — Averages", one per team; pick both at once). Which
-file is which team is worked out from our roster. Each player's MIN, PTS, FG, 3PT, FT, OR, DR, REB, AST, TO, STL,
-BLK, DEFL, PF, CHG and +/- show in the Report's **Box score** card, both teams, with totals. Points are worked out
+file is which team is worked out from our roster. The Report's **Players** box then shows them in the game tracker's
+box score (the same table a stat sheet photo fills): starters (the tracker's starting fives), BENCH, MIN, MIN%, ORTG,
+USG, SHOT%, EFG, TS%, FTR, OR%, DR%, AST%, TO%, STL%, BLK%, 2PT, 3PT, FT, the counting stats and the box score's
++/-, with the TEAM line; players under 25% of the minutes (MIN%) greyed. Points are worked out
 from the makes (the file heads its points column "PF"; fouls are its FOUL column). **Players only:** saved on the game
 as its own box score, nothing else reads it, so team stats, the four factors, possessions and lineups stay the
 tracker's. It travels with the game in exports and the baseline. The Mack Attack Prep box scores are built in (put on
