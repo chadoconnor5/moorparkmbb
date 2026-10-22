@@ -365,24 +365,32 @@ qualifies, none is listed.
 
 ## Sub for a player (⏳ Pending)
 
-Under the bench on the Pending screen, **On the floor** lists our five. Tap who needs a sub (1-4 of them, gold
-NEEDS A SUB) and our bench is ranked right under it, on actual results only (no projections):
+Under the bench on the Pending screen, **On the floor** lists our five, each with a bar for how well he fits what the
+five needs right now (same scoring as below, against the other four); the lowest is tagged **WEAKEST FIT**, a
+pointer to who to take out. Tap any of them (1-5, gold NEEDS A SUB) and our bench is ranked right under it, on
+actual numbers only (no projections):
 
-**The need.** The five on the floor's four factors at both ends (tonight; under 6 possessions at either end, that
-five's season record; else the team tonight) against our season norm (league average until 2 games are final).
-The biggest shortfall, weighted as Dean Oliver's factors (shooting 40, turnovers 25, rebounding 20, FTs 15), is lit:
-Defense (their eFG%) · Def rebounding · Pressure (their TO%) · Fewer fouls (their FT rate) · Shooting · Ball
-security · Off rebounding · Get to the line. Tap another to rank for that instead (tap it again for the automatic one).
+**What we're missing.** The five on the floor's four factors at both ends (tonight; under 6 possessions at either
+end, that five's season record; else the team tonight) against our season norm (league average until 2 games are
+final). Every shortfall counts, weighted as Dean Oliver's factors (shooting 40, turnovers 25, rebounding 20, FTs 15)
+and by how far short, shown as percentages on the MISSING chips: Defense (their eFG%) · Def rebounding · Pressure
+(their TO%) · Fewer fouls (their FT rate) · Shooting · Ball security · Off rebounding · Get to the line. Tap one to
+rank for it alone (again for automatic).
 
-**Each bench player, three ways**, each a bar showing where he ranks on our bench:
-- **Need (40%)**: his season line for that need (quality games: stat sheets + leaderboard; DREB / OREB / STL / TO /
-  PF per 40, eFG%, FTA / FGA) and tonight's stat sheet (1st half, or the final) if there is one, the two averaged.
-  Defense = points allowed per 100 with him on the floor this season, from our lineup data (lower is better).
-- **With the four (35%)**: how we've actually done with him on the floor alongside the players staying in: every
-  possession he's shared with each of them, this season and tonight (net per 100; 10+ at each end).
-- **Tonight (25%)**: our net per 100 with him on tonight (3+ at each end), else his +/-; plus how long he's sat,
-  fouls and FTs.
-A part he has no numbers for is left out and the others count for it. Garbage time out everywhere.
+**Each player, four parts**, each a bar for where he ranks on our bench:
+- **Fit (50%)**: for each thing we're missing, up to five numbers, each ranked and averaged:
+  his **season analytics** from the leaderboard (DR%, OR%, STL%, BLK%, TO%, ARate, TS%, eFG%, FT rate, fouls and
+  fouls drawn per 40), his **season per 40 / %** from quality games (stat sheets + leaderboard), **tonight's stat
+  sheet** (1st half or final), and **how we do on that factor with him on the floor** (our DREB%, their eFG%,
+  our TO%... from our lineup data, this season + tonight; Defense adds our DRtg with him on). The needs are blended
+  by their weights. Every number shows on his row.
+- **With the others (20%)**: our net per 100 with him on alongside each player staying in, every possession they've
+  shared this season and tonight (10+ at each end).
+- **Tonight (15%)**: our net per 100 with him on tonight (3+ at each end) and his +/-; plus how long he's sat,
+  fouls (4 PF flagged) and FTs.
+- **Season (15%)**: his individual ORtg (leaderboard) and our net per 100 with him on this season.
+A number he doesn't have is left out; a part with none is left out and the others count for it. Garbage time out of
+all lineup numbers. Fouled-out players never come up.
 
 The top ones (as many as are coming out) start PICKED; tap a row to change. Under the list: how that exact new
 five has done together, tonight and this season. **⏳ Pending** puts them at the table *for* the ones coming out
