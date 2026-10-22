@@ -1274,7 +1274,7 @@ span.ssg-nb{cursor:default}
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.240';
+const VERSION = 'v2026.10.23.241';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6839,7 +6839,7 @@ function parseBoxCsv(text) {
     const name = String(r[col('Athletes')] || '').trim();
     const o = { num: String(r[col('#')] || '').trim(), name: /^unknown athlete$/i.test(name) ? '' : name, min: num(r, 'MINS'),
       fgm, fga, fg3m, fg3a, ftm, fta, pts: 2 * (fgm - fg3m) + 3 * fg3m + ftm, oreb: num(r, 'OREB'), dreb: num(r, 'DREB'),
-      ast: num(r, 'AST'), tov: num(r, 'TO'), stl: num(r, 'STL'), blk: num(r, 'BLK'), defl: num(r, 'DEFL'), pf: num(r, 'FOUL'), chg: num(r, 'CHG'), pm };
+      ast: num(r, 'AST'), tov: num(r, 'TO'), stl: num(r, 'STL'), blk: num(r, 'BLK'), defl: num(r, 'DEFL'), chg: num(r, 'CHG'), pm };   // no PF: fouls are always the tracker's (boxScoreCard)
     const filePts = num(r, 'PF'); if (col('PF') >= 0 && filePts !== o.pts) o.ptsFile = filePts;
     return o; });
   return rows.length ? { title, rows } : null;
@@ -6878,8 +6878,12 @@ function boxScoreCard(g) {
   const B = g.boxScore; if (!B || (!B.a && !B.b)) return '';
   const D = derive(g), first = t => { const p = D.poss.find(x => (x.five[t] || []).length === 5); return p ? p.five[t] : []; };
   const startNums = t => new Set(first(t).map(id => String(pInfo(g, t, id).num || (t === 'b' ? String(id).slice(2) : ''))).filter(Boolean));
+  // Fouls are never the file's: each player's PF is the tracker's count (as on his player card). Our players' names are
+  // our roster's (by number), so a misspelling in the stats app never shows.
+  const pid = (t, num) => t === 'b' ? 'o:' + num : (teamPlayers(g, 'a').find(p => String(p.num) === String(num)) || {}).id;
   const side = t => { const T = B[t], st = startNums(t); return { title: teamName(g, t), teamReb: null, totals: null,
-    rows: T ? T.rows.map(r => Object.assign({}, r, { starter: st.has(String(r.num)) })) : [] }; };
+    rows: T ? T.rows.map(r => { const id = pid(t, r.num), nm = t === 'a' && id ? pInfo(g, 'a', id).name : r.name;
+      return Object.assign({}, r, { name: nm || r.name, pf: id ? playerFouls(g, t, id) : 0, starter: st.has(String(r.num)) }); }) : [] }; };
   const S = { a: side('a'), b: side('b') }, gameMin = 40 + 5 * otCount(g);
   const pmOf = t => num => { const r = B[t] && B[t].rows.find(x => String(x.num) === String(num)); return r ? r.pm : null; };
   return `<div class="rp-sec"><span>Players</span><span class="muted">box score · starters / bench</span></div>
