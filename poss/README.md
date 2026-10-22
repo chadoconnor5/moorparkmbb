@@ -616,8 +616,8 @@ five has 25+ offensive possessions).
     event), each with its own Add box, plus **Other teams**. Every team in every section downloads its stats
     (pt2_fields / pt2_ready). An old single list moved, once, into the next tournament with TBD games.
     The known fields come filled in once on each iPad (San Bernardino: West LA, East LA, RCC, CCSF, Chaffey, Compton,
-    SBVC; Grossmont: LA Trade Tech), and a saved schedule gets its known first-round opponents (West LA Nov 13, LA
-    Trade Tech Dec 4), and its tournament games move to their dates (San Bernardino Nov 13–15, Grossmont Dec 4–6). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
+    SBVC; Grossmont: San Diego City), and a saved schedule gets its known first-round opponents (West LA Nov 13, San
+    Diego City Dec 4, flexed from LA Trade Tech: a saved LA Trade Tech game and field entry switch over once), and its tournament games move to their dates (San Bernardino Nov 13–15, Grossmont Dec 4–6). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
     opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.
@@ -840,6 +840,9 @@ five has 25+ offensive possessions).
   one: a newer save replaces this iPad's roster for that team (players added *or taken away*), an older one is ignored,
   an empty roster always takes it. (The home-screen app and a Safari tab keep separate storage, so this is also how a
   roster typed in one reaches the other.)
+- **A roster that only lives in a game shows on Rosters too.** When the tracker opens (and after importing a game,
+  a season file or the baseline), each game's opponent roster is copied into the Rosters store if that team is
+  missing there or has missing players / blank fields. Fill-only: a roster saved by hand on Rosters is never touched.
 - **Game file downloads automatically** at the end of the 1st half (`poss_<date>_<opponent>_half.json`), at the end of
   regulation when the game goes to OT (`..._reg.json`), at the end of each OT that goes to another (`..._ot1.json`,
   `..._ot2.json`…) and at Final (`..._final.json`): a copy off the iPad, in Files → Downloads. Games → Import game reads it back.
