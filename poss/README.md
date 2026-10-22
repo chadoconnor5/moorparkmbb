@@ -367,7 +367,7 @@ qualifies, none is listed.
 
 From the shooter and fouler you tap, so it's there live with no stat sheet photo:
 - **Live player cards:** `+/- +6 · 7 poss · FT 2-2`. *7 poss* = his current stint: possessions in a row on the
-  floor, counted back from the latest finished one in this half / OT (a sub out or the half resets it), both ends
+  floor, counted back from the latest finished one (a sub out or halftime resets it; overtime doesn't), both ends
   halved and rounded like the lineup tables' POSS, so you can see who on the five has been out there longest. FT
   made-attempted shows once a player has shot one.
 - **Report** (halftime and post-game), under Team stats: a *Free throws & fouls* card, both teams side by
