@@ -840,6 +840,9 @@ five has 25+ offensive possessions).
   one: a newer save replaces this iPad's roster for that team (players added *or taken away*), an older one is ignored,
   an empty roster always takes it. (The home-screen app and a Safari tab keep separate storage, so this is also how a
   roster typed in one reaches the other.)
+- **Confirmed rosters** (SEED_ROSTERS in app.js, e.g. Mack Attack Prep's 13 numbers) are set once on each device:
+  the roster becomes exactly those numbers, keeping anything already typed on them, stamped so it wins over an older
+  baseline / game-file copy. A roster saved after that stamp is left alone.
 - **A roster that only lives in a game shows on Rosters too.** When the tracker opens (and after importing a game,
   a season file or the baseline), each game's opponent roster is copied into the Rosters store if that team is
   missing there or has missing players / blank fields. Fill-only: a roster saved by hand on Rosters is never touched.
