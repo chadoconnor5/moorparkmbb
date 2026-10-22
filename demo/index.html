@@ -1303,7 +1303,7 @@ span.ssg-nb{cursor:default}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.236';
+const VERSION = 'v2026.10.22.237';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3684,7 +3684,7 @@ function importGame() {
     const old = games.find(x => x.id === g.id); if (old && !confirm('This game is already here. Replace it with the file? (The one on the iPad is backed up first.)')) return;
     if (old) backupGame(old, 'replaced');
     const rn = d.oppRoster ? mergeRosters([{ name: g.opp, players: d.oppRoster, updatedAt: d.oppRosterAt || null }]) : 0;
-    games = games.filter(x => x.id !== g.id).concat(g); curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp + (rn ? ` · ${g.opp} roster updated` : ''), 'good');
+    games = games.filter(x => x.id !== g.id).concat(g); try { gameRosters(); } catch (e) {} curId = g.id; save(); UI.tab = 'live'; render(); toast('Imported ' + g.opp + (rn ? ` · ${g.opp} roster updated` : ''), 'good');
   }); };
   inp.click();
 }
@@ -7090,6 +7090,7 @@ async function mergeSeason(d, quiet) {
     let filled = 0; Object.entries(d.data || {}).forEach(([k, v]) => { if (!SEASON_KEYS.includes(k)) return; const now = lsGet(k, null);
       if (k === 'gt_opp_rosters') { if (mergeRosters(v)) filled++; return; }   // team by team, player by player
       if (now == null || (Array.isArray(now) && !now.length) || (typeof now === 'object' && !Array.isArray(now) && !Object.keys(now).length)) { lsSet(k, v); filled++; } });
+    try { if (gameRosters()) filled++; } catch (e) {}
     save(); render();
     return { added, replaced, kept, filled };
 }
@@ -7121,6 +7122,12 @@ function upgradeGame(g) {
   if ((g.dv || 0) < 2) { const before = JSON.parse(JSON.stringify(g)); if (fillRebounds(g)) { try { backupGame(before, 'rebfill'); } catch (e) {} } }
   g.dv = DATA_V;
   return g;
+}
+/* A roster that only lives inside a game (typed on the Live screen, or from an older game file / baseline) goes into
+   the Rosters store too, so Rosters shows it and it travels in exports and the baseline. Fill-only: adds a team or
+   players that are missing and blank fields; a roster saved by hand on the Rosters tab is never touched. */
+function gameRosters() {
+  return games.filter(g => g.opp && (g.oppRoster || []).length).reduce((n, g) => n + mergeRosters([{ name: g.opp, players: g.oppRoster }]), 0);
 }
 function upgradeAll() { let n = 0; games.forEach(g => { if ((g.dv || 0) < DATA_V) { upgradeGame(g); n++; } }); if (n) lsSet(LS_GAMES, games); return n; }
 /* ---------- THE BASELINE: the season built into the site, locked with a passcode ----------
@@ -7366,6 +7373,7 @@ async function coachReportPdf(g, quiet) {
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
+try { gameRosters(); } catch (e) {}
 try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 render();
