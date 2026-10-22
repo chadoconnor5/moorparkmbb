@@ -1241,6 +1241,11 @@ span.ssg-nb{cursor:default}
 .ssg-sug{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center}
 .ssg-sw>b{font-size:15px}
 .bxs+.bxs{margin-top:14px}.bxs-t td,.bxs-t th{text-align:center;white-space:nowrap}
+/* By-half summary (Report): numbers centered under their team, equal columns, a divider between the teams. */
+table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
+.sumt td{text-align:center}.sumt td:first-child{text-align:left}
+.sumt th.ta,.sumt td.ta{border-left:2px solid #6b7280}.sumt th.tb,.sumt td.tb{border-left:3px solid #111827}
+.sumt thead th.tb{border-left-color:#6b7280}
 
 </style>
 </head>
@@ -1274,7 +1279,7 @@ span.ssg-nb{cursor:default}
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.241';
+const VERSION = 'v2026.10.23.242';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2167,9 +2172,10 @@ ${['2', '3', 'FT', 'x2', 'x3', 'xFT'].map(c).join('')}${toCol}
   return h + '</tbody></table>';
 }
 function summaryTable(g, D) {
-  const row = (lbl, s, cls) => `<tr class="${cls || ''}"><td>${lbl}</td><td>${s.pts.a}</td><td>${s.poss.a}</td><td><b>${ppp(s.pts.a, s.poss.a)}</b></td><td>${s.kills.a}</td><td>${s.pts.b}</td><td>${s.poss.b}</td><td><b>${ppp(s.pts.b, s.poss.b)}</b></td><td>${s.kills.b}</td></tr>`;
-  return `<table class="tbl zebra sumt"><thead><tr><th></th><th colspan="4" style="color:var(--us)">MOORPARK</th><th colspan="4" style="color:var(--them-text)">${esc(String(g.opp).toUpperCase())}</th></tr>
-    <tr><th></th><th>PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th><th>PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th></tr></thead>
+  // Each team's four columns sit under its own name, centered, with a divider between the two teams.
+  const row = (lbl, s, cls) => `<tr class="${cls || ''}"><td>${lbl}</td><td class="ta">${s.pts.a}</td><td>${s.poss.a}</td><td><b>${ppp(s.pts.a, s.poss.a)}</b></td><td>${s.kills.a}</td><td class="tb">${s.pts.b}</td><td>${s.poss.b}</td><td><b>${ppp(s.pts.b, s.poss.b)}</b></td><td>${s.kills.b}</td></tr>`;
+  return `<table class="tbl zebra sumt"><colgroup><col class="sumt-lbl">${'<col>'.repeat(8)}</colgroup><thead><tr><th></th><th colspan="4" class="ta" style="color:var(--us)">MOORPARK</th><th colspan="4" class="tb" style="color:var(--them-text)">${esc(String(g.opp).toUpperCase())}</th></tr>
+    <tr><th></th><th class="ta">PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th><th class="tb">PTS</th><th>POSS</th><th>PPP</th><th>KILLS</th></tr></thead>
     <tbody>${g.periods.map(p => row(PER_NAME(p), perSums(D, p))).join('')}${g.periods.length > 1 ? row('Game', perSums(D, null), 'tot') : ''}</tbody></table>`;
 }
 function killsCard(g, D, scope) {
