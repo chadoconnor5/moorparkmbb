@@ -391,10 +391,12 @@ each player's own line from it; **NO STAT SHEET**, where tonight is the tracker'
 - **Season (15%)**: his individual ORtg and our net per 100 with him on this season.
 A number he doesn't have is left out; a part with none is left out and the others count for it.
 
-**Top 3**: one coming out = the 3 best players; more = the 3 best groups from the top players. Each shows how that
-exact new five has done together, and its own **⏳ Pending** (at the table *for* the ones coming out; the Live strip
-says "Checking in: X for Y" and ⇄ Sub opens with the swap made) and **⇄ Sub now**. ✕ clears. The opponent's bench
-stays on the right throughout.
+**What you see** is kept short for the bench: one line on top, **Need Defense + Def rebounding** (the top one or
+two), with why in plain words ("they're shooting 50.0% eFG · they're grabbing 32.3% of their misses"); then the
+**top 3** (one coming out = 3 players; more = the 3 best groups), each with a few words on why ("best defender on
+the bench · good with this group", "+11 tonight", "4 fouls") and its own **⏳ Pending** (at the table *for* the ones
+coming out; the Live strip says "Checking in: X for Y" and ⇄ Sub opens with the swap made) and **⇄ Sub now**. A
+footnote says whether tonight's stat sheet is in. ✕ clears. The opponent's bench stays on the right throughout.
 
 ## Free throws & fouls by player
 

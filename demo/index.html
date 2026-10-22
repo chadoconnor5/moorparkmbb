@@ -1237,6 +1237,9 @@ span.ssg-nb{cursor:default}
 .ssg-sug{border-top:1px dashed var(--border);padding:8px 0}
 .ssg-sh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ssg-sh>b{font-size:15px}.ssg-sh .ssg-btns{margin:0 0 0 auto}
 .ssg-pl{margin:6px 0 0 30px}.ssg-nf{margin:6px 0 0 30px}
+.ssg-needs{font-size:15px}.ssg-needs b{color:#d4a017}
+.ssg-sug{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center}
+.ssg-sw>b{font-size:15px}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1300,7 +1303,7 @@ span.ssg-nb{cursor:default}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.235';
+const VERSION = 'v2026.10.22.236';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6749,39 +6752,37 @@ function subLine(g, D, id) {
   return `${on ? `+/- <span class="${pmCls(pm)}">${sgn(pm)}</span> · ${rest ? `sat ${Math.round(rest / 2)}` : 'on now'}` : 'hasn\'t played'}${pf ? ` · <span class="${pf >= 4 ? 'neg' : ''}">${pf} PF</span>` : ''}${ft.a ? ` · FT ${ft.m}-${ft.a}` : ''}`;
 }
 const ssgBar = v => v == null ? '<i class="ssg-bar na"></i>' : `<i class="ssg-bar"><i style="width:${Math.round(100 * v)}%"></i></i>`;
-// The numbers behind a player's fit, for the pressing needs: "Def rebounding DR% 11.4 · DREB/40 4.4 · ...".
-function subIndLine(r, NE) {
-  return NE.L.filter(x => x.wt >= 0.05).sort((a, b) => b.wt - a.wt).map(x => { const got = x.n.ind.map(([l], j) => { const z = (r.ind[x.n.k] || [])[j]; return z && z.v != null ? `${l} ${f1s(z.v)}` : null; }).filter(Boolean);
-    return `<span class="ssg-ind"><b>${esc(x.n.lbl)}</b> ${got.length ? esc(got.join(' · ')) : 'no numbers'}</span>`; }).join('');
-}
-function subPlayerHtml(g, D, r, NE, keepN, named) {
-  const p = pInfo(g, 'a', r.id), sg = v => v == null ? '—' : sg1(Math.round(10 * v) / 10);
-  return `<div class="ssg-pl">${named ? `<b>${esc(pShort(g, 'a', r.id))}</b>${p.pos ? ` <span class="muted small">${esc(p.pos)}</span>` : ''}${r.pf >= 4 ? ' <span class="ssg-pick">4 PF</span>' : ''}` : ''}
-    <div class="ssg-parts"><span>${ssgBar(r.parts.need)}<b>Fit</b> ${NE ? subIndLine(r, NE) : '—'}</span>
-    <span>${ssgBar(r.parts.with)}<b>With ${keepN ? (keepN === 1 ? 'the one' : `the ${keepN}`) : 'us'}</b> ${!keepN ? 'everyone is coming out' : r.wNet != null ? `${sg(r.wNet)} net · avg ${r.wP} poss with each` : r.wP ? `— (avg ${r.wP} poss with each)` : 'never together'}</span>
-    <span>${ssgBar(r.parts.tonight)}<b>Tonight</b> ${r.tNet != null ? `${sg(r.tNet)} on-court (${r.tP} poss) · ` : ''}${subLine(g, D, r.id)}</span>
-    <span>${ssgBar(r.parts.season)}<b>Season</b> ${[r.ortg != null ? `ORtg ${f1s(r.ortg)}` : '', r.sNet != null ? `${sg(r.sNet)} on-court (${r.sP} poss)` : r.sP ? `on-court — (${r.sP} poss)` : ''].filter(Boolean).join(' · ') || '—'}</span></div></div>`;
-}
+// Why we need it, in a few words, from tonight's numbers.
+const SUB_WHY = { def: v => `they're shooting ${f1s(v.oefg)}% eFG`, dreb: v => `they're grabbing ${f1s(100 - v.drb)}% of their misses`,
+  press: v => `they're only turning it over ${f1s(v.otov)}%`, fouls: v => `they're living at the line (FT rate ${f1s(v.oftr)})`,
+  shoot: v => `we're shooting ${f1s(v.efg)}% eFG`, ball: v => `we're turning it over ${f1s(v.tov)}%`,
+  oreb: v => `we're getting only ${f1s(v.orb)}% of our misses`, ftr: v => `we're not getting to the line (FT rate ${f1s(v.ftr)})` };
+const SUB_NOUN = { def: 'defender', dreb: 'def rebounder', press: 'ball hawk', fouls: 'at defending without fouling', shoot: 'shooter', ball: 'with the ball', oreb: 'off rebounder', ftr: 'at getting to the line' };
+const ordS = n => n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n / 10) === 1 ? 0 : n % 10]);
 function subSugPanel(g, D, outs) {
   const C = subCtx(g, D); if (!C) return '';
-  const { S, TN, NE } = C, k = outs.length, keep = D.five.a.filter(id => !outs.includes(id)), sg = v => v == null ? '—' : sg1(Math.round(10 * v) / 10), SH = subSheet(g);
+  const { S, TN, NE } = C, k = outs.length, keep = D.five.a.filter(id => !outs.includes(id)), SH = subSheet(g);
   const bench = teamPlayers(g, 'a').filter(p => !D.five.a.includes(p.id) && !isOut(g, 'a', p.id)).map(p => p.id);
   const rows = subScore(g, D, bench, () => keep, NE, S, TN), by = new Map(rows.map(r => [r.id, r]));
-  // Top 3: players, or groups of k from the best k + 3 (a group's score = its players' average).
   const top = k === 1 ? rows.slice(0, 3).map(r => [r.id]) : kCombos(rows.slice(0, k + 3).map(r => r.id), k)
     .map(c => ({ c, s: c.reduce((t, id) => t + by.get(id).score, 0) / k })).sort((a, b) => b.s - a.s).slice(0, 3).map(x => x.c);
-  const lit = NE ? NE.L.filter(x => x.wt >= 0.05).sort((a, b) => b.wt - a.wt) : [];
-  const p5 = u => u ? `${sg(netOf(u))} on ${Math.floor((u.oPoss + u.dPoss) / 2)} poss` : null;
-  const head = `<div class="ssg-h"><div><b>Sub for ${esc(fiveSorted(g, 'a', outs).map(id => pShort(g, 'a', id)).join(', '))}</b> <span class="ssg-mode">${SH ? `STAT SHEET · ${esc(SH.half.toUpperCase())}` : 'NO STAT SHEET'}</span></div><button class="btn btn-sm" data-act="pend-out-clear">✕</button></div>
-    ${NE ? `<div class="ssg-bt">${NE.B.map(b => `<span class="${b.e == null ? '' : b.e < 0 ? 'neg' : b.e < SUB_SAFE ? 'warn' : 'pos'}"><b>${esc(b.lbl)}</b> ${b.e == null ? '—' : esc(b.show(NE.v))}</span>`).join('')}</div>
-    <div class="ssg-need">${lit.map(x => `<span class="ssg-nb on">${esc(x.n.lbl)} ${Math.round(100 * x.wt)}%</span>`).join('') || '<span class="tiny muted">Not enough possessions tonight yet</span>'}</div>` : '<div class="tiny muted">Not enough possessions tonight to read the battles yet.</div>'}`;
+  const lit = NE ? NE.L.filter(x => x.wt >= 0.15).sort((a, b) => b.wt - a.wt).slice(0, 2) : [];
+  // A player's reason: the need he answers best, as his place on our bench for it; else his best other part.
+  const place = {}; lit.forEach(x => { rows.map(r => ({ id: r.id, v: avgOf((r.ind[x.n.k] || []).map(z => z && z.r)) })).filter(o => o.v != null)
+    .sort((a, b) => b.v - a.v).forEach((o, i) => { (place[o.id] = place[o.id] || []).push({ n: x.n, i: i + 1 }); }); });
+  const why = id => { const r = by.get(id), pl = (place[id] || []).sort((a, b) => a.i - b.i)[0], bits = [];
+    if (pl && pl.i <= 3) bits.push(`${pl.i === 1 ? 'best' : ordS(pl.i) + '-best'} ${SUB_NOUN[pl.n.k]} on the bench`);
+    if (r.wNet != null && r.parts.with >= 0.6) bits.push('good with this group');
+    if (r.played && r.pm > 0) bits.push(`+${r.pm} tonight`);
+    if (!bits.length && r.parts.season >= 0.6) bits.push('strong season');
+    if (r.pf >= 4) bits.push('4 fouls');
+    return bits.slice(0, 2).join(' · ') || 'best overall fit'; };
+  const head = `<div class="ssg-h"><div class="ssg-needs">${lit.length ? `Need <b>${lit.map(x => esc(x.n.lbl)).join(' + ')}</b><div class="small muted">${lit.map(x => esc(SUB_WHY[x.n.k](NE.v))).join(' · ')}</div>` : '<span class="small muted">Not enough possessions tonight yet</span>'}</div><button class="btn btn-sm" data-act="pend-out-clear">✕</button></div>`;
   if (!top.length) return `<div class="ssg">${head}<div class="small muted">Not enough players on the bench.</div></div>`;
-  return `<div class="ssg">${head}${top.map((ins, i) => { const nf = [...keep, ...ins], t5 = TN.five[fiveKey(nf)], s5 = S.five[fiveKey(nf)];
-      return `<div class="ssg-sug"><div class="ssg-sh"><span class="fix-rk">${i + 1}</span><b>${esc(fiveSorted(g, 'a', ins).map(id => pShort(g, 'a', id)).join(' + '))}</b>${k === 1 && by.get(ins[0]).pf >= 4 ? '<span class="ssg-pick">4 PF</span>' : ''}
-        <span class="ssg-btns"><button class="btn btn-sm btn-good" data-act="pend-sug" data-in="${esc(ins.join('|'))}" data-out="${esc(outs.join('|'))}">⏳ Pending</button><button class="btn btn-sm" data-act="pend-subnow" data-in="${esc(ins.join('|'))}" data-out="${esc(outs.join('|'))}">⇄ Sub now</button></span></div>
-        ${ins.map(id => subPlayerHtml(g, D, by.get(id), NE, keep.length, k > 1)).join('')}
-        <div class="tiny muted ssg-nf">New five together: ${t5 || s5 ? [t5 ? `tonight ${p5(t5)}` : '', s5 ? `season ${p5(s5)}` : ''].filter(Boolean).join(' · ') : 'hasn\'t played together yet'}</div></div>`; }).join('')}
-    <div class="tiny muted" style="margin-top:6px">Actual numbers only. Battles: tonight, us vs them (green = safe, gold = close, red = losing); the needs come from the ones we're losing or within ${SUB_SAFE}. Bars = where he ranks on our bench. <b>Fit</b> (50%): his season analytics, season per 40 (quality games), how we do on it with him on the floor tonight and this season${SH ? ', and his line on the stat sheet' : ''}. <b>With</b> (20%): our net with him on alongside the players staying in. <b>Tonight</b> (15%): on-court net and +/-. <b>Season</b> (15%): his ORtg and our net with him on. Garbage time out.</div></div>`;
+  return `<div class="ssg">${head}${top.map((ins, i) => `<div class="ssg-sug"><span class="fix-rk">${i + 1}</span><div class="ssg-sw"><b>${esc(fiveSorted(g, 'a', ins).map(id => pShort(g, 'a', id)).join(' + '))}</b>
+      <div class="small muted">${k === 1 ? esc(why(ins[0])) : fiveSorted(g, 'a', ins).map(id => `${esc(lastName(pInfo(g, 'a', id).name || pShort(g, 'a', id)))}: ${esc(why(id))}`).join('<br>')}</div></div>
+      <span class="ssg-btns"><button class="btn btn-sm btn-good" data-act="pend-sug" data-in="${esc(ins.join('|'))}" data-out="${esc(outs.join('|'))}">⏳ Pending</button><button class="btn btn-sm" data-act="pend-subnow" data-in="${esc(ins.join('|'))}" data-out="${esc(outs.join('|'))}">⇄ Sub now</button></span></div>`).join('')}
+    <div class="tiny muted" style="margin-top:4px">${SH ? 'Uses tonight\'s stat sheet' : 'No stat sheet yet: tonight from the tracker'}, season analytics and lineup results.</div></div>`;
 }
 function kCombos(ids, k) { const out = []; const rec = (s, cur) => { if (cur.length === k) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
 function combos5(ids) { const out = []; const rec = (s, cur) => { if (cur.length === 5) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
