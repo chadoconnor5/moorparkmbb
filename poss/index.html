@@ -1207,6 +1207,15 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ftf td,.ftf th{text-align:center}
 .ftf tr.ftf-tot td{background:#d4a017;color:#111;border-top:2px solid #111}
 .pline .stn{color:var(--text);font-weight:800}
+/* ⏳ Pending → Sub for: our five to tap (who needs a sub), and the suggestions in the right-hand column. */
+.sub-p.out-sel{border-color:#d4a017;background:rgba(212,160,23,.16)}
+.sub-p .out-tag{display:inline-block;margin-top:3px;background:#d4a017;color:#111;border-radius:0;padding:1px 6px;font-weight:800;letter-spacing:.03em}
+.ssg{border:1px solid #d4a017;background:rgba(212,160,23,.07);border-radius:12px;padding:10px 12px;align-self:start}
+.ssg-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
+.ssg-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px dashed var(--border)}
+.ssg-who>div+div{margin-top:4px}
+.ssg-v{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}.ssg-v b{font-size:17px}.ssg-v span{font-size:10.5px;color:var(--muted)}
+.ssg-btns{grid-column:2/4;display:flex;gap:6px;justify-content:flex-end}
 
 </style>
 </head>
@@ -1240,7 +1249,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.22.229';
+const VERSION = 'v2026.10.22.230';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3168,20 +3177,31 @@ function pending(g, t, D) {
 const pendCount = (g, D) => pending(g, 'a', D).length + pending(g, 'b', D).length;
 function pendModal() {
   const g = cur(), D = derive(g); g.pending = g.pending || { a: [], b: [] };
-  const side = t => { const P = new Set(pending(g, t, D)), on = new Set(D.five[t]);
+  const outs = (UI.pendOut || []).filter(id => D.five.a.includes(id)); UI.pendOut = outs;
+  const side = t => { const P = new Set(pending(g, t, D)), on = new Set(D.five[t]), PO = pendOutOf(g, D);
     const bench = teamPlayers(g, t).filter(p => !on.has(p.id) && !isOut(g, t, p.id));   // the bench pool only
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       <div class="sub-lbl">Bench <span class="muted">· ${P.size} checking in</span></div>
       <div class="sub-grid">${bench.map(p => { const w = P.has(p.id);
-        return `<button class="sub-p ${w ? 'pend' : ''}" data-act="pend-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; }).join('') || '<div class="muted small">No one on the bench.</div>'}</div></div>`; };
+        return `<button class="sub-p ${w ? 'pend' : ''}" data-act="pend-p" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${w ? '<span class="tiny pend-tag">⏳ CHECKING IN</span>' : ''}</button>`; }).join('') || '<div class="muted small">No one on the bench.</div>'}</div>
+      ${t === 'a' && D.five.a.length === 5 ? `<div class="sub-lbl" style="margin-top:12px">On the floor <span class="muted">· tap who needs a sub (up to 4) for suggestions</span></div>
+      <div class="sub-grid">${fiveSorted(g, 'a', D.five.a).map(id => { const p = pInfo(g, 'a', id), sel = outs.includes(id), po = PO.includes(id);
+        return `<button class="sub-p ${sel ? 'out-sel' : ''}" data-act="pend-out" data-p="${esc(id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${sel ? '<span class="tiny out-tag">↓ NEEDS A SUB</span>' : po ? '<span class="tiny pend-tag">↓ COMING OUT</span>' : ''}</button>`; }).join('')}</div>` : ''}</div>`; };
   modal(`<div class="sub-head"><h2>⏳ Pending subs — who's checking in?</h2><div class="sub-top">${pendCount(g, D) ? '<button class="btn btn-lg" data-act="pend-clear">Clear all</button>' : ''}<button class="btn btn-good btn-lg" data-act="pend-done">Done</button></div></div>
-    <div class="small muted" style="margin:6px 0 10px">Tap the bench players waiting at the table. No need to say who they're replacing: when the sub happens, ⇄ Sub opens with them in, and you tap who's coming off.</div>
-    <div class="sub-sides two">${side('a')}${side('b')}</div>`, 'sub-modal');
+    <div class="small muted" style="margin:6px 0 10px">Tap the bench players waiting at the table. No need to say who they're replacing: when the sub happens, ⇄ Sub opens with them in, and you tap who's coming off. Need a sub for someone? Tap him under On the floor for the best fits off the bench.</div>
+    <div class="sub-sides two">${side('a')}${outs.length ? subSugPanel(g, D, outs) : side('b')}</div>`, 'sub-modal');
+}
+// Who a suggestion (⏳ Pending on the sub card) said comes out: g.pendOut, while they're on the floor and the
+// players picked for them are still pending. ⇄ Sub then opens with the swap made.
+function pendOutOf(g, D) {
+  const P = pending(g, 'a', D); if (!P.length) return [];
+  return (g.pendOut || []).filter(id => D.five.a.includes(id)).slice(0, P.length);
 }
 // On the live screen, under each team's five: who's waiting to check in.
 function pendStrip(g, D, t) {
   const P = pending(g, t, D); if (!P.length) return '';
-  return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b></span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
+  const PO = t === 'a' ? pendOutOf(g, D) : [];
+  return `<div class="pend-strip"><span>⏳ Checking in: <b>${esc(fiveSorted(g, t, P).map(id => pShort(g, t, id)).join(', '))}</b>${PO.length ? ` for <b>${esc(fiveSorted(g, t, PO).map(id => pShort(g, t, id)).join(', '))}</b>` : ''}</span><button class="btn btn-sm btn-good" data-act="sub">Sub now</button></div>`;
 }
 let SUB = null;
 /* The sub screen's team side and its check, shared by the Sub pop-up and the 2nd-half starters panel on Live. */
@@ -3205,7 +3225,7 @@ function subOk(g, t) { return (SUB[t].size === 5 || (SUB[t].size === 0 && !SUB.f
 function subModal(title) {
   const g = cur(), D = derive(g);
   if (!SUB) {
-    const forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)));
+    const PO = pendOutOf(g, D), forced = g.final ? [] : outOnFloor(g, D), keep = t => D.five[t].filter(id => !(canReplace(g, t) && isOut(g, t, id)) && !(t === 'a' && PO.includes(id)));
     // Pending players come in already; the screen then only needs who's coming off.
     const pend = { a: new Set(D.five.a.length ? pending(g, 'a', D) : []), b: new Set(D.five.b.length ? pending(g, 'b', D) : []) };
     SUB = { a: new Set([...keep('a'), ...pend.a]), b: new Set([...keep('b'), ...pend.b]), forced, pend,
@@ -3223,6 +3243,7 @@ function subConfirm() {
   ['a', 'b'].forEach(t => { const f = [...SUB[t]]; if (f.length === 5 && fiveKey(f) !== fiveKey(D.five[t])) push(g, Object.assign({ t: 'sub', team: t, five: f }, D.five[t].length ? {} : { lock: true })); });
   // Pending players who went in are done waiting; the rest stay pending.
   if (g.pending) ['a', 'b'].forEach(t => { g.pending[t] = (g.pending[t] || []).filter(id => !SUB[t].has(id)); });
+  if (g.pendOut) { g.pendOut = g.pendOut.filter(id => SUB.a.has(id)); if (!g.pendOut.length) delete g.pendOut; }
   SUB = null; save(); closeModal(); render();
   const B = theirBestOn(g, derive(g)); if (B && fiveKey(B.five) !== fiveKey(D.five.b)) toast(`★ ${g.opp}'s best five is on (net ${sg1(Math.round(10 * B.net) / 10)} on ${B.poss} poss)`, 'warn');
 }
@@ -3721,10 +3742,21 @@ document.addEventListener('click', ev => {
       save(); render(); break; }
     case 'redo': { if (!UI.redo.length) return; g.ev.push(UI.redo.pop()); save(); render(); break; }
     case 'sub': SUB = null; subModal(); break;
-    case 'pend': pendModal(); break;
+    case 'pend': UI.pendOut = []; pendModal(); break;
+    case 'pend-out': { const id = b.dataset.p, o = UI.pendOut = UI.pendOut || [];
+      if (o.includes(id)) UI.pendOut = o.filter(x => x !== id); else if (o.length < 4) o.push(id); else { toast('Up to 4 at a time', 'warn'); break; }
+      pendModal(); break; }
+    case 'pend-out-clear': UI.pendOut = []; pendModal(); break;
+    // A suggestion: its bench players go pending, for the ones coming out (⇄ Sub opens with the swap made) ...
+    case 'pend-sug': { const ins = b.dataset.in.split('|'), outs = b.dataset.out.split('|');
+      g.pending = g.pending || { a: [], b: [] }; g.pending.a = ins.slice(); g.pendOut = outs; UI.pendOut = []; save(); pendModal(); break; }
+    // ... or straight in: the sub screen with the new five lit (Confirm puts them in).
+    case 'pend-subnow': { const ins = b.dataset.in.split('|'), outs = b.dataset.out.split('|'), D0 = derive(g);
+      if (g.ftNext && g.ftNext.team === 'a' && outs.includes(g.ftNext.player) && !confirm(`${pShort(g, 'a', g.ftNext.player)} is at the line. Sub him out anyway?`)) return;
+      UI.pendOut = []; SUB = { a: new Set([...D0.five.a.filter(id => !outs.includes(id)), ...ins]), b: new Set(D0.five.b), forced: [], title: 'Sub — suggested (Confirm to put them in)' }; subModal(); break; }
     case 'pend-p': { g.pending = g.pending || { a: [], b: [] }; const t = b.dataset.t, id = b.dataset.p, l = g.pending[t] = pending(g, t);
       if (l.includes(id)) g.pending[t] = l.filter(x => x !== id); else l.push(id); save(); pendModal(); break; }
-    case 'pend-clear': g.pending = { a: [], b: [] }; save(); pendModal(); break;
+    case 'pend-clear': g.pending = { a: [], b: [] }; delete g.pendOut; save(); pendModal(); break;
     case 'pend-done': closeModal(); render(); break;
     case 'tip': SIT = null; sitModal('overall'); break;
     case 'tip-ban-x': g.tipClosed = [...new Set([...(g.tipClosed || []), b.dataset.k])]; save(); render(); break;
@@ -6493,22 +6525,25 @@ function rapmY(g, p, R) {
   const H = (R.homeAdvantage || 3) / 2, h = ({ H: [-H, H], A: [H, -H] })[g.loc] || [0, 0], mo = String(g.date || '').slice(5, 7), ph = -((R.phase || {})[mo === '10' ? '11' : mo] || 0);
   return p.team === 'a' ? 100 * p.pts + h[0] + ph - r.drtg + lgD : 100 * p.pts + h[1] + ph - r.ortg + lgO;
 }
-function rapm(g) {
-  const G = ooPossessions(g), R = UI.luRaw ? null : ratingsData(), ids = [...new Set(G.flatMap(x => x.P.flatMap(it => it.p.five.a)))], ix = new Map(ids.map((id, i) => [id, i])), n = ids.length;
-  const fit = side => { const rows = []; G.forEach(({ g: gm, P }) => P.forEach(it => { if ((it.p.team === 'a') === (side === 'o')) rows.push({ x: it.p.five.a.map(id => ix.get(id)), y: rapmY(gm, it.p, R) }); }));
+function rapm(g) { return rapmFit(ooPossessions(g), UI.luRaw ? null : ratingsData()); }
+// The fit itself, over possession groups [{ g, P: [{ p }] }]; wt(game) weights a game's possessions (1 = as counted).
+function rapmFit(G, R, wt) {
+  wt = wt || (() => 1);
+  const ids = [...new Set(G.flatMap(x => x.P.flatMap(it => it.p.five.a)))], ix = new Map(ids.map((id, i) => [id, i])), n = ids.length;
+  const fit = side => { const rows = []; G.forEach(({ g: gm, P }) => { const w = wt(gm); P.forEach(it => { if ((it.p.team === 'a') === (side === 'o')) rows.push({ x: it.p.five.a.map(id => ix.get(id)), y: rapmY(gm, it.p, R), w }); }); });
     if (!rows.length) return { b0: null, b: Array(n).fill(0), n: 0, cnt: Array(n).fill(0) };
-    const b0 = rows.reduce((s, r) => s + r.y, 0) / rows.length, A = Array.from({ length: n }, () => Array(n).fill(0)), v = Array(n).fill(0), cnt = Array(n).fill(0);
-    rows.forEach(r => { r.x.forEach(i => { v[i] += r.y - b0; cnt[i]++; r.x.forEach(j => { A[i][j] += 1; }); }); });
+    const W = rows.reduce((s, r) => s + r.w, 0), b0 = rows.reduce((s, r) => s + r.w * r.y, 0) / W, A = Array.from({ length: n }, () => Array(n).fill(0)), v = Array(n).fill(0), cnt = Array(n).fill(0);
+    rows.forEach(r => { r.x.forEach(i => { v[i] += r.w * (r.y - b0); cnt[i]++; r.x.forEach(j => { A[i][j] += r.w; }); }); });
     for (let i = 0; i < n; i++) A[i][i] += RAPM_LAMBDA;
     return { b0, b: solve(A, v), n: rows.length, cnt }; };
   const O = fit('o'), D = fit('d');
   const players = ids.map((id, i) => ({ id, o: O.b[i], d: -D.b[i], net: O.b[i] - D.b[i], oPoss: O.cnt[i], dPoss: D.cnt[i] }));
   // Pair synergy: actual adjusted net with both on minus what the model expected on those possessions, shrunk.
   const pairs = {};
-  G.forEach(({ g: gm, P }) => P.forEach(it => { const f = it.p.five.a.slice().sort(), y = rapmY(gm, it.p, R), off = it.p.team === 'a', M = off ? O : D;
+  G.forEach(({ g: gm, P }) => { const w = wt(gm); P.forEach(it => { const f = it.p.five.a.slice().sort(), y = rapmY(gm, it.p, R), off = it.p.team === 'a', M = off ? O : D;
     if (M.b0 == null) return; const pred = M.b0 + f.reduce((s, id) => s + M.b[ix.get(id)], 0), res = y - pred;
     for (let a = 0; a < 5; a++) for (let c = a + 1; c < 5; c++) { const k = f[a] + '|' + f[c], x = pairs[k] = pairs[k] || { a: f[a], b: f[c], o: 0, on: 0, d: 0, dn: 0 };
-      if (off) { x.o += res; x.on++; } else { x.d += res; x.dn++; } } }));
+      if (off) { x.o += w * res; x.on += w; } else { x.d += w * res; x.dn += w; } } }); });
   const PK = 40;   // possessions a pair's residual needs before it counts half
   Object.values(pairs).forEach(x => { x.so = x.on ? (x.o / x.on) * x.on / (x.on + PK) : 0; x.sd = x.dn ? -(x.d / x.dn) * x.dn / (x.dn + PK) : 0; x.syn = x.so + x.sd; x.n = Math.floor((x.on + x.dn) / 2); });
   return { players, pairs, O, D, R: !!(R && R.teams) };
@@ -6520,6 +6555,50 @@ function projectFive(M, five) {
   f.forEach(id => { const p = by.get(id); if (p) { net += p.net; o += p.o; d -= p.d; } });
   for (let a = 0; a < 5; a++) for (let c = a + 1; c < 5; c++) { const x = M.pairs[f[a] + '|' + f[c]]; if (x) syn += x.syn / 2; }
   return { net: net + syn, o, d, syn };
+}
+/* SUB FOR: tap 1-4 of our five coming out (⏳ Pending) and get the bench players (the same number) who'd best fill
+   in, ranked by the new five's projection: the adjusted plus-minus model above fit over the season's games plus
+   this one, with tonight's possessions counted SUB_TODAY times, so what a player is doing today moves him most.
+   Garbage time out, opponent-adjusted when the ratings are on the iPad. Fouled-out players never come up. */
+const SUB_TODAY = 3;
+let SUBM = null;
+function subModel(g) {
+  const list = [g, ...seasonPool().filter(x => x.id !== g.id)], stamp = list.map(x => x.id + ':' + x.ev.length).join('|');
+  if (SUBM && SUBM.stamp === stamp) return SUBM.M;
+  const G = list.map(gm => { const D = derive(gm); return { g: gm, P: D.poss.filter(p => !p.gt && (p.five.a || []).length === 5).map(p => ({ p })) }; });
+  // Tonight counts SUB_TODAY times a season possession, with the weights scaled so they still add up to the real
+  // number of possessions: the pull toward zero stays honest (one game can't look like three).
+  const nT = G[0].P.length, nS = G.slice(1).reduce((s, x) => s + x.P.length, 0), k = (nT + nS) / (SUB_TODAY * nT + nS || 1);
+  const M = rapmFit(G, ratingsData(), gm => gm.id === g.id ? (nS ? SUB_TODAY * k : 1) : k);
+  SUBM = { stamp, M }; return M;
+}
+function kCombos(ids, k) { const out = []; const rec = (s, cur) => { if (cur.length === k) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
+function subSuggest(g, D, outs) {
+  const f = D.five.a; if (f.length !== 5 || !outs.length) return null;
+  const keep = f.filter(id => !outs.includes(id)), bench = teamPlayers(g, 'a').filter(p => !f.includes(p.id) && !isOut(g, 'a', p.id)).map(p => p.id);
+  if (bench.length < outs.length) return { rows: [], now: null };
+  const M = subModel(g), now = projectFive(M, f);
+  const rows = kCombos(bench, outs.length).map(c => { const pr = projectFive(M, [...keep, ...c]); return { ins: c, net: pr.net, d: pr.net - now.net }; })
+    .sort((a, b) => b.net - a.net).slice(0, 5);
+  return { rows, now, M };
+}
+// A player's night so far, for the sub card: +/-, possessions on, possessions since he last played, fouls, FTs.
+function subLine(g, D, id) {
+  let on = 0, rest = null; D.poss.forEach(p => { if ((p.five.a || []).includes(id)) on++; });
+  for (let i = D.poss.length - 1; i >= 0; i--) { if ((D.poss[i].five.a || []).includes(id)) { rest = D.poss.length - 1 - i; break; } }
+  const pm = (lineupUnits(g, D, 'a', 'game', 'all').players[id] || { pm: 0 }).pm, pf = playerFouls(g, 'a', id), ft = playerFT(g, 'a', id);
+  return `${on ? `+/- <span class="${pmCls(pm)}">${sgn(pm)}</span> · ${Math.round(on / 2)} poss · ${rest ? `sat ${Math.round(rest / 2)}` : 'just out'}` : 'hasn\'t played'}${pf ? ` · <span class="${pf >= 4 ? 'neg' : ''}">${pf} PF</span>` : ''}${ft.a ? ` · FT ${ft.m}-${ft.a}` : ''}`;
+}
+function subSugPanel(g, D, outs) {
+  const S = subSuggest(g, D, outs), sg = v => v == null ? '—' : sg1(Math.round(10 * v) / 10);
+  const head = `<div class="ssg-h"><div><b>Sub for ${esc(fiveSorted(g, 'a', outs).map(id => pShort(g, 'a', id)).join(', '))}</b><div class="tiny muted">best ${outs.length === 1 ? 'player' : outs.length + ' players'} off the bench, by how the new five projects${S && S.now ? ` · this five now ${sg(S.now.net)}` : ''}</div></div><button class="btn btn-sm" data-act="pend-out-clear">✕</button></div>`;
+  if (!S || !S.rows.length) return `<div class="ssg">${head}<div class="small muted">Not enough players on the bench.</div></div>`;
+  const by = new Map(S.M.players.map(p => [p.id, p]));
+  return `<div class="ssg">${head}${S.rows.map((r, i) => `<div class="ssg-row"><span class="fix-rk">${i + 1}</span><div class="ssg-who">
+      ${fiveSorted(g, 'a', r.ins).map(id => { const m = by.get(id); return `<div><b>${esc(pShort(g, 'a', id))}</b>${pInfo(g, 'a', id).pos ? ` <span class="muted small">${esc(pInfo(g, 'a', id).pos)}</span>` : ''}${m ? ` <span class="tiny muted">impact ${sg(m.net)}</span>` : ''}<div class="tiny muted">${subLine(g, D, id)}</div></div>`; }).join('')}</div>
+      <div class="ssg-v"><b class="${pmCls(r.d)}">${sg(r.d)}</b><span>vs now</span><span class="tiny">new five ${sg(r.net)}</span></div>
+      <div class="ssg-btns"><button class="btn btn-sm btn-good" data-act="pend-sug" data-in="${esc(r.ins.join('|'))}" data-out="${esc(outs.join('|'))}">⏳ Pending</button><button class="btn btn-sm" data-act="pend-subnow" data-in="${esc(r.ins.join('|'))}" data-out="${esc(outs.join('|'))}">⇄ Sub now</button></div></div>`).join('')}
+    <div class="tiny muted" style="margin-top:6px">Vs now = how much better the new five projects than the one on the floor, per 100 possessions (adjusted plus-minus over the season, tonight counted ${SUB_TODAY}×${S.M.R ? ', opponent-adjusted' : ''}, garbage time out). Impact = the player's own part of it. Sat = possessions since he last played.</div></div>`;
 }
 function combos5(ids) { const out = []; const rec = (s, cur) => { if (cur.length === 5) { out.push(cur.slice()); return; } for (let i = s; i < ids.length; i++) { cur.push(ids[i]); rec(i + 1, cur); cur.pop(); } }; rec(0, []); return out; }
 function projectedView(g) {
