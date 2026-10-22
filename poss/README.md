@@ -366,16 +366,28 @@ qualifies, none is listed.
 ## Sub for a player (⏳ Pending)
 
 Under the bench on the Pending screen, **On the floor** lists our five. Tap who needs a sub (1-4 of them, gold
-NEEDS A SUB) and our bench is ranked right under it, on what has actually happened (nothing projected):
-- **Tonight on-court**: our points per 100 possessions minus theirs with him on the floor tonight (3+ possessions
-  at each end to count), garbage time out. Players without that much tonight come after, by **season on-court**
-  (same number over our other games, 10+ at each end), then the rest by tonight's +/-.
-- Each row also shows his +/- tonight, how long he's sat, fouls and FTs.
-- The top ones (as many as are coming out) start PICKED; tap a row to change. Under the list: how that exact new
-  five has done together, tonight and this season, or that it hasn't played together.
-- **⏳ Pending** puts them at the table *for* the ones coming out (the Live strip says "Checking in: X for Y");
-  ⇄ Sub then opens with the swap already made, so it's just Confirm. **⇄ Sub now** opens the sub screen with the
-  new five lit. ✕ clears the picks. The opponent's bench stays on the right the whole time.
+NEEDS A SUB) and our bench is ranked right under it, on actual results only (no projections):
+
+**The need.** The five on the floor's four factors at both ends (tonight; under 6 possessions at either end, that
+five's season record; else the team tonight) against our season norm (league average until 2 games are final).
+The biggest shortfall, weighted as Dean Oliver's factors (shooting 40, turnovers 25, rebounding 20, FTs 15), is lit:
+Defense (their eFG%) · Def rebounding · Pressure (their TO%) · Fewer fouls (their FT rate) · Shooting · Ball
+security · Off rebounding · Get to the line. Tap another to rank for that instead (tap it again for the automatic one).
+
+**Each bench player, three ways**, each a bar showing where he ranks on our bench:
+- **Need (40%)**: his season line for that need (quality games: stat sheets + leaderboard; DREB / OREB / STL / TO /
+  PF per 40, eFG%, FTA / FGA) and tonight's stat sheet (1st half, or the final) if there is one, the two averaged.
+  Defense = points allowed per 100 with him on the floor this season, from our lineup data (lower is better).
+- **With the four (35%)**: how we've actually done with him on the floor alongside the players staying in: every
+  possession he's shared with each of them, this season and tonight (net per 100; 10+ at each end).
+- **Tonight (25%)**: our net per 100 with him on tonight (3+ at each end), else his +/-; plus how long he's sat,
+  fouls and FTs.
+A part he has no numbers for is left out and the others count for it. Garbage time out everywhere.
+
+The top ones (as many as are coming out) start PICKED; tap a row to change. Under the list: how that exact new
+five has done together, tonight and this season. **⏳ Pending** puts them at the table *for* the ones coming out
+(the Live strip says "Checking in: X for Y"; ⇄ Sub then opens with the swap made, just Confirm). **⇄ Sub now**
+opens the sub screen with the new five lit. ✕ clears the picks. The opponent's bench stays on the right throughout.
 
 ## Free throws & fouls by player
 
