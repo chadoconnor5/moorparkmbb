@@ -1264,6 +1264,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .bonus-tag.near{background:transparent;color:#facc15;border:1px solid #facc15}
 .sub-p .sub-tr{display:block;margin-top:2px;color:var(--muted);font-weight:600}.sub-p .sub-tr b{font-weight:800}
 .sub-p.tr-y{background:rgba(250,204,21,.16);border-color:#facc15}.sub-p.tr-r{background:rgba(239,68,68,.18);border-color:#ef4444}
+.lpm-ff{width:100%;border-collapse:collapse;margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums}.lpm-ff th{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-align:center;padding:6px 2px 2px}.lpm-ff td{text-align:center;padding:2px}.lpm-ff td:first-child,.lpm-ff th:first-child{text-align:left;color:var(--text2);font-weight:600}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1327,7 +1328,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.267';
+const VERSION = 'v2026.10.23.268';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2151,7 +2152,10 @@ function lpmCard(g, D, t) {
     ${best ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * best.net) / 10)} · ${best.poss} poss</span></div>` : ''}
     <div class="lpm-stats"><div><span>Poss</span><b>${Math.floor((u.oPoss + u.dPoss) / 2)}</b></div><div><span>ORtg</span><b>${f1(o)}</b></div><div><span>DRtg</span><b>${f1(d)}</b></div>
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
-    ${!open ? '' : fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}</div>`;
+    ${!open ? '' : fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}
+    ${!open || !u.o ? '' : (() => { const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), P = v => v == null ? '—' : v.toFixed(1);
+      // Four factors while this five has been on: OFF = this team's, DEF = what it allowed (the other team's).
+      return `<table class="lpm-ff"><thead><tr><th></th><th>OFF</th><th>DEF</th></tr></thead><tbody>${[['eFG%', 'efg'], ['OREB%', 'orb'], ['TO%', 'to'], ['FTR', 'ftr']].map(([l, k]) => `<tr><td>${l}</td><td>${P(O[k])}</td><td>${P(X[k])}</td></tr>`).join('')}</tbody></table>`; })()}</div>`;
 }
 
 function feedText(g, x) {
@@ -2215,7 +2219,7 @@ function liveView(g) {
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
   return `${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
-    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span><button class="btn btn-sm" data-act="lg-open">Labels</button></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}</div>
+    <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span><button class="btn btn-sm" data-act="lg-open">Labels</button></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}<div class="lpm2">${lpmCard(g, D, 'a')}</div></div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st) && st !== 'ftsh') || (!st && UI.reb) ? 'hot' : ''} ${st && (PLAYER_STATS.has(st) || st === 'ftsh') ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
         ${logoSrc(teamName(g, t)) ? `<img src="${logoSrc(teamName(g, t))}" alt="" onerror="const b=this.parentNode;this.remove();b.querySelector('.tn').classList.add('show')"><span class="tn">${esc(teamName(g, t))}</span>` : `<span class="tn show">${esc(teamName(g, t))}</span>`}${!st && UI.reb ? `<span class="rb">${t === UI.reb ? 'OFF REB' : 'DEF REB'}</span>` : ''}</button>`).join('')}</div>
       <div class="status ${st ? 'on' : ''}"><span style="flex:1">${status}</span></div>
@@ -2232,7 +2236,7 @@ function liveView(g) {
     </div>
     <div class="col b"><div class="col-head"><span><span style="color:var(--them-text)">${esc(g.opp)}</span> — on floor</span><button class="btn btn-sm" data-act="go-roster">Roster</button></div>${(() => { const B = theirBestOn(g, D); return B ? `<div class="best-tag">★ Their best five is on <span>net ${sg1(Math.round(10 * B.net) / 10)} · ${B.poss} poss</span></div>` : ''; })()}
       ${pendStrip(g, D, 'b')}${playerCards(g, D, 'b')}
-      <div class="lpm2">${lpmCard(g, D, 'a')}${lpmCard(g, D, 'b')}</div></div>
+      <div class="lpm2">${lpmCard(g, D, 'b')}</div></div>
   </div>`;
 }
 
