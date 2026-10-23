@@ -89,7 +89,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
   and everything is live again: sub, timeout, log the foul. His FT Make / FT Miss taps then log straight to him
   (no card tap). The strip says which shot is next (**1 of 2**) and has **1+1 · 1 · 2 · 3** for how many he's shooting
-  (2 to start; **1+1** when the fouling team is in the bonus, 7–9 team fouls: a front-end miss is the whole trip, a make
+  (2 to start; **1+1** when the fouling team is in the bonus, 7–9 team fouls counted at its latest personal foul, so a
+  technical right after it (a player reacting to the call) counts toward the next bonus, not this one: a front-end miss is the whole trip, a make
   earns the second — tap 2 for a shooting foul); after the last one the trip ends on its own (Undo of that shot brings it back). Until then he's **AT THE
   LINE**: greyed in Sub (and the lineup suggestions' Sub this five in), and taking him off asks first. Any other play
   (not a foul) clears him, and so does ✕.

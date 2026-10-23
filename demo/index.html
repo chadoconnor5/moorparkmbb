@@ -1327,7 +1327,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.264';
+const VERSION = 'v2026.10.23.265';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1823,6 +1823,14 @@ const sg1 = v => (v > 0 ? '+' : '') + v.toFixed(1);                          // 
 /* ---------- fouls and timeouts ---------- */
 const FOULING = e => (e.t === 'foul') || (e.t === 'tech' && !e.coach) || (e.t === 'play' && (e.k === 'chg' || e.k === 'offf'));
 function teamFouls(g, t, per) { const b = foulBucket(per); return g.ev.filter(e => FOULING(e) && e.team === t && foulBucket(e.per) === b).length; }
+/* The fouling team's count at its latest personal foul (this half / OT bucket): what decides 1-and-1 or 2 for the free
+   throws that foul gives. A technical logged after it (a player reacting to the call) counts toward later bonuses, not
+   this one: personal #6 + tech = 7 isn't a 1-and-1; personal #9 + tech = 10 is still a 1-and-1. */
+function foulsAtLastPersonal(g, t) {
+  const b = foulBucket(g.per), E = g.ev.filter(e => FOULING(e) && e.team === t && foulBucket(e.per) === b);
+  for (let i = E.length - 1; i >= 0; i--) if (E[i].t === 'foul') return i + 1;
+  return E.length;
+}
 const playerFouls = (g, t, id) => g.ev.filter(e => FOULING(e) && e.team === t && e.player === id).length;
 const playerTechs = (g, t, id) => g.ev.filter(e => e.t === 'tech' && e.team === t && e.player === id).length;
 // A player's free throws from the logged plays (the shooter you tapped): { m, a }. per: '1H' = 1st half only.
@@ -4031,7 +4039,7 @@ document.addEventListener('click', ev => {
     case 'no-reb': { UI.reb = null; UI.rebFt = false; const m = [...g.ev].reverse().find(e => e.t === 'play'); if (m && MISS_K.has(m.k)) { m.noReb = true; save(); } render(); break; }
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
-      if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p, n: (n => n >= 7 && n < 10 ? '1+1' : 2)(teamFouls(g, other(b.dataset.team), g.per)), after: g.ev.length ? g.ev[g.ev.length - 1].id : null }; delete g.ftPrev; save(); render();
+      if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p, n: (n => n >= 7 && n < 10 ? '1+1' : 2)(foulsAtLastPersonal(g, other(b.dataset.team))), after: g.ev.length ? g.ev[g.ev.length - 1].id : null }; delete g.ftPrev; save(); render();
         toast(`FT shooter: ${pShort(g, b.dataset.team, b.dataset.p)} — FT Make / FT Miss go to him`, 'good'); break; }
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
       if (!PLAYER_STATS.has(UI.stat) && !FT_K.has(UI.stat)) { toast('Tap the team button at the top'); return; }
