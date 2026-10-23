@@ -60,7 +60,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
   a sub, timeout or Set time in between doesn't end it; a foul or any other play does, so the next trip asks
-  again. Wrong shooter? Tap the line in the feed.
+  again. Wrong shooter? Tap the line in the feed. The trip counts for the fives on the floor at the foul: subs at
+  that stoppage (logged between the foul and the free throws) take over after it (lineups, +/-, on/off).
 - **FT Shooter** (gold, two buttons wide, above FT Make / FT Miss): name the shooter before the shots. Tap it, then
   his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
   and everything is live again: sub, timeout, log the foul. His FT Make / FT Miss taps then log straight to him

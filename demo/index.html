@@ -1317,7 +1317,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.249';
+const VERSION = 'v2026.10.23.250';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1525,7 +1525,9 @@ const foulBucket = p => p === '1H' ? '1H' : '2H+';     // team fouls reset at ha
      · free throws after a make by the same team are the and-one; free throws in a row are one trip;
      · an offensive rebound keeps the possession going — after a missed shot or a missed FT;
      · a defensive rebound, a turnover, a steal, a charge or an offensive foul ends it;
-     · anything else by the same team after a finished possession starts a new one. */
+     · anything else by the same team after a finished possession starts a new one.
+   A trip to the line is played by the fives on the floor at the foul: subs at the stoppage (logged between the foul and
+   the free throws) take over after it. */
 const PTS = { '2m': 2, '3m': 3, ftm: 1 };
 const isFT = k => k === 'ftm' || k === 'ftx';
 const ENDERS = new Set(['to', 'stl', 'chg', 'offf']);
@@ -1534,7 +1536,7 @@ const offOf = e => (e.k === 'stl' || e.k === 'dreb') ? other(e.team) : e.team;
 function derive(g) {
   const five = { a: [], b: [] }, score = { a: 0, b: 0 };
   const poss = [], items = [];
-  let open = null;
+  let open = null, foulAt = null;   // foulAt: the last foul, if nothing but subs / timeouts came after it
   const snap = () => ({ a: five.a.slice(), b: five.b.slice() });
   for (const e of g.ev) {
     if (e.t === 'sub') { five[e.team] = e.five.slice(); items.push({ kind: 'sub', e }); continue; }
@@ -1542,8 +1544,9 @@ function derive(g) {
       const sh = other(e.team); score[sh] += e.ftm || 0;
       items.push({ kind: 'tech', e, score: { ...score }, five: snap() }); continue;
     }
-    if (e.t === 'foul') { items.push({ kind: 'foul', e, five: snap(), p: open && open.per === e.per ? open : null }); continue; }
+    if (e.t === 'foul') { foulAt = { team: e.team, per: e.per, five: snap() }; items.push({ kind: 'foul', e, five: foulAt.five, p: open && open.per === e.per ? open : null }); continue; }
     if (e.t !== 'play') { items.push({ kind: e.t, e }); continue; }
+    const fa = foulAt; foulAt = null;
     const off = offOf(e);
     if (e.k === 'dreb') {                      // ends the shooting team's possession
       if (open && open.team === off && open.per === e.per && !open.done) { open.dreb = true; open.done = true; }
@@ -1556,7 +1559,8 @@ function derive(g) {
       else if (isFT(e.k) && (isFT(lk) || lk === '2m' || lk === '3m')) join = true;
       else if (lk === 'oreb') join = true;
     }
-    if (!join) { open = { team: off, per: e.per, plays: [], five: snap(), pts: 0, oreb: 0, dreb: false, done: false, id: e.id }; poss.push(open); items.push({ kind: 'poss', p: open }); }
+    if (!join) { const f5 = isFT(e.k) && fa && fa.team !== off && fa.per === e.per ? fa.five : null;
+      open = { team: off, per: e.per, plays: [], five: f5 ? { a: f5.a.slice(), b: f5.b.slice() } : snap(), pts: 0, oreb: 0, dreb: false, done: false, id: e.id }; poss.push(open); items.push({ kind: 'poss', p: open }); }
     open.plays.push(e);
     const pts = PTS[e.k] || 0; open.pts += pts; score[off] += pts;
     if (e.k === 'oreb') open.oreb++;
