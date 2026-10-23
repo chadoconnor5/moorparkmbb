@@ -236,9 +236,12 @@ player would replace is shooting free throws and has to stay in: hold that sub, 
 him straight back.
 
 The player cards show each player's fouls and his on-floor **+/-**. The live screen's lineup cards
-show the current five for each team: possessions, ORtg, DRtg, net and +/-. Each player's +/- rows start
-minimized (every time the app opens); the boxed **+** at the card's top right shows them, **−** hides them again
-(Moorpark's and the opponent's separately).
+show the current five for each team, under that team's player cards (Moorpark's on the left, theirs on the right):
+possessions, ORtg, DRtg, net and +/-. Each player's +/- rows start minimized (every time the app opens); the boxed
+**+** at the card's top right shows them, with the five's four factors under them (eFG%, OREB%, TO%, FTR down the
+side; **OFF** = this five's, **DEF** = what it allowed; green / red against the league average, for that team: OFF
+green = above it (fewer turnovers), DEF green = held under it (more turnovers forced)), and **−** hides them again (each
+team's separately).
 
 **Their best five (2nd half and OT only):** the opponent five with the best net rating so far, among
 fives with 8+ possessions. When it is on the floor a ★ **Their best five is on** tag (net, possessions)
