@@ -1261,6 +1261,9 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .lut td:not(:first-child),.lut th:not(:first-child),.rn-t td:not(:first-child),.rn-t th:not(:first-child),.oo-imp-tbl thead th:not(:first-child),.oo-imp-tbl tbody td{text-align:center}
 .rp-flow{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:10px;font-size:13.5px;color:var(--text2)}
 .chk-card{border-color:#d4a017}.chk-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);flex-wrap:wrap}
+.bonus-tag.near{background:transparent;color:#facc15;border:1px solid #facc15}
+.sub-p .sub-tr{display:block;margin-top:2px;color:var(--muted);font-weight:600}.sub-p .sub-tr b{font-weight:800}
+.sub-p.tr-y{background:rgba(250,204,21,.16);border-color:#facc15}.sub-p.tr-r{background:rgba(239,68,68,.18);border-color:#ef4444}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1324,7 +1327,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.258';
+const VERSION = 'v2026.10.23.264';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1920,7 +1923,7 @@ function render() {
   const between = g && ['pbp', 'sheet', 'ff'].includes(UI.tab) ? dataPicker(g) : '';
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
-  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
+  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else { killFx(g); bonusFx(g); } }
   else if (UI.tab === 'sheet') v.innerHTML = between + sheetView(g);
   else if (UI.tab === 'lineups') { v.innerHTML = between + lineupsView(g); if ($('#lu-min')) luMinApply(luMin()); }
   else if (UI.tab === 'ff') { v.innerHTML = between + '<div id="ff"></div>'; renderFF(); }
@@ -1956,6 +1959,26 @@ function killFx(g) {
   d.addEventListener('animationend', () => d.remove());
   document.body.appendChild(d);
 }
+/* BONUS flash over the score bug when a foul just logged is a team's 6th or 9th (BONUS / DOUBLE BONUS with NEXT FOUL
+   under it: one foul away) or its 7th or 10th (BONUS / DOUBLE BONUS: the other side is in it now). Gold when it's us
+   in (or about to be in) the bonus, red when it's them. Same rules as the kill flash: only on a play just logged,
+   never on undo, a reload or another tab's render. */
+function bonusFx(g) {
+  const tf = { a: teamFouls(g, 'a', g.per), b: teamFouls(g, 'b', g.per) }, n = (g.ev || []).length, prev = UI.bfPrev;
+  UI.bfPrev = { id: g.id, per: g.per, n, tf };
+  if (!prev || prev.id !== g.id || prev.per !== g.per || n <= prev.n) return;
+  const f = ['a', 'b'].find(t => tf[t] > prev.tf[t] && [6, 7, 9, 10].includes(tf[t])); if (!f) return;   // f fouled: the other team is in (or one foul from) the bonus
+  const next = tf[f] === 6 || tf[f] === 9;
+  const bar = document.querySelector('.scorebar'); if (!bar) return;
+  const r = bar.getBoundingClientRect(), word = tf[f] >= 9 ? 'DOUBLE BONUS' : 'BONUS';
+  document.querySelectorAll('.kill-fx').forEach(x => x.remove());
+  const d = document.createElement('div');
+  d.className = 'kill-fx ' + (f === 'b' ? 'us' : 'them');
+  Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', flexDirection: 'column' });
+  d.innerHTML = `<span style="font-size:${word.length <= 5 ? 96 : 68}px">${word}</span>${next ? '<span style="font-size:24px;margin-top:10px;letter-spacing:.3em">NEXT FOUL</span>' : ''}`;
+  d.addEventListener('animationend', () => d.remove());
+  document.body.appendChild(d);
+}
 function scorebar(g, D) {
   const per = g.per, S = perSums(D, per), G = perSums(D, null);
   const dots = t => { const ot = otCount(g), s30 = S30_TOS + ot, uf = tosUsed(g, t, 'full'), us = tosUsed(g, t, 's30');
@@ -1965,7 +1988,7 @@ function scorebar(g, D) {
   const skunk = t => { const st = S.streak[t] || 0; return st >= 9 ? '<span class="skunk dead">DEAD SKUNK</span>' : st >= 6 ? '<span class="skunk">SKUNK</span>' : ''; };
   // Bonus and skunk get a row of their own under KILLS, so neither pushes the row off the edge.
   const tags = t => { const x = t === 'a' ? bonus(t) + skunk(t) : skunk(t) + bonus(t); return x ? `<div class="sb-meta sb-tags">${x}</div>` : ''; };
-  const bonus = t => { const n = teamFouls(g, other(t), per); return n >= 10 ? '<span class="bonus-tag dbl">DBL BONUS</span>' : n >= 7 ? '<span class="bonus-tag">BONUS</span>' : ''; };
+  const bonus = t => { const n = teamFouls(g, other(t), per); return n >= 10 ? '<span class="bonus-tag dbl">DBL BONUS</span>' : n === 9 ? '<span class="bonus-tag">BONUS</span> <span class="bonus-tag near">1 TO DBL</span>' : n >= 7 ? '<span class="bonus-tag">BONUS</span>' : n === 6 ? '<span class="bonus-tag near">1 TO BONUS</span>' : ''; };
   return `<div class="scorebar">
     <div class="sb-team a"><div class="sb-id"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div>
       <div class="sb-meta"><span>Fouls ${teamFouls(g, 'a', per)}</span>${dots('a')}</div>
@@ -1977,7 +2000,7 @@ function scorebar(g, D) {
       ${(() => { const r = liveRun(g, D); return r ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.f}-${r.a} run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
-      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
+      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="set-score">🏀 Set score</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
@@ -2016,7 +2039,7 @@ function ftShooterBtn(g, st) {
 function ftTrip(g) {
   if (g.ftNext) return g.ftNext;
   for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i];
-    if (e.t === 'sub' || e.t === 'to' || e.t === 'clock') continue;
+    if (e.t === 'sub' || e.t === 'to' || e.t === 'clock' || e.t === 'score') continue;
     return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
   return null;
 }
@@ -2131,6 +2154,8 @@ function feedText0(g, x) {
   if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb${e.auto ? ' (auto)' : ''}`, id: e.id };
   if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
   if (x.kind === 'clock') return { cls: 's', html: `Game clock · ${fmtSecs(e.clock)}`, id: e.id };
+  if (x.kind === 'score') { const t = scoreAt(g, g.ev.indexOf(e)), ok = t.a === e.a && t.b === e.b;
+    return { cls: 's', html: `🏀 Scoreboard ${e.a}–${e.b} · ${ok ? '<b class="pos">matches</b>' : `<b class="neg">tracker ${t.a}–${t.b}</b>`}`, id: e.id }; }
   if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout${e.clock != null ? ' · ' + fmtSecs(e.clock) : ''}`, id: e.id };
   return { cls: 's', html: '', id: e.id };
 }
@@ -2949,16 +2974,29 @@ function clockCheck(g, i) {
     if (p != null) return c > p ? { msg: `Clock ${fmtSecs(c)} is later than the one set before it (${fmtSecs(p)})` } : null; }
   return null;
 }
+/* SET SCORE (optional, like Set time): the scoreboard's score at that moment, logged as a checkpoint {t:'score', a, b}.
+   Nothing is changed by it; the tracker's own score at that point is compared, and a difference is listed in Check
+   game with how far it's off and since which checkpoint it last matched (only the plays in between need a look). */
+function scoreAt(g, i) { const sc = { a: 0, b: 0 }; for (let j = 0; j < i; j++) { const e = g.ev[j]; if (e.t === 'play') sc[e.team] += PTS[e.k] || 0; if (e.t === 'tech') sc[other(e.team)] += e.ftm || 0; } return sc; }
+function scoreCheck(g, i) {
+  const e = g.ev[i]; if (!e || e.t !== 'score' || e.chkOk) return null;
+  const t = scoreAt(g, i); if (t.a === e.a && t.b === e.b) return null;
+  let from = null; for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.t !== 'score') continue; const u = scoreAt(g, j); if (u.a === x.a && u.b === x.b) { from = { j, x }; break; } }
+  const j0 = from ? from.j : 0, off = ['a', 'b'].filter(k => t[k] !== e[k]);
+  const diff = off.map(k => { const d = t[k] - e[k], n = g.ev.slice(j0, i).filter(x => x.t === 'play' && x.team === k && PTS[x.k]).length;
+    return `${teamName(g, k)} ${d > 0 ? '+' : ''}${d} in the tracker (${n} ${teamName(g, k)} scoring play${n === 1 ? '' : 's'} to check)`; }).join('; ');
+  return { msg: `Scoreboard ${e.a}–${e.b}, tracker ${t.a}–${t.b}: ${diff}, since ${from ? `the ${from.x.a}–${from.x.b} check (${PER_NAME(from.x.per)})` : 'the tip'}` };
+}
 function gameChecks(g) {
   const out = [], sc = { a: 0, b: 0 };
-  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
+  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i) || scoreCheck(g, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
     if (e.t === 'play') sc[e.team] += PTS[e.k] || 0; if (e.t === 'tech') sc[other(e.team)] += e.ftm || 0; });
   g.ev.forEach(e => { delete e.chkFlag; });
   return out;
 }
 function checksCard(g) {
   const C = gameChecks(g); if (!C.length) return '';
-  return `<div class="card chk-card"><h3>⚠ Check ${C.length} spot${C.length > 1 ? 's' : ''} <span class="muted">· plays that don't fit who had the ball</span></h3>
+  return `<div class="card chk-card"><h3>⚠ Check ${C.length} spot${C.length > 1 ? 's' : ''} <span class="muted">· plays that don't fit who had the ball, scoreboard and clock differences</span></h3>
     ${C.map(c => `<div class="chk-row"><span class="small"><b>${esc(PER_NAME(c.e.per))} · ${c.score}</b> · ${esc(c.msg)}</span>
       <span class="row" style="gap:6px">${c.offf ? `<button class="btn btn-sm btn-good" data-act="chk-offf" data-id="${c.e.id}">Make it Off Foul</button>` : ''}<button class="btn btn-sm" data-act="edit" data-id="${c.e.id}">Fix</button><button class="btn btn-sm" data-act="chk-ok" data-id="${c.e.id}">OK</button></span></div>`).join('')}</div>`;
 }
@@ -3387,11 +3425,21 @@ function pendStrip(g, D, t) {
 }
 let SUB = null;
 /* The sub screen's team side and its check, shared by the Sub pop-up and the 2nd-half starters panel on Live. */
-function subSide(g, t) { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set();
+/* Foul trouble on the Sub screen: each player's fouls (yellow / red at the live cards' marks: 2 / 3+ in the 1st half,
+   3 / 4+ after), and for the five on the floor how many possessions in a row he's played. */
+function subTrouble(g, D, t, id, on) {
+  const pf = playerFouls(g, t, id), c = { r: 'tf-dbl', y: 'tf-warn' }[troubleLvl(g, t, id)] || '';
+  const st = on && D ? playerStint(g, D, t, id) : 0;
+  return pf && pf < 5 || st ? `<span class="tiny sub-tr">${pf && pf < 5 ? `<b class="${c}">${pf} PF</b>` : ''}${pf && pf < 5 && st ? ' · ' : ''}${st ? `${st} poss` : ''}</span>` : '';
+}
+// Trouble level for a whole card: 'r' at the red mark, 'y' at the yellow one (fouled-out players have their own look).
+const troubleLvl = (g, t, id) => { const pf = playerFouls(g, t, id), h1 = g.per === '1H'; return pf >= 5 ? '' : pf >= (h1 ? 3 : 4) ? 'r' : pf === (h1 ? 2 : 3) ? 'y' : ''; };
+function subSide(g, t) { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set(), D = derive(g), was = new Set(D.five[t]);
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
           const al = on && atLine(g, t, p.id);
-        return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''} ${al ? 'atline' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${al ? '<span class="tiny atline-tag">AT THE LINE</span>' : ''}${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : ''}</button>`; };
+        const tl = !on && !o ? troubleLvl(g, t, p.id) : '';
+        return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''} ${al ? 'atline' : ''} ${tl ? 'tr-' + tl : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${al ? '<span class="tiny atline-tag">AT THE LINE</span>' : ''}${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : subTrouble(g, D, t, p.id, was.has(p.id))}</button>`; };
         /* Pending players have their own group: GOING IN now, or HOLD (e.g. the man he'd replace is shooting
            free throws and stays in) — a held player stays pending for the next dead ball. */
         const pbtn = p => { const go = SUB[t].has(p.id);
@@ -3636,6 +3684,17 @@ function setTimeModal() {
     ${clockPad(STM.d, len, 'st-key')}
     <div class="modal-foot"><button class="btn btn-lg" data-act="st-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="st-ok" ${secs != null ? '' : 'disabled'}>Set ${secs != null ? fmtSecs(secs) : ''}</button></div>`, 'to-modal');
 }
+let SCM = null;   // the Set score modal: { id (editing a checkpoint), a, b }
+function scoreModal(id) {
+  const g = cur(), e = id && g.ev.find(x => x.id === id), t = scoreAt(g, e ? g.ev.indexOf(e) : g.ev.length);
+  if (!SCM || SCM.id !== (id || null)) SCM = { id: id || null, a: e ? e.a : t.a, b: e ? e.b : t.b };
+  const box = k => `<div class="field" style="flex:1"><label>${esc(teamName(g, k))}</label><div class="row" style="gap:6px;align-items:center">
+    <button class="btn btn-lg" data-act="sc-n" data-t="${k}" data-d="-1">−</button><input id="sc-${k}" type="text" inputmode="numeric" value="${SCM[k]}" style="width:80px;font-size:26px;text-align:center;font-weight:800">
+    <button class="btn btn-lg" data-act="sc-n" data-t="${k}" data-d="1">+</button></div></div>`;
+  modal(`<h2>🏀 Set score</h2><div class="small muted" style="margin-bottom:8px">The scoreboard's score now (optional). It isn't changed; the tracker (${t.a}–${t.b}) is checked against it and any difference goes to Play-by-Play → Check game.</div>
+    <div class="row" style="gap:16px">${box('a')}${box('b')}</div>
+    <div class="modal-foot" style="justify-content:space-between">${e ? `<button class="btn btn-bad" data-act="ed-del" data-id="${e.id}">Delete</button>` : '<span></span>'}<span class="row" style="gap:8px"><button class="btn btn-lg" data-act="sc-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="sc-ok">Save</button></span></div>`);
+}
 function editModal(id) {
   const g = cur(), e = g.ev.find(x => x.id === id); if (!e) return;
   const isPlay = e.t === 'play' || e.t === 'foul';
@@ -3738,7 +3797,7 @@ const isLocked = (g, e) => !!e && (e.lock || (e.t === 'sub' && !g.ev.some(x => x
 const MISS_K = new Set(['2x', '3x', 'ftx']);
 function impliedReb(evs, i, e) {
   if (!e || e.t !== 'play' || e.k === 'oreb' || e.k === 'dreb') return null;
-  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'foul', 'tech'].includes(x.t)) continue; L = x; break; }
+  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'score', 'foul', 'tech'].includes(x.t)) continue; L = x; break; }
   if (!L || L.t !== 'play' || !MISS_K.has(L.k) || L.noReb || L.per !== e.per) return null;
   if (L.k === 'ftx' && isFT(e.k) && offOf(e) === L.team) return null;   // the next free throw of the trip
   const h = offOf(e);
@@ -3785,6 +3844,9 @@ function logStat(team, player) {
     if (c) setTimeout(() => toast('⚠ ' + c.msg, 'warn'), 50); }
   if (UI.autoReb) { const r = UI.autoReb; UI.autoReb = null; toast(`${teamAbbr(g, r.team)} ${r.k === 'oreb' ? 'off' : 'def'} reb added (no rebound was tapped)`); }
   if (k === 'foul' || k === 'chg' || k === 'offf') {
+    { const tf = teamFouls(g, team, g.per), them = teamName(g, other(team)), us = teamName(g, team), kind = team === 'a' ? 'warn' : 'good';
+      const m = { 6: `${us}: 6 team fouls · 1 more puts ${them} in the bonus`, 7: `${them} in the bonus (1-and-1) · ${us} has 7 fouls`, 9: `${us}: 9 team fouls · 1 more is the double bonus`, 10: `${them} in the double bonus · ${us} has 10 fouls` }[tf];
+      if (m) setTimeout(() => toast(m, kind), 400); }
     const n = playerFouls(g, team, player); if (player !== 'TEAM' && n >= 4) toast(`${pShort(g, team, player)}: ${n} fouls${n >= 5 ? ' — FOULED OUT' : ''}`, n >= 5 ? 'bad' : 'warn');
   }
 }
@@ -4040,6 +4102,12 @@ document.addEventListener('click', ev => {
     case 'to-key': TOM.clock = padKey(TOM.clock, b.dataset.k); timeoutModal(); break;
     case 'to-cancel': TOM = null; closeModal(); break;
     case 'set-time': STM = null; setTimeModal(); break;
+    case 'set-score': SCM = null; scoreModal(); break;
+    case 'sc-n': { const k = b.dataset.t; SCM.a = +($('#sc-a').value) || 0; SCM.b = +($('#sc-b').value) || 0; SCM[k] = Math.max(0, SCM[k] + +b.dataset.d); scoreModal(SCM.id); break; }
+    case 'sc-cancel': SCM = null; closeModal(); break;
+    case 'sc-ok': { const a = parseInt($('#sc-a').value, 10), bb = parseInt($('#sc-b').value, 10); if (!(a >= 0) || !(bb >= 0)) { toast('Enter both scores', 'bad'); return; }
+      let e = SCM.id && g.ev.find(x => x.id === SCM.id); if (e) { e.a = a; e.b = bb; delete e.chkOk; } else { e = { t: 'score', a, b: bb }; push(g, e); }
+      SCM = null; save(); closeModal(); render(); const c = scoreCheck(g, g.ev.indexOf(e)); toast(c ? '⚠ ' + c.msg : `Scoreboard ${a}–${bb}: matches the tracker`, c ? 'warn' : 'good'); break; }
     case 'st-key': STM.d = padKey(STM.d, b.dataset.k); setTimeModal(); break;
     case 'st-cancel': STM = null; closeModal(); break;
     case 'st-ok': { const secs = padSecs(STM.d, perLen(g.per)); if (secs == null) return; push(g, { t: 'clock', clock: secs }); STM = null; save(); closeModal(); render(); { const c = clockCheck(g, g.ev.length - 1); toast(c ? '⚠ ' + c.msg + ': check it' : `Game clock set: ${fmtSecs(secs)}`, c ? 'warn' : 'good'); } break; }
@@ -4148,7 +4216,7 @@ document.addEventListener('click', ev => {
       const cOut = e.coach && g.ev.filter(x => x.t === 'tech' && x.coach && x.team === e.team).length >= 2;
       toast(techText(g, e) + (out ? ' — OUT OF THE GAME' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : ''), out || cOut ? 'bad' : ''); break; }
 
-    case 'edit': { const e = g && g.ev.find(x => x.id === b.dataset.id); if (e && e.t === 'sub') { SUBED = null; subEditModal(e.id); } else editModal(b.dataset.id); break; }
+    case 'edit': { const e = g && g.ev.find(x => x.id === b.dataset.id); if (e && e.t === 'sub') { SUBED = null; subEditModal(e.id); } else if (e && e.t === 'score') { SCM = null; scoreModal(e.id); } else editModal(b.dataset.id); break; }
     case 'se-p': { if (!SUBED) break; const id = b.dataset.p, S = SUBED.five[b.dataset.t]; if (S.has(id)) S.delete(id); else S.add(id); subEditModal(SUBED.id); break; }
     case 'se-cancel': SUBED = null; closeModal(); break;
     case 'se-save': { if (!SUBED) break; const e = g.ev.find(x => x.id === SUBED.id); if (!e) break;

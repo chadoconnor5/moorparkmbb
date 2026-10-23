@@ -57,6 +57,21 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   Each period starts showing its full clock: **Clock 20:00** at tip-off and the start of the 2nd half, **5:00** each
   overtime, until a clock is entered. That start-of-period clock is display only: leverage keeps its possession
   estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
+- **Foul trouble on the Sub screen:** each player shows his fouls (yellow at 2 / red at 3+ in the 1st half; yellow
+  at 3 / red at 4+ after, as on the live cards), and the five on the floor show how many possessions in a row they've
+  played (same count as the cards). Bench players in trouble get the whole card yellow or red, so they stand out
+  before you send them in.
+- **Bonus heads-up:** the scoreboard tag shows **1 TO BONUS** at 6 team fouls and **1 TO DBL** at 9, next to BONUS /
+  DBL BONUS; a foul that brings a team to 6, 7, 9 or 10 also pops a toast (amber when it's us, green when it's them).
+  A team's 6th and 9th fouls flash **BONUS** / **DOUBLE BONUS** with **NEXT FOUL** over the score bug like a kill (one
+  foul away), and its 7th and 10th flash **BONUS** / **DOUBLE BONUS** (in it now): gold when it's us in (or about to be
+  in) the bonus, red when it's them (only on the foul just logged, never on undo or a reload).
+- **🏀 Set score** (scoreboard, beside ⏱ Set time; optional): the scoreboard's score at that moment, on − / + boxes
+  (they start at the tracker's score, so you change only what's different). Nothing is changed by it: it's a
+  checkpoint in the log (🏀 line in the feed: *matches*, or the tracker's score in red). A difference is listed in
+  Play-by-Play → **⚠ Check game**: which team is off and by how much, how many of that team's scoring plays to check,
+  and since which checkpoint it last matched (only the plays in between need a look). Tap the 🏀 line to edit or delete
+  it; **OK** in Check game when the scoreboard was the one that was wrong.
 - **Picking a player:** once a stat is tapped, a tap anywhere on a player card picks him — his labels and the +N chip
   too (they only open their pop-up when no stat is waiting).
 - **Auto rebounds.** Tap rebounds as always; one you forget is filled in from the next play, so a possession is never
