@@ -34,6 +34,14 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   **Delete** removes it. Back to 4 and he stays in.
 - **🚩 Flag last play** (under the buttons), or the 🚩 on any feed / Play-by-Play line, marks a play to look
   at later. Flagged plays are highlighted, marked on the Sheet, and listed under Play-by-Play → Flagged.
+- **⚠ Check game** (top of Play-by-Play, and a warning as you log): plays that don't fit who had the ball, so a
+  possession silently went missing or a stat went to the wrong side. After a make, a last made FT, a turnover, charge
+  or offensive foul the other team has the ball; after a rebound or steal that team does; a miss is loose. Flagged:
+  a shot or turnover by the team without the ball (a trip missed?), a steal by the team that already had it, a def
+  reb right after the same team's miss (off reb?), an off reb by the team that didn't shoot, a plain foul by the team
+  with the ball that isn't followed by the other side's free throws (**Make it Off Foul** turns it into one: a turnover
+  that ends the possession), and a game clock set later than the one before it in the same period. One mistake shows
+  once (what follows from it isn't listed again). **Fix** opens the play; **OK** keeps one that really happened.
 - **Tech:** pick team, player or coach, and how many of the two free throws went in.
   - On a player it is his foul and a team foul.
   - On a coach it is neither. A second on the same coach flags the ejection.
@@ -864,6 +872,11 @@ five has 25+ offensive possessions).
   (zero-padded numbers like 01 read as 1). A roster you've never saved keeps getting new players as they appear; one
   you've saved stays as you made it (removed players stay removed) and only gets blank names filled. Height and year
   aren't in the stats.
+- **The newest fix wins between iPads.** Each game is stamped whenever it changes on an iPad (a play logged, deleted
+  or edited, a sub fixed, a box score added). Loading a season file or the baseline keeps the most recently edited copy
+  of each game, so a correction (a phantom play deleted, a sub fixed in place) reaches the other iPads and an older
+  copy never overwrites it. Loading a file isn't an edit (the game keeps the stamp it came with). A game neither copy
+  has a stamp for (saved before this) falls back to the copy with more plays.
 - **Opponent rosters travel with the files.** A game file carries its opponent's roster (names, position, height,
   year, labels) and the baseline / a season file carries every roster, so a roster you type is in the next baseline you
   make and every iPad gets it. Each **Save** stamps the roster; importing keeps, team by team, the most recently saved
