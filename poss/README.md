@@ -57,6 +57,11 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   Each period starts showing its full clock: **Clock 20:00** at tip-off and the start of the 2nd half, **5:00** each
   overtime, until a clock is entered. That start-of-period clock is display only: leverage keeps its possession
   estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
+- **Foul trouble on the Sub screen:** each player shows his fouls (yellow at 2 / red at 3+ in the 1st half; yellow
+  at 3 / red at 4+ after, as on the live cards), and the five on the floor show how many possessions in a row they've
+  played (same count as the cards).
+- **Bonus heads-up:** the scoreboard tag shows **1 TO BONUS** at 6 team fouls and **1 TO DBL** at 9, next to BONUS /
+  DBL BONUS; a foul that brings a team to 6, 7, 9 or 10 also pops a toast (amber when it's us, green when it's them).
 - **🏀 Set score** (scoreboard, beside ⏱ Set time; optional): the scoreboard's score at that moment, on − / + boxes
   (they start at the tracker's score, so you change only what's different). Nothing is changed by it: it's a
   checkpoint in the log (🏀 line in the feed: *matches*, or the tracker's score in red). A difference is listed in
