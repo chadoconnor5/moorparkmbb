@@ -400,13 +400,15 @@ footnote says whether tonight's stat sheet is in. ✕ clears. The opponent's ben
 
 ## Fixing a sub (tap it in the feed)
 
-Tap a sub (⇄ line) in the Live feed: the team's roster with the five that was on the floor after it lit. Tap to swap
-until the right five are lit (GOING IN / COMING OFF show the change), Save. Every possession from that sub to the
+Tap a sub (⇄ line) in the Live feed: both teams' rosters with the fives that were on the floor after it lit. Tap to swap
+until the right fives are lit (GOING IN / COMING OFF show the change), Save. Every possession from that sub to the
 next one is then counted with the fixed five: lineups, +/-, possessions in a row, on/off, the five on now, all worked
 out from the plays. Later subs are whole fives, so a mistake usually rode along: **Fix the later subs too** (on by
 default) makes the same swap in each later sub of that team that still has the wrong player, stopping once he's been
 subbed out. Plays tagged to a player (fouls, free throws) stay his. The starting five can be fixed the same way (it
-can't be deleted); any other sub can also be deleted from there.
+can't be deleted); any other sub can also be deleted from there. The other team's sub at the same moment (next to it
+in the log) is fixed in the same window; if that team had none logged, changing its five adds one right after this
+sub (a sub missed at the time).
 
 ## Box scores (📋 Box score CSV on the Report)
 
