@@ -1293,7 +1293,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.256';
+const VERSION = 'v2026.10.23.257';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7282,14 +7282,24 @@ async function bkRestore(id) {
 }
 // The season file: everything this tracker keeps, in one file.
 const SEASON_KEYS = ['pl_roster', 'gt_opp_rosters', 'gt_schedule', 'pt2_auto_off', 'pt2_ready', 'pt2_fields', 'pt2_lu_adj'];
+/* Save a file: the share sheet where it works (iPad: Save to Files / Drive), else (a PC, or a share the browser
+   refuses: Windows says "Permission denied") a plain download. Resolves false if the share sheet was cancelled. */
+async function saveFile(file) {
+  const dl = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+  const touch = navigator.maxTouchPoints > 1 || /iPad|iPhone|Android/.test(navigator.userAgent);
+  if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: file.name }); return true; }
+    catch (e) { if (e && e.name === 'AbortError') return false; }
+  }
+  dl(); return true;
+}
 async function exportSeason() {
   const body = JSON.stringify(seasonBody());
   const name = `mbb_season_${today()}.json`, file = new File([body], name, { type: 'application/json' });
   try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });   // iPad: Save to Files / Drive
-    else { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+    if (!await saveFile(file)) return;
     lsSet(LS_LAST_EXPORT, new Date().toISOString()); render(); toast(`Season saved: ${games.length} game${games.length === 1 ? '' : 's'}`, 'good');
-  } catch (e) { if (e && e.name !== 'AbortError') toast('Could not save the season file: ' + e.message, 'bad'); }
+  } catch (e) { toast('Could not save the season file: ' + e.message, 'bad'); }
 }
 function importSeason() {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
@@ -7376,8 +7386,7 @@ async function makeBaseline(pass) {
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(S)));
   const out = { app: 'moorpark-possession-tracker', kind: 'baseline', version: 1, exportedAt: S.exportedAt, salt: b64(salt), iv: b64(iv), iter, data: b64(ct) };
   const file = new File([JSON.stringify(out)], 'baseline.enc.json', { type: 'application/json' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'baseline.enc.json' });
-  else { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = 'baseline.enc.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+  if (!await saveFile(file)) return;
   try { localStorage.setItem(LS_BASE_KEY, pass); } catch (e) {}
   toast(`Baseline file saved (${games.length} games, locked). Upload it to put it on the site.`, 'good');
 }
