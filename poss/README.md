@@ -63,8 +63,9 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   before you send them in.
 - **Bonus heads-up:** the scoreboard tag shows **1 TO BONUS** at 6 team fouls and **1 TO DBL** at 9, next to BONUS /
   DBL BONUS; a foul that brings a team to 6, 7, 9 or 10 also pops a toast (amber when it's us, green when it's them).
-  Reaching the bonus (7th) or double bonus (10th) also flashes **BONUS** / **DOUBLE BONUS** over the score bug like a
-  kill: gold when we're in it, red when they are (only on the foul just logged, never on undo or a reload).
+  One foul from it (a team's 6th or 9th foul) also flashes **BONUS** / **DOUBLE BONUS** with **NEXT FOUL** over the
+  score bug like a kill: gold when we're about to be in it, red when they are (only on the foul just logged, never on
+  undo or a reload).
 - **🏀 Set score** (scoreboard, beside ⏱ Set time; optional): the scoreboard's score at that moment, on − / + boxes
   (they start at the tracker's score, so you change only what's different). Nothing is changed by it: it's a
   checkpoint in the log (🏀 line in the feed: *matches*, or the tracker's score in red). A difference is listed in
