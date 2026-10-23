@@ -1259,6 +1259,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .se-team .sub-lbl{margin:8px 0 5px}.se-team .sub-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.se-team .sub-p{min-height:46px;padding:8px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.se-team .sub-p .se-tag{display:block;width:max-content}
 /* Every lineups table: numbers centred under centred headers (the name / five column stays left). */
 .lut td:not(:first-child),.lut th:not(:first-child),.rn-t td:not(:first-child),.rn-t th:not(:first-child),.oo-imp-tbl thead th:not(:first-child),.oo-imp-tbl tbody td{text-align:center}
+.rp-flow{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:10px;font-size:13.5px;color:var(--text2)}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1322,7 +1323,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.254';
+const VERSION = 'v2026.10.23.255';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2405,6 +2406,26 @@ function seasonReportView() {
       <div class="small muted" style="margin-top:6px">Tap a game to open its report.</div></div>
     ${teamStatsCard(null, null, 'G', `season, ${P.length} game${P.length === 1 ? '' : 's'}`, X, ['Moorpark', 'Opponents'])}`;
 }
+/* Game flow from the logged points in order (each free throw on its own, technicals included): each team's largest
+   lead and the score when it had it, lead changes (one team ahead after the other was, a tie in between or not) and
+   ties (0-0 aside). per = '1H' for the halftime report; null = the whole game. */
+function leadFlow(g, per) {
+  const sc = { a: 0, b: 0 }, big = { a: null, b: null }; let lead = null, changes = 0, ties = 0;
+  g.ev.forEach(e => {
+    if (per && e.per !== per) return;
+    const t = e.t === 'play' ? e.team : e.t === 'tech' ? other(e.team) : null, v = e.t === 'play' ? (PTS[e.k] || 0) : e.t === 'tech' ? (e.ftm || 0) : 0;
+    if (!t || !v) return;
+    sc[t] += v; const d = sc.a - sc.b, now = d > 0 ? 'a' : d < 0 ? 'b' : null;
+    if (!now) ties++;
+    else { if (lead && lead !== now) changes++; lead = now;
+      if (!big[now] || Math.abs(d) > big[now].n) big[now] = { n: Math.abs(d), a: sc.a, b: sc.b, per: e.per }; }
+  });
+  return { big, changes, ties };
+}
+function leadLine(g, per) {
+  const L = leadFlow(g, per), one = t => { const x = L.big[t]; return `<span style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:700">${esc(teamName(g, t))}</span> ${x ? `<b>${x.n}</b> <span class="muted">(${x.a}–${x.b}${per ? '' : ', ' + esc(x.per)})</span>` : '<b>—</b>'}`; };
+  return `<div class="rp-flow"><span>Largest lead: ${one('a')} · ${one('b')}</span><span>Lead changes <b>${L.changes}</b></span><span>Ties <b>${L.ties}</b></span></div>`;
+}
 function reportView(g) {
   if (UI.repSeason) return seasonReportView();
   const D = derive(g), half = repHalf(g);
@@ -2419,6 +2440,7 @@ function reportView(g) {
       <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="box-csv">📋 Box score CSV</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button>${half ? '' : '<button class="btn btn-sm btn-good" data-act="coach-pdf">📄 Coaches\' PDF</button>'}<button class="btn btn-sm" data-act="print">Print / PDF</button></div>
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
+      ${leadLine(g, scope)}
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
     ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
     ${ftFoulCard(g, half)}
