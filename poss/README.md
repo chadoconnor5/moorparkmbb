@@ -775,6 +775,9 @@ five has 25+ offensive possessions).
 - **Report:** opens by itself: **End 1H** brings up the Halftime report (its **Start 2nd half** button puts the
   2nd-half starting fives on the Live screen: a panel, not a pop-up, that stays until each team's five is confirmed with
   its own **Confirm** button; logging is paused until both are in, and the other tabs work meanwhile), and **Final** brings up the Post-game report.
+  Under the score: each team's **largest lead** (and the score then), **lead changes** and **ties** (0-0 aside), from
+  the logged points in order: the 1st half on the Halftime report, the game on the Post-game report and under the
+  score on the coaches' PDF.
   After Final, Live stops taking plays and shows the final score with **Start next game →** (the new-game setup),
   **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
   first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
