@@ -1260,6 +1260,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 /* Every lineups table: numbers centred under centred headers (the name / five column stays left). */
 .lut td:not(:first-child),.lut th:not(:first-child),.rn-t td:not(:first-child),.rn-t th:not(:first-child),.oo-imp-tbl thead th:not(:first-child),.oo-imp-tbl tbody td{text-align:center}
 .rp-flow{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:10px;font-size:13.5px;color:var(--text2)}
+.chk-card{border-color:#d4a017}.chk-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);flex-wrap:wrap}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1323,7 +1324,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.257';
+const VERSION = 'v2026.10.23.258';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1347,7 +1348,14 @@ const DATA_TABS = new Set(['report', 'lineups', 'pbp', 'sheet', 'ff', 'runs']);
 const liveGame = () => games.find(g => g.id === curId) || null;
 const cur = () => DATA_TABS.has(UI.tab) ? repGame() : liveGame();
 // Saving also writes the game's situation log (sitlog.js); a problem there never stops the save.
-const save = () => { try { stampSits(cur()); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); try { bkTick(); } catch (e) {} };
+/* EDIT STAMPS: each game carries editedAt, when its content last changed on this iPad (its situation tags aside). A
+   season file or baseline keeps the most recently edited copy of a game (backup.js), so a fix made on one iPad (a
+   phantom play deleted, a sub fixed) reaches the others, and an older copy never overwrites it. GSIG = each game as
+   last saved here: filled when the app opens, so only real changes stamp. */
+const GSIG = {};
+const gsig = g => JSON.stringify(g, (k, v) => k === 'sitLog' || k === 'editedAt' ? undefined : v);
+function stampEdits() { const now = new Date().toISOString(); games.forEach(g => { const s = gsig(g); if (GSIG[g.id] != null && GSIG[g.id] !== s) g.editedAt = now; GSIG[g.id] = s; }); }
+const save = () => { try { stampSits(cur()); } catch (e) {} try { stampEdits(); } catch (e) {} lsSet(LS_GAMES, games); lsSet(LS_CUR, curId); try { bkTick(); } catch (e) {} };
 const D0 = g => derive(g).score;
 const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') || 'all'; } catch (e) { return 'all'; } })(), luFilter: 'hm', tab: 'live', stat: null, reb: null, rosterSel: null, pbpTeam: 'all', ins: null, redo: [], sheetPer: null, luScope: 'season', luOpen: null, ooShoot: (() => { try { return localStorage.getItem('pt2_oo_shoot') === 'true'; } catch (e) { return false; } })() };
 
@@ -2909,6 +2917,51 @@ function createGame() {
 }
 
 /* ---------- play-by-play: everything, in order ---------- */
+/* CHECK GAME: plays that don't fit who had the ball, so a possession silently went missing or a stat went to the
+   wrong side. Who has the ball after a play: a make, a last made FT, a turnover, a charge or an offensive foul = the
+   other team; a rebound or a steal = that team; a miss = loose (nothing checked). Subs, timeouts, clock, fouls and
+   technicals don't move it; a new period starts unknown. Shown live as a warning toast and listed at the top of
+   Play-by-Play (tap to fix, or OK to keep a play that really happened, e.g. a loose-ball foul in the bonus). Also a
+   game clock set later than the one before it in the same period. */
+const BALL_TO_OTHER = new Set(['2m', '3m', 'ftm', 'to', 'chg', 'offf']), BALL_KEEP = new Set(['dreb', 'oreb', 'stl']);
+function playCheck(g, i) {
+  const e = g.ev[i]; if (!e || e.chkOk || e.auto) return null;
+  let L = null; for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.per !== e.per) break; if (x.t === 'play') { L = x; break; } }
+  const has = !L ? null : BALL_TO_OTHER.has(L.k) ? other(L.team) : BALL_KEEP.has(L.k) ? L.team : null;
+  const nm = t => teamName(g, t);
+  // A foul by the team with the ball that sends the other team to the line isn't an offensive foul (those never give
+  // free throws): the and-one after a make, or a loose-ball foul in the bonus.
+  const nextPlay = () => { for (let j = i + 1; j < g.ev.length; j++) { const x = g.ev[j]; if (x.per !== e.per) return null; if (x.t === 'play') return x; } return null; };
+  if (e.t === 'foul' && has === e.team && !(n => n && isFT(n.k) && n.team !== e.team)(nextPlay())) return { offf: !!e.player, msg: `Foul on ${nm(e.team)} while ${nm(e.team)} had the ball: an offensive foul? (a plain foul doesn't end their possession)` };
+  if (e.t !== 'play' || isFT(e.k)) return null;
+  for (let j = i - 1; j >= 0 && g.ev[j] !== L; j--) if (g.ev[j].chkFlag) return null;
+  if (L && L.chkFlag) return null;   // follows from a play or foul just flagged (gameChecks): one mistake, one entry
+  if (['2m', '2x', '3m', '3x', 'to', 'chg', 'offf'].includes(e.k) && has && offOf(e) !== has) return { msg: `${nm(offOf(e))} ${STAT_LABEL[e.k] || e.k} but ${nm(has)} had the ball: a ${nm(has)} trip missed?` };
+  if (e.k === 'stl' && has === e.team) return { msg: `Steal by ${nm(e.team)}, who already had the ball: wrong team?` };
+  if (L && MISSES.has(L.k) && e.k === 'dreb' && e.team === L.team) return { msg: `Def reb to ${nm(e.team)} right after their own miss: an off reb?` };
+  if (L && MISS_K.has(L.k) && e.k === 'oreb' && e.team !== L.team) return { msg: `Off reb to ${nm(e.team)}, who didn't shoot: a def reb?` };
+  return null;
+}
+const clockOf = e => (e.t === 'clock' || e.t === 'to') && e.clock != null ? e.clock : null;
+function clockCheck(g, i) {
+  const e = g.ev[i], c = e && clockOf(e); if (c == null || e.chkOk) return null;
+  for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.per !== e.per) break; const p = clockOf(x);
+    if (p != null) return c > p ? { msg: `Clock ${fmtSecs(c)} is later than the one set before it (${fmtSecs(p)})` } : null; }
+  return null;
+}
+function gameChecks(g) {
+  const out = [], sc = { a: 0, b: 0 };
+  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
+    if (e.t === 'play') sc[e.team] += PTS[e.k] || 0; if (e.t === 'tech') sc[other(e.team)] += e.ftm || 0; });
+  g.ev.forEach(e => { delete e.chkFlag; });
+  return out;
+}
+function checksCard(g) {
+  const C = gameChecks(g); if (!C.length) return '';
+  return `<div class="card chk-card"><h3>⚠ Check ${C.length} spot${C.length > 1 ? 's' : ''} <span class="muted">· plays that don't fit who had the ball</span></h3>
+    ${C.map(c => `<div class="chk-row"><span class="small"><b>${esc(PER_NAME(c.e.per))} · ${c.score}</b> · ${esc(c.msg)}</span>
+      <span class="row" style="gap:6px">${c.offf ? `<button class="btn btn-sm btn-good" data-act="chk-offf" data-id="${c.e.id}">Make it Off Foul</button>` : ''}<button class="btn btn-sm" data-act="edit" data-id="${c.e.id}">Fix</button><button class="btn btn-sm" data-act="chk-ok" data-id="${c.e.id}">OK</button></span></div>`).join('')}</div>`;
+}
 function pbpView(g) {
   const D = derive(g), f = UI.pbpTeam;
   const keep = x => f === 'all' || (f === 'flag' ? (x.kind === 'poss' ? x.p.plays.some(e => e.flag) : x.e && x.e.flag) : (x.kind === 'poss' ? x.p.team === f : x.e && x.e.team === f));
@@ -2918,7 +2971,7 @@ function pbpView(g) {
     return `<div class="card"><h3>${esc(PER_NAME(per))} <span class="muted">· ${rows.length} entries · tap one to fix it</span></h3>
       <div class="feed pbp-feed">${rows.map(r => feedRow(g, r)).join('') || '<div class="s"><span>Nothing yet</span></div>'}</div></div>`;
   });
-  return `<div class="page-head"><h2>Play-by-play</h2><div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['a', 'Moorpark'], ['b', g.opp], ['flag', '🚩 Flagged (' + g.ev.filter(e => e.flag).length + ')']].map(([k, l]) => `<button class="btn btn-sm ${f === k ? 'btn-primary' : ''}" data-act="pbp-team" data-t="${k}">${esc(l)}</button>`).join('')}</div></div>${secs.join('')}`;
+  return `<div class="page-head"><h2>Play-by-play</h2><div class="row" style="gap:6px;margin-left:auto">${[['all', 'All'], ['a', 'Moorpark'], ['b', g.opp], ['flag', '🚩 Flagged (' + g.ev.filter(e => e.flag).length + ')']].map(([k, l]) => `<button class="btn btn-sm ${f === k ? 'btn-primary' : ''}" data-act="pbp-team" data-t="${k}">${esc(l)}</button>`).join('')}</div></div>${checksCard(g)}${secs.join('')}`;
 }
 
 /* ---------- schedule: the game tracker's Schedule tab, same store (gt_schedule) ---------- */
@@ -3720,11 +3773,16 @@ function logStat(team, player) {
   // After a miss the logos wait for the rebound: the shooting team's logo = offensive, the other = defensive.
   UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null; UI.rebFt = k === 'ftx';
   if (k !== 'foul' && !FT_K.has(k)) { delete g.ftNext; delete g.ftPrev; }   // any other play ends the trip (a foul doesn't)
-  if (k === 'foul') push(g, { t: 'foul', team, player: player === 'TEAM' ? null : player });
-  else push(g, Object.assign({ t: 'play', team, player, k }, extra));
+  const ne = k === 'foul' ? { t: 'foul', team, player: player === 'TEAM' ? null : player } : Object.assign({ t: 'play', team, player, k }, extra);
+  push(g, ne); const lastId = ne.id;
   // His last free throw ends the trip (kept as ftPrev, so Undo of that shot puts the strip back).
   if (FT_K.has(k) && g.ftNext && ftDone(g) >= ftOf(g)) { g.ftPrev = g.ftNext; delete g.ftNext; }
   save(); render();
+  // Live check: the new play; a foul waits for what follows it (its free throws make it an and-one, not an offensive foul).
+  { const e = g.ev.find(x => x.id === lastId), i = g.ev.indexOf(e); let c = null;
+    if (e && e.t === 'play') { for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.per !== e.per || x.t === 'play') break; if (x.t === 'foul') { c = playCheck(g, j); break; } }
+      if (!c) { const C = gameChecks(g); c = C.find(x => x.e === e) || null; } }
+    if (c) setTimeout(() => toast('⚠ ' + c.msg, 'warn'), 50); }
   if (UI.autoReb) { const r = UI.autoReb; UI.autoReb = null; toast(`${teamAbbr(g, r.team)} ${r.k === 'oreb' ? 'off' : 'def'} reb added (no rebound was tapped)`); }
   if (k === 'foul' || k === 'chg' || k === 'offf') {
     const n = playerFouls(g, team, player); if (player !== 'TEAM' && n >= 4) toast(`${pShort(g, team, player)}: ${n} fouls${n >= 5 ? ' — FOULED OUT' : ''}`, n >= 5 ? 'bad' : 'warn');
@@ -3984,10 +4042,10 @@ document.addEventListener('click', ev => {
     case 'set-time': STM = null; setTimeModal(); break;
     case 'st-key': STM.d = padKey(STM.d, b.dataset.k); setTimeModal(); break;
     case 'st-cancel': STM = null; closeModal(); break;
-    case 'st-ok': { const secs = padSecs(STM.d, perLen(g.per)); if (secs == null) return; push(g, { t: 'clock', clock: secs }); STM = null; save(); closeModal(); render(); toast(`Game clock set: ${fmtSecs(secs)}`, 'good'); break; }
+    case 'st-ok': { const secs = padSecs(STM.d, perLen(g.per)); if (secs == null) return; push(g, { t: 'clock', clock: secs }); STM = null; save(); closeModal(); render(); { const c = clockCheck(g, g.ev.length - 1); toast(c ? '⚠ ' + c.msg + ': check it' : `Game clock set: ${fmtSecs(secs)}`, c ? 'warn' : 'good'); } break; }
     case 'to-log': { if (!TOM || !TOM.t) return; const secs = b.dataset.skip ? null : padSecs(TOM.clock, perLen(g.per));
       const e = { t: 'to', team: TOM.t, kind: TOM.k }; if (secs != null) e.clock = secs;
-      push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); break; }
+      push(g, e); const { t, k } = TOM; TOM = null; save(); closeModal(); render(); huddleOpen(g, t, k, secs); { const c = clockCheck(g, g.ev.indexOf(e)); if (c) setTimeout(() => toast('⚠ ' + c.msg + ': check it', 'warn'), 300); } break; }
     case 'huddle': huddleOpen(g); break;
     case 'sh-open': { const rg = UI.tab === 'report' ? repGame() : g;   // the report's game, when no other game is live
       if (rg && rg !== g) { if (g && !g.final) { toast(`Finish the ${g.opp} game first (or open this one from Games)`, 'bad'); return; } curId = rg.id; save(); }
@@ -4134,6 +4192,9 @@ document.addEventListener('click', ev => {
     case 'lu-adj': importLineupAdj(); break;
     case 'lu-adj-clear': if (confirm('Remove the adjusted season lineups from this iPad?')) { try { localStorage.removeItem(LS_LU_ADJ); } catch (e) {} render(); } break;
     case 'pbp-team': UI.pbpTeam = b.dataset.t; render(); break;
+    case 'chk-ok': { const e = g.ev.find(x => x.id === b.dataset.id); if (e) { e.chkOk = true; save(); render(); } break; }
+    case 'chk-offf': { const e = g.ev.find(x => x.id === b.dataset.id); if (!e || e.t !== 'foul') break;
+      Object.assign(e, { t: 'play', k: 'offf' }); save(); render(); toast(`Changed to an offensive foul on ${pShort(g, e.team, e.player)}`, 'good'); break; }
     case 'go-roster': UI.rosterSel = g.opp; UI.tab = 'rosters'; render(); break;
     case 'r-sel': UI.rosterSel = b.dataset.n; render(); break;
     case 'r-new': { const n = (prompt('Opponent name') || '').trim(); if (!n) return; const st = oppStore(); if (!st.some(o => o.name === n)) { st.push({ id: 'opp_' + uid(), name: n, players: [], updatedAt: new Date().toISOString() }); lsSet('gt_opp_rosters', st); } UI.rosterSel = n; render(); break; }
@@ -7349,12 +7410,14 @@ async function mergeSeason(d, quiet) {
     for (const g0 of d.games) { if (!g0 || !g0.id || !Array.isArray(g0.ev)) continue; const g = upgradeGame(g0);
       const here = games.find(x => x.id === g.id);
       if (!here) { games.push(g); added++; }
-      else if (g.ev.length > here.ev.length) { await backupGame(here, 'replaced'); if (here.boxScore && !g.boxScore) g.boxScore = here.boxScore; games = games.filter(x => x.id !== g.id).concat(g); replaced++; }
+      // The most recently edited copy wins (edit stamps, app.js); a copy from before the stamps: the one with more plays.
+      else if (g.editedAt && here.editedAt ? g.editedAt > here.editedAt : g.ev.length > here.ev.length) { await backupGame(here, 'replaced'); delete GSIG[g.id]; if (here.boxScore && !g.boxScore) g.boxScore = here.boxScore; games = games.filter(x => x.id !== g.id).concat(g); replaced++; }
       else kept++; }
     let filled = 0; Object.entries(d.data || {}).forEach(([k, v]) => { if (!SEASON_KEYS.includes(k)) return; const now = lsGet(k, null);
       if (k === 'gt_opp_rosters') { if (mergeRosters(v)) filled++; return; }   // team by team, player by player
       if (now == null || (Array.isArray(now) && !now.length) || (typeof now === 'object' && !Array.isArray(now) && !Object.keys(now).length)) { lsSet(k, v); filled++; } });
     try { if (gameRosters()) filled++; if (seedBoxes()) filled++; } catch (e) {}
+    games.forEach(g => { GSIG[g.id] = gsig(g); });   // a merge isn't an edit: each game keeps the stamp it came with
     save(); render();
     return { added, replaced, kept, filled };
 }
@@ -7645,6 +7708,8 @@ try { seedRosters(); gameRosters(); } catch (e) {}
 try { seedBoxes(); } catch (e) {}
 try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
+// What's on the iPad now is the starting point for edit stamps (the seeding above isn't an edit).
+try { games.forEach(g => { GSIG[g.id] = gsig(g); }); } catch (e) {}
 render();
 /* DEMO: frozen on the seeded 2025-26 ratings and team files; no refresh, no season baseline. */
 saveLogos();
