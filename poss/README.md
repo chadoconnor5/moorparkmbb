@@ -42,7 +42,7 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   from the right (7, 4, 2 → 7:42; 5, 0 → 0:50), no iPad keyboard. Then **Log timeout → Huddle**; **Skip clock** if you don't have it. The clock shows in the Huddle header, the feed and
   Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
   time use exactly that clock (no running estimate; it holds until the next clock you enter) instead of the
-  estimate from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
+  estimate from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts: team fouls this half, timeouts, and every player's fouls on both teams (a player's + logs a foul on him, which also counts for the team; − takes off his latest foul; charges, offensive fouls and technicals are fixed in the log).
 - **⏱ Set time** (scoreboard, beside ± Fouls / TOs): enter the game clock any time on the same big keypad
   (7, 4, 2 → 7:42). It works like a timeout's clock: time left, leverage, clutch and garbage time run from
   it, the scoreboard shows **Clock 4:30**, and it goes in the feed as "Game clock · 4:30" (tap it to fix or delete).
@@ -60,7 +60,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   cards light up), or the team logo for team. The rest of the trip logs on the FT Make / FT Miss tap alone, to
   the same shooter (or team), with a note ("FT make · #3 Kubel"). A trip is free throws in a row by one team:
   a sub, timeout or Set time in between doesn't end it; a foul or any other play does, so the next trip asks
-  again. Wrong shooter? Tap the line in the feed.
+  again. Wrong shooter? Tap the line in the feed. The trip counts for the fives on the floor at the foul: subs at
+  that stoppage (logged between the foul and the free throws) take over after it (lineups, +/-, on/off).
 - **FT Shooter** (gold, two buttons wide, above FT Make / FT Miss): name the shooter before the shots. Tap it, then
   his card (either team); everything else is muted until you do (or Cancel). The button turns into **FTs: #8 ✕**
   and everything is live again: sub, timeout, log the foul. His FT Make / FT Miss taps then log straight to him
@@ -400,13 +401,15 @@ footnote says whether tonight's stat sheet is in. ✕ clears. The opponent's ben
 
 ## Fixing a sub (tap it in the feed)
 
-Tap a sub (⇄ line) in the Live feed: the team's roster with the five that was on the floor after it lit. Tap to swap
-until the right five are lit (GOING IN / COMING OFF show the change), Save. Every possession from that sub to the
+Tap a sub (⇄ line) in the Live feed: both teams' rosters with the fives that were on the floor after it lit. Tap to swap
+until the right fives are lit (GOING IN / COMING OFF show the change), Save. Every possession from that sub to the
 next one is then counted with the fixed five: lineups, +/-, possessions in a row, on/off, the five on now, all worked
 out from the plays. Later subs are whole fives, so a mistake usually rode along: **Fix the later subs too** (on by
 default) makes the same swap in each later sub of that team that still has the wrong player, stopping once he's been
 subbed out. Plays tagged to a player (fouls, free throws) stay his. The starting five can be fixed the same way (it
-can't be deleted); any other sub can also be deleted from there.
+can't be deleted); any other sub can also be deleted from there. The other team's sub at the same moment (next to it
+in the log) is fixed in the same window; if that team had none logged, changing its five adds one right after this
+sub (a sub missed at the time).
 
 ## Box scores (📋 Box score CSV on the Report)
 
