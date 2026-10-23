@@ -42,7 +42,11 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   with the ball that isn't followed by the other side's free throws (**Make it Off Foul** turns it into one: a turnover
   that ends the possession), and a game clock set later than the one before it in the same period. One mistake shows
   once (what follows from it isn't listed again). **Fix** opens the play; **OK** keeps one that really happened.
-- **Tech:** pick team, player or coach, and how many of the two free throws went in.
+- **Tech:** pick team, player or coach, how many of the two free throws went in (**None · double tech** when they
+  offset), and optionally the **shooter**: his FT line then counts them (made of 2). A player's technical is one of his
+  fouls and a team foul. Foul + technical at the same dead ball: log the foul, then the tech, then each trip with its
+  own shooter (FT Shooter or the card); once a counted trip is done the next free throw asks who's shooting, so trips
+  by different players or teams can follow each other.
   - On a player it is his foul and a team foul.
   - On a coach it is neither. A second on the same coach flags the ejection.
   - The free throws count in the score, PPP and +/-, but are not a possession.

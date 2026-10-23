@@ -1297,7 +1297,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.265';
+const VERSION = 'v2026.10.23.266';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1815,7 +1815,10 @@ function playerStint(g, D, t, id) {
     if (!(p.five[t] || []).includes(id)) break; n++; }
   return Math.round(n / 2);
 }
-const playerFT = (g, t, id, per) => { const x = { m: 0, a: 0 }; g.ev.forEach(e => { if (e.t !== 'play' || !isFT(e.k) || e.team !== t || e.player !== id || per && e.per !== per) return; x.a++; if (e.k === 'ftm') x.m++; }); return x; };
+// Technical free throws count for the shooter picked on the technical (made of 2; none on a double technical).
+const playerFT = (g, t, id, per) => { const x = { m: 0, a: 0 }; g.ev.forEach(e => { if (per && e.per !== per) return;
+  if (e.t === 'tech' && e.shooter === id && other(e.team) === t) { x.a += e.fta == null ? 2 : e.fta; x.m += e.ftm || 0; return; }
+  if (e.t !== 'play' || !isFT(e.k) || e.team !== t || e.player !== id) return; x.a++; if (e.k === 'ftm') x.m++; }); return x; };
 // Fouled out: 5 fouls or 2 technicals.
 const isOut = (g, t, id) => !!id && id !== 'TEAM' && (playerFouls(g, t, id) >= 5 || playerTechs(g, t, id) >= 2);
 // Only forced off when there are five eligible players left to put on.
@@ -2016,6 +2019,7 @@ function ftShooterBtn(g, st) {
 }
 function ftTrip(g) {
   if (g.ftNext) return g.ftNext;
+  if (g.ftPrev) return null;   // a counted trip (FT Shooter) just finished: the next free throw starts a new trip, so it asks who
   for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i];
     if (e.t === 'sub' || e.t === 'to' || e.t === 'clock' || e.t === 'score') continue;
     return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
@@ -3475,16 +3479,18 @@ function foulsModal() {
 let TECH = null;
 function techText(g, e) {
   const on = e.coach ? teamName(g, e.team) + ' coach' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
-  return `Technical on ${on} — ${teamName(g, other(e.team))} ${e.ftm}/2 FT`;
+  return `Technical on ${on} — ${e.fta === 0 ? 'no free throws (double technical)' : `${e.shooter ? pShort(g, other(e.team), e.shooter) : teamName(g, other(e.team))} ${e.ftm}/2 FT`}`;
 }
 function techModal() {
   const g = cur(), T = TECH, D = derive(g);
   const ps = D.five[T.team].length ? fiveSorted(g, T.team, D.five[T.team]).map(id => pInfo(g, T.team, id)) : teamPlayers(g, T.team);
+  const o = other(T.team), sh = D.five[o].length ? fiveSorted(g, o, D.five[o]).map(id => pInfo(g, o, id)) : teamPlayers(g, o);   // any player on the floor can shoot them
   modal(`<div class="sub-head"><h2>Technical foul</h2><div class="sub-top"><button class="btn btn-lg" data-act="tech-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="tech-ok">Log it</button></div></div>
     <div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn ${T.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="tech-team" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>
     <div class="field"><label>On</label><div class="row" style="gap:6px"><button class="btn ${!T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="0">A player — his foul + team foul</button><button class="btn ${T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="1">The coach — no foul counted</button></div></div>
     ${!T.coach ? `<div class="field"><label>Which player (optional for ${esc(g.opp)})</label><div class="sub-grid">${ps.map(p => `<button class="sub-p ${T.player === p.id ? 'in' : ''}" data-act="tech-p" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div></div>` : ''}
-    <div class="field"><label>Free throws made by ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px">${[0, 1, 2].map(n => `<button class="btn btn-lg ${T.ftm === n ? 'btn-primary' : ''}" style="flex:1;font-size:20px" data-act="tech-ft" data-n="${n}">${n}</button>`).join('')}</div></div>`);
+    <div class="field"><label>Free throws made by ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px">${[0, 1, 2].map(n => `<button class="btn btn-lg ${T.fta !== 0 && T.ftm === n ? 'btn-primary' : ''}" style="flex:1;font-size:20px" data-act="tech-ft" data-n="${n}">${n}</button>`).join('')}<button class="btn btn-lg ${T.fta === 0 ? 'btn-primary' : ''}" style="flex:1.4" data-act="tech-ft" data-n="none">None · double tech</button></div></div>
+    ${T.fta !== 0 ? `<div class="field"><label>Shooter <span class="muted">(optional: his FT line gets them)</span></label><div class="sub-grid">${sh.map(p => `<button class="sub-p ${T.shooter === p.id ? 'in' : ''}" data-act="tech-sh" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div></div>` : ''}`);
 }
 
 /* POSSESSION PILL (as the game tracker): changes ONLY when tapped — no play, sub, timeout or new
@@ -4181,10 +4187,11 @@ document.addEventListener('click', ev => {
     case 'sc-add': $('#sc-file').click(); break;
     case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
 
-    case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; techModal(); break;
+    case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; TECH.shooter = null; techModal(); break;
     case 'tech-coach': TECH.coach = b.dataset.v === '1'; if (TECH.coach) TECH.player = null; techModal(); break;
     case 'tech-p': TECH.player = TECH.player === b.dataset.p ? null : b.dataset.p; techModal(); break;
-    case 'tech-ft': TECH.ftm = +b.dataset.n; techModal(); break;
+    case 'tech-ft': if (b.dataset.n === 'none') { TECH.fta = 0; TECH.ftm = 0; TECH.shooter = null; } else { TECH.ftm = +b.dataset.n; delete TECH.fta; } techModal(); break;
+    case 'tech-sh': TECH.shooter = TECH.shooter === b.dataset.p ? null : b.dataset.p; techModal(); break;
     case 'tech-cancel': TECH = null; closeModal(); break;
     case 'tech-ok': {
       if (!TECH.coach && TECH.team === 'a' && !TECH.player) { toast('Pick the Moorpark player (or The coach)', 'bad'); return; }
