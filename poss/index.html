@@ -1267,6 +1267,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .lpm-ff{width:100%;border-collapse:collapse;margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums}.lpm-ff th{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--muted);text-align:center;padding:6px 2px 2px}.lpm-ff td{text-align:center;padding:2px}.lpm-ff td:first-child,.lpm-ff th:first-child{text-align:left;color:var(--text2);font-weight:600}
 /* The score bug's four buttons: 2 x 2, so they don't widen the middle. */
 .sb-tools{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px}.sb-tools .sb-settime{margin:0;white-space:nowrap}
+.lpm-ff td.pos{color:var(--good);font-weight:700}.lpm-ff td.neg{color:var(--bad);font-weight:700}
 
 </style>
 </head>
@@ -1300,7 +1301,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.269';
+const VERSION = 'v2026.10.23.270';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2126,8 +2127,11 @@ function lpmCard(g, D, t) {
     <div><span>Net</span><b class="${net == null ? '' : pmCls(net)}">${net == null ? '—' : sg1(net)}</b></div><div><span>+/-</span><b class="${pmCls(pm)}">${sgn(pm)}</b></div></div>
     ${!open ? '' : fiveSorted(g, t, f).map(id => { const pm2 = (L.players[id] || { pm: 0 }).pm; return `<div class="lpm-row"><span class="lpm-name">${esc(pShort(g, t, id))}</span><span class="lpm-val ${pmCls(pm2)}">${sgn(pm2)}</span></div>`; }).join('')}
     ${!open || !u.o ? '' : (() => { const O = ff4(u.o, u.d, u.oPoss), X = ff4(u.d, u.o, u.dPoss), P = v => v == null ? '—' : v.toFixed(1);
-      // Four factors while this five has been on: OFF = this team's, DEF = what it allowed (the other team's).
-      return `<table class="lpm-ff"><thead><tr><th></th><th>OFF</th><th>DEF</th></tr></thead><tbody>${[['eFG%', 'efg'], ['OREB%', 'orb'], ['TO%', 'to'], ['FTR', 'ftr']].map(([l, k]) => `<tr><td>${l}</td><td>${P(O[k])}</td><td>${P(X[k])}</td></tr>`).join('')}</tbody></table>`; })()}</div>`;
+      // Four factors while this five has been on: OFF = this team's, DEF = what it allowed (the other team's). Green / red
+      // against the league average (FIX_LG), for this team: OFF good = more (fewer turnovers); DEF good = less (more turnovers).
+      const lg = { efg: FIX_LG.efg, orb: FIX_LG.orb, to: FIX_LG.tov, ftr: FIX_LG.ftr }, up = k => k !== 'to';
+      const cls = (v, k, off) => v == null || v === lg[k] ? '' : ((v > lg[k]) === (off ? up(k) : !up(k))) ? 'pos' : 'neg';
+      return `<table class="lpm-ff"><thead><tr><th></th><th>OFF</th><th>DEF</th></tr></thead><tbody>${[['eFG%', 'efg'], ['OREB%', 'orb'], ['TO%', 'to'], ['FTR', 'ftr']].map(([l, k]) => `<tr><td>${l}</td><td class="${cls(O[k], k, true)}">${P(O[k])}</td><td class="${cls(X[k], k, false)}">${P(X[k])}</td></tr>`).join('')}</tbody></table>`; })()}</div>`;
 }
 
 function feedText(g, x) {
