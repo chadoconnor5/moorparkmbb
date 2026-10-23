@@ -1246,7 +1246,7 @@ span.ssg-nb{cursor:default}
 .ssg-sw>b{font-size:15px}
 .bxs+.bxs{margin-top:14px}.bxs-t td,.bxs-t th{text-align:center;white-space:nowrap}
 /* By-half summary (Report): numbers centered under their team, equal columns, a divider between the teams. */
-table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
+table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-lbl{width:16%}
 .sumt td{text-align:center}.sumt td:first-child{text-align:left}
 .sumt th.ta,.sumt td.ta{border-left:2px solid #6b7280}.sumt th.tb,.sumt td.tb{border-left:3px solid #111827}
 .sumt thead th.tb{border-left-color:#6b7280}
@@ -1322,7 +1322,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.253';
+const VERSION = 'v2026.10.23.254';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2238,10 +2238,10 @@ function killsCard(g, D, scope) {
     <div class="ks-nums"><div><b>${best(t)}</b><span>Most stops in a row</span></div><div><b>${D.stopRuns.filter(r => r.team === t && r.len >= 3).length}</b><span>Runs of 3+ stops</span></div><div><b>${bigRun(t)}-0</b><span>Biggest run</span></div><div><b>${S.kills[t]}</b><span>Kills</span></div><div><b>${S.skunks[t]}</b><span>Skunks</span></div><div><b>${S.dead[t]}</b><span>Dead skunks</span></div>
     ${RUN_MARKS.map(m => `<div><b>${K[t][m]}</b><span>${m}-0</span></div>`).join('')}</div></div>`;
   return `<div class="ks-grid">${tile('a')}${tile('b')}</div>
-    ${sruns.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt"><thead><tr><th>STOPS IN A ROW</th><th>BY</th><th>HALF</th><th>POSS #</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
+    ${sruns.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt runt"><thead><tr><th>STOPS IN A ROW</th><th>BY</th><th>HALF</th><th>POSS #</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
       ${sruns.map(r => `<tr><td><b>${r.len}</b>${r.len >= 9 ? ' <span class="skunk dead">DEAD SKUNK</span>' : r.len >= 6 ? ' <span class="skunk">SKUNK</span>' : ''}</td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.per)}</td><td>${r.fromSeq}–${r.toSeq}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
         <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.five).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No runs of 3+ stops yet.</div>'}
-    ${runs.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt"><thead><tr><th>RUN</th><th>BY</th><th>FROM</th><th>TO</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
+    ${runs.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt runt"><thead><tr><th>RUN</th><th>BY</th><th>FROM</th><th>TO</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
       ${runs.map(r => `<tr><td><b>${r.pts}-0</b></td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.startPer)}</td><td>${esc(r.endPer)}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
         <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.five).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No 10-0 runs yet.</div>'}`;
 }
