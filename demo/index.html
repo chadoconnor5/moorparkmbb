@@ -1327,7 +1327,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.263';
+const VERSION = 'v2026.10.23.264';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1959,22 +1959,23 @@ function killFx(g) {
   d.addEventListener('animationend', () => d.remove());
   document.body.appendChild(d);
 }
-/* BONUS flash: a heads-up over the score bug when a foul just logged leaves a team one foul from giving the other side
-   the bonus (its 6th team foul) or the double bonus (its 9th): BONUS / DOUBLE BONUS with NEXT FOUL under it, gold when
-   it's us about to be in the bonus, red when it's them. Same rules as the kill flash: only on a play just logged,
+/* BONUS flash over the score bug when a foul just logged is a team's 6th or 9th (BONUS / DOUBLE BONUS with NEXT FOUL
+   under it: one foul away) or its 7th or 10th (BONUS / DOUBLE BONUS: the other side is in it now). Gold when it's us
+   in (or about to be in) the bonus, red when it's them. Same rules as the kill flash: only on a play just logged,
    never on undo, a reload or another tab's render. */
 function bonusFx(g) {
   const tf = { a: teamFouls(g, 'a', g.per), b: teamFouls(g, 'b', g.per) }, n = (g.ev || []).length, prev = UI.bfPrev;
   UI.bfPrev = { id: g.id, per: g.per, n, tf };
   if (!prev || prev.id !== g.id || prev.per !== g.per || n <= prev.n) return;
-  const f = ['a', 'b'].find(t => tf[t] > prev.tf[t] && (tf[t] === 6 || tf[t] === 9)); if (!f) return;   // f fouled: the other team is one foul away
+  const f = ['a', 'b'].find(t => tf[t] > prev.tf[t] && [6, 7, 9, 10].includes(tf[t])); if (!f) return;   // f fouled: the other team is in (or one foul from) the bonus
+  const next = tf[f] === 6 || tf[f] === 9;
   const bar = document.querySelector('.scorebar'); if (!bar) return;
-  const r = bar.getBoundingClientRect(), word = tf[f] === 9 ? 'DOUBLE BONUS' : 'BONUS';
+  const r = bar.getBoundingClientRect(), word = tf[f] >= 9 ? 'DOUBLE BONUS' : 'BONUS';
   document.querySelectorAll('.kill-fx').forEach(x => x.remove());
   const d = document.createElement('div');
   d.className = 'kill-fx ' + (f === 'b' ? 'us' : 'them');
   Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', flexDirection: 'column' });
-  d.innerHTML = `<span style="font-size:${word.length <= 5 ? 96 : 68}px">${word}</span><span style="font-size:24px;margin-top:10px;letter-spacing:.3em">NEXT FOUL</span>`;
+  d.innerHTML = `<span style="font-size:${word.length <= 5 ? 96 : 68}px">${word}</span>${next ? '<span style="font-size:24px;margin-top:10px;letter-spacing:.3em">NEXT FOUL</span>' : ''}`;
   d.addEventListener('animationend', () => d.remove());
   document.body.appendChild(d);
 }
