@@ -1327,7 +1327,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.261';
+const VERSION = 'v2026.10.23.262';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1923,7 +1923,7 @@ function render() {
   const between = g && ['pbp', 'sheet', 'ff'].includes(UI.tab) ? dataPicker(g) : '';
   if (UI.tab === 'games') { v.innerHTML = gamesView(); paintSaved(); paintBackups(); }
   else if (UI.tab === 'saved') { v.className = 'page mid'; v.innerHTML = '<div id="snap"><div class="card muted">Loading…</div></div>'; paintSnap(); }
-  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else killFx(g); }
+  else if (UI.tab === 'live') { v.innerHTML = g ? liveView(g) : setupView(); if (!g) paintSetupScout(); else { killFx(g); bonusFx(g); } }
   else if (UI.tab === 'sheet') v.innerHTML = between + sheetView(g);
   else if (UI.tab === 'lineups') { v.innerHTML = between + lineupsView(g); if ($('#lu-min')) luMinApply(luMin()); }
   else if (UI.tab === 'ff') { v.innerHTML = between + '<div id="ff"></div>'; renderFF(); }
@@ -1956,6 +1956,25 @@ function killFx(g) {
   d.className = 'kill-fx ' + (t === 'a' ? 'us' : 'them');
   Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   d.innerHTML = `<span style="font-size:${word.length <= 5 ? 104 : word.length <= 10 ? 84 : 66}px">${word}</span>`;
+  d.addEventListener('animationend', () => d.remove());
+  document.body.appendChild(d);
+}
+/* BONUS flash: the same flash over the score bug when a foul just logged puts a team in the bonus (the other side's 7th
+   team foul) or the double bonus (10th): gold when it's us, red when it's them. Same rules as the kill flash: only on a
+   play just logged, never on undo, a reload or another tab's render. */
+function bonusFx(g) {
+  const tf = { a: teamFouls(g, 'a', g.per), b: teamFouls(g, 'b', g.per) }, n = (g.ev || []).length, prev = UI.bfPrev;
+  UI.bfPrev = { id: g.id, per: g.per, n, tf };
+  if (!prev || prev.id !== g.id || prev.per !== g.per || n <= prev.n) return;
+  const lvl = t => tf[t] >= 10 ? 2 : tf[t] >= 7 ? 1 : 0, was = t => prev.tf[t] >= 10 ? 2 : prev.tf[t] >= 7 ? 1 : 0;
+  const f = ['a', 'b'].find(t => lvl(t) > was(t)); if (!f) return;   // f fouled: the other team is in the bonus
+  const bar = document.querySelector('.scorebar'); if (!bar) return;
+  const r = bar.getBoundingClientRect(), word = lvl(f) === 2 ? 'DOUBLE BONUS' : 'BONUS';
+  document.querySelectorAll('.kill-fx').forEach(x => x.remove());
+  const d = document.createElement('div');
+  d.className = 'kill-fx ' + (f === 'b' ? 'us' : 'them');
+  Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  d.innerHTML = `<span style="font-size:${word.length <= 5 ? 104 : 72}px">${word}</span>`;
   d.addEventListener('animationend', () => d.remove());
   document.body.appendChild(d);
 }
