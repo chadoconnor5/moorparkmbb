@@ -1327,7 +1327,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.266';
+const VERSION = 'v2026.10.23.267';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1561,6 +1561,10 @@ function derive(g) {
       const sh = other(e.team); score[sh] += e.ftm || 0;
       items.push({ kind: 'tech', e, score: { ...score }, five: snap() }); continue;
     }
+    // A technical free throw shot as a play (tech: the technical's id): technical points, in no possession. Passed on
+    // as a technical item for that one shot, so everything that adds technical points (score by half, +/-, runs) has it.
+    if (e.t === 'play' && e.tech && isFT(e.k)) { const v = e.k === 'ftm' ? 1 : 0; score[e.team] += v;
+      items.push({ kind: 'tech', e: { t: 'tech', techFt: true, team: other(e.team), per: e.per, ftm: v, src: e, id: e.id }, score: { ...score }, five: snap() }); continue; }
     if (e.t === 'foul') { foulAt = { team: e.team, per: e.per, five: snap() }; items.push({ kind: 'foul', e, five: foulAt.five, p: open && open.per === e.per ? open : null }); continue; }
     if (e.t !== 'play') { items.push({ kind: e.t, e }); continue; }
     const fa = foulAt; foulAt = null;
@@ -2044,7 +2048,7 @@ const ftOf = g => { const n = g.ftNext; if (!n) return 0; if (n.n !== '1+1') ret
 const atLine = (g, t, id) => !!(g.ftNext && g.ftNext.team === t && g.ftNext.player === id);
 function ftShooterBtn(g, st) {
   const n = g.ftNext, who = n && (n.player === 'TEAM' ? teamName(g, n.team) : pShort(g, n.team, n.player)), of = n ? ftOf(g) : 0, d = n ? ftDone(g) : 0, oo = n && n.n === '1+1';
-  return n ? `<div class="ftsh set two ${n.team}"><div class="ftsh-who">FTs: <b>${esc(who)}</b></div><div class="ftsh-row"><b class="ftsh-of">${oo ? (d ? '2nd of 1-and-1' : '1-and-1') : `${Math.min(d + 1, of)} of ${of}`}</b><span class="ftsh-n">${['1+1', 1, 2, 3].map(k => `<button class="${k === (n.n || 2) ? 'on' : ''} ${k === '1+1' ? 'oo' : ''}" data-act="ftsh-n" data-n="${k}" ${st || (k !== '1+1' && k <= d) || (k === '1+1' && d > 1) ? 'disabled' : ''}>${k}</button>`).join('')}</span><button class="ftsh-x" data-act="ftsh-x" aria-label="Clear the shooter" ${st ? 'disabled' : ''}>✕</button></div></div>`
+  return n ? `<div class="ftsh set two ${n.team}"><div class="ftsh-who">${n.tech ? '<span class="bonus-tag dbl">TECH</span> ' : ''}FTs: <b>${esc(who)}</b></div><div class="ftsh-row"><b class="ftsh-of">${oo ? (d ? '2nd of 1-and-1' : '1-and-1') : `${Math.min(d + 1, of)} of ${of}`}</b><span class="ftsh-n">${['1+1', 1, 2, 3].map(k => `<button class="${k === (n.n || 2) ? 'on' : ''} ${k === '1+1' ? 'oo' : ''}" data-act="ftsh-n" data-n="${k}" ${st || (k !== '1+1' && k <= d) || (k === '1+1' && d > 1) ? 'disabled' : ''}>${k}</button>`).join('')}</span><button class="ftsh-x" data-act="ftsh-x" aria-label="Clear the shooter" ${st ? 'disabled' : ''}>✕</button></div></div>`
     : `<button class="sbtn ftsh ${st === 'ftsh' ? 'on' : ''} ${st && st !== 'ftsh' ? 'dim' : ''}" data-act="stat" data-k="ftsh" ${st && st !== 'ftsh' ? 'disabled' : ''}>FT Shooter</button>`;
 }
 function ftTrip(g) {
@@ -2963,12 +2967,12 @@ function createGame() {
 const BALL_TO_OTHER = new Set(['2m', '3m', 'ftm', 'to', 'chg', 'offf']), BALL_KEEP = new Set(['dreb', 'oreb', 'stl']);
 function playCheck(g, i) {
   const e = g.ev[i]; if (!e || e.chkOk || e.auto) return null;
-  let L = null; for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.per !== e.per) break; if (x.t === 'play') { L = x; break; } }
+  let L = null; for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.per !== e.per) break; if (x.t === 'play' && !x.tech) { L = x; break; } }
   const has = !L ? null : BALL_TO_OTHER.has(L.k) ? other(L.team) : BALL_KEEP.has(L.k) ? L.team : null;
   const nm = t => teamName(g, t);
   // A foul by the team with the ball that sends the other team to the line isn't an offensive foul (those never give
   // free throws): the and-one after a make, or a loose-ball foul in the bonus.
-  const nextPlay = () => { for (let j = i + 1; j < g.ev.length; j++) { const x = g.ev[j]; if (x.per !== e.per) return null; if (x.t === 'play') return x; } return null; };
+  const nextPlay = () => { for (let j = i + 1; j < g.ev.length; j++) { const x = g.ev[j]; if (x.per !== e.per) return null; if (x.t === 'play' && !x.tech) return x; } return null; };
   if (e.t === 'foul' && has === e.team && !(n => n && isFT(n.k) && n.team !== e.team)(nextPlay())) return { offf: !!e.player, msg: `Foul on ${nm(e.team)} while ${nm(e.team)} had the ball: an offensive foul? (a plain foul doesn't end their possession)` };
   if (e.t !== 'play' || isFT(e.k)) return null;
   for (let j = i - 1; j >= 0 && g.ev[j] !== L; j--) if (g.ev[j].chkFlag) return null;
@@ -3001,7 +3005,9 @@ function scoreCheck(g, i) {
 }
 function gameChecks(g) {
   const out = [], sc = { a: 0, b: 0 };
-  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i) || scoreCheck(g, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
+  const techLeft = (e, i) => { if (e.t !== 'tech' || !e.ftLater || e.chkOk) return null; const left = (e.fta == null ? 2 : e.fta) - techFtsOf(g, e).length;
+    return left > 0 && g.ev.slice(i + 1).some(x => x.t === 'play' && !isFT(x.k)) ? { msg: `${left} technical free throw${left > 1 ? 's' : ''} not logged (${techText(g, e).replace(/ — .*/, '')}): FT Shooter, the shooter, then Technical` } : null; };
+  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i) || scoreCheck(g, i) || techLeft(e, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
     if (e.t === 'play') sc[e.team] += PTS[e.k] || 0; if (e.t === 'tech') sc[other(e.team)] += e.ftm || 0; });
   g.ev.forEach(e => { delete e.chkFlag; });
   return out;
@@ -3507,20 +3513,32 @@ function foulsModal() {
 }
 
 let TECH = null;
+// Technical free throws still owed on a technical (shot as plays, tech: its id).
+const techFtsOf = (g, e) => g.ev.filter(x => x.t === 'play' && x.tech === e.id);
+const techOwed = (g, t) => g.ev.filter(e => e.t === 'tech' && e.ftLater && other(e.team) === t).map(e => ({ e, left: (e.fta == null ? 2 : e.fta) - techFtsOf(g, e).length })).filter(x => x.left > 0);
+let FTQ = null;   // which free throws: { team, p, k (ftsh or the shot tapped) }
+function ftqModal() {
+  const g = cur(), o = techOwed(g, FTQ.team)[0];
+  modal(`<h2>Which free throws?</h2><div class="small muted" style="margin-bottom:10px">${esc(pShort(g, FTQ.team, FTQ.p))} · ${esc(teamName(g, FTQ.team))} has technical free throws to shoot (${o.left} left on ${esc(techText(g, o.e).replace(/ — .*/, '').replace('Technical on ', 'the technical on '))}).</div>
+    <div class="row" style="gap:8px"><button class="btn btn-lg btn-primary" style="flex:1" data-act="ftq" data-v="tech">Technical (${o.left})</button><button class="btn btn-lg" style="flex:1" data-act="ftq" data-v="foul">Foul shots</button></div>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="ftq-cancel">Cancel</button></div>`);
+}
 function techText(g, e) {
+  if (e.techFt) { const x = e.src; return `Technical FT · ${x.player && x.player !== 'TEAM' ? pShort(g, x.team, x.player) : teamName(g, x.team)} ${x.k === 'ftm' ? 'make' : 'miss'}`; }
+  if (e.ftLater) { const S = techFtsOf(g, e), on2 = e.coach ? teamName(g, e.team) + ' coach' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
+    return `Technical on ${on2} — ${e.fta === 0 ? 'no free throws (double technical)' : S.length ? `${teamName(g, other(e.team))} ${S.filter(x => x.k === 'ftm').length}/${S.length} FT${S.length < 2 ? ` (${2 - S.length} to shoot)` : ''}` : `${teamName(g, other(e.team))} 2 FTs to shoot`}`; }
   const on = e.coach ? teamName(g, e.team) + ' coach' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
   return `Technical on ${on} — ${e.fta === 0 ? 'no free throws (double technical)' : `${e.shooter ? pShort(g, other(e.team), e.shooter) : teamName(g, other(e.team))} ${e.ftm}/2 FT`}`;
 }
 function techModal() {
   const g = cur(), T = TECH, D = derive(g);
   const ps = D.five[T.team].length ? fiveSorted(g, T.team, D.five[T.team]).map(id => pInfo(g, T.team, id)) : teamPlayers(g, T.team);
-  const o = other(T.team), sh = D.five[o].length ? fiveSorted(g, o, D.five[o]).map(id => pInfo(g, o, id)) : teamPlayers(g, o);   // any player on the floor can shoot them
   modal(`<div class="sub-head"><h2>Technical foul</h2><div class="sub-top"><button class="btn btn-lg" data-act="tech-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="tech-ok">Log it</button></div></div>
     <div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn ${T.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="tech-team" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>
     <div class="field"><label>On</label><div class="row" style="gap:6px"><button class="btn ${!T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="0">A player — his foul + team foul</button><button class="btn ${T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="1">The coach — no foul counted</button></div></div>
     ${!T.coach ? `<div class="field"><label>Which player (optional for ${esc(g.opp)})</label><div class="sub-grid">${ps.map(p => `<button class="sub-p ${T.player === p.id ? 'in' : ''}" data-act="tech-p" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div></div>` : ''}
-    <div class="field"><label>Free throws made by ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px">${[0, 1, 2].map(n => `<button class="btn btn-lg ${T.fta !== 0 && T.ftm === n ? 'btn-primary' : ''}" style="flex:1;font-size:20px" data-act="tech-ft" data-n="${n}">${n}</button>`).join('')}<button class="btn btn-lg ${T.fta === 0 ? 'btn-primary' : ''}" style="flex:1.4" data-act="tech-ft" data-n="none">None · double tech</button></div></div>
-    ${T.fta !== 0 ? `<div class="field"><label>Shooter <span class="muted">(optional: his FT line gets them)</span></label><div class="sub-grid">${sh.map(p => `<button class="sub-p ${T.shooter === p.id ? 'in' : ''}" data-act="tech-sh" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div></div>` : ''}`);
+    <div class="field"><label>Free throws for ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px"><button class="btn btn-lg ${T.fta !== 0 ? 'btn-primary' : ''}" style="flex:2" data-act="tech-ft" data-n="2">2 · shoot them when they happen</button><button class="btn btn-lg ${T.fta === 0 ? 'btn-primary' : ''}" style="flex:1" data-act="tech-ft" data-n="none">None · double tech</button></div>
+      ${T.fta !== 0 ? '<div class="small muted" style="margin-top:6px">Log the shots like any free throws, in the order they\'re shot (before or after the foul shots): FT Shooter, pick the shooter, then <b>Technical</b>.</div>' : ''}</div>`);
 }
 
 /* POSSESSION PILL (as the game tracker): changes ONLY when tapped — no play, sub, timeout or new
@@ -3810,8 +3828,8 @@ const isLocked = (g, e) => !!e && (e.lock || (e.t === 'sub' && !g.ev.some(x => x
    It's a real event (auto: true): in Play-by-Play as "(auto)", undone with the play that implied it. */
 const MISS_K = new Set(['2x', '3x', 'ftx']);
 function impliedReb(evs, i, e) {
-  if (!e || e.t !== 'play' || e.k === 'oreb' || e.k === 'dreb') return null;
-  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'score', 'foul', 'tech'].includes(x.t)) continue; L = x; break; }
+  if (!e || e.t !== 'play' || e.k === 'oreb' || e.k === 'dreb' || e.tech) return null;
+  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'score', 'foul', 'tech'].includes(x.t) || x.tech) continue; L = x; break; }
   if (!L || L.t !== 'play' || !MISS_K.has(L.k) || L.noReb || L.per !== e.per) return null;
   if (L.k === 'ftx' && isFT(e.k) && offOf(e) === L.team) return null;   // the next free throw of the trip
   const h = offOf(e);
@@ -3847,6 +3865,7 @@ function logStat(team, player) {
   UI.reb = (k === '2x' || k === '3x' || k === 'ftx') ? team : null; UI.rebFt = k === 'ftx';
   if (k !== 'foul' && !FT_K.has(k)) { delete g.ftNext; delete g.ftPrev; }   // any other play ends the trip (a foul doesn't)
   const ne = k === 'foul' ? { t: 'foul', team, player: player === 'TEAM' ? null : player } : Object.assign({ t: 'play', team, player, k }, extra);
+  if (FT_K.has(k) && g.ftNext && g.ftNext.tech && g.ftNext.team === team) { ne.tech = g.ftNext.tech; UI.reb = null; UI.rebFt = false; }
   push(g, ne); const lastId = ne.id;
   // His last free throw ends the trip (kept as ftPrev, so Undo of that shot puts the strip back).
   if (FT_K.has(k) && g.ftNext && ftDone(g) >= ftOf(g)) { g.ftPrev = g.ftNext; delete g.ftNext; }
@@ -4039,12 +4058,23 @@ document.addEventListener('click', ev => {
         toast(`${k === 'ftm' ? 'FT make' : 'FT miss'} · ${tr.player === 'TEAM' ? teamName(g, tr.team) : pShort(g, tr.team, tr.player)}`, 'good'); break; } }
       UI.reb = null; UI.stat = UI.stat === k ? null : k; render(); break; }
     case 'ftsh-x': delete g.ftNext; save(); render(); break;
+    case 'ftq-cancel': FTQ = null; closeModal(); break;
+    case 'ftq': { const q = FTQ; FTQ = null; closeModal(); if (!q) break;
+      const o = techOwed(g, q.team)[0], after = g.ev.length ? g.ev[g.ev.length - 1].id : null;
+      if (b.dataset.v === 'tech' && o) { g.ftNext = { team: q.team, player: q.p, n: o.left, tech: o.e.id, after }; delete g.ftPrev; }
+      else g.ftNext = { team: q.team, player: q.p, n: (n => n >= 7 && n < 10 ? '1+1' : 2)(foulsAtLastPersonal(g, other(q.team))), after };
+      delete g.ftPrev; save();
+      if (FT_K.has(q.k)) { UI.stat = q.k; logStat(q.team, q.p); } else { render(); toast(`FT shooter: ${pShort(g, q.team, q.p)}${g.ftNext.tech ? ' · technical' : ''}`, 'good'); }
+      break; }
     case 'ftsh-n': { if (!g.ftNext) return; g.ftNext.n = b.dataset.n === '1+1' ? '1+1' : +b.dataset.n; if (ftDone(g) >= ftOf(g)) delete g.ftNext; save(); render(); break; }
     case 'stat-cancel': UI.stat = null; UI.ast = false; UI.blk = false; render(); break;
     // No rebound: the first of two free throws, out of bounds, end of the half. The logos stop waiting.
     case 'no-reb': { UI.reb = null; UI.rebFt = false; const m = [...g.ev].reverse().find(e => e.t === 'play'); if (m && MISS_K.has(m.k)) { m.noReb = true; save(); } render(); break; }
     case 'ins-cancel': UI.ins = null; UI.stat = null; render(); break;
     case 'player':
+      // A technical's free throws owed to this team: ask which trip this is (technical or foul shots).
+      if ((UI.stat === 'ftsh' || (FT_K.has(UI.stat) && !ftTrip(g))) && !UI.ins && techOwed(g, b.dataset.team).length) {
+        FTQ = { team: b.dataset.team, p: b.dataset.p, k: UI.stat }; UI.stat = null; ftqModal(); return; }
       if (UI.stat === 'ftsh') { UI.stat = null; g.ftNext = { team: b.dataset.team, player: b.dataset.p, n: (n => n >= 7 && n < 10 ? '1+1' : 2)(foulsAtLastPersonal(g, other(b.dataset.team))), after: g.ev.length ? g.ev[g.ev.length - 1].id : null }; delete g.ftPrev; save(); render();
         toast(`FT shooter: ${pShort(g, b.dataset.team, b.dataset.p)} — FT Make / FT Miss go to him`, 'good'); break; }
       if (!UI.stat) { toast('Tap Foul, Charge or Off Foul first, then the player'); return; }
@@ -4217,15 +4247,14 @@ document.addEventListener('click', ev => {
     case 'sc-add': $('#sc-file').click(); break;
     case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
 
-    case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; TECH.shooter = null; techModal(); break;
+    case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; techModal(); break;
     case 'tech-coach': TECH.coach = b.dataset.v === '1'; if (TECH.coach) TECH.player = null; techModal(); break;
     case 'tech-p': TECH.player = TECH.player === b.dataset.p ? null : b.dataset.p; techModal(); break;
-    case 'tech-ft': if (b.dataset.n === 'none') { TECH.fta = 0; TECH.ftm = 0; TECH.shooter = null; } else { TECH.ftm = +b.dataset.n; delete TECH.fta; } techModal(); break;
-    case 'tech-sh': TECH.shooter = TECH.shooter === b.dataset.p ? null : b.dataset.p; techModal(); break;
+    case 'tech-ft': if (b.dataset.n === 'none') TECH.fta = 0; else delete TECH.fta; techModal(); break;
     case 'tech-cancel': TECH = null; closeModal(); break;
     case 'tech-ok': {
       if (!TECH.coach && TECH.team === 'a' && !TECH.player) { toast('Pick the Moorpark player (or The coach)', 'bad'); return; }
-      const D = derive(g), e = Object.assign({ t: 'tech' }, TECH); if (e.coach) e.player = null;
+      const D = derive(g), e = Object.assign({ t: 'tech' }, TECH, { ftm: 0, ftLater: true }); if (e.coach) e.player = null;
       push(g, e); TECH = null; save(); closeModal(); render();
       const out = e.player && (playerTechs(g, e.team, e.player) >= 2 || playerFouls(g, e.team, e.player) >= 5);
       const cOut = e.coach && g.ev.filter(x => x.t === 'tech' && x.coach && x.team === e.team).length >= 2;
@@ -4473,7 +4502,7 @@ function ffTracked(g, sc) {
   const pers = ffPers(g, sc), z = () => Object.assign(Object.fromEntries(FF_STATS.map(([k]) => [k, 0])), { stov: 0 }), T = { a: z(), b: z() };
   g.ev.forEach(e => {
     if (!pers.includes(e.per)) return;
-    if (e.t === 'tech') { const s = T[other(e.team)]; s.fta += 2; s.ftm += e.ftm || 0; return; }
+    if (e.t === 'tech') { if (e.ftLater) return; const s = T[other(e.team)]; s.fta += 2; s.ftm += e.ftm || 0; return; }   // later technicals: their shots are plays (counted below)
     if (e.t !== 'play') return;
     const s = T[e.team];
     switch (e.k) {

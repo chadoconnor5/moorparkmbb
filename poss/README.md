@@ -42,14 +42,14 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   with the ball that isn't followed by the other side's free throws (**Make it Off Foul** turns it into one: a turnover
   that ends the possession), and a game clock set later than the one before it in the same period. One mistake shows
   once (what follows from it isn't listed again). **Fix** opens the play; **OK** keeps one that really happened.
-- **Tech:** pick team, player or coach, how many of the two free throws went in (**None · double tech** when they
-  offset), and optionally the **shooter**: his FT line then counts them (made of 2). A player's technical is one of his
-  fouls and a team foul. Foul + technical at the same dead ball: log the foul, then the tech, then each trip with its
-  own shooter (FT Shooter or the card); once a counted trip is done the next free throw asks who's shooting, so trips
-  by different players or teams can follow each other.
-  - On a player it is his foul and a team foul.
-  - On a coach it is neither. A second on the same coach flags the ejection.
-  - The free throws count in the score, PPP and +/-, but are not a possession.
+- **Tech:** pick team, player or coach, and **2 · shoot them when they happen** (or **None · double tech** when they
+  offset). A player's technical is one of his fouls and a team foul. The two free throws are logged like any others,
+  in the order they're actually shot, before or after the foul shots: **FT Shooter**, tap the shooter, and while that
+  team has technical free throws to shoot it asks **Technical** or **Foul shots** (tapping FT Make / Miss then a card
+  asks the same). A technical trip shows **TECH** on the strip; its shots count in the score, the shooter's FT line and
+  +/-, but in no possession and with no rebound. Foul shots after a technical still go to the five on the floor at the
+  foul and get 1-and-1 / 2 from the foul count at that foul. Technical free throws never logged are listed in Check
+  game. (Games logged before this keep their technicals as they were.)
 - **Timeout:** pick the team, full or 30, and tap the **game clock** (time left in the half) on the big keypad: digits fill
   from the right (7, 4, 2 → 7:42; 5, 0 → 0:50), no iPad keyboard. Then **Log timeout → Huddle**; **Skip clock** if you don't have it. The clock shows in the Huddle header, the feed and
   Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
