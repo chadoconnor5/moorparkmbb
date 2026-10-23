@@ -42,7 +42,7 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   from the right (7, 4, 2 → 7:42; 5, 0 → 0:50), no iPad keyboard. Then **Log timeout → Huddle**; **Skip clock** if you don't have it. The clock shows in the Huddle header, the feed and
   Play-by-Play (tap the timeout line to fix it on the same keypad). Each clock is a checkpoint: from then on leverage, clutch and garbage
   time use exactly that clock (no running estimate; it holds until the next clock you enter) instead of the
-  estimate from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts.
+  estimate from possessions, and late and close leads the Huddle ("Clutch: up 2 with 0:50 left"). 4 full + 2 thirty-second a team, +1 thirty per OT (full = rectangles, 30s = dots). **± Fouls / TOs** fixes the counts: team fouls this half, timeouts, and every player's fouls on both teams (a player's + logs a foul on him, which also counts for the team; − takes off his latest foul; charges, offensive fouls and technicals are fixed in the log).
 - **⏱ Set time** (scoreboard, beside ± Fouls / TOs): enter the game clock any time on the same big keypad
   (7, 4, 2 → 7:42). It works like a timeout's clock: time left, leverage, clutch and garbage time run from
   it, the scoreboard shows **Clock 4:30**, and it goes in the feed as "Game clock · 4:30" (tap it to fix or delete).

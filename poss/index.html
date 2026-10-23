@@ -108,6 +108,7 @@ table{border-collapse:collapse}
 .adj-row{display:grid;grid-template-columns:1fr 52px 48px 52px;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--border)}
 .adj-row b{text-align:center;font-size:20px;font-variant-numeric:tabular-nums}
 .adj-row .btn{font-size:20px;padding:6px 0}
+.adj-pf{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}.adj-pf .adj-row{padding:4px 2px}.adj-pf .adj-row .btn{padding:3px 0}
 .app-ver{font-size:10.5px;color:var(--muted);margin-left:6px;white-space:nowrap}
 
 .page{padding:14px 16px 40px;max-width:1320px;margin:0 auto}
@@ -1282,7 +1283,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.247';
+const VERSION = 'v2026.10.23.248';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3488,13 +3489,21 @@ function timeoutModal() {
     <div class="modal-foot"><button class="btn btn-lg" data-act="to-cancel">Cancel</button><button class="btn btn-lg" data-act="to-log" data-skip="1" ${TOM.t ? '' : 'disabled'}>Skip clock</button><button class="btn btn-good btn-lg" data-act="to-log" ${TOM.t && secs != null ? '' : 'disabled'}>Log timeout → Huddle</button></div>`, 'to-modal');
 }
 
+/* ± FOULS / TOs: team fouls (this half), timeouts, and every player's fouls on both teams. A player's + logs a foul on him
+   (it counts toward the team's fouls, as a real one would); − takes his latest foul off the log. Charges, offensive fouls
+   and technicals are plays: fix those in the log, so − stops at them. Team − takes an unassigned foul first. */
 function adjustModal() {
   const g = cur();
-  const row = (t) => `<div class="field"><label>${esc(teamName(g, t))}</label>
-    <div class="row" style="gap:8px;align-items:center"><span style="width:110px">Team fouls <b>${teamFouls(g, t, g.per)}</b></span><button class="btn" data-act="adj-foul" data-t="${t}" data-d="-1">−</button><button class="btn" data-act="adj-foul" data-t="${t}" data-d="1">+</button></div>
-    <div class="row" style="gap:8px;align-items:center;margin-top:6px"><span style="width:110px">Full TOs used <b>${tosUsed(g, t, 'full')}</b></span><button class="btn" data-act="adj-to" data-t="${t}" data-k="full" data-d="-1">−</button><button class="btn" data-act="adj-to" data-t="${t}" data-k="full" data-d="1">+</button></div>
-    <div class="row" style="gap:8px;align-items:center;margin-top:6px"><span style="width:110px">30s used <b>${tosUsed(g, t, 's30')}</b></span><button class="btn" data-act="adj-to" data-t="${t}" data-k="s30" data-d="-1">−</button><button class="btn" data-act="adj-to" data-t="${t}" data-k="s30" data-d="1">+</button></div></div>`;
-  modal(`<h2>Fix fouls / timeouts</h2>${row('a')}${row('b')}<div class="modal-foot"><button class="btn btn-lg" data-act="close">Done</button></div>`);
+  const plain = (t, id) => g.ev.some(e => e.t === 'foul' && e.team === t && e.player === id);
+  const ctl = (lbl, n, act, extra, minus = true) => `<div class="adj-row"><span>${lbl}</span><button class="btn" data-act="${act}" ${extra} data-d="-1" ${minus ? '' : 'disabled'}>−</button><b>${n}</b><button class="btn" data-act="${act}" ${extra} data-d="1">+</button></div>`;
+  const team = t => `<div class="adj-team"><div class="lbl">${esc(teamName(g, t))}</div>
+    ${ctl(`Team fouls · ${esc(PER_NAME(g.per).toLowerCase())}`, teamFouls(g, t, g.per), 'adj-foul', `data-t="${t}"`)}
+    ${ctl('Full TOs used', tosUsed(g, t, 'full'), 'adj-to', `data-t="${t}" data-k="full"`)}
+    ${ctl('30s used', tosUsed(g, t, 's30'), 'adj-to', `data-t="${t}" data-k="s30"`)}
+    <div class="small muted" style="margin:10px 0 2px">Player fouls</div>
+    <div class="adj-pf">${teamPlayers(g, t).map(p => { const n = playerFouls(g, t, p.id);
+      return ctl(`${p.num ? `<span class="pnum">#${esc(p.num)}</span> ` : ''}${esc(p.name ? lastName(p.name) : '')}${isOut(g, t, p.id) ? ' <b class="neg">OUT</b>' : ''}`, n, 'adj-pf', `data-t="${t}" data-p="${esc(p.id)}"`, plain(t, p.id)); }).join('')}</div></div>`;
+  modal(`<h2>Fix fouls / timeouts</h2>${team('a')}${team('b')}<div class="modal-foot"><button class="btn btn-lg" data-act="close">Done</button></div>`);
 }
 
 let EDC = null;   // the clock being fixed on a timeout: { id, d }
@@ -3924,7 +3933,13 @@ document.addEventListener('click', ev => {
     case 'adj-foul': {
       const t = b.dataset.t;
       if (b.dataset.d === '1') push(g, { t: 'foul', team: t, player: null });
-      else { const bk = foulBucket(g.per); for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i]; if (e.t === 'foul' && e.team === t && foulBucket(e.per) === bk) { g.ev.splice(i, 1); break; } } }
+      else { const bk = foulBucket(g.per), ok = e => e.t === 'foul' && e.team === t && foulBucket(e.per) === bk;
+        let i = g.ev.findLastIndex(e => ok(e) && (!e.player || e.player === 'TEAM')); if (i < 0) i = g.ev.findLastIndex(ok); if (i >= 0) g.ev.splice(i, 1); }
+      save(); adjustModal(); render(); break; }
+    case 'adj-pf': {
+      const t = b.dataset.t, id = b.dataset.p;
+      if (b.dataset.d === '1') push(g, { t: 'foul', team: t, player: id });
+      else { const i = g.ev.findLastIndex(e => e.t === 'foul' && e.team === t && e.player === id); if (i >= 0) g.ev.splice(i, 1); }
       save(); adjustModal(); render(); break; }
     case 'adj-to': {
       const t = b.dataset.t, k = b.dataset.k;
