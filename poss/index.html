@@ -1294,7 +1294,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.258';
+const VERSION = 'v2026.10.23.259';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1947,7 +1947,7 @@ function scorebar(g, D) {
       ${(() => { const r = liveRun(g, D); return r ? `<div class="sb-cap" style="color:${r.team === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:800">${esc(teamAbbr(g, r.team))} ${r.f}-${r.a} run</div>` : ''; })()}
       ${(() => { const N = gradeNow(g, D); if (!N) return '<div style="margin-top:4px"><span class="lev lev-low">FINAL</span></div>';
         return `<div class="row" style="gap:4px;justify-content:center;margin-top:4px">${N.gt ? '<span class="lev lev-gt">🗑 GARBAGE TIME</span>' : `<span class="lev lev-${N.tier}">${LEV_LABEL[N.tier]}</span>${N.clutch ? '<span class="lev lev-clutch">CLUTCH</span>' : ''}`}</div>`; })()}
-      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
+      <div class="row" style="gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-sm sb-settime" data-act="set-time">⏱ Set time</button><button class="btn btn-sm sb-settime" data-act="set-score">🏀 Set score</button><button class="btn btn-sm sb-settime" data-act="adjust">± Fouls / TOs</button><button class="btn btn-sm sb-settime" data-act="huddle">📋 Huddle</button></div></div>
     <div class="sb-team b"><div class="sb-score">${G.pts.b}</div>
       <div class="sb-id"><div class="sb-name">${logo(g.opp, 34)}<span class="sb-nm" style="color:var(--them-text)" title="${esc(g.opp)}">${esc(g.opp)}</span></div>
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
@@ -1986,7 +1986,7 @@ function ftShooterBtn(g, st) {
 function ftTrip(g) {
   if (g.ftNext) return g.ftNext;
   for (let i = g.ev.length - 1; i >= 0; i--) { const e = g.ev[i];
-    if (e.t === 'sub' || e.t === 'to' || e.t === 'clock') continue;
+    if (e.t === 'sub' || e.t === 'to' || e.t === 'clock' || e.t === 'score') continue;
     return e.t === 'play' && FT_K.has(e.k) ? { team: e.team, player: e.player || 'TEAM' } : null; }
   return null;
 }
@@ -2101,6 +2101,8 @@ function feedText0(g, x) {
   if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb${e.auto ? ' (auto)' : ''}`, id: e.id };
   if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
   if (x.kind === 'clock') return { cls: 's', html: `Game clock · ${fmtSecs(e.clock)}`, id: e.id };
+  if (x.kind === 'score') { const t = scoreAt(g, g.ev.indexOf(e)), ok = t.a === e.a && t.b === e.b;
+    return { cls: 's', html: `🏀 Scoreboard ${e.a}–${e.b} · ${ok ? '<b class="pos">matches</b>' : `<b class="neg">tracker ${t.a}–${t.b}</b>`}`, id: e.id }; }
   if (x.kind === 'to') return { cls: 's', html: `${esc(teamName(g, e.team))} ${e.kind === 'full' ? 'full' : '30-second'} timeout${e.clock != null ? ' · ' + fmtSecs(e.clock) : ''}`, id: e.id };
   return { cls: 's', html: '', id: e.id };
 }
@@ -2919,16 +2921,29 @@ function clockCheck(g, i) {
     if (p != null) return c > p ? { msg: `Clock ${fmtSecs(c)} is later than the one set before it (${fmtSecs(p)})` } : null; }
   return null;
 }
+/* SET SCORE (optional, like Set time): the scoreboard's score at that moment, logged as a checkpoint {t:'score', a, b}.
+   Nothing is changed by it; the tracker's own score at that point is compared, and a difference is listed in Check
+   game with how far it's off and since which checkpoint it last matched (only the plays in between need a look). */
+function scoreAt(g, i) { const sc = { a: 0, b: 0 }; for (let j = 0; j < i; j++) { const e = g.ev[j]; if (e.t === 'play') sc[e.team] += PTS[e.k] || 0; if (e.t === 'tech') sc[other(e.team)] += e.ftm || 0; } return sc; }
+function scoreCheck(g, i) {
+  const e = g.ev[i]; if (!e || e.t !== 'score' || e.chkOk) return null;
+  const t = scoreAt(g, i); if (t.a === e.a && t.b === e.b) return null;
+  let from = null; for (let j = i - 1; j >= 0; j--) { const x = g.ev[j]; if (x.t !== 'score') continue; const u = scoreAt(g, j); if (u.a === x.a && u.b === x.b) { from = { j, x }; break; } }
+  const j0 = from ? from.j : 0, off = ['a', 'b'].filter(k => t[k] !== e[k]);
+  const diff = off.map(k => { const d = t[k] - e[k], n = g.ev.slice(j0, i).filter(x => x.t === 'play' && x.team === k && PTS[x.k]).length;
+    return `${teamName(g, k)} ${d > 0 ? '+' : ''}${d} in the tracker (${n} ${teamName(g, k)} scoring play${n === 1 ? '' : 's'} to check)`; }).join('; ');
+  return { msg: `Scoreboard ${e.a}–${e.b}, tracker ${t.a}–${t.b}: ${diff}, since ${from ? `the ${from.x.a}–${from.x.b} check (${PER_NAME(from.x.per)})` : 'the tip'}` };
+}
 function gameChecks(g) {
   const out = [], sc = { a: 0, b: 0 };
-  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
+  g.ev.forEach((e, i) => { const c = playCheck(g, i) || clockCheck(g, i) || scoreCheck(g, i); if (c) { out.push(Object.assign({ e, score: `${sc.a}–${sc.b}` }, c)); if (e.t === 'play' || e.t === 'foul') Object.defineProperty(e, 'chkFlag', { value: true, configurable: true, enumerable: false }); }
     if (e.t === 'play') sc[e.team] += PTS[e.k] || 0; if (e.t === 'tech') sc[other(e.team)] += e.ftm || 0; });
   g.ev.forEach(e => { delete e.chkFlag; });
   return out;
 }
 function checksCard(g) {
   const C = gameChecks(g); if (!C.length) return '';
-  return `<div class="card chk-card"><h3>⚠ Check ${C.length} spot${C.length > 1 ? 's' : ''} <span class="muted">· plays that don't fit who had the ball</span></h3>
+  return `<div class="card chk-card"><h3>⚠ Check ${C.length} spot${C.length > 1 ? 's' : ''} <span class="muted">· plays that don't fit who had the ball, scoreboard and clock differences</span></h3>
     ${C.map(c => `<div class="chk-row"><span class="small"><b>${esc(PER_NAME(c.e.per))} · ${c.score}</b> · ${esc(c.msg)}</span>
       <span class="row" style="gap:6px">${c.offf ? `<button class="btn btn-sm btn-good" data-act="chk-offf" data-id="${c.e.id}">Make it Off Foul</button>` : ''}<button class="btn btn-sm" data-act="edit" data-id="${c.e.id}">Fix</button><button class="btn btn-sm" data-act="chk-ok" data-id="${c.e.id}">OK</button></span></div>`).join('')}</div>`;
 }
@@ -3606,6 +3621,17 @@ function setTimeModal() {
     ${clockPad(STM.d, len, 'st-key')}
     <div class="modal-foot"><button class="btn btn-lg" data-act="st-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="st-ok" ${secs != null ? '' : 'disabled'}>Set ${secs != null ? fmtSecs(secs) : ''}</button></div>`, 'to-modal');
 }
+let SCM = null;   // the Set score modal: { id (editing a checkpoint), a, b }
+function scoreModal(id) {
+  const g = cur(), e = id && g.ev.find(x => x.id === id), t = scoreAt(g, e ? g.ev.indexOf(e) : g.ev.length);
+  if (!SCM || SCM.id !== (id || null)) SCM = { id: id || null, a: e ? e.a : t.a, b: e ? e.b : t.b };
+  const box = k => `<div class="field" style="flex:1"><label>${esc(teamName(g, k))}</label><div class="row" style="gap:6px;align-items:center">
+    <button class="btn btn-lg" data-act="sc-n" data-t="${k}" data-d="-1">−</button><input id="sc-${k}" type="text" inputmode="numeric" value="${SCM[k]}" style="width:80px;font-size:26px;text-align:center;font-weight:800">
+    <button class="btn btn-lg" data-act="sc-n" data-t="${k}" data-d="1">+</button></div></div>`;
+  modal(`<h2>🏀 Set score</h2><div class="small muted" style="margin-bottom:8px">The scoreboard's score now (optional). It isn't changed; the tracker (${t.a}–${t.b}) is checked against it and any difference goes to Play-by-Play → Check game.</div>
+    <div class="row" style="gap:16px">${box('a')}${box('b')}</div>
+    <div class="modal-foot" style="justify-content:space-between">${e ? `<button class="btn btn-bad" data-act="ed-del" data-id="${e.id}">Delete</button>` : '<span></span>'}<span class="row" style="gap:8px"><button class="btn btn-lg" data-act="sc-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="sc-ok">Save</button></span></div>`);
+}
 function editModal(id) {
   const g = cur(), e = g.ev.find(x => x.id === id); if (!e) return;
   const isPlay = e.t === 'play' || e.t === 'foul';
@@ -3708,7 +3734,7 @@ const isLocked = (g, e) => !!e && (e.lock || (e.t === 'sub' && !g.ev.some(x => x
 const MISS_K = new Set(['2x', '3x', 'ftx']);
 function impliedReb(evs, i, e) {
   if (!e || e.t !== 'play' || e.k === 'oreb' || e.k === 'dreb') return null;
-  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'foul', 'tech'].includes(x.t)) continue; L = x; break; }
+  let L = null; for (let j = i - 1; j >= 0; j--) { const x = evs[j]; if (['sub', 'to', 'clock', 'score', 'foul', 'tech'].includes(x.t)) continue; L = x; break; }
   if (!L || L.t !== 'play' || !MISS_K.has(L.k) || L.noReb || L.per !== e.per) return null;
   if (L.k === 'ftx' && isFT(e.k) && offOf(e) === L.team) return null;   // the next free throw of the trip
   const h = offOf(e);
@@ -4010,6 +4036,12 @@ document.addEventListener('click', ev => {
     case 'to-key': TOM.clock = padKey(TOM.clock, b.dataset.k); timeoutModal(); break;
     case 'to-cancel': TOM = null; closeModal(); break;
     case 'set-time': STM = null; setTimeModal(); break;
+    case 'set-score': SCM = null; scoreModal(); break;
+    case 'sc-n': { const k = b.dataset.t; SCM.a = +($('#sc-a').value) || 0; SCM.b = +($('#sc-b').value) || 0; SCM[k] = Math.max(0, SCM[k] + +b.dataset.d); scoreModal(SCM.id); break; }
+    case 'sc-cancel': SCM = null; closeModal(); break;
+    case 'sc-ok': { const a = parseInt($('#sc-a').value, 10), bb = parseInt($('#sc-b').value, 10); if (!(a >= 0) || !(bb >= 0)) { toast('Enter both scores', 'bad'); return; }
+      let e = SCM.id && g.ev.find(x => x.id === SCM.id); if (e) { e.a = a; e.b = bb; delete e.chkOk; } else { e = { t: 'score', a, b: bb }; push(g, e); }
+      SCM = null; save(); closeModal(); render(); const c = scoreCheck(g, g.ev.indexOf(e)); toast(c ? '⚠ ' + c.msg : `Scoreboard ${a}–${bb}: matches the tracker`, c ? 'warn' : 'good'); break; }
     case 'st-key': STM.d = padKey(STM.d, b.dataset.k); setTimeModal(); break;
     case 'st-cancel': STM = null; closeModal(); break;
     case 'st-ok': { const secs = padSecs(STM.d, perLen(g.per)); if (secs == null) return; push(g, { t: 'clock', clock: secs }); STM = null; save(); closeModal(); render(); { const c = clockCheck(g, g.ev.length - 1); toast(c ? '⚠ ' + c.msg + ': check it' : `Game clock set: ${fmtSecs(secs)}`, c ? 'warn' : 'good'); } break; }
@@ -4118,7 +4150,7 @@ document.addEventListener('click', ev => {
       const cOut = e.coach && g.ev.filter(x => x.t === 'tech' && x.coach && x.team === e.team).length >= 2;
       toast(techText(g, e) + (out ? ' — OUT OF THE GAME' : '') + (cOut ? ' — 2nd on the coach: EJECTED' : ''), out || cOut ? 'bad' : ''); break; }
 
-    case 'edit': { const e = g && g.ev.find(x => x.id === b.dataset.id); if (e && e.t === 'sub') { SUBED = null; subEditModal(e.id); } else editModal(b.dataset.id); break; }
+    case 'edit': { const e = g && g.ev.find(x => x.id === b.dataset.id); if (e && e.t === 'sub') { SUBED = null; subEditModal(e.id); } else if (e && e.t === 'score') { SCM = null; scoreModal(e.id); } else editModal(b.dataset.id); break; }
     case 'se-p': { if (!SUBED) break; const id = b.dataset.p, S = SUBED.five[b.dataset.t]; if (S.has(id)) S.delete(id); else S.add(id); subEditModal(SUBED.id); break; }
     case 'se-cancel': SUBED = null; closeModal(); break;
     case 'se-save': { if (!SUBED) break; const e = g.ev.find(x => x.id === SUBED.id); if (!e) break;

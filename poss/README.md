@@ -57,6 +57,12 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   Each period starts showing its full clock: **Clock 20:00** at tip-off and the start of the 2nd half, **5:00** each
   overtime, until a clock is entered. That start-of-period clock is display only: leverage keeps its possession
   estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
+- **🏀 Set score** (scoreboard, beside ⏱ Set time; optional): the scoreboard's score at that moment, on − / + boxes
+  (they start at the tracker's score, so you change only what's different). Nothing is changed by it: it's a
+  checkpoint in the log (🏀 line in the feed: *matches*, or the tracker's score in red). A difference is listed in
+  Play-by-Play → **⚠ Check game**: which team is off and by how much, how many of that team's scoring plays to check,
+  and since which checkpoint it last matched (only the plays in between need a look). Tap the 🏀 line to edit or delete
+  it; **OK** in Check game when the scoreboard was the one that was wrong.
 - **Picking a player:** once a stat is tapped, a tap anywhere on a player card picks him — his labels and the +N chip
   too (they only open their pop-up when no stat is waiting).
 - **Auto rebounds.** Tap rebounds as always; one you forget is filled in from the next play, so a possession is never
