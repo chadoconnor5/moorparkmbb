@@ -1263,6 +1263,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .chk-card{border-color:#d4a017}.chk-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);flex-wrap:wrap}
 .bonus-tag.near{background:transparent;color:#facc15;border:1px solid #facc15}
 .sub-p .sub-tr{display:block;margin-top:2px;color:var(--muted);font-weight:600}.sub-p .sub-tr b{font-weight:800}
+.sub-p.tr-y{background:rgba(250,204,21,.16);border-color:#facc15}.sub-p.tr-r{background:rgba(239,68,68,.18);border-color:#ef4444}
 
 </style>
 </head>
@@ -1296,7 +1297,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.260';
+const VERSION = 'v2026.10.23.261';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3377,15 +3378,18 @@ let SUB = null;
 /* Foul trouble on the Sub screen: each player's fouls (yellow / red at the live cards' marks: 2 / 3+ in the 1st half,
    3 / 4+ after), and for the five on the floor how many possessions in a row he's played. */
 function subTrouble(g, D, t, id, on) {
-  const pf = playerFouls(g, t, id), h1 = g.per === '1H', c = pf >= 5 ? '' : h1 ? (pf >= 3 ? 'tf-dbl' : pf === 2 ? 'tf-bonus' : '') : (pf >= 4 ? 'tf-dbl' : pf === 3 ? 'tf-bonus' : '');
+  const pf = playerFouls(g, t, id), c = { r: 'tf-dbl', y: 'tf-warn' }[troubleLvl(g, t, id)] || '';
   const st = on && D ? playerStint(g, D, t, id) : 0;
   return pf && pf < 5 || st ? `<span class="tiny sub-tr">${pf && pf < 5 ? `<b class="${c}">${pf} PF</b>` : ''}${pf && pf < 5 && st ? ' · ' : ''}${st ? `${st} poss` : ''}</span>` : '';
 }
+// Trouble level for a whole card: 'r' at the red mark, 'y' at the yellow one (fouled-out players have their own look).
+const troubleLvl = (g, t, id) => { const pf = playerFouls(g, t, id), h1 = g.per === '1H'; return pf >= 5 ? '' : pf >= (h1 ? 3 : 4) ? 'r' : pf === (h1 ? 2 : 3) ? 'y' : ''; };
 function subSide(g, t) { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB.pend && SUB.pend[t]) || new Set(), D = derive(g), was = new Set(D.five[t]);
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
           const al = on && atLine(g, t, p.id);
-        return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''} ${al ? 'atline' : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${al ? '<span class="tiny atline-tag">AT THE LINE</span>' : ''}${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : subTrouble(g, D, t, p.id, was.has(p.id))}</button>`; };
+        const tl = !on && !o ? troubleLvl(g, t, p.id) : '';
+        return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''} ${al ? 'atline' : ''} ${tl ? 'tr-' + tl : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${al ? '<span class="tiny atline-tag">AT THE LINE</span>' : ''}${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : subTrouble(g, D, t, p.id, was.has(p.id))}</button>`; };
         /* Pending players have their own group: GOING IN now, or HOLD (e.g. the man he'd replace is shooting
            free throws and stays in) — a held player stays pending for the next dead ball. */
         const pbtn = p => { const go = SUB[t].has(p.id);

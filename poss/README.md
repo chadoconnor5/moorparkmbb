@@ -59,7 +59,8 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
   estimate until you enter one (a 20:00 checkpoint would freeze "time left" for the whole half).
 - **Foul trouble on the Sub screen:** each player shows his fouls (yellow at 2 / red at 3+ in the 1st half; yellow
   at 3 / red at 4+ after, as on the live cards), and the five on the floor show how many possessions in a row they've
-  played (same count as the cards).
+  played (same count as the cards). Bench players in trouble get the whole card yellow or red, so they stand out
+  before you send them in.
 - **Bonus heads-up:** the scoreboard tag shows **1 TO BONUS** at 6 team fouls and **1 TO DBL** at 9, next to BONUS /
   DBL BONUS; a foul that brings a team to 6, 7, 9 or 10 also pops a toast (amber when it's us, green when it's them).
 - **🏀 Set score** (scoreboard, beside ⏱ Set time; optional): the scoreboard's score at that moment, on − / + boxes
