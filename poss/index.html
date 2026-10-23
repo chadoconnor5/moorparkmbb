@@ -1287,7 +1287,7 @@ table.sumt{table-layout:fixed}.sumt col.sumt-lbl{width:16%}
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.23.250';
+const VERSION = 'v2026.10.23.251';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1823,8 +1823,9 @@ const perIn = (per, want) => want === 'OT*' ? String(per).startsWith('OT') : per
 function lineupUnits(g, D, t, scope, filter, k, sit) {
   k = k || 5;
   const pers = scope === 'game' ? null : scope, units = {}, players = {};
-  // all · nogt (no garbage time) · clutch · hm (High+Med) · high · med · low — garbage time is out of all but 'all'.
-  const keep0 = p => !filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)));
+  // all · nogt (no garbage time) · gt (garbage time only) · clutch · hm (High+Med) · high · med · low — garbage time is
+  // out of all but 'all' and 'gt'.
+  const keep0 = p => !filter || filter === 'all' || (filter === 'gt' ? !!p.gt : !p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)));
   // A situation (sitlog.js) on top: only possessions the game's situation log tagged with it.
   let SL = null; if (sit) { try { stampSits(g); } catch (e) {} SL = (g.sitLog && g.sitLog.poss) || {}; }
   const keep = p => keep0(p) && (!SL || !!(SL[p.id] && SL[p.id].t.includes(sit)));
@@ -2491,7 +2492,7 @@ function luTeamLine(g, D) {
     const ff = k => { let s = 0, n = 0; AV.units.forEach(u => { const x = (u.adjFF || {})[k], m = (u.adjFFw || {})[k]; if (x != null && m) { s += x * m; n += m; } }); return n ? s / n : null; };
     const ao = w('adjOrtg', 'adjPossO'), ad = w('adjDrtg', 'adjPossD');
     if (ao != null || ad != null) { o = ao; d = ad; adj = true; Object.assign(O, { efg: ff('efg'), to: ff('tov'), orb: ff('orb'), ftr: ff('ftr') }); Object.assign(X, { efg: ff('oefg'), to: ff('otov'), orb: ff('oorb'), ftr: ff('oftr') }); } }
-  const view = [UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game', luPer(g) ? (luPer(g) === 'OT*' ? 'OT' : luPer(g)) : '', { all: '', hm: 'High + Med', high: 'High', med: 'Medium', low: 'Low', clutch: 'Clutch', nogt: 'No garbage time' }[UI.luFilter || 'hm'], UI.luSit ? SITLOG[UI.luSit].lbl : ''].filter(Boolean).join(' · ');
+  const view = [UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game', luPer(g) ? (luPer(g) === 'OT*' ? 'OT' : luPer(g)) : '', { all: '', hm: 'High + Med', high: 'High', med: 'Medium', low: 'Low', clutch: 'Clutch', nogt: 'No garbage time', gt: 'Garbage time only' }[UI.luFilter || 'hm'], UI.luSit ? SITLOG[UI.luSit].lbl : ''].filter(Boolean).join(' · ');
   return `<div class="lu-team"><div class="lu-team-h"><b>Moorpark</b> <span class="muted small">· ${esc(view)} · ${adj ? 'opp-adjusted' : 'raw'}</span></div>
     <div class="lu-team-r"><span><b>${z.oPoss}</b>/<b>${z.dPoss}</b> poss O/D</span><span>${z.pf}–${z.pa}</span><span>ORtg <b>${P(o)}</b></span><span>DRtg <b>${P(d)}</b></span><span>Net <b class="${o != null && d != null ? pmCls(o - d) : ''}">${o != null && d != null ? sg1(Math.round(10 * (o - d)) / 10) : '—'}</b></span>
       <span class="go">eFG ${Pc(O.efg)} · TO ${Pc(O.to)} · OREB ${Pc(O.orb)} · FTR ${Pc(O.ftr)}</span><span class="gd">opp eFG ${Pc(X.efg)} · TO ${Pc(X.to)} · DREB ${Pc(X.orb == null ? null : 100 - X.orb)} · FTR ${Pc(X.ftr)} · stops ${z.dPoss ? Math.round(100 * z.stops / z.dPoss) + '%' : '—'}</span></div></div>`;
@@ -2745,7 +2746,7 @@ function lineupsView(g) {
   // View: one dropdown (lineups by size, WOWY, On/Off, Projected & synergy, Rotation map).
   const vNow = UI.luOO ? 'oo' : UI.luProj ? 'proj' : UI.luRot ? 'rot' : UI.luWowy ? 'wowy' : 'k' + (UI.luK || 5);
   const views = `<select data-act="lu-view">${[['k5', '5-man lineups'], ['k4', '4-man groups'], ['k3', '3-man groups'], ['k2', '2-man pairs'], ['oo', 'Player on / off'], ['proj', 'Projected fives & synergy'], ['wowy', 'WOWY'], ['rot', 'Rotation map']].map(([k, l]) => `<option value="${k}" ${vNow === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-  const possSel = `<select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const possSel = `<select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time'], ['gt', 'Garbage time only']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select>`;
   return `<div class="page-head"><h2>Lineups</h2></div>
     <div class="lu-ctl">
@@ -6348,7 +6349,7 @@ function sitTagsHtml(g, p) {
 const WOWY_SLOTS = 5;
 function wowyKeep(filter, g) {
   let SL = null; if (UI.luSit && g) { try { stampSits(g); } catch (e) {} SL = (g.sitLog && g.sitLog.poss) || {}; }
-  return p => (!filter || filter === 'all' || (!p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)))) && (!SL || !!(SL[p.id] && SL[p.id].t.includes(UI.luSit))); }
+  return p => (!filter || filter === 'all' || (filter === 'gt' ? !!p.gt : !p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)))) && (!SL || !!(SL[p.id] && SL[p.id].t.includes(UI.luSit))); }
 // Always the whole season: every game tracked here (scrimmages out), whatever the Lineups scope is set to.
 function wowyGames(g) {
   // The season split picked on Lineups (Full season unless you've picked one); This game still means the season.

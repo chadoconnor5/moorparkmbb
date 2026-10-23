@@ -157,7 +157,7 @@ Live, the 2nd half is assumed to run as long as the 1st (a half is ~69 possessio
 one), so the band under **Poss** is an estimate. Once the game is **Final** (End 2H → Final, or
 start OT) every possession is graded exactly. The Sheet shows the band per row (H / M / L, C =
 clutch, GT = garbage) and where garbage time starts. Tap a row to start garbage time there, turn it
-off, or put it back to automatic. Lineups can be filtered to Clutch or No garbage time.
+off, or put it back to automatic. Lineups can be filtered to Clutch, No garbage time or Garbage time only (who made the most of their minutes).
 
 ## Leaderboard export
 Sheet → **⬇ Leaderboard: defense** and **⬇ Leaderboard: offense** download the same CSVs
@@ -318,7 +318,7 @@ combos (a combo is on the floor for every possession of every five that contains
 - tap a row to see how its possessions ended at each end.
 
 Tap any column header to sort by it (tap again to reverse; DRtg, TO% and the opponent's eFG% / FT
-rate start lowest-first). Filter All / Clutch / No garbage time. **Season** adds up Moorpark's lineups and combos from every game tracked on the iPad.
+rate start lowest-first). Filter All / Clutch / No garbage time / Garbage time only. **Season** adds up Moorpark's lineups and combos from every game tracked on the iPad.
 
 **Season lineups, opponent-adjusted** (Lineups → Season):
 1. **⬇ Lineup file** saves every finished game's Moorpark fives, game by game with the opponent and
