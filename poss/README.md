@@ -595,9 +595,6 @@ is always out (Possessions shows the No garbage time lock); the Half buttons fil
   possessions there and in his first 5 where his net is 25+ below his first 5; "none" once a later bucket has 15+ and
   he holds up; — until then. Tap a player for those buckets and every stint he's had.
 
-The halftime and post-game Report (and the coaches' PDF) add one **Subs** line under the lead line: tonight's best
-sub by +/- over his check-ins, the worst (when negative), and anyone left on past his season fade point.
-
 ## Lineup shooting and scoring (tap a five on Lineups)
 
 Under how its possessions ended, every five shows both ends (ours = OFF, theirs = DEF):

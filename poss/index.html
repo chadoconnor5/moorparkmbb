@@ -1332,7 +1332,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.286';
+const VERSION = 'v2026.10.24.287';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2522,7 +2522,7 @@ function reportView(g) {
       <span class="small muted">${noGt ? (() => { const a = derive(g0), cut = a.poss.find(p => p.gt), F = perSums(a, null), n = Math.floor((F.poss.a + F.poss.b) / 2) - Math.floor((S.poss.a + S.poss.b) / 2); return `Stats through ${cut.before.a}–${cut.before.b} (${esc(PER_NAME(cut.per))}), when garbage time began: ${n} possession${n === 1 ? '' : 's'} left out (final ${a.score.a}–${a.score.b}). The box score stays the full game; the stat sheet can't be split, so it's hidden here; the Coaches' PDF is the full game.`; })() : 'Garbage time began at ' + (() => { const c = derive(g0).poss.find(p => p.gt); return `${c.before.a}–${c.before.b} (${esc(PER_NAME(c.per))})`; })() + '. Tap to see the report without it.'}</span></div>` : ''}
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : noGt ? 'garbage time out' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
-      ${leadLine(g, scope)}${subRepLine(g, scope)}
+      ${leadLine(g, scope)}
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
     ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
     ${ftFoulCard(g, half)}
@@ -7057,23 +7057,6 @@ function subsView(g) {
     <tbody>${rows.map(row).join('')}</tbody></table></div>
     <div class="small muted" style="margin-top:4px">Tap a player for his net by how deep into a stint, and every stint. Swing (n) = check-ins with a full window, when fewer than all. Fades — = not enough possessions yet.</div>${foot}`;
 }
-/* The Report's one line: tonight's best and worst sub by +/- over his check-ins (bench only; worst only when
-   negative), and anyone left on past his season fade point. Halftime = 1st half only. Empty when there's nothing to say. */
-function subRepLine(g, per, html = true) {
-  const S = subStints([g]).filter(s => !per || s.per === per), ins = S.filter(s => s.kind === 'in');
-  const nm = id => pShort(g, 'a', id), parts = [];
-  // Per player: his check-ins tonight added up (+/- and how many).
-  const P = {}; ins.forEach(s => { const x = P[s.id] = P[s.id] || { id: s.id, pm: 0, n: 0 }; x.pm += s.pm; x.n++; });
-  const by = Object.values(P).sort((x, y) => y.pm - x.pm || x.n - y.n), t = x => `${nm(x.id)} ${sgn(x.pm)} (${x.n} in)`;
-  if (by.length) { const b = by[0], w = by[by.length - 1]; parts.push(['Best sub-in', t(b), b.pm]); if (w !== b && w.pm < 0) parts.push(['Worst', t(w), w.pm]); }
-  const pool = splitGames('full'), fades = {};
-  const past = S.filter(s => { if (!(s.id in fades)) fades[s.id] = subFade(subStints(pool).filter(x => x.id === s.id)).at; return fades[s.id] && s.len > fades[s.id]; })
-    .sort((x, y) => y.len - x.len).filter((s, i, A) => A.findIndex(z => z.id === s.id) === i);
-  if (past.length) parts.push(['Past fade', past.map(s => `${nm(s.id)} ${s.len} poss (fades ~${fades[s.id]})`).join(', '), null]);
-  if (!parts.length) return '';
-  if (!html) return parts.map(([l, v]) => `${l}: ${v}`).join(' · ');
-  return `<div class="rp-flow"><span><b>Subs</b></span>${parts.map(([l, v, n]) => `<span>${l}: <b class="${n == null ? '' : subCls(n)}">${esc(v)}</b></span>`).join('')}</div>`;
-}
 
 /* ---------- Player On/Off, pair synergy and projected fives (Lineups → View) ----------
    ON/OFF mirrors the practice tracker's Player On-Court Impact cards exactly: one card per player, four
@@ -8078,7 +8061,6 @@ function coachReportHtml(g, bar) {
     <div class="cr-keys">${key('PPP', 'ppp', true, ppS)}${key('eFG%', 'efg', true, pctS)}${key('3P%', 'p3', true, pctS)}${key('TO%', 'to', false, pctS)}${key('OREB%', 'orb', true, pctS)}${key('FT rate', 'ftr', true, pctS)}</div>
     <h2>What decided it</h2><ul class="cr-why">${whyL}</ul>
     <h2>Runs</h2>${runRows ? `<table><thead><tr><th class="l">By</th><th>Run</th><th>Half</th><th>Score</th><th class="l">Moorpark five at the start</th></tr></thead><tbody>${runRows}</tbody></table>` : '<div class="mut">No runs (6-0, or +8 holding the other side to 40%).</div>'}
-    ${(() => { const t = subRepLine(g, null, false); return t ? `<div style="margin-top:8px"><b>Subs</b> · ${esc(t)}</div>` : ''; })()}
     <h2>Lineups</h2>
     <div class="cr-2"><div>${luTbl('Most used', most)}</div><div>${luTbl(`Best (${min}+ poss)`, best)}<div style="height:8px"></div>${luTbl(`Worst (${min}+ poss)`, worst)}</div></div>
     </div><div class="pg"><h2>Team stats <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:500">· ${SH ? 'box score (stat sheet); possessions, PPP, points off TOs and 2nd-chance points from the tracker' : 'from the tracked plays'}</span></h2>${ts}
