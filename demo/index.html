@@ -1333,7 +1333,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.273';
+const VERSION = 'v2026.10.24.274';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2293,19 +2293,21 @@ function killsCard(g, D, scope) {
   const S = perSums(D, scope || null), allRuns = scoringRuns(g).filter(r => inS(r.startPer) || inS(r.endPer)), runs = allRuns.filter(r => r.pts >= 10);
   const K = { a: { 10: 0, 15: 0, 20: 0 }, b: { 10: 0, 15: 0, 20: 0 } }; allRuns.forEach(r => RUN_MARKS.forEach(m => { if (r.pts >= m) K[r.team][m]++; }));
   D = Object.assign({}, D, { stopRuns: D.stopRuns.filter(r => inS(r.per)) });
-  const bigRun = t => allRuns.filter(r => r.team === t).reduce((m, r) => Math.max(m, r.pts), 0);
+  // Runs: the Runs tab's (teamRuns: 6-0 unanswered, or +8 holding the other side to 40%), this half or the game.
+  const RL = runsGame(g).runs.filter(r => inS(r.per)).sort((x, y) => g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || (x.from.a + x.from.b) - (y.from.a + y.from.b));
+  const bigOf = t => RL.filter(r => r.team === t).sort((x, y) => (y.pts - y.against) - (x.pts - x.against))[0];
   const best = t => D.stopRuns.filter(r => r.team === t).reduce((m, r) => Math.max(m, r.len), 0);
   const sruns = D.stopRuns.filter(r => r.len >= 3).sort((x, y) => y.len - x.len || g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || x.fromSeq - y.fromSeq);
   const tile = t => `<div class="ks ${t}"><div class="ks-lbl" style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</div>
-    <div class="ks-nums"><div><b>${best(t)}</b><span>Most stops in a row</span></div><div><b>${D.stopRuns.filter(r => r.team === t && r.len >= 3).length}</b><span>Runs of 3+ stops</span></div><div><b>${bigRun(t)}-0</b><span>Biggest run</span></div><div><b>${S.kills[t]}</b><span>Kills</span></div><div><b>${S.skunks[t]}</b><span>Skunks</span></div><div><b>${S.dead[t]}</b><span>Dead skunks</span></div>
+    <div class="ks-nums"><div><b>${best(t)}</b><span>Most stops in a row</span></div><div><b>${D.stopRuns.filter(r => r.team === t && r.len >= 3).length}</b><span>Runs of 3+ stops</span></div><div><b>${bigOf(t) ? `${bigOf(t).pts}-${bigOf(t).against}` : '—'}</b><span>Biggest run</span></div><div><b>${S.kills[t]}</b><span>Kills</span></div><div><b>${S.skunks[t]}</b><span>Skunks</span></div><div><b>${S.dead[t]}</b><span>Dead skunks</span></div>
     ${RUN_MARKS.map(m => `<div><b>${K[t][m]}</b><span>${m}-0</span></div>`).join('')}</div></div>`;
   return `<div class="ks-grid">${tile('a')}${tile('b')}</div>
     ${sruns.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt runt"><thead><tr><th>STOPS IN A ROW</th><th>BY</th><th>HALF</th><th>POSS #</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
       ${sruns.map(r => `<tr><td><b>${r.len}</b>${r.len >= 9 ? ' <span class="skunk dead">DEAD SKUNK</span>' : r.len >= 6 ? ' <span class="skunk">SKUNK</span>' : ''}</td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.per)}</td><td>${r.fromSeq}–${r.toSeq}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
         <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.five).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No runs of 3+ stops yet.</div>'}
-    ${runs.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt runt"><thead><tr><th>RUN</th><th>BY</th><th>FROM</th><th>TO</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
-      ${runs.map(r => `<tr><td><b>${r.pts}-0</b></td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.startPer)}</td><td>${esc(r.endPer)}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
-        <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.five).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No 10-0 runs yet.</div>'}`;
+    ${RL.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt runt"><thead><tr><th>RUN</th><th>BY</th><th>HALF</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
+      ${RL.map(r => `<tr><td><b>${r.pts}-${r.against}</b></td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.per)}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
+        <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.fiveA).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No runs yet (6-0, or +8 holding the other side to 40%).</div>'}`;
 }
 function sheetView(g) {
   const D = derive(g), per = UI.sheetPer && g.periods.includes(UI.sheetPer) ? UI.sheetPer : g.per;
