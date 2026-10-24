@@ -1306,7 +1306,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.276';
+const VERSION = 'v2026.10.24.277';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6271,7 +6271,9 @@ function labelGuide() {
 
 /* ---------- SITUATION FIT: 5-, 4-, 3- and 2-man groups ranked by what the situation needs ----------
    Each situation weighs its own metrics (SIT_MIX). Unit metrics (from the tracked plays while the group was on: TO%,
-   stop %, opp 2P% ...) come from every game tracked this season, garbage time out, with TONIGHT counting double.
+   stop %, opp 2P% ...) come from every game tracked this season, garbage time out, weighted by leverage (high 1.5,
+   medium 1, low 0.5) and with TONIGHT counting double. Samples (LOW SAMPLE, confidence) use the weighted count; the
+   possessions shown are the real ones.
    Player metrics come from the players: FT% from the free throws you tagged (every game), 3P%, steals, blocks,
    assists, A/TO and DREB per 40 from the uploaded box scores, fouls per 40 from the tracker. A group's player metric
    = its players' combined makes / attempts, or the average of their per-40 rates.
@@ -6320,12 +6322,14 @@ function sitRankCard(g, D, S, c) {
   const MIX = SIT_MIX[S.id], ok = sitOk(g), K = UI.sitK || 5, pool = seasonPool().filter(x => x !== g).concat([g]);
   const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
   // Units of size K: every game merged, tonight x2.
-  const units = new Map(), add = (u, w) => { const k = fiveKey(u.five); let m = units.get(k);
-    if (!m) units.set(k, m = { five: u.five.slice(), oPoss: 0, dPoss: 0, pf: 0, pa: 0, stops: 0, fouls: 0, o: {}, d: {}, tonight: 0 });
+  // Leverage weights: high-leverage possessions count 1.5, medium 1, low 0.5 (garbage time out).
+  const units = new Map(), add = (u, w, tonight) => { const k = fiveKey(u.five); let m = units.get(k);
+    if (!m) units.set(k, m = { five: u.five.slice(), oPoss: 0, dPoss: 0, pf: 0, pa: 0, stops: 0, fouls: 0, o: {}, d: {}, tonight: 0, raw: 0 });
     ['oPoss', 'dPoss', 'pf', 'pa', 'stops', 'fouls'].forEach(f => { m[f] += w * (u[f] || 0); });
     ['o', 'd'].forEach(s => Object.keys(u[s] || {}).forEach(f => { m[s][f] = (m[s][f] || 0) + w * (u[s][f] || 0); }));
-    if (w > 1) m.tonight += Math.floor((u.oPoss + u.dPoss) / 2); };
-  pool.forEach(gm => { const Dg = gm === g ? D : derive(gm); lineupUnits(gm, Dg, 'a', 'game', 'nogt', K).units.forEach(u => add(u, gm === g ? 2 : 1)); });
+    m.raw += (u.oPoss + u.dPoss) / 2; if (tonight) m.tonight += (u.oPoss + u.dPoss) / 2; };
+  pool.forEach(gm => { const Dg = gm === g ? D : derive(gm), t = gm === g;
+    [['high', 1.5], ['med', 1], ['low', 0.5]].forEach(([lev, lw]) => lineupUnits(gm, Dg, 'a', 'game', lev, K).units.forEach(u => add(u, lw * (t ? 2 : 1), t))); });
   const RA = K === 5 && MIX.some(m => m[0] === 'runstop') ? runsAgainst(pool) : null;
   const PL = MIX.some(m => m[2] === 'pl') ? sitPlayers(pool) : null;
   const N = c.N, plTot = PL ? Object.values(PL).reduce((t, z) => { Object.keys(z).forEach(f => { t[f] = (t[f] || 0) + z[f]; }); return t; }, {}) : null;
@@ -6354,7 +6358,7 @@ function sitRankCard(g, D, S, c) {
       if (src === 'pl') { x[k] = PL ? plVal(k, u.five) : null; return; }
       const raw = v[k], nn = MIX_END[k] === 'o' ? u.oPoss : MIX_END[k] === 'd' ? u.dPoss : (u.oPoss + u.dPoss) / 2, nr = unitNorm(k);
       x[k] = raw == null ? null : nr == null ? raw : (raw * nn + nr * MIX_K_UNIT) / (nn + MIX_K_UNIT); });
-    return { u, v, x, n, poss: Math.floor((u.oPoss + u.dPoss) / 2) };
+    return { u, v, x, n, poss: Math.round(u.raw) };
   }).filter(r => r.n >= MIX_MIN);
   // Tonight: players whose team does clearly worse on this situation's unit metrics with them on than off.
   const tonightBad = {};
@@ -6388,14 +6392,14 @@ function sitRankCard(g, D, S, c) {
     return `<div class="fx-row sf-row ${fiveKey(r.u.five) === nowKey ? 'on' : ''}"><div class="sf-rank">${i + 1}</div>
       <div class="fx-five"><b>${esc(fiveSorted(g, 'a', r.u.five).map(nn).join(' '))}</b>${fiveKey(r.u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}${r.n < MIX_LOW ? '<span class="sf-low">LOW SAMPLE</span>' : ''}
         <div class="tiny muted">${esc(names(r.u.five))}</div>
-        <div class="sf-nums">${key.map(([k, , , dir]) => `<span class="${r.z[k] * dir > 0.3 ? 'pos' : r.z[k] * dir < -0.3 ? 'neg' : ''}">${MIX_LBL[k]} <b>${P1(k, r.x[k])}</b></span>`).join('')}<span class="muted">${r.poss} poss${r.u.tonight ? ` · ${r.u.tonight} tonight` : ''}</span></div>
+        <div class="sf-nums">${key.map(([k, , , dir]) => `<span class="${r.z[k] * dir > 0.3 ? 'pos' : r.z[k] * dir < -0.3 ? 'neg' : ''}">${MIX_LBL[k]} <b>${P1(k, r.x[k])}</b></span>`).join('')}<span class="muted">${r.poss} poss${r.u.tonight ? ` · ${Math.round(r.u.tonight)} tonight` : ''}</span></div>
         ${r.bad.map(id => { const b = tonightBad[id]; return `<div class="sf-warn">⚠ ${esc(pShort(g, 'a', id))} tonight: ${MIX_LBL[b.k]} ${P1(b.k, b.on)} with him on, ${P1(b.k, b.off)} off</div>`; }).join('')}${swap(r.u.five)}</div>
       ${K === 5 && fiveKey(r.u.five) !== nowKey ? `<div class="fx-subrow"><button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(r.u.five.join('|'))}">Sub this five in</button></div>` : ''}</div>`; };
   const pills = `<div class="seg sf-k">${[5, 4, 3, 2].map(k => `<button class="${k === K ? 'on' : ''}" data-act="sit-k" data-k="${k}">${k}-man</button>`).join('')}</div>`;
   const wts = MIX.map(([k, w]) => `${MIX_LBL[k]} ${w}`).join(' · ');
   return `<div class="card fix-card"><div class="row" style="justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div class="fx-h"><b>${esc(S.name)}: best fits</b> <span class="muted small">· ${esc(wts)}</span></div>${pills}</div>
     ${top.map(row).join('') || `<div class="small muted fx-none">No ${K}-man group with enough possessions together yet${K > 2 ? ': try a smaller size' : ''}.</div>`}
-    <div class="tiny muted" style="margin-top:6px">Every tracked game this season (garbage time out), tonight counting double; players' 3s, steals, blocks, assists and rebounds from the uploaded box scores, FT% from the free throws you tagged. Numbers are pulled toward the team's until the sample backs them; ⚠ = clearly worse tonight with him on than off. The best read of the data, not a guarantee.</div></div>`;
+    <div class="tiny muted" style="margin-top:6px">Every tracked game this season (garbage time out), high-leverage possessions counting 1.5, medium 1, low 0.5, and tonight double; players' 3s, steals, blocks, assists and rebounds from the uploaded box scores, FT% from the free throws you tagged. Numbers are pulled toward the team's until the sample backs them; ⚠ = clearly worse tonight with him on than off. The best read of the data, not a guarantee.</div></div>`;
 }
 
 /* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------

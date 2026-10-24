@@ -274,7 +274,9 @@ underlined gold in their rows. Blue is the one open.
 
 **How the groups are ranked** (every situation but What's hurting us and vs their best five): **5-man · 4-man ·
 3-man · 2-man** buttons (smaller groups have far more possessions together, so they rank on real samples when full
-fives don't). Group stats come from every game tracked this season, garbage time out, with **tonight counting double**;
+fives don't). Group stats come from every game tracked this season, garbage time out, **weighted by leverage** (high
+1.5, medium 1, low 0.5: a close game counts more than a blowout) and with **tonight counting double** (the possessions
+shown are the real count);
 player stats from the players: FT% from the free throws you tagged, 3P%, steals, blocks, assists, A/TO and DREB per
 40 from the uploaded box scores, fouls per 40 from the tracker. Every number is pulled toward the team's until the
 sample backs it, each is scored against the other groups of that size, weighted as above, and a group's fit counts in
