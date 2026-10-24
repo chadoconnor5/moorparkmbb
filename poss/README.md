@@ -582,6 +582,22 @@ sorted by possessions on the floor; darker = higher.
 (There's no "shots taken" map: live tracking logs our shots to TEAM, so almost none name a shooter.)
 Tap a box for the numbers behind it; **Slices per box** 1 / 2 / 4 / 5 widens the boxes. Overtime isn't drawn.
 
+## Subs (Lineups → View → Subs)
+
+Every stint, starters included. A stint is a player's run of possessions on the floor in one half: **Start** = on
+for the half's first possession, **In** = checked in off the bench (for = who left at that dead ball). Garbage time
+is always out (Possessions shows the No garbage time lock); the Half buttons filter stints by half.
+- **This game**: one block per player, each stint with half, score in and out, Poss (both ends averaged), +/- (points
+  for minus against in the stint) and, for check-ins, **Swing** = our net per 100 over the 10 possessions (5 each
+  way) after he came in minus the 10 before, in the same half (4+ each side). Tap a stint to open Play-by-Play at it.
+- **Season** (any split): starts and bench check-ins apart: count, average +/- per stint, average length; Swing pools
+  every check-in's windows. **Fades** = the first point in a stint (1–5 / 6–10 / 11–15 / 16+ possessions in) with 15+
+  possessions there and in his first 5 where his net is 25+ below his first 5; "none" once a later bucket has 15+ and
+  he holds up; — until then. Tap a player for those buckets and every stint he's had.
+
+The halftime and post-game Report (and the coaches' PDF) add one **Subs** line under the lead line: tonight's best
+sub by +/- over his check-ins, the worst (when negative), and anyone left on past his season fade point.
+
 ## Lineup shooting and scoring (tap a five on Lineups)
 
 Under how its possessions ended, every five shows both ends (ours = OFF, theirs = DEF):
