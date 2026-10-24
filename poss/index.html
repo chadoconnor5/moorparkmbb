@@ -1270,6 +1270,9 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .lpm-ff td.pos{color:var(--good);font-weight:700}.lpm-ff td.neg{color:var(--bad);font-weight:700}
 /* Score bug: each team's logo and name centred across the top of its side, over its numbers and score. */
 .sb-team{flex-wrap:wrap;row-gap:6px;align-content:flex-start;align-self:stretch;padding-top:4px}.sb-team.a,.sb-team.b{justify-content:center}.sb-team>.sb-name{flex:0 0 100%;justify-content:center}
+.sf-k button{padding:5px 10px;font-size:12.5px}.sf-row{grid-template-columns:22px minmax(0,1fr) auto}.sf-rank{font-weight:900;font-size:18px;color:var(--gold,#d4a017);align-self:start;padding-top:2px}
+.sf-nums{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:12px}.sf-nums .pos{color:var(--good)}.sf-nums .neg{color:var(--bad)}.sf-low{display:inline-block;margin-left:6px;background:#d4a017;color:#111;font-size:10px;font-weight:800;padding:1px 6px;letter-spacing:.04em}.sf-warn{font-size:12px;color:#fb923c;margin-top:3px}
+.sf-k{display:inline-flex;gap:4px}.sf-k button{background:var(--card);border:1px solid var(--border);border-radius:0;color:var(--text2);font-weight:700;cursor:pointer}.sf-k button.on{background:#d4a017;border-color:#d4a017;color:#111}
 
 </style>
 </head>
@@ -1303,7 +1306,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.275';
+const VERSION = 'v2026.10.24.276';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4107,6 +4110,7 @@ document.addEventListener('click', ev => {
     case 'sit': SIT = null; sitModal(); break;
     case 'sit-pick': sitModal(b.dataset.s); break;
     case 'sit-protect': SIT.protect = !SIT.protect; sitModal(); break;
+    case 'sit-k': UI.sitK = +b.dataset.k; sitModal(); break;
     case 'sit-close': SIT = null; closeModal(); break;
     case 'tip-sub': { const f = (b.dataset.five || '').split('|').filter(Boolean); if (f.length !== 5) { closeModal(); break; }
       if (g.ftNext && g.ftNext.team === 'a' && derive(g).five.a.includes(g.ftNext.player) && !f.includes(g.ftNext.player) && !confirm(`${pShort(g, 'a', g.ftNext.player)} is at the line. Sub him out anyway?`)) return;
@@ -5762,6 +5766,7 @@ function sitOk(g) {
 }
 function sitBody(g, D, S, c) {
   const sk = 'sit_' + S.id; if (!UI[sk]) UI[sk] = S.def;
+  if (SIT_MIX[S.id]) return sitRankCard(g, D, S, c);
   if (S.id === 'hurt') {
     const F = fixCard(g, D, Object.assign({}, TIP_OPTS, { overall: false, sk, def: S.def, ffSc: g.per === '1H' ? '1H' : '2H', ok: sitOk(g) }), c.tip);
     return F.html || '<div class="card muted">Nothing is hurting us this half: we\'re not losing a four factor, or the end we\'re losing is on our norm.</div>';
@@ -6262,6 +6267,135 @@ const LABEL_GUIDE = [
 function labelGuide() {
   modal(`<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h2 style="margin:0">Player labels</h2><button class="btn btn-lg" data-act="lg-close">Close</button></div>
     <div class="lg-grid">${LABEL_GUIDE.map(([h, L]) => `<div class="lg-sec"><div class="lg-h">${esc(h)}</div>${L.map(([l, d]) => `<div class="lg-row"><span class="nt ${h === 'How labels work' ? (l === 'Your labels' ? '' : 'auto') : 'auto'}${h.startsWith('★') ? ' lead' : ''}">${esc(l)}</span><span class="lg-d">${esc(d)}</span></div>`).join('')}</div>`).join('')}</div>`, 'lg-modal');
+}
+
+/* ---------- SITUATION FIT: 5-, 4-, 3- and 2-man groups ranked by what the situation needs ----------
+   Each situation weighs its own metrics (SIT_MIX). Unit metrics (from the tracked plays while the group was on: TO%,
+   stop %, opp 2P% ...) come from every game tracked this season, garbage time out, with TONIGHT counting double.
+   Player metrics come from the players: FT% from the free throws you tagged (every game), 3P%, steals, blocks,
+   assists, A/TO and DREB per 40 from the uploaded box scores, fouls per 40 from the tracker. A group's player metric
+   = its players' combined makes / attempts, or the average of their per-40 rates.
+   Every number is pulled toward the team's norm until the sample supports it (unit: 10 possessions count half;
+   players: 20 attempts / 60 minutes), then scored against the other groups of that size (z), weighted, summed.
+   TONIGHT: a player whose team does clearly worse on the situation's main unit metrics (weight 20+) with him on than
+   off tonight (12+ poss each way, 1.25 typical spreads) costs every group he's in, and is named. A group's fit counts
+   in proportion to its sample (15 possessions count half), so a proven group beats a lucky handful of trips. Only available players (dressed, not fouled out,
+   Protect fouls). Groups with under 15 relevant possessions are tagged LOW SAMPLE. It's the best read the data
+   gives, not a guarantee. */
+const SIT_MIX = {
+  three: [['p3', 45, 'pl', 1], ['my3ar', 20, 'u', 1], ['efg', 20, 'u', 1], ['tov', 15, 'u', -1]],
+  ft: [['ftp', 60, 'pl', 1], ['tov', 25, 'u', -1], ['ftr', 15, 'u', 1]],
+  ball: [['tov', 45, 'u', -1], ['ato', 30, 'pl', 1], ['ftp', 25, 'pl', 1]],
+  steal: [['stl', 40, 'u', 1], ['stl40', 35, 'pl', 1], ['otov', 25, 'u', 1]],
+  stop: [['stop', 40, 'u', 1], ['oefg', 30, 'u', -1], ['drb', 20, 'u', 1], ['fouls', 10, 'u', -1]],
+  two: [['o2p', 50, 'u', -1], ['blk40', 25, 'pl', 1], ['fouls', 25, 'u', -1]],
+  arc: [['o3ar', 60, 'u', -1], ['oefg', 25, 'u', -1], ['fouls', 15, 'u', -1]],
+  glass: [['drb', 60, 'u', 1], ['dreb40', 40, 'pl', 1]],
+  foul: [['fouls', 60, 'u', -1], ['pf40', 40, 'pl', -1]],
+  run: [['runstop', 50, 'u', 1], ['stop', 25, 'u', 1], ['net', 25, 'u', 1]],
+  ast: [['asp', 50, 'u', 1], ['ast40', 30, 'pl', 1], ['tov', 20, 'u', -1]],
+  // Best overall: the four factors at both ends (shooting 40, turnovers 25, rebounding 20, FT rate 15).
+  overall: [['efg', 20, 'u', 1], ['oefg', 20, 'u', -1], ['tov', 12.5, 'u', -1], ['otov', 12.5, 'u', 1], ['orb', 10, 'u', 1], ['drb', 10, 'u', 1], ['ftr', 7.5, 'u', 1], ['oftr', 7.5, 'u', -1]],
+};
+const MIX_LBL = { orb: 'OREB%', oftr: 'opp FT rate', p3: '3P%', my3ar: '3PA rate', efg: 'eFG%', tov: 'TO%', ftp: 'FT%', ftr: 'FT rate', ato: 'A/TO', stl: 'steal %', stl40: 'STL/40', otov: 'TO forced',
+  stop: 'stop %', oefg: 'opp eFG%', drb: 'DREB%', fouls: 'fouls/100', o2p: 'opp 2P%', blk40: 'BLK/40', o3ar: 'opp 3PA rate', dreb40: 'DREB/40', pf40: 'PF/40', runstop: 'run-stop', net: 'net', asp: 'AST%', ast40: 'AST/40' };
+// Which end a unit metric is counted on (its sample): o = our possessions, d = theirs.
+const MIX_END = { orb: 'o', oftr: 'd', my3ar: 'o', efg: 'o', tov: 'o', ftr: 'o', asp: 'o', stl: 'd', otov: 'd', stop: 'd', oefg: 'd', drb: 'd', fouls: 'd', o2p: 'd', o3ar: 'd', runstop: 'b', net: 'b' };
+// Typical spread of each metric, for scoring when there are too few groups to measure it.
+const MIX_SCALE = { orb: 10, oftr: 12, p3: 8, my3ar: 10, efg: 8, tov: 6, ftp: 10, ftr: 12, ato: 0.6, stl: 4, stl40: 1.2, otov: 6, stop: 12, oefg: 8, drb: 10, fouls: 10, o2p: 10, blk40: 0.8, o3ar: 10, dreb40: 2, pf40: 1.5, runstop: 20, net: 25, asp: 12, ast40: 1.2 };
+const MIX_K_UNIT = 10, MIX_LOW = 15, MIX_MIN = 6, MIX_TON = 12;
+// Players' season lines from the tracker (FT, fouls) and the uploaded box scores (3s, steals, blocks, assists, DREB).
+function sitPlayers(list) {
+  const P = {}, Z = id => P[id] = P[id] || { min: 0, fg3m: 0, fg3a: 0, stl: 0, blk: 0, ast: 0, tov: 0, dreb: 0, ftm: 0, fta: 0, pf: 0, pfMin: 0 };
+  list.forEach(g => {
+    teamPlayers(g, 'a').forEach(p => { const z = Z(p.id), ft = playerFT(g, 'a', p.id); z.ftm += ft.m; z.fta += ft.a; });
+    const B = g.boxScore && g.boxScore.a; if (!B) return;
+    B.rows.forEach(r => { const pl = teamPlayers(g, 'a').find(p => String(p.num) === String(r.num)); if (!pl) return; const z = Z(pl.id), n = v => +v || 0;
+      z.min += n(r.min); z.fg3m += n(r.fg3m); z.fg3a += n(r.fg3a); z.stl += n(r.stl); z.blk += n(r.blk); z.ast += n(r.ast); z.tov += n(r.tov); z.dreb += n(r.dreb);
+      z.pf += playerFouls(g, 'a', pl.id); z.pfMin += n(r.min); });
+  });
+  return P;
+}
+function sitRankCard(g, D, S, c) {
+  const MIX = SIT_MIX[S.id], ok = sitOk(g), K = UI.sitK || 5, pool = seasonPool().filter(x => x !== g).concat([g]);
+  const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
+  // Units of size K: every game merged, tonight x2.
+  const units = new Map(), add = (u, w) => { const k = fiveKey(u.five); let m = units.get(k);
+    if (!m) units.set(k, m = { five: u.five.slice(), oPoss: 0, dPoss: 0, pf: 0, pa: 0, stops: 0, fouls: 0, o: {}, d: {}, tonight: 0 });
+    ['oPoss', 'dPoss', 'pf', 'pa', 'stops', 'fouls'].forEach(f => { m[f] += w * (u[f] || 0); });
+    ['o', 'd'].forEach(s => Object.keys(u[s] || {}).forEach(f => { m[s][f] = (m[s][f] || 0) + w * (u[s][f] || 0); }));
+    if (w > 1) m.tonight += Math.floor((u.oPoss + u.dPoss) / 2); };
+  pool.forEach(gm => { const Dg = gm === g ? D : derive(gm); lineupUnits(gm, Dg, 'a', 'game', 'nogt', K).units.forEach(u => add(u, gm === g ? 2 : 1)); });
+  const RA = K === 5 && MIX.some(m => m[0] === 'runstop') ? runsAgainst(pool) : null;
+  const PL = MIX.some(m => m[2] === 'pl') ? sitPlayers(pool) : null;
+  const N = c.N, plTot = PL ? Object.values(PL).reduce((t, z) => { Object.keys(z).forEach(f => { t[f] = (t[f] || 0) + z[f]; }); return t; }, {}) : null;
+  const plNorm = { p3: plTot && plTot.fg3a ? 100 * plTot.fg3m / plTot.fg3a : SIT_LG.p3, ftp: plTot && plTot.fta ? 100 * plTot.ftm / plTot.fta : SIT_LG.ft,
+    ato: plTot && plTot.tov ? plTot.ast / plTot.tov : 1, per40: f => plTot && plTot.min ? 40 * plTot[f] / plTot.min : null, pf40: plTot && plTot.pfMin ? 40 * plTot.pf / plTot.pfMin : null };
+  // A player metric for a group, pulled toward the team's (sample: attempts / minutes).
+  const plVal = (k, five) => { const zs = five.map(id => PL[id]).filter(Boolean); if (!zs.length) return null; const s = f => zs.reduce((t, z) => t + z[f], 0);
+    if (k === 'p3') return (100 * s('fg3m') + plNorm.p3 * 20) / (s('fg3a') + 20);
+    if (k === 'ftp') return (100 * s('ftm') + plNorm.ftp * 20) / (s('fta') + 20);
+    if (k === 'ato') return s('min') ? (s('ast') + plNorm.ato * 4) / (s('tov') + 4) : null;
+    // Per 40, the group's players combined, with 60 minutes at the team's rate as the prior.
+    const f = { stl40: 'stl', blk40: 'blk', ast40: 'ast', dreb40: 'dreb', pf40: 'pf' }[k], mins = k === 'pf40' ? s('pfMin') : s('min'), nrm = k === 'pf40' ? plNorm.pf40 : plNorm.per40(f);
+    if (nrm == null) return null;
+    return (40 * s(f) + nrm * 60) / (mins + 60);
+  };
+  const unitNorm = k => k === 'runstop' ? 0 : k === 'net' ? 0 : N[k];
+  // Rows: every available group with enough possessions on the ends its metrics use.
+  const ends = new Set(MIX.filter(m => m[2] === 'u').map(m => MIX_END[m[0]]));
+  const need = u => Math.min(...[...ends].map(e => e === 'o' ? u.oPoss : e === 'd' ? u.dPoss : (u.oPoss + u.dPoss) / 2).concat(ends.size ? [] : [(u.oPoss + u.dPoss) / 2]));
+  const rows = [...units.values()].filter(u => u.five.every(ok)).map(u => {
+    const v = abVals(sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa), g.astBlk || pool.some(x => x.astBlk) ? abOf(u) : null, N);
+    if (RA) { const R = runStop(u.oPoss, u.dPoss, u.pf, u.pa, RA[fiveKey(u.five)] || 0); v.runstop = R && R.score; }
+    else if (MIX.some(m => m[0] === 'runstop')) v.runstop = v.net == null ? null : v.net * ((u.oPoss + u.dPoss) / 2) / ((u.oPoss + u.dPoss) / 2 + RUNSTOP_K);
+    const x = {}, n = need(u);
+    MIX.forEach(([k, , src]) => {
+      if (src === 'pl') { x[k] = PL ? plVal(k, u.five) : null; return; }
+      const raw = v[k], nn = MIX_END[k] === 'o' ? u.oPoss : MIX_END[k] === 'd' ? u.dPoss : (u.oPoss + u.dPoss) / 2, nr = unitNorm(k);
+      x[k] = raw == null ? null : nr == null ? raw : (raw * nn + nr * MIX_K_UNIT) / (nn + MIX_K_UNIT); });
+    return { u, v, x, n, poss: Math.floor((u.oPoss + u.dPoss) / 2) };
+  }).filter(r => r.n >= MIX_MIN);
+  // Tonight: players whose team does clearly worse on this situation's unit metrics with them on than off.
+  const tonightBad = {};
+  { const one = lineupUnits(g, D, 'a', 'game', 'nogt', 1).units, all = lineupUnits(g, D, 'a', 'game', 'nogt', 5).units;
+    const tot = all.reduce((t, u) => { ['oPoss', 'dPoss', 'pf', 'pa', 'stops', 'fouls'].forEach(f => { t[f] += u[f] || 0; }); ['o', 'd'].forEach(s => Object.keys(u[s] || {}).forEach(f => { t[s][f] = (t[s][f] || 0) + (u[s][f] || 0); })); return t; }, { oPoss: 0, dPoss: 0, pf: 0, pa: 0, stops: 0, fouls: 0, o: {}, d: {} });
+    one.forEach(u => { const id = u.five[0], off = { o: {}, d: {} }; ['oPoss', 'dPoss', 'pf', 'pa', 'stops', 'fouls'].forEach(f => { off[f] = tot[f] - (u[f] || 0); });
+      ['o', 'd'].forEach(s => Object.keys(tot[s]).forEach(f => { off[s][f] = tot[s][f] - ((u[s] || {})[f] || 0); }));
+      const von = sitVals(u.o, u.d, u.oPoss, u.dPoss, u.stops, u.fouls, u.pf, u.pa), voff = sitVals(off.o, off.d, off.oPoss, off.dPoss, off.stops, off.fouls, off.pf, off.pa);
+      let worst = null;
+      MIX.filter(m => m[2] === 'u' && m[0] !== 'runstop' && m[1] >= 20).forEach(([k, w, , dir]) => { const e = MIX_END[k], a = e === 'o' ? [u.oPoss, off.oPoss] : e === 'd' ? [u.dPoss, off.dPoss] : [(u.oPoss + u.dPoss) / 2, (off.oPoss + off.dPoss) / 2];
+        if (a[0] < MIX_TON || a[1] < MIX_TON || von[k] == null || voff[k] == null) return; const gap = dir * (von[k] - voff[k]) / MIX_SCALE[k];
+        if (gap <= -1.25 && (!worst || gap < worst.gap)) worst = { gap, k, on: von[k], off: voff[k] }; });
+      if (worst) tonightBad[id] = worst; }); }
+  // Score: z against the other groups of this size (or the typical spread), weighted; tonight's penalty.
+  MIX.forEach(([k]) => { const xs = rows.map(r => r.x[k]).filter(v => v != null), m = xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+    const sd = xs.length >= 4 ? Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) : 0, sc = Math.max(sd, MIX_SCALE[k] / 2);
+    rows.forEach(r => { r.z = r.z || {}; r.z[k] = r.x[k] == null ? 0 : (r.x[k] - m) / sc; }); });
+  const W = MIX.reduce((t, m) => t + m[1], 0);
+  // Confidence: a group's fit counts in proportion to its sample (15 possessions count half), so a proven group beats a
+  // lucky handful of trips; then tonight's penalty.
+  rows.forEach(r => { r.score = MIX.reduce((t, [k, w, , dir]) => t + w / W * dir * r.z[k], 0) * r.n / (r.n + MIX_LOW); r.bad = r.u.five.filter(id => tonightBad[id]); r.score -= 0.4 * r.bad.length; });
+  rows.sort((a, b) => b.score - a.score);
+  const top = rows.slice(0, 3);
+  // Display.
+  const P1 = (k, v) => v == null ? '—' : ['ato', 'stl40', 'blk40', 'ast40', 'dreb40', 'pf40'].includes(k) ? v.toFixed(1) : k === 'runstop' || k === 'net' ? sg1(Math.round(10 * v) / 10) : v.toFixed(0) + (k === 'ftp' || k === 'p3' ? '%' : '');
+  const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); };
+  const names = f => fiveSorted(g, 'a', f).map(id => lastName(pInfo(g, 'a', id).name || id)).join(', ');
+  const swap = f => { const cur = D.five.a; if (K !== 5 || cur.length !== 5) return ''; const i = f.filter(id => !cur.includes(id)), o = cur.filter(id => !f.includes(id)); if (!i.length) return '';
+    return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(nn).join(' '))}</span> · <span class="neg">OUT ${esc(o.map(nn).join(' '))}</span></div>`; };
+  const row = (r, i) => { const key = MIX.slice().sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return `<div class="fx-row sf-row ${fiveKey(r.u.five) === nowKey ? 'on' : ''}"><div class="sf-rank">${i + 1}</div>
+      <div class="fx-five"><b>${esc(fiveSorted(g, 'a', r.u.five).map(nn).join(' '))}</b>${fiveKey(r.u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}${r.n < MIX_LOW ? '<span class="sf-low">LOW SAMPLE</span>' : ''}
+        <div class="tiny muted">${esc(names(r.u.five))}</div>
+        <div class="sf-nums">${key.map(([k, , , dir]) => `<span class="${r.z[k] * dir > 0.3 ? 'pos' : r.z[k] * dir < -0.3 ? 'neg' : ''}">${MIX_LBL[k]} <b>${P1(k, r.x[k])}</b></span>`).join('')}<span class="muted">${r.poss} poss${r.u.tonight ? ` · ${r.u.tonight} tonight` : ''}</span></div>
+        ${r.bad.map(id => { const b = tonightBad[id]; return `<div class="sf-warn">⚠ ${esc(pShort(g, 'a', id))} tonight: ${MIX_LBL[b.k]} ${P1(b.k, b.on)} with him on, ${P1(b.k, b.off)} off</div>`; }).join('')}${swap(r.u.five)}</div>
+      ${K === 5 && fiveKey(r.u.five) !== nowKey ? `<div class="fx-subrow"><button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(r.u.five.join('|'))}">Sub this five in</button></div>` : ''}</div>`; };
+  const pills = `<div class="seg sf-k">${[5, 4, 3, 2].map(k => `<button class="${k === K ? 'on' : ''}" data-act="sit-k" data-k="${k}">${k}-man</button>`).join('')}</div>`;
+  const wts = MIX.map(([k, w]) => `${MIX_LBL[k]} ${w}`).join(' · ');
+  return `<div class="card fix-card"><div class="row" style="justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div class="fx-h"><b>${esc(S.name)}: best fits</b> <span class="muted small">· ${esc(wts)}</span></div>${pills}</div>
+    ${top.map(row).join('') || `<div class="small muted fx-none">No ${K}-man group with enough possessions together yet${K > 2 ? ': try a smaller size' : ''}.</div>`}
+    <div class="tiny muted" style="margin-top:6px">Every tracked game this season (garbage time out), tonight counting double; players' 3s, steals, blocks, assists and rebounds from the uploaded box scores, FT% from the free throws you tagged. Numbers are pulled toward the team's until the sample backs them; ⚠ = clearly worse tonight with him on than off. The best read of the data, not a guarantee.</div></div>`;
 }
 
 /* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------
