@@ -579,8 +579,24 @@ for a minute. Each game is sliced on its own count, then the games in the Games 
 sorted by possessions on the floor; darker = higher.
 - **On court**: % of the slice's possessions he was on the floor (scale to 80%).
 - **On court for shots**: % of our shot attempts in the slice taken with him on the floor (to 80%).
-- **Shots taken**: % of our shot attempts in the slice he took (shots tagged to a shooter; to 25%).
+(There's no "shots taken" map: live tracking logs our shots to TEAM, so almost none name a shooter.)
 Tap a box for the numbers behind it; **Slices per box** 1 / 2 / 4 / 5 widens the boxes. Overtime isn't drawn.
+
+## Subs (Lineups → View → Subs)
+
+Every stint, starters included. A stint is a player's run of possessions on the floor in one half: **Start** = on
+for the half's first possession, **In** = checked in off the bench (for = who left at that dead ball). Garbage time
+is always out (Possessions shows the No garbage time lock); the Half buttons filter stints by half.
+- **This game**: one block per player, each stint with half, score in and out, Poss (both ends averaged), +/- (points
+  for minus against in the stint) and, for check-ins, **Swing** = our net per 100 over the 10 possessions (5 each
+  way) after he came in minus the 10 before, in the same half (4+ each side). Tap a stint to open Play-by-Play at it.
+- **Season** (any split): starts and bench check-ins apart: count, average +/- per stint, average length; Swing pools
+  every check-in's windows. **Fades** = the first point in a stint (1–5 / 6–10 / 11–15 / 16+ possessions in) with 15+
+  possessions there and in his first 5 where his net is 25+ below his first 5; "none" once a later bucket has 15+ and
+  he holds up; — until then. Tap a player for those buckets and every stint he's had.
+
+The halftime and post-game Report (and the coaches' PDF) add one **Subs** line under the lead line: tonight's best
+sub by +/- over his check-ins, the worst (when negative), and anyone left on past his season fade point.
 
 ## Lineup shooting and scoring (tap a five on Lineups)
 
@@ -838,6 +854,10 @@ five has 25+ offensive possessions).
   **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
   first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
   latest report: Post-game once it's final, Halftime until then (the buttons still switch).
+- **🗑 Exclude garbage time** (Post-game report, games that reached garbage time): the report as the game stood when
+  garbage time began: score, team stats, four factors, lineups, kills, runs and the rest from the tracker with those
+  possessions cut, plus how many were left out and the real final. The box score stays the full game (marked); the
+  stat sheet can't be split, so it's hidden in this view; the Coaches' PDF stays the full game. Tap again to go back.
 - **Game list** at the top of Report, Play-by-Play, Sheet and Four factors: pick any game played (newest first); the
   pick carries across them and is Lineups' and Runs' **This game**. Report also has **Season** (the **Season report**:
   record, each game's score and PPP, tap one to open it, and the team stats summed over every game, scrimmages
