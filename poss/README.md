@@ -283,7 +283,11 @@ sample backs it, each is scored against the other groups of that size, weighted 
 proportion to its possessions (15 count half), so a proven group beats a lucky handful of trips. Under 15 relevant
 possessions: **LOW SAMPLE**. **⚠ tonight**: a player whose team is clearly worse on the situation's main numbers with
 him on than off tonight (12+ possessions each way) costs every group he's in, and is named. Only available players
-(dressed, not fouled out, and with **Protect fouls**, not in foul trouble). Top 3 per size, with their deciding
+(dressed, not fouled out, and with **Protect fouls**, not in foul trouble). **Situation records** (Closing FTs, Ball
+security, Last stop, Need steals, Need a 3, Stop the run, Stop fouling): how each group actually did when the situation
+was on, from the situation log ("In this spot: 5/7 stops · 2 games"), moves its fit toward that record by trips / (trips
++ 12) (12 trips count half), scored against the team's own record there; 4- to 2-man groups get the records of the
+fives they were in; **PROVEN** = 6+ trips and better than the team's record. Top 3 per size, with their deciding
 numbers (green / red against the other groups) and **Sub this five in** on full fives. It's the best read of the
 data, not a guarantee.
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
@@ -515,11 +519,13 @@ open one at a time. **No scrimmages** leaves them out sooner. Season 2H =
 every game in the split's 2nd half. The Lineup Builder and WOWY follow the split (WOWY uses Full season when
 This game is picked).
 
-**Situation** dropdown on Lineups (Any, Closing FTs, Ball security, Last stop, Need steals, Need a 3, Stop the run,
-Stop fouling): only the possessions each game's situation log tagged with it, so a split, a half, a leverage and a
-situation stack (e.g. Q1A · High · Last stop). A **Moorpark line** above the lineups gives the team's possessions,
-score, ORtg / DRtg / net and four factors for exactly that view. Picking a situation locks **Possessions** to *No garbage time* (greyed out), the same possessions the
-situational lineups use; back to *Any* puts your Possessions choice back.
+**Situation** dropdown on Lineups: every situation of the Lineups button (Best overall, Closing FTs, Ball security,
+Need steals, Need a 3, Last stop, Stop the 2s, Off the 3-pt line, Close out the glass, Stop fouling, Stop the run, Move
+the ball). Picking one shows its **best fits** in place of the tables: the same ranking as the Lineups button (each
+situation's own weighted metrics, leverage-weighted, LOW SAMPLE / ⚠ tonight), at the **View**'s group size (5-man
+lineups, 4-, 3- or 2-man groups), over **this game** or the **season's** games. It's who fits best to plug in, not
+only who has played in that exact moment. Possessions locks to *No garbage time* while one is picked; back to *Any*
+puts your choice back. (On / off, WOWY and the other views keep the situation as a filter of the moments it was on.)
 
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.
