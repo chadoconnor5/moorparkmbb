@@ -588,7 +588,7 @@ FTs made now go in the ⬇ Lineup file too.
 The leaderboard build writes **`poss/ratings.json`** every night (`export_ratings.py`): every in-system team's
 current opponent-adjusted ORtg / DRtg and four factors, games played, the name aliases, Moorpark's player
 season lines (all / quality games), and the time-of-season baseline. The tracker downloads it whenever it
-opens online and keeps the last copy for offline gyms. It then **re-adjusts every finished game on the
+opens online, and again every time you come back to the app (so an iPad left open picks up the night's ratings), and keeps the last copy for offline gyms. It then **re-adjusts every finished game on the
 iPad** with the same math as `adjust_lineups.py` (a test checks they agree to the decimal), so:
 - Every past game is graded against **what that opponent turned out to be**, not what they were that
   night: holding a team in November that became a great shooting team counts as exactly that.
