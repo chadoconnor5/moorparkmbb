@@ -1273,6 +1273,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .sf-k button{padding:5px 10px;font-size:12.5px}.sf-row{grid-template-columns:22px minmax(0,1fr) auto}.sf-rank{font-weight:900;font-size:18px;color:var(--gold,#d4a017);align-self:start;padding-top:2px}
 .sf-nums{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:12px}.sf-nums .pos{color:var(--good)}.sf-nums .neg{color:var(--bad)}.sf-low{display:inline-block;margin-left:6px;background:#d4a017;color:#111;font-size:10px;font-weight:800;padding:1px 6px;letter-spacing:.04em}.sf-warn{font-size:12px;color:#fb923c;margin-top:3px}
 .sf-k{display:inline-flex;gap:4px}.sf-k button{background:var(--card);border:1px solid var(--border);border-radius:0;color:var(--text2);font-weight:700;cursor:pointer}.sf-k button.on{background:#d4a017;border-color:#d4a017;color:#111}
+.sf-below{display:inline-block;margin-left:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:1px 6px;letter-spacing:.04em}
 
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
@@ -1336,7 +1337,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.281';
+const VERSION = 'v2026.10.24.282';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6418,9 +6419,12 @@ function sitRankCard(g, D, S, c, o = {}) {
         if (a[0] < MIX_TON || a[1] < MIX_TON || von[k] == null || voff[k] == null) return; const gap = dir * (von[k] - voff[k]) / MIX_SCALE[k];
         if (gap <= -1.25 && (!worst || gap < worst.gap)) worst = { gap, k, on: von[k], off: voff[k] }; });
       if (worst) tonightBad[id] = worst; }); }
-  // Score: z against the other groups of this size (or the typical spread), weighted; tonight's penalty.
-  MIX.forEach(([k]) => { const xs = rows.map(r => r.x[k]).filter(v => v != null), m = xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
-    const sd = xs.length >= 4 ? Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) : 0, sc = Math.max(sd, MIX_SCALE[k] / 2);
+  // Score: each metric against OUR norm (not the other candidates: with two candidates the better of two bad groups
+  // isn't a fit), in the groups' spread (or the typical spread), weighted; tonight's penalty. Above 0 = better than us.
+  const plCenter = k => k === 'p3' ? plNorm.p3 : k === 'ftp' ? plNorm.ftp : k === 'ato' ? plNorm.ato : k === 'pf40' ? plNorm.pf40 : plNorm.per40({ stl40: 'stl', blk40: 'blk', ast40: 'ast', dreb40: 'dreb' }[k]);
+  MIX.forEach(([k, , src]) => { const xs = rows.map(r => r.x[k]).filter(v => v != null), mean = xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+    const ctr = src === 'pl' ? (PL ? plCenter(k) : null) : unitNorm(k), m = ctr == null ? mean : ctr;
+    const sd = xs.length >= 4 ? Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length) : 0, sc = Math.max(sd, MIX_SCALE[k] / 2);
     rows.forEach(r => { r.z = r.z || {}; r.z[k] = r.x[k] == null ? 0 : (r.x[k] - m) / sc; }); });
   const W = MIX.reduce((t, m) => t + m[1], 0);
   // Confidence: a group's fit counts in proportion to its sample (15 possessions count half), so a proven group beats a
@@ -6443,7 +6447,8 @@ function sitRankCard(g, D, S, c, o = {}) {
     if (v == null || recBase == null) return; const z = Math.max(-2.5, Math.min(2.5, recDir * (v - recBase) / recScale)), w = sitRecWeight(x);
     r.score = (1 - w) * r.score + w * z; r.proven = x.n >= SITREC_PROVEN && z > 0; });
   rows.sort((a, b) => b.score - a.score);
-  const top = rows.slice(0, 3);
+  // Only groups better than our norm on the situation's balance are fits; if none is, the closest one, marked.
+  const fits = rows.filter(r => r.score > 0), top = fits.length ? fits.slice(0, 3) : rows.slice(0, 1).map(r => Object.assign(r, { below: true }));
   // Display.
   const P1 = (k, v) => v == null ? '—' : ['ato', 'stl40', 'blk40', 'ast40', 'dreb40', 'pf40'].includes(k) ? v.toFixed(1) : k === 'runstop' || k === 'net' ? sg1(Math.round(10 * v) / 10) : v.toFixed(0) + (k === 'ftp' || k === 'p3' ? '%' : '');
   const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); };
@@ -6452,7 +6457,7 @@ function sitRankCard(g, D, S, c, o = {}) {
     return `<div class="fx-swap"><span class="pos">IN ${esc(i.map(nn).join(' '))}</span> · <span class="neg">OUT ${esc(o.map(nn).join(' '))}</span></div>`; };
   const row = (r, i) => { const key = MIX.slice().sort((a, b) => b[1] - a[1]).slice(0, 3);
     return `<div class="fx-row sf-row ${fiveKey(r.u.five) === nowKey ? 'on' : ''}"><div class="sf-rank">${i + 1}</div>
-      <div class="fx-five"><b>${esc(fiveSorted(g, 'a', r.u.five).map(nn).join(' '))}</b>${fiveKey(r.u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}${r.n < MIX_LOW ? '<span class="sf-low">LOW SAMPLE</span>' : ''}
+      <div class="fx-five"><b>${esc(fiveSorted(g, 'a', r.u.five).map(nn).join(' '))}</b>${r.below ? '<span class="sf-below">BELOW OUR NORM</span>' : ''}${fiveKey(r.u.five) === nowKey ? '<span class="fx-on">ON NOW</span>' : ''}${r.n < MIX_LOW ? '<span class="sf-low">LOW SAMPLE</span>' : ''}
         <div class="tiny muted">${esc(names(r.u.five))}</div>
         ${r.rec ? `<div class="sit-rec">${r.proven ? '<span class="sit-proven">PROVEN</span>' : ''}In this spot: ${esc(sitRecText(S.id, r.rec))} · counts ${Math.round(100 * sitRecWeight(r.rec))}%</div>` : ''}
         <div class="sf-nums">${key.map(([k, , , dir]) => `<span class="${r.z[k] * dir > 0.3 ? 'pos' : r.z[k] * dir < -0.3 ? 'neg' : ''}">${MIX_LBL[k]} <b>${P1(k, r.x[k])}</b></span>`).join('')}<span class="muted">${r.poss} poss${r.u.tonight ? ` · ${Math.round(r.u.tonight)} tonight` : ''}</span></div>
@@ -6461,8 +6466,8 @@ function sitRankCard(g, D, S, c, o = {}) {
   const pills = o.pills === false ? '' : `<div class="seg sf-k">${[5, 4, 3, 2].map(k => `<button class="${k === K ? 'on' : ''}" data-act="sit-k" data-k="${k}">${k}-man</button>`).join('')}</div>`;
   const wts = MIX.map(([k, w]) => `${MIX_LBL[k]} ${w}`).join(' · ');
   return `<div class="card fix-card"><div class="row" style="justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div class="fx-h"><b>${esc(S.name)}: best fits</b> <span class="muted small">· ${esc(wts)}</span></div>${pills}</div>
-    ${top.map(row).join('') || `<div class="small muted fx-none">No ${K}-man group with enough possessions together yet${K > 2 ? ': try a smaller size' : ''}.</div>`}
-    <div class="tiny muted" style="margin-top:6px">Every tracked game this season (garbage time out), high-leverage possessions counting 1.5, medium 1, low 0.5, and tonight double; players' 3s, steals, blocks, assists and rebounds from the uploaded box scores, FT% from the free throws you tagged. Numbers are pulled toward the team's until the sample backs them; ⚠ = clearly worse tonight with him on than off. The best read of the data, not a guarantee.</div></div>`;
+    ${top.length && top[0].below ? `<div class="small" style="margin:4px 0 6px;color:#fb923c">No ${K}-man group beats our norm here yet${K > 2 ? ': try a smaller size' : ''}. The closest:</div>` : ''}${top.map(row).join('') || `<div class="small muted fx-none">No ${K}-man group with enough possessions together yet${K > 2 ? ': try a smaller size' : ''}.</div>`}
+    <div class="tiny muted" style="margin-top:6px">Every tracked game this season (garbage time out), high-leverage possessions counting 1.5, medium 1, low 0.5, and tonight double; players' 3s, steals, blocks, assists and rebounds from the uploaded box scores, FT% from the free throws you tagged. Numbers are pulled toward the team's until the sample backs them and scored against our norm (only groups better than it are suggested); ⚠ = clearly worse tonight with him on than off. The best read of the data, not a guarantee.</div></div>`;
 }
 
 /* ---------- opponent adjustment on the iPad, against the leaderboard's nightly ratings ----------

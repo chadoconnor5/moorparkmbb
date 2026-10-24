@@ -279,7 +279,8 @@ fives don't). Group stats come from every game tracked this season, garbage time
 shown are the real count);
 player stats from the players: FT% from the free throws you tagged, 3P%, steals, blocks, assists, A/TO and DREB per
 40 from the uploaded box scores, fouls per 40 from the tracker. Every number is pulled toward the team's until the
-sample backs it, each is scored against the other groups of that size, weighted as above, and a group's fit counts in
+sample backs it, each is scored against **our own norm** (not just the other groups: the better of two bad groups
+isn't a fit), weighted as above, and a group's fit counts in
 proportion to its possessions (15 count half), so a proven group beats a lucky handful of trips. Under 15 relevant
 possessions: **LOW SAMPLE**. **⚠ tonight**: a player whose team is clearly worse on the situation's main numbers with
 him on than off tonight (12+ possessions each way) costs every group he's in, and is named. Only available players
@@ -287,7 +288,8 @@ him on than off tonight (12+ possessions each way) costs every group he's in, an
 security, Last stop, Need steals, Need a 3, Stop the run, Stop fouling): how each group actually did when the situation
 was on, from the situation log ("In this spot: 5/7 stops · 2 games"), moves its fit toward that record by trips / (trips
 + 12) (12 trips count half), scored against the team's own record there; 4- to 2-man groups get the records of the
-fives they were in; **PROVEN** = 6+ trips and better than the team's record. Top 3 per size, with their deciding
+fives they were in; **PROVEN** = 6+ trips and better than the team's record. Only groups better than our norm on the situation's balance are suggested; if none is at that size, the closest one
+shows, marked **BELOW OUR NORM** (try a smaller size). Top 3 per size, with their deciding
 numbers (green / red against the other groups) and **Sub this five in** on full fives. It's the best read of the
 data, not a guarantee.
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
