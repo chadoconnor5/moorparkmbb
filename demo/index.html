@@ -1337,7 +1337,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.282';
+const VERSION = 'v2026.10.24.283';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6902,15 +6902,15 @@ function splitPicker() {
    spread evenly through the half (never 1.9), so a slice stands in for one minute. Tapping a box says which
    possessions of the half it holds ("Possessions 37–38 · 2 possessions").
    Every game's halves are sliced on their own count, then the games in the Lineups split are added together.
-   Three maps, one row per player (sorted by possessions on the floor):
+   Two maps, one row per player (sorted by possessions on the floor):
      ON COURT        % of the slice's possessions he was on the floor
      ON COURT, SHOTS % of our shot attempts in the slice taken with him on the floor
-     SHOTS TAKEN     % of our shot attempts in the slice he took himself (shots tagged to a shooter)
+   (No "shots taken" map: live tracking logs our shots to TEAM, so almost none name a shooter.)
    Overtime isn't drawn. Tap a cell for the numbers behind it; "slices per box" widens the boxes like their slider. */
 const ROT_SLICES = 20;
 function rotData(list) {
-  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, fgaTag: 0, games: new Set(), ranges: {} }));
-  const pl = id => P[id] = P[id] || { on: Array(2 * ROT_SLICES).fill(0), shotOn: Array(2 * ROT_SLICES).fill(0), shots: Array(2 * ROT_SLICES).fill(0), total: 0 };
+  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, games: new Set(), ranges: {} }));
+  const pl = id => P[id] = P[id] || { on: Array(2 * ROT_SLICES).fill(0), shotOn: Array(2 * ROT_SLICES).fill(0), total: 0 };
   list.forEach(g => { const D = derive(g);
     ['1H', '2H'].forEach((per, h) => { const H = D.poss.filter(p => p.per === per), n = H.length; if (!n) return;
       H.forEach((p, i) => { const b = h * ROT_SLICES + Math.min(ROT_SLICES - 1, Math.floor(i * ROT_SLICES / n)), t = T[b], five = p.five.a || [];
@@ -6920,19 +6920,18 @@ function rotData(list) {
         five.forEach(id => { const x = pl(id); x.on[b]++; x.total++; });
         if (p.team !== 'a') return;
         p.plays.forEach(e => { if (!/^[23][mx]$/.test(e.k) || e.team !== 'a') return;
-          t.fga++; five.forEach(id => { pl(id).shotOn[b]++; });
-          if (e.player && e.player !== 'TEAM') { t.fgaTag++; pl(e.player).shots[b]++; } }); }); }); });
+          t.fga++; five.forEach(id => { pl(id).shotOn[b]++; }); }); }); }); });
   return { P, T };
 }
 function rotView(g) {
-  const list = UI.luScope === 'season' ? splitGames() : [g], R = rotData(list), mode = UI.rotMode || 'on', w = UI.rotW || 1;
+  const list = UI.luScope === 'season' ? splitGames() : [g], R = rotData(list), mode = UI.rotMode === 'shotOn' ? 'shotOn' : 'on', w = UI.rotW || 1;
   const cols = 2 * ROT_SLICES / w, nm = id => pShort(g, 'a', id);
   const ids = Object.keys(R.P).filter(id => teamPlayers(g, 'a').some(p => p.id === id) || R.P[id].total).sort((a, b) => R.P[b].total - R.P[a].total);
   // One box = w slices: sums across them.
   const sum = (arr, c) => arr.slice(c * w, c * w + w).reduce((s, v) => s + v, 0);
   const val = (id, c) => { const x = R.P[id], tp = T => sum(R.T.map(t => t[T]), c);
-    return mode === 'on' ? { n: sum(x.on, c), d: tp('poss') } : mode === 'shotOn' ? { n: sum(x.shotOn, c), d: tp('fga') } : { n: sum(x.shots, c), d: tp('fgaTag') }; };
-  const max = mode === 'shots' ? 25 : 80;   // the colour scale's top, like theirs: 80% on court, 25% of shots
+    return mode === 'on' ? { n: sum(x.on, c), d: tp('poss') } : { n: sum(x.shotOn, c), d: tp('fga') }; };
+  const max = 80;   // the colour scale's top, like theirs: 80%
   const col = r => { if (r == null) return 'transparent'; const t = Math.min(1, r / max), a = [253, 236, 200], z = [139, 21, 21];
     return `rgb(${a.map((v, i) => Math.round(v + (z[i] - v) * t)).join(',')})`; };
   const sel = UI.rotCell;
@@ -6941,7 +6940,7 @@ function rotView(g) {
   const head = `<div class="rot-row rot-hd"><div class="rot-n"></div><div class="rot-g" style="--cols:${cols}"><div style="grid-column:1 / span ${cols / 2}">1st half</div><div style="grid-column:${cols / 2 + 1} / span ${cols / 2}">2nd half</div></div></div>`;
   const rows = ids.map(id => `<div class="rot-row"><div class="rot-n">${esc(nm(id))}</div><div class="rot-g" style="--cols:${cols}">${cells(id)}</div></div>`).join('');
   const detail = sel && R.P[sel.id] ? (() => { const v = val(sel.id, sel.c), h = sel.c < cols / 2 ? '1st half' : '2nd half', s = (sel.c % (cols / 2)) * w;
-    const what = mode === 'on' ? `on the floor for ${v.n} of ${v.d} possessions` : mode === 'shotOn' ? `on the floor for ${v.n} of our ${v.d} shots` : `took ${v.n} of our ${v.d} tagged shots`;
+    const what = mode === 'on' ? `on the floor for ${v.n} of ${v.d} possessions` : `on the floor for ${v.n} of our ${v.d} shots`;
     // Which possessions the box holds: exact for one game; per game for a season.
     const rg = []; for (let k = sel.c * w; k < sel.c * w + w; k++) Object.entries(R.T[k].ranges).forEach(([gid, r]) => { const x = rg.find(y => y.gid === gid); if (x) { x.to = r.to; x.n += r.n; } else rg.push({ gid, from: r.from, to: r.to, n: r.n }); });
     const lbl = r => `${r.n === 1 ? `Possession ${r.from}` : `Possessions ${r.from}–${r.to}`} · ${r.n} possession${r.n === 1 ? '' : 's'}`;
@@ -6952,9 +6951,9 @@ function rotView(g) {
       : `${counts.join(' or ')} possession${counts.length === 1 && counts[0] === 1 ? '' : 's'} per game, around possession ${Math.min(...rg.map(r => r.from))}–${Math.max(...rg.map(r => r.to))} of the half (${rg.reduce((t, r) => t + r.n, 0)} over ${rg.length} games)`;
     return `<div class="rot-det"><b>${esc(nm(sel.id))}</b> · ${h}, "minute" ${s + 1}${w > 1 ? `–${s + w}` : ''}: ${what}${v.d ? ` (<b>${Math.round(100 * v.n / v.d)}%</b>)` : ''}<div class="small muted">${which}.</div></div>`; })() : '<div class="rot-det muted">Tap a box for the numbers behind it.</div>';
   const legend = `<div class="rot-leg"><span>0%</span><span class="rot-bar"></span><span>${max}%+</span></div>`;
-  const tabs = [['on', 'On court'], ['shotOn', 'On court for shots'], ['shots', 'Shots taken']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="rot-mode" data-s="${k}">${l}</button>`).join('');
+  const tabs = [['on', 'On court'], ['shotOn', 'On court for shots']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="rot-mode" data-s="${k}">${l}</button>`).join('');
   const widths = [1, 2, 4, 5].map(k => `<button class="${w === k ? 'on' : ''}" data-act="rot-w" data-s="${k}">${k}</button>`).join('');
-  const sub = { on: '% of each slice\'s possessions he was on the floor', shotOn: '% of our shot attempts taken with him on the floor', shots: '% of our shot attempts he took (shots tagged to a shooter)' }[mode];
+  const sub = { on: '% of each slice\'s possessions he was on the floor', shotOn: '% of our shot attempts taken with him on the floor' }[mode];
   if (!ids.length) return '<div class="muted small">No possessions with a full five yet.</div>';
   return `<div class="rot-top"><div class="lu-seg rot-tabs">${tabs}</div><div class="rot-w"><span class="small muted">Slices per box</span><div class="lu-seg">${widths}</div></div></div>
     <div class="small muted" style="margin:6px 0 8px">${esc(sub)}. Each half is cut into ${ROT_SLICES} slices of its possessions, each a whole number of possessions (about 2, so about a minute each); tap a box to see which possessions it holds. Players sorted by possessions on the floor.</div>

@@ -579,7 +579,7 @@ for a minute. Each game is sliced on its own count, then the games in the Games 
 sorted by possessions on the floor; darker = higher.
 - **On court**: % of the slice's possessions he was on the floor (scale to 80%).
 - **On court for shots**: % of our shot attempts in the slice taken with him on the floor (to 80%).
-- **Shots taken**: % of our shot attempts in the slice he took (shots tagged to a shooter; to 25%).
+(There's no "shots taken" map: live tracking logs our shots to TEAM, so almost none name a shooter.)
 Tap a box for the numbers behind it; **Slices per box** 1 / 2 / 4 / 5 widens the boxes. Overtime isn't drawn.
 
 ## Lineup shooting and scoring (tap a five on Lineups)
