@@ -1293,6 +1293,10 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .sub-fb>div.thin{opacity:.5}
 .pbp-feed .sub-flash{outline:2px solid var(--us);outline-offset:-2px;transition:outline-color .3s}
 
+/* Post-game report: exclude garbage time */
+.rp-gt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px}
+.rp-gt.on{border-color:var(--gold)}
+
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
 </style>
@@ -1355,7 +1359,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.284';
+const VERSION = 'v2026.10.24.285';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2518,9 +2522,19 @@ function leadLine(g, per) {
   const L = leadFlow(g, per), one = t => { const x = L.big[t]; return `<span style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'};font-weight:700">${esc(teamName(g, t))}</span> ${x ? `<b>${x.n}</b> <span class="muted">(${x.a}–${x.b}${per ? '' : ', ' + esc(x.per)})</span>` : '<b>—</b>'}`; };
   return `<div class="rp-flow"><span>Largest lead: ${one('a')} · ${one('b')}</span><span>Lead changes <b>${L.changes}</b></span><span>Ties <b>${L.ties}</b></span></div>`;
 }
+/* Post-game report, garbage time out: the game as it stood when garbage time began (its events cut there, so the
+   score, team stats, four factors, lineups, kills, runs ... all come from the tracker without it). The uploaded box
+   score and the stat sheet are full-game totals that can't be split, so they're left out of this view. */
+function noGtGame(g) {
+  const p = derive(g).poss.find(x => x.gt); if (!p) return null;
+  const i = g.ev.findIndex(e => e.id === p.plays[0].id); if (i < 0) return null;
+  return Object.assign({}, g, { ev: g.ev.slice(0, i), gtOff: true, boxScore: null, sheet: null });
+}
 function reportView(g) {
   if (UI.repSeason) return seasonReportView();
-  const D = derive(g), half = repHalf(g);
+  const g0 = g, gx = !repHalf(g) ? noGtGame(g) : null, noGt = !!(gx && UI.repNoGt);
+  if (noGt) g = gx;
+  const D = derive(g), half = repHalf(g0);
   const scope = half ? '1H' : null, S = perSums(D, scope), G = perSums(D, null);
   const avg = Math.floor((S.poss.a + S.poss.b) / 2);
   const tile = (t, x) => `<div class="rp-team ${t}"><div class="rp-nm">${logo(teamName(g, t), 30)}<span>${esc(teamName(g, t))}</span></div><div class="rp-sc">${x.pts[t]}</div>
@@ -2530,7 +2544,9 @@ function reportView(g) {
     <div class="page-head"><h2>${half ? 'Halftime report' : 'Post-game report'}</h2>
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
       <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="box-csv">📋 Box score CSV</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button>${half ? '' : '<button class="btn btn-sm btn-good" data-act="coach-pdf">📄 Coaches\' PDF</button>'}<button class="btn btn-sm" data-act="print">Print / PDF</button></div>
-    <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
+    ${gx ? `<div class="card rp-gt ${noGt ? 'on' : ''}"><button class="btn btn-sm ${noGt ? 'btn-primary' : ''}" data-act="rep-nogt">🗑 ${noGt ? 'Garbage time excluded' : 'Exclude garbage time'}</button>
+      <span class="small muted">${noGt ? (() => { const a = derive(g0), cut = a.poss.find(p => p.gt), F = perSums(a, null), n = Math.floor((F.poss.a + F.poss.b) / 2) - Math.floor((S.poss.a + S.poss.b) / 2); return `Stats through ${cut.before.a}–${cut.before.b} (${esc(PER_NAME(cut.per))}), when garbage time began: ${n} possession${n === 1 ? '' : 's'} left out (final ${a.score.a}–${a.score.b}). The box score and stat sheet are full-game only, so they're hidden here; the Coaches' PDF is the full game.`; })() : 'Garbage time began at ' + (() => { const c = derive(g0).poss.find(p => p.gt); return `${c.before.a}–${c.before.b} (${esc(PER_NAME(c.per))})`; })() + '. Tap to see the report without it.'}</span></div>` : ''}
+    <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : noGt ? 'garbage time out' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${leadLine(g, scope)}${subRepLine(g, scope)}
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
@@ -4346,6 +4362,7 @@ document.addEventListener('click', ev => {
     case 'lu-pick': { const P = UI.luPick = UI.luPick || [], i = P.indexOf(b.dataset.id); if (i < 0) P.push(b.dataset.id); else P.splice(i, 1); render(); break; }
     case 'lu-per': UI.luPer = b.dataset.s; UI.luOpen = null; render(); break;
     case 'lu-wowy': UI.luSubs = false; UI.luWowy = true; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
+    case 'rep-nogt': UI.repNoGt = !UI.repNoGt; render(); break;
     case 'sub-open': UI.subOpen = UI.subOpen === b.dataset.id ? null : b.dataset.id; render(); break;
     // A stint (this game) → Play-by-Play, scrolled to its first play, flashed.
     case 'sub-jump': { const id = b.dataset.id; UI.tab = 'pbp'; UI.pbpTeam = 'all'; render();

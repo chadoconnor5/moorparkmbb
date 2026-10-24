@@ -854,6 +854,10 @@ five has 25+ offensive possessions).
   **Post-game report** and **Reopen game**. The report has a **game list** at the top (every game played, newest
   first); it stays on the last game played, even after Live moves on to the next one, and opens each game on its
   latest report: Post-game once it's final, Halftime until then (the buttons still switch).
+- **🗑 Exclude garbage time** (Post-game report, games that reached garbage time): the report as the game stood when
+  garbage time began: score, team stats, four factors, lineups, kills, runs and the rest from the tracker with those
+  possessions cut, plus how many were left out and the real final. The uploaded box score and the stat sheet are
+  full-game totals, so they're hidden in this view; the Coaches' PDF stays the full game. Tap again for the full game.
 - **Game list** at the top of Report, Play-by-Play, Sheet and Four factors: pick any game played (newest first); the
   pick carries across them and is Lineups' and Runs' **This game**. Report also has **Season** (the **Season report**:
   record, each game's score and PPP, tap one to open it, and the team stats summed over every game, scrimmages
