@@ -1306,7 +1306,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.278';
+const VERSION = 'v2026.10.24.279';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1493,7 +1493,8 @@ function checkUpdate() {
     d.innerHTML = `<span>New version of the tracker (${esc(m[1].replace(/^v/, ''))})</span><button class="btn btn-sm btn-good" onclick="location.reload()">Update</button><button class="btn btn-sm" onclick="this.parentNode.remove()">Later</button>`;
     document.body.appendChild(d); }).catch(() => {});
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+// Back in the app: check for a new version and for the leaderboard's latest ratings (every finished game re-adjusts against them).
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkUpdate(); try { fetchRatings(); } catch (e) {} } });
 /* Every logo saved for offline up front: the offline copy (sw.js) keeps a logo only once it has loaded, so an
    opponent first seen in a gym with no signal had none (the button fell back to the name). Once the offline copy
    is running, each logo is asked for one at a time; the ones it already has come straight back from the iPad. */
