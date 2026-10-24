@@ -1306,7 +1306,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.279';
+const VERSION = 'v2026.10.24.280';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2563,7 +2563,7 @@ function luUnitsFor(g, D, t, scope, filter, k) {
   // Game or Season (the dropdown), then All / 1H / 2H / OT (the buttons): season 2H = every game's 2nd half.
   if (scope) return scope === 'season' ? seasonUnits(t, filter || UI.luFilter, k) : lineupUnits(g, D, t, scope, filter || UI.luFilter, k);
   const per = luPer(g);
-  return UI.luScope === 'season' ? seasonUnits(t, filter || UI.luFilter, k, per, UI.luSit) : lineupUnits(g, D, t, per || 'game', filter || UI.luFilter, k, UI.luSit);
+  return UI.luScope === 'season' ? seasonUnits(t, filter || UI.luFilter, k, per, luSitTag()) : lineupUnits(g, D, t, per || 'game', filter || UI.luFilter, k, luSitTag());
 }
 // The period picked under Game / Season: null = the whole game.
 function luPer(g) { const p = UI.luPer || 'all'; if (p === 'all') return null;
@@ -2836,6 +2836,13 @@ function fixCard(g, D, o, cur) {
   return { any, html: `<div class="card fix-card">${o.overall ? '' : `<h3>Lineups for what's hurting us <span class="muted">· today and season</span></h3>`}${summary}${levBtns(o.sk, o.def)}${html}
     <div class="tiny muted" style="margin-top:6px">${o.overall ? 'Best overall = the four factors combined, better than the five on now. ' : ''}What's hurting us = each four factor we're losing ${o.half}, biggest points cost first (≈ points: what the gap is worth at this half's shots and possessions), the end that's off our norm, and the fives best at that one stat. Today = as played; Season = every game, adjusted for the opponent${haveA ? ` (file ${esc(String(A.generatedAt || '').slice(0, 10))}, ${A.gamesAdjusted} games)` : ''}. Only fives with everyone dressed and not fouled out. Garbage time is always out; season All is leverage-weighted (High ×1, Medium ×0.6, Low ×0.25), and H · M · L shows how a five's season possessions split (red when mostly low). ★ BOTH = in the top two today and for the season.</div></div>` };
 }
+// The situation filter as a moment-tag filter (on/off, WOWY ...): only for situations with a tag log (SITLOG).
+const luSitTag = () => UI.luSit && SITLOG[UI.luSit] ? UI.luSit : null;
+// Lineups tab, a situation picked: its best fits at the View's group size, this game or the season's games.
+function luSitFit(g) {
+  const D = derive(g), S = SITS.find(s => s.id === UI.luSit);
+  return sitRankCard(g, D, S, sitCtx(g, D), { k: UI.luK || 5, pool: UI.luScope === 'season' ? null : [g], pills: false });
+}
 function lineupsView(g) {
   const D = derive(g);
   /* One control panel, two even rows: what games · which half · what view, then which possessions · which
@@ -2848,7 +2855,9 @@ function lineupsView(g) {
   const views = `<select data-act="lu-view">${[['k5', '5-man lineups'], ['k4', '4-man groups'], ['k3', '3-man groups'], ['k2', '2-man pairs'], ['oo', 'Player on / off'], ['proj', 'Projected fives & synergy'], ['wowy', 'WOWY'], ['rot', 'Rotation map']].map(([k, l]) => `<option value="${k}" ${vNow === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   // A situation locks Possessions to No garbage time (every leverage, garbage time out), as the situational lineups use.
   const possSel = `<select data-act="lu-filter-sel" ${UI.luSit ? 'disabled title="Locked to No garbage time while a situation is picked"' : ''}>${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time'], ['gt', 'Garbage time only']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-  const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select>`;
+  // Situation: the best-fit groups for it (sit.js sitRankCard) in place of the tables, at the View's group size.
+  const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${SITS.filter(s => SIT_MIX[s.id]).map(s => `<option value="${s.id}" ${UI.luSit === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`;
+  const FIT = UI.luSit && SIT_MIX[UI.luSit] && !(UI.luOO || UI.luProj || UI.luRot || UI.luWowy) ? luSitFit(g) : '';
   return `<div class="page-head"><h2>Lineups</h2></div>
     <div class="lu-ctl">
       <div class="lu-f"><span class="lu-l">Games</span>${splitSelect(g)}</div>
@@ -2858,9 +2867,9 @@ function lineupsView(g) {
       <div class="lu-f"><span class="lu-l">Situation</span>${sitSel}</div>
     </div>
     ${splitPicker()}
-    ${UI.luOO ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> player on / off <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${onOffView(g)}</div>` : UI.luProj ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> projected fives &amp; synergy <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${projectedView(g)}</div>` : UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${(() => { const T = lineupTable(g, D, 'a', null, null, UI.luK || 5, true); return luBuilderPanel(g, D, UI.luK || 5) + luMinSlider() + `<div class="tbl-wrap">${T}</div>`; })()}</div>`}
-    ${UI.luWowy || UI.luRot ? '' : UI.luScope === 'season' || UI.luOO || UI.luProj ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
-    ${UI.luWowy || UI.luRot || UI.luOO || UI.luProj ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
+    ${FIT ? FIT : UI.luOO ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> player on / off <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${onOffView(g)}</div>` : UI.luProj ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> projected fives &amp; synergy <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${projectedView(g)}</div>` : UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${(() => { const T = lineupTable(g, D, 'a', null, null, UI.luK || 5, true); return luBuilderPanel(g, D, UI.luK || 5) + luMinSlider() + `<div class="tbl-wrap">${T}</div>`; })()}</div>`}
+    ${FIT || UI.luWowy || UI.luRot ? '' : UI.luScope === 'season' || UI.luOO || UI.luProj ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${FIT || UI.luWowy || UI.luRot || UI.luOO || UI.luProj ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
@@ -6323,8 +6332,9 @@ function sitPlayers(list) {
   });
   return P;
 }
-function sitRankCard(g, D, S, c) {
-  const MIX = SIT_MIX[S.id], ok = sitOk(g), K = UI.sitK || 5, pool = seasonPool().filter(x => x !== g).concat([g]);
+// o (the Lineups tab): k = group size, pool = the games (this game only), pills: false (its View picks the size).
+function sitRankCard(g, D, S, c, o = {}) {
+  const MIX = SIT_MIX[S.id], ok = sitOk(g), K = o.k || UI.sitK || 5, pool = o.pool || seasonPool().filter(x => x !== g).concat([g]);
   const nowKey = D.five.a.length === 5 ? fiveKey(D.five.a) : '';
   // Units of size K: every game merged, tonight x2.
   // Leverage weights: high-leverage possessions count 1.5, medium 1, low 0.5 (garbage time out).
@@ -6400,7 +6410,7 @@ function sitRankCard(g, D, S, c) {
         <div class="sf-nums">${key.map(([k, , , dir]) => `<span class="${r.z[k] * dir > 0.3 ? 'pos' : r.z[k] * dir < -0.3 ? 'neg' : ''}">${MIX_LBL[k]} <b>${P1(k, r.x[k])}</b></span>`).join('')}<span class="muted">${r.poss} poss${r.u.tonight ? ` · ${Math.round(r.u.tonight)} tonight` : ''}</span></div>
         ${r.bad.map(id => { const b = tonightBad[id]; return `<div class="sf-warn">⚠ ${esc(pShort(g, 'a', id))} tonight: ${MIX_LBL[b.k]} ${P1(b.k, b.on)} with him on, ${P1(b.k, b.off)} off</div>`; }).join('')}${swap(r.u.five)}</div>
       ${K === 5 && fiveKey(r.u.five) !== nowKey ? `<div class="fx-subrow"><button class="btn btn-sm btn-good fx-sub" data-act="tip-sub" data-five="${esc(r.u.five.join('|'))}">Sub this five in</button></div>` : ''}</div>`; };
-  const pills = `<div class="seg sf-k">${[5, 4, 3, 2].map(k => `<button class="${k === K ? 'on' : ''}" data-act="sit-k" data-k="${k}">${k}-man</button>`).join('')}</div>`;
+  const pills = o.pills === false ? '' : `<div class="seg sf-k">${[5, 4, 3, 2].map(k => `<button class="${k === K ? 'on' : ''}" data-act="sit-k" data-k="${k}">${k}-man</button>`).join('')}</div>`;
   const wts = MIX.map(([k, w]) => `${MIX_LBL[k]} ${w}`).join(' · ');
   return `<div class="card fix-card"><div class="row" style="justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div class="fx-h"><b>${esc(S.name)}: best fits</b> <span class="muted small">· ${esc(wts)}</span></div>${pills}</div>
     ${top.map(row).join('') || `<div class="small muted fx-none">No ${K}-man group with enough possessions together yet${K > 2 ? ': try a smaller size' : ''}.</div>`}
@@ -6590,12 +6600,12 @@ let VIEW_ADJ = null;
 function luAdjView(g, k) {
   const R = ratingsData(); if (!R || !R.teams) return null;
   const list = UI.luScope === 'season' ? splitGames() : [g], per = luPer(g);
-  const stamp = [R.generatedAt, UI.luScope, UI.luSplit, (UI.luPick || []).join(','), per, UI.luFilter, UI.luSit, k, list.map(x => x.id + ':' + x.ev.length).join(',')].join('|');
+  const stamp = [R.generatedAt, UI.luScope, UI.luSplit, (UI.luPick || []).join(','), per, UI.luFilter, luSitTag(), k, list.map(x => x.id + ':' + x.ev.length).join(',')].join('|');
   if (VIEW_ADJ && VIEW_ADJ.stamp === stamp) return VIEW_ADJ.v;
   const side = (x, y) => ({ fgm: x.fgm, fga: x.fga, fg3m: x.fg3m, fg3a: x.fg3a, fta: x.fta, ftm: x.ftm || 0, tov: x.tov, stov: x.stov, oreb: x.oreb, dreb: y.dreb });
   const file = { games: list.map(gm => { const sc = schedule().find(x => x.id === gm.schedId);
     return { id: gm.id, date: gm.date, opponent: gm.opp, site: { H: 'home', A: 'away', N: 'neutral' }[gm.loc] || '', scrimmage: !!(sc && sc.scrim),
-      units: lineupUnits(gm, derive(gm), 'a', per || 'game', UI.luFilter, k, UI.luSit).units.map(u => ({ key: fiveKey(u.five), players: u.five.map(id => ({ name: id })), secs: 0,
+      units: lineupUnits(gm, derive(gm), 'a', per || 'game', UI.luFilter, k, luSitTag()).units.map(u => ({ key: fiveKey(u.five), players: u.five.map(id => ({ name: id })), secs: 0,
         oT: u.oPoss, dT: u.dPoss, pf: u.pf, pa: u.pa, stops: u.stops, fouls: u.fouls, o: side(u.o, u.d), d: side(u.d, u.o) })) }; }) };
   const A = adjustLineups(file, R), v = { map: new Map(A.units.map(u => [u.key, u])), adjusted: A.gamesAdjusted, total: A.gamesTotal, units: A.units };
   VIEW_ADJ = { stamp, v };
@@ -6711,7 +6721,7 @@ function sitTagsHtml(g, p) {
    the floor stay, dimmed and last, because "these two were never off together" is a fact about the rotation. */
 const WOWY_SLOTS = 5;
 function wowyKeep(filter, g) {
-  let SL = null; if (UI.luSit && g) { try { stampSits(g); } catch (e) {} SL = (g.sitLog && g.sitLog.poss) || {}; }
+  let SL = null; if (luSitTag() && g) { try { stampSits(g); } catch (e) {} SL = (g.sitLog && g.sitLog.poss) || {}; }
   return p => (!filter || filter === 'all' || (filter === 'gt' ? !!p.gt : !p.gt && (filter === 'nogt' || (filter === 'clutch' ? p.clutch : filter === 'hm' ? p.lev !== 'low' : p.lev === filter)))) && (!SL || !!(SL[p.id] && SL[p.id].t.includes(UI.luSit))); }
 // Always the whole season: every game tracked here (scrimmages out), whatever the Lineups scope is set to.
 function wowyGames(g) {
