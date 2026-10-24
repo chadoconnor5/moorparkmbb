@@ -283,7 +283,11 @@ sample backs it, each is scored against the other groups of that size, weighted 
 proportion to its possessions (15 count half), so a proven group beats a lucky handful of trips. Under 15 relevant
 possessions: **LOW SAMPLE**. **⚠ tonight**: a player whose team is clearly worse on the situation's main numbers with
 him on than off tonight (12+ possessions each way) costs every group he's in, and is named. Only available players
-(dressed, not fouled out, and with **Protect fouls**, not in foul trouble). Top 3 per size, with their deciding
+(dressed, not fouled out, and with **Protect fouls**, not in foul trouble). **Situation records** (Closing FTs, Ball
+security, Last stop, Need steals, Need a 3, Stop the run, Stop fouling): how each group actually did when the situation
+was on, from the situation log ("In this spot: 5/7 stops · 2 games"), moves its fit toward that record by trips / (trips
++ 12) (12 trips count half), scored against the team's own record there; 4- to 2-man groups get the records of the
+fives they were in; **PROVEN** = 6+ trips and better than the team's record. Top 3 per size, with their deciding
 numbers (green / red against the other groups) and **Sub this five in** on full fives. It's the best read of the
 data, not a guarantee.
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
