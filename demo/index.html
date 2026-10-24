@@ -1336,7 +1336,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.277';
+const VERSION = 'v2026.10.24.278';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2875,7 +2875,8 @@ function lineupsView(g) {
   // View: one dropdown (lineups by size, WOWY, On/Off, Projected & synergy, Rotation map).
   const vNow = UI.luOO ? 'oo' : UI.luProj ? 'proj' : UI.luRot ? 'rot' : UI.luWowy ? 'wowy' : 'k' + (UI.luK || 5);
   const views = `<select data-act="lu-view">${[['k5', '5-man lineups'], ['k4', '4-man groups'], ['k3', '3-man groups'], ['k2', '2-man pairs'], ['oo', 'Player on / off'], ['proj', 'Projected fives & synergy'], ['wowy', 'WOWY'], ['rot', 'Rotation map']].map(([k, l]) => `<option value="${k}" ${vNow === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-  const possSel = `<select data-act="lu-filter-sel">${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time'], ['gt', 'Garbage time only']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  // A situation locks Possessions to No garbage time (every leverage, garbage time out), as the situational lineups use.
+  const possSel = `<select data-act="lu-filter-sel" ${UI.luSit ? 'disabled title="Locked to No garbage time while a situation is picked"' : ''}>${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time'], ['gt', 'Garbage time only']].map(([k, l]) => `<option value="${k}" ${(UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${Object.entries(SITLOG).map(([k, s]) => `<option value="${k}" ${UI.luSit === k ? 'selected' : ''}>${esc(s.lbl)}</option>`).join('')}</select>`;
   return `<div class="page-head"><h2>Lineups</h2></div>
     <div class="lu-ctl">
@@ -4412,7 +4413,10 @@ document.addEventListener('change', ev => { const rk = ev.target.closest && ev.t
   const lv = ev.target.closest && ev.target.closest('select[data-act="lu-view"]');
   if (lv) { const v = lv.value; Object.assign(UI, { luWowy: v === 'wowy', luRot: v === 'rot', luOO: v === 'oo', luProj: v === 'proj', luOpen: null }); if (v[0] === 'k') UI.luK = +v.slice(1); render(); return; }
   const si = ev.target.closest && ev.target.closest('select[data-act="lu-sit-sel"]');
-  if (si) { UI.luSit = si.value || null; UI.luOpen = null; render(); return; }
+  if (si) { const was = UI.luSit; UI.luSit = si.value || null; UI.luOpen = null;
+    if (UI.luSit && !was) { UI.luFilterPrev = UI.luFilter || 'hm'; UI.luFilter = 'nogt'; }
+    else if (!UI.luSit && was) { UI.luFilter = UI.luFilterPrev || 'hm'; delete UI.luFilterPrev; }
+    render(); return; }
   const s = ev.target.closest && ev.target.closest('select[data-act="lu-b"],select[data-act="wowy"]'); if (!s) return;
   const k = s.dataset.act === 'wowy' ? 'wowy' : 'luB'; UI[k] = UI[k] || []; UI[k][+s.dataset.i] = s.value; const y = window.scrollY; render(); window.scrollTo(0, y); });
 
