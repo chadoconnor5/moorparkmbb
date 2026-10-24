@@ -453,8 +453,8 @@ the player cards), never the file's, and our players' names are our roster's (by
 (both teams' box and the top performers) when the game has no final stat sheet; its team stats stay the tracker's. Points are worked out
 from the makes (the file heads its points column "PF"; fouls are its FOUL column). **Players only:** saved on the game
 as its own box score, nothing else reads it, so team stats, the four factors, possessions and lineups stay the
-tracker's. It travels with the game in exports and the baseline. The Mack Attack Prep box scores are built in (put on
-that game once on each device).
+tracker's. It travels with the game in exports and the baseline. The Mack Attack Prep and Santa Monica box scores are built in (put on
+each game once on each device). Their players' names come from their roster when the file has none ("Unknown Athlete").
 
 ## Free throws & fouls by player
 
