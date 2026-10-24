@@ -1303,7 +1303,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.274';
+const VERSION = 'v2026.10.24.275';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1749,12 +1749,12 @@ const RUN_MARKS = [10, 15, 20];
    technical free throws count. */
 const RUN_NET = 8, RUN_SHARE = 0.4, RUN_UNANS = 6;
 const isRun = (f, a) => (a === 0 && f >= RUN_UNANS) || (f - a >= RUN_NET && a <= RUN_SHARE * f);
-function teamRuns(P, t) {
+function teamRuns(P, t, withGt) {   // withGt: garbage time too (the lists on the Report / PDF); analytics leave it out
   const o = other(t), got = (q, x) => q.score[x] - q.before[x], C = [];
   for (let i = 0; i < P.length; i++) {
-    if (P[i].gt || !got(P[i], t)) continue;
+    if ((P[i].gt && !withGt) || !got(P[i], t)) continue;
     let best = null, ans = 0;
-    for (let j = i; j < P.length && P[j].per === P[i].per && !P[j].gt; j++) {
+    for (let j = i; j < P.length && P[j].per === P[i].per && (withGt || !P[j].gt); j++) {
       if (got(P[j], t)) ans = 0; else if ((ans += got(P[j], o)) >= RUN_UNANS) break;
       const f = P[j].score[t] - P[i].before[t], a = P[j].score[o] - P[i].before[o];
       if (got(P[j], t) && isRun(f, a) && (!best || f - a > best.f - best.a)) best = { i0: i, i1: j, f, a };   // ends at its peak
@@ -1765,6 +1765,12 @@ function teamRuns(P, t) {
   C.sort((x, y) => (y.f - y.a) - (x.f - x.a) || (y.i1 - y.i0) - (x.i1 - x.i0) || x.i0 - y.i0)
     .forEach(c => { if (!out.some(r => c.i0 <= r.i1 && r.i0 <= c.i1)) out.push(c); });
   return out.sort((x, y) => x.i0 - y.i0);
+}
+// Every run of the game for the lists (Report, Sheet, coaches' PDF), garbage time included and marked; in order.
+function runsList(g, D) {
+  const P = D.poss, out = [];
+  ['a', 'b'].forEach(t => teamRuns(P, t, true).forEach(m => out.push({ team: t, pts: m.f, against: m.a, per: P[m.i0].per, from: P[m.i0].before, to: P[m.i1].score, fiveA: (P[m.i0].five.a || []).slice(), gt: P.slice(m.i0, m.i1 + 1).some(q => q.gt) })));
+  return out.sort((x, y) => g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || (x.from.a + x.from.b) - (y.from.a + y.from.b));
 }
 // The run going on right now (this half, still a run counting the other side's points since): { team, f, a } or null.
 function liveRun(g, D) {
@@ -2264,7 +2270,7 @@ function killsCard(g, D, scope) {
   const K = { a: { 10: 0, 15: 0, 20: 0 }, b: { 10: 0, 15: 0, 20: 0 } }; allRuns.forEach(r => RUN_MARKS.forEach(m => { if (r.pts >= m) K[r.team][m]++; }));
   D = Object.assign({}, D, { stopRuns: D.stopRuns.filter(r => inS(r.per)) });
   // Runs: the Runs tab's (teamRuns: 6-0 unanswered, or +8 holding the other side to 40%), this half or the game.
-  const RL = runsGame(g).runs.filter(r => inS(r.per)).sort((x, y) => g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || (x.from.a + x.from.b) - (y.from.a + y.from.b));
+  const RL = runsList(g, D).filter(r => inS(r.per));
   const bigOf = t => RL.filter(r => r.team === t).sort((x, y) => (y.pts - y.against) - (x.pts - x.against))[0];
   const best = t => D.stopRuns.filter(r => r.team === t).reduce((m, r) => Math.max(m, r.len), 0);
   const sruns = D.stopRuns.filter(r => r.len >= 3).sort((x, y) => y.len - x.len || g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || x.fromSeq - y.fromSeq);
@@ -2276,7 +2282,7 @@ function killsCard(g, D, scope) {
       ${sruns.map(r => `<tr><td><b>${r.len}</b>${r.len >= 9 ? ' <span class="skunk dead">DEAD SKUNK</span>' : r.len >= 6 ? ' <span class="skunk">SKUNK</span>' : ''}</td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.per)}</td><td>${r.fromSeq}–${r.toSeq}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
         <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.five).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No runs of 3+ stops yet.</div>'}
     ${RL.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl zebra sumt runt"><thead><tr><th>RUN</th><th>BY</th><th>HALF</th><th>SCORE</th><th>MOORPARK FIVE AT THE START</th></tr></thead><tbody>
-      ${RL.map(r => `<tr><td><b>${r.pts}-${r.against}</b></td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.per)}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
+      ${RL.map(r => `<tr><td><b>${r.pts}-${r.against}</b>${r.gt ? ' <span class="lev lev-gt">🗑 GT</span>' : ''}</td><td style="color:${r.team === 'a' ? '#0b6fa4' : '#9a6436'};font-weight:700">${esc(teamName(g, r.team))}</td><td>${esc(r.per)}</td><td>${r.from.a}–${r.from.b} → ${r.to.a}–${r.to.b}</td>
         <td class="small" style="text-align:left">${esc(fiveSorted(g, 'a', r.fiveA).map(id => lastName(id)).join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small muted" style="margin-top:10px">No runs yet (6-0, or +8 holding the other side to 40%).</div>'}`;
 }
 function sheetView(g) {
@@ -7713,9 +7719,9 @@ function coachReportHtml(g, bar) {
   const half = g.periods.map(per => { const P = perSums(D, per); return `<tr><td class="l">${esc(PER_NAME(per))}</td><td class="b">${P.pts.a}</td><td>${P.pts.b}</td><td>${ppp(P.pts.a, P.poss.a)}</td><td>${ppp(P.pts.b, P.poss.b)}</td><td>${P.kills.a}</td><td>${P.kills.b}</td></tr>`; }).join('')
     + `<tr><td class="l b">Game</td><td class="b">${S.pts.a}</td><td class="b">${S.pts.b}</td><td class="b">${ppp(S.pts.a, S.poss.a)}</td><td class="b">${ppp(S.pts.b, S.poss.b)}</td><td class="b">${S.kills.a}</td><td class="b">${S.kills.b}</td></tr>`;
   // Runs, both teams, in order.
-  const runs = RG.runs.slice().sort((x, y) => g.periods.indexOf(x.per) - g.periods.indexOf(y.per) || (x.from.a + x.from.b) - (y.from.a + y.from.b));
+  const runs = runsList(g, D);   // garbage time included, marked GT
   const five = f => fiveSorted(g, 'a', f).map(id => { const p = pInfo(g, 'a', id); return (p.num ? '#' + p.num + ' ' : '') + lastName(p.name || id); }).join(', ');
-  const runRows = runs.map(r => `<tr><td class="l nw ${r.team === 'a' ? 'pos' : 'neg'} b">${r.team === 'a' ? 'Moorpark' : esc(opp)}</td><td class="b nw">${r.pts}-${r.against}</td><td class="nw">${esc(PER_NAME(r.per))}</td><td class="nw">${r.from.a}-${r.from.b} → ${r.to.a}-${r.to.b}</td><td class="l" style="font-size:11.5px">${esc(five(r.fiveA))}</td></tr>`).join('');
+  const runRows = runs.map(r => `<tr><td class="l nw ${r.team === 'a' ? 'pos' : 'neg'} b">${r.team === 'a' ? 'Moorpark' : esc(opp)}</td><td class="b nw">${r.pts}-${r.against}${r.gt ? ' <span class="mut">GT</span>' : ''}</td><td class="nw">${esc(PER_NAME(r.per))}</td><td class="nw">${r.from.a}-${r.from.b} → ${r.to.a}-${r.to.b}</td><td class="l" style="font-size:11.5px">${esc(five(r.fiveA))}</td></tr>`).join('');
   // Lineups: most used, best and worst by net (enough possessions).
   const U = lineupUnits(g, D, 'a', 'game', 'all').units.map(u => Object.assign({ poss: Math.floor((u.oPoss + u.dPoss) / 2), net: u.oPoss && u.dPoss ? 100 * u.pf / u.oPoss - 100 * u.pa / u.dPoss : null }, u)).filter(u => u.net != null);
   let min = 5; while (min > 1 && !U.some(u => u.poss >= min)) min--;
