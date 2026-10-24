@@ -255,21 +255,35 @@ What's hurting us · Move the ball · vs their best five). A gold **Right now** 
 met, most urgent first, with the reason ("Up 5 with 3:11 left: they have to foul"); they're also
 underlined gold in their rows. Blue is the one open.
 
-| Situation | Lights up when | Fives ranked by |
+| Situation | Lights up when | Groups ranked by (weights) |
 |---|---|---|
-| Last stop | up 1-3, their ball, last 1:00 | best stop % |
-| Closing FTs | up 1-8 with 4:00 or less on a clock you set (never an estimate) | closing FT% of each player (below) |
-| Ball security | up 1-10, last 4:00 | lowest TO% |
-| Need steals | down 4+, last 4:00 | most steals per defensive possession |
-| Need a 3 | down 4-9, last 4:00 | players' season 3P% |
-| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | the stop-the-run score: most possessions, best net, fewest runs allowed = (net − 10 per run allowed per 20 def poss) × poss / (poss + 20); runs charged to the five on when they started; season = every game tracked here |
-| Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fewest fouls per 100 defensive possessions |
-| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | best **rim D**: low opponent 2P%, blocks, without fouling (below) |
-| Off the 3-pt line | their 3PA rate 8+ over our norm | fewest opponent 3-point attempts |
-| Close out the glass | our DREB% 5+ under our norm | best DREB% |
-| Move the ball | our AST% tonight 12+ under our norm (8+ made shots, logged game) | best AST%, with AST/TO shown |
+| Last stop | up 1-3, their ball, last 1:00 | stop % 40 · opp eFG% (low) 30 · DREB% 20 · fouls/100 (low) 10 |
+| Closing FTs | up 1-8 with 4:00 or less on a clock you set (never an estimate) | players' FT% 60 · TO% (low) 25 · FT rate 15 |
+| Ball security | up 1-10, last 4:00 | TO% (low) 45 · players' A/TO 30 · players' FT% 25 |
+| Need steals | down 4+, last 4:00 | steals per def poss 40 · players' STL/40 35 · TO forced 25 |
+| Need a 3 | down 4-9, last 4:00 | players' 3P% 45 · 3PA rate 20 · eFG% 20 · TO% (low) 15 |
+| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | run-stop score 50 · stop % 25 · net 25 |
+| Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fouls/100 (low) 60 · players' PF/40 (low) 40 |
+| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | opp 2P% (low) 50 · players' BLK/40 25 · fouls/100 (low) 25 |
+| Off the 3-pt line | their 3PA rate 8+ over our norm | opp 3PA rate (low) 60 · opp eFG% (low) 25 · fouls/100 (low) 15 |
+| Close out the glass | our DREB% 5+ under our norm | DREB% 60 · players' DREB/40 40 |
+| Move the ball | our AST% tonight 12+ under our norm (8+ made shots, logged game) | AST% 50 · players' AST/40 30 · TO% (low) 20 |
+| Best overall | the five on is struggling late | the four factors at both ends (shooting 40, turnovers 25, rebounding 20, FT rate 15) |
 | What's hurting us | we're losing a four factor this half | the halftime card's logic |
 | vs their best five | their best five is on | our fives' net against that exact five, tonight |
+
+**How the groups are ranked** (every situation but What's hurting us and vs their best five): **5-man · 4-man ·
+3-man · 2-man** buttons (smaller groups have far more possessions together, so they rank on real samples when full
+fives don't). Group stats come from every game tracked this season, garbage time out, with **tonight counting double**;
+player stats from the players: FT% from the free throws you tagged, 3P%, steals, blocks, assists, A/TO and DREB per
+40 from the uploaded box scores, fouls per 40 from the tracker. Every number is pulled toward the team's until the
+sample backs it, each is scored against the other groups of that size, weighted as above, and a group's fit counts in
+proportion to its possessions (15 count half), so a proven group beats a lucky handful of trips. Under 15 relevant
+possessions: **LOW SAMPLE**. **⚠ tonight**: a player whose team is clearly worse on the situation's main numbers with
+him on than off tonight (12+ possessions each way) costs every group he's in, and is named. Only available players
+(dressed, not fouled out, and with **Protect fouls**, not in foul trouble). Top 3 per size, with their deciding
+numbers (green / red against the other groups) and **Sub this five in** on full fives. It's the best read of the
+data, not a guarantee.
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
 
 **Assists and blocks in the situations.** Only games logged with the Assist / Block buttons count, so older
