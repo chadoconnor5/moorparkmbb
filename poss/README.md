@@ -518,7 +518,8 @@ This game is picked).
 **Situation** dropdown on Lineups (Any, Closing FTs, Ball security, Last stop, Need steals, Need a 3, Stop the run,
 Stop fouling): only the possessions each game's situation log tagged with it, so a split, a half, a leverage and a
 situation stack (e.g. Q1A · High · Last stop). A **Moorpark line** above the lineups gives the team's possessions,
-score, ORtg / DRtg / net and four factors for exactly that view.
+score, ORtg / DRtg / net and four factors for exactly that view. Picking a situation locks **Possessions** to *No garbage time* (greyed out), the same possessions the
+situational lineups use; back to *Any* puts your Possessions choice back.
 
 **Possessions** dropdown on Lineups (opens on **High + Med**): All, High, High + Med, Medium, Low, Clutch, No
 garbage time. It drives the lineup table, the Lineup Builder and WOWY.
