@@ -1296,6 +1296,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 /* Post-game report: exclude garbage time */
 .rp-gt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px}
 .rp-gt.on{border-color:var(--gold)}
+.rp-gtbox{margin:14px 2px -6px}
 
 </style>
 </head>
@@ -2494,7 +2495,8 @@ function leadLine(g, per) {
 }
 /* Post-game report, garbage time out: the game as it stood when garbage time began (its events cut there, so the
    score, team stats, four factors, lineups, kills, runs ... all come from the tracker without it). The uploaded box
-   score and the stat sheet are full-game totals that can't be split, so they're left out of this view. */
+   score still shows, as the full game (reportView draws it from the real game); the stat sheet can't be split, so
+   it's left out of this view. Both are dropped from the copy so nothing else reads full-game totals. */
 function noGtGame(g) {
   const p = derive(g).poss.find(x => x.gt); if (!p) return null;
   const i = g.ev.findIndex(e => e.id === p.plays[0].id); if (i < 0) return null;
@@ -2515,14 +2517,14 @@ function reportView(g) {
       <div class="row" style="gap:6px"><button class="btn btn-sm ${half ? 'btn-primary' : ''}" data-act="rep" data-r="half">Halftime</button><button class="btn btn-sm ${!half ? 'btn-primary' : ''}" data-act="rep" data-r="post">Post-game</button></div>
       <button class="btn btn-sm" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">📷 Read stat sheet</button><button class="btn btn-sm" data-act="box-csv">📋 Box score CSV</button><button class="btn btn-sm" data-act="rep-save">💾 Save report</button>${half ? '' : '<button class="btn btn-sm btn-good" data-act="coach-pdf">📄 Coaches\' PDF</button>'}<button class="btn btn-sm" data-act="print">Print / PDF</button></div>
     ${gx ? `<div class="card rp-gt ${noGt ? 'on' : ''}"><button class="btn btn-sm ${noGt ? 'btn-primary' : ''}" data-act="rep-nogt">🗑 ${noGt ? 'Garbage time excluded' : 'Exclude garbage time'}</button>
-      <span class="small muted">${noGt ? (() => { const a = derive(g0), cut = a.poss.find(p => p.gt), F = perSums(a, null), n = Math.floor((F.poss.a + F.poss.b) / 2) - Math.floor((S.poss.a + S.poss.b) / 2); return `Stats through ${cut.before.a}–${cut.before.b} (${esc(PER_NAME(cut.per))}), when garbage time began: ${n} possession${n === 1 ? '' : 's'} left out (final ${a.score.a}–${a.score.b}). The box score and stat sheet are full-game only, so they're hidden here; the Coaches' PDF is the full game.`; })() : 'Garbage time began at ' + (() => { const c = derive(g0).poss.find(p => p.gt); return `${c.before.a}–${c.before.b} (${esc(PER_NAME(c.per))})`; })() + '. Tap to see the report without it.'}</span></div>` : ''}
+      <span class="small muted">${noGt ? (() => { const a = derive(g0), cut = a.poss.find(p => p.gt), F = perSums(a, null), n = Math.floor((F.poss.a + F.poss.b) / 2) - Math.floor((S.poss.a + S.poss.b) / 2); return `Stats through ${cut.before.a}–${cut.before.b} (${esc(PER_NAME(cut.per))}), when garbage time began: ${n} possession${n === 1 ? '' : 's'} left out (final ${a.score.a}–${a.score.b}). The box score stays the full game; the stat sheet can't be split, so it's hidden here; the Coaches' PDF is the full game.`; })() : 'Garbage time began at ' + (() => { const c = derive(g0).poss.find(p => p.gt); return `${c.before.a}–${c.before.b} (${esc(PER_NAME(c.per))})`; })() + '. Tap to see the report without it.'}</span></div>` : ''}
     <div class="card"><h3>${esc(g.date)} · ${g.loc === 'A' ? '@' : 'vs'} ${esc(g.opp)} · ${half ? '1st half' : noGt ? 'garbage time out' : g.final ? 'Final' : 'so far'} · ${avg} possessions</h3>
       <div class="rp-score">${tile('a', S)}<div class="rp-dash">–</div>${tile('b', S)}</div>
       ${leadLine(g, scope)}${subRepLine(g, scope)}
       ${!half && g.periods.length > 1 ? `<div class="tbl-wrap" style="margin-top:12px">${summaryTable(g, D)}</div>` : ''}</div>
     ${teamStatsCard(g, D, half ? '1H' : 'G', half ? '1st half' : g.final ? 'the game' : 'the game so far')}
     ${ftFoulCard(g, half)}
-    ${boxScoreCard(g)}
+    ${noGt && g0.boxScore ? `<div class="small muted rp-gtbox">🗑 Box score below is the full game (it can't be split at garbage time).</div>` : ''}${boxScoreCard(g0)}
     ${g.sheet && g.sheet[half ? '1H' : 'G'] ? fullReport(g, D, half) + (half ? seasonFixCard(g, D) : '') + clutchCard(g, D, half) : `
     <div class="card sh-cta"><span>📷 Have the ${half ? 'halftime' : 'final'} stat sheet? Add a photo for the full report: team, player and lineup analytics.</span><button class="btn btn-good" data-act="sh-open" data-s="${half ? '1H' : 'G'}" style="margin-left:auto">Add stat sheet</button></div>
     <div class="card"><h3>Best lineups <span class="muted">· by net rating, ${half ? '1st half' : 'the game'}</span></h3>${bestCard(g, D, half ? '1H' : 'game')}</div>
