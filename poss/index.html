@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.25.292';
+const VERSION = 'v2026.10.25.293';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7186,11 +7186,12 @@ function ooAdjusted(S) {
         return u; }) }; }) };
   const A = adjustLineups(file, R); return new Map(A.units.map(u => [u.key, u]));
 }
-const OO_CORE = [['Net Rating', 'eff.net', 1, true, ''], ['Offensive Rating', 'eff.ortg', 1, true, ''], ['Defensive Rating', 'eff.drtg', 1, false, ''], ['+/- (points)', 'pm', 0, true, ''],
+const OO_CORE = [['Net Rating', 'eff.net', 1, true, ''], ['Offensive Rating', 'eff.ortg', 1, true, ''], ['Defensive Rating', 'eff.drtg', 1, false, ''], ['+/- per game', 'pm', 1, true, ''],
   ['Effective FG%', 'off_ff.efg', 1, true, '%'], ['Off Rebound %', 'off_ff.oreb', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%']];
 const OO_BOX = [['Points / 40', 'box.pts', 1, true, ''], ['Assists / 40', 'box.ast', 1, true, ''], ['ORebs / 40', 'box.oreb', 1, true, ''], ['DRebs / 40', 'box.dreb', 1, true, ''],
   ['Steals / 40', 'box.stl', 1, true, ''], ['Blocks / 40', 'box.blk', 1, true, ''], ['Turnovers / 40', 'box.to', 1, false, ''], ['PFs / 40', 'box.foul', 1, false, '']];
-// Core's +/- = raw points for minus against while he's on / off (not adjusted, not per 100), in Pace's old slot;
+// Core's +/- per game = raw points for minus against while he's on / off (not adjusted, not per 100), averaged over
+// the games with possessions on that side (onOffView); in Pace's old slot.
 // Pace moved here, under ORtg, in place of Deflections / 40 (games don't log deflections).
 const OO_OFF = [['Offensive Rating', 'eff.ortg', 1, true, ''], ['Pace', 'rate.pace', 1, null, ''], ['True Shooting %', 'ts', 1, true, '%'], ['3-Point Att Rate', 'rate.tpar', 1, null, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%'],
   ['Assist %', 'rate.asp', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['Ast/Tov Ratio', 'rate.ato', 2, true, '']];
@@ -7213,10 +7214,14 @@ function onOffView(g) {
   const AJ = ooAdjusted(S), tot = S.byGame.reduce((t, x) => ooSum(t, x.tot), OO_Z());
   const cards = S.ids.map(id => { const on = S.byGame.reduce((t, x) => ooSum(t, x.on[id] || OO_Z()), OO_Z()), off = ooSum(tot, on, -1);
     const games = S.byGame.filter(x => x.on[id] && (x.on[id].poss + x.on[id].oppPoss)).length;
-    return { id, on: ooStats(on, AJ && AJ.get('on|' + id)), off: ooStats(off, AJ && AJ.get('off|' + id)), minPct: tot.min > 0 ? 100 * on.min / tot.min : 0, games }; })
+    // Games with possessions with him off (a game he didn't play is all off).
+    const gOff = S.byGame.filter(x => { const o = x.on[id] || OO_Z(); return (x.tot.poss + x.tot.oppPoss) - (o.poss + o.oppPoss) > 0; }).length;
+    const sOn = ooStats(on, AJ && AJ.get('on|' + id)), sOff = ooStats(off, AJ && AJ.get('off|' + id));
+    if (sOn) sOn.pm = games ? sOn.pm / games : null; if (sOff) sOff.pm = gOff ? sOff.pm / gOff : null;
+    return { id, on: sOn, off: sOff, minPct: tot.min > 0 ? 100 * on.min / tot.min : 0, games }; })
     .filter(p => p.on).sort((a, b) => b.minPct - a.minPct);
   const poss = s => s ? `${s.offPoss}` : '0';
-  return `<div class="oo-imp-bar"><label class="oo-shoot-cb"><input type="checkbox" data-act="oo-shoot" ${UI.ooShoot ? 'checked' : ''}> Shooting</label><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). +/- = actual points for minus against while he's on / off (raw, technical FTs aside). Assists and blocks come from the Assist / Block buttons (games logged with them).${UI.ooShoot ? ' Shooting: the team\'s raw shooting with him on / off.' : ''}</div></div>
+  return `<div class="oo-imp-bar"><label class="oo-shoot-cb"><input type="checkbox" data-act="oo-shoot" ${UI.ooShoot ? 'checked' : ''}> Shooting</label><div class="oo-imp-note">Every row is a <b>team</b> stat with the player on vs. off the floor. Diff = on minus off; green = team better with him on. ${AJ ? 'Ratings and four factors are <b>opponent-adjusted</b>. ' : 'Raw numbers. '}Minutes = his share of each half's possessions (a half = 20). +/- per game = actual points for minus against while he's on / off (raw, technical FTs aside), averaged over the games he was on / off in. Assists and blocks come from the Assist / Block buttons (games logged with them).${UI.ooShoot ? ' Shooting: the team\'s raw shooting with him on / off.' : ''}</div></div>
     ${cards.map(p => `<div class="oo-imp-card"><div class="oo-imp-head"><span class="oo-imp-name">${esc(pShort(g, 'a', p.id))}</span><span class="oo-imp-sub">${p.minPct.toFixed(0)}% min · ${p.games} game${p.games === 1 ? '' : 's'} · ${poss(p.on)} poss on · ${p.off ? poss(p.off) + ' off' : 'never off the floor'}</span></div>
       <div class="oo-imp-grid">${ooPanel('Core Stats', OO_CORE, p)}${ooPanel('Box Stats', OO_BOX, p)}${ooPanel('Offense & Activity', OO_OFF, p)}${ooPanel('Defense', OO_DEF, p)}${UI.ooShoot ? ooPanel('Shooting', OO_SHOOT, p) : ''}</div></div>`).join('')}`;
 }
