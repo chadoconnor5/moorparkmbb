@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.25.289';
+const VERSION = 'v2026.10.25.290';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -5778,7 +5778,7 @@ const SITS = [
   { id: 'overall', name: 'Best overall', stat: 'edge', hi: true, end: 'both', def: 'hm', rank: 'best four factors (shooting 40, turnovers 25, rebounding 20, FT rate 15)',
     on: c => c.tip ? `The five on is at a net of ${sg1(c.tip.net)}` : '' },
   { id: 'hurt', name: "What's hurting us", def: 'hm', on: c => c.hurt ? 'We\'re losing a four factor this half' : '' },
-  { id: 'ft', name: 'Closing FTs', stat: 'ft', hi: true, end: 'both', def: 'hm', player: ['FTM', 'FTA'], rank: 'best free-throw shooters (players\' season FT%)',
+  { id: 'ft', name: 'Closing FTs', stat: 'ft', hi: true, end: 'both', def: 'hm', player: ['FTM', 'FTA'], rank: 'best free-throw shooters, weakest one first (players\' season FT%)',
     on: c => c.clockLate && c.m >= 1 && c.m <= 8 ? `Up ${c.m} with ${c.left} left: they have to foul` : '' },   // only on a clock you set
   { id: 'ball', name: 'Ball security', stat: 'tov', hi: false, end: 'o', def: 'hm', rank: 'lowest TO%',
     on: c => c.late && c.m >= 1 && c.m <= 10 ? `Up ${c.m} ${c.left ? `with ${c.left} left` : 'late'}: no turnovers` : '' },
@@ -6365,26 +6365,32 @@ function labelGuide() {
    gives, not a guarantee. Where the situation is logged (SITLOG), each group's actual record in it counts too
    (see SITUATION RECORDS in sitRankCard). */
 const SIT_MIX = {
-  three: [['p3', 45, 'pl', 1], ['my3ar', 20, 'u', 1], ['efg', 20, 'u', 1], ['tov', 15, 'u', -1]],
-  ft: [['ftp', 60, 'pl', 1], ['tov', 25, 'u', -1], ['ftr', 15, 'u', 1]],
-  ball: [['tov', 45, 'u', -1], ['ato', 30, 'pl', 1], ['ftp', 25, 'pl', 1]],
-  steal: [['stl', 40, 'u', 1], ['stl40', 35, 'pl', 1], ['otov', 25, 'u', 1]],
-  stop: [['stop', 40, 'u', 1], ['oefg', 30, 'u', -1], ['drb', 20, 'u', 1], ['fouls', 10, 'u', -1]],
-  two: [['o2p', 50, 'u', -1], ['blk40', 25, 'pl', 1], ['fouls', 25, 'u', -1]],
-  arc: [['o3ar', 60, 'u', -1], ['oefg', 25, 'u', -1], ['fouls', 15, 'u', -1]],
-  glass: [['drb', 60, 'u', 1], ['dreb40', 40, 'pl', 1]],
-  foul: [['fouls', 60, 'u', -1], ['pf40', 40, 'pl', -1]],
-  run: [['runstop', 50, 'u', 1], ['stop', 25, 'u', 1], ['net', 25, 'u', 1]],
-  ast: [['asp', 50, 'u', 1], ['ast40', 30, 'pl', 1], ['tov', 20, 'u', -1]],
+  // Need a 3: the shooters, and willing ones (3PA/40); no OREB: there's usually one shot.
+  three: [['p3', 40, 'pl', 1], ['p3a40', 15, 'pl', 1], ['my3ar', 15, 'u', 1], ['efg', 15, 'u', 1], ['tov', 15, 'u', -1]],
+  // Closing FTs: they're fouling, so FT rate is out; they'll foul the weakest shooter on the floor.
+  ft: [['ftlow', 35, 'pl', 1], ['ftp', 25, 'pl', 1], ['tov', 25, 'u', -1], ['ato', 15, 'pl', 1]],
+  ball: [['tov', 40, 'u', -1], ['tov40', 20, 'pl', -1], ['ato', 20, 'pl', 1], ['ftp', 20, 'pl', 1]],
+  // Need steals: gambling is the point, so no fouls term.
+  steal: [['stl', 40, 'u', 1], ['stl40', 30, 'pl', 1], ['otov', 30, 'u', 1]],
+  stop: [['stop', 30, 'u', 1], ['oefg', 25, 'u', -1], ['drb', 20, 'u', 1], ['fouls', 15, 'u', -1], ['dreb40', 10, 'pl', 1]],
+  // The 2s and the arc: a miss is only a stop once it's rebounded.
+  two: [['o2p', 40, 'u', -1], ['drb', 20, 'u', 1], ['blk40', 15, 'pl', 1], ['fouls', 15, 'u', -1], ['dreb40', 10, 'pl', 1]],
+  arc: [['o3ar', 45, 'u', -1], ['oefg', 25, 'u', -1], ['drb', 15, 'u', 1], ['fouls', 15, 'u', -1]],
+  glass: [['drb', 50, 'u', 1], ['dreb40', 30, 'pl', 1], ['stop', 20, 'u', 1]],
+  foul: [['fouls', 50, 'u', -1], ['pf40', 35, 'pl', -1], ['oftr', 15, 'u', -1]],
+  run: [['runstop', 40, 'u', 1], ['stop', 20, 'u', 1], ['net', 20, 'u', 1], ['tov', 10, 'u', -1], ['drb', 10, 'u', 1]],
+  ast: [['asp', 45, 'u', 1], ['ast40', 25, 'pl', 1], ['tov', 15, 'u', -1], ['efg', 15, 'u', 1]],
   // Best overall: the four factors at both ends (shooting 40, turnovers 25, rebounding 20, FT rate 15).
   overall: [['efg', 20, 'u', 1], ['oefg', 20, 'u', -1], ['tov', 12.5, 'u', -1], ['otov', 12.5, 'u', 1], ['orb', 10, 'u', 1], ['drb', 10, 'u', 1], ['ftr', 7.5, 'u', 1], ['oftr', 7.5, 'u', -1]],
 };
-const MIX_LBL = { orb: 'OREB%', oftr: 'opp FT rate', p3: '3P%', my3ar: '3PA rate', efg: 'eFG%', tov: 'TO%', ftp: 'FT%', ftr: 'FT rate', ato: 'A/TO', stl: 'steal %', stl40: 'STL/40', otov: 'TO forced',
+const MIX_LBL = { ftlow: 'weakest FT%', tov40: 'TO/40', p3a40: '3PA/40', orb: 'OREB%', oftr: 'opp FT rate', p3: '3P%', my3ar: '3PA rate', efg: 'eFG%', tov: 'TO%', ftp: 'FT%', ftr: 'FT rate', ato: 'A/TO', stl: 'steal %', stl40: 'STL/40', otov: 'TO forced',
   stop: 'stop %', oefg: 'opp eFG%', drb: 'DREB%', fouls: 'fouls/100', o2p: 'opp 2P%', blk40: 'BLK/40', o3ar: 'opp 3PA rate', dreb40: 'DREB/40', pf40: 'PF/40', runstop: 'run-stop', net: 'net', asp: 'AST%', ast40: 'AST/40' };
 // Which end a unit metric is counted on (its sample): o = our possessions, d = theirs.
 const MIX_END = { orb: 'o', oftr: 'd', my3ar: 'o', efg: 'o', tov: 'o', ftr: 'o', asp: 'o', stl: 'd', otov: 'd', stop: 'd', oefg: 'd', drb: 'd', fouls: 'd', o2p: 'd', o3ar: 'd', runstop: 'b', net: 'b' };
 // Typical spread of each metric, for scoring when there are too few groups to measure it.
-const MIX_SCALE = { orb: 10, oftr: 12, p3: 8, my3ar: 10, efg: 8, tov: 6, ftp: 10, ftr: 12, ato: 0.6, stl: 4, stl40: 1.2, otov: 6, stop: 12, oefg: 8, drb: 10, fouls: 10, o2p: 10, blk40: 0.8, o3ar: 10, dreb40: 2, pf40: 1.5, runstop: 20, net: 25, asp: 12, ast40: 1.2 };
+const MIX_SCALE = { ftlow: 12, tov40: 1, p3a40: 2.5, orb: 10, oftr: 12, p3: 8, my3ar: 10, efg: 8, tov: 6, ftp: 10, ftr: 12, ato: 0.6, stl: 4, stl40: 1.2, otov: 6, stop: 12, oefg: 8, drb: 10, fouls: 10, o2p: 10, blk40: 0.8, o3ar: 10, dreb40: 2, pf40: 1.5, runstop: 20, net: 25, asp: 12, ast40: 1.2 };
+// Player per-40 metrics → their box-score field.
+const PL40 = { stl40: 'stl', blk40: 'blk', ast40: 'ast', dreb40: 'dreb', tov40: 'tov', p3a40: 'fg3a' };
 const MIX_K_UNIT = 10, MIX_LOW = 15, MIX_MIN = 6, MIX_TON = 12;
 // Players' season lines from the tracker (FT, fouls) and the uploaded box scores (3s, steals, blocks, assists, DREB).
 function sitPlayers(list) {
@@ -6420,9 +6426,11 @@ function sitRankCard(g, D, S, c, o = {}) {
   const plVal = (k, five) => { const zs = five.map(id => PL[id]).filter(Boolean); if (!zs.length) return null; const s = f => zs.reduce((t, z) => t + z[f], 0);
     if (k === 'p3') return (100 * s('fg3m') + plNorm.p3 * 20) / (s('fg3a') + 20);
     if (k === 'ftp') return (100 * s('ftm') + plNorm.ftp * 20) / (s('fta') + 20);
+    // The group's weakest shooter: each player's FT% pulled toward ours (20 attempts), the lowest.
+    if (k === 'ftlow') return Math.min(...zs.map(z => (100 * z.ftm + plNorm.ftp * 20) / (z.fta + 20)));
     if (k === 'ato') return s('min') ? (s('ast') + plNorm.ato * 4) / (s('tov') + 4) : null;
     // Per 40, the group's players combined, with 60 minutes at the team's rate as the prior.
-    const f = { stl40: 'stl', blk40: 'blk', ast40: 'ast', dreb40: 'dreb', pf40: 'pf' }[k], mins = k === 'pf40' ? s('pfMin') : s('min'), nrm = k === 'pf40' ? plNorm.pf40 : plNorm.per40(f);
+    const f = Object.assign({ pf40: 'pf' }, PL40)[k], mins = k === 'pf40' ? s('pfMin') : s('min'), nrm = k === 'pf40' ? plNorm.pf40 : plNorm.per40(f);
     if (nrm == null) return null;
     return (40 * s(f) + nrm * 60) / (mins + 60);
   };
@@ -6455,12 +6463,14 @@ function sitRankCard(g, D, S, c, o = {}) {
       if (worst) tonightBad[id] = worst; }); }
   // Score: each metric against OUR norm (not the other candidates: with two candidates the better of two bad groups
   // isn't a fit), in the groups' spread (or the typical spread), weighted; tonight's penalty. Above 0 = better than us.
-  const plCenter = k => k === 'p3' ? plNorm.p3 : k === 'ftp' ? plNorm.ftp : k === 'ato' ? plNorm.ato : k === 'pf40' ? plNorm.pf40 : plNorm.per40({ stl40: 'stl', blk40: 'blk', ast40: 'ast', dreb40: 'dreb' }[k]);
+  // Weakest FT% is scored against the other groups' weakest (a group's worst shooter is nearly always under the team's).
+  const plCenter = k => k === 'ftlow' ? null : k === 'p3' ? plNorm.p3 : k === 'ftp' ? plNorm.ftp : k === 'ato' ? plNorm.ato : k === 'pf40' ? plNorm.pf40 : plNorm.per40(PL40[k]);
   MIX.forEach(([k, , src]) => { const xs = rows.map(r => r.x[k]).filter(v => v != null), mean = xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
     const ctr = src === 'pl' ? (PL ? plCenter(k) : null) : unitNorm(k), m = ctr == null ? mean : ctr;
     const sd = xs.length >= 4 ? Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length) : 0, sc = Math.max(sd, MIX_SCALE[k] / 2);
     rows.forEach(r => { r.z = r.z || {}; r.z[k] = r.x[k] == null ? 0 : (r.x[k] - m) / sc; }); });
-  const W = MIX.reduce((t, m) => t + m[1], 0);
+  // A stat with no data for any group (e.g. steals per 40 before any box score) drops out: the others share its weight.
+  const has = k => rows.some(r => r.x[k] != null), W = MIX.reduce((t, m) => t + (has(m[0]) ? m[1] : 0), 0) || 1;
   // Confidence: a group's fit counts in proportion to its sample (15 possessions count half), so a proven group beats a
   // lucky handful of trips; then tonight's penalty.
   rows.forEach(r => { r.score = MIX.reduce((t, [k, w, , dir]) => t + w / W * dir * r.z[k], 0) * r.n / (r.n + MIX_LOW); r.bad = r.u.five.filter(id => tonightBad[id]); r.score -= 0.4 * r.bad.length; });
@@ -6481,10 +6491,14 @@ function sitRankCard(g, D, S, c, o = {}) {
     if (v == null || recBase == null) return; const z = Math.max(-2.5, Math.min(2.5, recDir * (v - recBase) / recScale)), w = sitRecWeight(x);
     r.score = (1 - w) * r.score + w * z; r.proven = x.n >= SITREC_PROVEN && z > 0; });
   rows.sort((a, b) => b.score - a.score);
-  // Only groups better than our norm on the situation's balance are fits; if none is, the closest one, marked.
-  const fits = rows.filter(r => r.score > 0), top = fits.length ? fits.slice(0, 3) : rows.slice(0, 1).map(r => Object.assign(r, { below: true }));
+  /* Only groups better than our norm on the situation's balance are fits, and never one a full spread worse than our
+     norm on its MAIN stat (the heaviest: opp 2P% for Stop the 2s ...), however good the rest. If none is a fit, the
+     closest one, marked: among groups not worse than our norm on the main stat if any, else the best on it. */
+  const main = MIX.reduce((a, m) => m[1] > a[1] && has(m[0]) ? m : a, [null, -1]), mz = r => main[0] ? main[3] * r.z[main[0]] : 0;
+  const fits = rows.filter(r => r.score > 0 && mz(r) > -1), okMain = rows.filter(r => mz(r) >= 0);
+  const top = fits.length ? fits.slice(0, 3) : (okMain.length ? okMain.slice(0, 1) : rows.slice().sort((a, b) => mz(b) - mz(a)).slice(0, 1)).map(r => Object.assign(r, { below: true }));
   // Display.
-  const P1 = (k, v) => v == null ? '—' : ['ato', 'stl40', 'blk40', 'ast40', 'dreb40', 'pf40'].includes(k) ? v.toFixed(1) : k === 'runstop' || k === 'net' ? sg1(Math.round(10 * v) / 10) : v.toFixed(0) + (k === 'ftp' || k === 'p3' ? '%' : '');
+  const P1 = (k, v) => v == null ? '—' : ['ato', 'stl40', 'blk40', 'ast40', 'dreb40', 'pf40', 'tov40', 'p3a40'].includes(k) ? v.toFixed(1) : k === 'runstop' || k === 'net' ? sg1(Math.round(10 * v) / 10) : v.toFixed(0) + (k === 'ftp' || k === 'p3' || k === 'ftlow' ? '%' : '');
   const nn = id => { const p = pInfo(g, 'a', id); return p.num ? '#' + p.num : lastName(p.name || id); };
   const names = f => fiveSorted(g, 'a', f).map(id => lastName(pInfo(g, 'a', id).name || id)).join(', ');
   const swap = f => { const cur = D.five.a; if (K !== 5 || cur.length !== 5) return ''; const i = f.filter(id => !cur.includes(id)), o = cur.filter(id => !f.includes(id)); if (!i.length) return '';

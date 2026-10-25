@@ -260,17 +260,17 @@ underlined gold in their rows. Blue is the one open.
 
 | Situation | Lights up when | Groups ranked by (weights) |
 |---|---|---|
-| Last stop | up 1-3, their ball, last 1:00 | stop % 40 · opp eFG% (low) 30 · DREB% 20 · fouls/100 (low) 10 |
-| Closing FTs | up 1-8 with 4:00 or less on a clock you set (never an estimate) | players' FT% 60 · TO% (low) 25 · FT rate 15 |
-| Ball security | up 1-10, last 4:00 | TO% (low) 45 · players' A/TO 30 · players' FT% 25 |
-| Need steals | down 4+, last 4:00 | steals per def poss 40 · players' STL/40 35 · TO forced 25 |
-| Need a 3 | down 4-9, last 4:00 | players' 3P% 45 · 3PA rate 20 · eFG% 20 · TO% (low) 15 |
-| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | run-stop score 50 · stop % 25 · net 25 |
-| Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fouls/100 (low) 60 · players' PF/40 (low) 40 |
-| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | opp 2P% (low) 50 · players' BLK/40 25 · fouls/100 (low) 25 |
-| Off the 3-pt line | their 3PA rate 8+ over our norm | opp 3PA rate (low) 60 · opp eFG% (low) 25 · fouls/100 (low) 15 |
-| Close out the glass | our DREB% 5+ under our norm | DREB% 60 · players' DREB/40 40 |
-| Move the ball | our AST% tonight 12+ under our norm (8+ made shots, logged game) | AST% 50 · players' AST/40 30 · TO% (low) 20 |
+| Last stop | up 1-3, their ball, last 1:00 | stop % 30 · opp eFG% (low) 25 · DREB% 20 · fouls/100 (low) 15 · players' DREB/40 10 |
+| Closing FTs | up 1-8 with 4:00 or less on a clock you set (never an estimate) | weakest player's FT% 35 · players' FT% 25 · TO% (low) 25 · players' A/TO 15 (FT rate is out: they're fouling) |
+| Ball security | up 1-10, last 4:00 | TO% (low) 40 · players' TO/40 (low) 20 · players' A/TO 20 · players' FT% 20 |
+| Need steals | down 4+, last 4:00 | steals per def poss 40 · players' STL/40 30 · TO forced 30 (no fouls term: gambling is the point) |
+| Need a 3 | down 4-9, last 4:00 | players' 3P% 40 · players' 3PA/40 15 · 3PA rate 15 · eFG% 15 · TO% (low) 15 (no OREB: usually one shot) |
+| Stop the run | they're on a run (6-0, or +8 holding us to 40%) | run-stop score 40 · stop % 20 · net 20 · TO% (low) 10 · DREB% 10 |
+| Stop fouling | 7+ team fouls with 5:00+ left in the half, or their FT rate 10+ over our norm | fouls/100 (low) 50 · players' PF/40 (low) 35 · opp FT rate (low) 15 |
+| Stop the 2s | their 2P% 8+ over our norm (10+ twos) | opp 2P% (low) 40 · DREB% 20 · players' BLK/40 15 · fouls/100 (low) 15 · players' DREB/40 10 |
+| Off the 3-pt line | their 3PA rate 8+ over our norm | opp 3PA rate (low) 45 · opp eFG% (low) 25 · DREB% 15 · fouls/100 (low) 15 |
+| Close out the glass | our DREB% 5+ under our norm | DREB% 50 · players' DREB/40 30 · stop % 20 |
+| Move the ball | our AST% tonight 12+ under our norm (8+ made shots, logged game) | AST% 45 · players' AST/40 25 · TO% (low) 15 · eFG% 15 |
 | Best overall | the five on is struggling late | the four factors at both ends (shooting 40, turnovers 25, rebounding 20, FT rate 15) |
 | What's hurting us | we're losing a four factor this half | the halftime card's logic |
 | vs their best five | their best five is on | our fives' net against that exact five, tonight |
@@ -283,7 +283,8 @@ shown are the real count);
 player stats from the players: FT% from the free throws you tagged, 3P%, steals, blocks, assists, A/TO and DREB per
 40 from the uploaded box scores, fouls per 40 from the tracker. Every number is pulled toward the team's until the
 sample backs it, each is scored against **our own norm** (not just the other groups: the better of two bad groups
-isn't a fit), weighted as above, and a group's fit counts in
+isn't a fit; the weakest player's FT% against the other groups' weakest), weighted as above (a stat no group has data
+for yet drops out and the others share its weight), and a group's fit counts in
 proportion to its possessions (15 count half), so a proven group beats a lucky handful of trips. Under 15 relevant
 possessions: **LOW SAMPLE**. **⚠ tonight**: a player whose team is clearly worse on the situation's main numbers with
 him on than off tonight (12+ possessions each way) costs every group he's in, and is named. Only available players
@@ -291,8 +292,9 @@ him on than off tonight (12+ possessions each way) costs every group he's in, an
 security, Last stop, Need steals, Need a 3, Stop the run, Stop fouling): how each group actually did when the situation
 was on, from the situation log ("In this spot: 5/7 stops · 2 games"), moves its fit toward that record by trips / (trips
 + 12) (12 trips count half), scored against the team's own record there; 4- to 2-man groups get the records of the
-fives they were in; **PROVEN** = 6+ trips and better than the team's record. Only groups better than our norm on the situation's balance are suggested; if none is at that size, the closest one
-shows, marked **BELOW OUR NORM** (try a smaller size). Top 3 per size, with their deciding
+fives they were in; **PROVEN** = 6+ trips and better than the team's record. Only groups better than our norm on the situation's balance are suggested, and never one a full spread worse than our
+norm on the situation's **main stat** (the heaviest, e.g. opp 2P% for Stop the 2s); if none is at that size, the closest
+one not worse on the main stat (else the best on it) shows, marked **BELOW OUR NORM** (try a smaller size). Top 3 per size, with their deciding
 numbers (green / red against the other groups) and **Sub this five in** on full fives. It's the best read of the
 data, not a guarantee.
 | Best overall | the five on is at a net of 0 or worse late | four-factor edge |
