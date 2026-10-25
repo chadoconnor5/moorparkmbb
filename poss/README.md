@@ -560,8 +560,10 @@ WOWY, Rotation map. Everything follows the Games split, Half, Possessions and Si
 of floor time, four panels of eight rows (Core Stats, Box Stats, Offense & Activity, Defense), each a team stat
 On / Off / Diff (green = team better with him on), in alternating light grey / darker grey rows. The Defense panel ends with **PF Efficiency, Steals / PF and
 Blocks / PF** (the version before paint / transition / off-turnover points). Differences from practice: minutes
-are his share of each half's possessions (a half = 20 min), possessions are the real count, and assists, blocks
-and deflections aren't logged in games (—), so PF Efficiency is steals per foul. Ratings and four factors are
+are his share of each half's possessions (a half = 20 min), possessions are the real count, assists and blocks
+count only from games logged with them (else —), so PF Efficiency is steals per foul, and Offense & Activity has
+**+/- (points)** under Offensive Rating in place of Deflections / 40 (not logged in games): actual points for minus
+against with him on / off and the swing, raw (on + off = the team's margin in the view). Ratings and four factors are
 opponent-adjusted (Data → Show raw numbers for raw).
 **Shooting** checkbox (top of the on / off view, remembered): adds a Shooting panel to every card, 3rd in the left column
 (under Core Stats and Offense & Activity),
