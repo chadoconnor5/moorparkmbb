@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.25.291';
+const VERSION = 'v2026.10.25.292';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7186,13 +7186,13 @@ function ooAdjusted(S) {
         return u; }) }; }) };
   const A = adjustLineups(file, R); return new Map(A.units.map(u => [u.key, u]));
 }
-const OO_CORE = [['Net Rating', 'eff.net', 1, true, ''], ['Offensive Rating', 'eff.ortg', 1, true, ''], ['Defensive Rating', 'eff.drtg', 1, false, ''], ['Pace', 'rate.pace', 1, null, ''],
+const OO_CORE = [['Net Rating', 'eff.net', 1, true, ''], ['Offensive Rating', 'eff.ortg', 1, true, ''], ['Defensive Rating', 'eff.drtg', 1, false, ''], ['+/- (points)', 'pm', 0, true, ''],
   ['Effective FG%', 'off_ff.efg', 1, true, '%'], ['Off Rebound %', 'off_ff.oreb', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%']];
 const OO_BOX = [['Points / 40', 'box.pts', 1, true, ''], ['Assists / 40', 'box.ast', 1, true, ''], ['ORebs / 40', 'box.oreb', 1, true, ''], ['DRebs / 40', 'box.dreb', 1, true, ''],
   ['Steals / 40', 'box.stl', 1, true, ''], ['Blocks / 40', 'box.blk', 1, true, ''], ['Turnovers / 40', 'box.to', 1, false, ''], ['PFs / 40', 'box.foul', 1, false, '']];
-// +/- = raw points for minus against while he's on / off (not adjusted, not per 100), under ORtg; it took the
-// place of Deflections / 40, which games don't log.
-const OO_OFF = [['Offensive Rating', 'eff.ortg', 1, true, ''], ['+/- (points)', 'pm', 0, true, ''], ['True Shooting %', 'ts', 1, true, '%'], ['3-Point Att Rate', 'rate.tpar', 1, null, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%'],
+// Core's +/- = raw points for minus against while he's on / off (not adjusted, not per 100), in Pace's old slot;
+// Pace moved here, under ORtg, in place of Deflections / 40 (games don't log deflections).
+const OO_OFF = [['Offensive Rating', 'eff.ortg', 1, true, ''], ['Pace', 'rate.pace', 1, null, ''], ['True Shooting %', 'ts', 1, true, '%'], ['3-Point Att Rate', 'rate.tpar', 1, null, '%'], ['FT Attempt Rate', 'off_ff.ftr', 1, true, '%'],
   ['Assist %', 'rate.asp', 1, true, '%'], ['Turnover %', 'off_ff.tov', 1, false, '%'], ['Ast/Tov Ratio', 'rate.ato', 2, true, '']];
 const OO_DEF = [['Defensive Rating', 'eff.drtg', 1, false, ''], ['Def Rebound %', 'def_reb', 1, true, '%'], ['Steal %', 'rate.stl', 1, true, '%'], ['Block %', 'rate.blk', 1, true, '%'],
   ['Hakeem %', 'hakeem', 1, true, '%'], ['PF Efficiency', 'pf_eff', 2, true, ''], ['Steals / PF', 'stl_pf', 2, true, ''], ['Blocks / PF', 'blk_pf', 2, true, '']];
