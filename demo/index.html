@@ -1300,6 +1300,12 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 /* Box score TEAM line: a step darker than the zebra rows so the totals stand apart. */
 .box-table tr.totals-row td{background:#b4bcc8!important}
 
+/* Runs → Kill shots: for / against totals and per game */
+.rn-ks{display:flex;align-items:flex-end;gap:28px;flex-wrap:wrap;margin:2px 0 12px}
+.rn-ks>div:not(.small){display:flex;flex-direction:column;gap:2px}
+.rn-ks .rn-ks-l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
+.rn-ks b{font-size:22px;line-height:1.1}
+
 .demo-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;justify-content:center;padding:5px 12px;background:#7c2d12;color:#fde68a;font-size:12.5px}
 .demo-bar b{letter-spacing:.12em}.demo-bar .btn{margin-left:8px;padding:3px 10px;font-size:12px}
 </style>
@@ -1362,7 +1368,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.24.287';
+const VERSION = 'v2026.10.25.289';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2208,7 +2214,7 @@ function feedText(g, x) {
 function feedText0(g, x) {
   if (x.kind === 'poss') {
     const p = x.p, t = p.team;
-    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? 'steal (held ball)' : STAT_LABEL[e.k].toLowerCase()}${e.auto ? ' (auto)' : ''}${e.ast ? ' (assisted)' : ''}${e.blk ? ' (blocked)' : ''}`);
+    const parts = p.plays.map(e => `${e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) + ' ' : e.team !== p.team ? teamAbbr(g, e.team) + ' ' : ''}${e.held ? (e.k === 'stl' ? 'steal' : STAT_LABEL[e.k].toLowerCase()) + ' (held ball)' : STAT_LABEL[e.k].toLowerCase()}${e.auto ? ' (auto)' : ''}${e.ast ? ' (assisted)' : ''}${e.blk ? ' (blocked)' : ''}`);
     const tail = p.dreb ? ' · def reb' : '';
     return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
@@ -3616,9 +3622,10 @@ function techModal() {
       ${T.fta !== 0 ? '<div class="small muted" style="margin-top:6px">Log the shots like any free throws, in the order they\'re shot (before or after the foul shots): FT Shooter, pick the shooter, then <b>Technical</b>.</div>' : ''}</div>`);
 }
 
-/* POSSESSION PILL (as the game tracker): changes ONLY when tapped — no play, sub, timeout or new
-   period moves it. Tap it at the tip, at the start of the 2nd half, after a jump ball. Tapped
-   mid-half it asks whether it was a held ball (a steal for the team that gets it) or just a switch. */
+/* POSSESSION PILL = the possession ARROW (as the game tracker): the team that gets the next held ball, not the team
+   with the ball now. It changes ONLY when tapped — no play, sub, timeout or new period moves it. Tap it at the tip,
+   at the start of the 2nd half, after a jump ball. Tapped mid-half it's a held ball: the arrow's team gets the ball
+   (heldBallModal says what that logs) and the arrow flips; or Just switch, to fix the arrow without a play. */
 function possPill(g) {
   if (g.final) return '';
   const ball = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
@@ -3627,11 +3634,21 @@ function possPill(g) {
   // The real pill fits its text; hidden copies of the other two hold the slot at the widest one's width.
   return `<span class="pp-slot">${['a', 'b', ''].filter(k => k !== (ball || '')).map(k => pill(k, 'pp-ghost')).join('')}${pill(ball || '', '', true)}</span>`;
 }
-function heldBallModal(off) {
-  const g = cur();
-  modal(`<h2>Jump ball → ${esc(teamName(g, other(off)))} ball</h2>
-    <p class="muted" style="margin-bottom:6px">A held ball with the arrow going to ${esc(teamName(g, other(off)))} is a steal for ${esc(teamName(g, other(off)))} — it ends ${esc(teamName(g, off))}'s possession. Just switch only moves the pill.</p>
-    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-lg" data-act="hb-switch">Just switch</button><button class="btn btn-primary btn-lg" data-act="hb-held" data-t="${off}">Held ball: steal</button></div>`);
+/* A held ball goes to the arrow's team (t). What it logs depends on who had the ball, read off the last play of the
+   half as Check game does: the other team had it → a steal for t (ends their possession); t had it → nothing (t
+   keeps it); it came off a miss → a team rebound for t (offensive if t shot, defensive if not); unknown → nothing. */
+function heldBallPlay(g, t) {
+  let L = null; for (let j = g.ev.length - 1; j >= 0; j--) { const x = g.ev[j]; if (x.per !== g.per) break; if (x.t === 'play' && !x.tech) { L = x; break; } }
+  if (L && MISS_K.has(L.k)) return { k: L.team === t ? 'oreb' : 'dreb', what: `${L.team === t ? 'an offensive' : 'a defensive'} rebound for ${teamName(g, t)} (the tie-up came off a miss)` };
+  const has = !L ? null : BALL_TO_OTHER.has(L.k) ? other(L.team) : BALL_KEEP.has(L.k) ? L.team : null;
+  if (has === other(t)) return { k: 'stl', what: `a steal for ${teamName(g, t)}: it ends ${teamName(g, has)}'s possession` };
+  return { k: null, what: has === t ? `no stat: ${teamName(g, t)} had the ball and keeps it` : `no stat: ${teamName(g, t)} gets the ball` };
+}
+function heldBallModal(t) {
+  const g = cur(), H = heldBallPlay(g, t);
+  modal(`<h2>Held ball → ${esc(teamName(g, t))} (arrow)</h2>
+    <p class="muted" style="margin-bottom:6px">The arrow gives the ball to ${esc(teamName(g, t))}: ${esc(H.what)}. Then the arrow points to ${esc(teamName(g, other(t)))}. Just switch only flips the arrow, with no play.</p>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Cancel</button><button class="btn btn-lg" data-act="hb-switch">Just switch</button><button class="btn btn-primary btn-lg" data-act="hb-held" data-t="${t}">Held ball: ${esc(teamName(g, t))} ${H.k === 'stl' ? 'steal' : H.k ? 'rebound' : 'ball'}</button></div>`);
 }
 
 /* TIMEOUT SHEET ("Huddle") — the game tracker's, by possessions instead of the clock. Opens on every
@@ -4254,11 +4271,13 @@ document.addEventListener('click', ev => {
     case 'cl-prev': clarifySave(); SHEET.ci = Math.max(0, SHEET.ci - 1); clarifyModal(); break;
     case 'cl-done': clarifySave(); SHEET.stage = 'check'; sheetModal(); break;
     case 'ball-flip': { const bl = g.ball === 'a' || g.ball === 'b' ? g.ball : null;
-      // Mid-half a jump ball going to the other side may be a held ball (a turnover); the tip and a new half just set it.
+      // Mid-half a tap is a held ball for the arrow's team (then the arrow flips); the tip and a new half just set it.
       if (bl && derive(g).poss.some(p => p.per === g.per)) heldBallModal(bl);
       else { g.ball = bl === 'a' ? 'b' : 'a'; save(); render(); } break; }
     case 'hb-switch': g.ball = other(g.ball); save(); closeModal(); render(); break;
-    case 'hb-held': { const t = b.dataset.t; UI.reb = null; UI.stat = null; push(g, { t: 'play', team: other(t), player: 'TEAM', k: 'stl', held: true }); g.ball = other(t); save(); closeModal(); render(); toast(`Held ball — ${teamName(g, other(t))} steal and ball`); break; }
+    case 'hb-held': { const t = b.dataset.t, H = heldBallPlay(g, t); UI.reb = null; UI.stat = null;
+      if (H.k) push(g, { t: 'play', team: t, player: 'TEAM', k: H.k, held: true });
+      g.ball = other(t); save(); closeModal(); render(); toast(`Held ball — ${teamName(g, t)} ${H.k === 'stl' ? 'steal' : H.k ? 'rebound' : 'ball'} · arrow → ${teamName(g, other(t))}`); break; }
     case 'adjust': adjustModal(); break;
     case 'adj-foul': {
       const t = b.dataset.t;
@@ -7708,7 +7727,10 @@ function runsView() {
   // Every kill shot.
   const where = x => `${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp)}`;
   const shots = R.shots.slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''));
-  const shotCard = `<div class="card"><h3>Kill shots (10-0)${scope === 'game' ? '' : ' this season'}</h3>${shots.length ? `<div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Who</th><th>When</th><th>Score</th><th>Our five</th><th>What started it</th><th>What ended it</th></tr></thead><tbody>
+  // Totals for and against, and per game over the season.
+  const ksF = cnt(R.shots, 'a'), ksA = cnt(R.shots, 'b');
+  const ksSum = `<div class="rn-ks"><div><span class="rn-ks-l">${scope === 'game' ? 'This game' : 'Season total'}</span><b>${kv(ksF, ksA)}</b></div>${scope === 'game' ? '' : `<div><span class="rn-ks-l">Per game (${n})</span><b>${kv(pg(ksF), pg(ksA))}</b></div>`}<div class="small muted">ours / theirs</div></div>`;
+  const shotCard = `<div class="card"><h3>Kill shots (10-0)${scope === 'game' ? '' : ' this season'}</h3>${ksSum}${shots.length ? `<div class="tbl-wrap"><table class="rn-t"><thead><tr><th>Who</th><th>When</th><th>Score</th><th>Our five</th><th>What started it</th><th>What ended it</th></tr></thead><tbody>
     ${shots.map(s => `<tr><td><b class="${s.team === 'a' ? 'pos' : 'neg'}">${s.team === 'a' ? 'OURS' : 'THEIRS'} ${s.pts}-0</b>${scope === 'game' ? '' : ` <span class="muted small">${esc(s.date || '')} ${where(s)}</span>`}</td><td>${esc(s.per)} · trip ${s.trip}</td><td>${s.from.a}–${s.from.b} → ${s.to.a}–${s.to.b}</td><td>${esc(five(s.fiveA))}</td><td>${esc(s.start.map(k => rnLbl(RN_START, k)).join(', ') || '—')}</td><td>${esc(rnLbl(RN_END, s.end))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="muted small">None yet.</div>'}</div>`;
   // When kills start: trips into each half.
   const bins = [['1H', 1, 8], ['1H', 9, 24], ['1H', 25, 999], ['2H', 1, 8], ['2H', 9, 24], ['2H', 25, 999]];

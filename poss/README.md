@@ -101,9 +101,12 @@ Games → **+ New game** brings the screen back. Every tab opens without a game 
 - **No clock.**
 - **Possession pill** (under the period; the pill fits its text, and the middle of the scoreboard is sized to this
   game's longest label: wider for a long opponent name like Mack Attack Prep, compact for Cuesta, the same all game,
-  so changing the ball never moves the logos): moves only when you tap it — at the tip, at the start of the
-  2nd half, after a jump ball. Plays, subs and timeouts never move it. Tapped mid-half it asks: **Held
-  ball: steal** (a steal for the team that gets the ball, ending the other team's possession; shown as "steal (held ball)") or **Just switch**.
+  so changing the ball never moves the logos) is the **possession arrow**: the team that gets the next held ball, not
+  the team with the ball now. It moves only when you tap it — at the tip, at the start of the 2nd half, after a jump
+  ball. Plays, subs and timeouts never move it. Tapped mid-half it's a **held ball**: the arrow's team gets the ball and
+  the arrow flips. What it logs depends on who had the ball (the last play of the half): the other team → a **steal**
+  for the arrow's team (ends their possession); the arrow's team → nothing (they keep it); off a missed shot → a team
+  **rebound** for the arrow's team (offensive if they shot); shown as "(held ball)". **Just switch** flips the arrow with no play.
 - **Team stats** (Huddle, Halftime report, Post-game report; with or without a stat sheet): Moorpark on the left, the
   stat in the middle, the opponent on the right, one row each, from the tracked plays: points, FG / 2PT / 3PT / FT
   made-attempted, each with its % on the next row (eFG% right after 3PT%, TS% right after FT%), offensive / defensive /
@@ -684,7 +687,8 @@ It opens on This game during a game, Season otherwise. Garbage time is always ou
   Kills are credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they
   started. **Tap a five** for every kill, kill shot and run it was on for: date, opponent, half and trip,
   score before → after, what started and ended it.
-- **Kill shots:** every 10-0, with when, the score, our five, what started it and what ended it.
+- **Kill shots:** ours / theirs at the top (the season total and per game; This game: the game's count), then
+  every 10-0, with when, the score, our five, what started it and what ended it.
 - **When kills start:** trips (possessions each) into each half, ours vs theirs: the possession count,
   never a clock estimate.
 - **What starts and ends them**, for kills and for kill shots & runs. Started by: start of a half, out of
