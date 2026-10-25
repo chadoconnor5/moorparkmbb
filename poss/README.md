@@ -687,7 +687,8 @@ It opens on This game during a game, Season otherwise. Garbage time is always ou
   Kills are credited to the five on the floor at the 3rd stop; kill shots and runs to the five on when they
   started. **Tap a five** for every kill, kill shot and run it was on for: date, opponent, half and trip,
   score before → after, what started and ended it.
-- **Kill shots:** every 10-0, with when, the score, our five, what started it and what ended it.
+- **Kill shots:** ours / theirs at the top (the season total and per game; This game: the game's count), then
+  every 10-0, with when, the score, our five, what started it and what ended it.
 - **When kills start:** trips (possessions each) into each half, ours vs theirs: the possession count,
   never a clock estimate.
 - **What starts and ends them**, for kills and for kill shots & runs. Started by: start of a half, out of
