@@ -29,9 +29,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   list in "Terminal Commands README.md". Keep it low-traffic: one request at a
   time, never fetch a box score that's already COMPLETE.
   python3 scrape.py master      # once, when schedules post
-  python3 scrape.py nightly     # every night; then rebuilds stats, the leaderboard (ratings + team files)
+  python3 scrape.py nightly     # every night, that night's games only; then rebuilds stats, the leaderboard (ratings + team files)
                                 # and the tracker's scouting reports for the teams that played (--no-rebuild skips)
   python3 scrape.py status      # what's missing (no network)
+  python3 scrape.py missing     # re-check older games missing stats (only when asked; --team/--conference/--date/--to)
 - Opponent-adjust the trackers' lineups (game tracker Season page, or possession tracker
   Lineups -> Season -> Lineup file); ratings AND four factors, the four factors against
   each opponent's opponent-adjusted factors (adj_ff, from update_advanced_analytics.py):

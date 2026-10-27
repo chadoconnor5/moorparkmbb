@@ -13,7 +13,8 @@
 Low-traffic scraper. Each night it reads ONE page — the league composite
 (daily scoreboard, `cccmbca.prestosports.com/composite`) — to find every box
 score posted that day, fetches each box score once (both teams' folders get a
-copy), and re-checks games whose stats are missing until they're posted.
+copy). It touches only that night's games: older games still missing stats are
+re-checked only when you ask (`scrape.py missing`), never automatically.
 Requests are one at a time, 5–8 s apart, capped at 150 per run, and the run
 stops (progress saved) if the site rate-limits twice.
 
@@ -23,10 +24,11 @@ State lives in `scrape_state/<season>/`:
 - `missing_boxscores.md` — games still missing stats, why, and the URL
 
 Statuses: `COMPLETE` · `PARTIAL` (one team's stats missing) · `NO_BOX` (no box
-score / no stats yet) · `STALE` (still missing after 21 days; no longer
-auto-checked) · `POSTPONED` · `FORFEIT` · `NOT_TRACKED` (TBA / exhibition) ·
-`SCHEDULED`. Missing games are re-checked daily for 3 days, every 2 days to a
-week, then weekly until day 21.
+score / no stats yet) · `STALE` (given up on in older ledgers;
+`missing --include-stale` re-checks them) · `POSTPONED` · `FORFEIT` · `NOT_TRACKED` (TBA / exhibition) ·
+`SCHEDULED`. Missing games are never re-checked automatically: run
+`scrape.py status` to see them and `scrape.py missing` (optionally `--team`,
+`--conference`, `--date 2026-11-14 [--to 2026-11-20]`) to re-check them.
 
 ```bash
 # --- Master schedule (once, when schedules are posted; ~100 requests, ~11 min) ---

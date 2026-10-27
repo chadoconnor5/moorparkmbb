@@ -111,8 +111,9 @@ This copy keeps the original project intact and starts consolidating the working
   one composite (daily scoreboard) page, fetches each box score once and
   writes it into both teams' folders, and patches both teams' schedule.json
   rows — so the stats scripts' inputs are unchanged. A box score is only
-  "complete" when both teams have players; one-sided ones are re-fetched on a
-  backoff (scrape_team.py cached them forever). Small player-points vs score
+  "complete" when both teams have players; one-sided or missing ones are re-fetched
+  only on demand (`scrape.py missing`, Oct 27 2026: nightly touches only that
+  night's games, no automatic re-checks or team-page refreshes). Small player-points vs score
   mismatches (~4% of last season's boxes) are kept as a ledger note, not
   re-checked. Box labels are matched to schedule names with
   `name_strength()` (exact / TEAM_ALIASES / safe variants); validated on all

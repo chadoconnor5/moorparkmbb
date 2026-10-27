@@ -3,9 +3,10 @@ Low-traffic CCCMBCA scraper: master schedule + nightly box scores + missing-stat
 
 Each night it reads ONE page, the league composite (daily scoreboard), to find
 every box score posted for that day, then fetches each box score once (both teams'
-folders get a copy). Team schedule pages are only read to build the master
-schedule and to refresh a few of them per night. Games whose box score is missing,
-or has only one team's stats, are re-checked on a backoff until stats appear.
+folders get a copy). Nightly touches only that night's games. Team schedule pages
+are only read to build / refresh the master schedule (`master`, `master --resync`).
+Games whose box score is missing, or has only one team's stats, are re-checked only
+when asked (`missing`), never automatically.
 
 State lives in scrape_state/<season>/ (outside the schedules folder so the stats
 scripts never mistake it for a conference):
@@ -16,7 +17,8 @@ scripts never mistake it for a conference):
 Usage (see "Terminal Commands README.md" for the full list):
     python3 scrape.py master                     build the master schedule (one-time, ~100 requests)
     python3 scrape.py master --resync            refresh it (resumable)
-    python3 scrape.py nightly                    the scheduled nightly job
+    python3 scrape.py nightly                    the scheduled nightly job: that night's games only
+    python3 scrape.py missing                    re-check older games still missing stats (on demand, never automatic)
     python3 scrape.py day 2026-11-14 [--to 2026-11-16]
     python3 scrape.py game 20261114_ab12 | <box score URL> | --team Moorpark --date 2026-11-14
     python3 scrape.py team Moorpark Ventura [--date 2026-11-14]
@@ -57,9 +59,6 @@ BOX_LINK_RE = re.compile(r"(/sports/mbkb/\d{4}-\d{2}/boxscores/(\d{8})_[A-Za-z0-
 DELAY_RANGE = (5.0, 8.0)      # seconds between requests, randomised
 THROTTLE_WAIT = 90            # seconds to wait after the first rate-limit response
 DEFAULT_MAX_REQUESTS = 150
-STALE_AFTER_DAYS = 21         # stop re-checking a missing box score after this
-RESYNC_AFTER_DAYS = 14        # nightly refreshes team pages older than this...
-NIGHTLY_RESYNC_TEAMS = 8      # ...up to this many per night (100 teams every ~2 weeks)
 
 MEMBERS = {t for teams in CONFERENCES.values() for t in teams}
 
@@ -71,7 +70,7 @@ COMPLETE = "COMPLETE"        # both teams' stats present
 FORFEIT = "FORFEIT"          # forfeit, no stats expected
 POSTPONED = "POSTPONED"      # postponed / cancelled
 NOT_TRACKED = "NOT_TRACKED"  # TBA opponent or exhibition with no result
-STALE = "STALE"              # still missing after STALE_AFTER_DAYS; no longer auto-checked
+STALE = "STALE"              # older ledgers only (games given up on); `missing --include-stale` re-checks them
 DONE = {COMPLETE, FORFEIT, NOT_TRACKED}
 MISSING = {NO_BOX, PARTIAL}
 
@@ -718,25 +717,6 @@ def new_game(state: State, d: date, bs: dict) -> dict:
     return g
 
 
-def due_rechecks(state: State, today: date) -> list:
-    """Missing games due a re-check: daily for 3 days, every 2 days to a week,
-    weekly to STALE_AFTER_DAYS, then marked STALE."""
-    keys = []
-    for k, e in state.ledger.items():
-        if e["status"] not in MISSING or k not in state.games:
-            continue
-        age = (today - game_date(state.games[k])).days
-        if age > STALE_AFTER_DAYS:
-            e["status"] = STALE
-            e["reason"] = f"still missing after {STALE_AFTER_DAYS} days ({e.get('reason', '')})"
-            continue
-        gap = 1 if age <= 3 else 2 if age <= 7 else 7
-        last = e.get("last_checked")
-        if not last or (today - datetime.fromisoformat(last).date()).days >= gap:
-            keys.append(k)
-    return keys
-
-
 # ---------------------------------------------------------------------------
 # Selection
 # ---------------------------------------------------------------------------
@@ -830,19 +810,11 @@ def cmd_nightly(run: Run, args):
     require_master(state)
     night = parse_iso(args.date) if args.date else default_night()
     print(f"Nightly scrape for {night}")
+    # Only that night's games: no automatic re-checks of older missing box scores and no team-page refreshes.
+    # Older games missing stats are re-checked on demand with `scrape.py missing` (see `scrape.py status`).
     tonight = [k for k in select_games(state, start=night, end=night)]
-    rechecks = due_rechecks(state, date.today())
-    print(f"  {len(tonight)} games on {night}, {len(rechecks)} missing box scores due a re-check")
-    run.process(sorted(set(tonight) | set(rechecks)))
-    # Spare budget: refresh the oldest team pages so schedule changes get picked up.
-    cutoff = datetime.now() - timedelta(days=RESYNC_AFTER_DAYS)
-    stale = sorted((t for t, info in state.teams.items() if t not in run.synced
-                    and (not info["synced"] or datetime.fromisoformat(info["synced"]) < cutoff)),
-                   key=lambda t: state.teams[t]["synced"] or "")
-    for t in stale[:NIGHTLY_RESYNC_TEAMS]:
-        if run.fetcher.count >= run.fetcher.max_requests - 5:
-            break
-        run.sync(t)
+    print(f"  {len(tonight)} games on {night} (older missing box scores: `scrape.py missing`)")
+    run.process(sorted(tonight))
 
 
 def cmd_day(run: Run, args):
@@ -919,7 +891,8 @@ def cmd_missing(run: Run, args):
     if args.team or args.conference:
         teams = resolve_teams(state, args.team or []) + resolve_conferences(args.conference or [])
     want = MISSING | ({STALE, POSTPONED} if args.include_stale else set())
-    keys = [k for k in select_games(state, teams=teams) if state.entry(k)["status"] in want]
+    start, end = date_range(args)
+    keys = [k for k in select_games(state, teams=teams, start=start, end=end) if state.entry(k)["status"] in want]
     print(f"Re-checking {len(keys)} games missing stats")
     run.process(keys)
 
@@ -1042,6 +1015,8 @@ def build_parser():
     s.add_argument("--team", nargs="+")
     s.add_argument("--conference", nargs="+")
     s.add_argument("--include-stale", action="store_true", help="Also re-check STALE and POSTPONED games")
+    s.add_argument("--date", help="Only games on this date (YYYY-MM-DD), or from it with --to")
+    s.add_argument("--to", help="End of the date range")
 
     s = sub.add_parser("status", parents=[common], help="Show the ledger (no network)")
     s.add_argument("--team", nargs="+")
