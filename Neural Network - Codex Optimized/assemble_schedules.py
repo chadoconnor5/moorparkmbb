@@ -11,7 +11,7 @@ those schedules fill in before anyone screenshots them. For a team that HAS its 
 are checked against it (a game only one side lists, or a different time / home-away), and that goes in the report:
     <season> Schedule Screenshots/assembled_schedules_report.txt
 
-Only games against teams in ccc_config.CONFERENCES are used (TBA, tournament placeholders, out-of-state and
+Games before Oct 29 are scrimmages and left out. Only games against teams in ccc_config.CONFERENCES are used (TBA, tournament placeholders, out-of-state and
 four-year opponents are left out). Safe to re-run: every derived file is rebuilt from the typed-in ones.
 
 Usage:
@@ -42,6 +42,12 @@ def order(g):
     return (MONTHS.index(m) if m in MONTHS else 99, int(d) if d.isdigit() else 0)
 
 
+def is_scrimmage(d):
+    """Games before Oct 29 (the season's first regular-season date) are scrimmages / jamborees."""
+    m, _, day = d.partition(" ")
+    return m in ("Jul", "Aug", "Sep") or (m == "Oct" and day.isdigit() and int(day) < 29)
+
+
 def mirror(team, g):
     ha = FLIP.get(g.get("home_away", ""), "")
     return {"date": g["date"], "opponent": team, "home_away": ha, "location_tag": "at" if ha == "away" else "vs",
@@ -60,6 +66,8 @@ def assemble(season, root=Path(".")):
     issues = []
     for team, d in own.items():
         for g in d.get("games", []):
+            if is_scrimmage(g["date"]):
+                continue
             opp = canon(g.get("opponent"))
             if not opp:
                 continue
