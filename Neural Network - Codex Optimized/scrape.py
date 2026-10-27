@@ -427,8 +427,36 @@ def patch_schedules(state: State, g: dict, bs: dict, have_box: bool):
 # ---------------------------------------------------------------------------
 # Box scores
 # ---------------------------------------------------------------------------
+# Minutes on a team's box: REAL = real minutes (team total 190-275: 200 a game, +25 an overtime); PLACEHOLDER =
+# every player listed at 1 minute (or 0), i.e. not tracked; WRONG_TOTAL = real-looking minutes that don't add up
+# (a typo, a missing player, an 122-minute line); NONE = no minutes column.
+REAL_MIN_RANGE = (190, 275)
+
+
+def minutes_quality(players: list) -> dict:
+    mins = []
+    for p in players or []:
+        m = str((p.get("stats") or {}).get("MIN") or "").strip()
+        if m in ("", "-", "--"):
+            continue
+        try:
+            mins.append(float(m.split(":")[0]))
+        except ValueError:
+            pass
+    if not mins:
+        return {"minutes": "NONE", "total": 0}
+    total = round(sum(mins))
+    if max(mins) <= 1:
+        return {"minutes": "PLACEHOLDER", "total": total}
+    lo, hi = REAL_MIN_RANGE
+    return {"minutes": "REAL" if lo <= total <= hi else "WRONG_TOTAL", "total": total}
+
+
 def classify_box(bs: dict, g: dict):
-    """(status, reason, note) for a parsed box score."""
+    """(status, reason, note) for a parsed box score. Also marks each side's minutes (bs["minutes_quality"],
+    saved with the box score and copied to the ledger entry)."""
+    bs["minutes_quality"] = {name: minutes_quality((bs.get("teams") or {}).get(name))
+                             for name in (bs.get("visitor"), bs.get("home")) if (bs.get("teams") or {}).get(name)}
     teams = bs.get("teams", {})
     score = bs.get("score", {})
     present, missing, notes = [], [], []
@@ -653,6 +681,7 @@ class Run:
                     save_box(self.state, g, bs)
                     self.touched.update(saved)
                 self.record(e, g, status, reason, note, checked=False)
+                e["minutes"] = bs.get("minutes_quality", {})
             return
         if self.dry:
             print(f"  would fetch box score: {label}  {url}")
@@ -669,6 +698,7 @@ class Run:
         if status != NO_BOX:
             self.touched.update(save_box(self.state, g, bs))
         self.record(e, g, status, reason, note)
+        e["minutes"] = bs.get("minutes_quality", {})
         patch_schedules(self.state, g, bs, status != NO_BOX)
 
     def record(self, e, g, status, reason, note, checked=True):
@@ -803,6 +833,7 @@ def cmd_master(run: Run, args):
                 if bs is not None:
                     status, reason, note = classify_box(bs, g)
                     run.record(e, g, status, reason, note, checked=False)
+                    e["minutes"] = bs.get("minutes_quality", {})
 
 
 def cmd_nightly(run: Run, args):
@@ -914,6 +945,12 @@ def cmd_status(state: State, args):
     for s in (COMPLETE, PARTIAL, NO_BOX, STALE, POSTPONED, FORFEIT, NOT_TRACKED, SCHEDULED):
         if counts.get(s):
             print(f"  {s:<12}{counts[s]:>5}")
+    mrows = minutes_rows(state, keys)
+    if mrows:
+        print(f"\nBox scores without real minutes ({len(mrows)}; placeholder 1s / wrong totals): see minutes_report.md")
+        if teams:
+            for r in mrows:
+                print(f"  {r['date']}  {r['game']:<40} {r['sides']}")
     rows = missing_rows(state, keys)
     if rows:
         print(f"\nMissing stats ({len(rows)}):")
@@ -955,6 +992,41 @@ def write_missing_report(state: State):
             lines.append(f"| {r['date']} | {r['game']} | {r['status']} | {r['reason']} | {r['url']} "
                          f"| {r['checks']} | {r['last']} |")
     state.missing_path.write_text("\n".join(lines) + "\n")
+    write_minutes_report(state)
+
+
+def minutes_rows(state: State, keys: list) -> list:
+    """Played games whose box score doesn't have real minutes for every side (placeholder 1s, wrong totals, none)."""
+    rows = []
+    for k in keys:
+        e = state.ledger.get(k, {})
+        mq = e.get("minutes") or {}
+        bad = {t: q for t, q in mq.items() if q.get("minutes") != "REAL"}
+        if bad:
+            g = state.games[k]
+            rows.append({"date": g["date"], "game": " vs ".join(g["names"]),
+                         "sides": ", ".join(f"{t}: {q['minutes']} ({q['total']} min)" for t, q in bad.items()),
+                         "url": e.get("boxscore_url", "")})
+    return rows
+
+
+def write_minutes_report(state: State):
+    """minutes_report.md: per team, how many of its box scores have real minutes, then every game that doesn't."""
+    per = {}
+    for k, e in state.ledger.items():
+        for t, q in (e.get("minutes") or {}).items():
+            c = per.setdefault(t, {"REAL": 0, "PLACEHOLDER": 0, "WRONG_TOTAL": 0, "NONE": 0})
+            c[q.get("minutes", "NONE")] = c.get(q.get("minutes", "NONE"), 0) + 1
+    lines = [f"# Box score minutes — {state.season}", "", f"Updated {now_iso()}", "",
+             "REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · "
+             "WRONG_TOTAL = minutes that don't add up · NONE = no minutes", "",
+             "| Team | Real | Placeholder | Wrong total | None |", "|---|---|---|---|---|"]
+    for t, c in sorted(per.items()):
+        lines.append(f"| {t} | {c['REAL']} | {c['PLACEHOLDER']} | {c['WRONG_TOTAL']} | {c['NONE']} |")
+    rows = minutes_rows(state, sorted(state.games))
+    lines += ["", f"## Games without real minutes ({len(rows)})", "", "| Date | Game | Sides | URL |", "|---|---|---|---|"]
+    lines += [f"| {r['date']} | {r['game']} | {r['sides']} | {r['url']} |" for r in rows]
+    (state.missing_path.parent / "minutes_report.md").write_text("\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------------------

@@ -113,7 +113,10 @@ This copy keeps the original project intact and starts consolidating the working
   rows — so the stats scripts' inputs are unchanged. A box score is only
   "complete" when both teams have players; one-sided or missing ones are re-fetched
   only on demand (`scrape.py missing`, Oct 27 2026: nightly touches only that
-  night's games, no automatic re-checks or team-page refreshes). Small player-points vs score
+  night's games, no automatic re-checks or team-page refreshes).
+  Every box score is also marked per side REAL / PLACEHOLDER (all 1-minute lines) /
+  WRONG_TOTAL / NONE minutes (`minutes_quality` in the box file and ledger,
+  `minutes_report.md`); 2025-26: 3,229 real, 2,426 placeholder, 44 wrong, 53 none. Small player-points vs score
   mismatches (~4% of last season's boxes) are kept as a ledger note, not
   re-checked. Box labels are matched to schedule names with
   `name_strength()` (exact / TEAM_ALIASES / safe variants); validated on all

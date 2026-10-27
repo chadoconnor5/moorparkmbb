@@ -22,6 +22,9 @@ State lives in `scrape_state/<season>/`:
 - `master_schedule.json` — every game once, both teams
 - `ledger.json` — per-game status, box score URL, check history
 - `missing_boxscores.md` — games still missing stats, why, and the URL
+- `minutes_report.md` — per team, how many box scores have real minutes, and every game that
+  doesn't: `PLACEHOLDER` (every player listed at 1 minute), `WRONG_TOTAL` (real-looking minutes that
+  don't add up to 190–275), `NONE`. Each box score file also carries `minutes_quality` per team.
 
 Statuses: `COMPLETE` · `PARTIAL` (one team's stats missing) · `NO_BOX` (no box
 score / no stats yet) · `STALE` (given up on in older ledgers;
