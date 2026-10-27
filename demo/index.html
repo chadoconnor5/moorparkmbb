@@ -1368,7 +1368,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 </script>
 <script>
 'use strict';
-const VERSION = 'v2026.10.27.295';
+const VERSION = 'v2026.10.27.296';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3248,6 +3248,9 @@ function seedPicks() {
   const s = lsGet('gt_schedule', null), done = lsGet('pt2_picks_seeded', []) || []; if (!Array.isArray(s) || !s.length) return;
   let n = 0; Object.entries(SEED_PICKS).forEach(([id, opp]) => { if (done.includes(id)) return; const r = s.find(x => x.id === id); if (r && isTBD(r.opp)) { r.opp = opp; r.picked = true; n++; } done.push(id); });
   Object.entries(SEED_MOVES).forEach(([id, [from, to]]) => { const k = 'mv:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id); if (r && r.date === from) { r.date = to; n++; } done.push(k); });
+  // Tournament games missing from a saved schedule (an emptied opponent used to drop the game): back once, as seeded.
+  SEED_SCHEDULE.filter(r => r.event).forEach(r => { const k = 'rs:' + r.id; if (done.includes(k)) return; done.push(k);
+    if (!s.some(x => x.id === r.id)) { s.push(Object.assign({}, r)); n++; } });
   Object.entries(SEED_RETIMES).forEach(([id, [from, to]]) => { const k = 'rt:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id); if (r && r.time === from) { r.time = to; n++; } done.push(k); });
   Object.entries(SEED_TIMES).forEach(([id, t]) => { const k = 'tm:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id); if (r && !r.time) { r.time = t; n++; } done.push(k); });
   Object.entries(SEED_SWAPS).forEach(([id, [from, to, ev]]) => { const k = 'sw:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id);
@@ -3301,8 +3304,10 @@ function readyAdd(v, ev) {
 function schAutosave() {
   collectSched(); schAutosaveRows();
 }
+// A game whose opponent is cleared stays on the schedule as TBD (a tournament game: "TBD — <tournament>"), never dropped.
 function schAutosaveRows() {
-  const rows = SCH.rows.filter(r => r.date && String(r.opp || '').trim()).map(r => Object.assign({}, r, { opp: String(r.opp).trim() }));
+  const rows = SCH.rows.filter(r => r.date).map(r => { const o = String(r.opp || '').trim();
+    return Object.assign({}, r, o ? { opp: o } : { opp: r.event ? 'TBD — ' + r.event : 'TBD', picked: false }); });
   rows.sort((a, b) => a.date.localeCompare(b.date));
   lsSet('gt_schedule', rows);
 }
