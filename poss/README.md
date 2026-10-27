@@ -722,7 +722,7 @@ five has 25+ offensive possessions).
     The known fields come filled in once on each iPad (San Bernardino: West LA, East LA, RCC, CCSF, Chaffey, Compton,
     SBVC; Grossmont, from the bracket: San Diego City, LA Trade Tech, Saddleback, Palomar, Cypress, De Anza, Grossmont —
     added once on an iPad that only had San Diego City), and a saved schedule gets its known first-round opponents (West LA Nov 13, San
-    Diego City Dec 4 at 8:00 PM — the time set once if the game has none — flexed from LA Trade Tech: a saved LA Trade Tech game and field entry switch over once), and its tournament games move to their dates (San Bernardino Nov 13–15, Grossmont Dec 4–6). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
+    Diego City Dec 4 at 8:00 PM — the time set once if the game has none; likewise Nov 2 6:00, Nov 3 2:00, Nov 13 5:00, Dec 22 at MiraCosta 12:00 (picked once), and Dec 30 Bakersfield moved 1:00 → 2:00 once — flexed from LA Trade Tech: a saved LA Trade Tech game and field entry switch over once), and its tournament games move to their dates (San Bernardino Nov 13–15, Grossmont Dec 4–6). Each later tournament game is a dropdown of that field (Other… types anyone): pick the
     opponent once the bracket says who's next.
   - **Start game** opens the New game screen filled in for that row.
   - A tracked game shows its score, Open and Sheet.

@@ -53,6 +53,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 generate_opponent_report.py --latest                # the tracker's copies: every team it has files for, one
                                                               #    current PDF each in ../poss/reports/ (replaced each time)
                                                               #    + index.json; scrape.py runs it with --only <teams that played>
+- Schedules typed in from CCCMBCA screenshots (while cccmbca.org can't be scraped): one folder per team,
+  `2026-27 Schedule Screenshots/<Conference>/<Team>/` (month PNGs + schedule.json in scrape_team.py's game format).
+  Partial schedules for every other team from those (mirrored games), plus cross-checks between typed-in teams:
+  python3 assemble_schedules.py            # -> <Team>/schedule_from_opponents.json + assembled_schedules_report.txt
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:
