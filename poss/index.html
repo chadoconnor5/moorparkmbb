@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.25.293';
+const VERSION = 'v2026.10.27.295';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1419,13 +1419,13 @@ function gtOppRoster(name) {
 const SEED_SCHEDULE = [
   { id: 'sch_seed_20261015', date: '2026-10-15', time: "", opp: "Mack Attack Prep", site: 'home', conf: false, scrim: true },
   { id: 'sch_seed_20261022', date: '2026-10-22', time: "", opp: "Santa Monica", site: 'home', conf: false, scrim: true },
-  { id: 'sch_seed_20261102', date: '2026-11-02', time: "", opp: "Antelope Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
-  { id: 'sch_seed_20261103', date: '2026-11-03', time: "", opp: "San Bernardino Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
+  { id: 'sch_seed_20261102', date: '2026-11-02', time: "6:00 PM", opp: "Antelope Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
+  { id: 'sch_seed_20261103', date: '2026-11-03', time: "2:00 PM", opp: "San Bernardino Valley", site: 'home', conf: false, scrim: false, event: "Moorpark Invitational" },
   { id: 'sch_seed_20261104', date: '2026-11-04', time: "5:00 PM", opp: "Palomar", site: 'away', conf: false, scrim: false },
-  { id: 'sch_seed_20261114', date: '2026-11-13', time: "", opp: "West LA", picked: true, site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
+  { id: 'sch_seed_20261114', date: '2026-11-13', time: "5:00 PM", opp: "West LA", picked: true, site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
   { id: 'sch_seed_20261115', date: '2026-11-14', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
   { id: 'sch_seed_20261116', date: '2026-11-15', time: "", opp: "TBD — San Bernardino Tournament", site: 'away', conf: false, scrim: false, event: "San Bernardino Tournament" },
-  { id: 'sch_seed_20261205', date: '2026-12-04', time: "", opp: "San Diego City", picked: true, site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
+  { id: 'sch_seed_20261205', date: '2026-12-04', time: "8:00 PM", opp: "San Diego City", picked: true, site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
   { id: 'sch_seed_20261206', date: '2026-12-05', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
   { id: 'sch_seed_20261207', date: '2026-12-06', time: "", opp: "TBD — Grossmont Tournament", site: 'away', conf: false, scrim: false, event: "Grossmont Tournament" },
   { id: 'sch_seed_20261210', date: '2026-12-10', time: "5:00 PM", opp: "Cerro Coso", site: 'away', conf: false, scrim: false },
@@ -1433,8 +1433,8 @@ const SEED_SCHEDULE = [
   { id: 'sch_seed_20261218', date: '2026-12-18', time: "1:00 PM", opp: "Citrus", site: 'away', conf: false, scrim: false },
   { id: 'sch_seed_20261219', date: '2026-12-19', time: "1:00 PM", opp: "Fullerton", site: 'away', conf: false, scrim: false },
   { id: 'sch_seed_20261221', date: '2026-12-21', time: "", opp: "TBD — Mira Costa Tournament", site: 'away', conf: false, scrim: false, event: "Mira Costa Tournament" },
-  { id: 'sch_seed_20261222', date: '2026-12-22', time: "", opp: "TBD — Mira Costa Tournament", site: 'away', conf: false, scrim: false, event: "Mira Costa Tournament" },
-  { id: 'sch_seed_20261230', date: '2026-12-30', time: "1:00 PM", opp: "Bakersfield", site: 'home', conf: false, scrim: false },
+  { id: 'sch_seed_20261222', date: '2026-12-22', time: "12:00 PM", opp: "MiraCosta", picked: true, site: 'away', conf: false, scrim: false, event: "Mira Costa Tournament" },
+  { id: 'sch_seed_20261230', date: '2026-12-30', time: "2:00 PM", opp: "Bakersfield", site: 'home', conf: false, scrim: false },
   { id: 'sch_seed_20270109', date: '2027-01-09', time: "3:00 PM", opp: "LA Pierce", site: 'home', conf: true, scrim: false },
   { id: 'sch_seed_20270113', date: '2027-01-13', time: "7:00 PM", opp: "Cuesta", site: 'away', conf: true, scrim: false },
   { id: 'sch_seed_20270116', date: '2027-01-16', time: "3:00 PM", opp: "Allan Hancock", site: 'away', conf: true, scrim: false },
@@ -3184,30 +3184,42 @@ const LS_READY = 'pt2_ready', LS_FIELDS = 'pt2_fields';
 const fmtDay = d => { const [y, m, dd] = String(d).split('-').map(Number); return y ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1] + ' ' + dd : ''; };
 const schTourneys = () => [...new Set(schedule().filter(r => r.event && (isTBD(r.opp) || r.picked) && r.date >= today()).map(r => r.event))];
 /* The known tournament fields, filled in once on each iPad (a team removed after that stays removed); the TBD games
-   of each tournament pick their opponent from it as the results come in (Other… types anyone else). */
-const SEED_FIELDS = { 'San Bernardino Tournament': ['West LA', 'East LA', 'RCC', 'CCSF', 'Chaffey', 'Compton', 'SBVC'], 'Grossmont Tournament': ['San Diego City'] };
+   of each tournament pick their opponent from it as the results come in (Other… types anyone else). A field that
+   grows later (Grossmont: the full bracket, Oct 27) gets a new SEED_FIELD_KEY so the new teams are added once too.
+   Grossmont bracket: Fri Dec 4 — SD City vs Moorpark 8 pm (G1), LA Trade Tech vs Saddleback 6 pm (G2), Palomar vs
+   Cypress 4 pm (G3), De Anza vs Grossmont 2 pm (G4). Sat: our side's semi (W1 v W2) 7 pm, consolation semi (L1 v L2)
+   3 pm. Sun: final 5 pm, 3rd place 3 pm, consolation final 1 pm, 7th place 11 am. */
+const SEED_FIELDS = { 'San Bernardino Tournament': ['West LA', 'East LA', 'RCC', 'CCSF', 'Chaffey', 'Compton', 'SBVC'],
+  'Grossmont Tournament': ['San Diego City', 'LA Trade Tech', 'Saddleback', 'Palomar', 'Cypress', 'De Anza', 'Grossmont'] };
+const SEED_FIELD_KEY = { 'Grossmont Tournament': 'Grossmont Tournament@bracket' };
 function fieldsAll() {
   let F = lsGet(LS_FIELDS, null);
   if (!F || typeof F !== 'object') { F = {}; const flat = lsGet(LS_READY, []) || [], ev = schTourneys()[0];
     if (flat.length && ev) { F[ev] = flat; lsSet(LS_READY, []); } lsSet(LS_FIELDS, F); }
   const done = lsGet('pt2_fields_seeded', []) || [];
-  const add = Object.keys(SEED_FIELDS).filter(ev => !done.includes(ev));
+  const key = ev => SEED_FIELD_KEY[ev] || ev, add = Object.keys(SEED_FIELDS).filter(ev => !done.includes(key(ev)));
   if (add.length) { add.forEach(ev => { const L = F[ev] || [], have = new Set(L.map(x => x.toLowerCase()));
       SEED_FIELDS[ev].forEach(n => { if (!have.has(n.toLowerCase())) L.push(n); }); F[ev] = L; });
-    lsSet(LS_FIELDS, F); lsSet('pt2_fields_seeded', done.concat(add)); }
+    lsSet(LS_FIELDS, F); lsSet('pt2_fields_seeded', done.concat(add.map(key))); }
   return F;
 }
 /* Known opponents onto a schedule already saved on the iPad: a tournament game still TBD gets its team (once). The two
    tournaments also moved a day earlier (San Bernardino Nov 13-15, Grossmont Dec 4-6): a row still on its old date moves. */
-const SEED_PICKS = { sch_seed_20261114: 'West LA', sch_seed_20261205: 'San Diego City' };
+const SEED_PICKS = { sch_seed_20261114: 'West LA', sch_seed_20261205: 'San Diego City', sch_seed_20261222: 'MiraCosta' };
 // Flexed opponents: a game still against the old team switches to the new one, and the tournament field with it (once).
 const SEED_SWAPS = { sch_seed_20261205: ['LA Trade Tech', 'San Diego City', 'Grossmont Tournament'] };
+// Known tip times onto a saved schedule: set once, only where the game has no time yet.
+const SEED_TIMES = { sch_seed_20261205: '8:00 PM', sch_seed_20261102: '6:00 PM', sch_seed_20261103: '2:00 PM', sch_seed_20261114: '5:00 PM', sch_seed_20261222: '12:00 PM' };
+// Changed tip times (CCCMBCA page, Oct 27): set once, only where the game still has the old time.
+const SEED_RETIMES = { sch_seed_20261230: ['1:00 PM', '2:00 PM'] };
 const SEED_MOVES = { sch_seed_20261114: ['2026-11-14', '2026-11-13'], sch_seed_20261115: ['2026-11-15', '2026-11-14'], sch_seed_20261116: ['2026-11-16', '2026-11-15'],
   sch_seed_20261205: ['2026-12-05', '2026-12-04'], sch_seed_20261206: ['2026-12-06', '2026-12-05'], sch_seed_20261207: ['2026-12-07', '2026-12-06'] };
 function seedPicks() {
   const s = lsGet('gt_schedule', null), done = lsGet('pt2_picks_seeded', []) || []; if (!Array.isArray(s) || !s.length) return;
   let n = 0; Object.entries(SEED_PICKS).forEach(([id, opp]) => { if (done.includes(id)) return; const r = s.find(x => x.id === id); if (r && isTBD(r.opp)) { r.opp = opp; r.picked = true; n++; } done.push(id); });
   Object.entries(SEED_MOVES).forEach(([id, [from, to]]) => { const k = 'mv:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id); if (r && r.date === from) { r.date = to; n++; } done.push(k); });
+  Object.entries(SEED_RETIMES).forEach(([id, [from, to]]) => { const k = 'rt:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id); if (r && r.time === from) { r.time = to; n++; } done.push(k); });
+  Object.entries(SEED_TIMES).forEach(([id, t]) => { const k = 'tm:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id); if (r && !r.time) { r.time = t; n++; } done.push(k); });
   Object.entries(SEED_SWAPS).forEach(([id, [from, to, ev]]) => { const k = 'sw:' + id; if (done.includes(k)) return; const r = s.find(x => x.id === id);
     if (r && normOpp(r.opp) === normOpp(from)) { r.opp = to; n++; }
     const F = lsGet(LS_FIELDS, null); if (F && Array.isArray(F[ev])) { const L = F[ev].filter(x => normOpp(x) !== normOpp(from)); if (!L.some(x => normOpp(x) === normOpp(to))) L.unshift(to); F[ev] = L; lsSet(LS_FIELDS, F); }
