@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.27.296';
+const VERSION = 'v2026.10.27.297';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3127,8 +3127,8 @@ function collectSched() {
   document.querySelectorAll('[data-sr]').forEach(el => { const r = SCH.rows[+el.dataset.sr]; if (r && el.value !== '__other') r[el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; });
 }
 const gameForRow = r => games.find(x => x.schedId === r.id) || games.find(x => !x.schedId && x.date === r.date && (x.opp || '').toLowerCase() === (r.opp || '').toLowerCase()) || null;
-/* A tournament game (TBD, or already picked from the field) picks its opponent from a dropdown: its own tournament's
-   field in "Teams to have ready" (full names: RCC → Riverside), plus Other… to type any team. A game picked this way keeps
+/* A tournament game (TBD, or already picked from the field) picks its opponent from a dropdown: TBD (to undo a pick), its
+   own tournament's field in "Teams to have ready" (full names: RCC → Riverside), plus Other… to type any team. A game picked this way keeps
    its dropdown (r.picked) so the pick can change; a game typed in or seeded with an opponent keeps its text box. */
 function schField(r) {
   const R = ratingsData(), out = [];
@@ -3147,7 +3147,7 @@ function schedView() {
     return `<tr class="${nextIdx && nextIdx.i === i ? 'cur' : ''}">
       <td style="width:150px"><input type="date" data-sr="${i}" data-f="date" value="${esc(r.date)}"></td>
       <td style="width:96px"><select data-sr="${i}" data-f="site">${['home', 'away', 'neutral'].map(x => `<option value="${x}" ${r.site === x ? 'selected' : ''}>${SITE_LABEL[x]}</option>`).join('')}</select></td>
-      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logo(r.opp, 22) : '<span class="tlogo" style="--lg:22px;width:22px"></span>'}${schPick(r, field) ? `<select data-sr="${i}" data-f="opp" class="${isTBD(r.opp) ? 'tbd' : ''}">${isTBD(r.opp) ? `<option value="${esc(r.opp)}" selected>TBD</option>` : ''}${field.map(n => `<option value="${esc(n)}" ${n === r.opp ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="__other">Other…</option></select>`
+      <td><div class="sch-opp">${r.opp && !isTBD(r.opp) ? logo(r.opp, 22) : '<span class="tlogo" style="--lg:22px;width:22px"></span>'}${schPick(r, field) ? `<select data-sr="${i}" data-f="opp" class="${isTBD(r.opp) ? 'tbd' : ''}"><option value="${esc(isTBD(r.opp) ? r.opp : 'TBD — ' + (r.event || ''))}" ${isTBD(r.opp) ? 'selected' : ''}>TBD</option>${field.map(n => `<option value="${esc(n)}" ${n === r.opp ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="__other">Other…</option></select>`
         : `<input data-sr="${i}" data-f="opp" value="${esc(r.opp)}" list="opp-names" class="${isTBD(r.opp) ? 'tbd' : ''}">`}</div>${r.event ? `<div class="sch-event">${esc(r.event)}</div>` : ''}</td>
       <td style="width:64px;text-align:center">${gm ? `<button class="btn btn-sm sch-box" data-act="sch-sheet" data-id="${gm.id}">Sheet</button>` : ''}</td>
       <td style="width:100px"><input data-sr="${i}" data-f="time" value="${esc(r.time || '')}"></td>
