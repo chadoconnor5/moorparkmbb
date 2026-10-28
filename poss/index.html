@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.28.299';
+const VERSION = 'v2026.10.28.300';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2935,6 +2935,7 @@ function applySched(r) {
 // punctuation), or that name with a blank roster, so you never have to pick the team again.
 function applyOpp(name) {
   name = String(name || '').trim();
+  try { if (name) pubRosters([name]); } catch (e) {}
   const n = name.toLowerCase().replace(/[^a-z0-9]/g, ''), o = n ? oppStore().find(x => x.name.toLowerCase().replace(/[^a-z0-9]/g, '') === n) : null;
   const nm = o ? o.name : name;
   if (nm !== SD.oppName) { SD.oppStarters = []; SD.oppOut = []; }
@@ -6602,11 +6603,13 @@ function fetchTeamFiles(R) {
       Object.keys(cur).forEach(t => { if (!want.has(t)) delete cur[t]; });
       if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; autoRosters(); if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
 }
-/* Published rosters (poss/rosters.json, export_ratings.py: the rosters typed in from the teams' sites) give the teams on
-   our schedule / in a tournament field / already in the roster list their numbers, names, heights and years before any
-   box score. Same rules as the stats below: a roster never saved by hand gets every listed player; one you've saved only
-   gets blanks filled (nothing you typed is replaced, no player you took away comes back). */
-const LS_PUB_ROSTERS = 'pt2_pub_rosters';
+/* Published rosters (poss/rosters.json, export_ratings.py: the rosters typed in off the teams' sites) are the teams'
+   season rosters. Every team on our schedule, in a tournament field, in the roster list or typed in as an opponent gets
+   exactly the published numbers, names, heights and years; a note (or position / label) typed on a number that's still
+   on the roster is kept. Applied once per team each time its published roster changes, so edits made here afterwards
+   stay until the site's roster changes again. A game keeps its own roster (a scrimmage's numbers and stats stay as
+   played). */
+const LS_PUB_ROSTERS = 'pt2_pub_rosters', LS_PUB_APPLIED = 'pt2_pub_applied';
 function fetchRosters() {
   if (!window.fetch) return;
   fetch('rosters.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
@@ -6615,20 +6618,21 @@ function fetchRosters() {
     if (lsSet(LS_PUB_ROSTERS, d) && pubRosters()) render();
   }).catch(() => {});
 }
-function pubRosters() {
+function pubRosters(extra) {
   const P = lsGet(LS_PUB_ROSTERS, null); if (!P || !P.teams) return 0;
-  const names = [...new Set([...schedule().map(r => r.opp), ...readyList(), ...games.map(g => g.opp), ...oppStore().map(o => o.name)])].filter(n => n && !isTBD(n));
-  const st = oppStore(); let n = 0;
+  const names = [...new Set([...(extra || []), ...schedule().map(r => r.opp), ...readyList(), ...games.map(g => g.opp), ...oppStore().map(o => o.name)])].filter(n => n && !isTBD(n));
+  const st = oppStore(), done = lsGet(LS_PUB_APPLIED, {}) || {}; let n = 0;
   const jn = x => { const t = String(x == null ? '' : x).trim(); return /^0+$/.test(t) ? t : t.replace(/^0+(?=\d)/, ''); };
   names.forEach(nm => { const T = resolveTeam(nm, P); if (!T || T === 'Moorpark' || !(P.teams[T] || []).length) return;
+    const sig = JSON.stringify(P.teams[T]);
     let o = st.find(x => normOpp(x.name) === normOpp(nm));
+    if (o && done[normOpp(o.name)] === sig) return;
     if (!o) { o = { id: 'opp_' + uid(), name: nm, players: [] }; st.push(o); }
-    o.players = o.players || [];
-    const hand = !!o.updatedAt && o.players.length;
-    P.teams[T].forEach(p => { const k = jn(p.num), q = o.players.find(x => jn(x.num) === k);
-      if (q) { ['name', 'ht', 'yr'].forEach(f => { if (!q[f] && p[f]) { q[f] = p[f]; n++; } }); return; }
-      if (!hand) { o.players.push({ num: k, name: p.name, pos: '', ht: p.ht || '', yr: p.yr || '', note: '' }); n++; } }); });
-  if (n) { lsSet('gt_opp_rosters', st); PL_MEMO = null; }
+    const prev = o.players || [];
+    o.players = P.teams[T].map(p => { const k = jn(p.num), q = prev.find(x => jn(x.num) === k) || {};
+      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: q.pos || '', note: q.note || '' }); });
+    o.updatedAt = new Date().toISOString(); done[normOpp(o.name)] = sig; n++; });
+  if (n) { lsSet('gt_opp_rosters', st); lsSet(LS_PUB_APPLIED, done); PL_MEMO = null; }
   return n;
 }
 /* Rosters from the stats: every opponent with a stats file gets its roster filled from it (number + name of everyone
