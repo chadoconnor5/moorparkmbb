@@ -343,6 +343,69 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
     return lotn
 
 
+def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float) -> list:
+    """FanMatch for games not played yet: every scheduled in-system game (the typed-in schedules,
+    build_master_schedule.py) without a result, with a projected score and win probability from the
+    teams' current ratings (preseason = last season's, fading as games come in). Same win-probability
+    scale and home edge as the played games' pregame model (_sl_enrich)."""
+    m = re.search(r"(\d{4}-\d{2})", str(stats_dir))
+    if not m or not Path(f"{m.group(1)} Schedule Screenshots").exists():
+        return []
+    season = m.group(1)
+    try:
+        import build_master_schedule as _bms
+        _, sched, _ = _bms.build(season, "Moorpark")
+    except Exception as err:
+        print(f"  FanMatch upcoming skipped: {err}")
+        return []
+    ratings = {}
+    for f in Path(stats_dir).glob("*/*/advanced_analytics.json"):
+        t = json.load(open(f)).get("team", {})
+        if t.get("ortg") and t.get("drtg"):
+            ratings[f.parent.name] = t
+    if not ratings:
+        return []
+    lg_o = sum(t["ortg"] for t in ratings.values()) / len(ratings)
+    tempos = [t.get("tempo") or t.get("possessions") for t in ratings.values()]
+    tempos = [x for x in tempos if x]
+    lg_t = sum(tempos) / len(tempos) if tempos else 72.0
+    played = {(r["date"], frozenset((r["winner"], r["loser"]))) for r in rows}
+    out = []
+    for g in sched:
+        a, h = g["away"], g["home"]
+        if a not in ratings or h not in ratings:
+            continue
+        y, mo, d = g["date"].split("-")
+        ds = f"{int(mo)}/{int(d)}/{y}"
+        if (ds, frozenset((a, h))) in played:
+            continue
+        ra, rh = ratings[a], ratings[h]
+        home = h if g["site"] == "home" else None
+        edge = hca_points if home else 0.0
+        net_a, net_h = ra["ortg"] - ra["drtg"], rh["ortg"] - rh["drtg"]
+        wp_h = _sl_logistic((net_h - net_a + edge) / max(wp_scale, 1e-6))
+        tempo = (ra.get("tempo") or lg_t) * (rh.get("tempo") or lg_t) / lg_t
+        pts_h = (rh["ortg"] + ra["drtg"] - lg_o + edge / 2) * tempo / 100
+        pts_a = (ra["ortg"] + rh["drtg"] - lg_o - edge / 2) * tempo / 100
+        if wp_h >= 0.5:
+            fav, dog, wp, pf, pd, nf, nd = h, a, wp_h, pts_h, pts_a, net_h, net_a
+        else:
+            fav, dog, wp, pf, pd, nf, nd = a, h, 1 - wp_h, pts_a, pts_h, net_a, net_h
+        pf, pd = round(pf), round(pd)
+        if pf <= pd:
+            pf = pd + 1
+        out.append({
+            "date": ds, "upcoming": True, "winner": fav, "loser": dog, "score": f"{pf}-{pd}",
+            "margin": None, "overtimes": 0, "home_team": home, "time": g.get("time", ""),
+            "conference": bool(g.get("conference")),
+            "pregame_winner_net": round(nf, 1), "pregame_loser_net": round(nd, 1),
+            "pregame_model_wp_winner": round(wp, 3),
+            "fanmatch_score": round(100.0 * (1.0 - abs(wp - 0.5) * 2.0), 2),
+            "upset_score": None, "dominance_score": None, "tension_score": None,
+        })
+    return out
+
+
 def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool = True,
                      hca_points: float = 3.0, wp_scale: float = 10.0,
                      prior_stats_dir: Path = None) -> dict:
@@ -361,15 +424,18 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
         "bust_games":     _sl_top_n(rows, "bust_score", top),
-        "fanmatch_games": sorted(rows, key=lambda r: (_sl_date_sort_key(r["date"]), -r["fanmatch_score"])),
+        "fanmatch_games": sorted(rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale),
+                                 key=lambda r: (_sl_date_sort_key(r["date"]), -r["fanmatch_score"])),
         "lines_of_night": lines_of_night,
     }
 
 # ---------------------------------------------------------------------------
 
-OUTPUT = Path("wsc_north_leaderboard.html")
+# The published leaderboard: the site root (GitHub Pages serves ../index.html, with season_data/ and team_logos/ beside it)
+OUTPUT = Path("../index.html")
 _CACHE_DIR = Path("internal_data/cache/leaderboard")
-STATS_DIR = Path("2025-26 Team Statistics")
+STATS_DIR = Path("2026-27 Team Statistics")
+STATS_DIR_2025 = Path("2025-26 Team Statistics")
 STATS_DIR_2024 = Path("2024-25 Team Statistics")
 STATS_DIR_2023 = Path("2023-24 Team Statistics")
 STATS_DIR_2022 = Path("2022-23 Team Statistics")
@@ -653,7 +719,8 @@ if _COACHES_PATH.exists():
         _COACHES_DATA = json.load(_cf)
 
 _STATS_DIR_TO_SEASON = {
-    str(STATS_DIR):      "2025-26",
+    str(STATS_DIR):      "2026-27",
+    str(STATS_DIR_2025): "2025-26",
     str(STATS_DIR_2024): "2024-25",
     str(STATS_DIR_2023): "2023-24",
     str(STATS_DIR_2022): "2022-23",
@@ -2332,6 +2399,8 @@ def load_storylines(stats_dir=None) -> dict:
     # early-season games have a meaningful baseline instead of 0.0.
     # 2025-26 → 2024-25; 2024-25 → 2023-24; 2023-24 → 2022-23; 2022-23 → 2021-22; others → no prior.
     if stats_dir == STATS_DIR:
+        prior_dir = STATS_DIR_2025
+    elif stats_dir == STATS_DIR_2025:
         prior_dir = STATS_DIR_2024
     elif stats_dir == STATS_DIR_2024:
         prior_dir = STATS_DIR_2023
@@ -2457,6 +2526,12 @@ def _pack_rows(node):
     if isinstance(node, dict):
         return {k: _pack_rows(v) for k, v in node.items()}
     return node
+
+
+def _jtag(name, payload):
+    """Inert JSON <script> tag for a lazily-parsed dataset (__lazyData in the page)."""
+    safe = payload.replace("</", "<\\/")  # a "</script>" inside the JSON must not close the tag
+    return '<script type="application/json" id="data-' + name + '">' + safe + '</script>'
 
 
 def _embed(obj):
@@ -3343,10 +3418,18 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                   storylines_current=None, champion_data=None, game_boxes=None,
                   team_rosters=None, conf_ff=None, moorpark_lineups=None,
                   team_keys=None,
+                  teams_2025=None, conf_teams_2025=None, players_2025=None,
+                  conf_players_2025=None, storylines_2025=None, rpi_data_2627=None,
                   subset_by_season=None):
     """Generate a self-contained sortable HTML leaderboard with team/individual toggle."""
     subset_by_season = subset_by_season or {}
-    _cur_sub = subset_by_season.get("2526", {})
+    teams_2025 = teams_2025 or []
+    conf_teams_2025 = conf_teams_2025 or []
+    players_2025 = players_2025 or []
+    conf_players_2025 = conf_players_2025 or []
+    storylines_2025 = storylines_2025 or {}
+    rpi_data_2627 = rpi_data_2627 or []
+    _cur_sub = subset_by_season.get("2627", {})
     last5_teams = _cur_sub.get("last5_teams", [])
     last10_teams = _cur_sub.get("last10_teams", [])
     playoff_teams = _cur_sub.get("playoff_teams", [])
@@ -3447,6 +3530,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     team_logo_names = sorted({
         *(t.get("team", "") for t in teams),
+        *(t.get("team", "") for t in teams_2025),
         *(t.get("team", "") for t in teams_2024),
         *(t.get("team", "") for t in teams_2023),
         *(t.get("team", "") for t in teams_2022),
@@ -3456,10 +3540,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         *(t.get("team", "") for t in teams_1718),
     } - {""})
     team_logos_json = _embed({name: f"team_logos/{_team_logo_slug(name)}.png" for name in team_logo_names})
-    attach_player_jerseys(players)
-    attach_player_jerseys(conf_players)
+    attach_player_jerseys(players, "2026-27 Teams Schedules")
+    attach_player_jerseys(conf_players, "2026-27 Teams Schedules")
     # Jerseys for every season (box scores live in each season's schedules dir)
     for _pl, _cpl, _dir in [
+        (players_2025, conf_players_2025, "2025-26 Teams Schedules"),
         (players_2024, conf_players_2024, "2024-25 Teams Schedules"),
         (players_2023, conf_players_2023, "2023-24 Teams Schedules"),
         (players_2022, conf_players_2022, "2022-23 Teams Schedules"),
@@ -3473,6 +3558,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # PORPAGATU! for every season (full + conference-only contexts)
     for _pl, _tm in [
         (players, teams), (conf_players, conf_teams),
+        (players_2025, teams_2025), (conf_players_2025, conf_teams_2025),
         (players_2024, teams_2024), (conf_players_2024, conf_teams_2024),
         (players_2023, teams_2023), (conf_players_2023, conf_teams_2023),
         (players_2022, teams_2022), (conf_players_2022, conf_teams_2022),
@@ -3484,10 +3570,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         attach_porpagatu(_pl, _tm)
         attach_win_shares_per(_pl, _tm)
     attach_similar_players(
-        {"2526": players, "2425": players_2024, "2324": players_2023,
+        {"2627": players, "2526": players_2025, "2425": players_2024, "2324": players_2023,
          "2223": players_2022, "2122": players_2021, "1920": players_2019,
          "1819": players_1819, "1718": players_1718},
         team_rosters)
+    rpi_data_2627_json = _embed(rpi_data_2627)
     rpi_data_2526_json = _embed(rpi_data_2526)
     rpi_data_2425_json = _embed(rpi_data_2425)
     rpi_data_2324_json = _embed(rpi_data_2324)
@@ -3528,6 +3615,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     last5_players_json = _embed(last5_players)
     last10_players_json = _embed(last10_players)
     playoff_players_json = _embed(playoff_players)
+    conf_teams_2025_json = _embed(_strip_conf_games(conf_teams_2025))
+    players_2025_json = _embed(players_2025)
+    conf_players_2025_json = _embed(conf_players_2025)
+    storylines_2025_json = _embed(storylines_2025)
     conf_teams_2024_json = _embed(_strip_conf_games(conf_teams_2024))
     players_2024_json = _embed(players_2024)
     conf_players_2024_json = _embed(conf_players_2024)
@@ -3559,7 +3650,17 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             wab_data = raw
         except Exception as e:
             print(f"  Warning: could not load wab_results.json: {e}")
-    wab_json = _embed(wab_data)
+    wab_2025_json = _embed(wab_data)  # wab_results.json holds 2025-26
+    wab_data_cur = []
+    if Path("wab_results_2026_27.json").exists():
+        try:
+            wab_data_cur = json.load(open("wab_results_2026_27.json"))
+            _c2r = {c: info["region"] for c, info in CONFERENCES.items()}
+            for entry in wab_data_cur:
+                entry["region"] = _c2r.get(entry.get("conference", ""), "")
+        except Exception as e:
+            print(f"  Warning: could not load wab_results_2026_27.json: {e}")
+    wab_json = _embed(wab_data_cur)
 
     # Load 2024-25 WAB results
     wab_path_2024 = Path("wab_results_2024_25.json")
@@ -3630,6 +3731,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         except Exception as e:
             print(f'  Warning: could not load wab_sim_split24.json: {e}')
     wab_sim_2526_json = _embed(wab_sim_2526)
+    wab_sim_2627_json = _embed({'north': [], 'south': []})
 
     wab_sim_2425 = {'north': [], 'south': []}
     sim_path_2425 = Path('wab_sim_split24_2024_25.json')
@@ -3856,9 +3958,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return ranks
 
     # Compute current-season daily rankings with iterative as-of-date logic
-    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2024 or [])
+    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2025 or [])
     daily_ranks_json = _embed(daily_ranks)
 
+    daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
+    daily_ranks_2025_json = _embed(daily_ranks_2025)
     # Compute 2024-25 daily rankings using the same helper
     daily_ranks_2024 = compute_daily_ranks(teams_2024 or [], prior_teams=teams_2023 or [])
     daily_ranks_2024_json = _embed(daily_ranks_2024)
@@ -3877,12 +3981,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg[key] = round(sum(t.get(key, 0) for t in valid_teams) / n, 1)
     # Shooting averages from totals
-    tot_fgm = sum(t["totals"]["FGM"] for t in valid_teams)
-    tot_fga = sum(t["totals"]["FGA"] for t in valid_teams)
-    tot_3pm = sum(t["totals"]["3PM"] for t in valid_teams)
-    tot_3pa = sum(t["totals"]["3PA"] for t in valid_teams)
-    tot_ftm = sum(t["totals"]["FTM"] for t in valid_teams)
-    tot_fta = sum(t["totals"]["FTA"] for t in valid_teams)
+    tot_fgm = sum(t["totals"].get("FGM", 0) for t in valid_teams)
+    tot_fga = sum(t["totals"].get("FGA", 0) for t in valid_teams)
+    tot_3pm = sum(t["totals"].get("3PM", 0) for t in valid_teams)
+    tot_3pa = sum(t["totals"].get("3PA", 0) for t in valid_teams)
+    tot_ftm = sum(t["totals"].get("FTM", 0) for t in valid_teams)
+    tot_fta = sum(t["totals"].get("FTA", 0) for t in valid_teams)
     league_avg["fg_pct"] = round(tot_fgm / max(tot_fga, 1) * 100, 1)
     league_avg["3p_pct"] = round(tot_3pm / max(tot_3pa, 1) * 100, 1)
     league_avg["ft_pct"] = round(tot_ftm / max(tot_fta, 1) * 100, 1)
@@ -3894,6 +3998,31 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     league_avg["shot_dist_fta"] = round(0.475 * tot_fta / _sd_base * 100, 1)
     league_avg_json = _embed(league_avg)
 
+    # Compute 2025-26 league averages for the season toggle
+    teams_2025_json = _embed(_slim_games(teams_2025))
+    valid_2025 = [t for t in teams_2025 if t.get("ortg", 0) > 0]
+    n25 = len(valid_2025) if valid_2025 else 1
+    league_avg_2025 = {}
+    for key in ["ortg", "drtg", "tempo", "net_rtg", "efg_pct", "tov_pct", "oreb_pct",
+                "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
+                "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
+        league_avg_2025[key] = round(sum(t.get(key, 0) for t in valid_2025) / n25, 1)
+    t25_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2025)
+    t25_fga = sum(t["totals"].get("FGA", 0) for t in valid_2025)
+    t25_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2025)
+    t25_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2025)
+    t25_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2025)
+    t25_fta = sum(t["totals"].get("FTA", 0) for t in valid_2025)
+    league_avg_2025["fg_pct"] = round(t25_fgm / max(t25_fga, 1) * 100, 1)
+    league_avg_2025["3p_pct"] = round(t25_3pm / max(t25_3pa, 1) * 100, 1)
+    league_avg_2025["ft_pct"] = round(t25_ftm / max(t25_fta, 1) * 100, 1)
+    league_avg_2025["2p_pct"] = round((t25_fgm - t25_3pm) / max(t25_fga - t25_3pa, 1) * 100, 1)
+    league_avg_2025["3pa_rate"] = round(t25_3pa / max(t25_fga, 1) * 100, 1)
+    _sd25_base = max(t25_fga + 0.475 * t25_fta, 1)
+    league_avg_2025["shot_dist_2pa"] = round((t25_fga - t25_3pa) / _sd25_base * 100, 1)
+    league_avg_2025["shot_dist_3pa"] = round(t25_3pa / _sd25_base * 100, 1)
+    league_avg_2025["shot_dist_fta"] = round(0.475 * t25_fta / _sd25_base * 100, 1)
+    league_avg_2025_json = _embed(league_avg_2025)
     # Compute 2024-25 league averages for the season toggle
     teams_2024_json = _embed(_slim_games(teams_2024))
     valid_2024 = [t for t in teams_2024 if t.get("ortg", 0) > 0]
@@ -3903,12 +4032,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2024[key] = round(sum(t.get(key, 0) for t in valid_2024) / n24, 1)
-    t24_fgm = sum(t["totals"]["FGM"] for t in valid_2024)
-    t24_fga = sum(t["totals"]["FGA"] for t in valid_2024)
-    t24_3pm = sum(t["totals"]["3PM"] for t in valid_2024)
-    t24_3pa = sum(t["totals"]["3PA"] for t in valid_2024)
-    t24_ftm = sum(t["totals"]["FTM"] for t in valid_2024)
-    t24_fta = sum(t["totals"]["FTA"] for t in valid_2024)
+    t24_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2024)
+    t24_fga = sum(t["totals"].get("FGA", 0) for t in valid_2024)
+    t24_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2024)
+    t24_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2024)
+    t24_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2024)
+    t24_fta = sum(t["totals"].get("FTA", 0) for t in valid_2024)
     league_avg_2024["fg_pct"] = round(t24_fgm / max(t24_fga, 1) * 100, 1)
     league_avg_2024["3p_pct"] = round(t24_3pm / max(t24_3pa, 1) * 100, 1)
     league_avg_2024["ft_pct"] = round(t24_ftm / max(t24_fta, 1) * 100, 1)
@@ -3930,12 +4059,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2023[key] = round(sum(t.get(key, 0) for t in valid_2023) / n23, 1)
-    t23_fgm = sum(t["totals"]["FGM"] for t in valid_2023)
-    t23_fga = sum(t["totals"]["FGA"] for t in valid_2023)
-    t23_3pm = sum(t["totals"]["3PM"] for t in valid_2023)
-    t23_3pa = sum(t["totals"]["3PA"] for t in valid_2023)
-    t23_ftm = sum(t["totals"]["FTM"] for t in valid_2023)
-    t23_fta = sum(t["totals"]["FTA"] for t in valid_2023)
+    t23_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2023)
+    t23_fga = sum(t["totals"].get("FGA", 0) for t in valid_2023)
+    t23_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2023)
+    t23_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2023)
+    t23_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2023)
+    t23_fta = sum(t["totals"].get("FTA", 0) for t in valid_2023)
     league_avg_2023["fg_pct"] = round(t23_fgm / max(t23_fga, 1) * 100, 1)
     league_avg_2023["3p_pct"] = round(t23_3pm / max(t23_3pa, 1) * 100, 1)
     league_avg_2023["ft_pct"] = round(t23_ftm / max(t23_fta, 1) * 100, 1)
@@ -3959,12 +4088,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2022[key] = round(sum(t.get(key, 0) for t in valid_2022) / n22, 1)
-    t22_fgm = sum(t["totals"]["FGM"] for t in valid_2022)
-    t22_fga = sum(t["totals"]["FGA"] for t in valid_2022)
-    t22_3pm = sum(t["totals"]["3PM"] for t in valid_2022)
-    t22_3pa = sum(t["totals"]["3PA"] for t in valid_2022)
-    t22_ftm = sum(t["totals"]["FTM"] for t in valid_2022)
-    t22_fta = sum(t["totals"]["FTA"] for t in valid_2022)
+    t22_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2022)
+    t22_fga = sum(t["totals"].get("FGA", 0) for t in valid_2022)
+    t22_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2022)
+    t22_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2022)
+    t22_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2022)
+    t22_fta = sum(t["totals"].get("FTA", 0) for t in valid_2022)
     league_avg_2022["fg_pct"] = round(t22_fgm / max(t22_fga, 1) * 100, 1)
     league_avg_2022["3p_pct"] = round(t22_3pm / max(t22_3pa, 1) * 100, 1)
     league_avg_2022["ft_pct"] = round(t22_ftm / max(t22_fta, 1) * 100, 1)
@@ -3988,12 +4117,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2021[key] = round(sum(t.get(key, 0) for t in valid_2021) / n21, 1)
-    t21_fgm = sum(t["totals"]["FGM"] for t in valid_2021)
-    t21_fga = sum(t["totals"]["FGA"] for t in valid_2021)
-    t21_3pm = sum(t["totals"]["3PM"] for t in valid_2021)
-    t21_3pa = sum(t["totals"]["3PA"] for t in valid_2021)
-    t21_ftm = sum(t["totals"]["FTM"] for t in valid_2021)
-    t21_fta = sum(t["totals"]["FTA"] for t in valid_2021)
+    t21_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2021)
+    t21_fga = sum(t["totals"].get("FGA", 0) for t in valid_2021)
+    t21_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2021)
+    t21_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2021)
+    t21_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2021)
+    t21_fta = sum(t["totals"].get("FTA", 0) for t in valid_2021)
     league_avg_2021["fg_pct"] = round(t21_fgm / max(t21_fga, 1) * 100, 1)
     league_avg_2021["3p_pct"] = round(t21_3pm / max(t21_3pa, 1) * 100, 1)
     league_avg_2021["ft_pct"] = round(t21_ftm / max(t21_fta, 1) * 100, 1)
@@ -4015,12 +4144,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2019[key] = round(sum(t.get(key, 0) for t in valid_2019) / n19, 1)
-    t19_fgm = sum(t["totals"]["FGM"] for t in valid_2019)
-    t19_fga = sum(t["totals"]["FGA"] for t in valid_2019)
-    t19_3pm = sum(t["totals"]["3PM"] for t in valid_2019)
-    t19_3pa = sum(t["totals"]["3PA"] for t in valid_2019)
-    t19_ftm = sum(t["totals"]["FTM"] for t in valid_2019)
-    t19_fta = sum(t["totals"]["FTA"] for t in valid_2019)
+    t19_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2019)
+    t19_fga = sum(t["totals"].get("FGA", 0) for t in valid_2019)
+    t19_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2019)
+    t19_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2019)
+    t19_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2019)
+    t19_fta = sum(t["totals"].get("FTA", 0) for t in valid_2019)
     league_avg_2019["fg_pct"] = round(t19_fgm / max(t19_fga, 1) * 100, 1)
     league_avg_2019["3p_pct"] = round(t19_3pm / max(t19_3pa, 1) * 100, 1)
     league_avg_2019["ft_pct"] = round(t19_ftm / max(t19_fta, 1) * 100, 1)
@@ -4040,12 +4169,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_1819[key] = round(sum(t.get(key, 0) for t in valid_1819) / n1819, 1)
-    t1819_fgm = sum(t["totals"]["FGM"] for t in valid_1819)
-    t1819_fga = sum(t["totals"]["FGA"] for t in valid_1819)
-    t1819_3pm = sum(t["totals"]["3PM"] for t in valid_1819)
-    t1819_3pa = sum(t["totals"]["3PA"] for t in valid_1819)
-    t1819_ftm = sum(t["totals"]["FTM"] for t in valid_1819)
-    t1819_fta = sum(t["totals"]["FTA"] for t in valid_1819)
+    t1819_fgm = sum(t["totals"].get("FGM", 0) for t in valid_1819)
+    t1819_fga = sum(t["totals"].get("FGA", 0) for t in valid_1819)
+    t1819_3pm = sum(t["totals"].get("3PM", 0) for t in valid_1819)
+    t1819_3pa = sum(t["totals"].get("3PA", 0) for t in valid_1819)
+    t1819_ftm = sum(t["totals"].get("FTM", 0) for t in valid_1819)
+    t1819_fta = sum(t["totals"].get("FTA", 0) for t in valid_1819)
     league_avg_1819["fg_pct"] = round(t1819_fgm / max(t1819_fga, 1) * 100, 1)
     league_avg_1819["3p_pct"] = round(t1819_3pm / max(t1819_3pa, 1) * 100, 1)
     league_avg_1819["ft_pct"] = round(t1819_ftm / max(t1819_fta, 1) * 100, 1)
@@ -4065,12 +4194,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_1718[key] = round(sum(t.get(key, 0) for t in valid_1718) / n1718, 1)
-    t1718_fgm = sum(t["totals"]["FGM"] for t in valid_1718)
-    t1718_fga = sum(t["totals"]["FGA"] for t in valid_1718)
-    t1718_3pm = sum(t["totals"]["3PM"] for t in valid_1718)
-    t1718_3pa = sum(t["totals"]["3PA"] for t in valid_1718)
-    t1718_ftm = sum(t["totals"]["FTM"] for t in valid_1718)
-    t1718_fta = sum(t["totals"]["FTA"] for t in valid_1718)
+    t1718_fgm = sum(t["totals"].get("FGM", 0) for t in valid_1718)
+    t1718_fga = sum(t["totals"].get("FGA", 0) for t in valid_1718)
+    t1718_3pm = sum(t["totals"].get("3PM", 0) for t in valid_1718)
+    t1718_3pa = sum(t["totals"].get("3PA", 0) for t in valid_1718)
+    t1718_ftm = sum(t["totals"].get("FTM", 0) for t in valid_1718)
+    t1718_fta = sum(t["totals"].get("FTA", 0) for t in valid_1718)
     league_avg_1718["fg_pct"] = round(t1718_fgm / max(t1718_fga, 1) * 100, 1)
     league_avg_1718["3p_pct"] = round(t1718_3pm / max(t1718_3pa, 1) * 100, 1)
     league_avg_1718["ft_pct"] = round(t1718_ftm / max(t1718_fta, 1) * 100, 1)
@@ -4139,7 +4268,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             r["rank_net"] = i + 1
         return results
 
-    rel_ratings_2526 = _compute_relative_ratings(teams)
+    rel_ratings_2627 = _compute_relative_ratings(teams)
+    rel_ratings_2526 = _compute_relative_ratings(teams_2025 or [])
     rel_ratings_2425 = _compute_relative_ratings(teams_2024 or [])
     rel_ratings_2324 = _compute_relative_ratings(teams_2023 or [])
     rel_ratings_2223 = _compute_relative_ratings(teams_2022 or [])
@@ -4147,6 +4277,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     rel_ratings_1920 = _compute_relative_ratings(teams_2019 or [])
     rel_ratings_1819 = _compute_relative_ratings(teams_1819 or [])
     rel_ratings_1718 = _compute_relative_ratings(teams_1718 or [])
+    rel_ratings_2627_json = _embed(rel_ratings_2627)
     rel_ratings_2526_json = _embed(rel_ratings_2526)
     rel_ratings_2425_json = _embed(rel_ratings_2425)
     rel_ratings_2324_json = _embed(rel_ratings_2324)
@@ -4165,6 +4296,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Past-season bulk datasets are written to sibling .js files and loaded
     # on demand by ensureSeason() in the page, keeping the HTML itself small.
     season_payloads = {
+        "2526": {
+            "DATA_2025": players_2025_json, "TEAM_DATA_2025": teams_2025_json,
+            "CONF_DATA_2025": conf_players_2025_json, "CONF_TEAM_DATA_2025": conf_teams_2025_json,
+            "STORYLINES_2025": storylines_2025_json, "DAILY_RANKS_2025": daily_ranks_2025_json,
+        },
         "2425": {
             "DATA_2024": players_2024_json, "TEAM_DATA_2024": teams_2024_json,
             "CONF_DATA_2024": conf_players_2024_json, "CONF_TEAM_DATA_2024": conf_teams_2024_json,
@@ -4204,7 +4340,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Historical subset-scope datasets (Last 5/10/Playoffs) ride in each season's
     # lazy-loaded file as window globals LAST5_TEAM_DATA_<key> etc.
     for _skey, _sub in (subset_by_season or {}).items():
-        if _skey == "2526" or _skey not in season_payloads:
+        if _skey == "2627" or _skey not in season_payloads:
             continue
         season_payloads[_skey][f"LAST5_TEAM_DATA_{_skey}"] = _embed(_sub.get("last5_teams", []))
         season_payloads[_skey][f"LAST10_TEAM_DATA_{_skey}"] = _embed(_sub.get("last10_teams", []))
@@ -4231,7 +4367,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WSC North Individual Statistics Leaderboard - 2025-26</title>
+<title>CCC Basketball Leaderboard - 2026-27</title>
 <script>try{{if(sessionStorage.getItem('lbNav'))document.documentElement.classList.add('lb-restoring');}}catch(e){{}}</script>
 <style>
   /* When restoring a saved spot on refresh, hide all content until the restore runs
@@ -4239,95 +4375,122 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   html.lb-restoring [id$="-view"], html.lb-restoring .filter-bar,
   html.lb-restoring #page-title, html.lb-restoring #page-subtitle,
   html.lb-restoring #page-info {{ display: none !important; }}
+  :root {{
+    --bg: #f4f5f7;          /* page background */
+    --surface: #ffffff;     /* cards, tables, controls */
+    --ink: #1c2733;         /* primary text */
+    --ink-2: #4f5a67;       /* secondary text */
+    --ink-3: #8b95a3;       /* tertiary text, captions, rank chips */
+    --line: #d9dee6;        /* standard borders */
+    --line-soft: #edf0f4;   /* row separators */
+    --head-bg: #f3f5f8;     /* table header background */
+    --navy: #1f3a5f;        /* primary brand */
+    --link: #1a5dab;        /* hyperlinks */
+    --accent: #b4531f;      /* active sort, sparingly */
+    --tint: rgba(31, 58, 95, 0.07);  /* active column wash */
+    --hover-row: #eef2f7;
+    --zebra: #f7f9fb;
+    --sidebar: #242f3c;        /* EvanMiya sidebar navy */
+    --sidebar-head: #1d2733;
+    --sidebar-ink: #aeb9c6;
+    --sidebar-accent: #5b9bd5;
+  }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0a0a0a;
-    color: #000;
-    padding: 20px;
+    font-family: "Noto Sans", Lato, "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 0 26px 48px;
+    margin-left: 210px;   /* room for the fixed sidebar */
   }}
   h1 {{
-    text-align: center;
-    font-size: 1.6rem;
-    margin-bottom: 4px;
-    color: #fff;
+    text-align: left;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 16px 0 2px;
+    color: var(--ink);
   }}
   .subtitle {{
-    text-align: center;
+    text-align: left;
     font-size: 0.85rem;
-    color: #fff;
-    margin-bottom: 16px;
+    color: var(--ink-2);
+    margin-bottom: 10px;
   }}
   .season-toggle {{
     display: none;
     justify-content: center;
     align-items: center;
     gap: 10px;
-    margin: -8px 0 12px;
+    margin: -2px 0 10px;
   }}
   .season-btn {{
     background: none;
     border: none;
-    color: #4fc3f7;
-    font-size: 1rem;
-    font-weight: 700;
+    color: var(--ink-3);
+    font-size: 0.92rem;
+    font-weight: 600;
     cursor: pointer;
     padding: 2px 6px;
-    border-radius: 4px;
-    opacity: 0.45;
-    transition: opacity 0.15s;
+    transition: color 0.15s;
   }}
+  .season-btn:hover {{ color: var(--navy); }}
   .season-btn.active {{
-    opacity: 1;
+    color: var(--navy);
+    font-weight: 700;
     text-decoration: underline;
+    text-underline-offset: 3px;
   }}
   .adv-cat-btn {{
-    background: none;
-    border: 1px solid #555;
-    color: #bbb;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
     font-size: 0.77rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 3px 10px;
+    border-radius: 3px;
     transition: all 0.15s;
     white-space: nowrap;
   }}
   .adv-cat-btn:hover {{
-    border-color: #4fc3f7;
-    color: #4fc3f7;
+    border-color: var(--navy);
+    color: var(--navy);
   }}
   .adv-cat-btn.active {{
-    background: #4fc3f7;
-    border-color: #4fc3f7;
-    color: #1a1a2e;
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
   }}
   .adv-section-hdr {{
-    background: #1e3a5f !important;
+    background: #eef2f7 !important;
     text-align: center;
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     padding: 5px 8px;
-    color: #eef4ff !important;
+    color: var(--navy) !important;
     letter-spacing: 0.03em;
-    border-top: 2px solid #2a5a8a;
+    border-top: 1px solid var(--line);
   }}
   .info {{
-    text-align: center;
+    text-align: left;
     font-size: 0.78rem;
-    color: #fff;
-    margin-bottom: 20px;
+    color: var(--ink-3);
+    margin-bottom: 18px;
   }}
   .table-wrap {{
     overflow-x: auto;
-    border-radius: 8px;
-    border: 1px solid #bbb;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
   table {{
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }}
   thead {{
     position: sticky;
@@ -4335,36 +4498,39 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     z-index: 2;
   }}
   th {{
-    background: #1a1a2e;
-    color: #fff;
-    padding: 10px 12px;
+    background: var(--head-bg);
+    color: var(--ink-2);
+    padding: 8px 12px;
     text-align: right;
     cursor: pointer;
     user-select: none;
-    border-bottom: 2px solid #333;
-    transition: background 0.15s;
+    font-size: 0.74rem;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid var(--line);
+    transition: background 0.15s, color 0.15s;
   }}
-  th:hover {{ background: #252545; }}
-  th.active {{ color: #4fc3f7; }}
-  th.active.asc::after {{ content: ' ▲'; font-size: 0.7rem; }}
-  th.active.desc::after {{ content: ' ▼'; font-size: 0.7rem; }}
-  td.active-col {{ box-shadow: inset 0 0 0 100px rgba(79, 195, 247, 0.15); }}
+  th:hover {{ background: #e9edf3; color: var(--ink); }}
+  th.active {{ color: var(--accent); }}
+  th.active.asc::after {{ content: ' ▲'; font-size: 0.6rem; }}
+  th.active.desc::after {{ content: ' ▼'; font-size: 0.6rem; }}
+  td.active-col {{ box-shadow: inset 0 0 0 100px var(--tint); }}
   th:nth-child(1), th:nth-child(2), th:nth-child(3) {{
     text-align: left;
   }}
   td {{
-    padding: 8px 12px;
-    border-bottom: 1px solid #ccc;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--line-soft);
     text-align: right;
-    color: #000;
+    color: var(--ink);
   }}
-  td:nth-child(1) {{ text-align: center; color: #000; font-size: 0.8rem; }}
-  td:nth-child(2) {{ text-align: left; font-weight: 600; color: #000; }}
-  td:nth-child(3) {{ text-align: left; font-weight: 700; }}
-  tr:hover td {{ background: #c0c0c0; }}
-  tr:nth-child(odd) td {{ background: #d9d9d9; }}
-  tr:nth-child(even) td {{ background: #fff; }}
-  tr:nth-child(even):hover td {{ background: #c0c0c0; }}
+  td:nth-child(1) {{ text-align: center; color: var(--ink-3); font-size: 0.78rem; }}
+  td:nth-child(2) {{ text-align: left; font-weight: 600; color: var(--ink); }}
+  td:nth-child(3) {{ text-align: left; font-weight: 600; }}
+  tr:hover td {{ background: var(--hover-row); }}
+  tr:nth-child(odd) td {{ background: var(--surface); }}
+  tr:nth-child(even) td {{ background: var(--zebra); }}
+  tr:nth-child(even):hover td {{ background: var(--hover-row); }}
 
   /* Individual Basic Stats: cap the Name column so a long name can't stretch it */
   #leaderboard th:nth-child(2), #leaderboard td:nth-child(2) {{
@@ -4376,12 +4542,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   #team-adv-offense-leaderboard tbody td:nth-child(5),
   #team-adv-offense-leaderboard tbody td:nth-child(9),
   #team-adv-offense-leaderboard tbody td:nth-child(14) {{
-    border-left: 2px solid #555;
+    border-left: 1px solid #c9d1db;
   }}
 
   #team-adv-defense-leaderboard tbody td:nth-child(5),
   #team-adv-defense-leaderboard tbody td:nth-child(13) {{
-    border-left: 2px solid #555;
+    border-left: 1px solid #c9d1db;
   }}
 
   @media (max-width: 768px) {{
@@ -4389,158 +4555,263 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     th, td {{ padding: 6px 8px; font-size: 0.78rem; }}
   }}
 
-  .toggle-wrap {{
-    text-align: center;
-    margin-bottom: 16px;
-    white-space: nowrap;
+  /* ── Team page Form card (last 5/10 games) ── */
+  .td-form {{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
-  .toggle-wrap button {{
-    padding: 8px 20px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    border: 2px solid #4fc3f7;
-    background: transparent;
-    color: #4fc3f7;
-    cursor: pointer;
-    transition: all 0.15s;
-  }}
-  .toggle-wrap button:first-child {{
-    border-radius: 6px 0 0 6px;
-  }}
-  .toggle-wrap button:last-child {{
-    border-radius: 0 6px 6px 0;
-  }}
-  .toggle-wrap button:not(:first-child):not(:last-child) {{
-    border-radius: 0;
-  }}
-  .toggle-wrap button.active {{
-    background: #4fc3f7;
-    color: #0a0a0a;
+  .td-form-head {{ display: flex; align-items: center; justify-content: center; gap: 14px; border-bottom: 2px solid var(--sidebar); padding-bottom: 6px; margin-bottom: 14px; }}
+  .td-form-title {{ font-size: 0.95rem; font-weight: 700; color: var(--ink); }}
+  .td-form-seg {{ display: inline-flex; }}
+  .td-form-btn {{ background: var(--surface); border: 1px solid #ced4da; color: var(--ink-2); font-weight: 600; padding: 2px 12px; font-size: 0.76rem; cursor: pointer; transition: all 0.15s; }}
+  .td-form-btn:first-child {{ border-radius: 3px 0 0 3px; }}
+  .td-form-btn:last-child {{ border-radius: 0 3px 3px 0; margin-left: -1px; }}
+  .td-form-btn:hover {{ color: var(--navy); }}
+  .td-form-btn.active {{ background: var(--navy); border-color: var(--navy); color: #fff; position: relative; z-index: 1; }}
+  .td-form-flex {{ display: flex; gap: 34px; align-items: flex-end; flex-wrap: wrap; justify-content: center; }}
+  .td-spark {{ display: flex; align-items: flex-end; gap: 6px; height: 96px; }}
+  .td-bar-wrap {{ display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }}
+  .td-bar-wrap:hover .td-bar {{ filter: brightness(1.15); }}
+  .td-bar {{ width: 22px; border-radius: 2px 2px 0 0; }}
+  .td-bar.w {{ background: #1e8e4b; }}
+  .td-bar.l {{ background: #cf5548; }}
+  .td-bar-m {{ font-size: 0.62rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }}
+  .td-spark-note {{ font-size: 0.68rem; color: var(--ink-3); text-align: center; margin-top: 5px; }}
+  .td-form-side {{ min-width: 210px; }}
+  .td-form-line {{ display: flex; justify-content: space-between; align-items: center; gap: 18px; font-size: 0.84rem; padding: 5px 2px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }}
+  .td-adjbar {{ position: relative; width: 90px; height: 12px; background: var(--line-soft); border-radius: 2px; display: inline-block; }}
+  .td-adjmid {{ position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: #aab3bf; }}
+  .td-adjfill {{ position: absolute; top: 0; height: 100%; border-radius: 2px; }}
+  @media (max-width: 900px) {{
+    body {{ margin-left: 0; }}
+    .toggle-center {{
+      position: static;
+      width: auto;
+      order: -1;
+      flex: 1 1 100%;
+      margin: -10px -22px 0;
+      padding: 0 0 6px;
+    }}
+    .toggle-center::before {{ margin-bottom: 4px; padding: 12px 16px; }}
+    .toggle-wrap {{ display: flex; flex-wrap: wrap; margin-bottom: 0; }}
+    .toggle-wrap button {{ width: auto; border-left: none; border-bottom: 3px solid transparent; padding: 9px 12px; }}
+    .toggle-wrap button.active {{ border-bottom-color: var(--sidebar-accent); }}
+    .top-bar .team-search-wrap {{ position: static; margin-top: 10px; }}
   }}
 
+  .toggle-wrap {{
+    margin-bottom: 8px;
+    white-space: normal;
+  }}
+  .toggle-wrap button {{
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    border: none;
+    border-left: 3px solid transparent;
+    background: transparent;
+    color: var(--sidebar-ink);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+  }}
+  .toggle-wrap button:hover {{
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+  }}
+  .toggle-wrap button.active {{
+    color: #fff;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.10);
+    border-left-color: var(--sidebar-accent);
+  }}
+  .toggle-wrap button::before {{
+    content: "";
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    background-color: currentColor;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+    mask: var(--icon) center / contain no-repeat;
+  }}
+  #btn-team        {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>'); }}
+  #btn-individual  {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>'); }}
+  #btn-charts      {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M3 3v18h18"/><circle cx="9" cy="13" r="1.6"/><circle cx="14" cy="8" r="1.6"/><circle cx="18" cy="15" r="1.6"/></svg>'); }}
+  #btn-keys        {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M11 12l9-9m-4 4l3 3"/></svg>'); }}
+  #btn-fanmatch    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'); }}
+  #btn-universe    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>'); }}
+  #btn-storylines  {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>'); }}
   .sub-toggle-wrap {{
     display: none;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 0;
     padding: 4px 0;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }}
   #btn-offense, #btn-defense {{
-    background: transparent;
-    border: 2px solid #ffa726;
-    color: #ffa726;
-    padding: 4px 16px;
-    border-radius: 20px;
-    font-size: 0.82rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    padding: 5px 18px;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
   }}
+  #btn-offense {{ border-radius: 3px 0 0 3px; }}
+  #btn-defense {{ border-radius: 0 3px 3px 0; margin-left: -1px; }}
+  #btn-offense:hover, #btn-defense:hover {{
+    color: var(--navy);
+    border-color: #b9c4d2;
+  }}
   #btn-offense.active, #btn-defense.active {{
-    background: #ffa726;
-    color: #1a1a2e;
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+    position: relative;
+    z-index: 1;
   }}
   .team-mode-wrap {{
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-left: 4px;
+    margin-left: 16px;
   }}
   .team-mode-wrap label {{
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    color: #ddd;
+    color: var(--ink-2);
   }}
   .team-mode-wrap select {{
     padding: 4px 8px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    border: 2px solid #ffa726;
-    border-radius: 6px;
-    background: #161616;
-    color: #ffa726;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--ink);
     outline: none;
+    cursor: pointer;
   }}
+  .team-mode-wrap select:hover {{ border-color: #b9c4d2; }}
   .top-bar {{
     display: flex;
     align-items: flex-end;
-    margin-bottom: 16px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 18px;
+    margin: 0 -26px 18px;
     position: relative;
-    min-height: 44px;
+    min-height: 54px;
+    padding: 10px 22px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
   }}
   .team-search-wrap {{
     position: absolute;
-    right: 0;
-    bottom: 0;
+    right: 22px;
+    bottom: 12px;
   }}
   .team-search-wrap input {{
-    background: #e8e8e8;
-    border: 1px solid #ccc;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 4px;
     padding: 6px 12px;
     font-size: 0.82rem;
     width: 180px;
-    color: #333;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }}
+  .team-search-wrap input:focus {{
+    border-color: var(--navy);
   }}
   .team-search-wrap input::placeholder {{
-    color: #999;
+    color: var(--ink-3);
   }}
   .team-search-wrap .search-dropdown {{
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    background: #fff;
-    border: 1px solid #ccc;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-top: none;
     border-radius: 0 0 4px 4px;
     max-height: 200px;
     overflow-y: auto;
     display: none;
     z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 16px rgba(28, 39, 51, 0.12);
   }}
   .team-search-wrap .search-dropdown div {{
     padding: 6px 12px;
     font-size: 0.82rem;
     cursor: pointer;
-    color: #333;
+    color: var(--ink-2);
   }}
   .team-search-wrap .search-dropdown div:hover {{
-    background: #e0e0e0;
+    background: #f1f4f8;
+    color: var(--ink);
   }}
+  /* ── EvanMiya-style fixed left sidebar (repositioned nav container; DOM untouched) ── */
   .toggle-center {{
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    position: fixed;
+    left: 0;
+    top: 0;
     bottom: 0;
+    width: 210px;
+    background: var(--sidebar);
+    z-index: 50;
+    overflow-y: auto;
+    padding: 0 0 16px;
+    text-align: left;
+    transform: none;
+  }}
+  .toggle-center::before {{
+    content: "WSC NORTH";
+    display: block;
+    padding: 17px 18px 15px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: var(--sidebar-head);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 10px;
   }}
   .conf-toggle-label {{
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 6px;
+    gap: 7px;
+    width: fit-content;
+    margin: 0 auto 12px;
     justify-content: center;
     cursor: pointer;
   }}
   .conf-toggle-label input[type="checkbox"] {{
-    width: 16px;
-    height: 16px;
-    accent-color: #4fc3f7;
+    width: 15px;
+    height: 15px;
+    accent-color: var(--navy);
     cursor: pointer;
   }}
   .conf-toggle-text {{
-    color: #ccc;
+    color: var(--ink-2);
     font-size: 0.82rem;
-    font-weight: 500;
+    font-weight: 600;
     user-select: none;
   }}
   .conf-toggle-label:hover .conf-toggle-text {{
-    color: #fff;
+    color: var(--ink);
   }}
   .filter-bar {{
     display: flex;
@@ -4551,62 +4822,68 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .filter-group {{
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
   }}
   .filter-bar label {{
-    color: #fff;
-    font-size: 0.78rem;
-    font-weight: 600;
+    color: var(--ink);
+    font-size: 0.8rem;
+    font-weight: 700;
   }}
   .filter-bar select {{
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
-    padding: 6px 10px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
+    padding: 7px 12px;
     border-radius: 4px;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
     cursor: pointer;
+    min-width: 150px;
   }}
   .filter-bar select:hover {{
-    border-color: #81d4fa;
+    border-color: #b9c4d2;
   }}
   .multi-select {{
     position: relative;
     display: inline-block;
   }}
   .multi-select .ms-btn {{
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
-    padding: 6px 10px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
+    padding: 7px 12px;
     border-radius: 4px;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
     cursor: pointer;
-    min-width: 120px;
+    min-width: 150px;
     text-align: left;
     white-space: nowrap;
+    transition: border-color 0.15s;
   }}
   .multi-select .ms-btn:hover {{
-    border-color: #81d4fa;
+    border-color: #b9c4d2;
   }}
   .multi-select .ms-btn::after {{
     content: ' ▼';
     float: right;
     margin-left: 8px;
+    font-size: 0.62rem;
+    color: var(--ink-3);
+    line-height: 1.8;
   }}
   .ms-panel {{
     display: none;
     position: absolute;
     top: 100%;
     left: 0;
-    background: #1a1a2e;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 4px;
     z-index: 100;
     min-width: 160px;
     max-height: 220px;
     overflow-y: auto;
     padding: 4px 0;
+    box-shadow: 0 6px 16px rgba(28, 39, 51, 0.12);
   }}
   .ms-panel.open {{
     display: block;
@@ -4617,17 +4894,18 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     padding: 4px 10px;
     cursor: pointer;
     font-size: 0.82rem;
-    color: #fff;
+    color: var(--ink-2);
     gap: 6px;
   }}
   .ms-panel label:hover {{
-    background: #252545;
+    background: #f1f4f8;
+    color: var(--ink);
   }}
   .ms-panel input[type="checkbox"] {{
-    accent-color: #4fc3f7;
+    accent-color: var(--navy);
   }}
   .ms-panel input[type="radio"] {{
-    accent-color: #4fc3f7;
+    accent-color: var(--navy);
   }}
 
   /* Universe chart */
@@ -4750,10 +5028,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .td-back:hover {{ text-decoration: underline; }}
   .td-header {{
     text-align: center;
-    background: #1a1a2e;
-    border-radius: 8px;
+    background: var(--sidebar);
+    border: 1px solid var(--sidebar-head);
+    border-radius: 6px;
     padding: 20px;
     margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(28, 39, 51, 0.15);
   }}
   .td-logo-wrap {{
     display: flex;
@@ -4768,11 +5048,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     max-height: 112px;
     object-fit: contain;
   }}
-  .td-header h1 {{ font-size: 2rem; margin-bottom: 4px; }}
-  .td-header .td-rank {{ color: #4fc3f7; font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }}
-  .td-header .td-meta {{ color: #ccc; font-size: 0.9rem; }}
+  .td-header h1 {{ font-size: 2rem; margin-bottom: 4px; color: #fff; text-align: center; }}
+  .td-header .td-rank {{ color: var(--sidebar-accent); font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }}
+  .td-header .td-meta {{ color: var(--sidebar-ink); font-size: 0.9rem; }}
   .td-header .td-record {{ color: #fff; font-size: 1.2rem; font-weight: 700; margin-top: 6px; }}
-  .td-header .td-coach {{ color: #aaa; font-size: 0.88rem; margin-top: 4px; }}
+  .td-header .td-coach {{ color: #93a0ad; font-size: 0.88rem; margin-top: 4px; }}
   .td-content {{
     display: flex;
     gap: 24px;
@@ -4813,10 +5093,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     padding-bottom: 3px;
   }}
   .td-scouting table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
-  .td-scouting th {{ background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: center; font-size: 0.78rem; border-bottom: 2px solid #333; }}
+  .td-scouting th {{ background: var(--sidebar); color: #e7ecf2; padding: 6px 8px; text-align: center; font-size: 0.74rem; font-weight: 650; border-bottom: 1px solid var(--sidebar-head); }}
   .td-scouting td {{ padding: 5px 8px; border-bottom: 1px solid #eee; font-size: 0.82rem; white-space: nowrap; }}
   .td-schedule table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
-  .td-schedule th {{ background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: center; font-size: 0.78rem; border-bottom: 2px solid #333; }}
+  .td-schedule th {{ background: var(--sidebar); color: #e7ecf2; padding: 6px 8px; text-align: center; font-size: 0.74rem; font-weight: 650; border-bottom: 1px solid var(--sidebar-head); }}
   .td-schedule td {{ padding: 5px 6px; border-bottom: 1px solid #eee; font-size: 0.8rem; white-space: nowrap; }}
   .td-schedule tr:hover td {{ background: #f0f0f0; }}
   .td-schedule tr.sched-win td {{ background: rgb(0,255,0) !important; color: #000 !important; }}
@@ -4845,7 +5125,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     height: 100%;
     cursor: pointer;
   }}
-  #opp-float-tip, #pace-float-tip {{
+  #opp-float-tip, #pace-float-tip, #td-form-tip {{
     display: none;
     position: fixed;
     background: rgba(30,30,50,0.96);
@@ -4861,18 +5141,18 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }}
-  #opp-float-tip::after, #pace-float-tip::after {{
+  #opp-float-tip::after, #pace-float-tip::after, #td-form-tip::after {{
     content: '';
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     border: 6px solid transparent;
   }}
-  #opp-float-tip.above::after, #pace-float-tip.above::after {{
+  #opp-float-tip.above::after, #pace-float-tip.above::after, #td-form-tip.above::after {{
     top: 100%;
     border-top-color: rgba(30,30,50,0.96);
   }}
-  #opp-float-tip.below::after, #pace-float-tip.below::after {{
+  #opp-float-tip.below::after, #pace-float-tip.below::after, #td-form-tip.below::after {{
     bottom: 100%;
     border-bottom-color: rgba(30,30,50,0.96);
   }}
@@ -4911,7 +5191,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     margin: 0 0 14px;
   }}
   .sl-table-outer {{ text-align: center; }}
-  .sl-table-wrap {{ display: inline-block; overflow-x: auto; border-radius: 8px; border: 1px solid #bbb; text-align: left; }}
+  .sl-table-wrap {{ display: inline-block; overflow-x: auto; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05); text-align: left; }}
   .sl-table {{
     width: auto;
     min-width: 560px;
@@ -4921,23 +5201,24 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-table th {{
     padding: 7px 10px;
     text-align: left;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 650;
+    font-size: 0.74rem;
+    color: #e7ecf2;
     white-space: nowrap;
-    background: #1a1a2e;
+    background: var(--sidebar);
     cursor: default;
-    border-bottom: 2px solid #333;
+    border-bottom: 1px solid var(--sidebar-head);
   }}
   .sl-table th.sl-th-r {{ text-align: right; }}
   .sl-table td {{
     padding: 7px 10px;
-    border-bottom: 1px solid #ccc;
-    color: #000 !important;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink) !important;
     vertical-align: top;
     font-weight: 400 !important;
   }}
-  .sl-table tbody tr:hover td {{ background: #c0c0c0; }}
-  .mp-gold-row td {{ background: #ffe599 !important; }}
+  .sl-table tbody tr:hover td {{ background: var(--hover-row); }}
+  .mp-gold-row td {{ background: #fcf2d8 !important; }}
   .sl-rank {{
     text-align: right;
     padding-right: 14px !important;
@@ -5023,18 +5304,20 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-wab-btn:hover {{ background: #333; color: #fff; }}
   .sl-wab-btn.active {{ background: #1a1a2e; color: #fff; border-color: #4a6fa5; }}
   .lotn-wrap {{
-    background: #141414;
-    border: 1px solid #2a3a5a;
+    background: var(--sidebar);
+    border: 1px solid var(--sidebar-head);
     border-radius: 6px;
     padding: 10px 16px;
-    margin: 14px 0 0 0;
+    margin: 14px auto 0;
+    max-width: 860px;
     font-size: 0.82rem;
-    color: #ccc;
+    color: #cfd6de;
     text-align: center;
+    box-shadow: 0 1px 3px rgba(28, 39, 51, 0.15);
   }}
   .lotn-label {{
     display: block;
-    color: #6a8fd8;
+    color: var(--sidebar-accent);
     font-weight: 700;
     margin-bottom: 6px;
     white-space: nowrap;
@@ -5042,8 +5325,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }}
-  .lotn-player {{ color: #f0f0f0; font-weight: 600; }}
-  .lotn-pts {{ color: #f9c74f; font-weight: 700; }}
+  .lotn-player {{ color: #fff; font-weight: 600; }}
+  .lotn-pts {{ color: #f4c95d; font-weight: 700; }}
   .sl-wab-pos {{ color: #1565c0 !important; font-weight: 700; }}
   .sl-wab-neg {{ color: #c62828 !important; font-weight: 700; }}
   .sl-wab-bubble-line {{ pointer-events: none; }}
@@ -5136,25 +5419,26 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     max-width: 200px;
   }}
   .trends-team-card {{
-    border: 1px solid #333;
+    border: 1px solid var(--line);
     border-radius: 6px;
     padding: 10px 16px;
     margin-bottom: 14px;
-    background: #111827;
+    background: var(--surface);
     display: flex;
     flex-wrap: wrap;
     gap: 10px 20px;
     align-items: center;
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
   .trends-card-name {{
     font-size: 15px;
     font-weight: 700;
-    color: #fff;
+    color: var(--ink);
   }}
   .trends-card-season {{
     font-size: 12px;
     padding-left: 14px;
-    border-left: 1px solid #333;
+    border-left: 1px solid var(--line);
   }}
   .trends-table-outer {{
     overflow-x: auto;
@@ -5187,21 +5471,21 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     font-weight: 700;
     font-size: 13px;
   }}
-  .trends-tbl tbody tr:hover td {{ background: rgba(255,255,255,0.05) !important; color: #e0e0e0 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-good1 {{ color: #6ee7a0 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-good2 {{ color: #22c55e !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-good3 {{ color: #4ade80 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-bad1  {{ color: #fca5a5 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-bad2  {{ color: #f87171 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-bad3  {{ color: #ff4444 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-na    {{ color: #444 !important; }}
-  .trends-td-na {{ color: #444; }}
-  .trends-td-good1 {{ color: #6ee7a0; }}
-  .trends-td-good2 {{ color: #22c55e; font-weight: 600; }}
-  .trends-td-good3 {{ color: #4ade80; font-weight: 700; }}
-  .trends-td-bad1  {{ color: #fca5a5; }}
-  .trends-td-bad2  {{ color: #f87171; font-weight: 600; }}
-  .trends-td-bad3  {{ color: #ff4444; font-weight: 700; }}
+  .trends-tbl tbody tr:hover td {{ background: var(--hover-row) !important; color: var(--ink) !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-good1 {{ color: #43a06d !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-good2 {{ color: #1e8e4b !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-good3 {{ color: #0c7a3c !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-bad1  {{ color: #d9857b !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-bad2  {{ color: #cf5548 !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-bad3  {{ color: #b3261e !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-na    {{ color: #b0b8c2 !important; }}
+  .trends-td-na {{ color: #b0b8c2; }}
+  .trends-td-good1 {{ color: #43a06d; }}
+  .trends-td-good2 {{ color: #1e8e4b; font-weight: 600; }}
+  .trends-td-good3 {{ color: #0c7a3c; font-weight: 700; }}
+  .trends-td-bad1  {{ color: #d9857b; }}
+  .trends-td-bad2  {{ color: #cf5548; font-weight: 600; }}
+  .trends-td-bad3  {{ color: #b3261e; font-weight: 700; }}
   #trends-tooltip {{
     position: fixed;
     background: rgba(20,20,30,0.95);
@@ -5218,12 +5502,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   /* --- Charts --- */
   .charts-shell {{
     max-width: 1180px;
-    margin: 0 auto;
-    color: #111;
+    margin: 0;
+    color: var(--ink);
   }}
   .charts-toolbar {{
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: flex-end;
     flex-wrap: wrap;
     gap: 14px;
@@ -5231,23 +5515,27 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   }}
   .charts-segment {{
     display: inline-flex;
-    border: 1px solid #4fc3f7;
-    border-radius: 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
     overflow: hidden;
+    background: var(--surface);
   }}
   .charts-segment button {{
     border: 0;
-    border-right: 1px solid #4fc3f7;
+    border-right: 1px solid #ced4da;
     background: transparent;
-    color: #4fc3f7;
+    color: var(--ink-2);
     padding: 7px 18px;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 0.84rem;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s;
   }}
   .charts-segment button:last-child {{ border-right: 0; }}
+  .charts-segment button:hover {{ color: var(--navy); }}
   .charts-segment button.active {{
-    background: #4fc3f7;
-    color: #0a0a0a;
+    background: var(--navy);
+    color: #fff;
   }}
   .charts-segment button:disabled {{
     opacity: 0.45;
@@ -5256,9 +5544,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .charts-control-grid {{
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
     align-items: flex-end;
-    justify-content: center;
+    justify-content: flex-start;
   }}
   .charts-control-group {{
     display: flex;
@@ -5266,30 +5554,34 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     gap: 3px;
   }}
   .charts-control-group label {{
-    color: #ddd;
-    font-size: 0.74rem;
+    color: var(--ink);
+    font-size: 0.78rem;
     font-weight: 700;
   }}
   .charts-control-group select {{
     min-width: 160px;
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
     border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 0.8rem;
+    padding: 7px 10px;
+    font-size: 0.82rem;
+    cursor: pointer;
   }}
+  .charts-control-group select:hover {{ border-color: #b9c4d2; }}
   .metric-combo {{ position: relative; display: inline-block; }}
   .metric-combo-input {{
     min-width: 210px;
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
     border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 0.8rem;
+    padding: 7px 10px;
+    font-size: 0.82rem;
+    outline: none;
   }}
-  .metric-combo-input::placeholder {{ color: #6a6a85; }}
+  .metric-combo-input:focus {{ border-color: var(--navy); }}
+  .metric-combo-input::placeholder {{ color: var(--ink-3); }}
   .metric-combo-list {{
     position: absolute;
     z-index: 60;
@@ -5297,38 +5589,41 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     margin-top: 2px;
     max-height: 260px;
     overflow-y: auto;
-    background: #13131f;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 4px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+    box-shadow: 0 6px 16px rgba(28, 39, 51, 0.12);
   }}
-  .metric-combo-opt {{ padding: 6px 9px; font-size: 0.78rem; color: #dfeaff; cursor: pointer; white-space: nowrap; }}
-  .metric-combo-opt:hover {{ background: #1d3a5c; }}
-  .metric-combo-opt.sel {{ background: #24507a; font-weight: 700; }}
-  .metric-combo-empty {{ padding: 6px 9px; font-size: 0.78rem; color: #888; }}
+  .metric-combo-opt {{ padding: 6px 9px; font-size: 0.78rem; color: var(--ink-2); cursor: pointer; white-space: nowrap; }}
+  .metric-combo-opt:hover {{ background: #f1f4f8; color: var(--ink); }}
+  .metric-combo-opt.sel {{ background: #e3ecf6; color: var(--navy); font-weight: 700; }}
+  .metric-combo-empty {{ padding: 6px 9px; font-size: 0.78rem; color: var(--ink-3); }}
   .charts-action-row {{
     display: flex;
     gap: 5px;
   }}
   .charts-action-row button {{
-    border: 1px solid #4fc3f7;
+    border: 1px solid #ced4da;
     border-radius: 4px;
-    background: #111827;
-    color: #dff4ff;
-    padding: 6px 9px;
+    background: var(--surface);
+    color: var(--ink-2);
+    padding: 7px 10px;
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s;
   }}
   .charts-action-row button:hover {{
-    background: #1d3557;
+    background: #eef2f7;
+    color: var(--ink);
   }}
   .charts-panel {{
-    background: #f7f7f7;
-    border: 1px solid #d7d7d7;
-    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
     padding: 18px;
     position: relative;
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
   .chart-heading {{
     text-align: center;
@@ -5415,11 +5710,48 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     margin-bottom: 5px;
     font-size: 0.82rem;
   }}
+
+  /* ================================================================
+     Light-theme legibility overrides for tabs not yet redesigned
+     (Miscellaneous, FanMatch, Keys, Team Detail). These only prevent
+     white-on-white text; full redesign of those tabs comes later.
+     ================================================================ */
+  .td-back {{ color: var(--link); }}
+  .sl-nav a {{ color: var(--link); }}
+  .sl-nav a.sl-active {{ color: var(--ink); }}
+  .sl-nav-sep {{ color: #b6bdc7; }}
+  .sl-page-title {{ color: var(--ink); }}
+  .sl-game-count {{ color: var(--ink-2); }}
+  .sl-cal-date {{ color: var(--ink); }}
+  .sl-cal-btn {{ background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }}
+  .sl-cal-btn:hover {{ background: #eef2f7; color: var(--ink); }}
+  #sl-date-input {{ background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }}
+  .sl-wab-btn {{ background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }}
+  .sl-wab-btn:hover {{ background: #eef2f7; color: var(--ink); }}
+  .sl-wab-btn.active {{ background: var(--navy); color: #fff; border-color: var(--navy); }}
+  .trends-ctl-group label {{ color: var(--ink-2); }}
+  .trends-month-btn {{ background: var(--surface); border-color: var(--line); color: var(--ink-2); }}
+  .trends-month-btn:hover {{ background: #eef2f7; color: var(--ink); }}
+  .trends-month-btn.active {{ background: var(--navy); color: #fff; border-color: var(--navy); }}
+  .trends-team-sel {{ background: var(--surface); border-color: var(--line); color: var(--ink); }}
+  .trends-tbl thead th {{ color: var(--ink-2); border-bottom-color: var(--line); }}
+  .trends-tbl tbody td {{ border-bottom-color: var(--line-soft); }}
+  .trends-tbl tbody tr:hover td {{ background: #eef2f7 !important; color: var(--ink) !important; }}
+  /* Table header rows: one dark color (#252e3b) on every screen, white text; overrides the per-view header styles */
+  th, thead th, .sl-table th, .trends-tbl thead th, .td-scouting th, .td-schedule th, .bx-table th,
+  #teamstats-content .ts-table th, #player-content .pp-table th, #minmatrix-content th {{
+    background: #252e3b !important;
+    color: #fff !important;
+    border-color: #1d2733 !important;
+  }}
+  th:hover {{ background: #323d4d !important; }}
+  th.active {{ color: #ffcf70 !important; }}
 </style>
 </head>
 <body>
 <div id="opp-float-tip"></div>
 <div id="pace-float-tip"></div>
+<div id="td-form-tip"></div>
 
 <div class="top-bar">
   <div class="filter-bar">
@@ -5459,10 +5791,6 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <button id="btn-universe" onclick="showView('universe')">Universe</button>
       <button id="btn-storylines" onclick="showView('storylines')">Miscellaneous</button>
     </div>
-    <label class="conf-toggle-label" id="conf-toggle-wrap">
-      <input type="checkbox" id="conf-toggle" onchange="toggleConfMode(this.checked)">
-      <span class="conf-toggle-text">Conference Only</span>
-    </label>
   </div>
   <div class="team-search-wrap">
     <input type="text" id="team-search-input" placeholder="Search Teams" oninput="onTeamSearch()" onfocus="onTeamSearch()">
@@ -5490,8 +5818,13 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   </div>
 </div>
 
+<label class="conf-toggle-label" id="conf-toggle-wrap">
+  <input type="checkbox" id="conf-toggle" onchange="toggleConfMode(this.checked)">
+  <span class="conf-toggle-text">Conference Only</span>
+</label>
+
 <h1 id="page-title">Individual Statistics Leaderboard</h1>
-<div class="subtitle" id="page-subtitle">2025-26 Season — Per-Game Averages</div>
+<div class="subtitle" id="page-subtitle">2026-27 Season — Per-Game Averages</div>
 <div class="season-toggle" id="season-toggle">
   <button class="season-btn" id="btn-season-18" onclick="switchSeason('1718')">18</button>
   <span style="color:#aaa;font-size:0.9rem">|</span>
@@ -5507,7 +5840,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <span style="color:#aaa;font-size:0.9rem">|</span>
   <button class="season-btn" id="btn-season-25" onclick="switchSeason('2425')">25</button>
   <span style="color:#aaa;font-size:0.9rem">|</span>
-  <button class="season-btn active" id="btn-season-26" onclick="switchSeason('2526')">26</button>
+  <button class="season-btn" id="btn-season-26" onclick="switchSeason('2526')">26</button>
+  <button class="season-btn active" id="btn-season-27" onclick="switchSeason('2627')">27</button>
 </div>
 <div class="info" id="page-info">{len(players)} qualified players · 30% minutes played minimum · Click any column header to sort · Generated {timestamp}</div>
 
@@ -5535,6 +5869,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <button class="adv-cat-btn" data-cat="ftp" onclick="switchIndCat('ftp')">FT%</button>
   <button class="adv-cat-btn" data-cat="bpm2" onclick="switchIndCat('bpm2')">BPM 2.0</button>
   <button class="adv-cat-btn" data-cat="porp" onclick="switchIndCat('porp')">PRPG!</button>
+  <button class="adv-cat-btn" data-cat="pir" onclick="switchIndCat('pir')">PIR</button>
   <button class="adv-cat-btn" data-cat="per" onclick="switchIndCat('per')">PER</button>
   <button class="adv-cat-btn" data-cat="ws" onclick="switchIndCat('ws')">Win Shares</button>
   </div>
@@ -5672,7 +6007,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     </div>
     <div class="charts-panel">
       <div class="chart-heading">3-Point Percentage vs Three Point Attempt Rate</div>
-      <div class="chart-subheading" id="chart-subtitle">2025-26 Individual Players</div>
+      <div class="chart-subheading" id="chart-subtitle">2026-27 Individual Players</div>
       <div class="chart-note" id="chart-note"></div>
       <div class="chart-svg-wrap">
         <svg id="charts-scatter" viewBox="0 0 980 620" role="img" aria-label="3-point percentage vs three point attempt rate scatter plot"></svg>
@@ -5815,21 +6150,21 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th rowspan="2" data-col="team" data-type="str" data-table="advo" style="cursor:pointer;vertical-align:bottom;text-align:left" onclick="doAdvOffSort('team','str')">Team</th>
   <th rowspan="2" data-col="gp" data-type="num" data-table="advo" style="cursor:pointer;vertical-align:bottom" onclick="doAdvOffSort('gp','num')">GP</th>
   <th rowspan="2" data-col="ortg" data-type="num" data-table="advo" style="cursor:pointer;vertical-align:bottom" onclick="doAdvOffSort('ortg','num')">ORTg</th>
-  <th colspan="4" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Shooting</th>
-  <th colspan="5" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Ball Handling</th>
-  <th colspan="4" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Play Style</th>
+  <th colspan="4" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Shooting</th>
+  <th colspan="5" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Ball Handling</th>
+  <th colspan="4" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Play Style</th>
 </tr>
 <tr>
-  <th data-col="ts_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvOffSort('ts_pct','num')">TS%</th>
+  <th data-col="ts_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvOffSort('ts_pct','num')">TS%</th>
   <th data-col="twop" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('twop','num')">2P%</th>
   <th data-col="tpp" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tpp','num')">3P%</th>
   <th data-col="ftp" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ftp','num')">FT%</th>
-  <th data-col="ast_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvOffSort('ast_pct','num')">AST%</th>
+  <th data-col="ast_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvOffSort('ast_pct','num')">AST%</th>
   <th data-col="ast_ratio" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ast_ratio','num')">AST Ratio</th>
   <th data-col="tov_pct" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tov_pct','num')">TOV%</th>
   <th data-col="ast_tov" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ast_tov','num')">AST/TOV</th>
   <th data-col="nst_pct" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('nst_pct','num')" title="Non-Steal Turnover %: (TO − Opp STL) / Possessions">NST%</th>
-  <th data-col="oreb_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvOffSort('oreb_pct','num')">ORB%</th>
+  <th data-col="oreb_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvOffSort('oreb_pct','num')">ORB%</th>
   <th data-col="ft_rate" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ft_rate','num')">FTA Rate</th>
   <th data-col="tpa_pct" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tpa_pct','num')">3PAr</th>
   <th data-col="tempo" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tempo','num')">Pace</th>
@@ -5849,11 +6184,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th rowspan="2" data-col="team" data-type="str" data-table="advd" style="cursor:pointer;vertical-align:bottom;text-align:left" onclick="doAdvDefSort('team','str')">Team</th>
   <th rowspan="2" data-col="gp" data-type="num" data-table="advd" style="cursor:pointer;vertical-align:bottom" onclick="doAdvDefSort('gp','num')">GP</th>
   <th rowspan="2" data-col="drtg" data-type="num" data-table="advd" style="cursor:pointer;vertical-align:bottom" onclick="doAdvDefSort('drtg','num')">DRTg</th>
-  <th colspan="8" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Defense Overall</th>
-  <th colspan="5" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Foul Tendencies</th>
+  <th colspan="8" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Defense Overall</th>
+  <th colspan="5" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Foul Tendencies</th>
 </tr>
 <tr>
-  <th data-col="drebpg" data-type="num" data-table="advd" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvDefSort('drebpg','num')">DRB</th>
+  <th data-col="drebpg" data-type="num" data-table="advd" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvDefSort('drebpg','num')">DRB</th>
   <th data-col="dreb_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('dreb_pct','num')">DRB%</th>
   <th data-col="spg" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('spg','num')">STL</th>
   <th data-col="stl_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('stl_pct','num')">STL%</th>
@@ -5861,7 +6196,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th data-col="bpg" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('bpg','num')">BLK</th>
   <th data-col="blk_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('blk_pct','num')">BLK%</th>
   <th data-col="hkm_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('hkm_pct','num')">HKM%</th>
-  <th data-col="pf_total" data-type="num" data-table="advd" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvDefSort('pf_total','num')">PF</th>
+  <th data-col="pf_total" data-type="num" data-table="advd" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvDefSort('pf_total','num')">PF</th>
   <th data-col="pfpg" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('pfpg','num')">PF/G</th>
   <th data-col="pf_eff" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('pf_eff','num')">PF Eff</th>
   <th data-col="stl_pf" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('stl_pf','num')">STL/PF</th>
@@ -5926,7 +6261,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 <div id="storylines-view" style="display:none;">
   <div style="padding:16px 0 24px">
     <div class="sl-nav" id="sl-nav"></div>
-    <div class="sl-page-title" id="sl-page-title">2025-26 game attribute rankings</div>
+    <div class="sl-page-title" id="sl-page-title">2026-27 game attribute rankings</div>
     <div class="sl-game-count" id="sl-game-count" style="display:none"></div>
     <div id="sl-tab-dominance" class="sl-tab-content">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
@@ -5987,7 +6322,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <button class="sl-wab-btn" id="sl-rate-btn-23" onclick="slRateSeasonFilter('2223')">2022-23</button>
         <button class="sl-wab-btn" id="sl-rate-btn-24" onclick="slRateSeasonFilter('2324')">2023-24</button>
         <button class="sl-wab-btn" id="sl-rate-btn-25" onclick="slRateSeasonFilter('2425')">2024-25</button>
-        <button class="sl-wab-btn active" id="sl-rate-btn-26" onclick="slRateSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn" id="sl-rate-btn-26" onclick="slRateSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn active" id="sl-rate-btn-27" onclick="slRateSeasonFilter('2627')">2026-27</button>
       </div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="rate-table"><thead><tr>
         <th class="sl-th-r" style="cursor:pointer" onclick="slSortRate('rank_rel')">Rk</th>
@@ -6029,11 +6365,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       </tr></thead><tbody id="sl-body-quads"></tbody></table></div></div>
     </div>
     <div id="sl-tab-trank" class="sl-tab-content" style="display:none">
-      <div style="display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:0.85rem;color:#ccc">Four factors:
+      <div style="display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:0.85rem;color:var(--ink-2)">Four factors:
         <button id="trank-ff-adj" onclick="slTrankSetFF('adj')" title="Opponent-adjusted, like AdjO/AdjD: each game moved by how the opponent does on that factor">Opp-adjusted</button>
         <button id="trank-ff-raw" onclick="slTrankSetFF('raw')" title="Season totals as played">Raw</button></div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="trank-table"><thead>
-        <tr id="trank-avg-row" style="background:#1a1a2e;color:#aaa;font-size:0.72rem;font-style:italic">
+        <tr id="trank-avg-row" style="background:#eef2f7;color:#6b7684;font-size:0.72rem;font-style:italic">
           <td colspan="4" style="text-align:right;padding:2px 6px;color:#666">Lg Avg &rarr;</td>
           <td class="sl-th-r" id="trank-avg-adjoe" style="padding:2px 6px"></td>
           <td class="sl-th-r" id="trank-avg-adjde" style="padding:2px 6px"></td>
@@ -6078,6 +6414,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
           <label>Season</label>
           <select class="trends-team-sel" id="trends-year-sel" onchange="slTrendsSetYear(this.value)">
             <option value="all">All Seasons</option>
+            <option value="2627">2026-27</option>
             <option value="2526">2025-26</option>
             <option value="2425">2024-25</option>
             <option value="2324">2023-24</option>
@@ -6112,7 +6449,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <button class="sl-wab-btn" id="sl-rpi-btn-23" onclick="slRpiSeasonFilter('2223')">2022-23</button>
         <button class="sl-wab-btn" id="sl-rpi-btn-24" onclick="slRpiSeasonFilter('2324')">2023-24</button>
         <button class="sl-wab-btn" id="sl-rpi-btn-25" onclick="slRpiSeasonFilter('2425')">2024-25</button>
-        <button class="sl-wab-btn active" id="sl-rpi-btn-26" onclick="slRpiSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn" id="sl-rpi-btn-26" onclick="slRpiSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn active" id="sl-rpi-btn-27" onclick="slRpiSeasonFilter('2627')">2026-27</button>
       </div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="rpi-table"><thead><tr>
         <th class="sl-th-r" style="cursor:pointer" onclick="slSortRpi('rank')">#</th>
@@ -6127,7 +6465,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     <div id="sl-tab-conf" class="sl-tab-content" style="display:none">
       <div class="sl-wab-filter" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0 14px">
         <span style="font-size:13px;color:#555;font-weight:600">Data scope:</span>
-        <select id="conf-scope" onchange="slRenderConf()" style="font-size:13px;padding:4px 8px;border-radius:5px;border:1px solid #888;background:#1a1a2e;color:#fff">
+        <select id="conf-scope" onchange="slRenderConf()" style="font-size:13px;padding:5px 10px;border-radius:4px;border:1px solid #ced4da;background:#fff;color:#1c2733;cursor:pointer">
           <option value="nonconf" selected>Non-Conference</option>
           <option value="conf">Conference</option>
           <option value="full">Full Season</option>
@@ -6207,7 +6545,39 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   </div>
 </div>
 
+{_jtag('DAILY_RANKS', daily_ranks_json)}
+{_jtag('MOORPARK_LINEUPS', moorpark_lineups_json)}
+{_jtag('TEAM_KEYS', team_keys_json)}
+{_jtag('STORYLINES', storylines_json)}
+{_jtag('CONF_DATA', conf_players_json)}
+{_jtag('LAST5_TEAM_DATA', last5_teams_json)}
+{_jtag('LAST10_TEAM_DATA', last10_teams_json)}
+{_jtag('PLAYOFF_TEAM_DATA', playoff_teams_json)}
+{_jtag('LAST5_DATA', last5_players_json)}
+{_jtag('LAST10_DATA', last10_players_json)}
+{_jtag('PLAYOFF_DATA', playoff_players_json)}
 <script>
+// Lazy data: heavy, view-specific datasets live in inert JSON <script> tags
+// below and are parsed on first access (JSON.parse with JS-eval fallback), so
+// page load skips them. Assigning to the name later replaces the getter.
+function __lazyData(name) {{
+  let cached, done = false;
+  Object.defineProperty(window, name, {{
+    configurable: true,
+    get() {{
+      if (!done) {{
+        done = true;
+        const el = document.getElementById('data-' + name);
+        const txt = el ? el.textContent : 'null';
+        let v; try {{ v = JSON.parse(txt); }} catch (e) {{ v = (0, eval)('(' + txt + ')'); }}
+        cached = __unpack(v);
+        if (el) el.textContent = '';
+      }}
+      return cached;
+    }},
+    set(v) {{ Object.defineProperty(window, name, {{ value: v, writable: true, configurable: true }}); }}
+  }});
+}}
 // --- Data decoding & lazy season loading ---
 // Datasets are embedded columnar: uniform lists of objects arrive as
 // {{"__c": [keys], "__r": [[values], ...]}} and are expanded here.
@@ -6253,6 +6623,7 @@ function __deriveConfGames(confTeams, fullTeams) {{
   return confTeams;
 }}
 const SEASON_SOURCES = {{
+  '2526': 'season_data/season_2526.js',
   '2425': 'season_data/season_2425.js',
   '2324': 'season_data/season_2324.js',
   '2223': 'season_data/season_2223.js',
@@ -6261,7 +6632,7 @@ const SEASON_SOURCES = {{
   '1819': 'season_data/season_1819.js',
   '1718': 'season_data/season_1718.js',
 }};
-const __loadedSeasons = new Set(['2526']);
+const __loadedSeasons = new Set(['2627']);
 const __seasonWaiters = {{}};
 function __installSeason(key, payload) {{
   const vals = {{}};
@@ -6302,7 +6673,7 @@ function ensureBoxes(key, cb) {{
   const s = document.createElement('script');
   s.src = 'season_data/boxes_' + key + '.js';
   s.onload = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; w.forEach(f => f()); }};
-  s.onerror = () => {{ delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); }};
+  s.onerror = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
 }}
 // --- Full team rosters (no minutes qualification), lazy per season ---
@@ -6320,7 +6691,7 @@ function ensureRosters(key, cb) {{
   const s = document.createElement('script');
   s.src = 'season_data/rosters_' + key + '.js';
   s.onload = () => {{ const w = __rosterWaiters[key] || []; delete __rosterWaiters[key]; w.forEach(f => f()); }};
-  s.onerror = () => {{ delete __rosterWaiters[key]; console.error('Roster data file missing: rosters_' + key + '.js'); }};
+  s.onerror = () => {{ const w = __rosterWaiters[key] || []; delete __rosterWaiters[key]; console.error('Roster data file missing: rosters_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
 }}
 
@@ -6444,8 +6815,9 @@ function renderBoxScore(g) {{
 const DATA = __unpack({players_json});
 const TEAM_DATA = __fixGames(__unpack({teams_json}));
 const LEAGUE_AVG = __unpack({league_avg_json});
-const DAILY_RANKS = __unpack({daily_ranks_json});
-const REL_RATINGS = __unpack({rel_ratings_2526_json});
+__lazyData('DAILY_RANKS');  // deferred: parsed on first access
+const REL_RATINGS = __unpack({rel_ratings_2627_json});
+const REL_RATINGS_2025 = __unpack({rel_ratings_2526_json});
 const REL_RATINGS_2024 = __unpack({rel_ratings_2425_json});
 const REL_RATINGS_2023 = __unpack({rel_ratings_2324_json});
 const REL_RATINGS_2022 = __unpack({rel_ratings_2223_json});
@@ -6462,14 +6834,16 @@ const TEAM_SECONDARY_COLORS = __unpack({school_secondary_colors_json});
 const TEAM_LOGOS = __unpack({team_logos_json});
 const CHAMPIONS_BY_SEASON = __unpack({champion_data_json});
 const CONF_FF = __unpack({conf_ff_json});
-const MOORPARK_LINEUPS = __unpack({moorpark_lineups_json});
-const TEAM_KEYS = __unpack({team_keys_json});
-const STORYLINES = __unpack({storylines_json});
+__lazyData('MOORPARK_LINEUPS');  // deferred: parsed on first access
+__lazyData('TEAM_KEYS');  // deferred: parsed on first access
+__lazyData('STORYLINES');  // deferred: parsed on first access
 const WAB_DATA = __unpack({wab_json});
+const WAB_DATA_2025 = __unpack({wab_2025_json});
 const WAB_DATA_2024 = __unpack({wab_2024_json});
 const WAB_DATA_2023 = __unpack({wab_2023_json});
 const WAB_DATA_2022 = __unpack({wab_2022_json});
 const WAB_DATA_2021 = __unpack({wab_2021_json});
+const WAB_SIM_2627 = __unpack({wab_sim_2627_json});
 const WAB_SIM_2526 = __unpack({wab_sim_2526_json});
 const WAB_SIM_2425 = __unpack({wab_sim_2425_json});
 const WAB_SIM_2324 = __unpack({wab_sim_2324_json});
@@ -6478,17 +6852,18 @@ const WAB_SIM_2122 = __unpack({wab_sim_2122_json});
 const WAB_SIM_1920 = __unpack({wab_sim_1920_json});
 
 // Conference-only data (current season inline; past seasons lazy-loaded)
-const CONF_DATA = __unpack({conf_players_json});
+__lazyData('CONF_DATA');  // deferred: parsed on first access
 const CONF_TEAM_DATA = __deriveConfGames(__unpack({conf_teams_json}), TEAM_DATA);
 // Box-derived subset scopes (current season only): Last 5 / Last 10 / Playoffs
-const LAST5_TEAM_DATA = __unpack({last5_teams_json});
-const LAST10_TEAM_DATA = __unpack({last10_teams_json});
-const PLAYOFF_TEAM_DATA = __unpack({playoff_teams_json});
-const LAST5_DATA = __unpack({last5_players_json});
-const LAST10_DATA = __unpack({last10_players_json});
-const PLAYOFF_DATA = __unpack({playoff_players_json});
+__lazyData('LAST5_TEAM_DATA');  // deferred: parsed on first access
+__lazyData('LAST10_TEAM_DATA');  // deferred: parsed on first access
+__lazyData('PLAYOFF_TEAM_DATA');  // deferred: parsed on first access
+__lazyData('LAST5_DATA');  // deferred: parsed on first access
+__lazyData('LAST10_DATA');  // deferred: parsed on first access
+__lazyData('PLAYOFF_DATA');  // deferred: parsed on first access
 
 // Small per-season data kept inline (used by sub-tab season filters)
+const LEAGUE_AVG_2025 = __unpack({league_avg_2025_json});
 const LEAGUE_AVG_2024 = __unpack({league_avg_2024_json});
 const LEAGUE_AVG_2023 = __unpack({league_avg_2023_json});
 const LEAGUE_AVG_2022 = __unpack({league_avg_2022_json});
@@ -6503,6 +6878,7 @@ const REL_RATINGS_1718 = __unpack({rel_ratings_1718_json});
 
 // Past-season datasets: declared here, populated on demand by
 // ensureSeason() from the SEASON_SOURCES files next to this page.
+var DATA_2025, TEAM_DATA_2025, CONF_DATA_2025, CONF_TEAM_DATA_2025, STORYLINES_2025, DAILY_RANKS_2025;
 var DATA_2024, TEAM_DATA_2024, CONF_DATA_2024, CONF_TEAM_DATA_2024, STORYLINES_2024, DAILY_RANKS_2024;
 var DATA_2023, TEAM_DATA_2023, CONF_DATA_2023, CONF_TEAM_DATA_2023, STORYLINES_2023, DAILY_RANKS_2023;
 var DATA_2022, TEAM_DATA_2022, CONF_DATA_2022, CONF_TEAM_DATA_2022, STORYLINES_2022, DAILY_RANKS_2022;
@@ -6512,6 +6888,7 @@ var DATA_1819, TEAM_DATA_1819, CONF_DATA_1819, CONF_TEAM_DATA_1819, STORYLINES_1
 var DATA_1718, TEAM_DATA_1718, CONF_DATA_1718, CONF_TEAM_DATA_1718, STORYLINES_1718, DAILY_RANKS_1718;
 
 // RPI data (Overall + Non-Conference) per season
+const RPI_DATA_2627 = __unpack({rpi_data_2627_json});
 const RPI_DATA_2526 = __unpack({rpi_data_2526_json});
 const RPI_DATA_2425 = __unpack({rpi_data_2425_json});
 const RPI_DATA_2324 = __unpack({rpi_data_2324_json});
@@ -6525,7 +6902,7 @@ const RPI_DATA_1718 = __unpack({rpi_data_1718_json});
 let activeData = DATA;
 let activeTeamData = TEAM_DATA;
 let activeLeagueAvg = LEAGUE_AVG;
-let activeSeason = '2526';
+let activeSeason = '2627';
 let confMode = false;
 let currentTeamMode = 'advanced';
 
@@ -6642,7 +7019,7 @@ function getFilteredTeams() {{
 }}
 
 function chartSeasonLabel() {{
-  return activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+  return activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
 }}
 
 function activeFullTeamData() {{
@@ -6653,6 +7030,7 @@ function activeFullTeamData() {{
     : activeSeason === '2223' ? TEAM_DATA_2022
     : activeSeason === '2324' ? TEAM_DATA_2023
     : activeSeason === '2425' ? TEAM_DATA_2024
+    : activeSeason === '2526' ? TEAM_DATA_2025
     : TEAM_DATA;
 }}
 
@@ -6664,6 +7042,7 @@ function activeFullPlayerData() {{
     : activeSeason === '2223' ? DATA_2022
     : activeSeason === '2324' ? DATA_2023
     : activeSeason === '2425' ? DATA_2024
+    : activeSeason === '2526' ? DATA_2025
     : DATA;
 }}
 
@@ -6675,6 +7054,7 @@ function activeConferencePlayerData() {{
     : activeSeason === '2223' ? CONF_DATA_2022
     : activeSeason === '2324' ? CONF_DATA_2023
     : activeSeason === '2425' ? CONF_DATA_2024
+    : activeSeason === '2526' ? CONF_DATA_2025
     : CONF_DATA;
 }}
 
@@ -6686,6 +7066,7 @@ function activeConferenceTeamData() {{
     : activeSeason === '2223' ? CONF_TEAM_DATA_2022
     : activeSeason === '2324' ? CONF_TEAM_DATA_2023
     : activeSeason === '2425' ? CONF_TEAM_DATA_2024
+    : activeSeason === '2526' ? CONF_TEAM_DATA_2025
     : CONF_TEAM_DATA;
 }}
 
@@ -6700,7 +7081,7 @@ function chartScopeLabel() {{
 // Subset data: current season is in-scope consts (inline); historical seasons are
 // window globals suffixed _<key> (lazy-loaded with the season file).
 function _subsetVar(prefix) {{
-  if (activeSeason === '2526') {{
+  if (activeSeason === '2627') {{
     const m = {{ LAST5_TEAM_DATA, LAST10_TEAM_DATA, PLAYOFF_TEAM_DATA, LAST5_DATA, LAST10_DATA, PLAYOFF_DATA }};
     return m[prefix] || null;
   }}
@@ -7539,6 +7920,8 @@ function toggleConfMode(checked) {{
     activeData = checked ? CONF_DATA_2023 : DATA_2023;
   }} else if (activeSeason === '2425') {{
     activeData = checked ? CONF_DATA_2024 : DATA_2024;
+  }} else if (activeSeason === '2526') {{
+    activeData = checked ? CONF_DATA_2025 : DATA_2025;
   }} else {{
     activeData = checked ? CONF_DATA : DATA;
   }}
@@ -7556,6 +7939,8 @@ function toggleConfMode(checked) {{
     activeTeamData = checked ? CONF_TEAM_DATA_2023 : TEAM_DATA_2023;
   }} else if (activeSeason === '2425') {{
     activeTeamData = checked ? CONF_TEAM_DATA_2024 : TEAM_DATA_2024;
+  }} else if (activeSeason === '2526') {{
+    activeTeamData = checked ? CONF_TEAM_DATA_2025 : TEAM_DATA_2025;
   }} else {{
     activeTeamData = checked ? CONF_TEAM_DATA : TEAM_DATA;
   }}
@@ -7592,6 +7977,7 @@ function __switchSeasonNow(season) {{
   document.getElementById('btn-season-24').classList.remove('active');
   document.getElementById('btn-season-25').classList.remove('active');
   document.getElementById('btn-season-26').classList.remove('active');
+  document.getElementById('btn-season-27').classList.remove('active');
   if (season === '1718') {{
     activeTeamData = confMode ? CONF_TEAM_DATA_1718 : TEAM_DATA_1718;
     activeData = confMode ? CONF_DATA_1718 : DATA_1718;
@@ -7634,12 +8020,18 @@ function __switchSeasonNow(season) {{
     activeLeagueAvg = LEAGUE_AVG_2024;
     document.getElementById('btn-season-25').classList.add('active');
     document.getElementById('page-subtitle').textContent = '2024-25 Season \u2014 ' + subLabel;
+  }} else if (season === '2526') {{
+    activeTeamData = confMode ? CONF_TEAM_DATA_2025 : TEAM_DATA_2025;
+    activeData = confMode ? CONF_DATA_2025 : DATA_2025;
+    activeLeagueAvg = LEAGUE_AVG_2025;
+    document.getElementById('btn-season-26').classList.add('active');
+    document.getElementById('page-subtitle').textContent = '2025-26 Season \u2014 ' + subLabel;
   }} else {{
     activeTeamData = confMode ? CONF_TEAM_DATA : TEAM_DATA;
     activeData = confMode ? CONF_DATA : DATA;
     activeLeagueAvg = LEAGUE_AVG;
-    document.getElementById('btn-season-26').classList.add('active');
-    document.getElementById('page-subtitle').textContent = '2025-26 Season \u2014 ' + subLabel;
+    document.getElementById('btn-season-27').classList.add('active');
+    document.getElementById('page-subtitle').textContent = '2026-27 Season \u2014 ' + subLabel;
   }}
   renderTeams(getFilteredTeams());
   renderDefense(getFilteredTeams());
@@ -7693,6 +8085,7 @@ function __switchSeasonNow(season) {{
   const rb24 = document.getElementById('sl-rate-btn-24');
   const rb25 = document.getElementById('sl-rate-btn-25');
   const rb26 = document.getElementById('sl-rate-btn-26');
+  const rb27 = document.getElementById('sl-rate-btn-27');
   if (rb18) rb18.classList.toggle('active', season === '1718');
   if (rb19) rb19.classList.toggle('active', season === '1819');
   if (rb20) rb20.classList.toggle('active', season === '1920');
@@ -7701,6 +8094,7 @@ function __switchSeasonNow(season) {{
   if (rb24) rb24.classList.toggle('active', season === '2324');
   if (rb25) rb25.classList.toggle('active', season === '2425');
   if (rb26) rb26.classList.toggle('active', season === '2526');
+  if (rb27) rb27.classList.toggle('active', season === '2627');
   if (slActiveTab === 'rate') slRenderRate(season);
   if (slActiveTab === 'conf') slSwitchTab('conf', 'Conferences');  // re-render + refresh season title
   // Refresh fanmatch if it's the active view (and storylines hasn't been init'd to cover it)
@@ -7709,7 +8103,7 @@ function __switchSeasonNow(season) {{
   // Update individual view subtitle if active
   const indDiv2 = document.getElementById('individual-view');
   if (indDiv2 && indDiv2.style.display !== 'none') {{
-    const yr2 = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : '2025-26';
+    const yr2 = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : season === '2526' ? '2025-26' : '2026-27';
     document.getElementById('page-title').textContent = 'Individual Statistics Leaderboard';
     document.getElementById('page-subtitle').textContent = yr2 + ' Season \u2014 Per-Game Averages';
   }}
@@ -7858,6 +8252,7 @@ const ADV_CATS = [
   {{key:'ind_ortg',  label:'ORtg',   desc:'Individual Offensive Rating (pts per 100 poss used)',    asc:false, poss_buckets:true}},
   {{key:'ind_drtg',  label:'DRtg',   desc:'Individual Defensive Rating (pts allowed per 100 poss)', asc:true}},
   {{key:'porp',      label:'PRPG!',  desc:'PORPAGATU! — points over replacement per game at that usage (Torvik 2019 formula, SOS-adjusted)', asc:false}},
+  {{key:'pir',       label:'PIR',    desc:'Performance Index Rating — EuroLeague box formula, per game: (PTS + REB + AST + STL + BLK + fouls drawn) − (missed FG + missed FT + TO + fouls committed). Shots-rejected is not tracked; players with unreliable minutes excluded.', asc:false}},
   {{key:'efg_pct',   label:'eFG%',   desc:'Effective Field Goal % (3-pointers worth 1.5x)',         asc:false}},
   {{key:'ts_pct',    label:'TS%',    desc:'True Shooting % (2s, 3s, and FTs)',                      asc:false}},
   {{key:'min_pct',   label:'%Min',   desc:'Minutes played % \u2014 player MIN / (40 \u00d7 GP)',    asc:false}},
@@ -7912,8 +8307,22 @@ function attemptsPerGame(p, key) {{
   return p.gp ? ((p[key] || 0) / p.gp) : 0;
 }}
 
+// EuroLeague PIR per game from season aggregates. The foul terms come from the
+// per-40 rates × minutes, so players flagged with unreliable minutes (fm) are
+// excluded (return null). Shots-rejected is not tracked and is omitted.
+function pirValue(p) {{
+  if (!p.gp || Number(p.fm) !== 0) return null;
+  const fdG = (p.fd_per_40 || 0) * (p.mpg || 0) / 40;
+  const fcG = (p.fc_per_40 || 0) * (p.mpg || 0) / 40;
+  const missFg = ((p.fga || 0) - (p.fgm || 0)) / p.gp;
+  const missFt = ((p.fta || 0) - (p.ftm || 0)) / p.gp;
+  return (p.ppg || 0) + (p.rpg || 0) + (p.apg || 0) + (p.spg || 0) + (p.bpg || 0)
+       + fdG - missFg - missFt - (p.topg || 0) - fcG;
+}}
+
 function advCatValue(p, catKey) {{
   if (p[catKey] != null) return p[catKey];
+  if (catKey === 'pir') return pirValue(p);
   const fga = p.fga || 0;
   if (catKey === 'efg_pct' && fga > 0) {{
     return ((p.fgm || 0) + 0.5 * (p.tpm || 0)) / fga * 100;
@@ -8292,7 +8701,7 @@ function getPaceAdjMsg(team, val) {{
 
 // --- Team table ---
 function buildColRanks() {{
-  const _fsBR = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsBR = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const valid = activeTeamData.filter(d => d.ortg > 0);
   const fsValid = _fsBR.filter(d => d.ortg > 0);
   function rankCol(pool, key, lowBetter) {{
@@ -8347,13 +8756,13 @@ function renderTeams(data) {{
   const tb = document.getElementById('team-tbody');
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
   const invert = teamSortType !== 'str' && teamSortDir !== teamSortBest;
   data.forEach((t, i) => {{
     const rank = invert ? data.length - i : i + 1;
     const tr = document.createElement('tr');
     // Always use full-season data for Record, Conf, Opp ORTG, Opp DRTG, SOS, NCSOS
-    const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+    const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
     const fs = _fsPool.find(d => d.team === t.team) || t;
     tr.innerHTML = `
       <td>${{rank}}</td>
@@ -8365,8 +8774,8 @@ function renderTeams(data) {{
       <td>${{Number(t.ortg).toFixed(1)}}${{rk('ortg',t.team)}}</td>
       <td>${{Number(t.drtg).toFixed(1)}}${{rk('drtg',t.team)}}</td>
       <td>${{Number(t.net_rtg).toFixed(1)}}${{rk('net_rtg',t.team)}}</td>
-      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#e74c3c` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
-      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#e67e22` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
+      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#c0564a` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
+      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#d08437` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
       <td>${{Number(fs.opp_ortg).toFixed(1)}}${{rk('opp_ortg',t.team)}}</td>
       <td>${{Number(fs.opp_drtg_sos).toFixed(1)}}${{rk('opp_drtg_sos',t.team)}}</td>
       <td>${{Number(fs.sos).toFixed(1)}}${{rk('sos',t.team)}}</td>
@@ -8392,7 +8801,7 @@ function renderTeamsBasic(data) {{
   const tb = document.getElementById('team-basic-tbody');
   if (!tb) return;
   tb.innerHTML = '';
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -8426,7 +8835,7 @@ function renderTeamsBasicDefense(data) {{
   const tb = document.getElementById('team-basic-defense-tbody');
   if (!tb) return;
   tb.innerHTML = '';
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -8493,7 +8902,7 @@ function doTeamSort(col, type) {{
     teamSortBest = type === 'str' ? 'asc' : bd;
   }}
   const FS_COLS = new Set(['gp','record','conf','opp_ortg','opp_drtg_sos','sos','ncsos','team']);
-  const _fsSortPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsSortPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   activeTeamData.sort((a, b) => {{
     let sa = a, sb = b;
     if (FS_COLS.has(col)) {{
@@ -8531,13 +8940,13 @@ function renderDefense(data) {{
   const tb = document.getElementById('team-defense-tbody');
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
   const invert = defSortType !== 'str' && defSortDir !== defSortBest;
   data.forEach((t, i) => {{
     const rank = invert ? data.length - i : i + 1;
     const tr = document.createElement('tr');
     // Always use full-season data for Record, Conf, Opp ORTG, Opp DRTG, SOS, NCSOS
-    const _fsPool2 = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+    const _fsPool2 = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
     const fs = _fsPool2.find(d => d.team === t.team) || t;
     tr.innerHTML = `
       <td>${{rank}}</td>
@@ -8549,8 +8958,8 @@ function renderDefense(data) {{
       <td>${{Number(t.ortg).toFixed(1)}}${{rk('ortg',t.team)}}</td>
       <td>${{Number(t.drtg).toFixed(1)}}${{rk('drtg',t.team)}}</td>
       <td>${{Number(t.net_rtg).toFixed(1)}}${{rk('net_rtg',t.team)}}</td>
-      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#e74c3c` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
-      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#e67e22` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
+      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#c0564a` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
+      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#d08437` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
       <td>${{Number(fs.opp_ortg).toFixed(1)}}${{rk('opp_ortg',t.team)}}</td>
       <td>${{Number(fs.opp_drtg_sos).toFixed(1)}}${{rk('opp_drtg_sos',t.team)}}</td>
       <td>${{Number(fs.sos).toFixed(1)}}${{rk('sos',t.team)}}</td>
@@ -8582,7 +8991,7 @@ function doDefSort(col, type) {{
     defSortBest = type === 'str' ? 'asc' : bd;
   }}
   const FS_COLS2 = new Set(['gp','record','conf','opp_ortg','opp_drtg_sos','sos','ncsos','team']);
-  const _fsSortPool2 = activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsSortPool2 = activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   activeTeamData.sort((a, b) => {{
     let sa = a, sb = b;
     if (FS_COLS2.has(col)) {{
@@ -9179,8 +9588,8 @@ function teamLogoHtml(teamName, className = 'td-logo') {{
 }}
 
 function teamStatsRowColor(teamName) {{
-  if (CHAMPIONS_BY_SEASON[activeSeason] === teamName) return '#FFCCCC';
-  if (teamName === 'Moorpark') return '#ffe599';
+  if (CHAMPIONS_BY_SEASON[activeSeason] === teamName) return '#fbe7e6';
+  if (teamName === 'Moorpark') return '#fcf2d8';
   return '';
 }}
 
@@ -9403,21 +9812,12 @@ function __tsRankMaps() {{
     const qualified = pool.filter(p => __tsQualifies(p, key, mode));
     qualified.sort((a, b) => asc ? a[key] - b[key] : b[key] - a[key]);
     const m = new Map();
-    if (key === 'ind_ortg') {{
-      // ORtg is ranked within the player's %Poss band statewide: a role player's efficiency isn't comparable
-      // to a go-to guy's, so JJ Sanchez is the #1 Role Player, not #1 overall.
-      const seen = {{}};
-      qualified.forEach(p => {{ const b = __tsUsageBand(p.usage_pct); seen[b] = (seen[b] || 0) + 1; m.set(p.name + '|' + p.school, seen[b]); }});
-    }} else {{
-      qualified.forEach((p, i) => m.set(p.name + '|' + p.school, i + 1));
-    }}
+    qualified.forEach((p, i) => m.set(p.name + '|' + p.school, i + 1));
     maps[key] = {{ map: m, total: qualified.length }};
   }}
   return maps;
 }}
 
-// Index of a %Poss band in TS_USAGE_BANDS (0 = Go-to Guys ... 5 = Nearly Invisible), as the table groups players.
-function __tsUsageBand(u) {{ const i = TS_USAGE_BANDS.findIndex(b => (u || 0) > b[0]); return i < 0 ? TS_USAGE_BANDS.length - 1 : i; }}
 const TS_USAGE_BANDS = [
   [28, 'Go-to Guys (>28% of possessions used)'],
   [24, 'Major Contributors (24-28% of possessions used)'],
@@ -9514,7 +9914,7 @@ function renderTeamStats(teamName) {{
 
   document.getElementById('teamstats-content').innerHTML = `<style>
     #teamstats-content .ts-table {{ width: auto; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; margin: 0 auto; }}
-    #teamstats-content .ts-table th {{ background: #1a1a2e; color: #fff; padding: 5px 7px; text-align: right; font-size: 0.72rem; border-bottom: 2px solid #333; }}
+    #teamstats-content .ts-table th {{ background: #242f3c; color: #e7ecf2; padding: 5px 7px; text-align: right; font-size: 0.72rem; border-bottom: 1px solid #1d2733; }}
     #teamstats-content .ts-table th.ts-l, #teamstats-content .ts-table td.ts-l {{ text-align: left; }}
     #teamstats-content .ts-table td {{ padding: 4px 7px; border-bottom: 1px solid #ddd; text-align: right; color: #000; background: #fff; }}
     #teamstats-content .ts-table td.ts-l {{ font-weight: 600; }}
@@ -9537,13 +9937,14 @@ function renderTeamStats(teamName) {{
     }}
     #teamstats-content .ts-table tbody tr.ts-rankrow:hover td {{ background: #fff; }}
     #teamstats-content .ts-table td.ts-ranklabel {{ font-weight: 700; font-style: italic; }}
-    #teamstats-content .ts-mode {{ background: none; border: 1px solid #4fc3f7; color: #4fc3f7; font-weight: 700; padding: 3px 14px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }}
-    #teamstats-content .ts-mode.active {{ background: #4fc3f7; color: #1a1a2e; }}
+    #teamstats-content .ts-mode {{ background: #fff; border: 1px solid #ced4da; color: #4f5a67; font-weight: 600; padding: 3px 14px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }}
+    #teamstats-content .ts-mode:hover {{ color: #1f3a5f; border-color: #b9c4d2; }}
+    #teamstats-content .ts-mode.active {{ background: #1f3a5f; border-color: #1f3a5f; color: #fff; }}
   </style>
-  <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center">
-    <div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
-    <h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Team Stats</h2>
-    <div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
+  <div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">
+    <div style="color:#5b9bd5;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
+    <h2 style="color:#fff;font-size:1.6rem;margin:4px 0">${{teamName}} — Team Stats</h2>
+    <div style="color:#aeb9c6;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
     <div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div>
   </div>
   <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px">
@@ -9554,7 +9955,7 @@ function renderTeamStats(teamName) {{
   <div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto;max-width:fit-content;margin:0 auto">
     ${{teamStatsMode === 'basic' ? __tsBasicTable(rows) : __tsAdvTable(rows, advOk, teamName, advOk ? __tsRankMaps() : {{}})}}
     <div style="font-size:0.72rem;color:#888;margin-top:8px">
-      All players, no minutes qualification · ${{teamStatsMode === 'advanced' ? 'Layout follows KenPom team player stats; bands by %Poss used · ' : ''}}Season: ${{activeSeason === '2526' ? '2025-26' : activeSeason}}
+      All players, no minutes qualification · ${{teamStatsMode === 'advanced' ? 'Layout follows KenPom team player stats; bands by %Poss used · ' : ''}}Season: ${{activeSeason === '2627' ? '2026-27' : activeSeason === '2526' ? '2025-26' : activeSeason}}
     </div>
   </div>`;
   document.getElementById('team-detail-view').style.display = 'none';
@@ -9670,7 +10071,7 @@ function __kxBuildPool(sks){{
         pool.push({{team:me,opp:op,sk,date:g.d,res:ms>os?1:0,margin:ms-os,pf:ms,pa:os,m:__kxMetrics(__kxTotals(g.t[me]),__kxTotals(g.t[op]))}}); }} }} }}
   __kxPoolCache[ck]=pool; return pool;
 }}
-function __kxEnsurePool(seasons,cb){{ const keys=seasons.map(s=>KX_SEASON_KEY[s]).filter(Boolean); let i=0; (function next(){{ if(i>=keys.length){{ cb(__kxBuildPool(keys)); return; }} ensureBoxes(keys[i++],next); }})(); }}
+function __kxEnsurePool(seasons,cb){{ const keys=seasons.map(s=>KX_SEASON_KEY[s]).filter(Boolean); let pending=keys.length; if(!pending){{ cb(__kxBuildPool(keys)); return; }} const done=()=>{{ if(--pending===0) cb(__kxBuildPool(keys)); }}; for(const k of keys) ensureBoxes(k,done); }}
 function __kxPB(vals,outs){{ const n=vals.length; if(n<3) return 0; const w=[],l=[]; for(let i=0;i<n;i++)(outs[i]?w:l).push(vals[i]); if(!w.length||!l.length) return 0; const mean=vals.reduce((a,b)=>a+b,0)/n; const sd=Math.sqrt(vals.reduce((a,v)=>a+(v-mean)*(v-mean),0)/n); if(sd===0) return 0; const mw=w.reduce((a,b)=>a+b,0)/w.length,ml=l.reduce((a,b)=>a+b,0)/l.length,p=w.length/n,q=l.length/n; return (mw-ml)/sd*Math.sqrt(p*q); }}
 function __kxThresh(vals,outs,dir){{ const c=[...new Set(vals)].sort((a,b)=>a-b); if(c.length<2) return [c[0]||0,0]; const mids=[]; for(let i=1;i<c.length;i++) mids.push((c[i-1]+c[i])/2); const npos=outs.reduce((a,b)=>a+b,0),nneg=outs.length-npos; if(!npos||!nneg) return [mids[Math.floor(mids.length/2)],0]; let best=mids[0],bestJ=-1; for(const t of mids){{ let tp=0,fp=0; for(let i=0;i<vals.length;i++){{ const me=(dir==='>=')?(vals[i]>=t):(vals[i]<=t); if(me){{ if(outs[i])tp++; else fp++; }} }} const J=tp/npos-fp/nneg; if(J>bestJ){{ bestJ=J; best=t; }} }} return [best,bestJ]; }}
 function __kxAutoTarget(games,k){{ const vals=[],outs=[]; for(const g of games){{ const v=g.m[k]; if(v!=null){{ vals.push(v); outs.push(g.res); }} }} if(vals.length<5) return null; const r=__kxPB(vals,outs),dir=r>=0?'>=':'<='; const [t]=__kxThresh(vals,outs,dir); return {{metric:k,dir,target:Math.round(t*10)/10,r:Math.round(r*100)/100}}; }}
@@ -10249,7 +10650,7 @@ function renderLineups(teamName, keepView) {{
     return;
   }}
   const sizeBtn = (k) => `<button id="lu-size-${{k}}" onclick="luSetSize('${{k}}')" style="background:${{k === '5' ? '#ffd700' : '#2a2a40'}};border:1px solid #ffd700;color:${{k === '5' ? '#1a1a2e' : '#ffd700'}};font-weight:${{k === '5' ? '700' : '600'}};padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{k}}-Man</button>`;
-  const posBtn = (k, lab) => `<button id="lu-pos-${{k}}" onclick="luSetPos('${{k}}')" style="background:#2a2a40;border:1px solid #4fc3f7;color:#4fc3f7;font-weight:600;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{lab}}</button>`;
+  const posBtn = (k, lab) => `<button id="lu-pos-${{k}}" onclick="luSetPos('${{k}}')" style="background:#2a2a40;border:1px solid #4fc3f7;color:#1a5dab;font-weight:600;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{lab}}</button>`;
   const subs = FULL.subsets || null;
   const subSel = subs ? (`<select onchange="luSetSubset(this.value)" style="background:#2a2a40;border:1px solid #ffd700;color:#ffd700;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem">` +
     LU_SUBSETS.map(s => {{ const sd = subs[s[0]]; const ng = sd ? (sd.team_totals.n_games || 0) : 0;
@@ -10272,7 +10673,7 @@ function renderLineups(teamName, keepView) {{
   document.getElementById('lineups-content').innerHTML = `
     <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:8px;text-align:center">
       <h2 style="color:#ffd700;font-size:1.6rem;margin:4px 0">${{teamName}} — Lineups &amp; On/Off</h2>
-      <div style="color:#ccc;font-size:0.9rem">On-court net ${{__luSign(tt.net100)}}/100 &nbsp;·&nbsp; ${{tt.lineups_tracked}} units &nbsp;·&nbsp; ${{tt.n_games || 0}} game${{tt.n_games === 1 ? '' : 's'}}${{(luNoGarbage && __luHasNG()) ? ' &nbsp;·&nbsp; <span style="color:#ffd700">garbage removed</span>' : ''}}</div>
+      <div style="color:#aeb9c6;font-size:0.9rem">On-court net ${{__luSign(tt.net100)}}/100 &nbsp;·&nbsp; ${{tt.lineups_tracked}} units &nbsp;·&nbsp; ${{tt.n_games || 0}} game${{tt.n_games === 1 ? '' : 's'}}${{(luNoGarbage && __luHasNG()) ? ' &nbsp;·&nbsp; <span style="color:#ffd700">garbage removed</span>' : ''}}</div>
       ${{subSel ? `<div style="margin-top:10px">Split: ${{subSel}}</div>` : ''}}
     </div>
     <div style="color:#999;font-size:0.76rem;margin:0 0 10px;text-align:center;max-width:900px;margin-left:auto;margin-right:auto">
@@ -10758,7 +11159,7 @@ function renderPlayerProfile() {{
   const chartOpts = PP_CHART_STATS.map(s => '<option value="' + s[0] + '">' + s[1] + '</option>').join('');
 
   // ── similar players (cross-season, precomputed at build)
-  const SIM_SEASON_LABELS = {{ '2526': '2025-26', '2425': '2024-25', '2324': '2023-24', '2223': '2022-23', '2122': '2021-22', '1920': '2019-20', '1819': '2018-19', '1718': '2017-18' }};
+  const SIM_SEASON_LABELS = {{ '2627': '2026-27', '2526': '2025-26', '2425': '2024-25', '2324': '2023-24', '2223': '2022-23', '2122': '2021-22', '1920': '2019-20', '1819': '2018-19', '1718': '2017-18' }};
   let simHtml = '';
   if (rRow.sim && rRow.sim.length) {{
     // Position-specific columns into the neighbor tuple (see attach_similar_players).
@@ -10824,7 +11225,7 @@ function renderPlayerProfile() {{
   }}).join('');
 
   // ── header bits
-  const seasonLabel = activeSeason === '2526' ? '2025-26' : activeSeason === '2425' ? '2024-25' : activeSeason === '2324' ? '2023-24' : activeSeason === '2223' ? '2022-23' : activeSeason === '2122' ? '2021-22' : activeSeason === '1920' ? '2019-20' : activeSeason === '1819' ? '2018-19' : '2017-18';
+  const seasonLabel = activeSeason === '2627' ? '2026-27' : activeSeason === '2526' ? '2025-26' : activeSeason === '2425' ? '2024-25' : activeSeason === '2324' ? '2023-24' : activeSeason === '2223' ? '2022-23' : activeSeason === '2122' ? '2021-22' : activeSeason === '1920' ? '2019-20' : activeSeason === '1819' ? '2018-19' : '2017-18';
   const starts = games.filter(g => g.me.st).length;
   const head = [];
   if (dRow && dRow.jersey) head.push('#' + dRow.jersey);
@@ -10838,7 +11239,7 @@ function renderPlayerProfile() {{
 
   document.getElementById('player-content').innerHTML = `<style>
     #player-content .pp-table {{ width: auto; border-collapse: collapse; font-size: 0.8rem; white-space: nowrap; margin: 0 auto; }}
-    #player-content .pp-table th {{ background: #1a1a2e; color: #fff; padding: 5px 8px; text-align: right; font-size: 0.72rem; border-bottom: 2px solid #333; }}
+    #player-content .pp-table th {{ background: #242f3c; color: #e7ecf2; padding: 5px 8px; text-align: right; font-size: 0.72rem; border-bottom: 1px solid #1d2733; }}
     #player-content .pp-table th.pp-l, #player-content .pp-table td.pp-l {{ text-align: left; }}
     #player-content .pp-table td {{ padding: 4px 8px; border-bottom: 1px solid #ddd; text-align: right; color: #000; background: #fff; }}
     #player-content .pp-table td.pp-l {{ font-weight: 600; }}
@@ -10873,10 +11274,10 @@ function renderPlayerProfile() {{
     #player-content .pp-card {{ background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 16px; overflow-x: auto; max-width: fit-content; margin: 0 auto 16px; }}
     #player-content .pp-sub {{ font-size: 0.95rem; font-weight: 700; text-align: center; color: #000; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 10px; }}
   </style>
-  <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center">
-    <div style="color:#4fc3f7;font-size:0.95rem;font-weight:700">${{head.join(' · ')}}</div>
+  <div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">
+    <div style="color:#1a5dab;font-size:0.95rem;font-weight:700">${{head.join(' · ')}}</div>
     <h2 style="color:#B9D9EB;font-size:1.7rem;margin:4px 0">${{name}}</h2>
-    <div style="color:#ccc;font-size:0.9rem"><a href="#" onclick="closePlayerProfile();showTeamDetail('${{__ppEsc(school)}}');return false" style="color:#4fc3f7;text-decoration:none">${{school}}</a> · ${{t.conference}} · ${{seasonLabel}}</div>
+    <div style="color:#aeb9c6;font-size:0.9rem"><a href="#" onclick="closePlayerProfile();showTeamDetail('${{__ppEsc(school)}}');return false" style="color:#1a5dab;text-decoration:none">${{school}}</a> · ${{t.conference}} · ${{seasonLabel}}</div>
     <div style="color:#fff;font-size:1rem;font-weight:600;margin-top:4px">${{rRow.gp}} GP · ${{starts}} starts &nbsp;|&nbsp; ${{hl.join(' &nbsp;·&nbsp; ')}}</div>
   </div>
   ${{trendHtml}}
@@ -10920,7 +11321,7 @@ function renderMinutesMatrix(teamName) {{
   const t = activeFullTeamData().find(d => d.team === teamName);
   if (!t) return;
   const boxes = GAME_BOXES[activeSeason] || {{}};
-  const _dayRanksSource = activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : DAILY_RANKS;
+  const _dayRanksSource = activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
 
   // Collect this team's games (schedule order) with their box rows
   const games = [];
@@ -10999,7 +11400,7 @@ function renderMinutesMatrix(teamName) {{
 
   document.getElementById('minmatrix-content').innerHTML = `<style>
     #minmatrix-content table {{ width: auto; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; margin: 0 auto; }}
-    #minmatrix-content th {{ background: #1a1a2e; color: #fff; padding: 4px 6px; font-size: 0.72rem; border-bottom: 2px solid #333; }}
+    #minmatrix-content th {{ background: #242f3c; color: #e7ecf2; padding: 4px 6px; font-size: 0.72rem; border-bottom: 1px solid #1d2733; }}
     #minmatrix-content th.mm-p {{ height: 120px; vertical-align: bottom; width: 26px; max-width: 26px; padding: 2px 0; position: relative; }}
     #minmatrix-content th.mm-p > div {{ writing-mode: vertical-rl; transform: rotate(180deg); margin: 0 auto; font-weight: 600; }}
     #minmatrix-content td {{ padding: 3px 6px; border-bottom: 1px solid #ddd; text-align: center; color: #000; background: #fff; }}
@@ -11012,10 +11413,10 @@ function renderMinutesMatrix(teamName) {{
     #minmatrix-content .mm-st {{ display: inline-block; min-width: 18px; border: 1.6px solid #1a3e8f; border-radius: 2px; padding: 0 2px; font-weight: 700; }}
     #minmatrix-content tr:hover td {{ background: #eef4ff; }}
   </style>
-  <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center">
-    <div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
-    <h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Minutes Matrix</h2>
-    <div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
+  <div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">
+    <div style="color:#5b9bd5;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
+    <h2 style="color:#fff;font-size:1.6rem;margin:4px 0">${{teamName}} — Minutes Matrix</h2>
+    <div style="color:#aeb9c6;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
     <div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div>
   </div>
   <div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto;max-width:fit-content;margin:0 auto">
@@ -11065,7 +11466,7 @@ function computeRanks(teamName) {{
     return idx >= 0 ? idx + 1 : total;
   }};
   // Always rank SOS fields against full-season data for active season
-  const _fsData = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsData = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const fsValid = _fsData.filter(d => d.ortg > 0);
   const fsTotal = fsValid.length;
   const rankForFS = (key, low) => {{
@@ -11207,12 +11608,62 @@ function computeRanks(teamName) {{
   }};
 }}
 
+// ── Team page Form card: last 5/10 played games as margin bars ──
+let tdFormN = 10;
+function tdSetFormN(n) {{
+  tdFormN = n;
+  const el = document.getElementById('td-form-card');
+  if (el && currentTeam) el.innerHTML = __tdFormInner(currentTeam);
+}}
+function __tdFormInner(t) {{
+  const played = (t.game_ratings || []).filter(g => g.result === 'W' || g.result === 'L');
+  const games = played.slice(-tdFormN);
+  const btn = n => `<button class="td-form-btn${{tdFormN === n ? ' active' : ''}}" onclick="tdSetFormN(${{n}})">Last ${{n}}</button>`;
+  const head = `<div class="td-form-head"><span class="td-form-title">Form</span><span class="td-form-seg">${{btn(5)}}${{btn(10)}}</span></div>`;
+  if (!games.length) return head + '<div style="text-align:center;color:#8b95a3;font-size:0.82rem;padding:12px 0">No completed games yet.</div>';
+  const margins = games.map(g => (g.team_score || 0) - (g.opponent_score || 0));
+  const maxAbs = Math.max(...margins.map(Math.abs), 1);
+  // Current NET RTG ranks for the tooltip's opponent line
+  const rankMap = {{}};
+  [...activeTeamData].filter(d => d.ortg > 0).sort((a, b) => b.net_rtg - a.net_rtg).forEach((d, i) => {{ rankMap[d.team] = i + 1; }});
+  const bars = games.map((g, i) => {{
+    const m = margins[i];
+    const h = Math.max(8, Math.round(Math.abs(m) / maxAbs * 84));
+    const opp = g.canonical_opponent || g.opponent || '';
+    const oppData = activeTeamData.find(d => d.team === opp);
+    const oppLine = oppData ? `<br>Opponent: #${{rankMap[opp] || '—'}} NET RTG (${{oppData.net_rtg >= 0 ? '+' : ''}}${{oppData.net_rtg.toFixed(1)}})` : '';
+    const ratings = (g.ortg != null && g.drtg != null)
+      ? `<br>Game ORtg ${{Number(g.ortg).toFixed(1)}} · DRtg ${{Number(g.drtg).toFixed(1)}}${{g.possessions ? ' · ' + Math.round(g.possessions) + ' poss' : ''}}`
+      : (g.possessions ? `<br>${{Math.round(g.possessions)}} possessions` : '');
+    const tipHtml =
+      `<b>${{g.result}}, ${{g.team_score || 0}}-${{g.opponent_score || 0}} vs ${{opp}}</b><br>` +
+      `${{g.date || ''}}${{g.location ? ' · ' + g.location : ''}}${{g.is_conference ? ' · Conference game' : ''}}<br>` +
+      `Margin ${{m >= 0 ? '+' : ''}}${{m}}` + oppLine + ratings +
+      `<br><i>Click for box score</i>`;
+    return `<div class="td-bar-wrap" data-gametip="${{tipHtml.replace(/"/g, '&quot;')}}" onclick="openBoxScore('${{g.date || ''}}','${{t.team}}','${{opp}}')"><div class="td-bar ${{g.result === 'W' ? 'w' : 'l'}}" style="height:${{h}}px"></div><div class="td-bar-m">${{m > 0 ? '+' + m : m}}</div></div>`;
+  }}).join('');
+  const wins = games.filter(g => g.result === 'W').length;
+  const avg = margins.reduce((a, b) => a + b, 0) / games.length;
+  const avgStr = (avg > 0 ? '+' : '') + avg.toFixed(1);
+  const adjBar = (val, posColor) => {{
+    const wPct = Math.min(Math.abs(val) / 0.35 * 50, 50).toFixed(1);
+    const side = val >= 0 ? `left:50%;width:${{wPct}}%;background:${{posColor}}` : `right:50%;width:${{wPct}}%;background:#4a7fb5`;
+    return `<span class="td-adjbar"><span class="td-adjmid"></span><span class="td-adjfill" style="${{side}}"></span></span>`;
+  }};
+  const side =
+    `<div class="td-form-line"><span>Last ${{games.length}} record</span><b>${{wins}}-${{games.length - wins}}</b></div>` +
+    `<div class="td-form-line"><span>Avg margin</span><b>${{avgStr}}</b></div>` +
+    (t.opp_adjust != null ? `<div class="td-form-line"><span>OPP ADJ</span>${{adjBar(t.opp_adjust, '#c0564a')}}</div>` : '') +
+    (t.pace_adjust != null ? `<div class="td-form-line"><span>PACE ADJ</span>${{adjBar(t.pace_adjust, '#d08437')}}</div>` : '');
+  return head + `<div class="td-form-flex"><div><div class="td-spark">${{bars}}</div><div class="td-spark-note">margin of victory per game · hover a bar for game details · click for the box score</div></div><div class="td-form-side">${{side}}</div></div>`;
+}}
+
 function buildTeamDetail(t) {{
   const ranks = computeRanks(t.team);
   const total = ranks.total;
 
   // Full-season data for record and SOS (use active season's full data)
-  const _fsSource = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsSource = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const fs = _fsSource.find(d => d.team === t.team) || t;
 
   // Compute shooting stats from totals
@@ -11245,6 +11696,12 @@ function buildTeamDetail(t) {{
   const oDistFta = (0.475 * oTot.FTA / oShotBase * 100).toFixed(1);
 
   function srRow(label, offVal, defVal, avgVal, offRank, defRank, offTotals, defTotals, offLow, defLow) {{
+    // No games yet (preseason): only the ratings rows carry a number (last season's); the rest are blank.
+    if (!(t.gp > 0) && !/^Adj\./.test(label)) {{
+      return `<tr><td style="text-align:right;font-weight:600;padding-right:12px">${{label}}</td>`
+        + `<td style="text-align:center;color:#aab3bf">\u2014</td><td></td>`
+        + `<td style="text-align:center;color:#aab3bf">${{defVal !== '' ? '\u2014' : ''}}</td><td></td></tr>`;
+    }}
     const offCell = offRank != null
       ? tdColorCell(offVal, offRank, total, 1, offLow)
       : `<td style="text-align:center">${{typeof offVal === 'number' ? offVal.toFixed(1) : offVal}}</td>`;
@@ -11286,7 +11743,7 @@ function buildTeamDetail(t) {{
     const dateStr = gr.date || '';
 
     // Team's own historical rank as of this game date
-    const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : DAILY_RANKS;
+    const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
     const dayRanks = _dayRanksSource[dateStr] || {{}};
     const teamRank = dayRanks[t.team] || '';
 
@@ -11380,10 +11837,11 @@ function buildTeamDetail(t) {{
       ${{fs.coach ? `<div class="td-coach">HC: ${{fs.coach}}</div>` : ''}}
       ${{dataThruHtml}}
     </div>
+    <div class="td-form" id="td-form-card">${{__tdFormInner(t)}}</div>
     <div class="td-content">
       <div class="td-scouting">
         <div class="td-section-title">Scouting Report</div>
-        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON)) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
+        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON)) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
@@ -11434,7 +11892,7 @@ function buildTeamDetail(t) {{
         </tbody></table>
       </div>
       <div class="td-schedule">
-        <div class="td-section-title">${{activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26'}} Schedule</div>
+        <div class="td-section-title">${{activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27'}} Schedule</div>
         <table><thead><tr>
           <th style="text-align:left">Date</th><th>Rk</th><th style="text-align:left">Opponent</th>
           <th>Box</th><th style="text-align:left">Result</th><th>Loc</th><th>Record</th><th>Conf</th><th>Tier</th>
@@ -11585,7 +12043,7 @@ function showView(view) {{
     document.getElementById('page-subtitle').style.display = '';
     document.getElementById('page-info').style.display = '';
     document.getElementById('season-toggle').style.display = 'flex';
-    const indYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+    const indYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
     title.textContent = 'Individual Statistics Leaderboard';
     subtitle.textContent = indYr + ' Season \u2014 Per-Game Averages';
     updateInfo();
@@ -11602,7 +12060,7 @@ function showTeamSub(sub) {{
   const subtitle   = document.getElementById('page-subtitle');
   const btnOff     = document.getElementById('btn-offense');
   const btnDef     = document.getElementById('btn-defense');
-  const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+  const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
 
   // Hide all tables first
   offDiv.style.display   = 'none';
@@ -11672,7 +12130,7 @@ function _basicSortHelper(col, type, curSortCol, curSortDir) {{
   }} else {{
     newDir = type === 'str' ? 'asc' : (lowBetter.has(col) ? 'asc' : 'desc');
   }}
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const FS_COLS = new Set(['gp','record','conf']);
   activeTeamData.sort((a, b) => {{
     const fa = _fsPool.find(d => d.team === a.team) || a;
@@ -11711,8 +12169,8 @@ function renderTeamsAdvOffense(data) {{
   if (!tb) return;
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -11750,7 +12208,7 @@ function doAdvOffSort(col, type) {{
   }}
   advOffSortDir = newDir;
   advOffSortCol = col;
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   activeTeamData.sort((a, b) => {{
     const fa = _fsPool.find(d => d.team === a.team) || a;
     const fb = _fsPool.find(d => d.team === b.team) || b;
@@ -11771,8 +12229,8 @@ function renderTeamsAdvDefense(data) {{
   if (!tb) return;
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -11810,7 +12268,7 @@ function doAdvDefSort(col, type) {{
   }}
   advDefSortDir = newDir;
   advDefSortCol = col;
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const PF_COLS = new Set(['pf_total','pfpg','pf_eff','stl_pf','blk_pf']);
   activeTeamData.sort((a, b) => {{
     if (PF_COLS.has(col)) {{
@@ -11860,6 +12318,7 @@ function activeStorylines() {{
   if (activeSeason === '2223') return STORYLINES_2022;
   if (activeSeason === '2324') return STORYLINES_2023;
   if (activeSeason === '2425') return STORYLINES_2024;
+  if (activeSeason === '2526') return STORYLINES_2025;
   return STORYLINES;
 }}
 
@@ -11926,11 +12385,11 @@ function slSwitchTab(tab, label) {{
   const countEl = document.getElementById('sl-game-count');
   if (title) {{
     if (tab === 'wab') {{
-      const wabYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const wabYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = wabYr + ' Wins Above Bubble';
       if (countEl) countEl.style.display = 'none';
     }} else if (tab === 'rate') {{
-      const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = yr + ' Relative Ratings (O-Rate / D-Rate / Rel-Rtg)';
       if (countEl) countEl.style.display = 'none';
     }} else if (tab === 'height') {{
@@ -11938,17 +12397,17 @@ function slSwitchTab(tab, label) {{
       if (countEl) countEl.style.display = 'none';
       slRenderHeight();
     }} else if (tab === 'tiers') {{
-      const tiersYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const tiersYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = tiersYr + ' Tier Records (KenPom Location-Adjusted)';
       if (countEl) countEl.style.display = 'none';
       slRenderTiers('All');
     }} else if (tab === 'quads') {{
-      const quadsYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const quadsYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = quadsYr + ' Quadrant Records (NCAA-style, scaled for 100 teams)';
       if (countEl) countEl.style.display = 'none';
       slRenderQuads();
     }} else if (tab === 'trank') {{
-      const trankYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const trankYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = trankYr + ' T-Rank — Barthag (Bart Torvik Style)';
       if (countEl) countEl.style.display = 'none';
       slRenderTrank();
@@ -11957,12 +12416,12 @@ function slSwitchTab(tab, label) {{
       if (countEl) countEl.style.display = 'none';
       slRenderTrends();
     }} else if (tab === 'conf') {{
-      const confYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const confYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = confYr + ' Conference Four Factors';
       if (countEl) countEl.style.display = 'none';
       slRenderConf();
     }} else {{
-      const slYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const slYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = slYr + ' game attribute rankings (' + (label || tab) + ')';
       if (countEl) {{
         const n = activeStorylines().games_in_system || 0;
@@ -12064,7 +12523,7 @@ function slRenderHeight() {{
     </tr>`;
   }});
   if (missing.length) {{
-    rows.push(`<tr><td colspan="13" style="text-align:center;background:#1a1a2e;color:#ddd;font-size:0.78rem;font-weight:700">Missing height scrape</td></tr>`);
+    rows.push(`<tr><td colspan="13" style="text-align:center;background:#eef2f7;color:#6b7684;font-size:0.78rem;font-weight:700">Missing height scrape</td></tr>`);
     missing.forEach(r => {{
       rows.push(`<tr>
         <td class="sl-th-r" style="color:#888;font-size:0.8rem">—</td>
@@ -12356,7 +12815,7 @@ function slRenderTrank() {{
 
   ['adj', 'raw'].forEach(m => {{ const b = document.getElementById('trank-ff-' + m); if (!b) return;
     const on = slTrankFF === m;
-    b.style.cssText = `background:${{on ? '#ffd700' : '#2a2a40'}};border:1px solid #ffd700;color:${{on ? '#1a1a2e' : '#ffd700'}};font-weight:${{on ? 700 : 600}};padding:3px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem`; }});
+    b.style.cssText = `background:${{on ? 'var(--navy)' : 'var(--surface)'}};border:1px solid ${{on ? 'var(--navy)' : '#ced4da'}};color:${{on ? '#fff' : 'var(--ink-2)'}};font-weight:600;padding:3px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem`; }});
   // Opponent-adjusted factor when there is one (seasons built before it fall back to raw).
   const ff = (t, k) => (slTrankFF === 'adj' && t['adj_' + k] != null ? t['adj_' + k] : t[k]) || 0;
   let rows = src.map(t => {{
@@ -12439,7 +12898,7 @@ function slRenderTrank() {{
 }}
 
 // ─── RPI Tab ──────────────────────────────────────────────────────
-let slRpiSeason = '2526';
+let slRpiSeason = '2627';
 let slRpiSortKey = 'rpi';
 let slRpiSortAsc = false;  // false = descending (best first for numeric cols)
 
@@ -12453,6 +12912,7 @@ function slRpiSeasonFilter(season) {{
   document.getElementById('sl-rpi-btn-24').classList.toggle('active', season === '2324');
   document.getElementById('sl-rpi-btn-25').classList.toggle('active', season === '2425');
   document.getElementById('sl-rpi-btn-26').classList.toggle('active', season === '2526');
+  document.getElementById('sl-rpi-btn-27').classList.toggle('active', season === '2627');
   slRenderRpi();
 }}
 
@@ -12546,7 +13006,8 @@ function slRenderRpi() {{
     : slRpiSeason === '2223' ? RPI_DATA_2223
     : slRpiSeason === '2324' ? RPI_DATA_2324
     : slRpiSeason === '2425' ? RPI_DATA_2425
-    : RPI_DATA_2526;
+    : slRpiSeason === '2526' ? RPI_DATA_2526
+    : RPI_DATA_2627;
   if (!src || !src.length) {{
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#555;padding:24px">No RPI data available</td></tr>';
     return;
@@ -12604,10 +13065,10 @@ function slRenderWab(region) {{
   let rows;
   const useSplit = region === 'North' || region === 'South';
   if (useSplit) {{
-    const simSrc = activeSeason === '1920' ? (WAB_SIM_1920 || {{}}) : activeSeason === '2122' ? (WAB_SIM_2122 || {{}}) : activeSeason === '2223' ? (WAB_SIM_2223 || {{}}) : activeSeason === '2324' ? (WAB_SIM_2324 || {{}}) : activeSeason === '2425' ? (WAB_SIM_2425 || {{}}) : (WAB_SIM_2526 || {{}});
+    const simSrc = activeSeason === '1920' ? (WAB_SIM_1920 || {{}}) : activeSeason === '2122' ? (WAB_SIM_2122 || {{}}) : activeSeason === '2223' ? (WAB_SIM_2223 || {{}}) : activeSeason === '2324' ? (WAB_SIM_2324 || {{}}) : activeSeason === '2425' ? (WAB_SIM_2425 || {{}}) : activeSeason === '2526' ? (WAB_SIM_2526 || {{}}) : (WAB_SIM_2627 || {{}});
     rows = (simSrc[region.toLowerCase()] || []).slice();
   }} else {{
-    const src = activeSeason === '2122' ? (WAB_DATA_2021 || []) : activeSeason === '2223' ? (WAB_DATA_2022 || []) : activeSeason === '2324' ? (WAB_DATA_2023 || []) : activeSeason === '2425' ? (WAB_DATA_2024 || []) : (WAB_DATA || []);
+    const src = activeSeason === '2122' ? (WAB_DATA_2021 || []) : activeSeason === '2223' ? (WAB_DATA_2022 || []) : activeSeason === '2324' ? (WAB_DATA_2023 || []) : activeSeason === '2425' ? (WAB_DATA_2024 || []) : activeSeason === '2526' ? (WAB_DATA_2025 || []) : (WAB_DATA || []);
     rows = src.filter(r => true);
     rows.sort((a, b) => b.wab - a.wab);
   }}
@@ -12617,10 +13078,10 @@ function slRenderWab(region) {{
   }}
   const maxAbsWab = Math.max(...rows.map(r => Math.abs(r.wab)));
   const BUBBLE_RANK = 24;
-  const teamSrc = activeSeason === '2122' ? (TEAM_DATA_2021 || []) : activeSeason === '2223' ? (TEAM_DATA_2022 || []) : activeSeason === '2324' ? (TEAM_DATA_2023 || []) : activeSeason === '2425' ? (TEAM_DATA_2024 || []) : (TEAM_DATA || []);
+  const teamSrc = activeSeason === '2122' ? (TEAM_DATA_2021 || []) : activeSeason === '2223' ? (TEAM_DATA_2022 || []) : activeSeason === '2324' ? (TEAM_DATA_2023 || []) : activeSeason === '2425' ? (TEAM_DATA_2024 || []) : activeSeason === '2526' ? (TEAM_DATA_2025 || []) : (TEAM_DATA || []);
   const netMap = {{}};
   teamSrc.forEach(t => {{ netMap[t.team] = t.net_rtg; }});
-  const relSrc = activeSeason === '2122' ? (REL_RATINGS_2021 || []) : activeSeason === '2223' ? (REL_RATINGS_2022 || []) : activeSeason === '2324' ? (REL_RATINGS_2023 || []) : activeSeason === '2425' ? (REL_RATINGS_2024 || []) : (REL_RATINGS || []);
+  const relSrc = activeSeason === '2122' ? (REL_RATINGS_2021 || []) : activeSeason === '2223' ? (REL_RATINGS_2022 || []) : activeSeason === '2324' ? (REL_RATINGS_2023 || []) : activeSeason === '2425' ? (REL_RATINGS_2024 || []) : activeSeason === '2526' ? (REL_RATINGS_2025 || []) : (REL_RATINGS || []);
   const relMap = {{}};
   relSrc.forEach(rr => {{ relMap[rr.team] = rr.rel_rating; }});
   let html = '';
@@ -12642,7 +13103,7 @@ function slRenderWab(region) {{
   body.innerHTML = html;
 }}
 
-let slRateSeason = '2526';
+let slRateSeason = '2627';
 let slRateSortCol = 'rank_rel';
 let slRateSortDir = 1; // 1 = asc for rank_rel, -1 = desc for values
 
@@ -12655,6 +13116,7 @@ function slRateSeasonFilter(season) {{
   const b23 = document.getElementById('sl-rate-btn-23');
   const b25 = document.getElementById('sl-rate-btn-25');
   const b26 = document.getElementById('sl-rate-btn-26');
+  const b27 = document.getElementById('sl-rate-btn-27');
   if (b18) b18.classList.toggle('active', season === '1718');
   if (b19) b19.classList.toggle('active', season === '1819');
   if (b20) b20.classList.toggle('active', season === '1920');
@@ -12662,10 +13124,11 @@ function slRateSeasonFilter(season) {{
   if (b23) b23.classList.toggle('active', season === '2223');
   if (b25) b25.classList.toggle('active', season === '2425');
   if (b26) b26.classList.toggle('active', season === '2526');
+  if (b27) b27.classList.toggle('active', season === '2627');
   slRenderRate(season);
   const title = document.getElementById('sl-page-title');
   if (title && slActiveTab === 'rate') {{
-    const yr = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : '2025-26';;
+    const yr = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : season === '2526' ? '2025-26' : '2026-27';;
   }}
 }}
 
@@ -12682,7 +13145,7 @@ function slSortRate(col) {{
 
 function slRenderRate(season) {{
   const _s = season || slRateSeason;
-  const src = _s === '1718' ? REL_RATINGS_1718 : _s === '1819' ? REL_RATINGS_1819 : _s === '1920' ? REL_RATINGS_1920 : _s === '2122' ? REL_RATINGS_2021 : _s === '2223' ? REL_RATINGS_2022 : _s === '2324' ? REL_RATINGS_2023 : _s === '2425' ? REL_RATINGS_2024 : REL_RATINGS;
+  const src = _s === '1718' ? REL_RATINGS_1718 : _s === '1819' ? REL_RATINGS_1819 : _s === '1920' ? REL_RATINGS_1920 : _s === '2122' ? REL_RATINGS_2021 : _s === '2223' ? REL_RATINGS_2022 : _s === '2324' ? REL_RATINGS_2023 : _s === '2425' ? REL_RATINGS_2024 : _s === '2526' ? REL_RATINGS_2025 : REL_RATINGS;
   const body = document.getElementById('sl-body-rate');
   if (!body) return;
   if (!src || !src.length) {{
@@ -12708,8 +13171,8 @@ function slRenderRate(season) {{
   body.innerHTML = rows.map((r, i) => {{
     const oppVal = r.opp_adjust != null ? parseFloat(r.opp_adjust) : 0;
     const pceVal = r.pace_adjust != null ? parseFloat(r.pace_adjust) : 0;
-    const oppBar = `<div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(r.team, oppVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{oppVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#e74c3c` : `right:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div>`;
-    const pceBar = `<div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(r.team, pceVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{pceVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#e67e22` : `right:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div>`;
+    const oppBar = `<div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(r.team, oppVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{oppVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#c0564a` : `right:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div>`;
+    const pceBar = `<div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(r.team, pceVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{pceVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#d08437` : `right:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div>`;
     const hlStyle = mpGold(r.team);
     const oRate = typeof r.o_rate === 'number' ? r.o_rate.toFixed(1) : r.o_rate;
     const dRate = typeof r.d_rate === 'number' ? r.d_rate.toFixed(1) : r.d_rate;
@@ -12781,7 +13244,8 @@ function trendMonthBucket(dateStr) {{
 }}
 
 function trendGetSrc(key) {{
-  if (key === '2526') return TEAM_DATA;
+  if (key === '2627') return TEAM_DATA;
+  if (key === '2526') return TEAM_DATA_2025;
   if (key === '2425') return TEAM_DATA_2024;
   if (key === '2324') return TEAM_DATA_2023;
   if (key === '2223') return TEAM_DATA_2022;
@@ -13038,6 +13502,18 @@ function __slRenderTrendsNow() {{
 // ─── End Trends Tab ───────────────────────────────────────────────
 
 function slGameCell(g) {{
+  if (g.upcoming) {{
+    const p = (g.score || '').split('-');
+    return '<td class="sl-game-cell">' +
+      '<span class="sl-game-winner">' + teamPageLink(g.winner) + '</span>' +
+      '<span class="sl-score"> ' + (p[0] || '') + '</span>' +
+      '<span class="sl-net">\u2009' + slNetStr(g.pregame_winner_net) + '</span>, ' +
+      '<span class="sl-game-loser">' + teamPageLink(g.loser) + '</span>' +
+      '<span class="sl-score-loser"> ' + (p[1] || '') + '</span>' +
+      '<span class="sl-net">\u2009' + slNetStr(g.pregame_loser_net) + '</span>' +
+      ' <span style="font-size:0.7rem;color:var(--ink-3)">proj</span>' +
+      '</td>';
+  }}
   const parts = (g.score || '').split('-');
   const wScore = parts[0] || '', lScore = parts[1] || '';
   const otStr = g.overtimes > 0 ? '<span class="sl-ot"> (' + (g.overtimes > 1 ? g.overtimes : '') + 'OT)</span>' : '';
@@ -13091,11 +13567,13 @@ function slGameRow(g, idx, cols) {{
   }}
   const site = g.home_team || 'Neutral';
   const gameGoldCls = (g.winner === 'Moorpark' || g.loser === 'Moorpark') ? ' class="mp-gold-row"' : '';
-  const boxTd = cols === 'fanmatch'
+  const boxTd = cols === 'fanmatch' && g.upcoming
+    ? '<td style="text-align:center;color:var(--ink-3)">\u2014</td>'
+    : cols === 'fanmatch'
     ? `<td style="text-align:center"><a href="#" onclick="openBoxScore('${{g.date}}','${{g.winner}}','${{g.loser}}');return false" style="color:#0d47a1;font-weight:700;text-decoration:none">Box</a></td>`
     : '';
   return `<tr${{gameGoldCls}}><td class="sl-rank">${{idx + 1}}</td>` +
-         `<td class="sl-date-cell">${{g.date}}</td>` +
+         `<td class="sl-date-cell">${{g.upcoming && g.time ? g.time : g.date}}</td>` +
          slGameCell(g) +
          boxTd +
          `<td class="sl-loc-cell">${{site}}</td>` +
@@ -13126,8 +13604,10 @@ function slInitFanmatch() {{
     const [bm, bd, by] = b.split('/').map(Number);
     return (ay * 10000 + am * 100 + ad) - (by * 10000 + bm * 100 + bd);
   }});
-  // Default to most recent date
-  slFanmatchIdx = slFanmatchDates.length - 1;
+  // Default to today, else the next day with games, else the most recent one
+  const _now = new Date(), _tNum = _now.getFullYear() * 10000 + (_now.getMonth() + 1) * 100 + _now.getDate();
+  const _next = slFanmatchDates.findIndex(s => {{ const [m, d, y] = s.split('/').map(Number); return y * 10000 + m * 100 + d >= _tNum; }});
+  slFanmatchIdx = _next >= 0 ? _next : slFanmatchDates.length - 1;
   slSetFanmatchDate(slFanmatchDates[slFanmatchIdx]);
 }}
 
@@ -13171,7 +13651,8 @@ function slRenderFanmatch(dateStr) {{
   const prev = document.getElementById('sl-cal-prev');
   const next = document.getElementById('sl-cal-next');
   if (lbl) lbl.textContent = dateStr || '';
-  if (cnt) cnt.textContent = fm.length + ' game' + (fm.length !== 1 ? 's' : '');
+  const _proj = fm.filter(g => g.upcoming).length;
+  if (cnt) cnt.textContent = fm.length + ' game' + (fm.length !== 1 ? 's' : '') + (_proj ? ' \u00b7 ' + (_proj === fm.length ? 'projected' : _proj + ' projected') : '');
   if (prev) prev.disabled = slFanmatchIdx <= 0;
   if (next) next.disabled = slFanmatchIdx >= slFanmatchDates.length - 1;
   // Line o' the Night
@@ -13204,6 +13685,9 @@ function slRenderFanmatch(dateStr) {{
 
   // Daily summary stats
   const summaryEl = document.getElementById('sl-lotn');
+  // Projected (not yet played) games stay out of the results summary
+  const fmAll = fm;
+  {{ const fm = fmAll.filter(g => !g.upcoming);
   if (summaryEl && fm.length) {{
     // Favorites record
     const favWins = fm.filter(g => g.pregame_model_wp_winner >= 0.5).length;
@@ -13242,6 +13726,16 @@ function slRenderFanmatch(dateStr) {{
       + parts.join(bull) + bull + statParts.join(bull)
       + '</div>';
     summaryEl.innerHTML = summaryHtml + summaryLine;
+  }} }}
+  const fmProj = fmAll.filter(g => g.upcoming);
+  if (summaryEl && fmProj.length) {{
+    const expFav = fmProj.reduce((s, g) => s + (g.pregame_model_wp_winner || 0.5), 0);
+    const projPts = (fmProj.reduce((s, g) => {{ const [a, b] = g.score.split('-').map(Number); return s + a + b; }}, 0) / fmProj.length).toFixed(1);
+    summaryEl.innerHTML += '<div class="lotn-wrap" style="margin-top:6px;font-size:0.78rem">'
+      + '<span class="lotn-label" style="font-size:0.68rem">Projected:</span>'
+      + fmProj.length + ' game' + (fmProj.length !== 1 ? 's' : '') + ' \u2022 Favorites expected: <b>' + expFav.toFixed(1) + '-' + (fmProj.length - expFav).toFixed(1) + '</b>'
+      + ' \u2022 Projected pts/game: <b>' + projPts + '</b>'
+      + '<br><span style="color:#93a0ad">From current ratings: last season’s until a team plays, then fading toward this season’s.</span></div>';
   }}
 }}
 // ─────────────────────────────────────────────────────────────────────
@@ -13315,6 +13809,45 @@ function slRenderFanmatch(dateStr) {{
     tip.style.display = 'none';
   }}, true);
 }})();
+
+// --- Floating game tooltip for the team-page Form card bars ---
+(function() {{
+  const tip = document.getElementById('td-form-tip');
+  document.addEventListener('mouseenter', function(e) {{
+    const wrap = e.target.closest('.td-bar-wrap');
+    if (!wrap || !tip) return;
+    const msg = wrap.dataset.gametip;
+    if (!msg) return;
+    tip.innerHTML = msg;
+    tip.style.display = 'block';
+    const rect = wrap.getBoundingClientRect();
+    const tipW = 260;
+    let left = rect.left + rect.width / 2 - tipW / 2;
+    if (left < 4) left = 4;
+    if (left + tipW > window.innerWidth - 4) left = window.innerWidth - tipW - 4;
+    tip.style.left = left + 'px';
+    tip.style.width = tipW + 'px';
+    tip.className = '';
+    tip.style.top = '';
+    const tipH = tip.offsetHeight;
+    if (rect.top - tipH - 10 > 0) {{
+      tip.classList.add('above');
+      tip.style.top = (rect.top - tipH - 10) + 'px';
+    }} else {{
+      tip.classList.add('below');
+      tip.style.top = (rect.bottom + 10) + 'px';
+    }}
+  }}, true);
+  document.addEventListener('mouseleave', function(e) {{
+    const wrap = e.target.closest('.td-bar-wrap');
+    if (!wrap || !tip) return;
+    tip.style.display = 'none';
+  }}, true);
+  // Hide the tip when a bar is clicked — the box score modal opens on top
+  document.addEventListener('click', function(e) {{
+    if (tip && e.target.closest('.td-bar-wrap')) tip.style.display = 'none';
+  }}, true);
+}})();
 </script>
 </body>
 </html>"""
@@ -13340,34 +13873,34 @@ def main():
         print(f"  {len(data)} {label} {suffix}")
 
     print("Loading current-season datasets...")
-    players = dataset("2526_players", lambda: load_players())
+    players = dataset("2627_players", lambda: load_players())
     print(f"  {len(players)} players qualify (30% minutes threshold)")
-    teams = dataset("2526_teams", lambda: load_teams())
+    teams = dataset("2627_teams", lambda: load_teams())
     log_count("teams", teams)
-    height_data = dataset("2526_height", lambda: load_height_data(teams))
+    height_data = dataset("2627_height", lambda: load_height_data(teams))
     print(f"  {len(height_data.get('ranked', []))} teams with roster-height data loaded")
-    conf_players = dataset("2526_conf_players", lambda: load_conf_players())
+    conf_players = dataset("2627_conf_players", lambda: load_conf_players())
     log_count("conference-only players", conf_players)
-    conf_teams = dataset("2526_conf_teams", lambda: load_conf_teams())
+    conf_teams = dataset("2627_conf_teams", lambda: load_conf_teams())
     log_count("conference-only teams", conf_teams)
     # Box-derived subset scopes (current season): Last 5 / Last 10 / Playoffs
-    last5_teams = dataset("2526_last5_teams", lambda: load_subset_teams(None, "last5"))
-    last10_teams = dataset("2526_last10_teams", lambda: load_subset_teams(None, "last10"))
-    playoff_teams = dataset("2526_playoff_teams", lambda: load_subset_teams(None, "playoffs"))
-    last5_players = dataset("2526_last5_players", lambda: load_subset_players(None, "last5"))
-    last10_players = dataset("2526_last10_players", lambda: load_subset_players(None, "last10"))
-    playoff_players = dataset("2526_playoff_players", lambda: load_subset_players(None, "playoffs"))
+    last5_teams = dataset("2627_last5_teams", lambda: load_subset_teams(None, "last5"))
+    last10_teams = dataset("2627_last10_teams", lambda: load_subset_teams(None, "last10"))
+    playoff_teams = dataset("2627_playoff_teams", lambda: load_subset_teams(None, "playoffs"))
+    last5_players = dataset("2627_last5_players", lambda: load_subset_players(None, "last5"))
+    last10_players = dataset("2627_last10_players", lambda: load_subset_players(None, "last10"))
+    playoff_players = dataset("2627_playoff_players", lambda: load_subset_players(None, "playoffs"))
     log_count("last-10 teams", last10_teams)
-    rpi_2526 = dataset("2526_rpi", lambda: compute_rpi(STATS_DIR))
-    print(f"  {len(rpi_2526)} teams with 2025-26 RPI computed")
-    storylines_current = dataset("2526_storylines", lambda: load_storylines())
-    print(f"  {storylines_current.get('games_in_system', 0)} 2025-26 storyline games loaded")
-    game_boxes = {"2526": dataset("2526_boxes", lambda: build_game_boxes(STATS_DIR))}
-    print(f"  {len(game_boxes['2526'])} 2025-26 game box scores loaded")
-    team_rosters = {"2526": dataset("2526_rosters", lambda: load_full_rosters(STATS_DIR))}
-    print(f"  {len(team_rosters['2526'])} 2025-26 full team rosters loaded")
-    conf_ff = {"2526": dataset("2526_conf_ff", lambda: build_conference_four_factors(STATS_DIR))}
-    print(f"  {len(conf_ff['2526'].get('full', []))} 2025-26 conference four-factor rows")
+    rpi_2627 = dataset("2627_rpi", lambda: compute_rpi(STATS_DIR))
+    print(f"  {len(rpi_2627)} teams with 2026-27 RPI computed")
+    storylines_current = dataset("2627_storylines", lambda: load_storylines())
+    print(f"  {storylines_current.get('games_in_system', 0)} 2026-27 storyline games loaded")
+    game_boxes = {"2627": dataset("2627_boxes", lambda: build_game_boxes(STATS_DIR))}
+    print(f"  {len(game_boxes['2627'])} 2026-27 game box scores loaded")
+    team_rosters = {"2627": dataset("2627_rosters", lambda: load_full_rosters(STATS_DIR))}
+    print(f"  {len(team_rosters['2627'])} 2026-27 full team rosters loaded")
+    conf_ff = {"2627": dataset("2627_conf_ff", lambda: build_conference_four_factors(STATS_DIR))}
+    print(f"  {len(conf_ff['2627'].get('full', []))} 2026-27 conference four-factor rows")
     # opponent ratings (season ORtg/DRtg) for per-game lineup opponent adjustment
     _opp_ratings = {t["team"]: {"ortg": t.get("ortg", 0), "drtg": t.get("drtg", 0)}
                     for t in teams if t.get("ortg")}
@@ -13518,6 +14051,7 @@ def main():
 
     empty = []
     empty_storylines = {}
+    teams_2025 = conf_teams_2025 = players_2025 = conf_players_2025 = rpi_2526 = empty
     teams_2024 = conf_teams_2024 = players_2024 = conf_players_2024 = rpi_2425 = empty
     teams_2023 = conf_teams_2023 = players_2023 = conf_players_2023 = rpi_2324 = empty
     teams_2022 = conf_teams_2022 = players_2022 = conf_players_2022 = rpi_2223 = empty
@@ -13525,10 +14059,11 @@ def main():
     teams_2019 = conf_teams_2019 = players_2019 = conf_players_2019 = rpi_1920 = empty
     teams_1819 = conf_teams_1819 = players_1819 = conf_players_1819 = rpi_1819 = empty
     teams_1718 = conf_teams_1718 = players_1718 = conf_players_1718 = rpi_1718 = empty
-    storylines_2024 = storylines_2023 = storylines_2022 = storylines_2021 = empty_storylines
+    storylines_2025 = storylines_2024 = storylines_2023 = storylines_2022 = storylines_2021 = empty_storylines
     storylines_2019 = storylines_1819 = storylines_1718 = empty_storylines
     champion_data = {
-        "2526": infer_champion(STATS_DIR),
+        "2627": infer_champion(STATS_DIR),
+        "2526": infer_champion(STATS_DIR_2025),
         "2425": infer_champion(STATS_DIR_2024),
         "2324": infer_champion(STATS_DIR_2023),
         "2223": infer_champion(STATS_DIR_2022),
@@ -13542,6 +14077,7 @@ def main():
         print("Fast mode: skipping historical seasons.")
     else:
         season_specs = [
+            ("2526", "2025-26", STATS_DIR_2025),
             ("2425", "2024-25", STATS_DIR_2024),
             ("2324", "2023-24", STATS_DIR_2023),
             ("2223", "2022-23", STATS_DIR_2022),
@@ -13577,6 +14113,13 @@ def main():
                 f"{len(loaded[key]['players'])} players, "
                 f"{loaded[key]['storylines'].get('games_in_system', 0)} storyline games"
             )
+
+        teams_2025 = loaded["2526"]["teams"]
+        conf_teams_2025 = loaded["2526"]["conf_teams"]
+        players_2025 = loaded["2526"]["players"]
+        conf_players_2025 = loaded["2526"]["conf_players"]
+        storylines_2025 = loaded["2526"]["storylines"]
+        rpi_2526 = loaded["2526"]["rpi"]
 
         teams_2024 = loaded["2425"]["teams"]
         conf_teams_2024 = loaded["2425"]["conf_teams"]
@@ -13628,7 +14171,7 @@ def main():
         rpi_1718 = loaded["1718"]["rpi"]
 
     # Subset (Last 5 / Last 10 / Playoffs) datasets by season — current inline, historical lazy.
-    subset_by_season = {"2526": {
+    subset_by_season = {"2627": {
         "last5_teams": last5_teams, "last10_teams": last10_teams, "playoff_teams": playoff_teams,
         "last5_players": last5_players, "last10_players": last10_players, "playoff_players": playoff_players,
     }}
@@ -13659,7 +14202,10 @@ def main():
         teams_1718=teams_1718, conf_teams_1718=conf_teams_1718,
         players_1718=players_1718, conf_players_1718=conf_players_1718,
         storylines_1718=storylines_1718,
-        rpi_data_2526=rpi_2526, rpi_data_2425=rpi_2425,
+        rpi_data_2627=rpi_2627, rpi_data_2526=rpi_2526, rpi_data_2425=rpi_2425,
+        teams_2025=teams_2025, conf_teams_2025=conf_teams_2025,
+        players_2025=players_2025, conf_players_2025=conf_players_2025,
+        storylines_2025=storylines_2025,
         rpi_data_2324=rpi_2324, rpi_data_2223=rpi_2223,
         rpi_data_2122=rpi_2122, rpi_data_1920=rpi_1920,
         rpi_data_1819=rpi_1819, rpi_data_1718=rpi_1718,
@@ -13678,7 +14224,7 @@ def main():
         # Fast mode only refreshes current-season files; existing past-season
         # files keep serving the other seasons.
         writable = {k: v for k, v in season_files.items()
-                    if k in ("boxes_2526.js", "rosters_2526.js")}
+                    if k in ("boxes_2627.js", "rosters_2627.js")}
         print("Fast mode: past-season data files not rewritten.")
     else:
         writable = season_files

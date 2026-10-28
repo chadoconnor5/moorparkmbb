@@ -7,13 +7,16 @@
 | `scrape_team.py` | Scrape schedules and box scores from CCCMBCA |
 | `generate_team_stats.py` | Aggregate season stats from box score JSONs |
 | `update_advanced_analytics.py` | Compute advanced analytics (eFG%, TOV%) |
+| `build_preseason.py` | New season: last season's ratings as every team's start, SOS/NCSOS from this season's schedule |
+| `generate_leaderboard.py` | Build the published leaderboard: `../index.html` + `../season_data/` (repo root, GitHub Pages) |
 
 ## Daily Scraping (`scrape.py`) — use this during the season
 
 Low-traffic scraper. Each night it reads ONE page — the league composite
 (daily scoreboard, `cccmbca.prestosports.com/composite`) — to find every box
 score posted that day, fetches each box score once (both teams' folders get a
-copy), and re-checks games whose stats are missing until they're posted.
+copy). It touches only that night's games: older games still missing stats are
+re-checked only when you ask (`scrape.py missing`), never automatically.
 Requests are one at a time, 5–8 s apart, capped at 150 per run, and the run
 stops (progress saved) if the site rate-limits twice.
 
@@ -21,12 +24,16 @@ State lives in `scrape_state/<season>/`:
 - `master_schedule.json` — every game once, both teams
 - `ledger.json` — per-game status, box score URL, check history
 - `missing_boxscores.md` — games still missing stats, why, and the URL
+- `minutes_report.md` — per team, how many box scores have real minutes, and every game that
+  doesn't: `PLACEHOLDER` (every player listed at 1 minute), `WRONG_TOTAL` (real-looking minutes that
+  don't add up to 190–275), `NONE`. Each box score file also carries `minutes_quality` per team.
 
 Statuses: `COMPLETE` · `PARTIAL` (one team's stats missing) · `NO_BOX` (no box
-score / no stats yet) · `STALE` (still missing after 21 days; no longer
-auto-checked) · `POSTPONED` · `FORFEIT` · `NOT_TRACKED` (TBA / exhibition) ·
-`SCHEDULED`. Missing games are re-checked daily for 3 days, every 2 days to a
-week, then weekly until day 21.
+score / no stats yet) · `STALE` (given up on in older ledgers;
+`missing --include-stale` re-checks them) · `POSTPONED` · `FORFEIT` · `NOT_TRACKED` (TBA / exhibition) ·
+`SCHEDULED`. Missing games are never re-checked automatically: run
+`scrape.py status` to see them and `scrape.py missing` (optionally `--team`,
+`--conference`, `--date 2026-11-14 [--to 2026-11-20]`) to re-check them.
 
 ```bash
 # --- Master schedule (once, when schedules are posted; ~100 requests, ~11 min) ---
