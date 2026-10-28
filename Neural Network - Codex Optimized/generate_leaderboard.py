@@ -478,7 +478,51 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
             "fanmatch_score": round(100.0 * (1.0 - abs(wp - 0.5) * 2.0), 2),
             "upset_score": None, "dominance_score": None, "tension_score": None,
         })
+    # Later bracket rounds (brackets.json): one row per game, linked to the games feeding it; then the other TBA
+    # games (tournaments without a bracket entered): one row per game, the TBA teams at a site paired up.
+    import brackets as _brk
+    results = {(r["date"], frozenset((r["winner"], r["loser"]))): r["winner"] for r in rows}
+    existing = {(g["date"], frozenset((g["winner"], g["loser"]))) for g in out} | set(results)
+    brows, covered = _brk.fanmatch(season, results, existing)
+    blank = {"upcoming": True, "projected": False, "score": "", "margin": None, "overtimes": 0, "conference": False,
+             "pregame_winner_net": None, "pregame_loser_net": None, "pregame_model_wp_winner": None,
+             "fanmatch_score": None, "upset_score": None, "dominance_score": None, "tension_score": None}
+    out += [dict(blank, **b, tba=True) for b in brows if not b["result"]]
+    sites = {}
+    for team, rs in load_season_schedules(season).items():
+        for date, opp, copp, loc, conf, time, notes, host in rs:
+            if copp or str(opp).strip().upper() not in ("TBA", "TBD") or (team, date) in covered:
+                continue
+            site = team if loc == "Home" else host if loc == "Neutral" and host else None
+            sites.setdefault((date, site or team), []).append((team, loc == "Home"))
+    for (date, site), ts in sites.items():
+        if len(ts) == 1:
+            team, home = ts[0]
+            out.append(dict(blank, date=date, time="", tba=True, winner="TBA" if home else team, loser=team if home else "TBA",
+                            home_team=team if home else None, host=None if home or site == team else site))
+        else:
+            for _ in range((len(ts) + 1) // 2):
+                out.append(dict(blank, date=date, time="", tba=True, winner="TBA", loser="TBA", home_team=None,
+                                host=site, slot=True))
     return out
+
+
+def _bracket_paths(stats_dir: Path, rows: list) -> dict:
+    """brackets.team_paths for the season (none before 2026-27): where a win / loss sends each bracket team."""
+    m = re.search(r"(\d{4}-\d{2})", str(stats_dir))
+    if not m or not Path(f"{m.group(1)} Schedule Screenshots").exists():
+        return {}
+    import brackets as _brk
+    return _brk.team_paths(m.group(1), {(r["date"], frozenset((r["winner"], r["loser"]))): r["winner"] for r in rows})
+
+
+def _sl_time_key(t):
+    """Minutes after midnight for "5:00 PM"; no time sorts last."""
+    m = re.match(r"\s*(\d{1,2}):(\d{2})\s*([AP]M)", str(t or ""), re.I)
+    if not m:
+        return 24 * 60
+    h = int(m.group(1)) % 12 + (12 if m.group(3).upper() == "PM" else 0)
+    return h * 60 + int(m.group(2))
 
 
 def _with_hosts(stats_dir: Path, games: list) -> list:
@@ -517,8 +561,10 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
         "bust_games":     _sl_top_n(rows, "bust_score", top),
+        "bracket_paths": _bracket_paths(stats_dir, rows),
         "fanmatch_games": sorted(_with_hosts(stats_dir, rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale)),
-                                 key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1))),
+                                 key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
+                                                _sl_time_key(r.get("time")), bool(r.get("tba")))),
         "lines_of_night": lines_of_night,
     }
 
@@ -11859,6 +11905,13 @@ function buildTeamDetail(t) {{
     const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host]) => {{
       const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
       if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
+      const path = !copp && /^(TBA|TBD)$/i.test(String(opp).trim()) ? (((activeStorylines() || {{}}).bracket_paths || {{}})[t.team] || {{}})[date] : null;
+      if (path && path.length) {{
+        const one = path.length === 1 && !/^(Winner|Loser) /.test(path[0].opp);
+        return {{ date, opponent: one ? path[0].opp : 'TBA', canonical_opponent: one ? path[0].opp : 'TBA', is_conference: !!conf, location: loc,
+                 time: one ? path[0].time : '', notes, host, result: '',
+                 pathHtml: one ? '' : path.map(p => `<div style="font-size:0.72rem;color:#555;white-space:nowrap">${{p.cond}} \u2192 ${{p.opp}} \u00b7 ${{p.time}}${{p.label ? ' (' + p.label + ')' : ''}}</div>`).join('') }};
+      }}
       return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
     }});
     games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
@@ -11927,7 +11980,7 @@ function buildTeamDetail(t) {{
     scheduleHtml += `<tr class="${{rowClass}}">
       <td style="text-align:left;white-space:nowrap;${{cellBg}}">${{dateStr}}</td>
       <td style="text-align:center;${{cellBg}}">${{teamRank}}</td>
-      <td style="text-align:left;${{cellBg}}">${{oppLink}}${{oppRankHtml}}${{oppNetHtml}}${{confMarker}}</td>
+      <td style="text-align:left;${{cellBg}}">${{oppLink}}${{oppRankHtml}}${{oppNetHtml}}${{confMarker}}${{gr.pathHtml || ''}}</td>
       <td style="text-align:center;${{cellBg}}">${{boxCell}}</td>
       <td style="text-align:left;font-weight:600;${{cellBg}}">${{resultStr}}</td>
       <td style="text-align:center;${{cellBg}}">${{loc}}</td>
@@ -13640,10 +13693,11 @@ function __slRenderTrendsNow() {{
 
 function slGameCell(g) {{
   if (g.upcoming && !g.projected) {{
-    return '<td class="sl-game-cell">' +
-      '<span class="sl-game-winner">' + teamPageLink(g.winner) + '</span>' +
+    const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3)">' + n + '</span>' : teamPageLink(n);
+    return '<td class="sl-game-cell">' + (g.label ? '<span style="font-size:0.72rem;color:var(--ink-3)">' + g.label + ': </span>' : '') +
+      '<span class="sl-game-winner">' + lk(g.winner) + '</span>' +
       (g.home_team ? ' at ' : ' vs ') +
-      '<span class="sl-game-loser">' + teamPageLink(g.loser) + '</span>' +
+      '<span class="sl-game-loser">' + lk(g.loser) + '</span>' +
       '</td>';
   }}
   if (g.upcoming) {{
