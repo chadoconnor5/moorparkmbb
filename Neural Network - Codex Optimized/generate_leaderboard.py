@@ -5737,6 +5737,15 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .trends-tbl thead th {{ color: var(--ink-2); border-bottom-color: var(--line); }}
   .trends-tbl tbody td {{ border-bottom-color: var(--line-soft); }}
   .trends-tbl tbody tr:hover td {{ background: #eef2f7 !important; color: var(--ink) !important; }}
+  /* Table header rows: one dark color (#252e3b) on every screen, white text; overrides the per-view header styles */
+  th, thead th, .sl-table th, .trends-tbl thead th, .td-scouting th, .td-schedule th, .bx-table th,
+  #teamstats-content .ts-table th, #player-content .pp-table th, #minmatrix-content th {{
+    background: #252e3b !important;
+    color: #fff !important;
+    border-color: #1d2733 !important;
+  }}
+  th:hover {{ background: #323d4d !important; }}
+  th.active {{ color: #ffcf70 !important; }}
 </style>
 </head>
 <body>
