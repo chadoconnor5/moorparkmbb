@@ -611,6 +611,14 @@ shot), **SCORE%** (trips with a point), **2ND CH** (points after an offensive re
 steals) and **CHG/OFF** (charges / other offensive fouls committed). Game, half and season scopes all have it.
 FTs made now go in the ⬇ Lineup file too.
 
+## Published rosters (before any box score)
+
+**`poss/rosters.json`** (`export_ratings.py`, from the rosters typed in off the teams' sites) has every team's
+numbers, names, heights and years. The tracker downloads it when it opens online (and when it comes back to the
+front) and fills the roster of every team on our schedule, in a tournament field or already in the roster list:
+a roster never saved by hand gets every listed player; one you've saved only gets blank names / heights / years
+filled. Nothing typed on the iPad is replaced and a player you took away doesn't come back.
+
 ## Opponent ratings, live (every game re-graded nightly)
 
 The leaderboard build writes **`poss/ratings.json`** every night (`export_ratings.py`): every in-system team's

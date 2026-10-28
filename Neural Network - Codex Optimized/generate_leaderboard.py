@@ -4,6 +4,8 @@ from pathlib import Path
 import argparse
 import csv
 import json
+from ccc_config import NO_TEAM as _NO_TEAM
+import season_rosters as _season_rosters
 import math
 import re
 import shutil
@@ -343,6 +345,11 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
     return lotn
 
 
+# FanMatch projects an upcoming game only once both teams have this many games of the season (before that the
+# ratings are mostly last season's); fewer, and the game is listed without a projection.
+MIN_PROJ_GAMES = 5
+
+
 def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float) -> list:
     """FanMatch for games not played yet: every scheduled in-system game (the typed-in schedules,
     build_master_schedule.py) without a result, with a projected score and win probability from the
@@ -381,6 +388,15 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
             continue
         ra, rh = ratings[a], ratings[h]
         home = h if g["site"] == "home" else None
+        if min(len(ra.get("game_ratings") or []), len(rh.get("game_ratings") or [])) < MIN_PROJ_GAMES:
+            out.append({
+                "date": ds, "upcoming": True, "projected": False, "winner": a, "loser": h, "score": "",
+                "margin": None, "overtimes": 0, "home_team": home, "time": g.get("time", ""),
+                "conference": bool(g.get("conference")),
+                "pregame_winner_net": None, "pregame_loser_net": None, "pregame_model_wp_winner": None,
+                "fanmatch_score": None, "upset_score": None, "dominance_score": None, "tension_score": None,
+            })
+            continue
         edge = hca_points if home else 0.0
         net_a, net_h = ra["ortg"] - ra["drtg"], rh["ortg"] - rh["drtg"]
         wp_h = _sl_logistic((net_h - net_a + edge) / max(wp_scale, 1e-6))
@@ -395,7 +411,7 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
         if pf <= pd:
             pf = pd + 1
         out.append({
-            "date": ds, "upcoming": True, "winner": fav, "loser": dog, "score": f"{pf}-{pd}",
+            "date": ds, "upcoming": True, "projected": True, "winner": fav, "loser": dog, "score": f"{pf}-{pd}",
             "margin": None, "overtimes": 0, "home_team": home, "time": g.get("time", ""),
             "conference": bool(g.get("conference")),
             "pregame_winner_net": round(nf, 1), "pregame_loser_net": round(nd, 1),
@@ -425,7 +441,7 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "tension_games":  _sl_top_n(rows, "tension_score", top),
         "bust_games":     _sl_top_n(rows, "bust_score", top),
         "fanmatch_games": sorted(rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale),
-                                 key=lambda r: (_sl_date_sort_key(r["date"]), -r["fanmatch_score"])),
+                                 key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1))),
         "lines_of_night": lines_of_night,
     }
 
@@ -5841,6 +5857,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <button class="season-btn" id="btn-season-25" onclick="switchSeason('2425')">25</button>
   <span style="color:#aaa;font-size:0.9rem">|</span>
   <button class="season-btn" id="btn-season-26" onclick="switchSeason('2526')">26</button>
+  <span style="color:#aaa;font-size:0.9rem">|</span>
   <button class="season-btn active" id="btn-season-27" onclick="switchSeason('2627')">27</button>
 </div>
 <div class="info" id="page-info">{len(players)} qualified players · 30% minutes played minimum · Click any column header to sort · Generated {timestamp}</div>
@@ -6910,6 +6927,11 @@ let currentTeamMode = 'advanced';
 const CONF_SECTIONS = {_jc({c: info["region"] for c, info in CONFERENCES.items()})};
 const ALL_CONFS = {_jc(sorted(CONFERENCES.keys()))};
 const TEAMS_BY_CONF = {_jc({c: sorted(info["teams"]) for c, info in CONFERENCES.items()})};
+// Members with no team that season (ccc_config.NO_TEAM), by season key: left out of that season's team filter.
+// 2026-27 rosters typed in from the teams' sites (season_rosters.py): [num, name, pos, ht, yr], shown on Team Stats
+// for a team with no player stats yet.
+const PRESEASON_ROSTERS = {_jc({t: [[r["num"], r["name"], r["pos"], r["ht"], r["yr"]] for r in rs] for t, rs in _season_rosters.load().items()})};
+const NO_TEAM = {_jc({k[2:4] + k[5:7]: sorted(v) for k, v in _NO_TEAM.items()})};
 
 let curRegion = 'All';
 let selConfs = new Set();   // empty = All
@@ -6956,7 +6978,8 @@ function buildTeamPanel() {{
   panel.innerHTML = '';
   const validConfs = selConfs.size > 0 ? [...selConfs] : ALL_CONFS.filter(c => curRegion === 'All' || CONF_SECTIONS[c] === curRegion);
   const available = [];
-  validConfs.forEach(c => {{ (TEAMS_BY_CONF[c] || []).forEach(t => available.push(t)); }});
+  const noTeam = NO_TEAM[activeSeason] || [];
+  validConfs.forEach(c => {{ (TEAMS_BY_CONF[c] || []).forEach(t => {{ if (!noTeam.includes(t)) available.push(t); }}); }});
   available.forEach(t => {{
     const lbl = document.createElement('label');
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = t;
@@ -7963,6 +7986,7 @@ function switchSeason(season) {{
 
 function __switchSeasonNow(season) {{
   activeSeason = season;
+  buildTeamPanel();
   const modeSel = document.getElementById('team-mode-select');
   const mode = modeSel ? modeSel.value : 'advanced';
   const isDefense = document.getElementById('btn-defense') && document.getElementById('btn-defense').classList.contains('active');
@@ -8058,7 +8082,7 @@ function __switchSeasonNow(season) {{
   if (tsDiv && tsDiv.style.display !== 'none' && teamStatsReturnTeam) {{
     const tName = teamStatsReturnTeam;
     ensureRosters(activeSeason, () => {{
-      if ((TEAM_ROSTERS[activeSeason] || {{}})[tName]) renderTeamStats(tName);
+      if ((TEAM_ROSTERS[activeSeason] || {{}})[tName] || (activeSeason === '2627' && PRESEASON_ROSTERS[tName])) renderTeamStats(tName);
       else closeTeamStats();
     }});
   }}
@@ -9900,6 +9924,7 @@ function __tsAdvTable(rows, advOk, teamName, ranks) {{
 function renderTeamStats(teamName) {{
   const t = activeFullTeamData().find(d => d.team === teamName);
   const roster = (TEAM_ROSTERS[activeSeason] || {{}})[teamName];
+  if (t && !roster && activeSeason === '2627' && PRESEASON_ROSTERS[teamName]) {{ renderPreseasonRoster(t); return; }}
   if (!t || !roster) {{ alert('No roster data for this team.'); return; }}
   const rows = roster.players || [];
   const advOk = roster.adv === 1;
@@ -9958,6 +9983,25 @@ function renderTeamStats(teamName) {{
       All players, no minutes qualification · ${{teamStatsMode === 'advanced' ? 'Layout follows KenPom team player stats; bands by %Poss used · ' : ''}}Season: ${{activeSeason === '2627' ? '2026-27' : activeSeason === '2526' ? '2025-26' : activeSeason}}
     </div>
   </div>`;
+  document.getElementById('team-detail-view').style.display = 'none';
+  document.getElementById('teamstats-view').style.display = 'block';
+  window.scrollTo(0, 0);
+}}
+
+/* Before a team's first game: its roster as listed on its site (number, name, position, height, year). */
+function renderPreseasonRoster(t) {{
+  const rows = PRESEASON_ROSTERS[t.team].map(r => '<tr><td style="padding:5px 10px;text-align:right">' + r[0] + '</td>'
+    + '<td style="padding:5px 10px;font-weight:600">' + r[1] + '</td><td style="padding:5px 10px">' + (r[2] || '\u2014') + '</td>'
+    + '<td style="padding:5px 10px;text-align:right">' + (r[3] || '\u2014') + '</td><td style="padding:5px 10px">' + (r[4] || '\u2014') + '</td></tr>').join('');
+  const th = l => '<th style="background:#252e3b;color:#fff;padding:6px 10px;text-align:left;font-size:0.8rem">' + l + '</th>';
+  document.getElementById('teamstats-content').innerHTML =
+    '<div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">'
+    + '<h2 style="color:#fff;font-size:1.6rem;margin:4px 0">' + t.team + ' \u2014 2026-27 Roster</h2>'
+    + '<div style="color:#aeb9c6;font-size:0.9rem">' + t.conference + ' \u00b7 ' + t.region + ' Region</div></div>'
+    + '<div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto;max-width:fit-content;margin:0 auto">'
+    + '<table style="border-collapse:collapse;font-size:0.9rem;white-space:nowrap"><thead><tr>' + th('#') + th('Name') + th('Pos') + th('Ht') + th('Yr') + '</tr></thead>'
+    + '<tbody>' + rows + '</tbody></table>'
+    + '<div style="font-size:0.72rem;color:#888;margin-top:8px">From the team\u2019s roster page \u00b7 player stats replace this after its first game</div></div>';
   document.getElementById('team-detail-view').style.display = 'none';
   document.getElementById('teamstats-view').style.display = 'block';
   window.scrollTo(0, 0);
@@ -10132,7 +10176,7 @@ function __kxRenderExplorer(pool,entry,seasons,teamNames){{
   const teamOpts=teamNames.map(t=>`<option value="${{t}}" ${{t===currentKeysTeam?'selected':''}}>${{t}}</option>`).join('');
   const tenSeasons=(entry.windows['5yr']&&entry.windows['5yr'].seasons)?entry.windows['5yr'].seasons.filter(s=>KX_SEASON_KEY[s]):['2025-26'];
   const span=tenSeasons.length>1?(tenSeasons[0]+' to '+tenSeasons[tenSeasons.length-1]):tenSeasons[0];
-  const coach=entry.coach||'';
+  const coach=entry.windows['5yr']?(entry.coach||''):'';
   const analyzeOpts=`<option value="tenure" ${{kxWindow==='tenure'?'selected':''}}>${{span}}${{coach?(' (all under '+coach+')'):''}}</option><option value="cur" ${{kxWindow==='cur'?'selected':''}}>2025-26 only</option>`;
   const viewOpts=['all'].concat(seasons).map(v=>`<option value="${{v}}" ${{kxView===v?'selected':''}}>${{v==='all'?'All Seasons':v}}</option>`).join('');
   const mSel=i=>seln('<option value="">— none —</option>'+allMetrics.map(k=>`<option value="${{k}}" ${{kxSel[i]===k?'selected':''}}>${{kxLabel(k)}}</option>`).join(''),`kxSetMetric(${{i}},this.value)`);
@@ -13502,6 +13546,13 @@ function __slRenderTrendsNow() {{
 // ─── End Trends Tab ───────────────────────────────────────────────
 
 function slGameCell(g) {{
+  if (g.upcoming && !g.projected) {{
+    return '<td class="sl-game-cell">' +
+      '<span class="sl-game-winner">' + teamPageLink(g.winner) + '</span>' +
+      (g.home_team ? ' at ' : ' vs ') +
+      '<span class="sl-game-loser">' + teamPageLink(g.loser) + '</span>' +
+      '</td>';
+  }}
   if (g.upcoming) {{
     const p = (g.score || '').split('-');
     return '<td class="sl-game-cell">' +
@@ -13556,11 +13607,12 @@ function slGameRow(g, idx, cols) {{
     const cls = wpW <= 35 ? ' sl-wp-low' : '';
     const ot = g.overtimes > 0 ? (g.overtimes > 1 ? g.overtimes + 'OT' : 'OT') : '';
     const otTxt = ot ? ' <span style="font-size:0.7rem;color:#888">' + ot + '</span>' : '';
-    detail = '<td class="sl-detail-cell' + cls + '">' + wpW + '% / ' + wpL + '%</td>';
+    detail = g.upcoming && !g.projected ? '<td class="sl-detail-cell">\u2014</td>'
+      : '<td class="sl-detail-cell' + cls + '">' + wpW + '% / ' + wpL + '%</td>';
     const upsetVal = (g.upset_score != null && g.upset_score > 0) ? g.upset_score : '\u2014';
     const domVal   = g.dominance_score != null ? g.dominance_score : '\u2014';
     const tenVal   = g.tension_score  != null ? g.tension_score   : '\u2014';
-    value = '<td class="sl-val-cell">' + g.fanmatch_score + otTxt + '</td>'
+    value = '<td class="sl-val-cell">' + (g.fanmatch_score != null ? g.fanmatch_score : '\u2014') + otTxt + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + upsetVal + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + domVal + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + tenVal + '</td>';
@@ -13651,8 +13703,11 @@ function slRenderFanmatch(dateStr) {{
   const prev = document.getElementById('sl-cal-prev');
   const next = document.getElementById('sl-cal-next');
   if (lbl) lbl.textContent = dateStr || '';
-  const _proj = fm.filter(g => g.upcoming).length;
-  if (cnt) cnt.textContent = fm.length + ' game' + (fm.length !== 1 ? 's' : '') + (_proj ? ' \u00b7 ' + (_proj === fm.length ? 'projected' : _proj + ' projected') : '');
+  const _proj = fm.filter(g => g.upcoming && g.projected).length;
+  const _sched = fm.filter(g => g.upcoming && !g.projected).length;
+  if (cnt) cnt.textContent = fm.length + ' game' + (fm.length !== 1 ? 's' : '')
+    + (_proj ? ' \u00b7 ' + (_proj === fm.length ? 'projected' : _proj + ' projected') : '')
+    + (_sched ? ' \u00b7 ' + (_sched === fm.length ? 'scheduled' : _sched + ' not projected yet') : '');
   if (prev) prev.disabled = slFanmatchIdx <= 0;
   if (next) next.disabled = slFanmatchIdx >= slFanmatchDates.length - 1;
   // Line o' the Night
@@ -13727,7 +13782,7 @@ function slRenderFanmatch(dateStr) {{
       + '</div>';
     summaryEl.innerHTML = summaryHtml + summaryLine;
   }} }}
-  const fmProj = fmAll.filter(g => g.upcoming);
+  const fmProj = fmAll.filter(g => g.upcoming && g.projected);
   if (summaryEl && fmProj.length) {{
     const expFav = fmProj.reduce((s, g) => s + (g.pregame_model_wp_winner || 0.5), 0);
     const projPts = (fmProj.reduce((s, g) => {{ const [a, b] = g.score.split('-').map(Number); return s + a + b; }}, 0) / fmProj.length).toFixed(1);
@@ -13735,7 +13790,7 @@ function slRenderFanmatch(dateStr) {{
       + '<span class="lotn-label" style="font-size:0.68rem">Projected:</span>'
       + fmProj.length + ' game' + (fmProj.length !== 1 ? 's' : '') + ' \u2022 Favorites expected: <b>' + expFav.toFixed(1) + '-' + (fmProj.length - expFav).toFixed(1) + '</b>'
       + ' \u2022 Projected pts/game: <b>' + projPts + '</b>'
-      + '<br><span style="color:#93a0ad">From current ratings: last season’s until a team plays, then fading toward this season’s.</span></div>';
+      + '<br><span style="color:#93a0ad">Only games where both teams have played 5+ games this season; ratings still blend in last season’s as they fade.</span></div>';
   }}
 }}
 // ─────────────────────────────────────────────────────────────────────
@@ -14001,8 +14056,8 @@ def main():
          "seasons": ["2022-23", "2023-24", "2024-25", "2025-26"]},
         {"team": "Diablo Valley", "coach": "Ervin Anderson", "windows": ["5yr", "cur"],
          "seasons": ["2023-24", "2024-25", "2025-26"]},
-        {"team": "Lemoore", "coach": "Jovan Joe", "windows": ["5yr", "cur"],
-         "seasons": ["2024-25", "2025-26"]},
+        # Mark Avila, interim for 2026-27 (replaced Jovan Joe): no seasons under him yet, so current season only
+        {"team": "Lemoore", "coach": "Mark Avila (interim)", "windows": ["cur"]},
         {"team": "Redwoods", "coach": "Justin Claus", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
         # Coaches added 2026-06-23 from user (tenure ranges as given).

@@ -61,6 +61,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 build_preseason.py               # new season: every team starts at last season's ORtg/DRtg/net (+ tempo);
                                            #   SOS/NCSOS = this season's schedule rated by last season's net. Teams
                                            #   with games are left to update_advanced_analytics.py (prior fades in)
+- Rosters typed in from the teams' roster pages: `2026-27 Rosters/<Conference>/<Team>/roster.json` (+ screenshot;
+  height_adjustments.json for teams that list heights high). season_rosters.py loads them for the leaderboard (Team
+  Stats shows a team's roster until its first game) and export_ratings.py (-> ../poss/rosters.json; the tracker fills
+  opponent rosters from it, never replacing what was typed on the iPad). ccc_config.NO_TEAM lists members with no
+  team in a season (Alameda 2026-27): no preseason rating, off that season's leaderboard.
+- FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
+  that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:
                                            #    Moorpark gold, Moorpark opponents vs each other blue, other opponent games red)
 - List all teams:

@@ -25,6 +25,15 @@ CONFERENCES = {
     "Golden Valley": ["Feather River", "Redwoods", "Butte", "Shasta", "Siskiyous", "Lassen"],
 }
 
+# Members with no team that season: no preseason rating, so they stay off that season's leaderboard.
+NO_TEAM = {
+    "2026-27": {"Alameda"},
+}
+
+
+def fields_team(team_name: str, season: str) -> bool:
+    return team_name not in NO_TEAM.get(season, set())
+
 
 def season_base_url(season: str) -> str:
     return f"https://cccmbca.org/sports/mbkb/{season}"
