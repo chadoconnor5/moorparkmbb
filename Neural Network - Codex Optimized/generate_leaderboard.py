@@ -2459,6 +2459,12 @@ def _pack_rows(node):
     return node
 
 
+def _jtag(name, payload):
+    """Inert JSON <script> tag for a lazily-parsed dataset (__lazyData in the page)."""
+    safe = payload.replace("</", "<\\/")  # a "</script>" inside the JSON must not close the tag
+    return '<script type="application/json" id="data-' + name + '">' + safe + '</script>'
+
+
 def _embed(obj):
     """Serialize a dataset for embedding: columnar-packed + compact JSON."""
     return _jc(_pack_rows(obj))
@@ -4231,7 +4237,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WSC North Individual Statistics Leaderboard - 2025-26</title>
+<title>WSC North Statistics Leaderboard - 2025-26 (Redesign)</title>
 <script>try{{if(sessionStorage.getItem('lbNav'))document.documentElement.classList.add('lb-restoring');}}catch(e){{}}</script>
 <style>
   /* When restoring a saved spot on refresh, hide all content until the restore runs
@@ -4239,95 +4245,122 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   html.lb-restoring [id$="-view"], html.lb-restoring .filter-bar,
   html.lb-restoring #page-title, html.lb-restoring #page-subtitle,
   html.lb-restoring #page-info {{ display: none !important; }}
+  :root {{
+    --bg: #f4f5f7;          /* page background */
+    --surface: #ffffff;     /* cards, tables, controls */
+    --ink: #1c2733;         /* primary text */
+    --ink-2: #4f5a67;       /* secondary text */
+    --ink-3: #8b95a3;       /* tertiary text, captions, rank chips */
+    --line: #d9dee6;        /* standard borders */
+    --line-soft: #edf0f4;   /* row separators */
+    --head-bg: #f3f5f8;     /* table header background */
+    --navy: #1f3a5f;        /* primary brand */
+    --link: #1a5dab;        /* hyperlinks */
+    --accent: #b4531f;      /* active sort, sparingly */
+    --tint: rgba(31, 58, 95, 0.07);  /* active column wash */
+    --hover-row: #eef2f7;
+    --zebra: #f7f9fb;
+    --sidebar: #242f3c;        /* EvanMiya sidebar navy */
+    --sidebar-head: #1d2733;
+    --sidebar-ink: #aeb9c6;
+    --sidebar-accent: #5b9bd5;
+  }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0a0a0a;
-    color: #000;
-    padding: 20px;
+    font-family: "Noto Sans", Lato, "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 0 26px 48px;
+    margin-left: 210px;   /* room for the fixed sidebar */
   }}
   h1 {{
-    text-align: center;
-    font-size: 1.6rem;
-    margin-bottom: 4px;
-    color: #fff;
+    text-align: left;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 16px 0 2px;
+    color: var(--ink);
   }}
   .subtitle {{
-    text-align: center;
+    text-align: left;
     font-size: 0.85rem;
-    color: #fff;
-    margin-bottom: 16px;
+    color: var(--ink-2);
+    margin-bottom: 10px;
   }}
   .season-toggle {{
     display: none;
     justify-content: center;
     align-items: center;
     gap: 10px;
-    margin: -8px 0 12px;
+    margin: -2px 0 10px;
   }}
   .season-btn {{
     background: none;
     border: none;
-    color: #4fc3f7;
-    font-size: 1rem;
-    font-weight: 700;
+    color: var(--ink-3);
+    font-size: 0.92rem;
+    font-weight: 600;
     cursor: pointer;
     padding: 2px 6px;
-    border-radius: 4px;
-    opacity: 0.45;
-    transition: opacity 0.15s;
+    transition: color 0.15s;
   }}
+  .season-btn:hover {{ color: var(--navy); }}
   .season-btn.active {{
-    opacity: 1;
+    color: var(--navy);
+    font-weight: 700;
     text-decoration: underline;
+    text-underline-offset: 3px;
   }}
   .adv-cat-btn {{
-    background: none;
-    border: 1px solid #555;
-    color: #bbb;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
     font-size: 0.77rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 3px 10px;
+    border-radius: 3px;
     transition: all 0.15s;
     white-space: nowrap;
   }}
   .adv-cat-btn:hover {{
-    border-color: #4fc3f7;
-    color: #4fc3f7;
+    border-color: var(--navy);
+    color: var(--navy);
   }}
   .adv-cat-btn.active {{
-    background: #4fc3f7;
-    border-color: #4fc3f7;
-    color: #1a1a2e;
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
   }}
   .adv-section-hdr {{
-    background: #1e3a5f !important;
+    background: #eef2f7 !important;
     text-align: center;
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     padding: 5px 8px;
-    color: #eef4ff !important;
+    color: var(--navy) !important;
     letter-spacing: 0.03em;
-    border-top: 2px solid #2a5a8a;
+    border-top: 1px solid var(--line);
   }}
   .info {{
-    text-align: center;
+    text-align: left;
     font-size: 0.78rem;
-    color: #fff;
-    margin-bottom: 20px;
+    color: var(--ink-3);
+    margin-bottom: 18px;
   }}
   .table-wrap {{
     overflow-x: auto;
-    border-radius: 8px;
-    border: 1px solid #bbb;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
   table {{
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }}
   thead {{
     position: sticky;
@@ -4335,36 +4368,39 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     z-index: 2;
   }}
   th {{
-    background: #1a1a2e;
-    color: #fff;
-    padding: 10px 12px;
+    background: var(--head-bg);
+    color: var(--ink-2);
+    padding: 8px 12px;
     text-align: right;
     cursor: pointer;
     user-select: none;
-    border-bottom: 2px solid #333;
-    transition: background 0.15s;
+    font-size: 0.74rem;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid var(--line);
+    transition: background 0.15s, color 0.15s;
   }}
-  th:hover {{ background: #252545; }}
-  th.active {{ color: #4fc3f7; }}
-  th.active.asc::after {{ content: ' ▲'; font-size: 0.7rem; }}
-  th.active.desc::after {{ content: ' ▼'; font-size: 0.7rem; }}
-  td.active-col {{ box-shadow: inset 0 0 0 100px rgba(79, 195, 247, 0.15); }}
+  th:hover {{ background: #e9edf3; color: var(--ink); }}
+  th.active {{ color: var(--accent); }}
+  th.active.asc::after {{ content: ' ▲'; font-size: 0.6rem; }}
+  th.active.desc::after {{ content: ' ▼'; font-size: 0.6rem; }}
+  td.active-col {{ box-shadow: inset 0 0 0 100px var(--tint); }}
   th:nth-child(1), th:nth-child(2), th:nth-child(3) {{
     text-align: left;
   }}
   td {{
-    padding: 8px 12px;
-    border-bottom: 1px solid #ccc;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--line-soft);
     text-align: right;
-    color: #000;
+    color: var(--ink);
   }}
-  td:nth-child(1) {{ text-align: center; color: #000; font-size: 0.8rem; }}
-  td:nth-child(2) {{ text-align: left; font-weight: 600; color: #000; }}
-  td:nth-child(3) {{ text-align: left; font-weight: 700; }}
-  tr:hover td {{ background: #c0c0c0; }}
-  tr:nth-child(odd) td {{ background: #d9d9d9; }}
-  tr:nth-child(even) td {{ background: #fff; }}
-  tr:nth-child(even):hover td {{ background: #c0c0c0; }}
+  td:nth-child(1) {{ text-align: center; color: var(--ink-3); font-size: 0.78rem; }}
+  td:nth-child(2) {{ text-align: left; font-weight: 600; color: var(--ink); }}
+  td:nth-child(3) {{ text-align: left; font-weight: 600; }}
+  tr:hover td {{ background: var(--hover-row); }}
+  tr:nth-child(odd) td {{ background: var(--surface); }}
+  tr:nth-child(even) td {{ background: var(--zebra); }}
+  tr:nth-child(even):hover td {{ background: var(--hover-row); }}
 
   /* Individual Basic Stats: cap the Name column so a long name can't stretch it */
   #leaderboard th:nth-child(2), #leaderboard td:nth-child(2) {{
@@ -4376,12 +4412,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   #team-adv-offense-leaderboard tbody td:nth-child(5),
   #team-adv-offense-leaderboard tbody td:nth-child(9),
   #team-adv-offense-leaderboard tbody td:nth-child(14) {{
-    border-left: 2px solid #555;
+    border-left: 1px solid #c9d1db;
   }}
 
   #team-adv-defense-leaderboard tbody td:nth-child(5),
   #team-adv-defense-leaderboard tbody td:nth-child(13) {{
-    border-left: 2px solid #555;
+    border-left: 1px solid #c9d1db;
   }}
 
   @media (max-width: 768px) {{
@@ -4389,158 +4425,263 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     th, td {{ padding: 6px 8px; font-size: 0.78rem; }}
   }}
 
-  .toggle-wrap {{
-    text-align: center;
-    margin-bottom: 16px;
-    white-space: nowrap;
+  /* ── Team page Form card (last 5/10 games) ── */
+  .td-form {{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
-  .toggle-wrap button {{
-    padding: 8px 20px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    border: 2px solid #4fc3f7;
-    background: transparent;
-    color: #4fc3f7;
-    cursor: pointer;
-    transition: all 0.15s;
-  }}
-  .toggle-wrap button:first-child {{
-    border-radius: 6px 0 0 6px;
-  }}
-  .toggle-wrap button:last-child {{
-    border-radius: 0 6px 6px 0;
-  }}
-  .toggle-wrap button:not(:first-child):not(:last-child) {{
-    border-radius: 0;
-  }}
-  .toggle-wrap button.active {{
-    background: #4fc3f7;
-    color: #0a0a0a;
+  .td-form-head {{ display: flex; align-items: center; justify-content: center; gap: 14px; border-bottom: 2px solid var(--sidebar); padding-bottom: 6px; margin-bottom: 14px; }}
+  .td-form-title {{ font-size: 0.95rem; font-weight: 700; color: var(--ink); }}
+  .td-form-seg {{ display: inline-flex; }}
+  .td-form-btn {{ background: var(--surface); border: 1px solid #ced4da; color: var(--ink-2); font-weight: 600; padding: 2px 12px; font-size: 0.76rem; cursor: pointer; transition: all 0.15s; }}
+  .td-form-btn:first-child {{ border-radius: 3px 0 0 3px; }}
+  .td-form-btn:last-child {{ border-radius: 0 3px 3px 0; margin-left: -1px; }}
+  .td-form-btn:hover {{ color: var(--navy); }}
+  .td-form-btn.active {{ background: var(--navy); border-color: var(--navy); color: #fff; position: relative; z-index: 1; }}
+  .td-form-flex {{ display: flex; gap: 34px; align-items: flex-end; flex-wrap: wrap; justify-content: center; }}
+  .td-spark {{ display: flex; align-items: flex-end; gap: 6px; height: 96px; }}
+  .td-bar-wrap {{ display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }}
+  .td-bar-wrap:hover .td-bar {{ filter: brightness(1.15); }}
+  .td-bar {{ width: 22px; border-radius: 2px 2px 0 0; }}
+  .td-bar.w {{ background: #1e8e4b; }}
+  .td-bar.l {{ background: #cf5548; }}
+  .td-bar-m {{ font-size: 0.62rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }}
+  .td-spark-note {{ font-size: 0.68rem; color: var(--ink-3); text-align: center; margin-top: 5px; }}
+  .td-form-side {{ min-width: 210px; }}
+  .td-form-line {{ display: flex; justify-content: space-between; align-items: center; gap: 18px; font-size: 0.84rem; padding: 5px 2px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }}
+  .td-adjbar {{ position: relative; width: 90px; height: 12px; background: var(--line-soft); border-radius: 2px; display: inline-block; }}
+  .td-adjmid {{ position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: #aab3bf; }}
+  .td-adjfill {{ position: absolute; top: 0; height: 100%; border-radius: 2px; }}
+  @media (max-width: 900px) {{
+    body {{ margin-left: 0; }}
+    .toggle-center {{
+      position: static;
+      width: auto;
+      order: -1;
+      flex: 1 1 100%;
+      margin: -10px -22px 0;
+      padding: 0 0 6px;
+    }}
+    .toggle-center::before {{ margin-bottom: 4px; padding: 12px 16px; }}
+    .toggle-wrap {{ display: flex; flex-wrap: wrap; margin-bottom: 0; }}
+    .toggle-wrap button {{ width: auto; border-left: none; border-bottom: 3px solid transparent; padding: 9px 12px; }}
+    .toggle-wrap button.active {{ border-bottom-color: var(--sidebar-accent); }}
+    .top-bar .team-search-wrap {{ position: static; margin-top: 10px; }}
   }}
 
+  .toggle-wrap {{
+    margin-bottom: 8px;
+    white-space: normal;
+  }}
+  .toggle-wrap button {{
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    border: none;
+    border-left: 3px solid transparent;
+    background: transparent;
+    color: var(--sidebar-ink);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+  }}
+  .toggle-wrap button:hover {{
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+  }}
+  .toggle-wrap button.active {{
+    color: #fff;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.10);
+    border-left-color: var(--sidebar-accent);
+  }}
+  .toggle-wrap button::before {{
+    content: "";
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    background-color: currentColor;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+    mask: var(--icon) center / contain no-repeat;
+  }}
+  #btn-team        {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>'); }}
+  #btn-individual  {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>'); }}
+  #btn-charts      {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M3 3v18h18"/><circle cx="9" cy="13" r="1.6"/><circle cx="14" cy="8" r="1.6"/><circle cx="18" cy="15" r="1.6"/></svg>'); }}
+  #btn-keys        {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M11 12l9-9m-4 4l3 3"/></svg>'); }}
+  #btn-fanmatch    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'); }}
+  #btn-universe    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>'); }}
+  #btn-storylines  {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>'); }}
   .sub-toggle-wrap {{
     display: none;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 0;
     padding: 4px 0;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }}
   #btn-offense, #btn-defense {{
-    background: transparent;
-    border: 2px solid #ffa726;
-    color: #ffa726;
-    padding: 4px 16px;
-    border-radius: 20px;
-    font-size: 0.82rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    padding: 5px 18px;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
   }}
+  #btn-offense {{ border-radius: 3px 0 0 3px; }}
+  #btn-defense {{ border-radius: 0 3px 3px 0; margin-left: -1px; }}
+  #btn-offense:hover, #btn-defense:hover {{
+    color: var(--navy);
+    border-color: #b9c4d2;
+  }}
   #btn-offense.active, #btn-defense.active {{
-    background: #ffa726;
-    color: #1a1a2e;
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+    position: relative;
+    z-index: 1;
   }}
   .team-mode-wrap {{
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-left: 4px;
+    margin-left: 16px;
   }}
   .team-mode-wrap label {{
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    color: #ddd;
+    color: var(--ink-2);
   }}
   .team-mode-wrap select {{
     padding: 4px 8px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    border: 2px solid #ffa726;
-    border-radius: 6px;
-    background: #161616;
-    color: #ffa726;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--ink);
     outline: none;
+    cursor: pointer;
   }}
+  .team-mode-wrap select:hover {{ border-color: #b9c4d2; }}
   .top-bar {{
     display: flex;
     align-items: flex-end;
-    margin-bottom: 16px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 18px;
+    margin: 0 -26px 18px;
     position: relative;
-    min-height: 44px;
+    min-height: 54px;
+    padding: 10px 22px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
   }}
   .team-search-wrap {{
     position: absolute;
-    right: 0;
-    bottom: 0;
+    right: 22px;
+    bottom: 12px;
   }}
   .team-search-wrap input {{
-    background: #e8e8e8;
-    border: 1px solid #ccc;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 4px;
     padding: 6px 12px;
     font-size: 0.82rem;
     width: 180px;
-    color: #333;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }}
+  .team-search-wrap input:focus {{
+    border-color: var(--navy);
   }}
   .team-search-wrap input::placeholder {{
-    color: #999;
+    color: var(--ink-3);
   }}
   .team-search-wrap .search-dropdown {{
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
-    background: #fff;
-    border: 1px solid #ccc;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-top: none;
     border-radius: 0 0 4px 4px;
     max-height: 200px;
     overflow-y: auto;
     display: none;
     z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 16px rgba(28, 39, 51, 0.12);
   }}
   .team-search-wrap .search-dropdown div {{
     padding: 6px 12px;
     font-size: 0.82rem;
     cursor: pointer;
-    color: #333;
+    color: var(--ink-2);
   }}
   .team-search-wrap .search-dropdown div:hover {{
-    background: #e0e0e0;
+    background: #f1f4f8;
+    color: var(--ink);
   }}
+  /* ── EvanMiya-style fixed left sidebar (repositioned nav container; DOM untouched) ── */
   .toggle-center {{
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    position: fixed;
+    left: 0;
+    top: 0;
     bottom: 0;
+    width: 210px;
+    background: var(--sidebar);
+    z-index: 50;
+    overflow-y: auto;
+    padding: 0 0 16px;
+    text-align: left;
+    transform: none;
+  }}
+  .toggle-center::before {{
+    content: "WSC NORTH";
+    display: block;
+    padding: 17px 18px 15px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: var(--sidebar-head);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 10px;
   }}
   .conf-toggle-label {{
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 6px;
+    gap: 7px;
+    width: fit-content;
+    margin: 0 auto 12px;
     justify-content: center;
     cursor: pointer;
   }}
   .conf-toggle-label input[type="checkbox"] {{
-    width: 16px;
-    height: 16px;
-    accent-color: #4fc3f7;
+    width: 15px;
+    height: 15px;
+    accent-color: var(--navy);
     cursor: pointer;
   }}
   .conf-toggle-text {{
-    color: #ccc;
+    color: var(--ink-2);
     font-size: 0.82rem;
-    font-weight: 500;
+    font-weight: 600;
     user-select: none;
   }}
   .conf-toggle-label:hover .conf-toggle-text {{
-    color: #fff;
+    color: var(--ink);
   }}
   .filter-bar {{
     display: flex;
@@ -4551,62 +4692,68 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .filter-group {{
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
   }}
   .filter-bar label {{
-    color: #fff;
-    font-size: 0.78rem;
-    font-weight: 600;
+    color: var(--ink);
+    font-size: 0.8rem;
+    font-weight: 700;
   }}
   .filter-bar select {{
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
-    padding: 6px 10px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
+    padding: 7px 12px;
     border-radius: 4px;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
     cursor: pointer;
+    min-width: 150px;
   }}
   .filter-bar select:hover {{
-    border-color: #81d4fa;
+    border-color: #b9c4d2;
   }}
   .multi-select {{
     position: relative;
     display: inline-block;
   }}
   .multi-select .ms-btn {{
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
-    padding: 6px 10px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
+    padding: 7px 12px;
     border-radius: 4px;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
     cursor: pointer;
-    min-width: 120px;
+    min-width: 150px;
     text-align: left;
     white-space: nowrap;
+    transition: border-color 0.15s;
   }}
   .multi-select .ms-btn:hover {{
-    border-color: #81d4fa;
+    border-color: #b9c4d2;
   }}
   .multi-select .ms-btn::after {{
     content: ' ▼';
     float: right;
     margin-left: 8px;
+    font-size: 0.62rem;
+    color: var(--ink-3);
+    line-height: 1.8;
   }}
   .ms-panel {{
     display: none;
     position: absolute;
     top: 100%;
     left: 0;
-    background: #1a1a2e;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 4px;
     z-index: 100;
     min-width: 160px;
     max-height: 220px;
     overflow-y: auto;
     padding: 4px 0;
+    box-shadow: 0 6px 16px rgba(28, 39, 51, 0.12);
   }}
   .ms-panel.open {{
     display: block;
@@ -4617,17 +4764,18 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     padding: 4px 10px;
     cursor: pointer;
     font-size: 0.82rem;
-    color: #fff;
+    color: var(--ink-2);
     gap: 6px;
   }}
   .ms-panel label:hover {{
-    background: #252545;
+    background: #f1f4f8;
+    color: var(--ink);
   }}
   .ms-panel input[type="checkbox"] {{
-    accent-color: #4fc3f7;
+    accent-color: var(--navy);
   }}
   .ms-panel input[type="radio"] {{
-    accent-color: #4fc3f7;
+    accent-color: var(--navy);
   }}
 
   /* Universe chart */
@@ -4750,10 +4898,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .td-back:hover {{ text-decoration: underline; }}
   .td-header {{
     text-align: center;
-    background: #1a1a2e;
-    border-radius: 8px;
+    background: var(--sidebar);
+    border: 1px solid var(--sidebar-head);
+    border-radius: 6px;
     padding: 20px;
     margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(28, 39, 51, 0.15);
   }}
   .td-logo-wrap {{
     display: flex;
@@ -4768,11 +4918,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     max-height: 112px;
     object-fit: contain;
   }}
-  .td-header h1 {{ font-size: 2rem; margin-bottom: 4px; }}
-  .td-header .td-rank {{ color: #4fc3f7; font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }}
-  .td-header .td-meta {{ color: #ccc; font-size: 0.9rem; }}
+  .td-header h1 {{ font-size: 2rem; margin-bottom: 4px; color: #fff; text-align: center; }}
+  .td-header .td-rank {{ color: var(--sidebar-accent); font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }}
+  .td-header .td-meta {{ color: var(--sidebar-ink); font-size: 0.9rem; }}
   .td-header .td-record {{ color: #fff; font-size: 1.2rem; font-weight: 700; margin-top: 6px; }}
-  .td-header .td-coach {{ color: #aaa; font-size: 0.88rem; margin-top: 4px; }}
+  .td-header .td-coach {{ color: #93a0ad; font-size: 0.88rem; margin-top: 4px; }}
   .td-content {{
     display: flex;
     gap: 24px;
@@ -4813,10 +4963,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     padding-bottom: 3px;
   }}
   .td-scouting table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
-  .td-scouting th {{ background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: center; font-size: 0.78rem; border-bottom: 2px solid #333; }}
+  .td-scouting th {{ background: var(--sidebar); color: #e7ecf2; padding: 6px 8px; text-align: center; font-size: 0.74rem; font-weight: 650; border-bottom: 1px solid var(--sidebar-head); }}
   .td-scouting td {{ padding: 5px 8px; border-bottom: 1px solid #eee; font-size: 0.82rem; white-space: nowrap; }}
   .td-schedule table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
-  .td-schedule th {{ background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: center; font-size: 0.78rem; border-bottom: 2px solid #333; }}
+  .td-schedule th {{ background: var(--sidebar); color: #e7ecf2; padding: 6px 8px; text-align: center; font-size: 0.74rem; font-weight: 650; border-bottom: 1px solid var(--sidebar-head); }}
   .td-schedule td {{ padding: 5px 6px; border-bottom: 1px solid #eee; font-size: 0.8rem; white-space: nowrap; }}
   .td-schedule tr:hover td {{ background: #f0f0f0; }}
   .td-schedule tr.sched-win td {{ background: rgb(0,255,0) !important; color: #000 !important; }}
@@ -4845,7 +4995,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     height: 100%;
     cursor: pointer;
   }}
-  #opp-float-tip, #pace-float-tip {{
+  #opp-float-tip, #pace-float-tip, #td-form-tip {{
     display: none;
     position: fixed;
     background: rgba(30,30,50,0.96);
@@ -4861,18 +5011,18 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }}
-  #opp-float-tip::after, #pace-float-tip::after {{
+  #opp-float-tip::after, #pace-float-tip::after, #td-form-tip::after {{
     content: '';
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     border: 6px solid transparent;
   }}
-  #opp-float-tip.above::after, #pace-float-tip.above::after {{
+  #opp-float-tip.above::after, #pace-float-tip.above::after, #td-form-tip.above::after {{
     top: 100%;
     border-top-color: rgba(30,30,50,0.96);
   }}
-  #opp-float-tip.below::after, #pace-float-tip.below::after {{
+  #opp-float-tip.below::after, #pace-float-tip.below::after, #td-form-tip.below::after {{
     bottom: 100%;
     border-bottom-color: rgba(30,30,50,0.96);
   }}
@@ -4911,7 +5061,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     margin: 0 0 14px;
   }}
   .sl-table-outer {{ text-align: center; }}
-  .sl-table-wrap {{ display: inline-block; overflow-x: auto; border-radius: 8px; border: 1px solid #bbb; text-align: left; }}
+  .sl-table-wrap {{ display: inline-block; overflow-x: auto; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05); text-align: left; }}
   .sl-table {{
     width: auto;
     min-width: 560px;
@@ -4921,23 +5071,24 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-table th {{
     padding: 7px 10px;
     text-align: left;
-    font-weight: 600;
-    color: #fff;
+    font-weight: 650;
+    font-size: 0.74rem;
+    color: #e7ecf2;
     white-space: nowrap;
-    background: #1a1a2e;
+    background: var(--sidebar);
     cursor: default;
-    border-bottom: 2px solid #333;
+    border-bottom: 1px solid var(--sidebar-head);
   }}
   .sl-table th.sl-th-r {{ text-align: right; }}
   .sl-table td {{
     padding: 7px 10px;
-    border-bottom: 1px solid #ccc;
-    color: #000 !important;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink) !important;
     vertical-align: top;
     font-weight: 400 !important;
   }}
-  .sl-table tbody tr:hover td {{ background: #c0c0c0; }}
-  .mp-gold-row td {{ background: #ffe599 !important; }}
+  .sl-table tbody tr:hover td {{ background: var(--hover-row); }}
+  .mp-gold-row td {{ background: #fcf2d8 !important; }}
   .sl-rank {{
     text-align: right;
     padding-right: 14px !important;
@@ -5023,18 +5174,20 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-wab-btn:hover {{ background: #333; color: #fff; }}
   .sl-wab-btn.active {{ background: #1a1a2e; color: #fff; border-color: #4a6fa5; }}
   .lotn-wrap {{
-    background: #141414;
-    border: 1px solid #2a3a5a;
+    background: var(--sidebar);
+    border: 1px solid var(--sidebar-head);
     border-radius: 6px;
     padding: 10px 16px;
-    margin: 14px 0 0 0;
+    margin: 14px auto 0;
+    max-width: 860px;
     font-size: 0.82rem;
-    color: #ccc;
+    color: #cfd6de;
     text-align: center;
+    box-shadow: 0 1px 3px rgba(28, 39, 51, 0.15);
   }}
   .lotn-label {{
     display: block;
-    color: #6a8fd8;
+    color: var(--sidebar-accent);
     font-weight: 700;
     margin-bottom: 6px;
     white-space: nowrap;
@@ -5042,8 +5195,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }}
-  .lotn-player {{ color: #f0f0f0; font-weight: 600; }}
-  .lotn-pts {{ color: #f9c74f; font-weight: 700; }}
+  .lotn-player {{ color: #fff; font-weight: 600; }}
+  .lotn-pts {{ color: #f4c95d; font-weight: 700; }}
   .sl-wab-pos {{ color: #1565c0 !important; font-weight: 700; }}
   .sl-wab-neg {{ color: #c62828 !important; font-weight: 700; }}
   .sl-wab-bubble-line {{ pointer-events: none; }}
@@ -5136,25 +5289,26 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     max-width: 200px;
   }}
   .trends-team-card {{
-    border: 1px solid #333;
+    border: 1px solid var(--line);
     border-radius: 6px;
     padding: 10px 16px;
     margin-bottom: 14px;
-    background: #111827;
+    background: var(--surface);
     display: flex;
     flex-wrap: wrap;
     gap: 10px 20px;
     align-items: center;
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
   .trends-card-name {{
     font-size: 15px;
     font-weight: 700;
-    color: #fff;
+    color: var(--ink);
   }}
   .trends-card-season {{
     font-size: 12px;
     padding-left: 14px;
-    border-left: 1px solid #333;
+    border-left: 1px solid var(--line);
   }}
   .trends-table-outer {{
     overflow-x: auto;
@@ -5187,21 +5341,21 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     font-weight: 700;
     font-size: 13px;
   }}
-  .trends-tbl tbody tr:hover td {{ background: rgba(255,255,255,0.05) !important; color: #e0e0e0 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-good1 {{ color: #6ee7a0 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-good2 {{ color: #22c55e !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-good3 {{ color: #4ade80 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-bad1  {{ color: #fca5a5 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-bad2  {{ color: #f87171 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-bad3  {{ color: #ff4444 !important; }}
-  .trends-tbl tbody tr:hover td.trends-td-na    {{ color: #444 !important; }}
-  .trends-td-na {{ color: #444; }}
-  .trends-td-good1 {{ color: #6ee7a0; }}
-  .trends-td-good2 {{ color: #22c55e; font-weight: 600; }}
-  .trends-td-good3 {{ color: #4ade80; font-weight: 700; }}
-  .trends-td-bad1  {{ color: #fca5a5; }}
-  .trends-td-bad2  {{ color: #f87171; font-weight: 600; }}
-  .trends-td-bad3  {{ color: #ff4444; font-weight: 700; }}
+  .trends-tbl tbody tr:hover td {{ background: var(--hover-row) !important; color: var(--ink) !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-good1 {{ color: #43a06d !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-good2 {{ color: #1e8e4b !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-good3 {{ color: #0c7a3c !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-bad1  {{ color: #d9857b !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-bad2  {{ color: #cf5548 !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-bad3  {{ color: #b3261e !important; }}
+  .trends-tbl tbody tr:hover td.trends-td-na    {{ color: #b0b8c2 !important; }}
+  .trends-td-na {{ color: #b0b8c2; }}
+  .trends-td-good1 {{ color: #43a06d; }}
+  .trends-td-good2 {{ color: #1e8e4b; font-weight: 600; }}
+  .trends-td-good3 {{ color: #0c7a3c; font-weight: 700; }}
+  .trends-td-bad1  {{ color: #d9857b; }}
+  .trends-td-bad2  {{ color: #cf5548; font-weight: 600; }}
+  .trends-td-bad3  {{ color: #b3261e; font-weight: 700; }}
   #trends-tooltip {{
     position: fixed;
     background: rgba(20,20,30,0.95);
@@ -5218,12 +5372,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   /* --- Charts --- */
   .charts-shell {{
     max-width: 1180px;
-    margin: 0 auto;
-    color: #111;
+    margin: 0;
+    color: var(--ink);
   }}
   .charts-toolbar {{
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: flex-end;
     flex-wrap: wrap;
     gap: 14px;
@@ -5231,23 +5385,27 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   }}
   .charts-segment {{
     display: inline-flex;
-    border: 1px solid #4fc3f7;
-    border-radius: 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
     overflow: hidden;
+    background: var(--surface);
   }}
   .charts-segment button {{
     border: 0;
-    border-right: 1px solid #4fc3f7;
+    border-right: 1px solid #ced4da;
     background: transparent;
-    color: #4fc3f7;
+    color: var(--ink-2);
     padding: 7px 18px;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 0.84rem;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s;
   }}
   .charts-segment button:last-child {{ border-right: 0; }}
+  .charts-segment button:hover {{ color: var(--navy); }}
   .charts-segment button.active {{
-    background: #4fc3f7;
-    color: #0a0a0a;
+    background: var(--navy);
+    color: #fff;
   }}
   .charts-segment button:disabled {{
     opacity: 0.45;
@@ -5256,9 +5414,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .charts-control-grid {{
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
     align-items: flex-end;
-    justify-content: center;
+    justify-content: flex-start;
   }}
   .charts-control-group {{
     display: flex;
@@ -5266,30 +5424,34 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     gap: 3px;
   }}
   .charts-control-group label {{
-    color: #ddd;
-    font-size: 0.74rem;
+    color: var(--ink);
+    font-size: 0.78rem;
     font-weight: 700;
   }}
   .charts-control-group select {{
     min-width: 160px;
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
     border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 0.8rem;
+    padding: 7px 10px;
+    font-size: 0.82rem;
+    cursor: pointer;
   }}
+  .charts-control-group select:hover {{ border-color: #b9c4d2; }}
   .metric-combo {{ position: relative; display: inline-block; }}
   .metric-combo-input {{
     min-width: 210px;
-    background: #1a1a2e;
-    color: #fff;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid #ced4da;
     border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 0.8rem;
+    padding: 7px 10px;
+    font-size: 0.82rem;
+    outline: none;
   }}
-  .metric-combo-input::placeholder {{ color: #6a6a85; }}
+  .metric-combo-input:focus {{ border-color: var(--navy); }}
+  .metric-combo-input::placeholder {{ color: var(--ink-3); }}
   .metric-combo-list {{
     position: absolute;
     z-index: 60;
@@ -5297,38 +5459,41 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     margin-top: 2px;
     max-height: 260px;
     overflow-y: auto;
-    background: #13131f;
-    border: 1px solid #4fc3f7;
+    background: var(--surface);
+    border: 1px solid var(--line);
     border-radius: 4px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+    box-shadow: 0 6px 16px rgba(28, 39, 51, 0.12);
   }}
-  .metric-combo-opt {{ padding: 6px 9px; font-size: 0.78rem; color: #dfeaff; cursor: pointer; white-space: nowrap; }}
-  .metric-combo-opt:hover {{ background: #1d3a5c; }}
-  .metric-combo-opt.sel {{ background: #24507a; font-weight: 700; }}
-  .metric-combo-empty {{ padding: 6px 9px; font-size: 0.78rem; color: #888; }}
+  .metric-combo-opt {{ padding: 6px 9px; font-size: 0.78rem; color: var(--ink-2); cursor: pointer; white-space: nowrap; }}
+  .metric-combo-opt:hover {{ background: #f1f4f8; color: var(--ink); }}
+  .metric-combo-opt.sel {{ background: #e3ecf6; color: var(--navy); font-weight: 700; }}
+  .metric-combo-empty {{ padding: 6px 9px; font-size: 0.78rem; color: var(--ink-3); }}
   .charts-action-row {{
     display: flex;
     gap: 5px;
   }}
   .charts-action-row button {{
-    border: 1px solid #4fc3f7;
+    border: 1px solid #ced4da;
     border-radius: 4px;
-    background: #111827;
-    color: #dff4ff;
-    padding: 6px 9px;
+    background: var(--surface);
+    color: var(--ink-2);
+    padding: 7px 10px;
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s;
   }}
   .charts-action-row button:hover {{
-    background: #1d3557;
+    background: #eef2f7;
+    color: var(--ink);
   }}
   .charts-panel {{
-    background: #f7f7f7;
-    border: 1px solid #d7d7d7;
-    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
     padding: 18px;
     position: relative;
+    box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05);
   }}
   .chart-heading {{
     text-align: center;
@@ -5415,11 +5580,39 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     margin-bottom: 5px;
     font-size: 0.82rem;
   }}
+
+  /* ================================================================
+     Light-theme legibility overrides for tabs not yet redesigned
+     (Miscellaneous, FanMatch, Keys, Team Detail). These only prevent
+     white-on-white text; full redesign of those tabs comes later.
+     ================================================================ */
+  .td-back {{ color: var(--link); }}
+  .sl-nav a {{ color: var(--link); }}
+  .sl-nav a.sl-active {{ color: var(--ink); }}
+  .sl-nav-sep {{ color: #b6bdc7; }}
+  .sl-page-title {{ color: var(--ink); }}
+  .sl-game-count {{ color: var(--ink-2); }}
+  .sl-cal-date {{ color: var(--ink); }}
+  .sl-cal-btn {{ background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }}
+  .sl-cal-btn:hover {{ background: #eef2f7; color: var(--ink); }}
+  #sl-date-input {{ background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }}
+  .sl-wab-btn {{ background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }}
+  .sl-wab-btn:hover {{ background: #eef2f7; color: var(--ink); }}
+  .sl-wab-btn.active {{ background: var(--navy); color: #fff; border-color: var(--navy); }}
+  .trends-ctl-group label {{ color: var(--ink-2); }}
+  .trends-month-btn {{ background: var(--surface); border-color: var(--line); color: var(--ink-2); }}
+  .trends-month-btn:hover {{ background: #eef2f7; color: var(--ink); }}
+  .trends-month-btn.active {{ background: var(--navy); color: #fff; border-color: var(--navy); }}
+  .trends-team-sel {{ background: var(--surface); border-color: var(--line); color: var(--ink); }}
+  .trends-tbl thead th {{ color: var(--ink-2); border-bottom-color: var(--line); }}
+  .trends-tbl tbody td {{ border-bottom-color: var(--line-soft); }}
+  .trends-tbl tbody tr:hover td {{ background: #eef2f7 !important; color: var(--ink) !important; }}
 </style>
 </head>
 <body>
 <div id="opp-float-tip"></div>
 <div id="pace-float-tip"></div>
+<div id="td-form-tip"></div>
 
 <div class="top-bar">
   <div class="filter-bar">
@@ -5459,10 +5652,6 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <button id="btn-universe" onclick="showView('universe')">Universe</button>
       <button id="btn-storylines" onclick="showView('storylines')">Miscellaneous</button>
     </div>
-    <label class="conf-toggle-label" id="conf-toggle-wrap">
-      <input type="checkbox" id="conf-toggle" onchange="toggleConfMode(this.checked)">
-      <span class="conf-toggle-text">Conference Only</span>
-    </label>
   </div>
   <div class="team-search-wrap">
     <input type="text" id="team-search-input" placeholder="Search Teams" oninput="onTeamSearch()" onfocus="onTeamSearch()">
@@ -5489,6 +5678,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     </select>
   </div>
 </div>
+
+<label class="conf-toggle-label" id="conf-toggle-wrap">
+  <input type="checkbox" id="conf-toggle" onchange="toggleConfMode(this.checked)">
+  <span class="conf-toggle-text">Conference Only</span>
+</label>
 
 <h1 id="page-title">Individual Statistics Leaderboard</h1>
 <div class="subtitle" id="page-subtitle">2025-26 Season — Per-Game Averages</div>
@@ -5535,6 +5729,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <button class="adv-cat-btn" data-cat="ftp" onclick="switchIndCat('ftp')">FT%</button>
   <button class="adv-cat-btn" data-cat="bpm2" onclick="switchIndCat('bpm2')">BPM 2.0</button>
   <button class="adv-cat-btn" data-cat="porp" onclick="switchIndCat('porp')">PRPG!</button>
+  <button class="adv-cat-btn" data-cat="pir" onclick="switchIndCat('pir')">PIR</button>
   <button class="adv-cat-btn" data-cat="per" onclick="switchIndCat('per')">PER</button>
   <button class="adv-cat-btn" data-cat="ws" onclick="switchIndCat('ws')">Win Shares</button>
   </div>
@@ -5815,21 +6010,21 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th rowspan="2" data-col="team" data-type="str" data-table="advo" style="cursor:pointer;vertical-align:bottom;text-align:left" onclick="doAdvOffSort('team','str')">Team</th>
   <th rowspan="2" data-col="gp" data-type="num" data-table="advo" style="cursor:pointer;vertical-align:bottom" onclick="doAdvOffSort('gp','num')">GP</th>
   <th rowspan="2" data-col="ortg" data-type="num" data-table="advo" style="cursor:pointer;vertical-align:bottom" onclick="doAdvOffSort('ortg','num')">ORTg</th>
-  <th colspan="4" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Shooting</th>
-  <th colspan="5" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Ball Handling</th>
-  <th colspan="4" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Play Style</th>
+  <th colspan="4" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Shooting</th>
+  <th colspan="5" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Ball Handling</th>
+  <th colspan="4" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Play Style</th>
 </tr>
 <tr>
-  <th data-col="ts_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvOffSort('ts_pct','num')">TS%</th>
+  <th data-col="ts_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvOffSort('ts_pct','num')">TS%</th>
   <th data-col="twop" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('twop','num')">2P%</th>
   <th data-col="tpp" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tpp','num')">3P%</th>
   <th data-col="ftp" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ftp','num')">FT%</th>
-  <th data-col="ast_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvOffSort('ast_pct','num')">AST%</th>
+  <th data-col="ast_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvOffSort('ast_pct','num')">AST%</th>
   <th data-col="ast_ratio" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ast_ratio','num')">AST Ratio</th>
   <th data-col="tov_pct" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tov_pct','num')">TOV%</th>
   <th data-col="ast_tov" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ast_tov','num')">AST/TOV</th>
   <th data-col="nst_pct" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('nst_pct','num')" title="Non-Steal Turnover %: (TO − Opp STL) / Possessions">NST%</th>
-  <th data-col="oreb_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvOffSort('oreb_pct','num')">ORB%</th>
+  <th data-col="oreb_pct" data-type="num" data-table="advo" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvOffSort('oreb_pct','num')">ORB%</th>
   <th data-col="ft_rate" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('ft_rate','num')">FTA Rate</th>
   <th data-col="tpa_pct" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tpa_pct','num')">3PAr</th>
   <th data-col="tempo" data-type="num" data-table="advo" style="cursor:pointer" onclick="doAdvOffSort('tempo','num')">Pace</th>
@@ -5849,11 +6044,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th rowspan="2" data-col="team" data-type="str" data-table="advd" style="cursor:pointer;vertical-align:bottom;text-align:left" onclick="doAdvDefSort('team','str')">Team</th>
   <th rowspan="2" data-col="gp" data-type="num" data-table="advd" style="cursor:pointer;vertical-align:bottom" onclick="doAdvDefSort('gp','num')">GP</th>
   <th rowspan="2" data-col="drtg" data-type="num" data-table="advd" style="cursor:pointer;vertical-align:bottom" onclick="doAdvDefSort('drtg','num')">DRTg</th>
-  <th colspan="8" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Defense Overall</th>
-  <th colspan="5" style="text-align:center;border-bottom:1px solid #555;border-left:2px solid #555;font-size:0.75rem;color:#aaa;font-weight:600">Foul Tendencies</th>
+  <th colspan="8" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Defense Overall</th>
+  <th colspan="5" style="text-align:center;border-bottom:1px solid #c9d1db;border-left:1px solid #c9d1db;font-size:0.68rem;color:#6b7684;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">Foul Tendencies</th>
 </tr>
 <tr>
-  <th data-col="drebpg" data-type="num" data-table="advd" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvDefSort('drebpg','num')">DRB</th>
+  <th data-col="drebpg" data-type="num" data-table="advd" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvDefSort('drebpg','num')">DRB</th>
   <th data-col="dreb_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('dreb_pct','num')">DRB%</th>
   <th data-col="spg" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('spg','num')">STL</th>
   <th data-col="stl_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('stl_pct','num')">STL%</th>
@@ -5861,7 +6056,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th data-col="bpg" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('bpg','num')">BLK</th>
   <th data-col="blk_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('blk_pct','num')">BLK%</th>
   <th data-col="hkm_pct" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('hkm_pct','num')">HKM%</th>
-  <th data-col="pf_total" data-type="num" data-table="advd" style="cursor:pointer;border-left:2px solid #555" onclick="doAdvDefSort('pf_total','num')">PF</th>
+  <th data-col="pf_total" data-type="num" data-table="advd" style="cursor:pointer;border-left:1px solid #c9d1db" onclick="doAdvDefSort('pf_total','num')">PF</th>
   <th data-col="pfpg" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('pfpg','num')">PF/G</th>
   <th data-col="pf_eff" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('pf_eff','num')">PF Eff</th>
   <th data-col="stl_pf" data-type="num" data-table="advd" style="cursor:pointer" onclick="doAdvDefSort('stl_pf','num')">STL/PF</th>
@@ -6029,11 +6224,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       </tr></thead><tbody id="sl-body-quads"></tbody></table></div></div>
     </div>
     <div id="sl-tab-trank" class="sl-tab-content" style="display:none">
-      <div style="display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:0.85rem;color:#ccc">Four factors:
+      <div style="display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:0.85rem;color:var(--ink-2)">Four factors:
         <button id="trank-ff-adj" onclick="slTrankSetFF('adj')" title="Opponent-adjusted, like AdjO/AdjD: each game moved by how the opponent does on that factor">Opp-adjusted</button>
         <button id="trank-ff-raw" onclick="slTrankSetFF('raw')" title="Season totals as played">Raw</button></div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="trank-table"><thead>
-        <tr id="trank-avg-row" style="background:#1a1a2e;color:#aaa;font-size:0.72rem;font-style:italic">
+        <tr id="trank-avg-row" style="background:#eef2f7;color:#6b7684;font-size:0.72rem;font-style:italic">
           <td colspan="4" style="text-align:right;padding:2px 6px;color:#666">Lg Avg &rarr;</td>
           <td class="sl-th-r" id="trank-avg-adjoe" style="padding:2px 6px"></td>
           <td class="sl-th-r" id="trank-avg-adjde" style="padding:2px 6px"></td>
@@ -6127,7 +6322,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     <div id="sl-tab-conf" class="sl-tab-content" style="display:none">
       <div class="sl-wab-filter" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0 14px">
         <span style="font-size:13px;color:#555;font-weight:600">Data scope:</span>
-        <select id="conf-scope" onchange="slRenderConf()" style="font-size:13px;padding:4px 8px;border-radius:5px;border:1px solid #888;background:#1a1a2e;color:#fff">
+        <select id="conf-scope" onchange="slRenderConf()" style="font-size:13px;padding:5px 10px;border-radius:4px;border:1px solid #ced4da;background:#fff;color:#1c2733;cursor:pointer">
           <option value="nonconf" selected>Non-Conference</option>
           <option value="conf">Conference</option>
           <option value="full">Full Season</option>
@@ -6207,7 +6402,39 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   </div>
 </div>
 
+{_jtag('DAILY_RANKS', daily_ranks_json)}
+{_jtag('MOORPARK_LINEUPS', moorpark_lineups_json)}
+{_jtag('TEAM_KEYS', team_keys_json)}
+{_jtag('STORYLINES', storylines_json)}
+{_jtag('CONF_DATA', conf_players_json)}
+{_jtag('LAST5_TEAM_DATA', last5_teams_json)}
+{_jtag('LAST10_TEAM_DATA', last10_teams_json)}
+{_jtag('PLAYOFF_TEAM_DATA', playoff_teams_json)}
+{_jtag('LAST5_DATA', last5_players_json)}
+{_jtag('LAST10_DATA', last10_players_json)}
+{_jtag('PLAYOFF_DATA', playoff_players_json)}
 <script>
+// Lazy data: heavy, view-specific datasets live in inert JSON <script> tags
+// below and are parsed on first access (JSON.parse with JS-eval fallback), so
+// page load skips them. Assigning to the name later replaces the getter.
+function __lazyData(name) {{
+  let cached, done = false;
+  Object.defineProperty(window, name, {{
+    configurable: true,
+    get() {{
+      if (!done) {{
+        done = true;
+        const el = document.getElementById('data-' + name);
+        const txt = el ? el.textContent : 'null';
+        let v; try {{ v = JSON.parse(txt); }} catch (e) {{ v = (0, eval)('(' + txt + ')'); }}
+        cached = __unpack(v);
+        if (el) el.textContent = '';
+      }}
+      return cached;
+    }},
+    set(v) {{ Object.defineProperty(window, name, {{ value: v, writable: true, configurable: true }}); }}
+  }});
+}}
 // --- Data decoding & lazy season loading ---
 // Datasets are embedded columnar: uniform lists of objects arrive as
 // {{"__c": [keys], "__r": [[values], ...]}} and are expanded here.
@@ -6302,7 +6529,7 @@ function ensureBoxes(key, cb) {{
   const s = document.createElement('script');
   s.src = 'season_data/boxes_' + key + '.js';
   s.onload = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; w.forEach(f => f()); }};
-  s.onerror = () => {{ delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); }};
+  s.onerror = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
 }}
 // --- Full team rosters (no minutes qualification), lazy per season ---
@@ -6320,7 +6547,7 @@ function ensureRosters(key, cb) {{
   const s = document.createElement('script');
   s.src = 'season_data/rosters_' + key + '.js';
   s.onload = () => {{ const w = __rosterWaiters[key] || []; delete __rosterWaiters[key]; w.forEach(f => f()); }};
-  s.onerror = () => {{ delete __rosterWaiters[key]; console.error('Roster data file missing: rosters_' + key + '.js'); }};
+  s.onerror = () => {{ const w = __rosterWaiters[key] || []; delete __rosterWaiters[key]; console.error('Roster data file missing: rosters_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
 }}
 
@@ -6444,7 +6671,7 @@ function renderBoxScore(g) {{
 const DATA = __unpack({players_json});
 const TEAM_DATA = __fixGames(__unpack({teams_json}));
 const LEAGUE_AVG = __unpack({league_avg_json});
-const DAILY_RANKS = __unpack({daily_ranks_json});
+__lazyData('DAILY_RANKS');  // deferred: parsed on first access
 const REL_RATINGS = __unpack({rel_ratings_2526_json});
 const REL_RATINGS_2024 = __unpack({rel_ratings_2425_json});
 const REL_RATINGS_2023 = __unpack({rel_ratings_2324_json});
@@ -6462,9 +6689,9 @@ const TEAM_SECONDARY_COLORS = __unpack({school_secondary_colors_json});
 const TEAM_LOGOS = __unpack({team_logos_json});
 const CHAMPIONS_BY_SEASON = __unpack({champion_data_json});
 const CONF_FF = __unpack({conf_ff_json});
-const MOORPARK_LINEUPS = __unpack({moorpark_lineups_json});
-const TEAM_KEYS = __unpack({team_keys_json});
-const STORYLINES = __unpack({storylines_json});
+__lazyData('MOORPARK_LINEUPS');  // deferred: parsed on first access
+__lazyData('TEAM_KEYS');  // deferred: parsed on first access
+__lazyData('STORYLINES');  // deferred: parsed on first access
 const WAB_DATA = __unpack({wab_json});
 const WAB_DATA_2024 = __unpack({wab_2024_json});
 const WAB_DATA_2023 = __unpack({wab_2023_json});
@@ -6478,15 +6705,15 @@ const WAB_SIM_2122 = __unpack({wab_sim_2122_json});
 const WAB_SIM_1920 = __unpack({wab_sim_1920_json});
 
 // Conference-only data (current season inline; past seasons lazy-loaded)
-const CONF_DATA = __unpack({conf_players_json});
+__lazyData('CONF_DATA');  // deferred: parsed on first access
 const CONF_TEAM_DATA = __deriveConfGames(__unpack({conf_teams_json}), TEAM_DATA);
 // Box-derived subset scopes (current season only): Last 5 / Last 10 / Playoffs
-const LAST5_TEAM_DATA = __unpack({last5_teams_json});
-const LAST10_TEAM_DATA = __unpack({last10_teams_json});
-const PLAYOFF_TEAM_DATA = __unpack({playoff_teams_json});
-const LAST5_DATA = __unpack({last5_players_json});
-const LAST10_DATA = __unpack({last10_players_json});
-const PLAYOFF_DATA = __unpack({playoff_players_json});
+__lazyData('LAST5_TEAM_DATA');  // deferred: parsed on first access
+__lazyData('LAST10_TEAM_DATA');  // deferred: parsed on first access
+__lazyData('PLAYOFF_TEAM_DATA');  // deferred: parsed on first access
+__lazyData('LAST5_DATA');  // deferred: parsed on first access
+__lazyData('LAST10_DATA');  // deferred: parsed on first access
+__lazyData('PLAYOFF_DATA');  // deferred: parsed on first access
 
 // Small per-season data kept inline (used by sub-tab season filters)
 const LEAGUE_AVG_2024 = __unpack({league_avg_2024_json});
@@ -7858,6 +8085,7 @@ const ADV_CATS = [
   {{key:'ind_ortg',  label:'ORtg',   desc:'Individual Offensive Rating (pts per 100 poss used)',    asc:false, poss_buckets:true}},
   {{key:'ind_drtg',  label:'DRtg',   desc:'Individual Defensive Rating (pts allowed per 100 poss)', asc:true}},
   {{key:'porp',      label:'PRPG!',  desc:'PORPAGATU! — points over replacement per game at that usage (Torvik 2019 formula, SOS-adjusted)', asc:false}},
+  {{key:'pir',       label:'PIR',    desc:'Performance Index Rating — EuroLeague box formula, per game: (PTS + REB + AST + STL + BLK + fouls drawn) − (missed FG + missed FT + TO + fouls committed). Shots-rejected is not tracked; players with unreliable minutes excluded.', asc:false}},
   {{key:'efg_pct',   label:'eFG%',   desc:'Effective Field Goal % (3-pointers worth 1.5x)',         asc:false}},
   {{key:'ts_pct',    label:'TS%',    desc:'True Shooting % (2s, 3s, and FTs)',                      asc:false}},
   {{key:'min_pct',   label:'%Min',   desc:'Minutes played % \u2014 player MIN / (40 \u00d7 GP)',    asc:false}},
@@ -7912,8 +8140,22 @@ function attemptsPerGame(p, key) {{
   return p.gp ? ((p[key] || 0) / p.gp) : 0;
 }}
 
+// EuroLeague PIR per game from season aggregates. The foul terms come from the
+// per-40 rates × minutes, so players flagged with unreliable minutes (fm) are
+// excluded (return null). Shots-rejected is not tracked and is omitted.
+function pirValue(p) {{
+  if (!p.gp || Number(p.fm) !== 0) return null;
+  const fdG = (p.fd_per_40 || 0) * (p.mpg || 0) / 40;
+  const fcG = (p.fc_per_40 || 0) * (p.mpg || 0) / 40;
+  const missFg = ((p.fga || 0) - (p.fgm || 0)) / p.gp;
+  const missFt = ((p.fta || 0) - (p.ftm || 0)) / p.gp;
+  return (p.ppg || 0) + (p.rpg || 0) + (p.apg || 0) + (p.spg || 0) + (p.bpg || 0)
+       + fdG - missFg - missFt - (p.topg || 0) - fcG;
+}}
+
 function advCatValue(p, catKey) {{
   if (p[catKey] != null) return p[catKey];
+  if (catKey === 'pir') return pirValue(p);
   const fga = p.fga || 0;
   if (catKey === 'efg_pct' && fga > 0) {{
     return ((p.fgm || 0) + 0.5 * (p.tpm || 0)) / fga * 100;
@@ -8347,7 +8589,7 @@ function renderTeams(data) {{
   const tb = document.getElementById('team-tbody');
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
   const invert = teamSortType !== 'str' && teamSortDir !== teamSortBest;
   data.forEach((t, i) => {{
     const rank = invert ? data.length - i : i + 1;
@@ -8365,8 +8607,8 @@ function renderTeams(data) {{
       <td>${{Number(t.ortg).toFixed(1)}}${{rk('ortg',t.team)}}</td>
       <td>${{Number(t.drtg).toFixed(1)}}${{rk('drtg',t.team)}}</td>
       <td>${{Number(t.net_rtg).toFixed(1)}}${{rk('net_rtg',t.team)}}</td>
-      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#e74c3c` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
-      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#e67e22` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
+      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#c0564a` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
+      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#d08437` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
       <td>${{Number(fs.opp_ortg).toFixed(1)}}${{rk('opp_ortg',t.team)}}</td>
       <td>${{Number(fs.opp_drtg_sos).toFixed(1)}}${{rk('opp_drtg_sos',t.team)}}</td>
       <td>${{Number(fs.sos).toFixed(1)}}${{rk('sos',t.team)}}</td>
@@ -8531,7 +8773,7 @@ function renderDefense(data) {{
   const tb = document.getElementById('team-defense-tbody');
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:4px;vertical-align:middle">${{r}}</span>` : ''; }};
   const invert = defSortType !== 'str' && defSortDir !== defSortBest;
   data.forEach((t, i) => {{
     const rank = invert ? data.length - i : i + 1;
@@ -8549,8 +8791,8 @@ function renderDefense(data) {{
       <td>${{Number(t.ortg).toFixed(1)}}${{rk('ortg',t.team)}}</td>
       <td>${{Number(t.drtg).toFixed(1)}}${{rk('drtg',t.team)}}</td>
       <td>${{Number(t.net_rtg).toFixed(1)}}${{rk('net_rtg',t.team)}}</td>
-      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#e74c3c` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
-      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#e67e22` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div></td>
+      <td style="padding:0 4px"><div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(t.team, t.opp_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.opp_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#c0564a` : `right:50%;width:${{Math.min(Math.abs(t.opp_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
+      <td style="padding:0 4px"><div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(t.team, t.pace_adjust)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{t.pace_adjust >= 0 ? `left:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#d08437` : `right:50%;width:${{Math.min(Math.abs(t.pace_adjust)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div></td>
       <td>${{Number(fs.opp_ortg).toFixed(1)}}${{rk('opp_ortg',t.team)}}</td>
       <td>${{Number(fs.opp_drtg_sos).toFixed(1)}}${{rk('opp_drtg_sos',t.team)}}</td>
       <td>${{Number(fs.sos).toFixed(1)}}${{rk('sos',t.team)}}</td>
@@ -9179,8 +9421,8 @@ function teamLogoHtml(teamName, className = 'td-logo') {{
 }}
 
 function teamStatsRowColor(teamName) {{
-  if (CHAMPIONS_BY_SEASON[activeSeason] === teamName) return '#FFCCCC';
-  if (teamName === 'Moorpark') return '#ffe599';
+  if (CHAMPIONS_BY_SEASON[activeSeason] === teamName) return '#fbe7e6';
+  if (teamName === 'Moorpark') return '#fcf2d8';
   return '';
 }}
 
@@ -9403,21 +9645,12 @@ function __tsRankMaps() {{
     const qualified = pool.filter(p => __tsQualifies(p, key, mode));
     qualified.sort((a, b) => asc ? a[key] - b[key] : b[key] - a[key]);
     const m = new Map();
-    if (key === 'ind_ortg') {{
-      // ORtg is ranked within the player's %Poss band statewide: a role player's efficiency isn't comparable
-      // to a go-to guy's, so JJ Sanchez is the #1 Role Player, not #1 overall.
-      const seen = {{}};
-      qualified.forEach(p => {{ const b = __tsUsageBand(p.usage_pct); seen[b] = (seen[b] || 0) + 1; m.set(p.name + '|' + p.school, seen[b]); }});
-    }} else {{
-      qualified.forEach((p, i) => m.set(p.name + '|' + p.school, i + 1));
-    }}
+    qualified.forEach((p, i) => m.set(p.name + '|' + p.school, i + 1));
     maps[key] = {{ map: m, total: qualified.length }};
   }}
   return maps;
 }}
 
-// Index of a %Poss band in TS_USAGE_BANDS (0 = Go-to Guys ... 5 = Nearly Invisible), as the table groups players.
-function __tsUsageBand(u) {{ const i = TS_USAGE_BANDS.findIndex(b => (u || 0) > b[0]); return i < 0 ? TS_USAGE_BANDS.length - 1 : i; }}
 const TS_USAGE_BANDS = [
   [28, 'Go-to Guys (>28% of possessions used)'],
   [24, 'Major Contributors (24-28% of possessions used)'],
@@ -9514,7 +9747,7 @@ function renderTeamStats(teamName) {{
 
   document.getElementById('teamstats-content').innerHTML = `<style>
     #teamstats-content .ts-table {{ width: auto; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; margin: 0 auto; }}
-    #teamstats-content .ts-table th {{ background: #1a1a2e; color: #fff; padding: 5px 7px; text-align: right; font-size: 0.72rem; border-bottom: 2px solid #333; }}
+    #teamstats-content .ts-table th {{ background: #242f3c; color: #e7ecf2; padding: 5px 7px; text-align: right; font-size: 0.72rem; border-bottom: 1px solid #1d2733; }}
     #teamstats-content .ts-table th.ts-l, #teamstats-content .ts-table td.ts-l {{ text-align: left; }}
     #teamstats-content .ts-table td {{ padding: 4px 7px; border-bottom: 1px solid #ddd; text-align: right; color: #000; background: #fff; }}
     #teamstats-content .ts-table td.ts-l {{ font-weight: 600; }}
@@ -9537,13 +9770,14 @@ function renderTeamStats(teamName) {{
     }}
     #teamstats-content .ts-table tbody tr.ts-rankrow:hover td {{ background: #fff; }}
     #teamstats-content .ts-table td.ts-ranklabel {{ font-weight: 700; font-style: italic; }}
-    #teamstats-content .ts-mode {{ background: none; border: 1px solid #4fc3f7; color: #4fc3f7; font-weight: 700; padding: 3px 14px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }}
-    #teamstats-content .ts-mode.active {{ background: #4fc3f7; color: #1a1a2e; }}
+    #teamstats-content .ts-mode {{ background: #fff; border: 1px solid #ced4da; color: #4f5a67; font-weight: 600; padding: 3px 14px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }}
+    #teamstats-content .ts-mode:hover {{ color: #1f3a5f; border-color: #b9c4d2; }}
+    #teamstats-content .ts-mode.active {{ background: #1f3a5f; border-color: #1f3a5f; color: #fff; }}
   </style>
-  <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center">
-    <div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
-    <h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Team Stats</h2>
-    <div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
+  <div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">
+    <div style="color:#5b9bd5;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
+    <h2 style="color:#fff;font-size:1.6rem;margin:4px 0">${{teamName}} — Team Stats</h2>
+    <div style="color:#aeb9c6;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
     <div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div>
   </div>
   <div style="display:flex;justify-content:center;gap:10px;margin-bottom:12px">
@@ -9670,7 +9904,7 @@ function __kxBuildPool(sks){{
         pool.push({{team:me,opp:op,sk,date:g.d,res:ms>os?1:0,margin:ms-os,pf:ms,pa:os,m:__kxMetrics(__kxTotals(g.t[me]),__kxTotals(g.t[op]))}}); }} }} }}
   __kxPoolCache[ck]=pool; return pool;
 }}
-function __kxEnsurePool(seasons,cb){{ const keys=seasons.map(s=>KX_SEASON_KEY[s]).filter(Boolean); let i=0; (function next(){{ if(i>=keys.length){{ cb(__kxBuildPool(keys)); return; }} ensureBoxes(keys[i++],next); }})(); }}
+function __kxEnsurePool(seasons,cb){{ const keys=seasons.map(s=>KX_SEASON_KEY[s]).filter(Boolean); let pending=keys.length; if(!pending){{ cb(__kxBuildPool(keys)); return; }} const done=()=>{{ if(--pending===0) cb(__kxBuildPool(keys)); }}; for(const k of keys) ensureBoxes(k,done); }}
 function __kxPB(vals,outs){{ const n=vals.length; if(n<3) return 0; const w=[],l=[]; for(let i=0;i<n;i++)(outs[i]?w:l).push(vals[i]); if(!w.length||!l.length) return 0; const mean=vals.reduce((a,b)=>a+b,0)/n; const sd=Math.sqrt(vals.reduce((a,v)=>a+(v-mean)*(v-mean),0)/n); if(sd===0) return 0; const mw=w.reduce((a,b)=>a+b,0)/w.length,ml=l.reduce((a,b)=>a+b,0)/l.length,p=w.length/n,q=l.length/n; return (mw-ml)/sd*Math.sqrt(p*q); }}
 function __kxThresh(vals,outs,dir){{ const c=[...new Set(vals)].sort((a,b)=>a-b); if(c.length<2) return [c[0]||0,0]; const mids=[]; for(let i=1;i<c.length;i++) mids.push((c[i-1]+c[i])/2); const npos=outs.reduce((a,b)=>a+b,0),nneg=outs.length-npos; if(!npos||!nneg) return [mids[Math.floor(mids.length/2)],0]; let best=mids[0],bestJ=-1; for(const t of mids){{ let tp=0,fp=0; for(let i=0;i<vals.length;i++){{ const me=(dir==='>=')?(vals[i]>=t):(vals[i]<=t); if(me){{ if(outs[i])tp++; else fp++; }} }} const J=tp/npos-fp/nneg; if(J>bestJ){{ bestJ=J; best=t; }} }} return [best,bestJ]; }}
 function __kxAutoTarget(games,k){{ const vals=[],outs=[]; for(const g of games){{ const v=g.m[k]; if(v!=null){{ vals.push(v); outs.push(g.res); }} }} if(vals.length<5) return null; const r=__kxPB(vals,outs),dir=r>=0?'>=':'<='; const [t]=__kxThresh(vals,outs,dir); return {{metric:k,dir,target:Math.round(t*10)/10,r:Math.round(r*100)/100}}; }}
@@ -10249,7 +10483,7 @@ function renderLineups(teamName, keepView) {{
     return;
   }}
   const sizeBtn = (k) => `<button id="lu-size-${{k}}" onclick="luSetSize('${{k}}')" style="background:${{k === '5' ? '#ffd700' : '#2a2a40'}};border:1px solid #ffd700;color:${{k === '5' ? '#1a1a2e' : '#ffd700'}};font-weight:${{k === '5' ? '700' : '600'}};padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{k}}-Man</button>`;
-  const posBtn = (k, lab) => `<button id="lu-pos-${{k}}" onclick="luSetPos('${{k}}')" style="background:#2a2a40;border:1px solid #4fc3f7;color:#4fc3f7;font-weight:600;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{lab}}</button>`;
+  const posBtn = (k, lab) => `<button id="lu-pos-${{k}}" onclick="luSetPos('${{k}}')" style="background:#2a2a40;border:1px solid #4fc3f7;color:#1a5dab;font-weight:600;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.85rem">${{lab}}</button>`;
   const subs = FULL.subsets || null;
   const subSel = subs ? (`<select onchange="luSetSubset(this.value)" style="background:#2a2a40;border:1px solid #ffd700;color:#ffd700;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem">` +
     LU_SUBSETS.map(s => {{ const sd = subs[s[0]]; const ng = sd ? (sd.team_totals.n_games || 0) : 0;
@@ -10272,7 +10506,7 @@ function renderLineups(teamName, keepView) {{
   document.getElementById('lineups-content').innerHTML = `
     <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:8px;text-align:center">
       <h2 style="color:#ffd700;font-size:1.6rem;margin:4px 0">${{teamName}} — Lineups &amp; On/Off</h2>
-      <div style="color:#ccc;font-size:0.9rem">On-court net ${{__luSign(tt.net100)}}/100 &nbsp;·&nbsp; ${{tt.lineups_tracked}} units &nbsp;·&nbsp; ${{tt.n_games || 0}} game${{tt.n_games === 1 ? '' : 's'}}${{(luNoGarbage && __luHasNG()) ? ' &nbsp;·&nbsp; <span style="color:#ffd700">garbage removed</span>' : ''}}</div>
+      <div style="color:#aeb9c6;font-size:0.9rem">On-court net ${{__luSign(tt.net100)}}/100 &nbsp;·&nbsp; ${{tt.lineups_tracked}} units &nbsp;·&nbsp; ${{tt.n_games || 0}} game${{tt.n_games === 1 ? '' : 's'}}${{(luNoGarbage && __luHasNG()) ? ' &nbsp;·&nbsp; <span style="color:#ffd700">garbage removed</span>' : ''}}</div>
       ${{subSel ? `<div style="margin-top:10px">Split: ${{subSel}}</div>` : ''}}
     </div>
     <div style="color:#999;font-size:0.76rem;margin:0 0 10px;text-align:center;max-width:900px;margin-left:auto;margin-right:auto">
@@ -10838,7 +11072,7 @@ function renderPlayerProfile() {{
 
   document.getElementById('player-content').innerHTML = `<style>
     #player-content .pp-table {{ width: auto; border-collapse: collapse; font-size: 0.8rem; white-space: nowrap; margin: 0 auto; }}
-    #player-content .pp-table th {{ background: #1a1a2e; color: #fff; padding: 5px 8px; text-align: right; font-size: 0.72rem; border-bottom: 2px solid #333; }}
+    #player-content .pp-table th {{ background: #242f3c; color: #e7ecf2; padding: 5px 8px; text-align: right; font-size: 0.72rem; border-bottom: 1px solid #1d2733; }}
     #player-content .pp-table th.pp-l, #player-content .pp-table td.pp-l {{ text-align: left; }}
     #player-content .pp-table td {{ padding: 4px 8px; border-bottom: 1px solid #ddd; text-align: right; color: #000; background: #fff; }}
     #player-content .pp-table td.pp-l {{ font-weight: 600; }}
@@ -10873,10 +11107,10 @@ function renderPlayerProfile() {{
     #player-content .pp-card {{ background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 16px; overflow-x: auto; max-width: fit-content; margin: 0 auto 16px; }}
     #player-content .pp-sub {{ font-size: 0.95rem; font-weight: 700; text-align: center; color: #000; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 10px; }}
   </style>
-  <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center">
-    <div style="color:#4fc3f7;font-size:0.95rem;font-weight:700">${{head.join(' · ')}}</div>
+  <div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">
+    <div style="color:#1a5dab;font-size:0.95rem;font-weight:700">${{head.join(' · ')}}</div>
     <h2 style="color:#B9D9EB;font-size:1.7rem;margin:4px 0">${{name}}</h2>
-    <div style="color:#ccc;font-size:0.9rem"><a href="#" onclick="closePlayerProfile();showTeamDetail('${{__ppEsc(school)}}');return false" style="color:#4fc3f7;text-decoration:none">${{school}}</a> · ${{t.conference}} · ${{seasonLabel}}</div>
+    <div style="color:#aeb9c6;font-size:0.9rem"><a href="#" onclick="closePlayerProfile();showTeamDetail('${{__ppEsc(school)}}');return false" style="color:#1a5dab;text-decoration:none">${{school}}</a> · ${{t.conference}} · ${{seasonLabel}}</div>
     <div style="color:#fff;font-size:1rem;font-weight:600;margin-top:4px">${{rRow.gp}} GP · ${{starts}} starts &nbsp;|&nbsp; ${{hl.join(' &nbsp;·&nbsp; ')}}</div>
   </div>
   ${{trendHtml}}
@@ -10999,7 +11233,7 @@ function renderMinutesMatrix(teamName) {{
 
   document.getElementById('minmatrix-content').innerHTML = `<style>
     #minmatrix-content table {{ width: auto; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; margin: 0 auto; }}
-    #minmatrix-content th {{ background: #1a1a2e; color: #fff; padding: 4px 6px; font-size: 0.72rem; border-bottom: 2px solid #333; }}
+    #minmatrix-content th {{ background: #242f3c; color: #e7ecf2; padding: 4px 6px; font-size: 0.72rem; border-bottom: 1px solid #1d2733; }}
     #minmatrix-content th.mm-p {{ height: 120px; vertical-align: bottom; width: 26px; max-width: 26px; padding: 2px 0; position: relative; }}
     #minmatrix-content th.mm-p > div {{ writing-mode: vertical-rl; transform: rotate(180deg); margin: 0 auto; font-weight: 600; }}
     #minmatrix-content td {{ padding: 3px 6px; border-bottom: 1px solid #ddd; text-align: center; color: #000; background: #fff; }}
@@ -11012,10 +11246,10 @@ function renderMinutesMatrix(teamName) {{
     #minmatrix-content .mm-st {{ display: inline-block; min-width: 18px; border: 1.6px solid #1a3e8f; border-radius: 2px; padding: 0 2px; font-weight: 700; }}
     #minmatrix-content tr:hover td {{ background: #eef4ff; }}
   </style>
-  <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center">
-    <div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
-    <h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Minutes Matrix</h2>
-    <div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
+  <div style="background:#242f3c;border:1px solid #1d2733;border-radius:6px;padding:16px 20px;margin-bottom:16px;text-align:center">
+    <div style="color:#5b9bd5;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName] || '—'}} NET RTG</div>
+    <h2 style="color:#fff;font-size:1.6rem;margin:4px 0">${{teamName}} — Minutes Matrix</h2>
+    <div style="color:#aeb9c6;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div>
     <div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div>
   </div>
   <div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto;max-width:fit-content;margin:0 auto">
@@ -11207,6 +11441,56 @@ function computeRanks(teamName) {{
   }};
 }}
 
+// ── Team page Form card: last 5/10 played games as margin bars ──
+let tdFormN = 10;
+function tdSetFormN(n) {{
+  tdFormN = n;
+  const el = document.getElementById('td-form-card');
+  if (el && currentTeam) el.innerHTML = __tdFormInner(currentTeam);
+}}
+function __tdFormInner(t) {{
+  const played = (t.game_ratings || []).filter(g => g.result === 'W' || g.result === 'L');
+  const games = played.slice(-tdFormN);
+  const btn = n => `<button class="td-form-btn${{tdFormN === n ? ' active' : ''}}" onclick="tdSetFormN(${{n}})">Last ${{n}}</button>`;
+  const head = `<div class="td-form-head"><span class="td-form-title">Form</span><span class="td-form-seg">${{btn(5)}}${{btn(10)}}</span></div>`;
+  if (!games.length) return head + '<div style="text-align:center;color:#8b95a3;font-size:0.82rem;padding:12px 0">No completed games yet.</div>';
+  const margins = games.map(g => (g.team_score || 0) - (g.opponent_score || 0));
+  const maxAbs = Math.max(...margins.map(Math.abs), 1);
+  // Current NET RTG ranks for the tooltip's opponent line
+  const rankMap = {{}};
+  [...activeTeamData].filter(d => d.ortg > 0).sort((a, b) => b.net_rtg - a.net_rtg).forEach((d, i) => {{ rankMap[d.team] = i + 1; }});
+  const bars = games.map((g, i) => {{
+    const m = margins[i];
+    const h = Math.max(8, Math.round(Math.abs(m) / maxAbs * 84));
+    const opp = g.canonical_opponent || g.opponent || '';
+    const oppData = activeTeamData.find(d => d.team === opp);
+    const oppLine = oppData ? `<br>Opponent: #${{rankMap[opp] || '—'}} NET RTG (${{oppData.net_rtg >= 0 ? '+' : ''}}${{oppData.net_rtg.toFixed(1)}})` : '';
+    const ratings = (g.ortg != null && g.drtg != null)
+      ? `<br>Game ORtg ${{Number(g.ortg).toFixed(1)}} · DRtg ${{Number(g.drtg).toFixed(1)}}${{g.possessions ? ' · ' + Math.round(g.possessions) + ' poss' : ''}}`
+      : (g.possessions ? `<br>${{Math.round(g.possessions)}} possessions` : '');
+    const tipHtml =
+      `<b>${{g.result}}, ${{g.team_score || 0}}-${{g.opponent_score || 0}} vs ${{opp}}</b><br>` +
+      `${{g.date || ''}}${{g.location ? ' · ' + g.location : ''}}${{g.is_conference ? ' · Conference game' : ''}}<br>` +
+      `Margin ${{m >= 0 ? '+' : ''}}${{m}}` + oppLine + ratings +
+      `<br><i>Click for box score</i>`;
+    return `<div class="td-bar-wrap" data-gametip="${{tipHtml.replace(/"/g, '&quot;')}}" onclick="openBoxScore('${{g.date || ''}}','${{t.team}}','${{opp}}')"><div class="td-bar ${{g.result === 'W' ? 'w' : 'l'}}" style="height:${{h}}px"></div><div class="td-bar-m">${{m > 0 ? '+' + m : m}}</div></div>`;
+  }}).join('');
+  const wins = games.filter(g => g.result === 'W').length;
+  const avg = margins.reduce((a, b) => a + b, 0) / games.length;
+  const avgStr = (avg > 0 ? '+' : '') + avg.toFixed(1);
+  const adjBar = (val, posColor) => {{
+    const wPct = Math.min(Math.abs(val) / 0.35 * 50, 50).toFixed(1);
+    const side = val >= 0 ? `left:50%;width:${{wPct}}%;background:${{posColor}}` : `right:50%;width:${{wPct}}%;background:#4a7fb5`;
+    return `<span class="td-adjbar"><span class="td-adjmid"></span><span class="td-adjfill" style="${{side}}"></span></span>`;
+  }};
+  const side =
+    `<div class="td-form-line"><span>Last ${{games.length}} record</span><b>${{wins}}-${{games.length - wins}}</b></div>` +
+    `<div class="td-form-line"><span>Avg margin</span><b>${{avgStr}}</b></div>` +
+    (t.opp_adjust != null ? `<div class="td-form-line"><span>OPP ADJ</span>${{adjBar(t.opp_adjust, '#c0564a')}}</div>` : '') +
+    (t.pace_adjust != null ? `<div class="td-form-line"><span>PACE ADJ</span>${{adjBar(t.pace_adjust, '#d08437')}}</div>` : '');
+  return head + `<div class="td-form-flex"><div><div class="td-spark">${{bars}}</div><div class="td-spark-note">margin of victory per game · hover a bar for game details · click for the box score</div></div><div class="td-form-side">${{side}}</div></div>`;
+}}
+
 function buildTeamDetail(t) {{
   const ranks = computeRanks(t.team);
   const total = ranks.total;
@@ -11380,10 +11664,11 @@ function buildTeamDetail(t) {{
       ${{fs.coach ? `<div class="td-coach">HC: ${{fs.coach}}</div>` : ''}}
       ${{dataThruHtml}}
     </div>
+    <div class="td-form" id="td-form-card">${{__tdFormInner(t)}}</div>
     <div class="td-content">
       <div class="td-scouting">
         <div class="td-section-title">Scouting Report</div>
-        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#4fc3f7;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON)) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
+        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON)) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
@@ -11711,7 +11996,7 @@ function renderTeamsAdvOffense(data) {{
   if (!tb) return;
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
   const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
@@ -11771,7 +12056,7 @@ function renderTeamsAdvDefense(data) {{
   if (!tb) return;
   tb.innerHTML = '';
   const colRanks = buildColRanks();
-  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#000;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
+  const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
   const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
@@ -12064,7 +12349,7 @@ function slRenderHeight() {{
     </tr>`;
   }});
   if (missing.length) {{
-    rows.push(`<tr><td colspan="13" style="text-align:center;background:#1a1a2e;color:#ddd;font-size:0.78rem;font-weight:700">Missing height scrape</td></tr>`);
+    rows.push(`<tr><td colspan="13" style="text-align:center;background:#eef2f7;color:#6b7684;font-size:0.78rem;font-weight:700">Missing height scrape</td></tr>`);
     missing.forEach(r => {{
       rows.push(`<tr>
         <td class="sl-th-r" style="color:#888;font-size:0.8rem">—</td>
@@ -12356,7 +12641,7 @@ function slRenderTrank() {{
 
   ['adj', 'raw'].forEach(m => {{ const b = document.getElementById('trank-ff-' + m); if (!b) return;
     const on = slTrankFF === m;
-    b.style.cssText = `background:${{on ? '#ffd700' : '#2a2a40'}};border:1px solid #ffd700;color:${{on ? '#1a1a2e' : '#ffd700'}};font-weight:${{on ? 700 : 600}};padding:3px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem`; }});
+    b.style.cssText = `background:${{on ? 'var(--navy)' : 'var(--surface)'}};border:1px solid ${{on ? 'var(--navy)' : '#ced4da'}};color:${{on ? '#fff' : 'var(--ink-2)'}};font-weight:600;padding:3px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem`; }});
   // Opponent-adjusted factor when there is one (seasons built before it fall back to raw).
   const ff = (t, k) => (slTrankFF === 'adj' && t['adj_' + k] != null ? t['adj_' + k] : t[k]) || 0;
   let rows = src.map(t => {{
@@ -12708,8 +12993,8 @@ function slRenderRate(season) {{
   body.innerHTML = rows.map((r, i) => {{
     const oppVal = r.opp_adjust != null ? parseFloat(r.opp_adjust) : 0;
     const pceVal = r.pace_adjust != null ? parseFloat(r.pace_adjust) : 0;
-    const oppBar = `<div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(r.team, oppVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{oppVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#e74c3c` : `right:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div>`;
-    const pceBar = `<div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(r.team, pceVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{pceVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#e67e22` : `right:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#3498db`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#666"></div></div></div>`;
+    const oppBar = `<div class="opp-bar-wrap" data-opptip="${{getOppAdjMsg(r.team, oppVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{oppVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#c0564a` : `right:50%;width:${{Math.min(Math.abs(oppVal)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div>`;
+    const pceBar = `<div class="pace-bar-wrap" data-pacetip="${{getPaceAdjMsg(r.team, pceVal)}}"><div style="position:relative;width:50px;height:14px;background:transparent;border-radius:2px"><div style="position:absolute;top:0;height:100%;border-radius:2px;${{pceVal >= 0 ? `left:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#d08437` : `right:50%;width:${{Math.min(Math.abs(pceVal)/0.35*50,50)}}%;background:#4a7fb5`}}"></div><div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#aab3bf"></div></div></div>`;
     const hlStyle = mpGold(r.team);
     const oRate = typeof r.o_rate === 'number' ? r.o_rate.toFixed(1) : r.o_rate;
     const dRate = typeof r.d_rate === 'number' ? r.d_rate.toFixed(1) : r.d_rate;
@@ -13313,6 +13598,45 @@ function slRenderFanmatch(dateStr) {{
     const wrap = e.target.closest('.pace-bar-wrap');
     if (!wrap) return;
     tip.style.display = 'none';
+  }}, true);
+}})();
+
+// --- Floating game tooltip for the team-page Form card bars ---
+(function() {{
+  const tip = document.getElementById('td-form-tip');
+  document.addEventListener('mouseenter', function(e) {{
+    const wrap = e.target.closest('.td-bar-wrap');
+    if (!wrap || !tip) return;
+    const msg = wrap.dataset.gametip;
+    if (!msg) return;
+    tip.innerHTML = msg;
+    tip.style.display = 'block';
+    const rect = wrap.getBoundingClientRect();
+    const tipW = 260;
+    let left = rect.left + rect.width / 2 - tipW / 2;
+    if (left < 4) left = 4;
+    if (left + tipW > window.innerWidth - 4) left = window.innerWidth - tipW - 4;
+    tip.style.left = left + 'px';
+    tip.style.width = tipW + 'px';
+    tip.className = '';
+    tip.style.top = '';
+    const tipH = tip.offsetHeight;
+    if (rect.top - tipH - 10 > 0) {{
+      tip.classList.add('above');
+      tip.style.top = (rect.top - tipH - 10) + 'px';
+    }} else {{
+      tip.classList.add('below');
+      tip.style.top = (rect.bottom + 10) + 'px';
+    }}
+  }}, true);
+  document.addEventListener('mouseleave', function(e) {{
+    const wrap = e.target.closest('.td-bar-wrap');
+    if (!wrap || !tip) return;
+    tip.style.display = 'none';
+  }}, true);
+  // Hide the tip when a bar is clicked — the box score modal opens on top
+  document.addEventListener('click', function(e) {{
+    if (tip && e.target.closest('.td-bar-wrap')) tip.style.display = 'none';
   }}, true);
 }})();
 </script>
