@@ -58,6 +58,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   `2026-27 Schedule Screenshots/<Conference>/<Team>/` (month PNGs + schedule.json in scrape_team.py's game format).
   Partial schedules for every other team from those (mirrored games), plus cross-checks between typed-in teams:
   python3 assemble_schedules.py            # -> <Team>/schedule_from_opponents.json + assembled_schedules_report.txt
+  python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:
+                                           #    Moorpark gold, Moorpark opponents vs each other blue, other opponent games red)
 - List all teams:
   python3 scrape_team.py --list-teams
 - Scrape a single team:
