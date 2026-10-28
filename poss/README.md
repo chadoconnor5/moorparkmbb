@@ -611,6 +611,12 @@ shot), **SCORE%** (trips with a point), **2ND CH** (points after an offensive re
 steals) and **CHG/OFF** (charges / other offensive fouls committed). Game, half and season scopes all have it.
 FTs made now go in the ⬇ Lineup file too.
 
+## Game setup: who's dressed
+
+Both rosters on the New game screen work the same: tap cycles dressed → starter → not dressed → dressed, and once
+five starters are picked a tap on a dressed player sits him out. A player not dressed is left out of that game's
+subs, lineups and suggestions (opponent: `g.oppOut`, their numbers).
+
 ## Published rosters (before any box score)
 
 **`poss/rosters.json`** (`export_ratings.py`, from the rosters typed in off the teams' sites) has every team's
