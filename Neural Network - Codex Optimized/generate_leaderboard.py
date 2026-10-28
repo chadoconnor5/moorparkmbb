@@ -10132,7 +10132,7 @@ function __kxRenderExplorer(pool,entry,seasons,teamNames){{
   const teamOpts=teamNames.map(t=>`<option value="${{t}}" ${{t===currentKeysTeam?'selected':''}}>${{t}}</option>`).join('');
   const tenSeasons=(entry.windows['5yr']&&entry.windows['5yr'].seasons)?entry.windows['5yr'].seasons.filter(s=>KX_SEASON_KEY[s]):['2025-26'];
   const span=tenSeasons.length>1?(tenSeasons[0]+' to '+tenSeasons[tenSeasons.length-1]):tenSeasons[0];
-  const coach=entry.coach||'';
+  const coach=entry.windows['5yr']?(entry.coach||''):'';
   const analyzeOpts=`<option value="tenure" ${{kxWindow==='tenure'?'selected':''}}>${{span}}${{coach?(' (all under '+coach+')'):''}}</option><option value="cur" ${{kxWindow==='cur'?'selected':''}}>2025-26 only</option>`;
   const viewOpts=['all'].concat(seasons).map(v=>`<option value="${{v}}" ${{kxView===v?'selected':''}}>${{v==='all'?'All Seasons':v}}</option>`).join('');
   const mSel=i=>seln('<option value="">— none —</option>'+allMetrics.map(k=>`<option value="${{k}}" ${{kxSel[i]===k?'selected':''}}>${{kxLabel(k)}}</option>`).join(''),`kxSetMetric(${{i}},this.value)`);
@@ -14001,8 +14001,8 @@ def main():
          "seasons": ["2022-23", "2023-24", "2024-25", "2025-26"]},
         {"team": "Diablo Valley", "coach": "Ervin Anderson", "windows": ["5yr", "cur"],
          "seasons": ["2023-24", "2024-25", "2025-26"]},
-        {"team": "Lemoore", "coach": "Jovan Joe", "windows": ["5yr", "cur"],
-         "seasons": ["2024-25", "2025-26"]},
+        # Mark Avila, interim for 2026-27 (replaced Jovan Joe): no seasons under him yet, so current season only
+        {"team": "Lemoore", "coach": "Mark Avila (interim)", "windows": ["cur"]},
         {"team": "Redwoods", "coach": "Justin Claus", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
         # Coaches added 2026-06-23 from user (tenure ranges as given).
