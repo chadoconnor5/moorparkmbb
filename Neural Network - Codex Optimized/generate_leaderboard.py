@@ -11930,7 +11930,7 @@ function buildTeamDetail(t) {{
       <td style="text-align:left;${{cellBg}}">${{oppLink}}${{oppRankHtml}}${{oppNetHtml}}${{confMarker}}</td>
       <td style="text-align:center;${{cellBg}}">${{boxCell}}</td>
       <td style="text-align:left;font-weight:600;${{cellBg}}">${{resultStr}}</td>
-      <td style="text-align:center;${{cellBg}}">${{loc === 'Neutral' && gr.host ? gr.host + ' (N)' : loc}}</td>
+      <td style="text-align:center;${{cellBg}}">${{loc}}</td>
       <td style="text-align:center;${{cellBg}}">${{runRec}}</td>
       <td style="text-align:center;${{cellBg}}">${{runConf}}</td>
       <td style="text-align:center;${{cellBg}}">${{tierHtml}}</td>

@@ -68,6 +68,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   team in a season (Alameda 2026-27): no preseason rating, off that season's leaderboard.
 - Team pages list each team's whole season schedule from the typed-in schedule.json files (load_season_schedules,
   embedded as SEASON_SCHEDULES); played games take their results from game_ratings.
+- FanMatch shows a neutral-site game's location as "Host (N)" (neutral_host() reads the host from the schedule
+  note's "@ ..."); team schedules keep Home / Away / Neutral.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:
