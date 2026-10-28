@@ -274,6 +274,27 @@ This copy keeps the original project intact and starts consolidating the working
   then `generate_opponent_report.py --latest --only <those teams>`. Each step is check=False: one failing never stops
   the next.
 
+- Redesign + 2026-27 (Oct 2026): generate_leaderboard.py now builds the redesigned page (light theme, fixed left
+  sidebar with icons, the old dark styles replaced), ported hunk by hunk from wsc_north_leaderboard_redesign.html.
+  Heavy view-specific datasets (DAILY_RANKS, MOORPARK_LINEUPS, TEAM_KEYS, STORYLINES, CONF_DATA and the six Last 5 /
+  Last 10 / Playoffs sets) ship as inert `<script type="application/json" id="data-NAME">` tags (`_jtag()`), parsed on
+  first access by `__lazyData()` in the page. The output is the repo root: `../index.html` (GitHub Pages) with
+  `../season_data/` and `../team_logos/` beside it; the old copies in this folder, outputs/ and the root
+  wsc_north_leaderboard.html (now a redirect) are gone.
+  2026-27 is the page's current season (key '2627', unsuffixed DATA / TEAM_DATA / ..., STATS_DIR = 2026-27); 2025-26
+  moved to the lazy past seasons (key '2526', suffix _2025, season_data/season_2526.js), the same way every earlier
+  season was shifted. Every season chain in the page has a '2526' branch; new label '2026-27'; buttons "27".
+  Preseason: build_preseason.py writes each team's 2026-27 advanced_analytics.json with last season's ortg / drtg /
+  net_rtg / tempo, and sos / ncsos / opp_ortg / opp_drtg = _compute_win50 over this season's typed-in schedule rated by
+  last season's numbers (`preseason: true`). From a team's first game update_advanced_analytics.py owns the file and
+  blends last season in as decaying virtual games (PRIOR_CHAIN now has 2026-27 <- 2025-26). export_ratings.py ignores
+  preseason teams, so the possession tracker still shows nothing until a team plays.
+  FanMatch is live: `_sl_upcoming()` adds every scheduled in-system game without a result (build_master_schedule.build)
+  with a projected score and win probability from the current ratings (same pregame model and home edge as played
+  games); rows carry `upcoming: true`, show "proj" and the tip time, no Box link, and stay out of the results summary
+  (a separate Projected line). The calendar opens on today or the next game day.
+  League-average totals use .get() so a season whose teams have no totals yet still builds.
+
 ## Example commands
 
 ```bash

@@ -7,6 +7,8 @@
 | `scrape_team.py` | Scrape schedules and box scores from CCCMBCA |
 | `generate_team_stats.py` | Aggregate season stats from box score JSONs |
 | `update_advanced_analytics.py` | Compute advanced analytics (eFG%, TOV%) |
+| `build_preseason.py` | New season: last season's ratings as every team's start, SOS/NCSOS from this season's schedule |
+| `generate_leaderboard.py` | Build the published leaderboard: `../index.html` + `../season_data/` (repo root, GitHub Pages) |
 
 ## Daily Scraping (`scrape.py`) — use this during the season
 

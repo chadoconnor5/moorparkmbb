@@ -343,6 +343,69 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
     return lotn
 
 
+def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float) -> list:
+    """FanMatch for games not played yet: every scheduled in-system game (the typed-in schedules,
+    build_master_schedule.py) without a result, with a projected score and win probability from the
+    teams' current ratings (preseason = last season's, fading as games come in). Same win-probability
+    scale and home edge as the played games' pregame model (_sl_enrich)."""
+    m = re.search(r"(\d{4}-\d{2})", str(stats_dir))
+    if not m or not Path(f"{m.group(1)} Schedule Screenshots").exists():
+        return []
+    season = m.group(1)
+    try:
+        import build_master_schedule as _bms
+        _, sched, _ = _bms.build(season, "Moorpark")
+    except Exception as err:
+        print(f"  FanMatch upcoming skipped: {err}")
+        return []
+    ratings = {}
+    for f in Path(stats_dir).glob("*/*/advanced_analytics.json"):
+        t = json.load(open(f)).get("team", {})
+        if t.get("ortg") and t.get("drtg"):
+            ratings[f.parent.name] = t
+    if not ratings:
+        return []
+    lg_o = sum(t["ortg"] for t in ratings.values()) / len(ratings)
+    tempos = [t.get("tempo") or t.get("possessions") for t in ratings.values()]
+    tempos = [x for x in tempos if x]
+    lg_t = sum(tempos) / len(tempos) if tempos else 72.0
+    played = {(r["date"], frozenset((r["winner"], r["loser"]))) for r in rows}
+    out = []
+    for g in sched:
+        a, h = g["away"], g["home"]
+        if a not in ratings or h not in ratings:
+            continue
+        y, mo, d = g["date"].split("-")
+        ds = f"{int(mo)}/{int(d)}/{y}"
+        if (ds, frozenset((a, h))) in played:
+            continue
+        ra, rh = ratings[a], ratings[h]
+        home = h if g["site"] == "home" else None
+        edge = hca_points if home else 0.0
+        net_a, net_h = ra["ortg"] - ra["drtg"], rh["ortg"] - rh["drtg"]
+        wp_h = _sl_logistic((net_h - net_a + edge) / max(wp_scale, 1e-6))
+        tempo = (ra.get("tempo") or lg_t) * (rh.get("tempo") or lg_t) / lg_t
+        pts_h = (rh["ortg"] + ra["drtg"] - lg_o + edge / 2) * tempo / 100
+        pts_a = (ra["ortg"] + rh["drtg"] - lg_o - edge / 2) * tempo / 100
+        if wp_h >= 0.5:
+            fav, dog, wp, pf, pd, nf, nd = h, a, wp_h, pts_h, pts_a, net_h, net_a
+        else:
+            fav, dog, wp, pf, pd, nf, nd = a, h, 1 - wp_h, pts_a, pts_h, net_a, net_h
+        pf, pd = round(pf), round(pd)
+        if pf <= pd:
+            pf = pd + 1
+        out.append({
+            "date": ds, "upcoming": True, "winner": fav, "loser": dog, "score": f"{pf}-{pd}",
+            "margin": None, "overtimes": 0, "home_team": home, "time": g.get("time", ""),
+            "conference": bool(g.get("conference")),
+            "pregame_winner_net": round(nf, 1), "pregame_loser_net": round(nd, 1),
+            "pregame_model_wp_winner": round(wp, 3),
+            "fanmatch_score": round(100.0 * (1.0 - abs(wp - 0.5) * 2.0), 2),
+            "upset_score": None, "dominance_score": None, "tension_score": None,
+        })
+    return out
+
+
 def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool = True,
                      hca_points: float = 3.0, wp_scale: float = 10.0,
                      prior_stats_dir: Path = None) -> dict:
@@ -361,15 +424,18 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
         "bust_games":     _sl_top_n(rows, "bust_score", top),
-        "fanmatch_games": sorted(rows, key=lambda r: (_sl_date_sort_key(r["date"]), -r["fanmatch_score"])),
+        "fanmatch_games": sorted(rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale),
+                                 key=lambda r: (_sl_date_sort_key(r["date"]), -r["fanmatch_score"])),
         "lines_of_night": lines_of_night,
     }
 
 # ---------------------------------------------------------------------------
 
-OUTPUT = Path("wsc_north_leaderboard.html")
+# The published leaderboard: the site root (GitHub Pages serves ../index.html, with season_data/ and team_logos/ beside it)
+OUTPUT = Path("../index.html")
 _CACHE_DIR = Path("internal_data/cache/leaderboard")
-STATS_DIR = Path("2025-26 Team Statistics")
+STATS_DIR = Path("2026-27 Team Statistics")
+STATS_DIR_2025 = Path("2025-26 Team Statistics")
 STATS_DIR_2024 = Path("2024-25 Team Statistics")
 STATS_DIR_2023 = Path("2023-24 Team Statistics")
 STATS_DIR_2022 = Path("2022-23 Team Statistics")
@@ -653,7 +719,8 @@ if _COACHES_PATH.exists():
         _COACHES_DATA = json.load(_cf)
 
 _STATS_DIR_TO_SEASON = {
-    str(STATS_DIR):      "2025-26",
+    str(STATS_DIR):      "2026-27",
+    str(STATS_DIR_2025): "2025-26",
     str(STATS_DIR_2024): "2024-25",
     str(STATS_DIR_2023): "2023-24",
     str(STATS_DIR_2022): "2022-23",
@@ -2332,6 +2399,8 @@ def load_storylines(stats_dir=None) -> dict:
     # early-season games have a meaningful baseline instead of 0.0.
     # 2025-26 → 2024-25; 2024-25 → 2023-24; 2023-24 → 2022-23; 2022-23 → 2021-22; others → no prior.
     if stats_dir == STATS_DIR:
+        prior_dir = STATS_DIR_2025
+    elif stats_dir == STATS_DIR_2025:
         prior_dir = STATS_DIR_2024
     elif stats_dir == STATS_DIR_2024:
         prior_dir = STATS_DIR_2023
@@ -3349,10 +3418,18 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                   storylines_current=None, champion_data=None, game_boxes=None,
                   team_rosters=None, conf_ff=None, moorpark_lineups=None,
                   team_keys=None,
+                  teams_2025=None, conf_teams_2025=None, players_2025=None,
+                  conf_players_2025=None, storylines_2025=None, rpi_data_2627=None,
                   subset_by_season=None):
     """Generate a self-contained sortable HTML leaderboard with team/individual toggle."""
     subset_by_season = subset_by_season or {}
-    _cur_sub = subset_by_season.get("2526", {})
+    teams_2025 = teams_2025 or []
+    conf_teams_2025 = conf_teams_2025 or []
+    players_2025 = players_2025 or []
+    conf_players_2025 = conf_players_2025 or []
+    storylines_2025 = storylines_2025 or {}
+    rpi_data_2627 = rpi_data_2627 or []
+    _cur_sub = subset_by_season.get("2627", {})
     last5_teams = _cur_sub.get("last5_teams", [])
     last10_teams = _cur_sub.get("last10_teams", [])
     playoff_teams = _cur_sub.get("playoff_teams", [])
@@ -3453,6 +3530,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
     team_logo_names = sorted({
         *(t.get("team", "") for t in teams),
+        *(t.get("team", "") for t in teams_2025),
         *(t.get("team", "") for t in teams_2024),
         *(t.get("team", "") for t in teams_2023),
         *(t.get("team", "") for t in teams_2022),
@@ -3462,10 +3540,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         *(t.get("team", "") for t in teams_1718),
     } - {""})
     team_logos_json = _embed({name: f"team_logos/{_team_logo_slug(name)}.png" for name in team_logo_names})
-    attach_player_jerseys(players)
-    attach_player_jerseys(conf_players)
+    attach_player_jerseys(players, "2026-27 Teams Schedules")
+    attach_player_jerseys(conf_players, "2026-27 Teams Schedules")
     # Jerseys for every season (box scores live in each season's schedules dir)
     for _pl, _cpl, _dir in [
+        (players_2025, conf_players_2025, "2025-26 Teams Schedules"),
         (players_2024, conf_players_2024, "2024-25 Teams Schedules"),
         (players_2023, conf_players_2023, "2023-24 Teams Schedules"),
         (players_2022, conf_players_2022, "2022-23 Teams Schedules"),
@@ -3479,6 +3558,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # PORPAGATU! for every season (full + conference-only contexts)
     for _pl, _tm in [
         (players, teams), (conf_players, conf_teams),
+        (players_2025, teams_2025), (conf_players_2025, conf_teams_2025),
         (players_2024, teams_2024), (conf_players_2024, conf_teams_2024),
         (players_2023, teams_2023), (conf_players_2023, conf_teams_2023),
         (players_2022, teams_2022), (conf_players_2022, conf_teams_2022),
@@ -3490,10 +3570,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         attach_porpagatu(_pl, _tm)
         attach_win_shares_per(_pl, _tm)
     attach_similar_players(
-        {"2526": players, "2425": players_2024, "2324": players_2023,
+        {"2627": players, "2526": players_2025, "2425": players_2024, "2324": players_2023,
          "2223": players_2022, "2122": players_2021, "1920": players_2019,
          "1819": players_1819, "1718": players_1718},
         team_rosters)
+    rpi_data_2627_json = _embed(rpi_data_2627)
     rpi_data_2526_json = _embed(rpi_data_2526)
     rpi_data_2425_json = _embed(rpi_data_2425)
     rpi_data_2324_json = _embed(rpi_data_2324)
@@ -3534,6 +3615,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     last5_players_json = _embed(last5_players)
     last10_players_json = _embed(last10_players)
     playoff_players_json = _embed(playoff_players)
+    conf_teams_2025_json = _embed(_strip_conf_games(conf_teams_2025))
+    players_2025_json = _embed(players_2025)
+    conf_players_2025_json = _embed(conf_players_2025)
+    storylines_2025_json = _embed(storylines_2025)
     conf_teams_2024_json = _embed(_strip_conf_games(conf_teams_2024))
     players_2024_json = _embed(players_2024)
     conf_players_2024_json = _embed(conf_players_2024)
@@ -3565,7 +3650,17 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             wab_data = raw
         except Exception as e:
             print(f"  Warning: could not load wab_results.json: {e}")
-    wab_json = _embed(wab_data)
+    wab_2025_json = _embed(wab_data)  # wab_results.json holds 2025-26
+    wab_data_cur = []
+    if Path("wab_results_2026_27.json").exists():
+        try:
+            wab_data_cur = json.load(open("wab_results_2026_27.json"))
+            _c2r = {c: info["region"] for c, info in CONFERENCES.items()}
+            for entry in wab_data_cur:
+                entry["region"] = _c2r.get(entry.get("conference", ""), "")
+        except Exception as e:
+            print(f"  Warning: could not load wab_results_2026_27.json: {e}")
+    wab_json = _embed(wab_data_cur)
 
     # Load 2024-25 WAB results
     wab_path_2024 = Path("wab_results_2024_25.json")
@@ -3636,6 +3731,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         except Exception as e:
             print(f'  Warning: could not load wab_sim_split24.json: {e}')
     wab_sim_2526_json = _embed(wab_sim_2526)
+    wab_sim_2627_json = _embed({'north': [], 'south': []})
 
     wab_sim_2425 = {'north': [], 'south': []}
     sim_path_2425 = Path('wab_sim_split24_2024_25.json')
@@ -3862,9 +3958,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return ranks
 
     # Compute current-season daily rankings with iterative as-of-date logic
-    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2024 or [])
+    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2025 or [])
     daily_ranks_json = _embed(daily_ranks)
 
+    daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
+    daily_ranks_2025_json = _embed(daily_ranks_2025)
     # Compute 2024-25 daily rankings using the same helper
     daily_ranks_2024 = compute_daily_ranks(teams_2024 or [], prior_teams=teams_2023 or [])
     daily_ranks_2024_json = _embed(daily_ranks_2024)
@@ -3883,12 +3981,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg[key] = round(sum(t.get(key, 0) for t in valid_teams) / n, 1)
     # Shooting averages from totals
-    tot_fgm = sum(t["totals"]["FGM"] for t in valid_teams)
-    tot_fga = sum(t["totals"]["FGA"] for t in valid_teams)
-    tot_3pm = sum(t["totals"]["3PM"] for t in valid_teams)
-    tot_3pa = sum(t["totals"]["3PA"] for t in valid_teams)
-    tot_ftm = sum(t["totals"]["FTM"] for t in valid_teams)
-    tot_fta = sum(t["totals"]["FTA"] for t in valid_teams)
+    tot_fgm = sum(t["totals"].get("FGM", 0) for t in valid_teams)
+    tot_fga = sum(t["totals"].get("FGA", 0) for t in valid_teams)
+    tot_3pm = sum(t["totals"].get("3PM", 0) for t in valid_teams)
+    tot_3pa = sum(t["totals"].get("3PA", 0) for t in valid_teams)
+    tot_ftm = sum(t["totals"].get("FTM", 0) for t in valid_teams)
+    tot_fta = sum(t["totals"].get("FTA", 0) for t in valid_teams)
     league_avg["fg_pct"] = round(tot_fgm / max(tot_fga, 1) * 100, 1)
     league_avg["3p_pct"] = round(tot_3pm / max(tot_3pa, 1) * 100, 1)
     league_avg["ft_pct"] = round(tot_ftm / max(tot_fta, 1) * 100, 1)
@@ -3900,6 +3998,31 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     league_avg["shot_dist_fta"] = round(0.475 * tot_fta / _sd_base * 100, 1)
     league_avg_json = _embed(league_avg)
 
+    # Compute 2025-26 league averages for the season toggle
+    teams_2025_json = _embed(_slim_games(teams_2025))
+    valid_2025 = [t for t in teams_2025 if t.get("ortg", 0) > 0]
+    n25 = len(valid_2025) if valid_2025 else 1
+    league_avg_2025 = {}
+    for key in ["ortg", "drtg", "tempo", "net_rtg", "efg_pct", "tov_pct", "oreb_pct",
+                "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
+                "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
+        league_avg_2025[key] = round(sum(t.get(key, 0) for t in valid_2025) / n25, 1)
+    t25_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2025)
+    t25_fga = sum(t["totals"].get("FGA", 0) for t in valid_2025)
+    t25_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2025)
+    t25_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2025)
+    t25_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2025)
+    t25_fta = sum(t["totals"].get("FTA", 0) for t in valid_2025)
+    league_avg_2025["fg_pct"] = round(t25_fgm / max(t25_fga, 1) * 100, 1)
+    league_avg_2025["3p_pct"] = round(t25_3pm / max(t25_3pa, 1) * 100, 1)
+    league_avg_2025["ft_pct"] = round(t25_ftm / max(t25_fta, 1) * 100, 1)
+    league_avg_2025["2p_pct"] = round((t25_fgm - t25_3pm) / max(t25_fga - t25_3pa, 1) * 100, 1)
+    league_avg_2025["3pa_rate"] = round(t25_3pa / max(t25_fga, 1) * 100, 1)
+    _sd25_base = max(t25_fga + 0.475 * t25_fta, 1)
+    league_avg_2025["shot_dist_2pa"] = round((t25_fga - t25_3pa) / _sd25_base * 100, 1)
+    league_avg_2025["shot_dist_3pa"] = round(t25_3pa / _sd25_base * 100, 1)
+    league_avg_2025["shot_dist_fta"] = round(0.475 * t25_fta / _sd25_base * 100, 1)
+    league_avg_2025_json = _embed(league_avg_2025)
     # Compute 2024-25 league averages for the season toggle
     teams_2024_json = _embed(_slim_games(teams_2024))
     valid_2024 = [t for t in teams_2024 if t.get("ortg", 0) > 0]
@@ -3909,12 +4032,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2024[key] = round(sum(t.get(key, 0) for t in valid_2024) / n24, 1)
-    t24_fgm = sum(t["totals"]["FGM"] for t in valid_2024)
-    t24_fga = sum(t["totals"]["FGA"] for t in valid_2024)
-    t24_3pm = sum(t["totals"]["3PM"] for t in valid_2024)
-    t24_3pa = sum(t["totals"]["3PA"] for t in valid_2024)
-    t24_ftm = sum(t["totals"]["FTM"] for t in valid_2024)
-    t24_fta = sum(t["totals"]["FTA"] for t in valid_2024)
+    t24_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2024)
+    t24_fga = sum(t["totals"].get("FGA", 0) for t in valid_2024)
+    t24_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2024)
+    t24_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2024)
+    t24_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2024)
+    t24_fta = sum(t["totals"].get("FTA", 0) for t in valid_2024)
     league_avg_2024["fg_pct"] = round(t24_fgm / max(t24_fga, 1) * 100, 1)
     league_avg_2024["3p_pct"] = round(t24_3pm / max(t24_3pa, 1) * 100, 1)
     league_avg_2024["ft_pct"] = round(t24_ftm / max(t24_fta, 1) * 100, 1)
@@ -3936,12 +4059,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2023[key] = round(sum(t.get(key, 0) for t in valid_2023) / n23, 1)
-    t23_fgm = sum(t["totals"]["FGM"] for t in valid_2023)
-    t23_fga = sum(t["totals"]["FGA"] for t in valid_2023)
-    t23_3pm = sum(t["totals"]["3PM"] for t in valid_2023)
-    t23_3pa = sum(t["totals"]["3PA"] for t in valid_2023)
-    t23_ftm = sum(t["totals"]["FTM"] for t in valid_2023)
-    t23_fta = sum(t["totals"]["FTA"] for t in valid_2023)
+    t23_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2023)
+    t23_fga = sum(t["totals"].get("FGA", 0) for t in valid_2023)
+    t23_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2023)
+    t23_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2023)
+    t23_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2023)
+    t23_fta = sum(t["totals"].get("FTA", 0) for t in valid_2023)
     league_avg_2023["fg_pct"] = round(t23_fgm / max(t23_fga, 1) * 100, 1)
     league_avg_2023["3p_pct"] = round(t23_3pm / max(t23_3pa, 1) * 100, 1)
     league_avg_2023["ft_pct"] = round(t23_ftm / max(t23_fta, 1) * 100, 1)
@@ -3965,12 +4088,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2022[key] = round(sum(t.get(key, 0) for t in valid_2022) / n22, 1)
-    t22_fgm = sum(t["totals"]["FGM"] for t in valid_2022)
-    t22_fga = sum(t["totals"]["FGA"] for t in valid_2022)
-    t22_3pm = sum(t["totals"]["3PM"] for t in valid_2022)
-    t22_3pa = sum(t["totals"]["3PA"] for t in valid_2022)
-    t22_ftm = sum(t["totals"]["FTM"] for t in valid_2022)
-    t22_fta = sum(t["totals"]["FTA"] for t in valid_2022)
+    t22_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2022)
+    t22_fga = sum(t["totals"].get("FGA", 0) for t in valid_2022)
+    t22_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2022)
+    t22_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2022)
+    t22_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2022)
+    t22_fta = sum(t["totals"].get("FTA", 0) for t in valid_2022)
     league_avg_2022["fg_pct"] = round(t22_fgm / max(t22_fga, 1) * 100, 1)
     league_avg_2022["3p_pct"] = round(t22_3pm / max(t22_3pa, 1) * 100, 1)
     league_avg_2022["ft_pct"] = round(t22_ftm / max(t22_fta, 1) * 100, 1)
@@ -3994,12 +4117,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2021[key] = round(sum(t.get(key, 0) for t in valid_2021) / n21, 1)
-    t21_fgm = sum(t["totals"]["FGM"] for t in valid_2021)
-    t21_fga = sum(t["totals"]["FGA"] for t in valid_2021)
-    t21_3pm = sum(t["totals"]["3PM"] for t in valid_2021)
-    t21_3pa = sum(t["totals"]["3PA"] for t in valid_2021)
-    t21_ftm = sum(t["totals"]["FTM"] for t in valid_2021)
-    t21_fta = sum(t["totals"]["FTA"] for t in valid_2021)
+    t21_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2021)
+    t21_fga = sum(t["totals"].get("FGA", 0) for t in valid_2021)
+    t21_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2021)
+    t21_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2021)
+    t21_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2021)
+    t21_fta = sum(t["totals"].get("FTA", 0) for t in valid_2021)
     league_avg_2021["fg_pct"] = round(t21_fgm / max(t21_fga, 1) * 100, 1)
     league_avg_2021["3p_pct"] = round(t21_3pm / max(t21_3pa, 1) * 100, 1)
     league_avg_2021["ft_pct"] = round(t21_ftm / max(t21_fta, 1) * 100, 1)
@@ -4021,12 +4144,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_2019[key] = round(sum(t.get(key, 0) for t in valid_2019) / n19, 1)
-    t19_fgm = sum(t["totals"]["FGM"] for t in valid_2019)
-    t19_fga = sum(t["totals"]["FGA"] for t in valid_2019)
-    t19_3pm = sum(t["totals"]["3PM"] for t in valid_2019)
-    t19_3pa = sum(t["totals"]["3PA"] for t in valid_2019)
-    t19_ftm = sum(t["totals"]["FTM"] for t in valid_2019)
-    t19_fta = sum(t["totals"]["FTA"] for t in valid_2019)
+    t19_fgm = sum(t["totals"].get("FGM", 0) for t in valid_2019)
+    t19_fga = sum(t["totals"].get("FGA", 0) for t in valid_2019)
+    t19_3pm = sum(t["totals"].get("3PM", 0) for t in valid_2019)
+    t19_3pa = sum(t["totals"].get("3PA", 0) for t in valid_2019)
+    t19_ftm = sum(t["totals"].get("FTM", 0) for t in valid_2019)
+    t19_fta = sum(t["totals"].get("FTA", 0) for t in valid_2019)
     league_avg_2019["fg_pct"] = round(t19_fgm / max(t19_fga, 1) * 100, 1)
     league_avg_2019["3p_pct"] = round(t19_3pm / max(t19_3pa, 1) * 100, 1)
     league_avg_2019["ft_pct"] = round(t19_ftm / max(t19_fta, 1) * 100, 1)
@@ -4046,12 +4169,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_1819[key] = round(sum(t.get(key, 0) for t in valid_1819) / n1819, 1)
-    t1819_fgm = sum(t["totals"]["FGM"] for t in valid_1819)
-    t1819_fga = sum(t["totals"]["FGA"] for t in valid_1819)
-    t1819_3pm = sum(t["totals"]["3PM"] for t in valid_1819)
-    t1819_3pa = sum(t["totals"]["3PA"] for t in valid_1819)
-    t1819_ftm = sum(t["totals"]["FTM"] for t in valid_1819)
-    t1819_fta = sum(t["totals"]["FTA"] for t in valid_1819)
+    t1819_fgm = sum(t["totals"].get("FGM", 0) for t in valid_1819)
+    t1819_fga = sum(t["totals"].get("FGA", 0) for t in valid_1819)
+    t1819_3pm = sum(t["totals"].get("3PM", 0) for t in valid_1819)
+    t1819_3pa = sum(t["totals"].get("3PA", 0) for t in valid_1819)
+    t1819_ftm = sum(t["totals"].get("FTM", 0) for t in valid_1819)
+    t1819_fta = sum(t["totals"].get("FTA", 0) for t in valid_1819)
     league_avg_1819["fg_pct"] = round(t1819_fgm / max(t1819_fga, 1) * 100, 1)
     league_avg_1819["3p_pct"] = round(t1819_3pm / max(t1819_3pa, 1) * 100, 1)
     league_avg_1819["ft_pct"] = round(t1819_ftm / max(t1819_fta, 1) * 100, 1)
@@ -4071,12 +4194,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 "ft_rate", "ts_pct", "opp_efg_pct", "dreb_pct", "opp_tov_pct",
                 "opp_ft_rate", "opp_ts_pct", "sos", "ncsos"]:
         league_avg_1718[key] = round(sum(t.get(key, 0) for t in valid_1718) / n1718, 1)
-    t1718_fgm = sum(t["totals"]["FGM"] for t in valid_1718)
-    t1718_fga = sum(t["totals"]["FGA"] for t in valid_1718)
-    t1718_3pm = sum(t["totals"]["3PM"] for t in valid_1718)
-    t1718_3pa = sum(t["totals"]["3PA"] for t in valid_1718)
-    t1718_ftm = sum(t["totals"]["FTM"] for t in valid_1718)
-    t1718_fta = sum(t["totals"]["FTA"] for t in valid_1718)
+    t1718_fgm = sum(t["totals"].get("FGM", 0) for t in valid_1718)
+    t1718_fga = sum(t["totals"].get("FGA", 0) for t in valid_1718)
+    t1718_3pm = sum(t["totals"].get("3PM", 0) for t in valid_1718)
+    t1718_3pa = sum(t["totals"].get("3PA", 0) for t in valid_1718)
+    t1718_ftm = sum(t["totals"].get("FTM", 0) for t in valid_1718)
+    t1718_fta = sum(t["totals"].get("FTA", 0) for t in valid_1718)
     league_avg_1718["fg_pct"] = round(t1718_fgm / max(t1718_fga, 1) * 100, 1)
     league_avg_1718["3p_pct"] = round(t1718_3pm / max(t1718_3pa, 1) * 100, 1)
     league_avg_1718["ft_pct"] = round(t1718_ftm / max(t1718_fta, 1) * 100, 1)
@@ -4145,7 +4268,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             r["rank_net"] = i + 1
         return results
 
-    rel_ratings_2526 = _compute_relative_ratings(teams)
+    rel_ratings_2627 = _compute_relative_ratings(teams)
+    rel_ratings_2526 = _compute_relative_ratings(teams_2025 or [])
     rel_ratings_2425 = _compute_relative_ratings(teams_2024 or [])
     rel_ratings_2324 = _compute_relative_ratings(teams_2023 or [])
     rel_ratings_2223 = _compute_relative_ratings(teams_2022 or [])
@@ -4153,6 +4277,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     rel_ratings_1920 = _compute_relative_ratings(teams_2019 or [])
     rel_ratings_1819 = _compute_relative_ratings(teams_1819 or [])
     rel_ratings_1718 = _compute_relative_ratings(teams_1718 or [])
+    rel_ratings_2627_json = _embed(rel_ratings_2627)
     rel_ratings_2526_json = _embed(rel_ratings_2526)
     rel_ratings_2425_json = _embed(rel_ratings_2425)
     rel_ratings_2324_json = _embed(rel_ratings_2324)
@@ -4171,6 +4296,11 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Past-season bulk datasets are written to sibling .js files and loaded
     # on demand by ensureSeason() in the page, keeping the HTML itself small.
     season_payloads = {
+        "2526": {
+            "DATA_2025": players_2025_json, "TEAM_DATA_2025": teams_2025_json,
+            "CONF_DATA_2025": conf_players_2025_json, "CONF_TEAM_DATA_2025": conf_teams_2025_json,
+            "STORYLINES_2025": storylines_2025_json, "DAILY_RANKS_2025": daily_ranks_2025_json,
+        },
         "2425": {
             "DATA_2024": players_2024_json, "TEAM_DATA_2024": teams_2024_json,
             "CONF_DATA_2024": conf_players_2024_json, "CONF_TEAM_DATA_2024": conf_teams_2024_json,
@@ -4210,7 +4340,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Historical subset-scope datasets (Last 5/10/Playoffs) ride in each season's
     # lazy-loaded file as window globals LAST5_TEAM_DATA_<key> etc.
     for _skey, _sub in (subset_by_season or {}).items():
-        if _skey == "2526" or _skey not in season_payloads:
+        if _skey == "2627" or _skey not in season_payloads:
             continue
         season_payloads[_skey][f"LAST5_TEAM_DATA_{_skey}"] = _embed(_sub.get("last5_teams", []))
         season_payloads[_skey][f"LAST10_TEAM_DATA_{_skey}"] = _embed(_sub.get("last10_teams", []))
@@ -4237,7 +4367,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WSC North Statistics Leaderboard - 2025-26 (Redesign)</title>
+<title>CCC Basketball Leaderboard - 2026-27</title>
 <script>try{{if(sessionStorage.getItem('lbNav'))document.documentElement.classList.add('lb-restoring');}}catch(e){{}}</script>
 <style>
   /* When restoring a saved spot on refresh, hide all content until the restore runs
@@ -5685,7 +5815,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 </label>
 
 <h1 id="page-title">Individual Statistics Leaderboard</h1>
-<div class="subtitle" id="page-subtitle">2025-26 Season — Per-Game Averages</div>
+<div class="subtitle" id="page-subtitle">2026-27 Season — Per-Game Averages</div>
 <div class="season-toggle" id="season-toggle">
   <button class="season-btn" id="btn-season-18" onclick="switchSeason('1718')">18</button>
   <span style="color:#aaa;font-size:0.9rem">|</span>
@@ -5701,7 +5831,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <span style="color:#aaa;font-size:0.9rem">|</span>
   <button class="season-btn" id="btn-season-25" onclick="switchSeason('2425')">25</button>
   <span style="color:#aaa;font-size:0.9rem">|</span>
-  <button class="season-btn active" id="btn-season-26" onclick="switchSeason('2526')">26</button>
+  <button class="season-btn" id="btn-season-26" onclick="switchSeason('2526')">26</button>
+  <button class="season-btn active" id="btn-season-27" onclick="switchSeason('2627')">27</button>
 </div>
 <div class="info" id="page-info">{len(players)} qualified players · 30% minutes played minimum · Click any column header to sort · Generated {timestamp}</div>
 
@@ -5867,7 +5998,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     </div>
     <div class="charts-panel">
       <div class="chart-heading">3-Point Percentage vs Three Point Attempt Rate</div>
-      <div class="chart-subheading" id="chart-subtitle">2025-26 Individual Players</div>
+      <div class="chart-subheading" id="chart-subtitle">2026-27 Individual Players</div>
       <div class="chart-note" id="chart-note"></div>
       <div class="chart-svg-wrap">
         <svg id="charts-scatter" viewBox="0 0 980 620" role="img" aria-label="3-point percentage vs three point attempt rate scatter plot"></svg>
@@ -6121,7 +6252,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 <div id="storylines-view" style="display:none;">
   <div style="padding:16px 0 24px">
     <div class="sl-nav" id="sl-nav"></div>
-    <div class="sl-page-title" id="sl-page-title">2025-26 game attribute rankings</div>
+    <div class="sl-page-title" id="sl-page-title">2026-27 game attribute rankings</div>
     <div class="sl-game-count" id="sl-game-count" style="display:none"></div>
     <div id="sl-tab-dominance" class="sl-tab-content">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
@@ -6182,7 +6313,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <button class="sl-wab-btn" id="sl-rate-btn-23" onclick="slRateSeasonFilter('2223')">2022-23</button>
         <button class="sl-wab-btn" id="sl-rate-btn-24" onclick="slRateSeasonFilter('2324')">2023-24</button>
         <button class="sl-wab-btn" id="sl-rate-btn-25" onclick="slRateSeasonFilter('2425')">2024-25</button>
-        <button class="sl-wab-btn active" id="sl-rate-btn-26" onclick="slRateSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn" id="sl-rate-btn-26" onclick="slRateSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn active" id="sl-rate-btn-27" onclick="slRateSeasonFilter('2627')">2026-27</button>
       </div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="rate-table"><thead><tr>
         <th class="sl-th-r" style="cursor:pointer" onclick="slSortRate('rank_rel')">Rk</th>
@@ -6273,6 +6405,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
           <label>Season</label>
           <select class="trends-team-sel" id="trends-year-sel" onchange="slTrendsSetYear(this.value)">
             <option value="all">All Seasons</option>
+            <option value="2627">2026-27</option>
             <option value="2526">2025-26</option>
             <option value="2425">2024-25</option>
             <option value="2324">2023-24</option>
@@ -6307,7 +6440,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <button class="sl-wab-btn" id="sl-rpi-btn-23" onclick="slRpiSeasonFilter('2223')">2022-23</button>
         <button class="sl-wab-btn" id="sl-rpi-btn-24" onclick="slRpiSeasonFilter('2324')">2023-24</button>
         <button class="sl-wab-btn" id="sl-rpi-btn-25" onclick="slRpiSeasonFilter('2425')">2024-25</button>
-        <button class="sl-wab-btn active" id="sl-rpi-btn-26" onclick="slRpiSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn" id="sl-rpi-btn-26" onclick="slRpiSeasonFilter('2526')">2025-26</button>
+        <button class="sl-wab-btn active" id="sl-rpi-btn-27" onclick="slRpiSeasonFilter('2627')">2026-27</button>
       </div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="rpi-table"><thead><tr>
         <th class="sl-th-r" style="cursor:pointer" onclick="slSortRpi('rank')">#</th>
@@ -6480,6 +6614,7 @@ function __deriveConfGames(confTeams, fullTeams) {{
   return confTeams;
 }}
 const SEASON_SOURCES = {{
+  '2526': 'season_data/season_2526.js',
   '2425': 'season_data/season_2425.js',
   '2324': 'season_data/season_2324.js',
   '2223': 'season_data/season_2223.js',
@@ -6488,7 +6623,7 @@ const SEASON_SOURCES = {{
   '1819': 'season_data/season_1819.js',
   '1718': 'season_data/season_1718.js',
 }};
-const __loadedSeasons = new Set(['2526']);
+const __loadedSeasons = new Set(['2627']);
 const __seasonWaiters = {{}};
 function __installSeason(key, payload) {{
   const vals = {{}};
@@ -6672,7 +6807,8 @@ const DATA = __unpack({players_json});
 const TEAM_DATA = __fixGames(__unpack({teams_json}));
 const LEAGUE_AVG = __unpack({league_avg_json});
 __lazyData('DAILY_RANKS');  // deferred: parsed on first access
-const REL_RATINGS = __unpack({rel_ratings_2526_json});
+const REL_RATINGS = __unpack({rel_ratings_2627_json});
+const REL_RATINGS_2025 = __unpack({rel_ratings_2526_json});
 const REL_RATINGS_2024 = __unpack({rel_ratings_2425_json});
 const REL_RATINGS_2023 = __unpack({rel_ratings_2324_json});
 const REL_RATINGS_2022 = __unpack({rel_ratings_2223_json});
@@ -6693,10 +6829,12 @@ __lazyData('MOORPARK_LINEUPS');  // deferred: parsed on first access
 __lazyData('TEAM_KEYS');  // deferred: parsed on first access
 __lazyData('STORYLINES');  // deferred: parsed on first access
 const WAB_DATA = __unpack({wab_json});
+const WAB_DATA_2025 = __unpack({wab_2025_json});
 const WAB_DATA_2024 = __unpack({wab_2024_json});
 const WAB_DATA_2023 = __unpack({wab_2023_json});
 const WAB_DATA_2022 = __unpack({wab_2022_json});
 const WAB_DATA_2021 = __unpack({wab_2021_json});
+const WAB_SIM_2627 = __unpack({wab_sim_2627_json});
 const WAB_SIM_2526 = __unpack({wab_sim_2526_json});
 const WAB_SIM_2425 = __unpack({wab_sim_2425_json});
 const WAB_SIM_2324 = __unpack({wab_sim_2324_json});
@@ -6716,6 +6854,7 @@ __lazyData('LAST10_DATA');  // deferred: parsed on first access
 __lazyData('PLAYOFF_DATA');  // deferred: parsed on first access
 
 // Small per-season data kept inline (used by sub-tab season filters)
+const LEAGUE_AVG_2025 = __unpack({league_avg_2025_json});
 const LEAGUE_AVG_2024 = __unpack({league_avg_2024_json});
 const LEAGUE_AVG_2023 = __unpack({league_avg_2023_json});
 const LEAGUE_AVG_2022 = __unpack({league_avg_2022_json});
@@ -6730,6 +6869,7 @@ const REL_RATINGS_1718 = __unpack({rel_ratings_1718_json});
 
 // Past-season datasets: declared here, populated on demand by
 // ensureSeason() from the SEASON_SOURCES files next to this page.
+var DATA_2025, TEAM_DATA_2025, CONF_DATA_2025, CONF_TEAM_DATA_2025, STORYLINES_2025, DAILY_RANKS_2025;
 var DATA_2024, TEAM_DATA_2024, CONF_DATA_2024, CONF_TEAM_DATA_2024, STORYLINES_2024, DAILY_RANKS_2024;
 var DATA_2023, TEAM_DATA_2023, CONF_DATA_2023, CONF_TEAM_DATA_2023, STORYLINES_2023, DAILY_RANKS_2023;
 var DATA_2022, TEAM_DATA_2022, CONF_DATA_2022, CONF_TEAM_DATA_2022, STORYLINES_2022, DAILY_RANKS_2022;
@@ -6739,6 +6879,7 @@ var DATA_1819, TEAM_DATA_1819, CONF_DATA_1819, CONF_TEAM_DATA_1819, STORYLINES_1
 var DATA_1718, TEAM_DATA_1718, CONF_DATA_1718, CONF_TEAM_DATA_1718, STORYLINES_1718, DAILY_RANKS_1718;
 
 // RPI data (Overall + Non-Conference) per season
+const RPI_DATA_2627 = __unpack({rpi_data_2627_json});
 const RPI_DATA_2526 = __unpack({rpi_data_2526_json});
 const RPI_DATA_2425 = __unpack({rpi_data_2425_json});
 const RPI_DATA_2324 = __unpack({rpi_data_2324_json});
@@ -6752,7 +6893,7 @@ const RPI_DATA_1718 = __unpack({rpi_data_1718_json});
 let activeData = DATA;
 let activeTeamData = TEAM_DATA;
 let activeLeagueAvg = LEAGUE_AVG;
-let activeSeason = '2526';
+let activeSeason = '2627';
 let confMode = false;
 let currentTeamMode = 'advanced';
 
@@ -6869,7 +7010,7 @@ function getFilteredTeams() {{
 }}
 
 function chartSeasonLabel() {{
-  return activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+  return activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
 }}
 
 function activeFullTeamData() {{
@@ -6880,6 +7021,7 @@ function activeFullTeamData() {{
     : activeSeason === '2223' ? TEAM_DATA_2022
     : activeSeason === '2324' ? TEAM_DATA_2023
     : activeSeason === '2425' ? TEAM_DATA_2024
+    : activeSeason === '2526' ? TEAM_DATA_2025
     : TEAM_DATA;
 }}
 
@@ -6891,6 +7033,7 @@ function activeFullPlayerData() {{
     : activeSeason === '2223' ? DATA_2022
     : activeSeason === '2324' ? DATA_2023
     : activeSeason === '2425' ? DATA_2024
+    : activeSeason === '2526' ? DATA_2025
     : DATA;
 }}
 
@@ -6902,6 +7045,7 @@ function activeConferencePlayerData() {{
     : activeSeason === '2223' ? CONF_DATA_2022
     : activeSeason === '2324' ? CONF_DATA_2023
     : activeSeason === '2425' ? CONF_DATA_2024
+    : activeSeason === '2526' ? CONF_DATA_2025
     : CONF_DATA;
 }}
 
@@ -6913,6 +7057,7 @@ function activeConferenceTeamData() {{
     : activeSeason === '2223' ? CONF_TEAM_DATA_2022
     : activeSeason === '2324' ? CONF_TEAM_DATA_2023
     : activeSeason === '2425' ? CONF_TEAM_DATA_2024
+    : activeSeason === '2526' ? CONF_TEAM_DATA_2025
     : CONF_TEAM_DATA;
 }}
 
@@ -6927,7 +7072,7 @@ function chartScopeLabel() {{
 // Subset data: current season is in-scope consts (inline); historical seasons are
 // window globals suffixed _<key> (lazy-loaded with the season file).
 function _subsetVar(prefix) {{
-  if (activeSeason === '2526') {{
+  if (activeSeason === '2627') {{
     const m = {{ LAST5_TEAM_DATA, LAST10_TEAM_DATA, PLAYOFF_TEAM_DATA, LAST5_DATA, LAST10_DATA, PLAYOFF_DATA }};
     return m[prefix] || null;
   }}
@@ -7766,6 +7911,8 @@ function toggleConfMode(checked) {{
     activeData = checked ? CONF_DATA_2023 : DATA_2023;
   }} else if (activeSeason === '2425') {{
     activeData = checked ? CONF_DATA_2024 : DATA_2024;
+  }} else if (activeSeason === '2526') {{
+    activeData = checked ? CONF_DATA_2025 : DATA_2025;
   }} else {{
     activeData = checked ? CONF_DATA : DATA;
   }}
@@ -7783,6 +7930,8 @@ function toggleConfMode(checked) {{
     activeTeamData = checked ? CONF_TEAM_DATA_2023 : TEAM_DATA_2023;
   }} else if (activeSeason === '2425') {{
     activeTeamData = checked ? CONF_TEAM_DATA_2024 : TEAM_DATA_2024;
+  }} else if (activeSeason === '2526') {{
+    activeTeamData = checked ? CONF_TEAM_DATA_2025 : TEAM_DATA_2025;
   }} else {{
     activeTeamData = checked ? CONF_TEAM_DATA : TEAM_DATA;
   }}
@@ -7819,6 +7968,7 @@ function __switchSeasonNow(season) {{
   document.getElementById('btn-season-24').classList.remove('active');
   document.getElementById('btn-season-25').classList.remove('active');
   document.getElementById('btn-season-26').classList.remove('active');
+  document.getElementById('btn-season-27').classList.remove('active');
   if (season === '1718') {{
     activeTeamData = confMode ? CONF_TEAM_DATA_1718 : TEAM_DATA_1718;
     activeData = confMode ? CONF_DATA_1718 : DATA_1718;
@@ -7861,12 +8011,18 @@ function __switchSeasonNow(season) {{
     activeLeagueAvg = LEAGUE_AVG_2024;
     document.getElementById('btn-season-25').classList.add('active');
     document.getElementById('page-subtitle').textContent = '2024-25 Season \u2014 ' + subLabel;
+  }} else if (season === '2526') {{
+    activeTeamData = confMode ? CONF_TEAM_DATA_2025 : TEAM_DATA_2025;
+    activeData = confMode ? CONF_DATA_2025 : DATA_2025;
+    activeLeagueAvg = LEAGUE_AVG_2025;
+    document.getElementById('btn-season-26').classList.add('active');
+    document.getElementById('page-subtitle').textContent = '2025-26 Season \u2014 ' + subLabel;
   }} else {{
     activeTeamData = confMode ? CONF_TEAM_DATA : TEAM_DATA;
     activeData = confMode ? CONF_DATA : DATA;
     activeLeagueAvg = LEAGUE_AVG;
-    document.getElementById('btn-season-26').classList.add('active');
-    document.getElementById('page-subtitle').textContent = '2025-26 Season \u2014 ' + subLabel;
+    document.getElementById('btn-season-27').classList.add('active');
+    document.getElementById('page-subtitle').textContent = '2026-27 Season \u2014 ' + subLabel;
   }}
   renderTeams(getFilteredTeams());
   renderDefense(getFilteredTeams());
@@ -7920,6 +8076,7 @@ function __switchSeasonNow(season) {{
   const rb24 = document.getElementById('sl-rate-btn-24');
   const rb25 = document.getElementById('sl-rate-btn-25');
   const rb26 = document.getElementById('sl-rate-btn-26');
+  const rb27 = document.getElementById('sl-rate-btn-27');
   if (rb18) rb18.classList.toggle('active', season === '1718');
   if (rb19) rb19.classList.toggle('active', season === '1819');
   if (rb20) rb20.classList.toggle('active', season === '1920');
@@ -7928,6 +8085,7 @@ function __switchSeasonNow(season) {{
   if (rb24) rb24.classList.toggle('active', season === '2324');
   if (rb25) rb25.classList.toggle('active', season === '2425');
   if (rb26) rb26.classList.toggle('active', season === '2526');
+  if (rb27) rb27.classList.toggle('active', season === '2627');
   if (slActiveTab === 'rate') slRenderRate(season);
   if (slActiveTab === 'conf') slSwitchTab('conf', 'Conferences');  // re-render + refresh season title
   // Refresh fanmatch if it's the active view (and storylines hasn't been init'd to cover it)
@@ -7936,7 +8094,7 @@ function __switchSeasonNow(season) {{
   // Update individual view subtitle if active
   const indDiv2 = document.getElementById('individual-view');
   if (indDiv2 && indDiv2.style.display !== 'none') {{
-    const yr2 = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : '2025-26';
+    const yr2 = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : season === '2526' ? '2025-26' : '2026-27';
     document.getElementById('page-title').textContent = 'Individual Statistics Leaderboard';
     document.getElementById('page-subtitle').textContent = yr2 + ' Season \u2014 Per-Game Averages';
   }}
@@ -8534,7 +8692,7 @@ function getPaceAdjMsg(team, val) {{
 
 // --- Team table ---
 function buildColRanks() {{
-  const _fsBR = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsBR = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const valid = activeTeamData.filter(d => d.ortg > 0);
   const fsValid = _fsBR.filter(d => d.ortg > 0);
   function rankCol(pool, key, lowBetter) {{
@@ -8595,7 +8753,7 @@ function renderTeams(data) {{
     const rank = invert ? data.length - i : i + 1;
     const tr = document.createElement('tr');
     // Always use full-season data for Record, Conf, Opp ORTG, Opp DRTG, SOS, NCSOS
-    const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+    const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
     const fs = _fsPool.find(d => d.team === t.team) || t;
     tr.innerHTML = `
       <td>${{rank}}</td>
@@ -8634,7 +8792,7 @@ function renderTeamsBasic(data) {{
   const tb = document.getElementById('team-basic-tbody');
   if (!tb) return;
   tb.innerHTML = '';
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -8668,7 +8826,7 @@ function renderTeamsBasicDefense(data) {{
   const tb = document.getElementById('team-basic-defense-tbody');
   if (!tb) return;
   tb.innerHTML = '';
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -8735,7 +8893,7 @@ function doTeamSort(col, type) {{
     teamSortBest = type === 'str' ? 'asc' : bd;
   }}
   const FS_COLS = new Set(['gp','record','conf','opp_ortg','opp_drtg_sos','sos','ncsos','team']);
-  const _fsSortPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsSortPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   activeTeamData.sort((a, b) => {{
     let sa = a, sb = b;
     if (FS_COLS.has(col)) {{
@@ -8779,7 +8937,7 @@ function renderDefense(data) {{
     const rank = invert ? data.length - i : i + 1;
     const tr = document.createElement('tr');
     // Always use full-season data for Record, Conf, Opp ORTG, Opp DRTG, SOS, NCSOS
-    const _fsPool2 = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+    const _fsPool2 = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
     const fs = _fsPool2.find(d => d.team === t.team) || t;
     tr.innerHTML = `
       <td>${{rank}}</td>
@@ -8824,7 +8982,7 @@ function doDefSort(col, type) {{
     defSortBest = type === 'str' ? 'asc' : bd;
   }}
   const FS_COLS2 = new Set(['gp','record','conf','opp_ortg','opp_drtg_sos','sos','ncsos','team']);
-  const _fsSortPool2 = activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsSortPool2 = activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   activeTeamData.sort((a, b) => {{
     let sa = a, sb = b;
     if (FS_COLS2.has(col)) {{
@@ -9788,7 +9946,7 @@ function renderTeamStats(teamName) {{
   <div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto;max-width:fit-content;margin:0 auto">
     ${{teamStatsMode === 'basic' ? __tsBasicTable(rows) : __tsAdvTable(rows, advOk, teamName, advOk ? __tsRankMaps() : {{}})}}
     <div style="font-size:0.72rem;color:#888;margin-top:8px">
-      All players, no minutes qualification · ${{teamStatsMode === 'advanced' ? 'Layout follows KenPom team player stats; bands by %Poss used · ' : ''}}Season: ${{activeSeason === '2526' ? '2025-26' : activeSeason}}
+      All players, no minutes qualification · ${{teamStatsMode === 'advanced' ? 'Layout follows KenPom team player stats; bands by %Poss used · ' : ''}}Season: ${{activeSeason === '2627' ? '2026-27' : activeSeason === '2526' ? '2025-26' : activeSeason}}
     </div>
   </div>`;
   document.getElementById('team-detail-view').style.display = 'none';
@@ -10992,7 +11150,7 @@ function renderPlayerProfile() {{
   const chartOpts = PP_CHART_STATS.map(s => '<option value="' + s[0] + '">' + s[1] + '</option>').join('');
 
   // ── similar players (cross-season, precomputed at build)
-  const SIM_SEASON_LABELS = {{ '2526': '2025-26', '2425': '2024-25', '2324': '2023-24', '2223': '2022-23', '2122': '2021-22', '1920': '2019-20', '1819': '2018-19', '1718': '2017-18' }};
+  const SIM_SEASON_LABELS = {{ '2627': '2026-27', '2526': '2025-26', '2425': '2024-25', '2324': '2023-24', '2223': '2022-23', '2122': '2021-22', '1920': '2019-20', '1819': '2018-19', '1718': '2017-18' }};
   let simHtml = '';
   if (rRow.sim && rRow.sim.length) {{
     // Position-specific columns into the neighbor tuple (see attach_similar_players).
@@ -11058,7 +11216,7 @@ function renderPlayerProfile() {{
   }}).join('');
 
   // ── header bits
-  const seasonLabel = activeSeason === '2526' ? '2025-26' : activeSeason === '2425' ? '2024-25' : activeSeason === '2324' ? '2023-24' : activeSeason === '2223' ? '2022-23' : activeSeason === '2122' ? '2021-22' : activeSeason === '1920' ? '2019-20' : activeSeason === '1819' ? '2018-19' : '2017-18';
+  const seasonLabel = activeSeason === '2627' ? '2026-27' : activeSeason === '2526' ? '2025-26' : activeSeason === '2425' ? '2024-25' : activeSeason === '2324' ? '2023-24' : activeSeason === '2223' ? '2022-23' : activeSeason === '2122' ? '2021-22' : activeSeason === '1920' ? '2019-20' : activeSeason === '1819' ? '2018-19' : '2017-18';
   const starts = games.filter(g => g.me.st).length;
   const head = [];
   if (dRow && dRow.jersey) head.push('#' + dRow.jersey);
@@ -11154,7 +11312,7 @@ function renderMinutesMatrix(teamName) {{
   const t = activeFullTeamData().find(d => d.team === teamName);
   if (!t) return;
   const boxes = GAME_BOXES[activeSeason] || {{}};
-  const _dayRanksSource = activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : DAILY_RANKS;
+  const _dayRanksSource = activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
 
   // Collect this team's games (schedule order) with their box rows
   const games = [];
@@ -11299,7 +11457,7 @@ function computeRanks(teamName) {{
     return idx >= 0 ? idx + 1 : total;
   }};
   // Always rank SOS fields against full-season data for active season
-  const _fsData = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsData = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const fsValid = _fsData.filter(d => d.ortg > 0);
   const fsTotal = fsValid.length;
   const rankForFS = (key, low) => {{
@@ -11496,7 +11654,7 @@ function buildTeamDetail(t) {{
   const total = ranks.total;
 
   // Full-season data for record and SOS (use active season's full data)
-  const _fsSource = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsSource = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const fs = _fsSource.find(d => d.team === t.team) || t;
 
   // Compute shooting stats from totals
@@ -11529,6 +11687,12 @@ function buildTeamDetail(t) {{
   const oDistFta = (0.475 * oTot.FTA / oShotBase * 100).toFixed(1);
 
   function srRow(label, offVal, defVal, avgVal, offRank, defRank, offTotals, defTotals, offLow, defLow) {{
+    // No games yet (preseason): only the ratings rows carry a number (last season's); the rest are blank.
+    if (!(t.gp > 0) && !/^Adj\./.test(label)) {{
+      return `<tr><td style="text-align:right;font-weight:600;padding-right:12px">${{label}}</td>`
+        + `<td style="text-align:center;color:#aab3bf">\u2014</td><td></td>`
+        + `<td style="text-align:center;color:#aab3bf">${{defVal !== '' ? '\u2014' : ''}}</td><td></td></tr>`;
+    }}
     const offCell = offRank != null
       ? tdColorCell(offVal, offRank, total, 1, offLow)
       : `<td style="text-align:center">${{typeof offVal === 'number' ? offVal.toFixed(1) : offVal}}</td>`;
@@ -11570,7 +11734,7 @@ function buildTeamDetail(t) {{
     const dateStr = gr.date || '';
 
     // Team's own historical rank as of this game date
-    const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : DAILY_RANKS;
+    const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
     const dayRanks = _dayRanksSource[dateStr] || {{}};
     const teamRank = dayRanks[t.team] || '';
 
@@ -11719,7 +11883,7 @@ function buildTeamDetail(t) {{
         </tbody></table>
       </div>
       <div class="td-schedule">
-        <div class="td-section-title">${{activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26'}} Schedule</div>
+        <div class="td-section-title">${{activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27'}} Schedule</div>
         <table><thead><tr>
           <th style="text-align:left">Date</th><th>Rk</th><th style="text-align:left">Opponent</th>
           <th>Box</th><th style="text-align:left">Result</th><th>Loc</th><th>Record</th><th>Conf</th><th>Tier</th>
@@ -11870,7 +12034,7 @@ function showView(view) {{
     document.getElementById('page-subtitle').style.display = '';
     document.getElementById('page-info').style.display = '';
     document.getElementById('season-toggle').style.display = 'flex';
-    const indYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+    const indYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
     title.textContent = 'Individual Statistics Leaderboard';
     subtitle.textContent = indYr + ' Season \u2014 Per-Game Averages';
     updateInfo();
@@ -11887,7 +12051,7 @@ function showTeamSub(sub) {{
   const subtitle   = document.getElementById('page-subtitle');
   const btnOff     = document.getElementById('btn-offense');
   const btnDef     = document.getElementById('btn-defense');
-  const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+  const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
 
   // Hide all tables first
   offDiv.style.display   = 'none';
@@ -11957,7 +12121,7 @@ function _basicSortHelper(col, type, curSortCol, curSortDir) {{
   }} else {{
     newDir = type === 'str' ? 'asc' : (lowBetter.has(col) ? 'asc' : 'desc');
   }}
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const FS_COLS = new Set(['gp','record','conf']);
   activeTeamData.sort((a, b) => {{
     const fa = _fsPool.find(d => d.team === a.team) || a;
@@ -11997,7 +12161,7 @@ function renderTeamsAdvOffense(data) {{
   tb.innerHTML = '';
   const colRanks = buildColRanks();
   const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -12035,7 +12199,7 @@ function doAdvOffSort(col, type) {{
   }}
   advOffSortDir = newDir;
   advOffSortCol = col;
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   activeTeamData.sort((a, b) => {{
     const fa = _fsPool.find(d => d.team === a.team) || a;
     const fb = _fsPool.find(d => d.team === b.team) || b;
@@ -12057,7 +12221,7 @@ function renderTeamsAdvDefense(data) {{
   tb.innerHTML = '';
   const colRanks = buildColRanks();
   const rk = (col, team) => {{ const r = colRanks[col]?.[team]; return r ? `<span style="font-size:0.65rem;color:#8b95a3;margin-left:3px;vertical-align:middle">${{r}}</span>` : ''; }};
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   data.forEach((t, i) => {{
     const fs = _fsPool.find(d => d.team === t.team) || t;
     const tr = document.createElement('tr');
@@ -12095,7 +12259,7 @@ function doAdvDefSort(col, type) {{
   }}
   advDefSortDir = newDir;
   advDefSortCol = col;
-  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : TEAM_DATA;
+  const _fsPool = activeSeason === '1718' ? TEAM_DATA_1718 : activeSeason === '1819' ? TEAM_DATA_1819 : activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : activeSeason === '2425' ? TEAM_DATA_2024 : activeSeason === '2526' ? TEAM_DATA_2025 : TEAM_DATA;
   const PF_COLS = new Set(['pf_total','pfpg','pf_eff','stl_pf','blk_pf']);
   activeTeamData.sort((a, b) => {{
     if (PF_COLS.has(col)) {{
@@ -12145,6 +12309,7 @@ function activeStorylines() {{
   if (activeSeason === '2223') return STORYLINES_2022;
   if (activeSeason === '2324') return STORYLINES_2023;
   if (activeSeason === '2425') return STORYLINES_2024;
+  if (activeSeason === '2526') return STORYLINES_2025;
   return STORYLINES;
 }}
 
@@ -12211,11 +12376,11 @@ function slSwitchTab(tab, label) {{
   const countEl = document.getElementById('sl-game-count');
   if (title) {{
     if (tab === 'wab') {{
-      const wabYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const wabYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = wabYr + ' Wins Above Bubble';
       if (countEl) countEl.style.display = 'none';
     }} else if (tab === 'rate') {{
-      const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = yr + ' Relative Ratings (O-Rate / D-Rate / Rel-Rtg)';
       if (countEl) countEl.style.display = 'none';
     }} else if (tab === 'height') {{
@@ -12223,17 +12388,17 @@ function slSwitchTab(tab, label) {{
       if (countEl) countEl.style.display = 'none';
       slRenderHeight();
     }} else if (tab === 'tiers') {{
-      const tiersYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const tiersYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = tiersYr + ' Tier Records (KenPom Location-Adjusted)';
       if (countEl) countEl.style.display = 'none';
       slRenderTiers('All');
     }} else if (tab === 'quads') {{
-      const quadsYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const quadsYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = quadsYr + ' Quadrant Records (NCAA-style, scaled for 100 teams)';
       if (countEl) countEl.style.display = 'none';
       slRenderQuads();
     }} else if (tab === 'trank') {{
-      const trankYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const trankYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = trankYr + ' T-Rank — Barthag (Bart Torvik Style)';
       if (countEl) countEl.style.display = 'none';
       slRenderTrank();
@@ -12242,12 +12407,12 @@ function slSwitchTab(tab, label) {{
       if (countEl) countEl.style.display = 'none';
       slRenderTrends();
     }} else if (tab === 'conf') {{
-      const confYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const confYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = confYr + ' Conference Four Factors';
       if (countEl) countEl.style.display = 'none';
       slRenderConf();
     }} else {{
-      const slYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : '2025-26';
+      const slYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = slYr + ' game attribute rankings (' + (label || tab) + ')';
       if (countEl) {{
         const n = activeStorylines().games_in_system || 0;
@@ -12724,7 +12889,7 @@ function slRenderTrank() {{
 }}
 
 // ─── RPI Tab ──────────────────────────────────────────────────────
-let slRpiSeason = '2526';
+let slRpiSeason = '2627';
 let slRpiSortKey = 'rpi';
 let slRpiSortAsc = false;  // false = descending (best first for numeric cols)
 
@@ -12738,6 +12903,7 @@ function slRpiSeasonFilter(season) {{
   document.getElementById('sl-rpi-btn-24').classList.toggle('active', season === '2324');
   document.getElementById('sl-rpi-btn-25').classList.toggle('active', season === '2425');
   document.getElementById('sl-rpi-btn-26').classList.toggle('active', season === '2526');
+  document.getElementById('sl-rpi-btn-27').classList.toggle('active', season === '2627');
   slRenderRpi();
 }}
 
@@ -12831,7 +12997,8 @@ function slRenderRpi() {{
     : slRpiSeason === '2223' ? RPI_DATA_2223
     : slRpiSeason === '2324' ? RPI_DATA_2324
     : slRpiSeason === '2425' ? RPI_DATA_2425
-    : RPI_DATA_2526;
+    : slRpiSeason === '2526' ? RPI_DATA_2526
+    : RPI_DATA_2627;
   if (!src || !src.length) {{
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#555;padding:24px">No RPI data available</td></tr>';
     return;
@@ -12889,10 +13056,10 @@ function slRenderWab(region) {{
   let rows;
   const useSplit = region === 'North' || region === 'South';
   if (useSplit) {{
-    const simSrc = activeSeason === '1920' ? (WAB_SIM_1920 || {{}}) : activeSeason === '2122' ? (WAB_SIM_2122 || {{}}) : activeSeason === '2223' ? (WAB_SIM_2223 || {{}}) : activeSeason === '2324' ? (WAB_SIM_2324 || {{}}) : activeSeason === '2425' ? (WAB_SIM_2425 || {{}}) : (WAB_SIM_2526 || {{}});
+    const simSrc = activeSeason === '1920' ? (WAB_SIM_1920 || {{}}) : activeSeason === '2122' ? (WAB_SIM_2122 || {{}}) : activeSeason === '2223' ? (WAB_SIM_2223 || {{}}) : activeSeason === '2324' ? (WAB_SIM_2324 || {{}}) : activeSeason === '2425' ? (WAB_SIM_2425 || {{}}) : activeSeason === '2526' ? (WAB_SIM_2526 || {{}}) : (WAB_SIM_2627 || {{}});
     rows = (simSrc[region.toLowerCase()] || []).slice();
   }} else {{
-    const src = activeSeason === '2122' ? (WAB_DATA_2021 || []) : activeSeason === '2223' ? (WAB_DATA_2022 || []) : activeSeason === '2324' ? (WAB_DATA_2023 || []) : activeSeason === '2425' ? (WAB_DATA_2024 || []) : (WAB_DATA || []);
+    const src = activeSeason === '2122' ? (WAB_DATA_2021 || []) : activeSeason === '2223' ? (WAB_DATA_2022 || []) : activeSeason === '2324' ? (WAB_DATA_2023 || []) : activeSeason === '2425' ? (WAB_DATA_2024 || []) : activeSeason === '2526' ? (WAB_DATA_2025 || []) : (WAB_DATA || []);
     rows = src.filter(r => true);
     rows.sort((a, b) => b.wab - a.wab);
   }}
@@ -12902,10 +13069,10 @@ function slRenderWab(region) {{
   }}
   const maxAbsWab = Math.max(...rows.map(r => Math.abs(r.wab)));
   const BUBBLE_RANK = 24;
-  const teamSrc = activeSeason === '2122' ? (TEAM_DATA_2021 || []) : activeSeason === '2223' ? (TEAM_DATA_2022 || []) : activeSeason === '2324' ? (TEAM_DATA_2023 || []) : activeSeason === '2425' ? (TEAM_DATA_2024 || []) : (TEAM_DATA || []);
+  const teamSrc = activeSeason === '2122' ? (TEAM_DATA_2021 || []) : activeSeason === '2223' ? (TEAM_DATA_2022 || []) : activeSeason === '2324' ? (TEAM_DATA_2023 || []) : activeSeason === '2425' ? (TEAM_DATA_2024 || []) : activeSeason === '2526' ? (TEAM_DATA_2025 || []) : (TEAM_DATA || []);
   const netMap = {{}};
   teamSrc.forEach(t => {{ netMap[t.team] = t.net_rtg; }});
-  const relSrc = activeSeason === '2122' ? (REL_RATINGS_2021 || []) : activeSeason === '2223' ? (REL_RATINGS_2022 || []) : activeSeason === '2324' ? (REL_RATINGS_2023 || []) : activeSeason === '2425' ? (REL_RATINGS_2024 || []) : (REL_RATINGS || []);
+  const relSrc = activeSeason === '2122' ? (REL_RATINGS_2021 || []) : activeSeason === '2223' ? (REL_RATINGS_2022 || []) : activeSeason === '2324' ? (REL_RATINGS_2023 || []) : activeSeason === '2425' ? (REL_RATINGS_2024 || []) : activeSeason === '2526' ? (REL_RATINGS_2025 || []) : (REL_RATINGS || []);
   const relMap = {{}};
   relSrc.forEach(rr => {{ relMap[rr.team] = rr.rel_rating; }});
   let html = '';
@@ -12927,7 +13094,7 @@ function slRenderWab(region) {{
   body.innerHTML = html;
 }}
 
-let slRateSeason = '2526';
+let slRateSeason = '2627';
 let slRateSortCol = 'rank_rel';
 let slRateSortDir = 1; // 1 = asc for rank_rel, -1 = desc for values
 
@@ -12940,6 +13107,7 @@ function slRateSeasonFilter(season) {{
   const b23 = document.getElementById('sl-rate-btn-23');
   const b25 = document.getElementById('sl-rate-btn-25');
   const b26 = document.getElementById('sl-rate-btn-26');
+  const b27 = document.getElementById('sl-rate-btn-27');
   if (b18) b18.classList.toggle('active', season === '1718');
   if (b19) b19.classList.toggle('active', season === '1819');
   if (b20) b20.classList.toggle('active', season === '1920');
@@ -12947,10 +13115,11 @@ function slRateSeasonFilter(season) {{
   if (b23) b23.classList.toggle('active', season === '2223');
   if (b25) b25.classList.toggle('active', season === '2425');
   if (b26) b26.classList.toggle('active', season === '2526');
+  if (b27) b27.classList.toggle('active', season === '2627');
   slRenderRate(season);
   const title = document.getElementById('sl-page-title');
   if (title && slActiveTab === 'rate') {{
-    const yr = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : '2025-26';;
+    const yr = season === '1718' ? '2017-18' : season === '1819' ? '2018-19' : season === '1920' ? '2019-20' : season === '2122' ? '2021-22' : season === '2223' ? '2022-23' : season === '2324' ? '2023-24' : season === '2425' ? '2024-25' : season === '2526' ? '2025-26' : '2026-27';;
   }}
 }}
 
@@ -12967,7 +13136,7 @@ function slSortRate(col) {{
 
 function slRenderRate(season) {{
   const _s = season || slRateSeason;
-  const src = _s === '1718' ? REL_RATINGS_1718 : _s === '1819' ? REL_RATINGS_1819 : _s === '1920' ? REL_RATINGS_1920 : _s === '2122' ? REL_RATINGS_2021 : _s === '2223' ? REL_RATINGS_2022 : _s === '2324' ? REL_RATINGS_2023 : _s === '2425' ? REL_RATINGS_2024 : REL_RATINGS;
+  const src = _s === '1718' ? REL_RATINGS_1718 : _s === '1819' ? REL_RATINGS_1819 : _s === '1920' ? REL_RATINGS_1920 : _s === '2122' ? REL_RATINGS_2021 : _s === '2223' ? REL_RATINGS_2022 : _s === '2324' ? REL_RATINGS_2023 : _s === '2425' ? REL_RATINGS_2024 : _s === '2526' ? REL_RATINGS_2025 : REL_RATINGS;
   const body = document.getElementById('sl-body-rate');
   if (!body) return;
   if (!src || !src.length) {{
@@ -13066,7 +13235,8 @@ function trendMonthBucket(dateStr) {{
 }}
 
 function trendGetSrc(key) {{
-  if (key === '2526') return TEAM_DATA;
+  if (key === '2627') return TEAM_DATA;
+  if (key === '2526') return TEAM_DATA_2025;
   if (key === '2425') return TEAM_DATA_2024;
   if (key === '2324') return TEAM_DATA_2023;
   if (key === '2223') return TEAM_DATA_2022;
@@ -13323,6 +13493,18 @@ function __slRenderTrendsNow() {{
 // ─── End Trends Tab ───────────────────────────────────────────────
 
 function slGameCell(g) {{
+  if (g.upcoming) {{
+    const p = (g.score || '').split('-');
+    return '<td class="sl-game-cell">' +
+      '<span class="sl-game-winner">' + teamPageLink(g.winner) + '</span>' +
+      '<span class="sl-score"> ' + (p[0] || '') + '</span>' +
+      '<span class="sl-net">\u2009' + slNetStr(g.pregame_winner_net) + '</span>, ' +
+      '<span class="sl-game-loser">' + teamPageLink(g.loser) + '</span>' +
+      '<span class="sl-score-loser"> ' + (p[1] || '') + '</span>' +
+      '<span class="sl-net">\u2009' + slNetStr(g.pregame_loser_net) + '</span>' +
+      ' <span style="font-size:0.7rem;color:var(--ink-3)">proj</span>' +
+      '</td>';
+  }}
   const parts = (g.score || '').split('-');
   const wScore = parts[0] || '', lScore = parts[1] || '';
   const otStr = g.overtimes > 0 ? '<span class="sl-ot"> (' + (g.overtimes > 1 ? g.overtimes : '') + 'OT)</span>' : '';
@@ -13376,11 +13558,13 @@ function slGameRow(g, idx, cols) {{
   }}
   const site = g.home_team || 'Neutral';
   const gameGoldCls = (g.winner === 'Moorpark' || g.loser === 'Moorpark') ? ' class="mp-gold-row"' : '';
-  const boxTd = cols === 'fanmatch'
+  const boxTd = cols === 'fanmatch' && g.upcoming
+    ? '<td style="text-align:center;color:var(--ink-3)">\u2014</td>'
+    : cols === 'fanmatch'
     ? `<td style="text-align:center"><a href="#" onclick="openBoxScore('${{g.date}}','${{g.winner}}','${{g.loser}}');return false" style="color:#0d47a1;font-weight:700;text-decoration:none">Box</a></td>`
     : '';
   return `<tr${{gameGoldCls}}><td class="sl-rank">${{idx + 1}}</td>` +
-         `<td class="sl-date-cell">${{g.date}}</td>` +
+         `<td class="sl-date-cell">${{g.upcoming && g.time ? g.time : g.date}}</td>` +
          slGameCell(g) +
          boxTd +
          `<td class="sl-loc-cell">${{site}}</td>` +
@@ -13411,8 +13595,10 @@ function slInitFanmatch() {{
     const [bm, bd, by] = b.split('/').map(Number);
     return (ay * 10000 + am * 100 + ad) - (by * 10000 + bm * 100 + bd);
   }});
-  // Default to most recent date
-  slFanmatchIdx = slFanmatchDates.length - 1;
+  // Default to today, else the next day with games, else the most recent one
+  const _now = new Date(), _tNum = _now.getFullYear() * 10000 + (_now.getMonth() + 1) * 100 + _now.getDate();
+  const _next = slFanmatchDates.findIndex(s => {{ const [m, d, y] = s.split('/').map(Number); return y * 10000 + m * 100 + d >= _tNum; }});
+  slFanmatchIdx = _next >= 0 ? _next : slFanmatchDates.length - 1;
   slSetFanmatchDate(slFanmatchDates[slFanmatchIdx]);
 }}
 
@@ -13456,7 +13642,8 @@ function slRenderFanmatch(dateStr) {{
   const prev = document.getElementById('sl-cal-prev');
   const next = document.getElementById('sl-cal-next');
   if (lbl) lbl.textContent = dateStr || '';
-  if (cnt) cnt.textContent = fm.length + ' game' + (fm.length !== 1 ? 's' : '');
+  const _proj = fm.filter(g => g.upcoming).length;
+  if (cnt) cnt.textContent = fm.length + ' game' + (fm.length !== 1 ? 's' : '') + (_proj ? ' \u00b7 ' + (_proj === fm.length ? 'projected' : _proj + ' projected') : '');
   if (prev) prev.disabled = slFanmatchIdx <= 0;
   if (next) next.disabled = slFanmatchIdx >= slFanmatchDates.length - 1;
   // Line o' the Night
@@ -13489,6 +13676,9 @@ function slRenderFanmatch(dateStr) {{
 
   // Daily summary stats
   const summaryEl = document.getElementById('sl-lotn');
+  // Projected (not yet played) games stay out of the results summary
+  const fmAll = fm;
+  {{ const fm = fmAll.filter(g => !g.upcoming);
   if (summaryEl && fm.length) {{
     // Favorites record
     const favWins = fm.filter(g => g.pregame_model_wp_winner >= 0.5).length;
@@ -13527,6 +13717,16 @@ function slRenderFanmatch(dateStr) {{
       + parts.join(bull) + bull + statParts.join(bull)
       + '</div>';
     summaryEl.innerHTML = summaryHtml + summaryLine;
+  }} }}
+  const fmProj = fmAll.filter(g => g.upcoming);
+  if (summaryEl && fmProj.length) {{
+    const expFav = fmProj.reduce((s, g) => s + (g.pregame_model_wp_winner || 0.5), 0);
+    const projPts = (fmProj.reduce((s, g) => {{ const [a, b] = g.score.split('-').map(Number); return s + a + b; }}, 0) / fmProj.length).toFixed(1);
+    summaryEl.innerHTML += '<div class="lotn-wrap" style="margin-top:6px;font-size:0.78rem">'
+      + '<span class="lotn-label" style="font-size:0.68rem">Projected:</span>'
+      + fmProj.length + ' game' + (fmProj.length !== 1 ? 's' : '') + ' \u2022 Favorites expected: <b>' + expFav.toFixed(1) + '-' + (fmProj.length - expFav).toFixed(1) + '</b>'
+      + ' \u2022 Projected pts/game: <b>' + projPts + '</b>'
+      + '<br><span style="color:#93a0ad">From current ratings: last season’s until a team plays, then fading toward this season’s.</span></div>';
   }}
 }}
 // ─────────────────────────────────────────────────────────────────────
@@ -13664,34 +13864,34 @@ def main():
         print(f"  {len(data)} {label} {suffix}")
 
     print("Loading current-season datasets...")
-    players = dataset("2526_players", lambda: load_players())
+    players = dataset("2627_players", lambda: load_players())
     print(f"  {len(players)} players qualify (30% minutes threshold)")
-    teams = dataset("2526_teams", lambda: load_teams())
+    teams = dataset("2627_teams", lambda: load_teams())
     log_count("teams", teams)
-    height_data = dataset("2526_height", lambda: load_height_data(teams))
+    height_data = dataset("2627_height", lambda: load_height_data(teams))
     print(f"  {len(height_data.get('ranked', []))} teams with roster-height data loaded")
-    conf_players = dataset("2526_conf_players", lambda: load_conf_players())
+    conf_players = dataset("2627_conf_players", lambda: load_conf_players())
     log_count("conference-only players", conf_players)
-    conf_teams = dataset("2526_conf_teams", lambda: load_conf_teams())
+    conf_teams = dataset("2627_conf_teams", lambda: load_conf_teams())
     log_count("conference-only teams", conf_teams)
     # Box-derived subset scopes (current season): Last 5 / Last 10 / Playoffs
-    last5_teams = dataset("2526_last5_teams", lambda: load_subset_teams(None, "last5"))
-    last10_teams = dataset("2526_last10_teams", lambda: load_subset_teams(None, "last10"))
-    playoff_teams = dataset("2526_playoff_teams", lambda: load_subset_teams(None, "playoffs"))
-    last5_players = dataset("2526_last5_players", lambda: load_subset_players(None, "last5"))
-    last10_players = dataset("2526_last10_players", lambda: load_subset_players(None, "last10"))
-    playoff_players = dataset("2526_playoff_players", lambda: load_subset_players(None, "playoffs"))
+    last5_teams = dataset("2627_last5_teams", lambda: load_subset_teams(None, "last5"))
+    last10_teams = dataset("2627_last10_teams", lambda: load_subset_teams(None, "last10"))
+    playoff_teams = dataset("2627_playoff_teams", lambda: load_subset_teams(None, "playoffs"))
+    last5_players = dataset("2627_last5_players", lambda: load_subset_players(None, "last5"))
+    last10_players = dataset("2627_last10_players", lambda: load_subset_players(None, "last10"))
+    playoff_players = dataset("2627_playoff_players", lambda: load_subset_players(None, "playoffs"))
     log_count("last-10 teams", last10_teams)
-    rpi_2526 = dataset("2526_rpi", lambda: compute_rpi(STATS_DIR))
-    print(f"  {len(rpi_2526)} teams with 2025-26 RPI computed")
-    storylines_current = dataset("2526_storylines", lambda: load_storylines())
-    print(f"  {storylines_current.get('games_in_system', 0)} 2025-26 storyline games loaded")
-    game_boxes = {"2526": dataset("2526_boxes", lambda: build_game_boxes(STATS_DIR))}
-    print(f"  {len(game_boxes['2526'])} 2025-26 game box scores loaded")
-    team_rosters = {"2526": dataset("2526_rosters", lambda: load_full_rosters(STATS_DIR))}
-    print(f"  {len(team_rosters['2526'])} 2025-26 full team rosters loaded")
-    conf_ff = {"2526": dataset("2526_conf_ff", lambda: build_conference_four_factors(STATS_DIR))}
-    print(f"  {len(conf_ff['2526'].get('full', []))} 2025-26 conference four-factor rows")
+    rpi_2627 = dataset("2627_rpi", lambda: compute_rpi(STATS_DIR))
+    print(f"  {len(rpi_2627)} teams with 2026-27 RPI computed")
+    storylines_current = dataset("2627_storylines", lambda: load_storylines())
+    print(f"  {storylines_current.get('games_in_system', 0)} 2026-27 storyline games loaded")
+    game_boxes = {"2627": dataset("2627_boxes", lambda: build_game_boxes(STATS_DIR))}
+    print(f"  {len(game_boxes['2627'])} 2026-27 game box scores loaded")
+    team_rosters = {"2627": dataset("2627_rosters", lambda: load_full_rosters(STATS_DIR))}
+    print(f"  {len(team_rosters['2627'])} 2026-27 full team rosters loaded")
+    conf_ff = {"2627": dataset("2627_conf_ff", lambda: build_conference_four_factors(STATS_DIR))}
+    print(f"  {len(conf_ff['2627'].get('full', []))} 2026-27 conference four-factor rows")
     # opponent ratings (season ORtg/DRtg) for per-game lineup opponent adjustment
     _opp_ratings = {t["team"]: {"ortg": t.get("ortg", 0), "drtg": t.get("drtg", 0)}
                     for t in teams if t.get("ortg")}
@@ -13842,6 +14042,7 @@ def main():
 
     empty = []
     empty_storylines = {}
+    teams_2025 = conf_teams_2025 = players_2025 = conf_players_2025 = rpi_2526 = empty
     teams_2024 = conf_teams_2024 = players_2024 = conf_players_2024 = rpi_2425 = empty
     teams_2023 = conf_teams_2023 = players_2023 = conf_players_2023 = rpi_2324 = empty
     teams_2022 = conf_teams_2022 = players_2022 = conf_players_2022 = rpi_2223 = empty
@@ -13849,10 +14050,11 @@ def main():
     teams_2019 = conf_teams_2019 = players_2019 = conf_players_2019 = rpi_1920 = empty
     teams_1819 = conf_teams_1819 = players_1819 = conf_players_1819 = rpi_1819 = empty
     teams_1718 = conf_teams_1718 = players_1718 = conf_players_1718 = rpi_1718 = empty
-    storylines_2024 = storylines_2023 = storylines_2022 = storylines_2021 = empty_storylines
+    storylines_2025 = storylines_2024 = storylines_2023 = storylines_2022 = storylines_2021 = empty_storylines
     storylines_2019 = storylines_1819 = storylines_1718 = empty_storylines
     champion_data = {
-        "2526": infer_champion(STATS_DIR),
+        "2627": infer_champion(STATS_DIR),
+        "2526": infer_champion(STATS_DIR_2025),
         "2425": infer_champion(STATS_DIR_2024),
         "2324": infer_champion(STATS_DIR_2023),
         "2223": infer_champion(STATS_DIR_2022),
@@ -13866,6 +14068,7 @@ def main():
         print("Fast mode: skipping historical seasons.")
     else:
         season_specs = [
+            ("2526", "2025-26", STATS_DIR_2025),
             ("2425", "2024-25", STATS_DIR_2024),
             ("2324", "2023-24", STATS_DIR_2023),
             ("2223", "2022-23", STATS_DIR_2022),
@@ -13901,6 +14104,13 @@ def main():
                 f"{len(loaded[key]['players'])} players, "
                 f"{loaded[key]['storylines'].get('games_in_system', 0)} storyline games"
             )
+
+        teams_2025 = loaded["2526"]["teams"]
+        conf_teams_2025 = loaded["2526"]["conf_teams"]
+        players_2025 = loaded["2526"]["players"]
+        conf_players_2025 = loaded["2526"]["conf_players"]
+        storylines_2025 = loaded["2526"]["storylines"]
+        rpi_2526 = loaded["2526"]["rpi"]
 
         teams_2024 = loaded["2425"]["teams"]
         conf_teams_2024 = loaded["2425"]["conf_teams"]
@@ -13952,7 +14162,7 @@ def main():
         rpi_1718 = loaded["1718"]["rpi"]
 
     # Subset (Last 5 / Last 10 / Playoffs) datasets by season — current inline, historical lazy.
-    subset_by_season = {"2526": {
+    subset_by_season = {"2627": {
         "last5_teams": last5_teams, "last10_teams": last10_teams, "playoff_teams": playoff_teams,
         "last5_players": last5_players, "last10_players": last10_players, "playoff_players": playoff_players,
     }}
@@ -13983,7 +14193,10 @@ def main():
         teams_1718=teams_1718, conf_teams_1718=conf_teams_1718,
         players_1718=players_1718, conf_players_1718=conf_players_1718,
         storylines_1718=storylines_1718,
-        rpi_data_2526=rpi_2526, rpi_data_2425=rpi_2425,
+        rpi_data_2627=rpi_2627, rpi_data_2526=rpi_2526, rpi_data_2425=rpi_2425,
+        teams_2025=teams_2025, conf_teams_2025=conf_teams_2025,
+        players_2025=players_2025, conf_players_2025=conf_players_2025,
+        storylines_2025=storylines_2025,
         rpi_data_2324=rpi_2324, rpi_data_2223=rpi_2223,
         rpi_data_2122=rpi_2122, rpi_data_1920=rpi_1920,
         rpi_data_1819=rpi_1819, rpi_data_1718=rpi_1718,
@@ -14002,7 +14215,7 @@ def main():
         # Fast mode only refreshes current-season files; existing past-season
         # files keep serving the other seasons.
         writable = {k: v for k, v in season_files.items()
-                    if k in ("boxes_2526.js", "rosters_2526.js")}
+                    if k in ("boxes_2627.js", "rosters_2627.js")}
         print("Fast mode: past-season data files not rewritten.")
     else:
         writable = season_files

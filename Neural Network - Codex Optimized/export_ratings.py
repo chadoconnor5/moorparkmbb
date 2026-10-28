@@ -592,6 +592,11 @@ def export(season=None, out=OUT):
     # written empty (and older team files removed), so the iPad never shows another season's numbers.
     season = season or TRACKER_SEASON
     ratings = al.load_ratings(season) if (Path(f"{season} Team Statistics").exists()) else {}
+    # Preseason ratings (build_preseason.py: last season's numbers, for the leaderboard) are not this season's:
+    # the tracker keeps showing nothing for a team until it has played.
+    pre = {f.parent.name for f in Path(f"{season} Team Statistics").glob("*/*/advanced_analytics.json")
+           if json.load(open(f)).get("team", {}).get("preseason")}
+    ratings = {t: r for t, r in ratings.items() if t not in pre}
     if not ratings:
         out = Path(out)
         res = {"app": "moorpark-possession-tracker", "kind": "team-ratings", "version": 1,
