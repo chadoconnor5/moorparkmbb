@@ -9,6 +9,7 @@ import season_rosters as _season_rosters
 import math
 import re
 import shutil
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -353,10 +354,41 @@ MIN_PROJ_GAMES = 5
 _MONTHS = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
 
 
+_HOST_PLACES = {"sacramento, ca": "Sacramento City", "livermore, ca": "Las Positas", "santa rosa, ca": "Santa Rosa",
+                "msjc - san jacinto campus": "Mt. San Jacinto", "msjc": "Mt. San Jacinto", "stockton, ca": "San Joaquin Delta",
+                "pleasant hill, ca": "Diablo Valley", "aptos, ca": "Cabrillo", "aptos": "Cabrillo", "sbvc": "San Bernardino Valley",
+                "sj delta college": "San Joaquin Delta", "san joquin delta tournament": "San Joaquin Delta",
+                "ridgecrest, ca": "Cerro Coso"}
+
+
+def neutral_host(notes):
+    """The host school of a neutral-site game from its schedule note ("Tournament name @ Host College"), canonical
+    name when it is an in-system school, else the place as written; None when the note names none."""
+    from assemble_schedules import canon, CANON
+    if "@" not in (notes or ""):
+        return None
+    raw = re.sub(r"\(.*?\)", "", notes.rsplit("@", 1)[1]).strip(" .")
+    x = unicodedata.normalize("NFKD", raw.lower()).encode("ascii", "ignore").decode()
+    if not x or "higher seed" in x:
+        return None
+    if "torrance" in x:
+        return "El Camino"
+    if x in _HOST_PLACES:
+        return _HOST_PLACES[x]
+    for cand in (x, re.sub(r"^(college of the|college of)\s+", "", x),
+                 re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", x)):
+        c = canon(cand) or canon(re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", cand))
+        if c:
+            return c
+    names = sorted(set(CANON.values()), key=len, reverse=True)
+    hit = next((t for t in names if t.lower() in x), None)
+    return hit or raw
+
+
 def load_season_schedules(season="2026-27"):
     """Every team's whole season schedule from the typed-in schedule.json files ("<season> Schedule Screenshots"):
     {team: [[M/D/YYYY, opponent as listed, canonical opponent or None, Home/Away/Neutral, conference 0/1, time,
-    notes], ...]}, scrimmages left out. The team page lists it, played games taking their results from game_ratings."""
+    notes, neutral-site host or None], ...]}, scrimmages left out. The team page lists it, played games taking their results from game_ratings."""
     from assemble_schedules import canon, is_scrimmage
     y0 = int(season[:4])
     out = {}
@@ -370,7 +402,8 @@ def load_season_schedules(season="2026-27"):
             ha = g.get("home_away")
             rows.append([f"{m}/{int(day)}/{y0 if m >= 7 else y0 + 1}", g.get("opponent") or "", canon(g.get("opponent")),
                          "Home" if ha == "home" else "Away" if ha == "away" else "Neutral",
-                         1 if g.get("is_conference") else 0, g.get("time") or "", g.get("notes") or ""])
+                         1 if g.get("is_conference") else 0, g.get("time") or "", g.get("notes") or "",
+                         neutral_host(g.get("notes")) if ha == "neutral" else None])
         if rows:
             out[f.parent.name] = rows
     return out
@@ -448,6 +481,24 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
     return out
 
 
+def _with_hosts(stats_dir: Path, games: list) -> list:
+    """Neutral-site games get "host": the host school from the season's typed-in schedules (none before 2026-27)."""
+    m = re.search(r"(\d{4}-\d{2})", str(stats_dir))
+    if not m or not Path(f"{m.group(1)} Schedule Screenshots").exists():
+        return games
+    hosts = {}
+    for team, rs in load_season_schedules(m.group(1)).items():
+        for r in rs:
+            if r[3] == "Neutral" and r[7] and r[2]:
+                hosts.setdefault((r[0], frozenset((team, r[2]))), r[7])
+    for g in games:
+        if not g.get("home_team"):
+            h = hosts.get((g["date"], frozenset((g["winner"], g["loser"]))))
+            if h:
+                g["host"] = h
+    return games
+
+
 def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool = True,
                      hca_points: float = 3.0, wp_scale: float = 10.0,
                      prior_stats_dir: Path = None) -> dict:
@@ -466,7 +517,7 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
         "bust_games":     _sl_top_n(rows, "bust_score", top),
-        "fanmatch_games": sorted(rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale),
+        "fanmatch_games": sorted(_with_hosts(stats_dir, rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale)),
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1))),
         "lines_of_night": lines_of_night,
     }
@@ -6957,7 +7008,7 @@ const TEAMS_BY_CONF = {_jc({c: sorted(info["teams"]) for c, info in CONFERENCES.
 // 2026-27 rosters typed in from the teams' sites (season_rosters.py): [num, name, pos, ht, yr], shown on Team Stats
 // for a team with no player stats yet.
 const PRESEASON_ROSTERS = {_jc({t: [[r["num"], r["name"], r["pos"], r["ht"], r["yr"]] for r in rs] for t, rs in _season_rosters.load().items()})};
-// 2026-27 season schedules (load_season_schedules): [date, opp, canonical opp, loc, conf, time, notes].
+// 2026-27 season schedules (load_season_schedules): [date, opp, canonical opp, loc, conf, time, notes, host].
 const SEASON_SCHEDULES = {{ '2627': {_jc(load_season_schedules("2026-27"))} }};
 const NO_TEAM = {_jc({k[2:4] + k[5:7]: sorted(v) for k, v in _NO_TEAM.items()})};
 
@@ -11805,10 +11856,10 @@ function buildTeamDetail(t) {{
   let games = t.game_ratings || [];
   if (__sch) {{
     const used = new Set();
-    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes]) => {{
+    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host]) => {{
       const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
-      if (i >= 0) {{ used.add(i); return games[i]; }}
-      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, result: '' }};
+      if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
+      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
     }});
     games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
   }}
@@ -11879,7 +11930,7 @@ function buildTeamDetail(t) {{
       <td style="text-align:left;${{cellBg}}">${{oppLink}}${{oppRankHtml}}${{oppNetHtml}}${{confMarker}}</td>
       <td style="text-align:center;${{cellBg}}">${{boxCell}}</td>
       <td style="text-align:left;font-weight:600;${{cellBg}}">${{resultStr}}</td>
-      <td style="text-align:center;${{cellBg}}">${{loc}}</td>
+      <td style="text-align:center;${{cellBg}}">${{loc === 'Neutral' && gr.host ? gr.host + ' (N)' : loc}}</td>
       <td style="text-align:center;${{cellBg}}">${{runRec}}</td>
       <td style="text-align:center;${{cellBg}}">${{runConf}}</td>
       <td style="text-align:center;${{cellBg}}">${{tierHtml}}</td>
@@ -13659,7 +13710,7 @@ function slGameRow(g, idx, cols) {{
           + '<td class="sl-val-cell" style="color:#aaa">' + domVal + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + tenVal + '</td>';
   }}
-  const site = g.home_team || 'Neutral';
+  const site = g.home_team || (g.host ? g.host + ' (N)' : 'Neutral');
   const gameGoldCls = (g.winner === 'Moorpark' || g.loser === 'Moorpark') ? ' class="mp-gold-row"' : '';
   const boxTd = cols === 'fanmatch' && g.upcoming
     ? '<td style="text-align:center;color:var(--ink-3)">\u2014</td>'
