@@ -9,6 +9,7 @@ import season_rosters as _season_rosters
 import math
 import re
 import shutil
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -353,10 +354,41 @@ MIN_PROJ_GAMES = 5
 _MONTHS = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
 
 
+_HOST_PLACES = {"livermore, ca": "Las Positas", "santa rosa, ca": "Santa Rosa",
+                "msjc - san jacinto campus": "Mt. San Jacinto", "msjc": "Mt. San Jacinto", "stockton, ca": "San Joaquin Delta",
+                "pleasant hill, ca": "Diablo Valley", "aptos, ca": "Cabrillo", "aptos": "Cabrillo", "sbvc": "San Bernardino Valley",
+                "sj delta college": "San Joaquin Delta", "san joquin delta tournament": "San Joaquin Delta",
+                "ridgecrest, ca": "Cerro Coso"}
+
+
+def neutral_host(notes):
+    """The host school of a neutral-site game from its schedule note ("Tournament name @ Host College"), canonical
+    name when it is an in-system school, else the place as written; None when the note names none."""
+    from assemble_schedules import canon, CANON
+    if "@" not in (notes or ""):
+        return None
+    raw = re.sub(r"\(.*?\)", "", notes.rsplit("@", 1)[1]).strip(" .")
+    x = unicodedata.normalize("NFKD", raw.lower()).encode("ascii", "ignore").decode()
+    if not x or "higher seed" in x:
+        return None
+    if "torrance" in x:
+        return "El Camino"
+    if x in _HOST_PLACES:
+        return _HOST_PLACES[x]
+    for cand in (x, re.sub(r"^(college of the|college of)\s+", "", x),
+                 re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", x)):
+        c = canon(cand) or canon(re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", cand))
+        if c:
+            return c
+    names = sorted(set(CANON.values()), key=len, reverse=True)
+    hit = next((t for t in names if t.lower() in x), None)
+    return hit or raw
+
+
 def load_season_schedules(season="2026-27"):
     """Every team's whole season schedule from the typed-in schedule.json files ("<season> Schedule Screenshots"):
     {team: [[M/D/YYYY, opponent as listed, canonical opponent or None, Home/Away/Neutral, conference 0/1, time,
-    notes], ...]}, scrimmages left out. The team page lists it, played games taking their results from game_ratings."""
+    notes, neutral-site host or None], ...]}, scrimmages left out. The team page lists it, played games taking their results from game_ratings."""
     from assemble_schedules import canon, is_scrimmage
     y0 = int(season[:4])
     out = {}
@@ -370,7 +402,8 @@ def load_season_schedules(season="2026-27"):
             ha = g.get("home_away")
             rows.append([f"{m}/{int(day)}/{y0 if m >= 7 else y0 + 1}", g.get("opponent") or "", canon(g.get("opponent")),
                          "Home" if ha == "home" else "Away" if ha == "away" else "Neutral",
-                         1 if g.get("is_conference") else 0, g.get("time") or "", g.get("notes") or ""])
+                         1 if g.get("is_conference") else 0, g.get("time") or "", g.get("notes") or "",
+                         neutral_host(g.get("notes")) if ha == "neutral" else None])
         if rows:
             out[f.parent.name] = rows
     return out
@@ -445,7 +478,69 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
             "fanmatch_score": round(100.0 * (1.0 - abs(wp - 0.5) * 2.0), 2),
             "upset_score": None, "dominance_score": None, "tension_score": None,
         })
+    # Later bracket rounds (brackets.json): one row per game, linked to the games feeding it; then the other TBA
+    # games (tournaments without a bracket entered): one row per game, the TBA teams at a site paired up.
+    import brackets as _brk
+    results = {(r["date"], frozenset((r["winner"], r["loser"]))): r["winner"] for r in rows}
+    existing = {(g["date"], frozenset((g["winner"], g["loser"]))) for g in out} | set(results)
+    brows, covered = _brk.fanmatch(season, results, existing)
+    blank = {"upcoming": True, "projected": False, "score": "", "margin": None, "overtimes": 0, "conference": False,
+             "pregame_winner_net": None, "pregame_loser_net": None, "pregame_model_wp_winner": None,
+             "fanmatch_score": None, "upset_score": None, "dominance_score": None, "tension_score": None}
+    out += [dict(blank, **b, tba=True) for b in brows if not b["result"]]
+    sites = {}
+    for team, rs in load_season_schedules(season).items():
+        for date, opp, copp, loc, conf, time, notes, host in rs:
+            if copp or str(opp).strip().upper() not in ("TBA", "TBD") or (team, date) in covered:
+                continue
+            site = team if loc == "Home" else host if loc == "Neutral" and host else None
+            sites.setdefault((date, site or team), []).append((team, loc == "Home"))
+    for (date, site), ts in sites.items():
+        if len(ts) == 1:
+            team, home = ts[0]
+            out.append(dict(blank, date=date, time="", tba=True, winner="TBA" if home else team, loser=team if home else "TBA",
+                            home_team=team if home else None, host=None if home or site == team else site))
+        else:
+            for _ in range((len(ts) + 1) // 2):
+                out.append(dict(blank, date=date, time="", tba=True, winner="TBA", loser="TBA", home_team=None,
+                                host=site, slot=True))
     return out
+
+
+def _bracket_paths(stats_dir: Path, rows: list) -> dict:
+    """brackets.team_paths for the season (none before 2026-27): where a win / loss sends each bracket team."""
+    m = re.search(r"(\d{4}-\d{2})", str(stats_dir))
+    if not m or not Path(f"{m.group(1)} Schedule Screenshots").exists():
+        return {}
+    import brackets as _brk
+    return _brk.team_paths(m.group(1), {(r["date"], frozenset((r["winner"], r["loser"]))): r["winner"] for r in rows})
+
+
+def _sl_time_key(t):
+    """Minutes after midnight for "5:00 PM"; no time sorts last."""
+    m = re.match(r"\s*(\d{1,2}):(\d{2})\s*([AP]M)", str(t or ""), re.I)
+    if not m:
+        return 24 * 60
+    h = int(m.group(1)) % 12 + (12 if m.group(3).upper() == "PM" else 0)
+    return h * 60 + int(m.group(2))
+
+
+def _with_hosts(stats_dir: Path, games: list) -> list:
+    """Neutral-site games get "host": the host school from the season's typed-in schedules (none before 2026-27)."""
+    m = re.search(r"(\d{4}-\d{2})", str(stats_dir))
+    if not m or not Path(f"{m.group(1)} Schedule Screenshots").exists():
+        return games
+    hosts = {}
+    for team, rs in load_season_schedules(m.group(1)).items():
+        for r in rs:
+            if r[3] == "Neutral" and r[7] and r[2]:
+                hosts.setdefault((r[0], frozenset((team, r[2]))), r[7])
+    for g in games:
+        if not g.get("home_team"):
+            h = hosts.get((g["date"], frozenset((g["winner"], g["loser"]))))
+            if h:
+                g["host"] = h
+    return games
 
 
 def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool = True,
@@ -466,8 +561,10 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
         "bust_games":     _sl_top_n(rows, "bust_score", top),
-        "fanmatch_games": sorted(rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale),
-                                 key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1))),
+        "bracket_paths": _bracket_paths(stats_dir, rows),
+        "fanmatch_games": sorted(_with_hosts(stats_dir, rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale)),
+                                 key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
+                                                _sl_time_key(r.get("time")), bool(r.get("tba")))),
         "lines_of_night": lines_of_night,
     }
 
@@ -6957,7 +7054,7 @@ const TEAMS_BY_CONF = {_jc({c: sorted(info["teams"]) for c, info in CONFERENCES.
 // 2026-27 rosters typed in from the teams' sites (season_rosters.py): [num, name, pos, ht, yr], shown on Team Stats
 // for a team with no player stats yet.
 const PRESEASON_ROSTERS = {_jc({t: [[r["num"], r["name"], r["pos"], r["ht"], r["yr"]] for r in rs] for t, rs in _season_rosters.load().items()})};
-// 2026-27 season schedules (load_season_schedules): [date, opp, canonical opp, loc, conf, time, notes].
+// 2026-27 season schedules (load_season_schedules): [date, opp, canonical opp, loc, conf, time, notes, host].
 const SEASON_SCHEDULES = {{ '2627': {_jc(load_season_schedules("2026-27"))} }};
 const NO_TEAM = {_jc({k[2:4] + k[5:7]: sorted(v) for k, v in _NO_TEAM.items()})};
 
@@ -11805,10 +11902,17 @@ function buildTeamDetail(t) {{
   let games = t.game_ratings || [];
   if (__sch) {{
     const used = new Set();
-    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes]) => {{
+    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host]) => {{
       const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
-      if (i >= 0) {{ used.add(i); return games[i]; }}
-      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, result: '' }};
+      if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
+      const path = !copp && /^(TBA|TBD)$/i.test(String(opp).trim()) ? (((activeStorylines() || {{}}).bracket_paths || {{}})[t.team] || {{}})[date] : null;
+      if (path && path.length) {{
+        const one = path.length === 1 && !/^(Winner|Loser) /.test(path[0].opp);
+        return {{ date, opponent: one ? path[0].opp : 'TBA', canonical_opponent: one ? path[0].opp : 'TBA', is_conference: !!conf, location: loc,
+                 time: one ? path[0].time : '', notes, host, result: '',
+                 pathHtml: one ? '' : path.map(p => `<div style="font-size:0.72rem;color:#555;white-space:nowrap">${{p.cond}} \u2192 ${{p.opp}} \u00b7 ${{p.time}}${{p.label ? ' (' + p.label + ')' : ''}}</div>`).join('') }};
+      }}
+      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
     }});
     games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
   }}
@@ -11876,7 +11980,7 @@ function buildTeamDetail(t) {{
     scheduleHtml += `<tr class="${{rowClass}}">
       <td style="text-align:left;white-space:nowrap;${{cellBg}}">${{dateStr}}</td>
       <td style="text-align:center;${{cellBg}}">${{teamRank}}</td>
-      <td style="text-align:left;${{cellBg}}">${{oppLink}}${{oppRankHtml}}${{oppNetHtml}}${{confMarker}}</td>
+      <td style="text-align:left;${{cellBg}}">${{oppLink}}${{oppRankHtml}}${{oppNetHtml}}${{confMarker}}${{gr.pathHtml || ''}}</td>
       <td style="text-align:center;${{cellBg}}">${{boxCell}}</td>
       <td style="text-align:left;font-weight:600;${{cellBg}}">${{resultStr}}</td>
       <td style="text-align:center;${{cellBg}}">${{loc}}</td>
@@ -13589,10 +13693,11 @@ function __slRenderTrendsNow() {{
 
 function slGameCell(g) {{
   if (g.upcoming && !g.projected) {{
-    return '<td class="sl-game-cell">' +
-      '<span class="sl-game-winner">' + teamPageLink(g.winner) + '</span>' +
+    const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3)">' + n + '</span>' : teamPageLink(n);
+    return '<td class="sl-game-cell">' + (g.label ? '<span style="font-size:0.72rem;color:var(--ink-3)">' + g.label + ': </span>' : '') +
+      '<span class="sl-game-winner">' + lk(g.winner) + '</span>' +
       (g.home_team ? ' at ' : ' vs ') +
-      '<span class="sl-game-loser">' + teamPageLink(g.loser) + '</span>' +
+      '<span class="sl-game-loser">' + lk(g.loser) + '</span>' +
       '</td>';
   }}
   if (g.upcoming) {{
@@ -13659,7 +13764,7 @@ function slGameRow(g, idx, cols) {{
           + '<td class="sl-val-cell" style="color:#aaa">' + domVal + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + tenVal + '</td>';
   }}
-  const site = g.home_team || 'Neutral';
+  const site = g.home_team || (g.host ? g.host + ' (N)' : 'Neutral');
   const gameGoldCls = (g.winner === 'Moorpark' || g.loser === 'Moorpark') ? ' class="mp-gold-row"' : '';
   const boxTd = cols === 'fanmatch' && g.upcoming
     ? '<td style="text-align:center;color:var(--ink-3)">\u2014</td>'
