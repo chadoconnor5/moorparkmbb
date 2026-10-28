@@ -24,7 +24,7 @@ def load(season):
         if name.startswith("_"):
             continue
         games = [dict(g, date=_mdy(season, g["date"])) for g in t["games"]]
-        out[name] = {"host": t["host"], "games": games}
+        out[name] = {"host": t["host"], "games": games, "sub": t.get("sub", {})}
     return out
 
 
@@ -37,7 +37,8 @@ def _resolve(t, results):
         sides[g["id"]] = (a, b)
         w = results.get((g["date"], frozenset((a, b)))) if a and b else None
         if w:
-            win[g["id"]], lose[g["id"]] = w, b if w == a else a
+            sub = t.get("sub", {})   # a team that takes another's place after the opening round
+            win[g["id"]], lose[g["id"]] = sub.get(w, w), sub.get(b if w == a else a, b if w == a else a)
     return sides, win, lose
 
 
@@ -51,7 +52,8 @@ def _desc(t, ref, sides, win, lose):
     a, b = sides[k]
     word = "Winner" if ref[0] == "W" else "Loser"
     if a and b:
-        return f"{word} {a}/{b}"
+        sub = t.get("sub", {})
+        return f"{word} {sub.get(a, a)}/{sub.get(b, b)}"
     g = next(x for x in t["games"] if x["id"] == k)
     return f"{word} of the {g['time']} game"
 
@@ -92,6 +94,13 @@ def team_paths(season, results):
             for x in (g["a"], g["b"]):
                 if x[:2] not in ("W:", "L:"):
                     first[x] = g["id"]
+        stand_in = {}
+        for old, new in t.get("sub", {}).items():
+            g0 = first.pop(old, None)
+            if g0:
+                first[new] = g0
+                g = next(x for x in t["games"] if x["id"] == g0)
+                stand_in[new] = g["b"] if g["a"] == old else g["a"]
         for team, g0 in first.items():
             reach = {g0: []}
             for g in t["games"]:
@@ -101,7 +110,8 @@ def team_paths(season, results):
                         if all(k not in win or (win[k] == team) == (o == "W") for k, o in chain):
                             reach[g["id"]] = chain
                             out.setdefault(team, {}).setdefault(g["date"], []).append({
-                                "cond": ", ".join("Win" if o == "W" else "Loss" for _, o in chain),
+                                "cond": ", ".join((f"If {stand_in[team]} {'loses' if o == 'W' else 'wins'}" if i == 0 and team in stand_in
+                                                   else "Win" if o == "W" else "Loss") for i, (_, o) in enumerate(chain)),
                                 "opp": _desc(t, other, sides, win, lose), "time": g["time"],
                                 "label": g.get("label", "")})
     return out
