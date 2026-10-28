@@ -354,7 +354,7 @@ MIN_PROJ_GAMES = 5
 _MONTHS = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
 
 
-_HOST_PLACES = {"sacramento, ca": "Sacramento City", "livermore, ca": "Las Positas", "santa rosa, ca": "Santa Rosa",
+_HOST_PLACES = {"livermore, ca": "Las Positas", "santa rosa, ca": "Santa Rosa",
                 "msjc - san jacinto campus": "Mt. San Jacinto", "msjc": "Mt. San Jacinto", "stockton, ca": "San Joaquin Delta",
                 "pleasant hill, ca": "Diablo Valley", "aptos, ca": "Cabrillo", "aptos": "Cabrillo", "sbvc": "San Bernardino Valley",
                 "sj delta college": "San Joaquin Delta", "san joquin delta tournament": "San Joaquin Delta",
