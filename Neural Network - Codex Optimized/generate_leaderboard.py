@@ -350,6 +350,32 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
 MIN_PROJ_GAMES = 5
 
 
+_MONTHS = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
+
+
+def load_season_schedules(season="2026-27"):
+    """Every team's whole season schedule from the typed-in schedule.json files ("<season> Schedule Screenshots"):
+    {team: [[M/D/YYYY, opponent as listed, canonical opponent or None, Home/Away/Neutral, conference 0/1, time,
+    notes], ...]}, scrimmages left out. The team page lists it, played games taking their results from game_ratings."""
+    from assemble_schedules import canon, is_scrimmage
+    y0 = int(season[:4])
+    out = {}
+    for f in sorted(Path(f"{season} Schedule Screenshots").glob("*/*/schedule.json")):
+        rows = []
+        for g in json.load(open(f)).get("games", []):
+            mon, _, day = str(g.get("date", "")).partition(" ")
+            if mon not in _MONTHS or not day.isdigit() or is_scrimmage(g["date"]):
+                continue
+            m = _MONTHS[mon]
+            ha = g.get("home_away")
+            rows.append([f"{m}/{int(day)}/{y0 if m >= 7 else y0 + 1}", g.get("opponent") or "", canon(g.get("opponent")),
+                         "Home" if ha == "home" else "Away" if ha == "away" else "Neutral",
+                         1 if g.get("is_conference") else 0, g.get("time") or "", g.get("notes") or ""])
+        if rows:
+            out[f.parent.name] = rows
+    return out
+
+
 def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float) -> list:
     """FanMatch for games not played yet: every scheduled in-system game (the typed-in schedules,
     build_master_schedule.py) without a result, with a projected score and win probability from the
@@ -6931,6 +6957,8 @@ const TEAMS_BY_CONF = {_jc({c: sorted(info["teams"]) for c, info in CONFERENCES.
 // 2026-27 rosters typed in from the teams' sites (season_rosters.py): [num, name, pos, ht, yr], shown on Team Stats
 // for a team with no player stats yet.
 const PRESEASON_ROSTERS = {_jc({t: [[r["num"], r["name"], r["pos"], r["ht"], r["yr"]] for r in rs] for t, rs in _season_rosters.load().items()})};
+// 2026-27 season schedules (load_season_schedules): [date, opp, canonical opp, loc, conf, time, notes].
+const SEASON_SCHEDULES = {{ '2627': {_jc(load_season_schedules("2026-27"))} }};
 const NO_TEAM = {_jc({k[2:4] + k[5:7]: sorted(v) for k, v in _NO_TEAM.items()})};
 
 let curRegion = 'All';
@@ -11770,7 +11798,20 @@ function buildTeamDetail(t) {{
   validT.forEach((d, i) => {{ netRtgRanks[d.team] = i + 1; }});
 
   // Find index of last conference game to insert Playoffs banner
-  const games = t.game_ratings || [];
+  // The whole season schedule (typed-in schedules) where there is one: a played game shows its result from
+  // game_ratings, the rest show the tip time; played games missing from the schedule are kept too.
+  const __dk = d => {{ const [m, dd, y] = String(d).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (dd || 0); }};
+  const __sch = (SEASON_SCHEDULES[activeSeason] || {{}})[t.team];
+  let games = t.game_ratings || [];
+  if (__sch) {{
+    const used = new Set();
+    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes]) => {{
+      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
+      if (i >= 0) {{ used.add(i); return games[i]; }}
+      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, result: '' }};
+    }});
+    games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
+  }}
   let lastConfIdx = -1;
   games.forEach((gr, idx) => {{ if (gr.is_conference) lastConfIdx = idx; }});
   let playoffBannerInserted = false;
@@ -11797,10 +11838,11 @@ function buildTeamDetail(t) {{
     if (result === 'W') {{ wins++; if (isConf) confWins++; }}
     else if (result === 'L') {{ losses++; if (isConf) confLosses++; }}
 
-    const runRec = `${{wins}}-${{losses}}`;
-    const runConf = (isConf || confWins + confLosses > 0) ? `${{confWins}}-${{confLosses}}` : '';
+    const played = result === 'W' || result === 'L';
+    const runRec = played ? `${{wins}}-${{losses}}` : '';
+    const runConf = played && (isConf || confWins + confLosses > 0) ? `${{confWins}}-${{confLosses}}` : '';
 
-    let resultStr = `${{teamScore}}-${{oppScore}}`;
+    let resultStr = (result === 'W' || result === 'L') ? `${{teamScore}}-${{oppScore}}` : (gr.time || '');
     if (result === 'W') {{ resultStr = `W, ${{teamScore}}-${{oppScore}}`; }}
     else if (result === 'L') {{ resultStr = `L, ${{teamScore}}-${{oppScore}}`; }}
 

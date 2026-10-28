@@ -66,6 +66,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Stats shows a team's roster until its first game) and export_ratings.py (-> ../poss/rosters.json; the tracker fills
   opponent rosters from it, never replacing what was typed on the iPad). ccc_config.NO_TEAM lists members with no
   team in a season (Alameda 2026-27): no preseason rating, off that season's leaderboard.
+- Team pages list each team's whole season schedule from the typed-in schedule.json files (load_season_schedules,
+  embedded as SEASON_SCHEDULES); played games take their results from game_ratings.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:
