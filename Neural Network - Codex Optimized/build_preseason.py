@@ -22,7 +22,7 @@ import json
 from pathlib import Path
 
 from assemble_schedules import canon, is_scrimmage
-from ccc_config import CONFERENCES, DEFAULT_SEASON
+from ccc_config import CONFERENCES, DEFAULT_SEASON, fields_team
 from update_advanced_analytics import _compute_win50
 
 CARRY = ("ortg", "drtg", "net_rtg", "tempo", "possessions")
@@ -60,7 +60,7 @@ def build(season, prior):
     written = kept = 0
     for conf, teams in CONFERENCES.items():
         for team in teams:
-            if team not in ratings:
+            if team not in ratings or not fields_team(team, season):
                 continue
             d = base / conf / team
             adv_path = d / "advanced_analytics.json"

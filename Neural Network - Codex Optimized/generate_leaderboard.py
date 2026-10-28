@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 import csv
 import json
+from ccc_config import NO_TEAM as _NO_TEAM
 import math
 import re
 import shutil
@@ -5841,6 +5842,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <button class="season-btn" id="btn-season-25" onclick="switchSeason('2425')">25</button>
   <span style="color:#aaa;font-size:0.9rem">|</span>
   <button class="season-btn" id="btn-season-26" onclick="switchSeason('2526')">26</button>
+  <span style="color:#aaa;font-size:0.9rem">|</span>
   <button class="season-btn active" id="btn-season-27" onclick="switchSeason('2627')">27</button>
 </div>
 <div class="info" id="page-info">{len(players)} qualified players · 30% minutes played minimum · Click any column header to sort · Generated {timestamp}</div>
@@ -6910,6 +6912,8 @@ let currentTeamMode = 'advanced';
 const CONF_SECTIONS = {_jc({c: info["region"] for c, info in CONFERENCES.items()})};
 const ALL_CONFS = {_jc(sorted(CONFERENCES.keys()))};
 const TEAMS_BY_CONF = {_jc({c: sorted(info["teams"]) for c, info in CONFERENCES.items()})};
+// Members with no team that season (ccc_config.NO_TEAM), by season key: left out of that season's team filter.
+const NO_TEAM = {_jc({k[2:4] + k[5:7]: sorted(v) for k, v in _NO_TEAM.items()})};
 
 let curRegion = 'All';
 let selConfs = new Set();   // empty = All
@@ -6956,7 +6960,8 @@ function buildTeamPanel() {{
   panel.innerHTML = '';
   const validConfs = selConfs.size > 0 ? [...selConfs] : ALL_CONFS.filter(c => curRegion === 'All' || CONF_SECTIONS[c] === curRegion);
   const available = [];
-  validConfs.forEach(c => {{ (TEAMS_BY_CONF[c] || []).forEach(t => available.push(t)); }});
+  const noTeam = NO_TEAM[activeSeason] || [];
+  validConfs.forEach(c => {{ (TEAMS_BY_CONF[c] || []).forEach(t => {{ if (!noTeam.includes(t)) available.push(t); }}); }});
   available.forEach(t => {{
     const lbl = document.createElement('label');
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = t;
@@ -7963,6 +7968,7 @@ function switchSeason(season) {{
 
 function __switchSeasonNow(season) {{
   activeSeason = season;
+  buildTeamPanel();
   const modeSel = document.getElementById('team-mode-select');
   const mode = modeSel ? modeSel.value : 'advanced';
   const isDefense = document.getElementById('btn-defense') && document.getElementById('btn-defense').classList.contains('active');
