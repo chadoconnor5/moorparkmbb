@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.28.298';
+const VERSION = 'v2026.10.28.299';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1392,7 +1392,7 @@ const lastName = n => String(n).split(' ').slice(-1)[0];
 // Players are keyed by name for Moorpark and by 'o:<num>' for the opponent.
 function teamPlayers(g, t) {
   return t === 'a' ? roster().filter(r => !g || !g.dressed || g.dressed.includes(r.name)).slice().sort(byNum).map(r => ({ id: r.name, num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))
-    : (g.oppRoster || []).slice().sort(byNum).map(r => ({ id: 'o:' + r.num, num: r.num, name: r.name || '', pos: r.pos || '', ht: r.ht || '', yr: r.yr || '', note: r.note || '' }));
+    : (g.oppRoster || []).filter(r => !(g.oppOut || []).includes(String(r.num))).slice().sort(byNum).map(r => ({ id: 'o:' + r.num, num: r.num, name: r.name || '', pos: r.pos || '', ht: r.ht || '', yr: r.yr || '', note: r.note || '' }));
 }
 function pInfo(g, t, id) {
   if (!id || id === 'TEAM') return { id: 'TEAM', num: '', name: 'Team' };
@@ -2922,7 +2922,7 @@ function lineupsView(g) {
 /* ---------- new game: the game tracker's setup screen ---------- */
 let SD = null;
 function newDraft() {
-  SD = { opp: '', date: today(), site: 'home', conf: false, schedId: null, dressed: roster().map(r => r.name), starters: [], oppName: '', oppStarters: [], scoutKey: null };
+  SD = { opp: '', date: today(), site: 'home', conf: false, schedId: null, dressed: roster().map(r => r.name), starters: [], oppName: '', oppStarters: [], oppOut: [], scoutKey: null };
   // Game day: today's scheduled game fills itself in.
   const r = schedule().find(x => x.date === today() && !isTBD(x.opp) && !games.some(gm => gm.schedId === x.id));
   if (r) applySched(r);
@@ -2937,7 +2937,7 @@ function applyOpp(name) {
   name = String(name || '').trim();
   const n = name.toLowerCase().replace(/[^a-z0-9]/g, ''), o = n ? oppStore().find(x => x.name.toLowerCase().replace(/[^a-z0-9]/g, '') === n) : null;
   const nm = o ? o.name : name;
-  if (nm !== SD.oppName) SD.oppStarters = [];
+  if (nm !== SD.oppName) { SD.oppStarters = []; SD.oppOut = []; }
   SD.oppName = nm;
   if (o && o.scoutKey) SD.scoutKey = o.scoutKey;
 }
@@ -2967,14 +2967,15 @@ function setupView() {
       <button class="btn btn-sm" data-act="go-roster-m" style="margin-left:auto">Edit roster / notes</button></h3>
       <div class="chk-grid down">${players.map(p => { const on = d.dressed.includes(p.name), st = d.starters.includes(p.name);
         return `<div class="chk ${on ? 'on' : ''} ${st ? 'starter' : ''}" data-act="su-player" data-p="${esc(p.name)}"><span>${p.num ? '#' + esc(p.num) + ' ' : ''}${esc(p.name)}</span><span class="st">${st ? 'Starter' : on ? '' : 'Not dressed'}</span></div>`; }).join('')}</div>
-      <div class="tiny muted" style="margin-top:6px">Tap cycles: dressed → starter → not dressed → dressed.</div>
+      <div class="tiny muted" style="margin-top:6px">Tap cycles: dressed → starter → not dressed → dressed; once five starters are picked, a tap on a dressed player sits him out.</div>
     </div>
     <div class="card"><h3>Opponent roster <span class="muted">optional — numbers are enough; without one their fouls go to the team</span>
       <button class="btn btn-sm" data-act="su-opp-edit" style="margin-left:auto">${oppPl.length ? 'Edit roster / notes' : '+ Add players'}</button></h3>
       <div class="row" style="gap:10px"><select id="su-oppsel"><option value="">— none —</option>${d.oppName && !o ? `<option value="${esc(d.oppName)}" selected>${esc(d.oppName)} (no roster yet)</option>` : ''}${oppStore().slice().sort((x, y) => x.name.localeCompare(y.name)).map(x => `<option value="${esc(x.name)}" ${d.oppName === x.name ? 'selected' : ''}>${esc(x.name)} (${(x.players || []).length})</option>`).join('')}</select>
-        ${oppPl.length ? `<span class="small muted">Their starters: <b>${d.oppStarters.length}/5</b> — tap to pick (optional; you can set them with ⇄ Sub)</span>` : ''}</div>
-      ${oppPl.length ? `<div class="chk-grid" style="margin-top:10px">${oppPl.map(p => { const st = d.oppStarters.includes(String(p.num));
-        return `<div class="chk on ${st ? 'starter them' : ''}" data-act="su-opp-starter" data-p="${esc(String(p.num))}"><span>#${esc(p.num)} ${esc(p.name || '')}${p.pos ? ' <span class="muted">' + esc(p.pos) + '</span>' : ''}</span><span class="st">${st ? 'Starter' : ''}</span></div>`; }).join('')}</div>` : ''}
+        ${oppPl.length ? `<span class="small muted">Their starters: <b>${d.oppStarters.length}/5</b> · ${oppPl.length - (d.oppOut || []).length} dressed — tap to pick (optional; you can set them with ⇄ Sub)</span>` : ''}</div>
+      ${oppPl.length ? `<div class="chk-grid" style="margin-top:10px">${oppPl.map(p => { const k = String(p.num), st = d.oppStarters.includes(k), on = !(d.oppOut || []).includes(k);
+        return `<div class="chk ${on ? 'on' : ''} ${st ? 'starter them' : ''}" data-act="su-opp-starter" data-p="${esc(k)}"><span>#${esc(p.num)} ${esc(p.name || '')}${p.pos ? ' <span class="muted">' + esc(p.pos) + '</span>' : ''}</span><span class="st">${st ? 'Starter' : on ? '' : 'Not dressed'}</span></div>`; }).join('')}</div>
+      <div class="tiny muted" style="margin-top:6px">Tap cycles: dressed → starter → not dressed → dressed; once five starters are picked, a tap on a dressed player sits him out.</div>` : ''}
     </div>
     <div class="card"><h3>Scouting report <span class="muted">optional — PDF saved on this iPad, opens offline</span></h3><div class="row" style="gap:8px" id="su-scout"></div></div>
     <div class="row" style="justify-content:flex-end"><button class="btn btn-good btn-lg" data-act="su-create">Create game →</button></div>
@@ -2999,13 +3000,13 @@ function createGame() {
   if (d.starters.length !== 5) { toast('Pick exactly 5 starters (' + d.starters.length + ' picked)', 'bad'); return; }
   const g = { id: uid(), v: 2, created: Date.now(), per: '1H', periods: ['1H'], ev: [], box: {}, opp: d.opp, date: d.date || today(),
     loc: { home: 'H', away: 'A', neutral: 'N' }[d.site] || 'H', conf: d.conf, schedId: d.schedId, dressed: d.dressed.slice(),
-    oppRoster: gtOppRoster(d.oppName || d.opp), scoutKey: d.scoutKey || null, astBlk: true };
+    oppRoster: gtOppRoster(d.oppName || d.opp), oppOut: (d.oppOut || []).slice(), scoutKey: d.scoutKey || null, astBlk: true };
   // Starting fives are locked: Undo and Delete never take them back (change them with ⇄ Sub).
   g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'a', five: d.starters.slice(), lock: true });
   if (d.oppStarters.length === 5) g.ev.push({ id: uid(), t: 'sub', per: '1H', team: 'b', five: d.oppStarters.map(n => 'o:' + n), lock: true });
   games.push(g); curId = g.id; SD = null; UI.redo = []; UI.repId = null; UI.repSeason = false; save(); render();
   toast('Game created', 'good');
-  if (d.oppStarters.length !== 5 && g.oppRoster.length >= 5) { SUB = null; subModal(`${g.opp} starting five`); }
+  if (d.oppStarters.length !== 5 && teamPlayers(g, 'b').length >= 5) { SUB = null; subModal(`${g.opp} starting five`); }
 }
 
 /* ---------- play-by-play: everything, in order ---------- */
@@ -4080,11 +4081,13 @@ document.addEventListener('click', ev => {
     case 'new': curId = null; SD = null; UI.stat = null; UI.reb = null; save(); UI.tab = 'live'; render(); break;
     case 'su-player': { readSetup(); const n = b.dataset.p, d = SD;
       if (d.starters.includes(n)) { d.starters = d.starters.filter(x => x !== n); d.dressed = d.dressed.filter(x => x !== n); }
-      else if (d.dressed.includes(n)) { if (d.starters.length >= 5) { toast('Five starters already — tap one to sit him first'); return; } d.starters.push(n); }
+      else if (d.dressed.includes(n)) { if (d.starters.length >= 5) d.dressed = d.dressed.filter(x => x !== n); else d.starters.push(n); }
       else d.dressed.push(n);
       render(); break; }
-    case 'su-opp-starter': { readSetup(); const n = b.dataset.p, d = SD;
-      if (d.oppStarters.includes(n)) d.oppStarters = d.oppStarters.filter(x => x !== n); else if (d.oppStarters.length < 5) d.oppStarters.push(n); else { toast('Five starters already'); return; }
+    case 'su-opp-starter': { readSetup(); const n = b.dataset.p, d = SD; d.oppOut = d.oppOut || [];
+      if (d.oppStarters.includes(n)) { d.oppStarters = d.oppStarters.filter(x => x !== n); d.oppOut.push(n); }
+      else if (d.oppOut.includes(n)) d.oppOut = d.oppOut.filter(x => x !== n);
+      else if (d.oppStarters.length < 5) d.oppStarters.push(n); else d.oppOut.push(n);
       render(); break; }
     case 'su-opp-edit': readSetup(); UI.rosterSel = SD.oppName || SD.opp || null; if (!UI.rosterSel) { toast('Type the opponent first', 'bad'); return; } UI.tab = 'rosters'; render(); break;
     case 'go-roster-m': readSetup(); UI.rosterSel = 'MPK'; UI.tab = 'rosters'; render(); break;
