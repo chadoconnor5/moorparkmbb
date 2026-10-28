@@ -30,6 +30,7 @@ generate_leaderboard.py runs it at the end of every build.
     python3 export_ratings.py --season 2026-27 --out ../poss/ratings.json
 """
 import argparse
+import hashlib
 import json
 import re
 from datetime import datetime, timezone
@@ -38,6 +39,7 @@ from pathlib import Path
 import update_advanced_analytics as uaa
 import adjust_lineups as al
 from ccc_config import TRACKER_SEASON
+import season_rosters
 
 OUT = Path(__file__).resolve().parent.parent / "poss" / "ratings.json"
 SLUG = lambda t: re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")
@@ -587,10 +589,26 @@ def export_teams(season, ratings, out_dir, generated, teams):
     return index
 
 
+def export_rosters(season, out):
+    """../poss/rosters.json: the typed-in rosters (season_rosters.py), so the tracker has every opponent's numbers and
+    names before any box score. Rewritten only when a roster changed (its "version" is the content's hash)."""
+    teams = season_rosters.load(season)
+    version = hashlib.sha1(json.dumps(teams, sort_keys=True).encode()).hexdigest()[:12]
+    try:
+        if json.load(open(out)).get("version") == version:
+            return
+    except (OSError, ValueError):
+        pass
+    json.dump({"app": "moorpark-possession-tracker", "kind": "rosters", "season": season, "version": version,
+               "aliases": dict(uaa.OPPONENT_ALIASES), "teams": teams}, open(out, "w"), separators=(",", ":"))
+    print(f"export_ratings: {len(teams)} {season} rosters -> {Path(out).name}")
+
+
 def export(season=None, out=OUT):
     # Only the tracker's season (ccc_config.TRACKER_SEASON) is ever published. Before it has ratings the files are
     # written empty (and older team files removed), so the iPad never shows another season's numbers.
     season = season or TRACKER_SEASON
+    export_rosters(season, Path(out).parent / "rosters.json")
     ratings = al.load_ratings(season) if (Path(f"{season} Team Statistics").exists()) else {}
     # Preseason ratings (build_preseason.py: last season's numbers, for the leaderboard) are not this season's:
     # the tracker keeps showing nothing for a team until it has played.

@@ -1338,7 +1338,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.27.297';
+const VERSION = 'v2026.10.28.298';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1526,7 +1526,7 @@ function checkUpdate() {
     document.body.appendChild(d); }).catch(() => {});
 }
 // Back in the app: check for a new version and for the leaderboard's latest ratings (every finished game re-adjusts against them).
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkUpdate(); try { fetchRatings(); } catch (e) {} } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkUpdate(); try { fetchRatings(); fetchRosters(); } catch (e) {} } });
 /* Every logo saved for offline up front: the offline copy (sw.js) keeps a logo only once it has loaded, so an
    opponent first seen in a gym with no signal had none (the button fell back to the name). Once the offline copy
    is running, each logo is asked for one at a time; the ones it already has come straight back from the iPad. */
@@ -6599,6 +6599,35 @@ function fetchTeamFiles(R) {
       Object.keys(cur).forEach(t => { if (!want.has(t)) delete cur[t]; });
       if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; autoRosters(); if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
 }
+/* Published rosters (poss/rosters.json, export_ratings.py: the rosters typed in from the teams' sites) give the teams on
+   our schedule / in a tournament field / already in the roster list their numbers, names, heights and years before any
+   box score. Same rules as the stats below: a roster never saved by hand gets every listed player; one you've saved only
+   gets blanks filled (nothing you typed is replaced, no player you took away comes back). */
+const LS_PUB_ROSTERS = 'pt2_pub_rosters';
+function fetchRosters() {
+  if (!window.fetch) return;
+  fetch('rosters.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+    if (!d || d.kind !== 'rosters' || !d.teams) return;
+    const old = lsGet(LS_PUB_ROSTERS, null); if (old && old.version === d.version) return;
+    if (lsSet(LS_PUB_ROSTERS, d) && pubRosters()) render();
+  }).catch(() => {});
+}
+function pubRosters() {
+  const P = lsGet(LS_PUB_ROSTERS, null); if (!P || !P.teams) return 0;
+  const names = [...new Set([...schedule().map(r => r.opp), ...readyList(), ...games.map(g => g.opp), ...oppStore().map(o => o.name)])].filter(n => n && !isTBD(n));
+  const st = oppStore(); let n = 0;
+  const jn = x => { const t = String(x == null ? '' : x).trim(); return /^0+$/.test(t) ? t : t.replace(/^0+(?=\d)/, ''); };
+  names.forEach(nm => { const T = resolveTeam(nm, P); if (!T || T === 'Moorpark' || !(P.teams[T] || []).length) return;
+    let o = st.find(x => normOpp(x.name) === normOpp(nm));
+    if (!o) { o = { id: 'opp_' + uid(), name: nm, players: [] }; st.push(o); }
+    o.players = o.players || [];
+    const hand = !!o.updatedAt && o.players.length;
+    P.teams[T].forEach(p => { const k = jn(p.num), q = o.players.find(x => jn(x.num) === k);
+      if (q) { ['name', 'ht', 'yr'].forEach(f => { if (!q[f] && p[f]) { q[f] = p[f]; n++; } }); return; }
+      if (!hand) { o.players.push({ num: k, name: p.name, pos: '', ht: p.ht || '', yr: p.yr || '', note: '' }); n++; } }); });
+  if (n) { lsSet('gt_opp_rosters', st); PL_MEMO = null; }
+  return n;
+}
 /* Rosters from the stats: every opponent with a stats file gets its roster filled from it (number + name of everyone
    who has played, the most minutes winning a shared number), under the name the schedule / tournament field uses.
    A roster never saved by hand keeps getting new players as they appear; one you've saved stays as you made it (a
@@ -8172,7 +8201,7 @@ async function coachReportPdf(g, quiet) {
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 try { upgradeAll(); } catch (e) {}
-try { seedRosters(); gameRosters(); } catch (e) {}
+try { seedRosters(); gameRosters(); pubRosters(); } catch (e) {}
 try { seedBoxes(); } catch (e) {}
 try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
@@ -8180,6 +8209,7 @@ try { backfillSits(); } catch (e) {}
 try { games.forEach(g => { GSIG[g.id] = gsig(g); }); } catch (e) {}
 render();
 fetchRatings();
+fetchRosters();
 checkBaseline();
 saveLogos();
 checkUpdate();
