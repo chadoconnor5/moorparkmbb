@@ -11,6 +11,7 @@ those schedules fill in before anyone screenshots them. For a team that HAS its 
 are checked against it (a game only one side lists, or a different time / home-away), and that goes in the report:
     <season> Schedule Screenshots/assembled_schedules_report.txt
 
+A game whose notes start "VERIFY:" (a questionable listing) is listed under "To verify on the site" in the report.
 Games before Oct 29 are scrimmages and left out. Only games against teams in ccc_config.CONFERENCES are used (TBA, tournament placeholders, out-of-state and
 four-year opponents are left out). Safe to re-run: every derived file is rebuilt from the typed-in ones.
 
@@ -122,6 +123,10 @@ def assemble(season, root=Path(".")):
             L.append(f"  {t:<24}" + (f"own schedule ({len(own[t]['games'])} games)" if t in own else
                                        f"{have[t]} games from opponents" if t in have else "—"))
     L += ["", f"Checks between typed-in teams: {len(issues)} issue(s)"] + [f"  {i}" for i in issues]
+    # Games flagged by hand ("VERIFY: ..." in notes) until the site settles them.
+    flags = [f"  {t}: {g['date']} {g['location_tag']} {g['opponent']} {g.get('time', '')} - {g['notes'][8:]}"
+             for t, d in sorted(own.items()) for g in d.get("games", []) if g.get("notes", "").startswith("VERIFY:")]
+    L += ["", f"To verify on the site: {len(flags)} game(s)"] + flags
     (base / "assembled_schedules_report.txt").write_text("\n".join(L) + "\n")
     return own, written, issues
 
@@ -131,7 +136,8 @@ def main():
     ap.add_argument("--season", default=DEFAULT_SEASON)
     a = ap.parse_args()
     own, written, issues = assemble(a.season)
-    print(f"{len(own)} typed-in schedules -> partial schedules for {len(written)} teams; {len(issues)} issue(s). "
+    nv = sum(g.get("notes", "").startswith("VERIFY:") for d in own.values() for g in d.get("games", []))
+    print(f"{len(own)} typed-in schedules -> partial schedules for {len(written)} teams; {len(issues)} issue(s), {nv} to verify. "
           f"Report: {a.season} Schedule Screenshots/assembled_schedules_report.txt")
 
 
