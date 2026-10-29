@@ -1082,7 +1082,7 @@ def write_minutes_report(state: State):
 # Main
 # ---------------------------------------------------------------------------
 def rebuild(season: str, teams: set):
-    """After new box scores: those teams' stats and analytics, then the leaderboard (which also publishes the
+    """After new box scores: those teams' stats and analytics, the season's WAB and BPM, then the leaderboard (which also publishes the
     tracker's ratings.json and team files), then the tracker's scouting reports for the teams that played and are
     on Moorpark's schedule or in tracker_teams.txt (../poss/reports/, one current copy each). --no-rebuild skips it."""
     teams = sorted(t for t in teams)
@@ -1091,6 +1091,9 @@ def rebuild(season: str, teams: set):
     print(f"\nRebuilding stats for {len(teams)} teams: {', '.join(teams)}")
     for script in ("generate_team_stats.py", "update_advanced_analytics.py"):
         subprocess.run([sys.executable, script, "--season", season, "--teams", *teams], check=False)
+    print("\nRebuilding WAB and BPM for the season")
+    for script in ("calculate_wab.py", "compute_ccc_bpm.py"):   # league-wide: every team's WAB / every player's BPM
+        subprocess.run([sys.executable, script, "--season", season], check=False)
     print("\nRebuilding the leaderboard (and the tracker's ratings / team files)")
     subprocess.run([sys.executable, "generate_leaderboard.py", "--cache"], check=False)
     print("\nUpdating scouting reports for the tracker")
