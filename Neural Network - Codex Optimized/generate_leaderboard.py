@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from generate_team_pages import SCHOOL_COLORS, SCHOOL_SECONDARY_COLORS
-from update_advanced_analytics import STAT_DEFINITIONS
+from update_advanced_analytics import STAT_DEFINITIONS, prior_weight as _prior_weight
 from compute_ccc_bpm import (
     BPM_COEFFS, BPM_ROLE_COEFFS, OBPM_COEFFS, OBPM_ROLE_COEFFS, raw_metric,
 )
@@ -3918,7 +3918,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     _DR_IMP_MARGIN = 0.05
     _DR_IMP_OPP = 0.03
     _DR_IMP_SCALE = 25.0
-    def compute_daily_ranks(team_list, prior_teams=None):
+    def compute_daily_ranks(team_list, prior_teams=None, fade_prior=False):
         def parse_date(d):
             for fmt in ("%m/%d/%Y", "%m/%d/%y"):
                 try:
@@ -3950,10 +3950,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 })
 
         all_dates = sorted({e["date"] for vals in team_events.values() for e in vals}, key=parse_date)
-        if not all_dates:
-            return {}
 
-        prior_seed = {}
+        prior_seed, prior_rating = {}, {}
         if prior_teams:
             _cur_v = [t for t in team_list if t.get("ortg", 0) > 0 and t.get("drtg", 0) > 0]
             _pri_v = [t for t in prior_teams if t.get("ortg", 0) > 0 and t.get("drtg", 0) > 0]
@@ -3965,6 +3963,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 _prior_map = {t["team"]: t for t in _pri_v}
                 for t in _cur_v:
                     p = _prior_map.get(t["team"])
+                    if p and fade_prior:   # last season's rating: the rank starts here and fades out as games come in
+                        prior_rating[t["team"]] = {"ortg": _lg_oc + p["ortg"] - _lg_op, "drtg": _lg_dc + p["drtg"] - _lg_dp}
+                for t in _cur_v:
+                    p = _prior_map.get(t["team"])
                     if not p:
                         continue
                     prior_seed[t["team"]] = {
@@ -3973,6 +3975,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                     }
 
         ranks = {}
+        if prior_rating:   # before any game: last season's order
+            pre = sorted(((t, r["ortg"] - r["drtg"]) for t, r in prior_rating.items() if t in team_events), key=lambda x: -x[1])
+            ranks["preseason"] = {t: i + 1 for i, (t, _) in enumerate(pre)}
         for d_str in all_dates:
             cutoff = parse_date(d_str)
             games_up_to = {
@@ -4032,7 +4037,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                 for t in team_names:
                     evs = games_up_to.get(t, [])
                     if not evs:
-                        new_r[t] = {"ortg": target_o, "drtg": target_d}
+                        new_r[t] = dict(prior_rating.get(t) or {"ortg": target_o, "drtg": target_d})
                         continue
                     ao, ad = [], []
                     for e in evs:
@@ -4062,9 +4067,15 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                         go = sum(v * w for v, w in ao) / swo if swo else target_o
                         gd = sum(v * w for v, w in ad) / swd if swd else target_d
                         n_eff = min(swo, swd)
-                        blend = n_eff / (n_eff + _DR_REG_GAMES)
-                        reg_o = blend * go + (1 - blend) * target_o
-                        reg_d = blend * gd + (1 - blend) * target_d
+                        pr = prior_rating.get(t)
+                        if pr:   # last season's rating as virtual games, fading as in update_advanced_analytics
+                            pw = _prior_weight(len(evs))
+                            reg_o = (n_eff * go + pw * pr["ortg"]) / (n_eff + pw)
+                            reg_d = (n_eff * gd + pw * pr["drtg"]) / (n_eff + pw)
+                        else:
+                            blend = n_eff / (n_eff + _DR_REG_GAMES)
+                            reg_o = blend * go + (1 - blend) * target_o
+                            reg_d = blend * gd + (1 - blend) * target_d
                         new_r[t] = {
                             "ortg": _DR_DAMPEN * reg_o + (1 - _DR_DAMPEN) * current[t]["ortg"],
                             "drtg": _DR_DAMPEN * reg_d + (1 - _DR_DAMPEN) * current[t]["drtg"],
@@ -4095,7 +4106,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return ranks
 
     # Compute current-season daily rankings with iterative as-of-date logic
-    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2025 or [])
+    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True)
     daily_ranks_json = _embed(daily_ranks)
 
     daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
@@ -9723,6 +9734,17 @@ function teamPageHref(teamName) {{
   return `team_pages/${{toSlug(teamName)}}.html`;
 }}
 
+// Ranks as of a date: that day's, else the latest earlier game day's, else the preseason ranks (last season's order).
+function __ranksAsOf(src, dateStr) {{
+  if (!src) return {{}};
+  if (src[dateStr]) return src[dateStr];
+  const k = s => {{ const [m, d, y] = String(s).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (d || 0); }};
+  const want = k(dateStr);
+  let best = null;
+  for (const d of Object.keys(src)) if (d !== 'preseason' && k(d) <= want && (!best || k(d) > k(best))) best = d;
+  return best ? src[best] : (src.preseason || {{}});
+}}
+
 function teamPageLink(teamName, style = 'color:inherit;text-decoration:none', label = null) {{
   const text = label || teamName;
   return `<a href="#" onclick="showTeamDetail('${{teamName}}');return false" style="${{style}}">${{text}}</a>`;
@@ -11532,7 +11554,7 @@ function renderMinutesMatrix(teamName) {{
 
   let rowsHtml = '';
   games.forEach(g => {{
-    const dayRanks = _dayRanksSource[g.gr.date] || {{}};
+    const dayRanks = __ranksAsOf(_dayRanksSource, g.gr.date);
     const oppRank = dayRanks[g.opp] || '';
     const resCls = g.gr.result === 'W' ? 'mm-w' : 'mm-l';
     const resStr = g.gr.result + ', ' + (g.gr.team_score || 0) + '-' + (g.gr.opponent_score || 0);
@@ -11926,7 +11948,7 @@ function buildTeamDetail(t) {{
 
     // Team's own historical rank as of this game date
     const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
-    const dayRanks = _dayRanksSource[dateStr] || {{}};
+    const dayRanks = __ranksAsOf(_dayRanksSource, dateStr);
     const teamRank = dayRanks[t.team] || '';
 
     // Opponent's historical rank as of this game date

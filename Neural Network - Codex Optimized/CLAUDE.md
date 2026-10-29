@@ -77,6 +77,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Playoff dates (after the regular season, late Feb on) stay off the typed-in schedules during the regular season.
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
   flag them (is_conference).
+- Daily ranks (2026-27): start from last season's ratings (a "preseason" entry) and fade them out per team with
+  update_advanced_analytics.prior_weight as games come in; an unplayed date shows the latest rank. Past seasons unchanged.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:
