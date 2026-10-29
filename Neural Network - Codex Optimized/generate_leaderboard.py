@@ -7316,19 +7316,15 @@ function chartTeamDataSource() {{
   return chartStatsScope === 'conference' ? activeConferenceTeamData() : activeFullTeamData();
 }}
 
+// One letter per name and per hyphen piece, suffixes dropped: John Paul Ozumba -> JPO, Jaxon Rous-Smith -> JRS,
+// Ti-Zyooh Florencia -> TZF, Dwayne Boston Jr. -> DB. More than 3 pieces: the first and the last two.
 function chartInitials(name) {{
-  const parts = String(name || '').replace(/\\b(Jr|Sr|II|III|IV|V)\\.?$/i, '').trim().split(/\\s+/).filter(Boolean);
+  const parts = String(name || '').replace(/,/g, ' ').replace(/\\s+(Jr|Sr|II|III|IV|V)\\.?\\s*$/i, '').trim()
+    .split(/[\\s\u2010-\u2015-]+/).filter(Boolean);
   if (parts.length === 0) return '';
-  if (parts.length === 1) {{
-    const hy = parts[0].split(/[-‐-―]/).filter(Boolean);
-    if (hy.length > 1) return (hy[0][0] + hy[hy.length - 1][0]).toUpperCase();
-    return parts[0].slice(0, 2).toUpperCase();
-  }}
-  // Hyphenated last names get a 3-letter initial (e.g. John Smith-Jones -> JSJ)
-  const last = parts[parts.length - 1];
-  const hy = last.split(/[-‐-―]/).filter(Boolean);
-  if (hy.length > 1) return (parts[0][0] + hy[0][0] + hy[hy.length - 1][0]).toUpperCase();
-  return (parts[0][0] + last[0]).toUpperCase();
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  const ini = parts.map(w => w[0]);
+  return (ini.length > 3 ? [ini[0], ...ini.slice(-2)] : ini).join('').toUpperCase();
 }}
 
 function chartTextColor(hex) {{
@@ -10310,8 +10306,8 @@ let kxWindow = 'tenure';
 let kxView = 'all';
 let kxSel = [null, null, null];
 let __kxPoolCache = {{}};
-const KX_SEASON_KEY = {{'2025-26':'2526','2024-25':'2425','2023-24':'2324','2022-23':'2223','2021-22':'2122'}};
-const KX_LAST5 = ['2025-26','2024-25','2023-24','2022-23','2021-22'];
+const KX_SEASON_KEY = {{'2026-27':'2627','2025-26':'2526','2024-25':'2425','2023-24':'2324','2022-23':'2223','2021-22':'2122'}};
+const KX_LAST5 = ['2026-27','2025-26','2024-25','2023-24','2022-23'];   // the Keys window: last 4 seasons + 2026-27
 const KX_LABELS = {{'eFG% Margin':'eFG% Margin','TS% Margin':'TS% Margin','3P% Margin':'3P% Margin','Opp AST':'Opp Assists','Reb Margin':'Reb Margin','TO Margin':'TO Margin','AST':'Assists','Ast%':'Assist %','Ast-TO':'Assist:TO','REB':'Rebounds','DREB':'Def Rebounds','OREB':'Off Rebounds','ORB%':'Off Reb %','DRB%':'Def Reb %','3PM':'Threes Made','FTM':'FTs Made','Stl':'Steals','Blk':'Blocks','TO':'Turnovers','3PA Rate':'3PA Rate','FT Rate':'FT Rate','TO%':'TO %','Poss':'Possessions'}};
 function kxLabel(k){{ return KX_LABELS[k] || k; }}
 function __kxTotals(players){{
@@ -10373,7 +10369,8 @@ function renderKeysExplorer(){{
   if(!currentKeysTeam||!MAP[currentKeysTeam]) currentKeysTeam=MAP['Moorpark']?'Moorpark':teamNames[0];
   const entry=MAP[currentKeysTeam], w5=entry.windows['5yr'], wc=entry.windows['cur'];
   const tenureSeasons=(w5&&w5.seasons)?w5.seasons.filter(s=>KX_SEASON_KEY[s]):['2025-26'];
-  const seasons=(kxWindow==='cur')?['2025-26']:tenureSeasons;
+  const curSeasons=(wc&&wc.seasons)?wc.seasons.filter(s=>KX_SEASON_KEY[s]):['2025-26'];
+  const seasons=(kxWindow==='cur')?curSeasons:tenureSeasons;
   const wEmbed=(kxWindow==='cur')?(wc||w5):(w5||wc);
   if(kxSel.every(x=>x==null)&&wEmbed&&wEmbed.keys){{ for(let i=0;i<3;i++) kxSel[i]=wEmbed.keys[i]?wEmbed.keys[i].metric:null; }}
   host.innerHTML='<div style="text-align:center;color:#999;padding:42px">Loading game data…</div>';
@@ -10400,7 +10397,7 @@ function __kxRenderExplorer(pool,entry,seasons,teamNames){{
   const tenSeasons=(entry.windows['5yr']&&entry.windows['5yr'].seasons)?entry.windows['5yr'].seasons.filter(s=>KX_SEASON_KEY[s]):['2025-26'];
   const span=tenSeasons.length>1?(tenSeasons[0]+' to '+tenSeasons[tenSeasons.length-1]):tenSeasons[0];
   const coach=entry.windows['5yr']?(entry.coach||''):'';
-  const analyzeOpts=`<option value="tenure" ${{kxWindow==='tenure'?'selected':''}}>${{span}}${{coach?(' (all under '+coach+')'):''}}</option><option value="cur" ${{kxWindow==='cur'?'selected':''}}>2025-26 only</option>`;
+  const analyzeOpts=`<option value="tenure" ${{kxWindow==='tenure'?'selected':''}}>${{span}}${{coach?(' (all under '+coach+')'):''}}</option><option value="cur" ${{kxWindow==='cur'?'selected':''}}>${{(entry.windows['cur']&&entry.windows['cur'].label)||'2025-26 only'}}</option>`;
   const viewOpts=['all'].concat(seasons).map(v=>`<option value="${{v}}" ${{kxView===v?'selected':''}}>${{v==='all'?'All Seasons':v}}</option>`).join('');
   const mSel=i=>seln('<option value="">— none —</option>'+allMetrics.map(k=>`<option value="${{k}}" ${{kxSel[i]===k?'selected':''}}>${{kxLabel(k)}}</option>`).join(''),`kxSetMetric(${{i}},this.value)`);
   const lbl=t=>`<div style="font-weight:700;color:#1a1f2e;font-size:0.82rem;margin:0 0 6px">${{t}}</div>`;
@@ -10480,7 +10477,7 @@ function __kxRenderExplorer(pool,entry,seasons,teamNames){{
     `<div style="max-width:360px;margin:26px 0 6px">${{lbl('Choose Season To View')}}${{seln(viewOpts,'kxSetView(this.value)')}}</div>`+
     `<div style="text-align:center;font-weight:700;color:#1a1f2e;font-size:1.3rem;margin:20px 0 2px">Key Metrics Explorer</div>${{scatter}}`+
     `<div style="text-align:center;font-size:0.8rem;color:#777;margin-top:6px">Wins are in <span style="color:#21a05a;font-weight:700">green</span>, losses in <span style="color:#e23b3b;font-weight:700">red</span></div>`+
-    `<div style="text-align:center;font-size:0.72rem;color:#aaa;margin-top:8px">Targets auto-set to the cut that best splits this team's wins from losses (point-biserial direction + Youden's J), over the analyze window. Global = all CCC teams over the 2021-22→2025-26 window (~${{globalView.length.toLocaleString()}} team-games, counted from both sides of each game), computed from box scores.</div>`;
+    `<div style="text-align:center;font-size:0.72rem;color:#aaa;margin-top:8px">Targets auto-set to the cut that best splits this team's wins from losses (point-biserial direction + Youden's J), over the analyze window. Global = all CCC teams over the ${{KX_LAST5[KX_LAST5.length-1]}}→${{KX_LAST5[0]}} window (~${{globalView.length.toLocaleString()}} team-games, counted from both sides of each game), computed from box scores.</div>`;
   const body=card(
     `<div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px"><div style="min-width:210px;flex:1">${{lbl('Choose Metric #1')}}${{mSel(0)}}</div><div style="min-width:210px;flex:1">${{lbl('Choose Metric #2')}}${{mSel(1)}}</div><div style="min-width:210px;flex:1">${{lbl('Choose Metric #3')}}${{mSel(2)}}</div></div>`+
     `<div style="display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start"><div>${{tgtTbl}}</div><div style="flex:1;min-width:620px;overflow-x:auto">${{hitTbl}}</div></div>`+
@@ -14204,7 +14201,7 @@ def main():
         print(f"  Moorpark lineups: {moorpark_lineups['team_totals']['lineups_tracked']} units, "
               f"{len(moorpark_lineups['players'])} players")
     # Keys to Victory — one entry per team. "windows" picks which season ranges
-    # to build: "5yr" = whole coach tenure (2021-26), "cur" = 2025-26 only.
+    # to build: "5yr" = coach tenure within KEYS_WINDOW (2022-23 to 2026-27), "cur" = one season.
     # Teams whose coach arrived recently / have no stable HC use "cur" only.
     KEYS_TEAMS = [
         {"team": "Moorpark", "coach": "Keith Higgins", "windows": ["5yr", "cur"]},
@@ -14306,17 +14303,27 @@ def main():
          "seasons": ["2025-26"]},
         {"team": "Ventura", "coach": "", "windows": ["cur"]},
     ]
+    # Teams with a head coach: the last 5 seasons (the last 4 plus 2026-27, 2021-22 dropped) or the coach's tenure
+    # if shorter; teams without one (windows ["cur"]): 2026-27 only. Rebuilt nightly as games come in.
+    # "cur" switches to 2026-27 at KEYS_MIN_CUR games (before that, last season: a handful of games can't split
+    # wins from losses).
+    KEYS_CUR, KEYS_PREV, KEYS_MIN_CUR = "2026-27", "2025-26", 5
+    KEYS_WINDOW = [x for x in LAST_5_KEYS if x != "2021-22"] + [KEYS_CUR]
+    _keys_gp = {t["team"]: t.get("gp", 0) or 0 for t in (teams or [])}
+
     def _build_team_keys():
         # with_bench=True so the global pool has Bench Pts% → Style Metrics
         # "Bench Points %" gets its Global Win Pct / Global MOV columns too.
-        pool5 = load_all_games_keys(LAST_5_KEYS, with_bench=True)
-        poolc = load_all_games_keys(["2025-26"], with_bench=True)
+        pool5 = load_all_games_keys(KEYS_WINDOW, with_bench=True)
+        pools = {s: load_all_games_keys([s], with_bench=True) for s in (KEYS_PREV, KEYS_CUR)}
         out = {}
         for cfg in KEYS_TEAMS:
             tname, coach = cfg["team"], cfg["coach"]
+            gp_cur = _keys_gp.get(tname, 0)
             windows = {}
             if "5yr" in cfg["windows"]:
-                seasons5 = cfg.get("seasons", LAST_5_KEYS)
+                seasons5 = [x for x in cfg.get("seasons", KEYS_WINDOW) if x in KEYS_WINDOW]
+                seasons5 += [] if KEYS_CUR in seasons5 else [KEYS_CUR]
                 o5 = build_keys(tname, seasons5, global_games=pool5)
                 if o5:
                     span = (seasons5[0] if len(seasons5) == 1
@@ -14324,14 +14331,17 @@ def main():
                     o5["label"] = f"{span} (all under {coach})" if coach else span
                     windows["5yr"] = o5
             if "cur" in cfg["windows"]:
-                oc = build_keys(tname, ["2025-26"], global_games=poolc)
+                # no head coach on record (cur-only): this season alone, from its first game; otherwise last
+                # season until KEYS_MIN_CUR games
+                cur = KEYS_CUR if gp_cur >= KEYS_MIN_CUR or "5yr" not in cfg["windows"] else KEYS_PREV
+                oc = build_keys(tname, [cur], global_games=pools[cur])
                 if oc:
-                    oc["label"] = "2025-26 only"
+                    oc["label"] = f"{cur} only" if cur == KEYS_CUR else f"{cur} only (2026-27 from game {KEYS_MIN_CUR})"
                     windows["cur"] = oc
             if windows:
                 out[tname] = {"coach": coach, "windows": windows}
         return out
-    team_keys = dataset("team_keys", _build_team_keys)
+    team_keys = dataset("2627_team_keys", _build_team_keys)   # rebuilt every run (2026-27 games)
     if team_keys:
         for tname, entry in team_keys.items():
             o = entry["windows"].get("5yr") or entry["windows"].get("cur")

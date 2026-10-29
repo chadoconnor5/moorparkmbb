@@ -86,6 +86,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
   re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
   the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.
+- Keys tab (KEYS_TEAMS in generate_leaderboard.py): a team with a head coach analyzes the last 5 seasons (2022-23 to
+  2026-27) or the coach's tenure if shorter ("seasons"); "cur" is 2026-27 from its 5th game (last season until then).
+  A team without a coach (windows ["cur"]) gets 2026-27 only, from its first game. Rebuilt every run.
+- Charts: player bubbles show one letter per name and hyphen piece (John Paul Ozumba JPO, Jaxon Rous-Smith JRS),
+  suffixes dropped, at most 3.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:
