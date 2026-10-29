@@ -395,6 +395,17 @@ def seed_from_typed(state: State):
     print(f"Master schedule from the typed-in schedules: {len(state.games)} games ({n} team rows), no requests")
 
 
+def has_tba(state: State, d: date) -> bool:
+    """Does any team's schedule have a TBA game (a tournament's later rounds) on date d? Those aren't in the master."""
+    for team in state.teams:
+        path = team_dir(state, team) / "schedule.json"
+        if path.exists():
+            for row in json.load(open(path)).get("games", []):
+                if (row.get("opponent") or "").strip().upper() in ("TBA", "TBD") and label_to_date(state.season, row.get("date", "")) == d:
+                    return True
+    return False
+
+
 def team_dir(state: State, team: str) -> Path:
     conf = state.teams.get(team, {}).get("conference") or get_conference(team)
     return schedule_dir(state.season) / conf / team
@@ -611,7 +622,13 @@ class Run:
             self.composites[d] = []
             return []
         print(f"Composite: {d}")
-        html = self.fetcher.get(url)
+        try:
+            html = self.fetcher.get(url)
+        except (urllib.error.HTTPError, urllib.error.URLError) as err:   # blocked / down: those games stay missing
+            print(f"    composite page refused ({err}) — no box scores from it this run; "
+                  f"send screenshots or rerun later (`scrape.py missing`)")
+            self.composites[d] = []
+            return []
         links = sorted({m.group(1) for m in BOX_LINK_RE.finditer(html)
                         if f"/{self.state.season}/" in m.group(1)})
         # Box IDs start with the game date (a few are a day early), so a page
@@ -692,10 +709,17 @@ class Run:
         today = date.today()
         keys = [k for k in keys if k in self.state.games and game_date(self.state.games[k]) <= today]
         if not self.force:
+            for k in keys:   # box scores already on disk (typed in from screenshots) first: those games need no request
+                bs = box_from_disk(self.state, self.state.games[k])
+                if bs is not None and classify_box(bs, self.state.games[k])[0] == COMPLETE:
+                    self.process_game(k)
             keys = [k for k in keys if self.state.entry(k)["status"] not in DONE]
+        # a forced night (the nightly's) is skipped too once every game on it is in and it has no TBA games
+        days = {d for d in days if d <= today and (any(self.state.games[k]["date"] == d.isoformat() for k in keys)
+                                                   or has_tba(self.state, d))}
         if discover:
             fallback = []
-            for d in sorted({game_date(self.state.games[k]) for k in keys} | {d for d in days if d <= today}):
+            for d in sorted({game_date(self.state.games[k]) for k in keys} | days):
                 day = [k for k in keys if self.state.games[k]["date"] == d.isoformat()]
                 if d not in days and not any(not self.state.games[k].get("boxscore_url") for k in day):
                     continue   # every game that day already has its link
@@ -718,17 +742,14 @@ class Run:
         e = self.state.entry(key)
         url = g.get("boxscore_url", "")
         label = f"{g['date']} {' vs '.join(g['names'])}"
-        if not url:
-            status, reason = offline_status(g)
-            if self.dry:
-                print(f"  {label}: no box score link known ({reason})")
-                return
-            self.record(e, g, status, reason, "")
-            return
-
+        # A box score already on disk (typed in from screenshots, or an earlier run) counts, link or no link: the
+        # game is done and never fetched; the first time it's seen its teams' stats rebuild.
         bs = None if self.force else box_from_disk(self.state, g)
         if bs is not None and classify_box(bs, g)[0] == COMPLETE:
             if not self.dry:
+                if e.get("status") not in DONE:
+                    self.touched.update(t for t in members_in(g) if t in self.state.teams)
+                    patch_schedules(self.state, g, bs, True)
                 status, reason, note = classify_box(bs, g)
                 saved = [t for t in members_in(g) if t in self.state.teams and not box_path(self.state, t, g).exists()]
                 if saved:   # copy to a team folder that doesn't have it yet
@@ -737,6 +758,14 @@ class Run:
                 self.record(e, g, status, reason, note, checked=False)
                 e["minutes"] = bs.get("minutes_quality", {})
             return
+        if not url:
+            status, reason = offline_status(g)
+            if self.dry:
+                print(f"  {label}: no box score link known ({reason})")
+                return
+            self.record(e, g, status, reason, "")
+            return
+
         if self.dry:
             print(f"  would fetch box score: {label}  {url}")
             return
