@@ -10396,7 +10396,7 @@ function __kxRenderExplorer(pool,entry,seasons,teamNames){{
   const teamOpts=teamNames.map(t=>`<option value="${{t}}" ${{t===currentKeysTeam?'selected':''}}>${{t}}</option>`).join('');
   const tenSeasons=(entry.windows['5yr']&&entry.windows['5yr'].seasons)?entry.windows['5yr'].seasons.filter(s=>KX_SEASON_KEY[s]):['2025-26'];
   const span=tenSeasons.length>1?(tenSeasons[0]+' to '+tenSeasons[tenSeasons.length-1]):tenSeasons[0];
-  const coach=entry.windows['5yr']?(entry.coach||''):'';
+  const coach=(entry.windows['5yr']&&!entry.tenure_unknown)?(entry.coach||''):'';
   const analyzeOpts=`<option value="tenure" ${{kxWindow==='tenure'?'selected':''}}>${{span}}${{coach?(' (all under '+coach+')'):''}}</option><option value="cur" ${{kxWindow==='cur'?'selected':''}}>${{(entry.windows['cur']&&entry.windows['cur'].label)||'2025-26 only'}}</option>`;
   const viewOpts=['all'].concat(seasons).map(v=>`<option value="${{v}}" ${{kxView===v?'selected':''}}>${{v==='all'?'All Seasons':v}}</option>`).join('');
   const mSel=i=>seln('<option value="">— none —</option>'+allMetrics.map(k=>`<option value="${{k}}" ${{kxSel[i]===k?'selected':''}}>${{kxLabel(k)}}</option>`).join(''),`kxSetMetric(${{i}},this.value)`);
@@ -10536,8 +10536,8 @@ function renderKeys() {{
   const winPhrase = currentKeysWindow !== '5yr'
     ? `in the ${{D.window}} season`
     : (__nSeasons === 1
-        ? `in the ${{D.window}} season${{coach ? ' under ' + coach : ''}}`
-        : `in the last ${{__seasonsWord}} seasons${{coach ? ' under ' + coach : ''}}`);
+        ? `in the ${{D.window}} season${{coach && !entry.tenure_unknown ? ' under ' + coach : ''}}`
+        : `in the last ${{__seasonsWord}} seasons${{coach && !entry.tenure_unknown ? ' under ' + coach : ''}}`);
   const since = currentKeysWindow === '5yr' ? `since the start of the ${{D.seasons[0]}} season` : 'this season';
   const longs = keys.map(k => k.long || k.label);
   const listEng = __englishList(longs);
@@ -14208,18 +14208,17 @@ def main():
         {"team": "Allan Hancock", "coach": "Tyson Aye", "windows": ["5yr", "cur"]},
         {"team": "Fullerton", "coach": "Perry Webster", "windows": ["5yr", "cur"]},
         {"team": "San Francisco", "coach": "Justin Labagh", "windows": ["5yr", "cur"]},
-        {"team": "Santa Barbara", "coach": "Devin Engebretsen", "windows": ["5yr", "cur"]},
+        {"team": "Santa Barbara", "coach": "Devin Engebreston", "windows": ["5yr", "cur"]},
         {"team": "Oxnard", "coach": "Ron McClurkin", "windows": ["5yr", "cur"]},
         {"team": "LA Pierce", "coach": "Charles White", "windows": ["5yr", "cur"]},
         {"team": "Citrus", "coach": "Brett Lauer", "windows": ["5yr", "cur"]},
         {"team": "San Bernardino Valley", "coach": "Quincy Brewer", "windows": ["5yr", "cur"]},
         {"team": "West LA", "coach": "Anthony Jones", "windows": ["5yr", "cur"]},
         {"team": "East Los Angeles", "coach": "John Mosley", "windows": ["5yr", "cur"]},
-        {"team": "Mt. San Antonio", "coach": "Michael Fennison", "windows": ["5yr", "cur"]},
+        {"team": "Mt. San Antonio", "coach": "Mike Fenison", "windows": ["5yr", "cur"]},
         {"team": "Cerritos", "coach": "Russ May", "windows": ["5yr", "cur"]},
         {"team": "Santiago Canyon", "coach": "Todd Dixon", "windows": ["5yr", "cur"]},
         {"team": "San Diego City", "coach": "Mitch Charlens", "windows": ["5yr", "cur"]},
-        {"team": "West Valley", "coach": "Danny Yoshikawa", "windows": ["5yr", "cur"]},
         {"team": "Mt. San Jacinto", "coach": "Trent Skinner", "windows": ["5yr", "cur"],
          "seasons": ["2022-23", "2023-24", "2024-25", "2025-26"]},
         {"team": "Cypress", "coach": "Andrew Alhadeff", "windows": ["5yr", "cur"]},
@@ -14241,7 +14240,6 @@ def main():
          "seasons": ["2024-25", "2025-26"]},
         {"team": "San Jose", "coach": "Devin Aye", "windows": ["5yr", "cur"]},
         {"team": "Cosumnes River", "coach": "Jonathan James", "windows": ["5yr", "cur"]},
-        {"team": "Columbia", "coach": "Tomas Brock", "windows": ["5yr", "cur"]},
         {"team": "Foothill", "coach": "Mike Reynoso", "windows": ["5yr", "cur"]},
         {"team": "Sierra", "coach": "Aaron Lawrence", "windows": ["5yr", "cur"],
          "seasons": ["2024-25", "2025-26"]},
@@ -14256,9 +14254,8 @@ def main():
          "seasons": ["2023-24", "2024-25", "2025-26"]},
         {"team": "Irvine Valley", "coach": "Jason Garey", "windows": ["5yr", "cur"],
          "seasons": ["2024-25", "2025-26"]},
-        {"team": "Saddleback", "coach": "Jeff Oliver", "windows": ["5yr", "cur"]},
         {"team": "Orange Coast", "coach": "Steve Spencer", "windows": ["5yr", "cur"]},
-        {"team": "Riverside", "coach": "Andre Wilson", "windows": ["5yr", "cur"],
+        {"team": "Riverside", "coach": "Andrew Wilson", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
         {"team": "Copper Mountain", "coach": "JJ Santa Cruz", "windows": ["5yr", "cur"],
          "seasons": ["2023-24", "2024-25", "2025-26"]},
@@ -14266,29 +14263,24 @@ def main():
          "seasons": ["2022-23", "2023-24", "2024-25", "2025-26"]},
         {"team": "Victor Valley", "coach": "William Funn", "windows": ["5yr", "cur"],
          "seasons": ["2023-24", "2024-25", "2025-26"]},
-        {"team": "Palo Verde", "coach": "Jason Billie", "windows": ["5yr", "cur"],
-         "seasons": ["2024-25", "2025-26"]},
-        {"team": "Barstow", "coach": "Nicholas Hilton", "windows": ["5yr", "cur"],
+        {"team": "Barstow", "coach": "Nick Hilton", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
-        # First-year coaches: tenure window = 2025-26 only, but still show both
-        # dropdown options (tenure + current) even though the data is identical.
+        # Coaches who started in 2025-26: tenure = 2025-26 and 2026-27.
         {"team": "Cuesta", "coach": "Jamoni Barber", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
-        {"team": "Chaffey", "coach": "Mateu Villakazi", "windows": ["5yr", "cur"],
+        {"team": "Chaffey", "coach": "Mateu Vilakazi", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
         {"team": "Feather River", "coach": "Derek Jensen", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
-        {"team": "LA Southwest", "coach": "Mack Cleveland", "windows": ["5yr", "cur"]},
+        {"team": "LA Southwest", "coach": "Mac Cleveland", "windows": ["5yr", "cur"]},
         {"team": "Cabrillo", "coach": "James Page", "windows": ["5yr", "cur"]},
         {"team": "Marin", "coach": "LyRyan Russell", "windows": ["5yr", "cur"]},
         {"team": "San Mateo", "coach": "Mike Marcial", "windows": ["5yr", "cur"]},
-        {"team": "Reedley", "coach": "Richard Jennings", "windows": ["5yr", "cur"]},
+        {"team": "Reedley", "coach": "TJ Jennings", "windows": ["5yr", "cur"]},
         {"team": "Ohlone", "coach": "Jordan Lee", "windows": ["5yr", "cur"],
          "seasons": ["2022-23", "2023-24", "2024-25", "2025-26"]},
         {"team": "Diablo Valley", "coach": "Ervin Anderson", "windows": ["5yr", "cur"],
          "seasons": ["2023-24", "2024-25", "2025-26"]},
-        # Mark Avila, interim for 2026-27 (replaced Jovan Joe): no seasons under him yet, so current season only
-        {"team": "Lemoore", "coach": "Mark Avila (interim)", "windows": ["cur"]},
         {"team": "Redwoods", "coach": "Justin Claus", "windows": ["5yr", "cur"],
          "seasons": ["2025-26"]},
         # Coaches added 2026-06-23 from user (tenure ranges as given).
@@ -14299,9 +14291,45 @@ def main():
         {"team": "LA Harbor", "coach": "Tony Carter-Loza", "windows": ["5yr", "cur"]},
         {"team": "Compton", "coach": "Keith Hollimon", "windows": ["5yr", "cur"],
          "seasons": ["2022-23", "2023-24", "2024-25", "2025-26"]},
-        {"team": "Pasadena City", "coach": "Spenser Nunes", "windows": ["5yr", "cur"],
-         "seasons": ["2025-26"]},
-        {"team": "Ventura", "coach": "", "windows": ["cur"]},
+        # First-year head coaches in 2026-27: this season only, from their first game.
+        {"team": "West Valley", "coach": "Mykel Morse", "windows": ["cur"]},
+        {"team": "Columbia", "coach": "Rob Hoyt", "windows": ["cur"]},
+        {"team": "Saddleback", "coach": "Jordan Hamamoto", "windows": ["cur"]},
+        {"team": "Palo Verde", "coach": "Kenny Mullins", "windows": ["cur"]},
+        {"team": "Lemoore", "coach": "Mark Avila", "windows": ["cur"]},
+        {"team": "Pasadena City", "coach": "Marshall Johnson", "windows": ["cur"]},
+        {"team": "Ventura", "coach": "Jordan Fleck", "windows": ["cur"]},
+        # Added 2026-10-29 from the user's 2026-27 coach list; tenure not confirmed, so the last 5 seasons
+        # (labels don't claim "all under" the coach).
+        {"team": "American River", "coach": "Mike Lorente", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Butte", "coach": "Jack Martin", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Coalinga", "coach": "Adedokun Olanrewaju", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Cuyamaca", "coach": "Rob Wojtkowski", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "De Anza", "coach": "Joseph Berticevich", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "El Camino", "coach": "Robert Uphoff", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Folsom Lake", "coach": "Bill Benford", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Fresno", "coach": "Rob Haynes", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Gavilan", "coach": "Henry Anyiam", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Grossmont", "coach": "Doug Weber", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Hartnell", "coach": "Andrew Vasher", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Imperial Valley", "coach": "Hector Vildosola", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Lassen", "coach": "Will Freedman", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Long Beach", "coach": "Barry Barnes", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Los Angeles City", "coach": "Jason Flowers", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Mendocino", "coach": "Billy Offill", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Merced", "coach": "Amaurys Fermin", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Merritt", "coach": "Derrick Jones", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Monterey Peninsula", "coach": "Blake Spiering", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Napa Valley", "coach": "Steve Ball", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Porterville", "coach": "Matt Fogerty", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Rio Hondo", "coach": "Steve Johnson", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Sacramento City", "coach": "Brian Chavez", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "San Diego Mesa", "coach": "Travis Nichols", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "San Joaquin Delta", "coach": "Rich Ressa", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Shasta", "coach": "Taylor Angley", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Siskiyous", "coach": "Kyle Heath", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Skyline", "coach": "Justin Piergrossi", "windows": ["5yr", "cur"], "tenure_unknown": True},
+        {"team": "Solano", "coach": "Diego Reyes", "windows": ["5yr", "cur"], "tenure_unknown": True},
     ]
     # Teams with a head coach: the last 5 seasons (the last 4 plus 2026-27, 2021-22 dropped) or the coach's tenure
     # if shorter; teams without one (windows ["cur"]): 2026-27 only. Rebuilt nightly as games come in.
@@ -14328,7 +14356,7 @@ def main():
                 if o5:
                     span = (seasons5[0] if len(seasons5) == 1
                             else f"{seasons5[0]} to {seasons5[-1]}")
-                    o5["label"] = f"{span} (all under {coach})" if coach else span
+                    o5["label"] = f"{span} (all under {coach})" if coach and not cfg.get("tenure_unknown") else span
                     windows["5yr"] = o5
             if "cur" in cfg["windows"]:
                 # no head coach on record (cur-only): this season alone, from its first game; otherwise last
@@ -14340,6 +14368,8 @@ def main():
                     windows["cur"] = oc
             if windows:
                 out[tname] = {"coach": coach, "windows": windows}
+                if cfg.get("tenure_unknown"):
+                    out[tname]["tenure_unknown"] = True   # the page doesn't say the seasons were all under the coach
         return out
     team_keys = dataset("2627_team_keys", _build_team_keys)   # rebuilt every run (2026-27 games)
     if team_keys:
