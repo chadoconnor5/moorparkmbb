@@ -169,7 +169,13 @@ class Fetcher:
                     continue
             self._page = self._br.new_page()
             atexit.register(self.close)
-        resp = self._page.goto(url, wait_until="networkidle", timeout=60000)
+        # the page's own content, not its ads (they keep loading, so "network idle" never comes)
+        resp = self._page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        try:
+            self._page.wait_for_load_state("load", timeout=15000)
+        except Exception:
+            pass
+        self._page.wait_for_timeout(2000)   # the scoreboard's events fill in after load
         if resp is not None and resp.status in (429, 503):
             raise Throttled(f"browser {resp.status}")
         if resp is not None and resp.status >= 400:
