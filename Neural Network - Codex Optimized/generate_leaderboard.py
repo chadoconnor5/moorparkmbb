@@ -498,7 +498,7 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
     out += [dict(blank, **b, tba=True) for b in brows if not b["result"]]
     sites = {}
     for team, rs in load_season_schedules(season).items():
-        for date, opp, copp, loc, conf, time, notes, host in rs:
+        for date, opp, copp, loc, conf, time, notes, host, _ev in rs:
             if copp or str(opp).strip().upper() not in ("TBA", "TBD") or (team, date) in covered:
                 continue
             site = team if loc == "Home" else host if loc == "Neutral" and host else None
@@ -11904,7 +11904,7 @@ function buildTeamDetail(t) {{
       const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
       if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
       if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
-        return {{ date, opponent: ev ? 'TBA (' + ev + ')' : 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
+        return {{ date, opponent: ev ? 'TBA (' + ev + ')' : 'TBA', canonical_opponent: ev ? 'TBA (' + ev + ')' : 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
       return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
     }});
     games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
