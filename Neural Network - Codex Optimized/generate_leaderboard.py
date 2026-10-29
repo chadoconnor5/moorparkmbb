@@ -746,6 +746,19 @@ def _load_position_scoring(teams: list[dict], position_groups: dict[tuple[str, s
     return scoring
 
 
+def _roster_group(pos: str, inches: int):
+    """Guard / forward from a roster-page position: G, PG, SG, Guard -> guard; F, C, P, Forward, Center, Post ->
+    forward; a wing (W, Wing) by height (6'4" and under guard). Combined labels use the first one."""
+    p = re.split(r"[/\s,-]+", str(pos or "").strip().lower())[0] if pos else ""
+    if p in ("g", "pg", "sg", "cg", "guard", "point", "combo"):
+        return "guard"
+    if p in ("f", "c", "p", "pf", "sf", "forward", "center", "post"):
+        return "forward"
+    if p in ("w", "wing"):
+        return "guard" if inches <= 76 else "forward"
+    return None
+
+
 def load_height_data(teams: list[dict]) -> dict:
     """Load 2025-26 roster heights and rank teams by average inches."""
     canonical = {t["team"]: t for t in teams}
@@ -774,7 +787,20 @@ def load_height_data(teams: list[dict]) -> dict:
 
     heights_by_team: dict[str, list[int]] = {}
     grouped_heights: dict[str, dict[str, list[int]]] = {}
-    if _HEIGHTS_CSV.exists():
+    rosters = _season_rosters.load()
+    if rosters:   # 2026-27: the typed-in rosters (heights already adjusted; position from the roster page)
+        for team_name, rows in rosters.items():
+            if team_name not in canonical:
+                continue
+            for r in rows:
+                inches = _parse_height_to_inches(r.get("ht", ""))
+                if not inches:
+                    continue
+                heights_by_team.setdefault(team_name, []).append(inches)
+                group = _roster_group(r.get("pos", ""), inches)
+                if group:
+                    grouped_heights.setdefault(team_name, {"guard": [], "forward": []})[group].append(inches)
+    elif _HEIGHTS_CSV.exists():
         with open(_HEIGHTS_CSV, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 team_name = resolve_team(row.get("team", ""))
@@ -1321,8 +1347,16 @@ def load_players(stats_dir=None):
 
 
 def _load_player_heights() -> dict:
-    """(team, height-player-key) -> formatted height from the 2025-26 CSV."""
+    """(team, height-player-key) -> formatted height: the 2026-27 rosters, else the 2025-26 CSV."""
     out = {}
+    rosters = _season_rosters.load()
+    if rosters:
+        for team, rows in rosters.items():
+            for r in rows:
+                inches = _parse_height_to_inches(r.get("ht", ""))
+                if inches:
+                    out[(team, _height_player_key(r["name"]))] = _fmt_height_inches(inches)
+        return out
     if not _HEIGHTS_CSV.exists():
         return out
     all_teams = [t for info in CONFERENCES.values() for t in info["teams"]]
@@ -1363,6 +1397,10 @@ def _load_player_class() -> dict:
     from the same scraped roster source. Class is current-season only and covers
     only the teams whose roster pages were scrapeable (AWS WAF blocks some), so
     players without a class entry simply have cls=''."""
+    rosters = _season_rosters.load()
+    if rosters:   # 2026-27: the typed-in rosters
+        return {(team, _height_player_key(r["name"])): r["yr"] for team, rows in rosters.items() for r in rows
+                if r.get("yr") in ("Fr", "So")}
     out = {}
     if not _CLASS_CSV.exists():
         return out
