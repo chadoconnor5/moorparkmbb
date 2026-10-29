@@ -2685,6 +2685,23 @@ def _jtag(name, payload):
     return '<script type="application/json" id="data-' + name + '">' + safe + '</script>'
 
 
+def _pbp_lineup_files(season="2026-27", key="2627"):
+    """compute_pbp_lineups.py's per-team files -> ({team: {s, used, total}} for the page, {filename: js}): each team's
+    lineups ride in its own lazy file (season_data/lineups_<key>_<slug>.js), loaded when its Lineups opens."""
+    index, files = {}, {}
+    for f in sorted(Path(f"internal_data/pbp_lineups/{season}").glob("*.json")):
+        try:
+            d = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        team = d.get("team")
+        if not team or not d.get("units"):
+            continue
+        index[team] = {"s": f.stem, "used": d.get("pbpGames", 0), "total": d.get("teamGames", 0)}
+        files[f"lineups_{key}_{f.stem}.js"] = f"__installLineups({json.dumps(team)}, {json.dumps(d, separators=(',', ':'))});\n"
+    return index, files
+
+
 def _embed(obj):
     """Serialize a dataset for embedding: columnar-packed + compact JSON."""
     return _jc(_pack_rows(obj))
@@ -4531,6 +4548,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Full team rosters (no minutes qualification) for the Team Stats panel.
     for key, rosters in (team_rosters or {}).items():
         season_files[f"rosters_{key}.js"] = f"__installRosters('{key}', {_embed(rosters)});\n"
+    # Every team's lineups from the play-by-play (compute_pbp_lineups.py), one lazy file per team.
+    pbp_lu_index, pbp_lu_files = _pbp_lineup_files()
+    season_files.update(pbp_lu_files)
+    pbp_lu_json = json.dumps(pbp_lu_index, separators=(",", ":"))
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -10213,6 +10234,7 @@ function closeLineups() {{
   document.getElementById('lineups-view').style.display = 'none';
   if (lineupsReturnTeam) showTeamDetail(lineupsReturnTeam);
 }}
+const PBP_LU = {pbp_lu_json};
 {_TRACKER_LU_JS}
 /* ═══ Keys to Victory ══════════════════════════════════════════════════
    EvanMiya-style "Keys to Victory Automated Team Report" (light theme).
@@ -10878,6 +10900,21 @@ function renderPlayerTable() {{
 }}
 
 function renderLineups(teamName, keepView) {{
+  if (activeSeason === '2627' && PBP_LU[teamName]) {{
+    // Play-by-play lineups (every team); Moorpark's own tracker lineups below them.
+    const sec2 = (txt) => `<h3 style="color:#ffd700;font-size:1.05rem;margin:22px 0 8px;border-bottom:2px solid #ffd700;padding-bottom:3px">${{txt}}</h3>`;
+    document.getElementById('lineups-content').innerHTML = `
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:8px;text-align:center">
+        <h2 style="color:#ffd700;font-size:1.6rem;margin:4px 0">${{teamName}} — Lineups</h2></div>` +
+      sec2('Play-by-Play — Opponent-Adjusted') + '<div id="lu-pbp"></div>' +
+      (teamName === 'Moorpark' ? sec2('Game Tracker — Opponent-Adjusted') + '<div id="lu-tracker"></div>' : '');
+    document.getElementById('team-detail-view').style.display = 'none';
+    document.getElementById('lineups-view').style.display = 'block';
+    renderPbpLineups(teamName);
+    if (teamName === 'Moorpark') renderTrackerLineups();
+    if (!keepView) window.scrollTo(0, 0);
+    return;
+  }}
   const FULL = (typeof MOORPARK_LINEUPS !== 'undefined' && activeSeason === '2526') ? MOORPARK_LINEUPS : null;
   const sec = (txt) => `<h3 style="color:#ffd700;font-size:1.05rem;margin:22px 0 8px;border-bottom:2px solid #ffd700;padding-bottom:3px">${{txt}}</h3>`;
   const trackerSec = sec('Game Tracker — Opponent-Adjusted') + '<div id="lu-tracker"></div>';
@@ -12094,7 +12131,7 @@ function buildTeamDetail(t) {{
     <div class="td-content">
       <div class="td-scouting">
         <div class="td-section-title">Scouting Report</div>
-        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON)) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
+        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON) || (activeSeason === '2627' && PBP_LU[t.team])) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
@@ -14536,7 +14573,7 @@ def main():
         # Fast mode only refreshes current-season files; existing past-season
         # files keep serving the other seasons.
         writable = {k: v for k, v in season_files.items()
-                    if k in ("boxes_2627.js", "rosters_2627.js")}
+                    if k in ("boxes_2627.js", "rosters_2627.js") or k.startswith("lineups_2627_")}
         print("Fast mode: past-season data files not rewritten.")
     else:
         writable = season_files

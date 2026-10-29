@@ -1214,6 +1214,8 @@ def rebuild(season: str, teams: set):
     # every team, not just tonight's: each past game is re-graded against its opponent's current rating (ORtg/DRtg/
     # net, four factors, SOS, Opp/Pace Adjust), so a team's opponents move when it rises or slips
     subprocess.run([sys.executable, "update_advanced_analytics.py", "--season", season, "--all"], check=False)
+    print("\nRebuilding every team's lineups from the play-by-play")
+    subprocess.run([sys.executable, "compute_pbp_lineups.py", "--season", season], check=False)
     print("\nRebuilding WAB and BPM for the season")
     for script in ("calculate_wab.py", "compute_wab_sim.py", "compute_ccc_bpm.py"):   # league-wide: WAB, WAB split sim, BPM
         subprocess.run([sys.executable, script, "--season", season], check=False)
