@@ -29,6 +29,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   list in "Terminal Commands README.md". Keep it low-traffic: one request at a
   time, never fetch a box score that's already COMPLETE.
   python3 scrape.py master      # once, when schedules post
+  python3 scrape.py master --from-typed   # instead: from the typed-in schedules (no requests; the site blocks team pages)
   python3 scrape.py nightly     # every night, that night's games only; then rebuilds stats, the leaderboard (ratings + team files)
                                 # and the tracker's scouting reports for the teams that played (--no-rebuild skips)
   python3 scrape.py status      # what's missing (no network)
@@ -77,8 +78,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Playoff dates (after the regular season, late Feb on) stay off the typed-in schedules during the regular season.
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
   flag them (is_conference).
-- Daily ranks (2026-27): start from last season's ratings (a "preseason" entry) and fade them out per team with
-  update_advanced_analytics.prior_weight as games come in; an unplayed date shows the latest rank. Past seasons unchanged.
+- Daily ranks (2026-27) are saved, not rebuilt: every leaderboard build writes each team's rank and the date to
+  daily_ranks/<season>.json (rank_history.py; commit it with the nightly). A played game shows the rank saved before
+  its date (locked at tip-off); of the games to come only a team's next one shows a rank (today's). A saved day is
+  recomputed only when a game dated on/before it arrives late. Past seasons keep their reconstructed daily ranks.
+- Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
+  re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
+  the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:

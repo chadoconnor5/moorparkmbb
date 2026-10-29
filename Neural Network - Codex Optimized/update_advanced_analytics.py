@@ -20,6 +20,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from ccc_config import DEFAULT_SEASON
+
 STATS_DIR = Path("2025-26 Team Statistics")  # may be overridden by --season arg
 
 # ---------------------------------------------------------------------------
@@ -1189,6 +1191,8 @@ def compute_sos(teams, ratings_override=None):
         with open(adv_path) as f:
             adv = json.load(f)
         game_ratings = adv.get("team", {}).get("game_ratings", [])
+        if not game_ratings and adv.get("team", {}).get("preseason"):
+            continue   # no games yet: build_preseason.py's schedule-based SOS stays
 
         # Collect all in-system game appearances (repeats count each time)
         opp_ortgs = []
@@ -1282,12 +1286,16 @@ def compute_sos(teams, ratings_override=None):
     print(f"SOS computed for {len(teams)} teams (WIN50, c=18)")
 
 
-def compute_iterative_adjusted_ratings(teams_to_update):
+def compute_iterative_adjusted_ratings(teams_to_update, prior=None):
     """Compute and write iterative opponent-adjusted ORTG/DRTG/NET for teams.
 
-    Uses all available in-system games from advanced_analytics game_ratings.
+    Uses all available in-system games from advanced_analytics game_ratings: every past game is re-graded each
+    run against the opponent's current rating. With a prior (last season, PRIOR_CHAIN), a team is pulled toward its
+    prior with prior_weight(games) virtual games (fading as it plays) instead of toward league average, and a team
+    with no games yet stays at its prior and keeps its file (build_preseason.py's) untouched.
     Returns a ratings map for all teams included in the iterative pool.
     """
+    prior = prior or {}
     pool_teams = []
     team_games = {}
     seed_ratings = {}
@@ -1387,8 +1395,9 @@ def compute_iterative_adjusted_ratings(teams_to_update):
 
         for team_name in pool_teams:
             in_sys = team_games.get(team_name, [])
+            pr = prior.get(team_name)
             if not in_sys:
-                new_ratings[team_name] = {"ortg": target_ortg, "drtg": target_drtg}
+                new_ratings[team_name] = dict(pr) if pr else {"ortg": target_ortg, "drtg": target_drtg}
                 continue
 
             adj_ortgs = []
@@ -1432,9 +1441,14 @@ def compute_iterative_adjusted_ratings(teams_to_update):
                 game_drtg = sum(v * w for v, w in adj_drtgs) / sum_w_d if sum_w_d > 0 else target_drtg
 
                 n = min(sum_w_o, sum_w_d)
-                weight = n / (n + REGRESSION_GAMES)
-                reg_ortg = weight * game_ortg + (1 - weight) * target_ortg
-                reg_drtg = weight * game_drtg + (1 - weight) * target_drtg
+                if pr:   # last season as fading virtual games
+                    pw = prior_weight(len(in_sys))
+                    reg_ortg = (n * game_ortg + pw * pr["ortg"]) / (n + pw)
+                    reg_drtg = (n * game_drtg + pw * pr["drtg"]) / (n + pw)
+                else:
+                    weight = n / (n + REGRESSION_GAMES)
+                    reg_ortg = weight * game_ortg + (1 - weight) * target_ortg
+                    reg_drtg = weight * game_drtg + (1 - weight) * target_drtg
 
                 new_ortg = DAMPEN * reg_ortg + (1 - DAMPEN) * current[team_name]["ortg"]
                 new_drtg = DAMPEN * reg_drtg + (1 - DAMPEN) * current[team_name]["drtg"]
@@ -1464,7 +1478,7 @@ def compute_iterative_adjusted_ratings(teams_to_update):
             break
 
     for team_name in teams_to_update:
-        if team_name not in current:
+        if team_name not in current or not team_games.get(team_name):   # no games yet: the preseason file stays
             continue
         team_dir = find_team_stats(team_name)
         if not team_dir:
@@ -1563,6 +1577,8 @@ def compute_iterative_adjusted_factors(teams_to_update):
             continue
         adv_path = find_team_stats(team_name) / "advanced_analytics.json"
         adv = json.load(open(adv_path))
+        if not adv.get("team", {}).get("game_ratings"):
+            continue   # no games yet
         adv.setdefault("team", {})["adj_ff"] = out[team_name]
         with open(adv_path, "w") as f:
             json.dump(adv, f, indent=2)
@@ -1620,7 +1636,7 @@ def main():
             print(f"Warning: prior season directory not found: {prior_dir}")
         else:
             loaded = 0
-            for team_name in teams:
+            for team_name in all_stat_teams():   # every team: the solve needs each opponent's prior too
                 adv_path = _find_team_in_season(prior_dir, team_name)
                 if adv_path:
                     try:
@@ -1631,7 +1647,7 @@ def main():
                             loaded += 1
                     except Exception:
                         pass
-            print(f"Loaded prior ratings for {loaded}/{len(teams)} teams from {args.prior_season} "
+            print(f"Loaded prior ratings for {loaded} teams from {args.prior_season} "
                   f"(decay w(n)={PRIOR_W0:g}*exp(-n/{PRIOR_TAU:g}); ~{prior_weight(12):.1f} games @ game 12)")
 
     # Pass 1: compute per-team analytics (ORTG/DRTG/NET RTG filtered to in-system)
@@ -1639,7 +1655,8 @@ def main():
         update_team(team, prior=prior_map.get(team))
 
     # Pass 2: iterative opponent-adjusted ORTG/DRTG/NET (default)
-    iter_ratings = compute_iterative_adjusted_ratings(teams)
+    # the prior regression is the current season's only: past seasons keep their published ratings
+    iter_ratings = compute_iterative_adjusted_ratings(teams, prior=prior_map if args.season == DEFAULT_SEASON else None)
 
     # Pass 3: compute SOS using iterative ratings
     compute_sos(teams, ratings_override=iter_ratings)

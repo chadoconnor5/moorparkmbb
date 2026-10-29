@@ -37,11 +37,13 @@ score / no stats yet) · `STALE` (given up on in older ledgers;
 
 ```bash
 # --- Master schedule (once, when schedules are posted; ~100 requests, ~11 min) ---
+python3 scrape.py master --from-typed   # 2026-27: build the game list from the typed-in schedules (no requests)
 python3 scrape.py master
 python3 scrape.py master --resync              # refresh pages older than 24h (rerun resumes)
 
 # --- Nightly (the scheduled job: today after 6 PM, otherwise yesterday) ---
-# Any scrape that saves new box scores then rebuilds, in the same run: those teams' stats and analytics,
+# Any scrape that saves new box scores then rebuilds, in the same run: those teams' stats, every team's analytics
+# (each past game re-graded against the opponent's current rating), the saved daily ranks (daily_ranks/<season>.json),
 # the leaderboard (+ the tracker's ratings.json / team files), and the tracker's scouting reports for the
 # teams that played and are on our schedule or in tracker_teams.txt (../poss/reports/). Commit and push
 # afterwards and the iPad picks it all up when it opens with signal. --no-rebuild skips the rebuild.

@@ -6,6 +6,7 @@ import csv
 import json
 from ccc_config import NO_TEAM as _NO_TEAM
 import season_rosters as _season_rosters
+import rank_history as _rank_history
 import math
 import re
 import shutil
@@ -746,6 +747,19 @@ def _load_position_scoring(teams: list[dict], position_groups: dict[tuple[str, s
     return scoring
 
 
+def _roster_group(pos: str, inches: int):
+    """Guard / forward from a roster-page position: G, PG, SG, Guard -> guard; F, C, P, Forward, Center, Post ->
+    forward; a wing (W, Wing) by height (6'4" and under guard). Combined labels use the first one."""
+    p = re.split(r"[/\s,-]+", str(pos or "").strip().lower())[0] if pos else ""
+    if p in ("g", "pg", "sg", "cg", "guard", "point", "combo"):
+        return "guard"
+    if p in ("f", "c", "p", "pf", "sf", "forward", "center", "post"):
+        return "forward"
+    if p in ("w", "wing"):
+        return "guard" if inches <= 76 else "forward"
+    return None
+
+
 def load_height_data(teams: list[dict]) -> dict:
     """Load 2025-26 roster heights and rank teams by average inches."""
     canonical = {t["team"]: t for t in teams}
@@ -774,7 +788,20 @@ def load_height_data(teams: list[dict]) -> dict:
 
     heights_by_team: dict[str, list[int]] = {}
     grouped_heights: dict[str, dict[str, list[int]]] = {}
-    if _HEIGHTS_CSV.exists():
+    rosters = _season_rosters.load()
+    if rosters:   # 2026-27: the typed-in rosters (heights already adjusted; position from the roster page)
+        for team_name, rows in rosters.items():
+            if team_name not in canonical:
+                continue
+            for r in rows:
+                inches = _parse_height_to_inches(r.get("ht", ""))
+                if not inches:
+                    continue
+                heights_by_team.setdefault(team_name, []).append(inches)
+                group = _roster_group(r.get("pos", ""), inches)
+                if group:
+                    grouped_heights.setdefault(team_name, {"guard": [], "forward": []})[group].append(inches)
+    elif _HEIGHTS_CSV.exists():
         with open(_HEIGHTS_CSV, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 team_name = resolve_team(row.get("team", ""))
@@ -1321,8 +1348,16 @@ def load_players(stats_dir=None):
 
 
 def _load_player_heights() -> dict:
-    """(team, height-player-key) -> formatted height from the 2025-26 CSV."""
+    """(team, height-player-key) -> formatted height: the 2026-27 rosters, else the 2025-26 CSV."""
     out = {}
+    rosters = _season_rosters.load()
+    if rosters:
+        for team, rows in rosters.items():
+            for r in rows:
+                inches = _parse_height_to_inches(r.get("ht", ""))
+                if inches:
+                    out[(team, _height_player_key(r["name"]))] = _fmt_height_inches(inches)
+        return out
     if not _HEIGHTS_CSV.exists():
         return out
     all_teams = [t for info in CONFERENCES.values() for t in info["teams"]]
@@ -1363,6 +1398,10 @@ def _load_player_class() -> dict:
     from the same scraped roster source. Class is current-season only and covers
     only the teams whose roster pages were scrapeable (AWS WAF blocks some), so
     players without a class entry simply have cls=''."""
+    rosters = _season_rosters.load()
+    if rosters:   # 2026-27: the typed-in rosters
+        return {(team, _height_player_key(r["name"])): r["yr"] for team, rows in rosters.items() for r in rows
+                if r.get("yr") in ("Fr", "So")}
     out = {}
     if not _CLASS_CSV.exists():
         return out
@@ -3868,7 +3907,13 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         except Exception as e:
             print(f'  Warning: could not load wab_sim_split24.json: {e}')
     wab_sim_2526_json = _embed(wab_sim_2526)
-    wab_sim_2627_json = _embed({'north': [], 'south': []})
+    wab_sim_2627 = {'north': [], 'south': []}
+    if Path('wab_sim_split24_2026_27.json').exists():   # compute_wab_sim.py --season 2026-27 (nightly rebuild)
+        try:
+            wab_sim_2627 = json.load(open('wab_sim_split24_2026_27.json'))
+        except Exception as e:
+            print(f'  Warning: could not load wab_sim_split24_2026_27.json: {e}')
+    wab_sim_2627_json = _embed(wab_sim_2627)
 
     wab_sim_2425 = {'north': [], 'south': []}
     sim_path_2425 = Path('wab_sim_split24_2024_25.json')
@@ -4106,7 +4151,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return ranks
 
     # Compute current-season daily rankings with iterative as-of-date logic
-    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True)
+    # the current season shows saved ranks (rank_history.py): each game's rank is the one it carried into tip-off
+    daily_ranks = _rank_history.update("2026-27", teams or [],
+                                       compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True))
     daily_ranks_json = _embed(daily_ranks)
 
     daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
@@ -8224,6 +8271,11 @@ function __switchSeasonNow(season) {{
   if (ppDiv && ppDiv.style.display !== 'none') {{
     closePlayerProfile();
   }}
+  const gpDiv = document.getElementById('gameplan-view');
+  if (gpDiv && gpDiv.style.display !== 'none' && gamePlanReturnTeam) {{
+    if (activeFullTeamData().some(d => d.team === gamePlanReturnTeam)) showGamePlan(gamePlanReturnTeam);
+    else closeGamePlan();
+  }}
   const mmDiv = document.getElementById('minmatrix-view');
   if (mmDiv && mmDiv.style.display !== 'none' && minMatrixReturnTeam) {{
     const mName = minMatrixReturnTeam;
@@ -9735,13 +9787,14 @@ function teamPageHref(teamName) {{
 }}
 
 // Ranks as of a date: that day's, else the latest earlier game day's, else the preseason ranks (last season's order).
+// Saved ranks (_strict, the current season): the latest save from before the game's date, the rank it took into tip-off.
 function __ranksAsOf(src, dateStr) {{
   if (!src) return {{}};
-  if (src[dateStr]) return src[dateStr];
+  if (src[dateStr] && !src._strict) return src[dateStr];
   const k = s => {{ const [m, d, y] = String(s).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (d || 0); }};
   const want = k(dateStr);
   let best = null;
-  for (const d of Object.keys(src)) if (d !== 'preseason' && k(d) <= want && (!best || k(d) > k(best))) best = d;
+  for (const d of Object.keys(src)) if (d !== 'preseason' && d !== '_strict' && (src._strict ? k(d) < want : k(d) <= want) && (!best || k(d) > k(best))) best = d;
   return best ? src[best] : (src.preseason || {{}});
 }}
 
@@ -9792,6 +9845,26 @@ function corrTipText(r100, label, isOrtg) {{
 
 let gamePlanReturnTeam = null;
 
+// A team's season in date order: its whole typed-in schedule where there is one (a played game takes its result
+// and stats from game_ratings, the rest have no result yet), plus any played game missing from the schedule.
+function __seasonGames(t) {{
+  const __dk = d => {{ const [m, dd, y] = String(d).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (dd || 0); }};
+  const __sch = (SEASON_SCHEDULES[activeSeason] || {{}})[t.team];
+  let games = t.game_ratings || [];
+  if (__sch) {{
+    const used = new Set();
+    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host, ev]) => {{
+      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
+      if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
+      if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
+        return {{ date, opponent: 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
+      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
+    }});
+    games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
+  }}
+  return games;
+}}
+
 function showGamePlan(teamName) {{
   gamePlanReturnTeam = teamName;
   const t = activeFullTeamData().find(d => d.team === teamName);
@@ -9801,7 +9874,7 @@ function showGamePlan(teamName) {{
   document.getElementById('gameplan-view').style.display = 'block';
   window.scrollTo(0, 0);
   const netRtgRanks = {{}};
-  const validT = (activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : TEAM_DATA).filter(d => d.ortg > 0).sort((a,b) => b.net_rtg - a.net_rtg);
+  const validT = activeTeamData.filter(d => d.ortg > 0).sort((a,b) => b.net_rtg - a.net_rtg);
   validT.forEach((d,i) => {{ netRtgRanks[d.team] = i+1; }});
   const FOUR_FACTORS = ['o_efg','o_tov','o_or','o_ftr','d_efg','d_tov','d_or','d_ftr'];
   const STAT_LABELS = {{pace:'Pace',ortg:'Off Eff',o_efg:'Off eFG%',o_tov:'Off TO%',o_or:'Off OR%',o_ftr:'Off FTR',o_2p:'Off 2P%',o_3p:'Off 3P%',drtg:'Def Eff',d_efg:'Def eFG%',d_tov:'Def TO%',d_or:'Def OR%',d_ftr:'Def FTR',d_2p:'Def 2P%',d_3p:'Def 3P%'}};
@@ -9810,9 +9883,14 @@ function showGamePlan(teamName) {{
   const ortgVals=[], drtgVals=[];
   const ff = (v) => (typeof v === 'number') ? v.toFixed(1) : '—';
   let rowsHtml = '';
-  const games = t.game_ratings || [];
+  const games = __seasonGames(t);
   games.forEach(gr => {{
     const opp = gr.canonical_opponent || gr.opponent || '';
+    if (gr.result !== 'W' && gr.result !== 'L') {{   // not played yet
+      const oppTxt = opp === 'TBA' ? 'TBA' : `<a href="#" onclick="showTeamDetail('${{opp}}');return false" style="color:#000;text-decoration:none;font-weight:600">${{opp}}</a>${{gr.is_conference?' <span style="color:#888">*</span>':''}}`;
+      rowsHtml += `<tr><td style="text-align:left;white-space:nowrap;font-size:0.77rem;width:1%">${{gr.date||''}}</td><td style="text-align:center">${{netRtgRanks[opp] || ''}}</td><td style="text-align:left">${{oppTxt}}</td><td style="text-align:center">-</td>${{'<td style="text-align:center;color:#999">-</td>'.repeat(15)}}</tr>`;
+      return;
+    }}
     const slug = toSlug(opp);
     const rk = netRtgRanks[opp] || '';
     const isConf = gr.is_conference;
@@ -9847,7 +9925,7 @@ function showGamePlan(teamName) {{
     ortgRow += corrCell(r_o, k, true);
     drtgRow += corrCell(r_d, k, false);
   }});
-  content.innerHTML = `<style>#gameplan-content table{{width:100%;border-collapse:collapse;font-size:0.78rem;white-space:nowrap}}#gameplan-content th{{background:#1a1a2e;color:#fff;padding:5px 7px;text-align:center;font-size:0.73rem;border-bottom:2px solid #333}}#gameplan-content th.gp-off{{background:#1a3a5c}}#gameplan-content th.gp-def{{background:#3a1a1a}}#gameplan-content td{{padding:4px 7px;border-bottom:1px solid #eee}}#gameplan-content tr.gp-win td{{background:rgb(0,255,0);color:#000}}#gameplan-content tr.gp-loss td{{background:rgb(255,0,0);color:#000}}#gameplan-content tr.gp-win a,#gameplan-content tr.gp-loss a{{color:#000}}#gameplan-content tr.gp-win:hover td{{background:rgb(0,230,0)}}#gameplan-content tr.gp-loss:hover td{{background:rgb(230,0,0)}}#gameplan-content tr:not(.gp-win):not(.gp-loss):hover td{{background:#f0f0f0}}#gameplan-content tfoot tr td{{background:#f0f0f0;border-top:2px solid #bbb;font-size:0.75rem}}.gp-corr-cell{{position:relative}}.gp-corr-cell:hover::after{{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:7px 10px;border-radius:4px;font-size:0.72rem;white-space:normal;width:230px;z-index:999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:1.45}}</style><div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center"><div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName]||'—'}} NET RTG</div><h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Game Plan</h2><div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div><div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div></div><div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto"><div style="font-size:1rem;font-weight:700;text-align:center;margin-bottom:10px;color:#000;border-bottom:2px solid #333;padding-bottom:6px">Game Plan</div><table><thead><tr><th rowspan="2" style="text-align:left">Date</th><th rowspan="2">Rk</th><th rowspan="2" style="text-align:left">Opponent</th><th rowspan="2">Result</th><th rowspan="2">Pace</th><th colspan="7" class="gp-off">Offense</th><th colspan="7" class="gp-def">Defense</th></tr><tr><th class="gp-off">Eff</th><th class="gp-off">eFG%</th><th class="gp-off">TO%</th><th class="gp-off">OR%</th><th class="gp-off">FTR</th><th class="gp-off">2P%</th><th class="gp-off">3P%</th><th class="gp-def">Eff</th><th class="gp-def">eFG%</th><th class="gp-def">TO%</th><th class="gp-def">OR%</th><th class="gp-def">FTR</th><th class="gp-def">2P%</th><th class="gp-def">3P%</th></tr></thead><tbody>${{rowsHtml}}</tbody><tfoot><tr>${{ortgRow}}</tr><tr>${{drtgRow}}</tr></tfoot></table><div style="font-size:0.72rem;color:#888;margin-top:8px">Rk = opponent's current NET RTG rank &nbsp;|&nbsp; * = conference game &nbsp;|&nbsp; Pace = est. possessions per 40 min &nbsp;|&nbsp; Hover correlation values for interpretation</div></div>`;
+  content.innerHTML = `<style>#gameplan-content table{{width:100%;border-collapse:collapse;font-size:0.78rem;white-space:nowrap}}#gameplan-content th{{background:#1a1a2e;color:#fff;padding:5px 7px;text-align:center;font-size:0.73rem;border-bottom:2px solid #333}}#gameplan-content th.gp-off{{background:#1a3a5c}}#gameplan-content th.gp-def{{background:#3a1a1a}}#gameplan-content td{{padding:4px 7px;border-bottom:1px solid #eee}}#gameplan-content tr.gp-win td{{background:#cfe8d0;color:#000}}#gameplan-content tr.gp-loss td{{background:#f4cfcf;color:#000}}#gameplan-content tr.gp-win a,#gameplan-content tr.gp-loss a{{color:#000}}#gameplan-content tr.gp-win:hover td{{background:#bddfbf}}#gameplan-content tr.gp-loss:hover td{{background:#ecbcbc}}#gameplan-content tr:not(.gp-win):not(.gp-loss):hover td{{background:#f0f0f0}}#gameplan-content tfoot tr td{{background:#f0f0f0;border-top:2px solid #bbb;font-size:0.75rem}}.gp-corr-cell{{position:relative}}.gp-corr-cell:hover::after{{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:7px 10px;border-radius:4px;font-size:0.72rem;white-space:normal;width:230px;z-index:999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:1.45}}</style><div style="background:#1a1a2e;border-radius:8px;padding:16px 20px;margin-bottom:16px;text-align:center"><div style="color:#4fc3f7;font-size:1.1rem;font-weight:700">#${{netRtgRanks[teamName]||'—'}} NET RTG</div><h2 style="color:#B9D9EB;font-size:1.6rem;margin:4px 0">${{teamName}} — Game Plan</h2><div style="color:#ccc;font-size:0.9rem">${{t.conference}} · ${{t.region}} Region</div><div style="color:#fff;font-size:1.1rem;font-weight:700;margin-top:4px">${{t.record}} Overall &nbsp;|&nbsp; ${{t.conf}} Conference</div></div><div style="background:#fff;border-radius:8px;padding:16px;border:1px solid #ccc;overflow-x:auto"><div style="font-size:1rem;font-weight:700;text-align:center;margin-bottom:10px;color:#000;border-bottom:2px solid #333;padding-bottom:6px">Game Plan</div><table><thead><tr><th rowspan="2" style="text-align:left">Date</th><th rowspan="2">Rk</th><th rowspan="2" style="text-align:left">Opponent</th><th rowspan="2">Result</th><th rowspan="2">Pace</th><th colspan="7" class="gp-off">Offense</th><th colspan="7" class="gp-def">Defense</th></tr><tr><th class="gp-off">Eff</th><th class="gp-off">eFG%</th><th class="gp-off">TO%</th><th class="gp-off">OR%</th><th class="gp-off">FTR</th><th class="gp-off">2P%</th><th class="gp-off">3P%</th><th class="gp-def">Eff</th><th class="gp-def">eFG%</th><th class="gp-def">TO%</th><th class="gp-def">OR%</th><th class="gp-def">FTR</th><th class="gp-def">2P%</th><th class="gp-def">3P%</th></tr></thead><tbody>${{rowsHtml}}</tbody><tfoot><tr>${{ortgRow}}</tr><tr>${{drtgRow}}</tr></tfoot></table><div style="font-size:0.72rem;color:#888;margin-top:8px">Rk = opponent's current NET RTG rank &nbsp;|&nbsp; * = conference game &nbsp;|&nbsp; Pace = est. possessions per 40 min &nbsp;|&nbsp; Hover correlation values for interpretation</div></div>`;
 }}
 
 function closeGamePlan() {{
@@ -9858,7 +9936,7 @@ function closeGamePlan() {{
 /* ── Minutes Matrix (KenPom-style): per-game minutes per player, starters
    boxed, distinct starting lineups numbered. Seasons with box data only. ── */
 let minMatrixReturnTeam = null;
-const MM_SEASONS = new Set(['2324', '2425', '2526']);
+const MM_SEASONS = new Set(['2324', '2425', '2526', '2627']);
 const MM_LINEUP_COLORS = ['#c8960c', '#7b1fa2', '#2e7d32', '#c62828', '#1565c0', '#00838f', '#6d4c41', '#37474f', '#ad1457', '#558b2f'];
 
 function showMinutesMatrix(teamName) {{
@@ -11442,10 +11520,10 @@ function renderPlayerProfile() {{
     }}
     #player-content .pp-table tbody tr.pp-band:hover td {{ background: #c7d3e8; }}
     #player-content .pp-table tbody tr.pp-band:first-child td {{ border-top: none; }}
-    #player-content .pp-table tbody tr.pp-gw td {{ background: rgb(0,255,0); color: #000; }}
-    #player-content .pp-table tbody tr.pp-gl td {{ background: rgb(255,0,0); color: #000; }}
-    #player-content .pp-table tbody tr.pp-gw:hover td {{ background: rgb(0,230,0); }}
-    #player-content .pp-table tbody tr.pp-gl:hover td {{ background: rgb(230,0,0); }}
+    #player-content .pp-table tbody tr.pp-gw td {{ background: #cfe8d0; color: #000; }}
+    #player-content .pp-table tbody tr.pp-gl td {{ background: #f4cfcf; color: #000; }}
+    #player-content .pp-table tbody tr.pp-gw:hover td {{ background: #bddfbf; }}
+    #player-content .pp-table tbody tr.pp-gl:hover td {{ background: #ecbcbc; }}
     #player-content .pp-st {{ display: inline-block; min-width: 18px; border: 1.6px solid #1a3e8f; border-radius: 2px; padding: 0 2px; font-weight: 700; }}
     #player-content .pp-trend {{ background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; max-width: fit-content; margin: 0 auto 16px; }}
     #player-content .pp-trend-head {{ font-size: 0.78rem; font-weight: 800; color: #1a3a6e; margin-bottom: 8px; text-align: center; letter-spacing: 0.04em; }}
@@ -11917,20 +11995,7 @@ function buildTeamDetail(t) {{
   // Find index of last conference game to insert Playoffs banner
   // The whole season schedule (typed-in schedules) where there is one: a played game shows its result from
   // game_ratings, the rest show the tip time; played games missing from the schedule are kept too.
-  const __dk = d => {{ const [m, dd, y] = String(d).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (dd || 0); }};
-  const __sch = (SEASON_SCHEDULES[activeSeason] || {{}})[t.team];
-  let games = t.game_ratings || [];
-  if (__sch) {{
-    const used = new Set();
-    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host, ev]) => {{
-      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
-      if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
-      if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
-        return {{ date, opponent: 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
-      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
-    }});
-    games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
-  }}
+  const games = __seasonGames(t);
   let lastConfIdx = -1;
   games.forEach((gr, idx) => {{ if (gr.is_conference) lastConfIdx = idx; }});
   let playoffBannerInserted = false;
@@ -11948,7 +12013,13 @@ function buildTeamDetail(t) {{
 
     // Team's own historical rank as of this game date
     const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
-    const dayRanks = __ranksAsOf(_dayRanksSource, dateStr);
+    // played games: the rank locked in before the game; of the games still to come only the next one shows (today's)
+    // (a past date with no result yet, stats not in, isn't the next game)
+    const _dk = s => {{ const [m, d, y] = String(s).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (d || 0); }};
+    const _now = new Date(), _todayK = _now.getFullYear() * 10000 + (_now.getMonth() + 1) * 100 + _now.getDate();
+    const _upcoming = x => !(x.result === 'W' || x.result === 'L') && _dk(x.date) >= _todayK;
+    const _isNext = _upcoming(gr) && !games.slice(0, idx).some(_upcoming);
+    const dayRanks = (result === 'W' || result === 'L' || _isNext) ? __ranksAsOf(_dayRanksSource, dateStr) : {{}};
     const teamRank = dayRanks[t.team] || '';
 
     // Opponent's historical rank as of this game date
@@ -14082,7 +14153,8 @@ def main():
     use_cache = args.cache or args.refresh_cache
 
     def dataset(name, builder):
-        if use_cache:
+        # The current season always rebuilds (new games every night); --cache only reuses past seasons.
+        if use_cache and not name.startswith("2627_"):
             return _cached_json(name, builder, refresh=args.refresh_cache)
         return builder()
 
