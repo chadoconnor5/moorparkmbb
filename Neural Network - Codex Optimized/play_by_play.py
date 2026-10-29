@@ -8,6 +8,10 @@ box score (no extra request), so they're read from that HTML and saved once per 
      "plays": [[1, "19:38", 0, "GATES,DAYVON", "missed jump shot", 0, 0], ...]}   # team 0 visitor / 1 home;
                                                                                     # v / h: the score after the play
 
+The same file carries "periods": each half's (and overtime's) box score from the page's period tabs, as
+{"1": {team label: [players in parse_boxscore's format]}, "2": {...}} (parse_periods); the leaderboard's box scores
+show them under 1st Half / 2nd Half. A page with period boxes but no play-by-play saves just those.
+
 Player names are as the play-by-play writes them ("LAST,FIRST"); action is the text after the name ("made layup",
 "enters the game", "goes to the bench") or before it ("Foul by", "Assist by", "Turnover by", "Steal by", "Block by")."""
 
@@ -70,3 +74,49 @@ def parse(page, visitor, home):
     if not plays:
         return None
     return {"visitor": visitor, "home": home, "linescore": _linescore(page, visitor, home), "cols": COLS, "plays": plays}
+
+
+BOX_COLS = ["MIN", "FGM-A", "3PM-A", "FTM-A", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TO", "PF", "PTS"]
+
+
+def parse_periods(page):
+    """Each period's box score (the page's 1st Half / 2nd Half / OT tabs): {"1": {team label: [players]}, ...}, the
+    players in scrape_team.parse_boxscore's format ({"name": "#2 Jeremy Williams", "stats": {...}, "role", "is_starter"}).
+    {} when the page has none."""
+    out = {}
+    marks = [(m.start(), m.group(1)) for m in re.finditer(r'id="period-tabpanel-(\d+)"', page)]
+    for i, (pos, per) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else page.find("</section>", pos) if page.find("</section>", pos) > 0 else len(page)
+        seg = page[pos:end]
+        teams = {}
+        for tbl in re.findall(r"<table[^>]*>(.*?)</table>", seg, re.S):
+            cap = re.search(r"<caption[^>]*>(.*?)</caption>", tbl, re.S)
+            label = _clean(cap.group(1)) if cap else ""
+            if not label or "MIN" not in tbl:
+                continue
+            players, role = [], None
+            for row in re.findall(r"<tr[^>]*>(.*?)</tr>", tbl, re.S):
+                head = re.search(r"<th[^>]*>(.*?)</th>", row, re.S)
+                cells = [_clean(c) for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
+                name = _clean(head.group(1)) if head else ""
+                up = name.upper()
+                if up in ("PLAYER", ""):
+                    continue
+                if up.startswith("STARTERS"):
+                    role = "starter"; continue
+                if up.startswith("RESERVES"):
+                    role = "reserve"; continue
+                if up.startswith("TOTALS") or up.startswith("TM") or up.startswith("TEAM") or len(cells) < len(BOX_COLS):
+                    continue
+                parts = name.split(" ", 1)
+                if parts[0].isdigit() and len(parts) > 1:
+                    name = f"#{parts[0]} {parts[1].strip()}"
+                p = {"name": name, "stats": dict(zip(BOX_COLS, cells[:len(BOX_COLS)]))}
+                if role:
+                    p["role"], p["is_starter"] = role, role == "starter"
+                players.append(p)
+            if players:
+                teams[label] = players
+        if len(teams) == 2:
+            out[per] = teams
+    return out

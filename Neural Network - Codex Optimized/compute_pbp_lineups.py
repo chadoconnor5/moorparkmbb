@@ -374,6 +374,8 @@ def build(season, only=None, verbose=False):
     for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
         d = date(int(f.name[:4]), int(f.name[4:6]), int(f.name[6:8]))
         pbp = json.load(open(f))
+        if not pbp.get("plays"):
+            continue   # half box scores only, no play-by-play
         names = [uaa.resolve_opponent(pbp["visitor"]) or pbp["visitor"], uaa.resolve_opponent(pbp["home"]) or pbp["home"]]
         boxes = [box_for(season, n, d) for n in names]
         box = next((b for b in boxes if b), None)

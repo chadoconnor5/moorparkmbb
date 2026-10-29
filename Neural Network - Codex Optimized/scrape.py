@@ -632,8 +632,11 @@ def parse_box(page: str) -> dict:
     try:
         import play_by_play
         plays = play_by_play.parse(page, bs.get("visitor"), bs.get("home"))
-        if plays:
-            bs["_plays"] = plays
+        periods = play_by_play.parse_periods(page)   # the half (and overtime) box scores, same page
+        if plays or periods:
+            bs["_plays"] = plays or {"visitor": bs.get("visitor"), "home": bs.get("home")}
+            if periods:
+                bs["_plays"]["periods"] = periods
     except Exception as err:
         print(f"    play-by-play not read ({err})")
     return bs

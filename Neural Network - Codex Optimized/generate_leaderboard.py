@@ -3410,6 +3410,70 @@ def build_game_boxes(stats_dir) -> dict:
         opp_label = [n for n in names if n != owning_label][0]
         return {owning_label: owning, opp_label: opp_name}
 
+    def period_rows(teams, mins):
+        """{team: rows} for one period's box score (a half: mins=20, an overtime: 5), the full game's per-player
+        formulas with the minutes gate scaled to the period. BPM stays out (too short a stretch)."""
+        sides_p = {}
+        for tn, plist in teams.items():
+            rows = []
+            for p in plist:
+                st = p.get("stats", {})
+                fgm, fga = parse_ma(st.get("FGM-A", "0-0")); tpm, tpa = parse_ma(st.get("3PM-A", "0-0")); ftm, fta = parse_ma(st.get("FTM-A", "0-0"))
+                jm = re.match(r"^[a-z]?\s*#?(\d+)\s+(.*)$", p.get("name", ""))
+                rows.append({"name": jm.group(2) if jm else p.get("name", ""), "JER": jm.group(1) if jm else "",
+                             "ST": 1 if (p.get("is_starter") or p.get("role") == "starter") else 0, "MIN": parse_int(st.get("MIN", 0)),
+                             "FGM": fgm, "FGA": fga, "3PM": tpm, "3PA": tpa, "FTM": ftm, "FTA": fta,
+                             "OREB": parse_int(st.get("OREB", 0)), "DREB": parse_int(st.get("DREB", 0)), "AST": parse_int(st.get("AST", 0)),
+                             "STL": parse_int(st.get("STL", 0)), "BLK": parse_int(st.get("BLK", 0)), "TO": parse_int(st.get("TO", 0)),
+                             "PF": parse_int(st.get("PF", 0)), "PTS": parse_int(st.get("PTS", 0))})
+            tot = {k: sum(r[k] for r in rows) for k in ("MIN", "FGM", "FGA", "3PM", "3PA", "FTM", "FTA", "OREB", "DREB",
+                                                        "AST", "STL", "BLK", "TO", "PF", "PTS")}
+            tot["POSS"] = tot["FGA"] + 0.475 * tot["FTA"] - tot["OREB"] + tot["TO"]
+            sides_p[tn] = (rows, tot)
+        out = {}
+        for tn, (rows, tot) in sides_p.items():
+            opp_tot = next(t for n, (_, t) in sides_p.items() if n != tn)
+            min_ok = 0.75 * 5 * mins <= tot["MIN"] <= 1.45 * 5 * mins
+            to_ok, pf_ok, opp_to_ok = tot["TO"] > 0, tot["PF"] > 0, opp_tot["TO"] > 0
+            gates = {"efg": True, "ts": True, "top": to_ok, "usg": min_ok and to_ok, "ortg": min_ok and to_ok,
+                     "drtg": min_ok and to_ok and pf_ok and opp_to_ok, "stp": min_ok and to_ok,
+                     "orp": min_ok, "drp": min_ok, "ap": min_ok, "blp": min_ok}
+            ctx = {"team_min": tot["MIN"] / 5.0, "team_fgm": tot["FGM"], "team_fga": tot["FGA"], "team_fta": tot["FTA"],
+                   "team_ftm": tot["FTM"], "team_to": tot["TO"], "team_oreb": tot["OREB"], "team_dreb": tot["DREB"],
+                   "team_ast": tot["AST"], "team_pts": tot["PTS"], "team_3pm": tot["3PM"], "team_blk": tot["BLK"],
+                   "team_stl": tot["STL"], "team_pf": tot["PF"], "team_poss": tot["POSS"], "opp_dreb": opp_tot["DREB"],
+                   "opp_fga": opp_tot["FGA"], "opp_fgm": opp_tot["FGM"], "opp_fta": opp_tot["FTA"], "opp_ftm": opp_tot["FTM"],
+                   "opp_oreb": opp_tot["OREB"], "opp_to": opp_tot["TO"], "opp_pts": opp_tot["PTS"], "opp_3pa": opp_tot["3PA"]}
+            out_rows = []
+            for r in rows:
+                row = {"n": r["name"], "j": r["JER"], "st": r["ST"], "min": r["MIN"], "fgm": r["FGM"], "fga": r["FGA"],
+                       "tpm": r["3PM"], "tpa": r["3PA"], "ftm": r["FTM"], "fta": r["FTA"], "or": r["OREB"], "dr": r["DREB"],
+                       "ast": r["AST"], "stl": r["STL"], "blk": r["BLK"], "to": r["TO"], "pf": r["PF"], "pts": r["PTS"],
+                       "bpm": None, "obpm": None, "dbpm": None}
+                for short, stat in _BOX_STATS.items():
+                    if not gates[short] or (short in {"usg", "ortg", "drtg", "stp", "orp", "drp", "ap", "blp"} and r["MIN"] <= 0):
+                        row[short] = None
+                        continue
+                    try:
+                        row[short] = STAT_DEFINITIONS[stat]["compute"](r, ctx)
+                    except Exception:
+                        row[short] = None
+                out_rows.append(row)
+            out_rows.sort(key=lambda x: (-x["st"], -x["min"]))
+            out[tn] = out_rows
+        return out
+
+    # Each game's half (and overtime) box scores, saved with its play-by-play: {(YYYYMMDD, frozenset(norm names)): periods}
+    pbp_periods = {}
+    pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
+    for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
+        try:
+            pj = json.load(open(f))
+        except Exception:
+            continue
+        if pj.get("periods"):
+            pbp_periods[(f.name[:8], frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))] = pj["periods"]
+
     for box_path in sched_dir.glob("*/*/*/*.json"):
         try:
             box = json.load(open(box_path))
@@ -3535,6 +3599,20 @@ def build_game_boxes(stats_dir) -> dict:
             out_rows.sort(key=lambda x: (-x["st"], -x["min"]))
             record["t"][tn] = out_rows
         record["p"] = round(sum(poss_vals) / len(poss_vals), 1) if poss_vals else None
+        # Half / overtime box scores (when the page had them): "hv" {"1": {team: rows}, "2": ...}
+        stamp8 = box_path.parts[-2].split("_")[0]
+        per = pbp_periods.get((stamp8, frozenset(_box_norm(x) for x in raw_names)))
+        if per:
+            hv = {}
+            for pk, teams_p in per.items():
+                if len(teams_p) != 2:
+                    continue
+                tp = {(rename or {}).get(lab, lab): pl for lab, pl in teams_p.items()}
+                if set(tp) != set(names):
+                    continue
+                hv[pk] = period_rows(tp, 20 if int(pk) <= 2 else 5)
+            if hv:
+                record["hv"] = hv
         games[key] = record
         pending.append((record, names, sides, flags))
         # Safety net: when the game folder's date stamp disagrees with the
@@ -6987,18 +7065,32 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '</table></div>';
 }}
 
-function renderBoxScore(g) {{
+// Final (the default) or one period's box score: g.hv {"1": {team: rows}, "2": ...} when the page had them.
+let __bxGame = null, __bxPer = 'F';
+function bxPeriod(p) {{ __bxPer = p; renderBoxScore(__bxGame, true); }}
+function renderBoxScore(g, keepPeriod) {{
   const names = Object.keys(g.t || {{}});
   if (names.length !== 2) return;
+  if (!keepPeriod || __bxGame !== g) __bxPer = 'F';
+  __bxGame = g;
   const sc = g.sc || {{}};
   // Winner listed first, Torvik-style
   names.sort((a, b) => (sc[b] || 0) - (sc[a] || 0));
   const [w, l] = names;
   document.getElementById('bx-title').textContent = w + ' ' + (sc[w] != null ? sc[w] : '') + ', ' + l + ' ' + (sc[l] != null ? sc[l] : '');
   document.getElementById('bx-date').textContent = g.d || '';
-  document.getElementById('bx-content').innerHTML =
-    __bxTeamTable(w, g.t[w], g.t[l]) + __bxTeamTable(l, g.t[l], g.t[w]);
-  document.getElementById('bx-poss').textContent = g.p != null ? g.p + ' possessions' : '';
+  const hv = g.hv || null, per = hv && __bxPer !== 'F' && hv[__bxPer] ? hv[__bxPer] : null;
+  const T = per || g.t;
+  const pName = k => k === '1' ? '1st Half' : k === '2' ? '2nd Half' : (+k === 3 ? 'OT' : (+k - 2) + 'OT');
+  const pts = (rows) => (rows || []).reduce((s, r) => s + (r.pts || 0), 0);
+  const tabs = hv ? '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 0 10px">' +
+    [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
+      `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
+  document.getElementById('bx-content').innerHTML = tabs +
+    __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || []);
+  const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
+  const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
+  document.getElementById('bx-poss').textContent = pP != null ? pP + ' possessions' + (per ? ' (' + pName(__bxPer) + ')' : '') : '';
   document.getElementById('boxscore-modal').style.display = 'block';
   document.body.style.overflow = 'hidden';
 }}
