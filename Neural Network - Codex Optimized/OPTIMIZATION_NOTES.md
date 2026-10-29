@@ -270,7 +270,7 @@ This copy keeps the original project intact and starts consolidating the working
   only for reports built by hand (a nightly dated copy of every team would grow the repo every game night).
 
 - scrape.py rebuild (after any scrape that saved box scores, unless --no-rebuild): generate_team_stats +
-  update_advanced_analytics for the teams that played, calculate_wab.py + compute_ccc_bpm.py for the season, then
+  update_advanced_analytics for the teams that played, calculate_wab.py + compute_wab_sim.py --season + compute_ccc_bpm.py for the season, then
   `generate_leaderboard.py --cache` (--cache reuses only past seasons' datasets; every 2627_ dataset always rebuilds) (which runs export_ratings),
   then `generate_opponent_report.py --latest --only <those teams>`. Each step is check=False: one failing never stops
   the next.

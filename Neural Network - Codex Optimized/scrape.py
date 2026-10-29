@@ -1092,7 +1092,7 @@ def rebuild(season: str, teams: set):
     for script in ("generate_team_stats.py", "update_advanced_analytics.py"):
         subprocess.run([sys.executable, script, "--season", season, "--teams", *teams], check=False)
     print("\nRebuilding WAB and BPM for the season")
-    for script in ("calculate_wab.py", "compute_ccc_bpm.py"):   # league-wide: every team's WAB / every player's BPM
+    for script in ("calculate_wab.py", "compute_wab_sim.py", "compute_ccc_bpm.py"):   # league-wide: WAB, WAB split sim, BPM
         subprocess.run([sys.executable, script, "--season", season], check=False)
     print("\nRebuilding the leaderboard (and the tracker's ratings / team files)")
     subprocess.run([sys.executable, "generate_leaderboard.py", "--cache"], check=False)

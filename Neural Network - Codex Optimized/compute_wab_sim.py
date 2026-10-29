@@ -54,6 +54,10 @@ def run_for_season(season_dir, out_path):
     return north, south
 
 if __name__ == '__main__':
+    if len(sys.argv) > 2 and sys.argv[1] == '--season':   # one season (the nightly rebuild): wab_sim_split24_<season>.json
+        s = sys.argv[2]
+        run_for_season(s, f"wab_sim_split24_{s.replace('-', '_')}.json")
+        sys.exit(0)
     run_for_season('2025-26', 'wab_sim_split24.json')
     run_for_season('2024-25', 'wab_sim_split24_2024_25.json')
     run_for_season('2023-24', 'wab_sim_split24_2023_24.json')

@@ -3868,7 +3868,13 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         except Exception as e:
             print(f'  Warning: could not load wab_sim_split24.json: {e}')
     wab_sim_2526_json = _embed(wab_sim_2526)
-    wab_sim_2627_json = _embed({'north': [], 'south': []})
+    wab_sim_2627 = {'north': [], 'south': []}
+    if Path('wab_sim_split24_2026_27.json').exists():   # compute_wab_sim.py --season 2026-27 (nightly rebuild)
+        try:
+            wab_sim_2627 = json.load(open('wab_sim_split24_2026_27.json'))
+        except Exception as e:
+            print(f'  Warning: could not load wab_sim_split24_2026_27.json: {e}')
+    wab_sim_2627_json = _embed(wab_sim_2627)
 
     wab_sim_2425 = {'north': [], 'south': []}
     sim_path_2425 = Path('wab_sim_split24_2024_25.json')
