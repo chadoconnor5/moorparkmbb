@@ -158,6 +158,7 @@ class Fetcher:
             import atexit
             from playwright.sync_api import sync_playwright
             self._pw = sync_playwright().start()
+            self._br = None
             for channel in ("chrome", "msedge", None):
                 try:
                     self._br = self._pw.chromium.launch(channel=channel, headless=False, args=["--start-minimized"]) \
@@ -165,6 +166,9 @@ class Fetcher:
                     break
                 except Exception:
                     continue
+            if self._br is None:
+                self._pw.stop()
+                raise urllib.error.URLError("couldn't start Chrome for the site (is Chrome installed?)")
             self._page = self._br.new_page()
             # text only: no images, fonts or video, so each page costs the site as little as possible
             self._page.route("**/*", lambda r: r.abort() if r.request.resource_type in ("image", "media", "font")
@@ -1287,6 +1291,16 @@ def main(argv=None):
     run = Run(state, fetcher, args)
     started = time.time()
     code = 0
+    if args.cmd in ("nightly", "day", "missing", "game") and not args.dry_run:
+        # box scores from screenshots first ("<season> Box Score Screenshots/<Month>/<MMDD>/"): those games need no request
+        try:
+            import read_screenshots
+            got = read_screenshots.run(state)
+            if got:   # any date (a late screenshot for an older night too): COMPLETE, and those teams rebuild
+                run.process(got, discover=False)
+                print()
+        except Exception as err:
+            print(f"Screenshots: skipped ({err})")
     try:
         if args.cmd == "master":
             cmd_master(run, args)

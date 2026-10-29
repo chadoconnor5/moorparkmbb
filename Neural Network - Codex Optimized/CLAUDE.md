@@ -82,6 +82,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   installed Chrome (Playwright, `pip install playwright`, no browser download; `--browser` from the start). A Chrome
   window opens minimized during the run. Gentle by design: 25-45s between pages, 40 pages a run at most, text only
   (no images/fonts/video), and the run stops at the first refusal, rate limit or bot check (never retries).
+- Box score screenshots read on the PC (no site, no AI): `2026-27 Box Score Screenshots/<Month>/<MMDD>/<Team MMDD>.png`,
+  one per team box (images stay out of git; the folders are kept). python3 read_screenshots.py [--date 1031] reads them
+  with the tracker's Tesseract in Chrome, checks points/rebounds/TOTALS/minutes, writes a CSV beside each (edit it to
+  correct; it is used over the image), saves a game once its member sides pass, CHECK.txt lists saved / to fix. Folders
+  are never renamed: screenshots come in through the night or days later; each run reads only what's new (any date). scrape.py nightly/day/missing runs it first. SCRAPE COMMANDS.txt: the copy-paste list.
 - Box scores typed in from screenshots: saved where scrape.py saves them (`2026-27 Teams Schedules/<Conf>/<Team>/
   YYYYMMDD_<opponent slug>/<same>.json`, scrape_team.parse_boxscore's format, one copy per member team). The nightly
   takes a box score on disk first: the game is COMPLETE with no request, its teams rebuild, and a night with every game
