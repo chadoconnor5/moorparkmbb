@@ -4,8 +4,9 @@ box score (no extra request), so they're read from that HTML and saved once per 
 
     {"visitor": "Mt. San Antonio", "home": "Citrus",
      "linescore": {"Mt. San Antonio": [41, 37], "Citrus": [43, 45]},      # points by half (+ overtimes)
-     "plays": [{"period": 1, "clock": "19:38", "team": "Mt. San Antonio", "player": "GATES,DAYVON",
-                "action": "missed jump shot", "v": 0, "h": 0}, ...]}       # v / h: the score after the play
+     "cols": ["period", "clock", "team", "player", "action", "v", "h"],
+     "plays": [[1, "19:38", 0, "GATES,DAYVON", "missed jump shot", 0, 0], ...]}   # team 0 visitor / 1 home;
+                                                                                    # v / h: the score after the play
 
 Player names are as the play-by-play writes them ("LAST,FIRST"); action is the text after the name ("made layup",
 "enters the game", "goes to the bench") or before it ("Foul by", "Assist by", "Turnover by", "Steal by", "Block by")."""
@@ -13,6 +14,7 @@ Player names are as the play-by-play writes them ("LAST,FIRST"); action is the t
 import html as _html
 import re
 
+COLS = ["period", "clock", "team", "player", "action", "v", "h"]   # team: 0 visitor, 1 home; v / h: score after
 _ROW = re.compile(r'<tr class="row (visitor|home)[^"]*">\s*<td class="time">([^<]*)</td>(.*?)</tr>', re.S)
 _PERIOD = re.compile(r'id="prd(\d+)"')
 _TEXT = re.compile(r'<span class="text">(.*?)</span>', re.S)
@@ -64,8 +66,7 @@ def parse(page, visitor, home):
         if sc:
             v, h = int(sc.group(1)), int(sc.group(2))
         player, action = _split(text)
-        plays.append({"period": period, "clock": clock, "team": visitor if side == "visitor" else home,
-                      "player": player, "action": action, "v": v, "h": h})   # the text is player + action
+        plays.append([period, clock, 0 if side == "visitor" else 1, player, action, v, h])   # COLS
     if not plays:
         return None
-    return {"visitor": visitor, "home": home, "linescore": _linescore(page, visitor, home), "plays": plays}
+    return {"visitor": visitor, "home": home, "linescore": _linescore(page, visitor, home), "cols": COLS, "plays": plays}

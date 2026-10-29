@@ -650,7 +650,7 @@ def save_box(state: State, g: dict, bs: dict) -> list:
         pdir = Path(f"{state.season} Play by Play")
         pdir.mkdir(exist_ok=True)
         with open(pdir / f"{d:%Y%m%d}_{slug(box.get('visitor') or g['names'][0])}_at_{slug(box.get('home') or g['names'][-1])}.json", "w") as f:
-            json.dump(plays, f)
+            json.dump(plays, f, separators=(",", ":"))
     for team in members_in(g):
         if team not in state.teams:
             continue
