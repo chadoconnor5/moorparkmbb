@@ -72,7 +72,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   note's "@ ..."); team schedules keep Home / Away / Neutral.
 - Bracket tournaments: `2026-27 Schedule Screenshots/brackets.json` (brackets.py). Opening-round games name the teams;
   later games reference them (W:G1 / L:G1). FanMatch lists each later game once ("Winner A/B vs Winner C/D",
-  filled in as results come in) and team schedules show where a win / loss sends the team. TBA games of tournaments
+  filled in as results come in). TBA games of tournaments
   without a bracket entered show once per game (the TBA teams at a site paired up), not once per team.
 - Playoff dates (after the regular season, late Feb on) stay off the typed-in schedules during the regular season.
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
