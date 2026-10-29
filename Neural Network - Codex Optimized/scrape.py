@@ -1089,8 +1089,10 @@ def rebuild(season: str, teams: set):
     if not teams:
         return
     print(f"\nRebuilding stats for {len(teams)} teams: {', '.join(teams)}")
-    for script in ("generate_team_stats.py", "update_advanced_analytics.py"):
-        subprocess.run([sys.executable, script, "--season", season, "--teams", *teams], check=False)
+    subprocess.run([sys.executable, "generate_team_stats.py", "--season", season, "--teams", *teams], check=False)
+    # every team, not just tonight's: each past game is re-graded against its opponent's current rating (ORtg/DRtg/
+    # net, four factors, SOS, Opp/Pace Adjust), so a team's opponents move when it rises or slips
+    subprocess.run([sys.executable, "update_advanced_analytics.py", "--season", season, "--all"], check=False)
     print("\nRebuilding WAB and BPM for the season")
     for script in ("calculate_wab.py", "compute_wab_sim.py", "compute_ccc_bpm.py"):   # league-wide: WAB, WAB split sim, BPM
         subprocess.run([sys.executable, script, "--season", season], check=False)
