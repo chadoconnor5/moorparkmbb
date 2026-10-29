@@ -13754,8 +13754,11 @@ function __slRenderTrendsNow() {{
 
 function slGameCell(g) {{
   if (g.upcoming && !g.projected) {{
-    const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3)">' + n + '</span>' : teamPageLink(n);
-    return '<td class="sl-game-cell">' + (g.label ? '<span style="font-size:0.72rem;color:var(--ink-3)">' + g.label + ': </span>' : '') +
+    const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3);white-space:nowrap">' + n + '</span>' : teamPageLink(n);
+    // bracket slots ("Loser A/B vs Loser C/D") wrap inside the column, the round name on its own line above
+    const slot = /^(Winner|Loser) /.test(g.winner) || /^(Winner|Loser) /.test(g.loser);
+    return '<td class="sl-game-cell"' + (slot ? ' style="white-space:normal;line-height:1.3"' : '') + '>' +
+      (g.label ? '<span style="font-size:0.72rem;color:var(--ink-3)' + (slot ? ';display:block' : '') + '">' + g.label + (slot ? '' : ': ') + '</span>' : '') +
       '<span class="sl-game-winner">' + lk(g.winner) + '</span>' +
       (g.home_team ? ' at ' : ' vs ') +
       '<span class="sl-game-loser">' + lk(g.loser) + '</span>' +
