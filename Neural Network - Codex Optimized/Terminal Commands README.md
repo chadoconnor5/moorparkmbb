@@ -45,8 +45,8 @@ python3 scrape.py master --resync              # refresh pages older than 24h (r
 # Any scrape that saves new box scores then rebuilds, in the same run: those teams' stats, every team's analytics
 # (each past game re-graded against the opponent's current rating), the saved daily ranks (daily_ranks/<season>.json),
 # the leaderboard (+ the tracker's ratings.json / team files), and the tracker's scouting reports for the
-# teams that played and are on our schedule or in tracker_teams.txt (../poss/reports/). Commit and push
-# afterwards and the iPad picks it all up when it opens with signal. --no-rebuild skips the rebuild.
+# teams that played and are on our schedule or in tracker_teams.txt (../poss/reports/). Then it commits and
+# pushes the run's changes itself (the site and the iPad pick them up); --no-push skips that, --no-rebuild the rebuild.
 python3 scrape.py nightly
 python3 scrape.py nightly --date 2026-11-14
 
