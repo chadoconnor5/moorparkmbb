@@ -16,6 +16,7 @@ scripts never mistake it for a conference):
 
 Usage (see "Terminal Commands README.md" for the full list):
     python3 scrape.py master                     build the master schedule (one-time, ~100 requests)
+    python3 scrape.py master --from-typed        build it from the typed-in schedules instead (no requests)
     python3 scrape.py master --resync            refresh it (resumable)
     python3 scrape.py nightly                    the scheduled nightly job: that night's games only
     python3 scrape.py missing                    re-check older games still missing stats (on demand, never automatic)
@@ -34,6 +35,7 @@ import json
 import os
 import random
 import re
+import shutil
 import ssl
 import subprocess
 import sys
@@ -352,6 +354,47 @@ def sync_team(state: State, fetcher: Fetcher, team: str) -> list:
     return keys
 
 
+def seed_from_typed(state: State):
+    """The master schedule from the typed-in schedules ("<season> Schedule Screenshots/<Conf>/<Team>/schedule.json",
+    assemble_schedules.py) when the team pages can't be read: no requests. Teams get no site id, so their pages are
+    never fetched; nightly finds box scores on the composite page alone. TBA games and scrimmages are left out."""
+    from assemble_schedules import canon, is_scrimmage
+    from ccc_config import CONFERENCES, fields_team
+    for conf, teams in CONFERENCES.items():
+        for team in teams:
+            if fields_team(team, state.season):
+                state.teams.setdefault(team, {"id": None, "conference": conf, "synced": None})
+    n = 0
+    for team in sorted(state.teams):
+        src = Path(f"{state.season} Schedule Screenshots") / state.teams[team]["conference"] / team / "schedule.json"
+        path = team_dir(state, team) / "schedule.json"
+        if not path.exists() and src.exists():   # the stats scripts read this copy; results get written into it
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, path)
+        if not path.exists():
+            continue
+        seen = {}
+        for row in json.load(open(path)).get("games", []):
+            d = label_to_date(state.season, row.get("date", ""))
+            raw = (row.get("opponent") or "").strip()
+            if d is None or not raw or raw.upper() in ("TBA", "TBD") or is_scrimmage(row["date"]):
+                continue
+            opp = canon(raw) or raw
+            pair = "|".join(sorted([slug(team), slug(opp)]))
+            k = seen[(d, pair)] = seen.get((d, pair), 0) + 1
+            key = f"{d:%Y%m%d}|{pair}|{k}"
+            g = state.games.setdefault(key, {"key": key, "date": d.isoformat(), "date_label": row["date"],
+                                             "names": [team, opp], "sides": {}})
+            g["sides"][team] = {f: row.get(f, "") for f in ("opponent", "home_away", "location_tag", "result",
+                                                             "status", "notes", "is_conference")}
+            if row.get("boxscore_url"):
+                g["boxscore_url"] = row["boxscore_url"]
+            state.entry(key)
+            n += 1
+        state.teams[team]["synced"] = now_iso()
+    print(f"Master schedule from the typed-in schedules: {len(state.games)} games ({n} team rows), no requests")
+
+
 def team_dir(state: State, team: str) -> Path:
     conf = state.teams.get(team, {}).get("conference") or get_conference(team)
     return schedule_dir(state.season) / conf / team
@@ -604,6 +647,10 @@ class Run:
     def sync(self, team: str):
         if team in self.synced:
             return
+        if not self.state.teams.get(team, {}).get("id"):   # master built from the typed-in schedules: no page to read
+            print(f"  no schedule page for {team} (typed-in schedule) — box scores come from the composite page")
+            self.synced.add(team)
+            return
         if self.dry:
             print(f"  would fetch schedule page: {team}")
             self.synced.add(team)
@@ -811,6 +858,8 @@ def default_night() -> date:
 # ---------------------------------------------------------------------------
 def cmd_master(run: Run, args):
     state = run.state
+    if args.from_typed:
+        return seed_from_typed(state)
     ensure_team_index(state, run.fetcher)
     teams = sorted(state.teams)
     if args.team or args.conference:
@@ -1062,6 +1111,7 @@ def build_parser():
 
     s = sub.add_parser("master", parents=[common], help="Build or refresh the master schedule")
     s.add_argument("--resync", action="store_true", help="Refresh team pages not fetched in the last 24h")
+    s.add_argument("--from-typed", action="store_true", help="Build it from the typed-in schedules (no requests)")
     s.add_argument("--team", nargs="+")
     s.add_argument("--conference", nargs="+")
 

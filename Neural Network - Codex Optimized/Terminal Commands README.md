@@ -37,6 +37,7 @@ score / no stats yet) · `STALE` (given up on in older ledgers;
 
 ```bash
 # --- Master schedule (once, when schedules are posted; ~100 requests, ~11 min) ---
+python3 scrape.py master --from-typed   # 2026-27: build the game list from the typed-in schedules (no requests)
 python3 scrape.py master
 python3 scrape.py master --resync              # refresh pages older than 24h (rerun resumes)
 

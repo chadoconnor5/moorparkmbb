@@ -29,6 +29,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   list in "Terminal Commands README.md". Keep it low-traffic: one request at a
   time, never fetch a box score that's already COMPLETE.
   python3 scrape.py master      # once, when schedules post
+  python3 scrape.py master --from-typed   # instead: from the typed-in schedules (no requests; the site blocks team pages)
   python3 scrape.py nightly     # every night, that night's games only; then rebuilds stats, the leaderboard (ratings + team files)
                                 # and the tracker's scouting reports for the teams that played (--no-rebuild skips)
   python3 scrape.py status      # what's missing (no network)
