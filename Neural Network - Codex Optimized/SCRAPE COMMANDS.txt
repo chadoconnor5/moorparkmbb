@@ -1,0 +1,71 @@
+MOORPARK SCRAPE COMMANDS  (copy a line, paste it into Command Prompt, press Enter)
+==================================================================================
+
+1. ALWAYS FIRST: go to the project folder, then get the latest code
+-------------------------------------------------------------------
+cd "C:\Users\Chad\Documents\GitHub\moorparkmbb\Neural Network - Codex Optimized"
+git pull
+
+
+2. EVERY NIGHT, after the games are final
+-----------------------------------------
+python scrape.py nightly --browser
+
+   Reads that night's screenshot folder first, then gets only the box scores still missing from the site
+   (25-45 seconds between pages, about 10-15 minutes), rebuilds everything and pushes it.
+   The last line should say:  Pushed: scrape.py nightly ...
+   A Chrome window opens minimized while it runs: leave it alone.
+   If it says STOPPED: do NOT run it again tonight. Use screenshots instead.
+
+
+3. A DIFFERENT NIGHT (change the date)
+--------------------------------------
+python scrape.py nightly --browser --date 2026-10-30
+
+
+4. SCREENSHOTS ONLY (no website at all)
+---------------------------------------
+   Put screenshots in:  2026-27 Box Score Screenshots\<Month>\<MMDD>\
+   Name each one:       Team MMDD      (example: Citrus 1031   -- a second shot of the same box: Citrus 1031 2)
+   One screenshot per team. Short names work (Mt SAC, Sac City, SBCC, LACC...).
+
+python read_screenshots.py
+python read_screenshots.py --date 1031
+
+   Problems are listed in CHECK.txt inside that night's folder. Fix the number in the CSV next to the
+   screenshot, run it again. A night with every game saved is renamed  "1031 DONE".
+   Then run the nightly (step 2) to rebuild and push. It will not ask the website for those games.
+
+
+5. WHAT'S STILL MISSING (no internet used)
+------------------------------------------
+python scrape.py status
+
+
+6. GET OLDER GAMES THAT WERE MISSING (only when needed, uses the website)
+--------------------------------------------------------------------------
+python scrape.py missing --browser --date 2026-10-29
+python scrape.py missing --browser --team Moorpark
+
+
+7. TEST WITHOUT DOING ANYTHING (shows what it would do, nothing fetched or saved)
+---------------------------------------------------------------------------------
+python scrape.py nightly --browser --dry-run
+
+
+8. RUN BUT DON'T PUSH TO THE SITE (check things first)
+------------------------------------------------------
+python scrape.py nightly --browser --no-push
+
+
+9. ONE-TIME SETUP (already done -- only if on a new computer)
+--------------------------------------------------------------
+pip install playwright
+python scrape.py master --from-typed
+
+
+RULES TO STAY SAFE WITH THE WEBSITE
+-----------------------------------
+- Run the nightly ONCE a night. Never twice in a row.
+- Never use --force.
+- If it ever says STOPPED, wait until tomorrow and use screenshots.
