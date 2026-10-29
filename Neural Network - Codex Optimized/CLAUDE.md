@@ -78,6 +78,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   later games reference them (W:G1 / L:G1). FanMatch lists each later game once ("Winner A/B vs Winner C/D",
   filled in as results come in). TBA games of tournaments
   without a bracket entered show once per game (the TBA teams at a site paired up), not once per team.
+- The site refuses Python/curl requests (403) but not a browser: after a 403 scrape.py reads pages through the
+  installed Chrome (Playwright, `pip install playwright`, no browser download; `--browser` from the start). A Chrome
+  window opens minimized during the run.
 - Box scores typed in from screenshots: saved where scrape.py saves them (`2026-27 Teams Schedules/<Conf>/<Team>/
   YYYYMMDD_<opponent slug>/<same>.json`, scrape_team.parse_boxscore's format, one copy per member team). The nightly
   takes a box score on disk first: the game is COMPLETE with no request, its teams rebuild, and a night with every game

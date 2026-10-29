@@ -91,8 +91,10 @@ class BudgetExhausted(Exception):
 class Fetcher:
     """One request at a time, 5-8s apart, hard request cap, stops on repeated throttling."""
 
-    def __init__(self, max_requests: int):
+    def __init__(self, max_requests: int, browser: bool = False):
         self.max_requests = max_requests
+        self.browser = browser   # read pages through the installed Chrome (the site refuses Python's requests: 403)
+        self._page = None
         self.count = 0
         self.throttle_hits = 0
         self._last = 0.0
@@ -123,6 +125,8 @@ class Fetcher:
             self._wait()
             self.count += 1
             self._last = time.time()
+            if self.browser:
+                return self._browser_get(url)
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
             try:
                 with urllib.request.urlopen(req, timeout=30, context=self._ctx) as resp:
@@ -135,7 +139,51 @@ class Fetcher:
                 if e.code in (429, 459, 503):
                     self._throttled(str(e.code))
                     continue
+                if e.code == 403 and self._browser_ok():   # refused: the same page through the browser from now on
+                    print("    site refused the script (403) — reading pages through the browser from here on")
+                    self.browser = True
+                    return self._browser_get(url)
                 raise
+
+    def _browser_ok(self) -> bool:
+        try:
+            import playwright.sync_api  # noqa: F401
+            return True
+        except ImportError:
+            print("    (to read the site through your browser: pip install playwright — no browser download needed,"
+                  " it uses the installed Chrome)")
+            return False
+
+    def _browser_get(self, url: str) -> str:
+        """The page as the browser renders it: a real Chrome (else Edge) window (minimized), one page at a time."""
+        if self._page is None:
+            import atexit
+            from playwright.sync_api import sync_playwright
+            self._pw = sync_playwright().start()
+            for channel in ("chrome", "msedge", None):
+                try:
+                    self._br = self._pw.chromium.launch(channel=channel, headless=False, args=["--start-minimized"]) \
+                        if channel else self._pw.chromium.launch(headless=False)
+                    break
+                except Exception:
+                    continue
+            self._page = self._br.new_page()
+            atexit.register(self.close)
+        resp = self._page.goto(url, wait_until="networkidle", timeout=60000)
+        if resp is not None and resp.status in (429, 503):
+            raise Throttled(f"browser {resp.status}")
+        if resp is not None and resp.status >= 400:
+            raise urllib.error.HTTPError(url, resp.status, "browser", None, None)
+        return self._page.content()
+
+    def close(self):
+        if self._page is not None:
+            try:
+                self._br.close()
+                self._pw.stop()
+            except Exception:
+                pass
+            self._page = None
 
 
 # ---------------------------------------------------------------------------
@@ -1173,6 +1221,8 @@ def build_parser():
     common.add_argument("--max-requests", type=int, default=DEFAULT_MAX_REQUESTS, help="Request cap for this run")
     common.add_argument("--no-rebuild", action="store_true", help="Skip rebuilding team stats")
     common.add_argument("--no-push", action="store_true", help="Don't commit and push the run's changes")
+    common.add_argument("--browser", action="store_true",
+                        help="Read the site through the installed Chrome from the start (automatic after a 403)")
 
     p = argparse.ArgumentParser(description="Low-traffic CCCMBCA scraper", formatter_class=argparse.RawDescriptionHelpFormatter,
                                 epilog="Usage" + __doc__.split("Usage", 1)[1])
@@ -1223,7 +1273,7 @@ def main(argv=None):
     if args.cmd == "status":
         return cmd_status(state, args)
 
-    fetcher = Fetcher(args.max_requests)
+    fetcher = Fetcher(args.max_requests, browser=args.browser)
     run = Run(state, fetcher, args)
     started = time.time()
     code = 0
