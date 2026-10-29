@@ -31,7 +31,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   python3 scrape.py master      # once, when schedules post
   python3 scrape.py master --from-typed   # instead: from the typed-in schedules (no requests; the site blocks team pages)
   python3 scrape.py nightly     # every night, that night's games only; then rebuilds stats, the leaderboard (ratings + team files)
-                                # and the tracker's scouting reports for the teams that played (--no-rebuild skips)
+                                # and the tracker's scouting reports for the teams that played (--no-rebuild skips),
+                                # then commits and pushes it all (--no-push skips; a pull conflict stops before the push)
   python3 scrape.py status      # what's missing (no network)
   python3 scrape.py missing     # re-check older games missing stats (only when asked; --team/--conference/--date/--to)
 - Opponent-adjust the trackers' lineups (game tracker Season page, or possession tracker
@@ -79,7 +80,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
   flag them (is_conference).
 - Daily ranks (2026-27) are saved, not rebuilt: every leaderboard build writes each team's rank and the date to
-  daily_ranks/<season>.json (rank_history.py; commit it with the nightly). A played game shows the rank saved before
+  daily_ranks/<season>.json (rank_history.py; the nightly commits and pushes it). A played game shows the rank saved before
   its date (locked at tip-off); of the games to come only a team's next one shows a rank (today's). A saved day is
   recomputed only when a game dated on/before it arrives late. Past seasons keep their reconstructed daily ranks.
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are

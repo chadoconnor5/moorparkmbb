@@ -1102,6 +1102,33 @@ def rebuild(season: str, teams: set):
     subprocess.run([sys.executable, "generate_opponent_report.py", "--season", season, "--latest", "--only", *teams], check=False)
 
 
+def publish(season: str, label: str):
+    """Commit and push what the run changed (box scores, stats, the leaderboard, the saved daily ranks, the tracker's
+    files), so the site and the iPad pick it up without a manual commit. Pulls first; on a merge conflict it stops
+    and leaves everything committed locally. --no-push skips it."""
+    root = Path(__file__).resolve().parent.parent
+    paths = [p for p in (Path(__file__).resolve().parent.name, "index.html", "season_data", "team_logos", "poss")
+             if (root / p).exists()]
+    git = lambda *a: subprocess.run(["git", "-C", str(root), *a], capture_output=True, text=True)
+    git("add", "-A", "--", *paths)
+    if git("diff", "--cached", "--quiet").returncode == 0:
+        print("\nNothing new to push.")
+        return
+    msg = f"{label} ({season}, {datetime.now():%Y-%m-%d %H:%M})"
+    if git("commit", "-q", "-m", msg).returncode:
+        print("\nPUSH SKIPPED: the commit failed; commit and push by hand.")
+        return
+    pull = git("pull", "--no-rebase", "--no-edit")
+    if pull.returncode:
+        git("merge", "--abort")
+        print("\nPUSH SKIPPED: pulling GitHub's changes conflicted. Your run is committed locally; "
+              "run `git pull`, fix the conflict, then `git push`.\n" + pull.stdout + pull.stderr)
+        return
+    push = git("push")
+    print(f"\nPushed: {msg}" if push.returncode == 0 else
+          "\nPUSH FAILED (committed locally; run `git push`):\n" + push.stderr)
+
+
 def build_parser():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--season", default=DEFAULT_SEASON, help="Season, e.g. 2026-27")
@@ -1109,6 +1136,7 @@ def build_parser():
     common.add_argument("--force", action="store_true", help="Re-fetch even games already complete")
     common.add_argument("--max-requests", type=int, default=DEFAULT_MAX_REQUESTS, help="Request cap for this run")
     common.add_argument("--no-rebuild", action="store_true", help="Skip rebuilding team stats")
+    common.add_argument("--no-push", action="store_true", help="Don't commit and push the run's changes")
 
     p = argparse.ArgumentParser(description="Low-traffic CCCMBCA scraper", formatter_class=argparse.RawDescriptionHelpFormatter,
                                 epilog="Usage" + __doc__.split("Usage", 1)[1])
@@ -1196,6 +1224,8 @@ def main(argv=None):
           f"{missing} games missing stats -> {state.missing_path}")
     if not args.no_rebuild:
         rebuild(args.season, run.touched)
+    if not args.no_push and args.cmd != "status":
+        publish(args.season, f"scrape.py {args.cmd}")
     return code
 
 
