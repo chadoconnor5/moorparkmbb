@@ -355,35 +355,7 @@ MIN_PROJ_GAMES = 5
 _MONTHS = {m: i for i, m in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], 1)}
 
 
-_HOST_PLACES = {"livermore, ca": "Las Positas", "santa rosa, ca": "Santa Rosa",
-                "msjc - san jacinto campus": "Mt. San Jacinto", "msjc": "Mt. San Jacinto", "stockton, ca": "San Joaquin Delta",
-                "pleasant hill, ca": "Diablo Valley", "aptos, ca": "Cabrillo", "aptos": "Cabrillo", "sbvc": "San Bernardino Valley",
-                "sj delta college": "San Joaquin Delta", "san joquin delta tournament": "San Joaquin Delta",
-                "ridgecrest, ca": "Cerro Coso"}
-
-
-def neutral_host(notes):
-    """The host school of a neutral-site game from its schedule note ("Tournament name @ Host College"), canonical
-    name when it is an in-system school, else the place as written; None when the note names none."""
-    from assemble_schedules import canon, CANON
-    if "@" not in (notes or ""):
-        return None
-    raw = re.sub(r"\(.*?\)", "", notes.rsplit("@", 1)[1]).strip(" .")
-    x = unicodedata.normalize("NFKD", raw.lower()).encode("ascii", "ignore").decode()
-    if not x or "higher seed" in x:
-        return None
-    if "torrance" in x:
-        return "El Camino"
-    if x in _HOST_PLACES:
-        return _HOST_PLACES[x]
-    for cand in (x, re.sub(r"^(college of the|college of)\s+", "", x),
-                 re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", x)):
-        c = canon(cand) or canon(re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", cand))
-        if c:
-            return c
-    names = sorted(set(CANON.values()), key=len, reverse=True)
-    hit = next((t for t in names if t.lower() in x), None)
-    return hit or raw
+from assemble_schedules import neutral_host   # the neutral-site host from a schedule note (shared with the stats)
 
 
 def _event_name(notes):
@@ -498,9 +470,10 @@ def _sl_upcoming(stats_dir: Path, rows: list, hca_points: float, wp_scale: float
              "fanmatch_score": None, "upset_score": None, "dominance_score": None, "tension_score": None}
     out += [dict(blank, **b, tba=True) for b in brows if not b["result"]]
     sites = {}
+    played_on = {(t, r["date"]) for r in rows for t in (r["winner"], r["loser"])}   # a TBA game once it's played
     for team, rs in load_season_schedules(season).items():
         for date, opp, copp, loc, conf, time, notes, host, _ev in rs:
-            if copp or str(opp).strip().upper() not in ("TBA", "TBD") or (team, date) in covered:
+            if copp or str(opp).strip().upper() not in ("TBA", "TBD") or (team, date) in covered or (team, date) in played_on:
                 continue
             site = team if loc == "Home" else host if loc == "Neutral" and host else None
             sites.setdefault((date, site or team), []).append((team, loc == "Home"))
@@ -2285,10 +2258,12 @@ def _subset_games(games, subset):
     conference game; last5/last10 = the most recent N games."""
     if not games:
         return []
+    # Last 5 / Last 10 stay empty until a team has played that many games this season (never padded with fewer
+    # games, never last season's)
     if subset == "last5":
-        return games[-5:]
+        return games[-5:] if len(games) >= 5 else []
     if subset == "last10":
-        return games[-10:]
+        return games[-10:] if len(games) >= 10 else []
     if subset == "playoffs":
         last_conf = -1
         for i, g in enumerate(games):
@@ -9849,10 +9824,15 @@ function __seasonGames(t) {{
   let games = t.game_ratings || [];
   if (__sch) {{
     const used = new Set();
+    const listed = new Set(__sch.map(r => r[0] + '|' + (r[2] || r[1])));
     const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host, ev]) => {{
-      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
+      const tba = !copp && /^(TBA|TBD)$/i.test(String(opp).trim());
+      // a TBA game once played: the played game that day that isn't on the schedule under its opponent
+      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (tba
+        ? !listed.has(date + '|' + (gr.canonical_opponent || gr.opponent))
+        : (gr.canonical_opponent || gr.opponent) === (copp || opp)));
       if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
-      if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
+      if (tba)
         return {{ date, opponent: 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
       return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
     }});
@@ -11352,8 +11332,8 @@ function renderPlayerProfile() {{
     {{ band: 'By Month' }},
   ].concat(monthLines).concat([
     {{ band: 'Recent Form' }},
-    __ppLine('Last 5', games.slice(-5)),
-    __ppLine('Last 10', games.slice(-10)),
+    __ppLine('Last 5', games.length >= 5 ? games.slice(-5) : []),     // none until 5 games
+    __ppLine('Last 10', games.length >= 10 ? games.slice(-10) : []),  // none until 10 games
   ]);
   lineDefs.forEach(l => {{ if (l) lines.push(l); }});
 
@@ -13776,8 +13756,11 @@ function __slRenderTrendsNow() {{
 
 function slGameCell(g) {{
   if (g.upcoming && !g.projected) {{
-    const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3)">' + n + '</span>' : teamPageLink(n);
-    return '<td class="sl-game-cell">' + (g.label ? '<span style="font-size:0.72rem;color:var(--ink-3)">' + g.label + ': </span>' : '') +
+    const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3);white-space:nowrap">' + n + '</span>' : teamPageLink(n);
+    // bracket slots ("Loser A/B vs Loser C/D") wrap inside the column, the round name on its own line above
+    const slot = /^(Winner|Loser) /.test(g.winner) || /^(Winner|Loser) /.test(g.loser);
+    return '<td class="sl-game-cell"' + (slot ? ' style="white-space:normal;line-height:1.3"' : '') + '>' +
+      (g.label ? '<span style="font-size:0.72rem;color:var(--ink-3)' + (slot ? ';display:block' : '') + '">' + g.label + (slot ? '' : ': ') + '</span>' : '') +
       '<span class="sl-game-winner">' + lk(g.winner) + '</span>' +
       (g.home_team ? ' at ' : ' vs ') +
       '<span class="sl-game-loser">' + lk(g.loser) + '</span>' +

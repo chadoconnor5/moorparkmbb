@@ -48,7 +48,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
                                             #    Team files also carry composite role-label scores (COMPOSITES),
                                             #    blending Synergy shot data from internal_data/synergy_players_*.json
 - Opponent scouting report, the standard (the Ventura report's layout and detail) for any team; never overwrites a
-  report (an existing name gets _v2, _v3...), and refuses to write one that falls short of the standard:
+  report (an existing name gets _v2, _v3...). Built from a team's first game: what there isn't data for yet shows "—"
+  (the game / key / rotation counts are printed as notes, never a reason to skip); it refuses only a missing section or
+  coaching / film / hedge language:
   python3 generate_opponent_report.py "Irvine Valley"   # -> scouting_reports/irvine_valley_scouting_report_2025_26_pre_synergy.pdf
                                                         #    (_synergy.pdf once internal_data/synergy_team_irvine_valley_2025_26.json
                                                         #    and synergy_players_irvine_valley_2025_26.json are added)
@@ -76,6 +78,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   later games reference them (W:G1 / L:G1). FanMatch lists each later game once ("Winner A/B vs Winner C/D",
   filled in as results come in). TBA games of tournaments
   without a bracket entered show once per game (the TBA teams at a site paired up), not once per team.
+- TBA games (tournaments) aren't in the master schedule: the nightly reads its night's composite page every time, so
+  their box scores turn up there and are added; the TBA row takes the opponent's name. A tournament game against
+  the host is the host's Home game and the visitor's Away game (generate_team_stats.py, neutral_host() in
+  assemble_schedules.py); other tournament games stay Neutral. A played TBA game replaces its TBA row (team pages,
+  FanMatch).
 - Playoff dates (after the regular season, late Feb on) stay off the typed-in schedules during the regular season.
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
   flag them (is_conference).
@@ -91,6 +98,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   A team without a coach (windows ["cur"]) gets 2026-27 only, from its first game. Rebuilt every run.
 - Charts: player bubbles show one letter per name and hyphen piece (John Paul Ozumba JPO, Jaxon Rous-Smith JRS),
   suffixes dropped, at most 3.
+- Last 5 / Last 10 (leaderboard scopes, charts, player pages, Moorpark lineups, the possession tracker's splits) are
+  empty until a team has played 5 / 10 games that season: never fewer games, never last season's.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:

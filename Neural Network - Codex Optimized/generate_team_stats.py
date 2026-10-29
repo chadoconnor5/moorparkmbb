@@ -17,6 +17,7 @@ from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
 
+from assemble_schedules import neutral_host
 from ccc_config import DEFAULT_SEASON, schedule_dir, stats_dir
 
 SCHEDULES_DIR = schedule_dir(DEFAULT_SEASON)
@@ -401,7 +402,11 @@ def compute_game_log(team_name: str, boxscores: list[dict], schedule: dict) -> l
         entry["is_conference"] = sched_entry.get("is_conference", False)
         ha = sched_entry.get("home_away", "")
         if ha == "neutral":
-            entry["location"] = "Neutral"
+            # a tournament game against the host (a TBA slot filled in, or a host listed as neutral) is the host's
+            # home game and the visitor's road game; otherwise neutral
+            host = neutral_host(sched_entry.get("notes"))
+            entry["location"] = ("Home" if host and _is_team(host) else
+                                 "Away" if host and _resolve_alias(host).lower() == opponent.lower() else "Neutral")
         # Home/Away already set above; only override if schedule says neutral
 
         # Per-game box score totals for team and opponent

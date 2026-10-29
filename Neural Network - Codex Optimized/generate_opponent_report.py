@@ -280,9 +280,12 @@ def load(team, season):
             if not (os.path.exists(pp) and os.path.exists(ap)): continue
             try:
                 ps, am = jload(pp), {p['name']: p for p in jload(ap).get('players', [])}
+                # 10+ games, or early in the season 60%+ of the team's games so far (the pool fills from the first game)
+                tg = max([q['averages'].get('games', 0) for q in ps['players']] or [0])
+                need = min(10, max(1, round(0.6 * tg)))
                 for p in ps['players']:
                     avg, tot = p['averages'], p['totals']; mpg, gp = avg.get('MIN', 0), avg.get('games', 0)
-                    if gp < 10: continue
+                    if gp < need: continue
                     a2 = am.get(p['name'], {}); twoa = tot.get('FGA', 0) - tot.get('3PA', 0); twom = tot.get('FGM', 0) - tot.get('3PM', 0)
                     twop = round(twom / twoa * 100, 1) if twoa > 0 else 0
                     if mpg >= 4:
@@ -396,10 +399,13 @@ def section(title, subtitle=None):
     if subtitle: items.append(Paragraph(subtitle, S(9, False, MID, space_after=6)))
     return items
 
+ARC_MIN_GAMES = 4   # the first-half / second-half split needs 2+ games a side
+
 def splits_box(label, record_str, avg_net_val, extra=''):
-    net_c = GREEN_BG if avg_net_val > 5 else (RED_BG if avg_net_val < -5 else YELLOW_BG)
-    data = [[Paragraph(f'<b>{label}</b>', S(8, True, DARK)), Paragraph(record_str, S(11, True, BLUE, TA_CENTER)),
-             Paragraph(f'{avg_net_val:+.1f} net rtg', S(9, False, MID, TA_CENTER)), Paragraph(extra, S(8, False, MID))]]
+    none = record_str == '0-0'   # no games in this split yet: "—", not a 0-0 record and a +0.0 net rating
+    net_c = LGRAY if none else GREEN_BG if avg_net_val > 5 else (RED_BG if avg_net_val < -5 else YELLOW_BG)
+    data = [[Paragraph(f'<b>{label}</b>', S(8, True, DARK)), Paragraph('\u2014' if none else record_str, S(11, True, BLUE, TA_CENTER)),
+             Paragraph('\u2014' if none else f'{avg_net_val:+.1f} net rtg', S(9, False, MID, TA_CENTER)), Paragraph(extra, S(8, False, MID))]]
     t = Table(data, colWidths=[1.5 * inch, 1.2 * inch, 1.5 * inch, 2.8 * inch])
     t.setStyle(TableStyle([('BACKGROUND', (0, 0), (0, 0), LGRAY), ('BACKGROUND', (2, 0), (2, 0), net_c),
         ('BOX', (0, 0), (-1, -1), 0.5, BLUE), ('INNERGRID', (0, 0), (-1, -1), 0.3, MGRAY), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -414,6 +420,7 @@ def tier_p(r, n=100):
 
 def avg_net(lst): return sum(g['net'] for g in lst) / len(lst) if lst else 0
 def rec(lst): w = sum(1 for g in lst if g['result'] == 'W'); return f'{w}-{len(lst) - w}'
+def rec_or_dash(lst): return rec(lst) if lst else '\u2014'
 def sg(v, d=1): return f'{v:+.{d}f}'
 def last(n): return n.split()[-1]
 
@@ -557,9 +564,11 @@ def page_cover(c):
     ea, la = avg_net(early), avg_net(late)
     arc = 'improved' if la - ea > 3 else 'declined' if ea - la > 3 else 'held steady'
     e.append(Paragraph('<b>Season Arc</b>', S(9.5, True, BLUE, space_after=3)))
-    e.append(P(f'{T} {arc} as the season progressed. First half (games 1–{len(early)}): {rec(early)}, avg net rating {sg(ea)}. Second half '
-               f'(games {len(early) + 1}–{len(c.games)}): {rec(late)}, avg net rating {sg(la)}. Conference: {rec([g for g in c.games if g.get("is_conference")])}; '
-               f'non-conference: {rec([g for g in c.games if not g.get("is_conference")])}.', S(9.5, space_after=8)))
+    halves = (f'{T} {arc} as the season progressed. First half (games 1–{len(early)}): {rec(early)}, avg net rating {sg(ea)}. Second half '
+              f'(games {len(early) + 1}–{len(c.games)}): {rec(late)}, avg net rating {sg(la)}. ') if len(c.games) >= ARC_MIN_GAMES else \
+             f'First half / second half: \u2014 ({len(c.games)} game{"s" if len(c.games) != 1 else ""} so far). '
+    e.append(P(halves + f'Conference: {rec_or_dash([g for g in c.games if g.get("is_conference")])}; '
+               f'non-conference: {rec_or_dash([g for g in c.games if not g.get("is_conference")])}.', S(9.5, space_after=8)))
 
     e.append(Paragraph('<b>Moorpark-Specific Context</b>', S(9.5, True, BLUE, space_after=3)))
     if c.h2h:
@@ -986,7 +995,7 @@ def narrative(c, p, idx):
             v = adv.get(key, 0)
             if v > 0:
                 r, n = pool_rank(c.adv_players, key, v)
-                if r <= 0.25 * n: s.append(f'{lab} {v:.1f}% (#{r}/{n}) — top {max(1, round(100 * r / n))}% statewide in {word}.')
+                if n and r <= 0.25 * n: s.append(f'{lab} {v:.1f}% (#{r}/{n}) — top {max(1, round(100 * r / n))}% statewide in {word}.')
         tv = adv.get('tov_pct', 0)
         if tv > 0:
             r, n = pool_rank(c.adv_players, 'tov_pct', tv, False)
@@ -1077,8 +1086,10 @@ def page_situations(c):
                ('CONFERENCE', rec(conf), avg_net(conf), f'{c.conf}' + (f'; worst loss {worst_conf[0]["opponent"]} {worst_conf[0]["date"]}' if worst_conf else '')),
                ('NON-CONFERENCE', rec(nconf), avg_net(nconf), 'Non-conference record'),
                ('vs. QUALITY OPPS (net > 0)', rec(good), avg_net(good), f'{len(good)} games vs. opponents with positive net rating'),
-               (f'FIRST HALF (G1-{len(early)})', rec(early), avg_net(early), f'Games 1-{len(early)}'),
-               (f'SECOND HALF (G{len(early) + 1}-{len(G)})', rec(late), avg_net(late), f'Games {len(early) + 1}-{len(G)}'),
+               (f'FIRST HALF (G1-{len(early)})', rec(early), avg_net(early), f'Games 1-{len(early)}') if len(G) >= ARC_MIN_GAMES else
+               ('FIRST HALF', '0-0', 0, f'From {ARC_MIN_GAMES} games'),
+               (f'SECOND HALF (G{len(early) + 1}-{len(G)})', rec(late), avg_net(late), f'Games {len(early) + 1}-{len(G)}') if len(G) >= ARC_MIN_GAMES else
+               ('SECOND HALF', '0-0', 0, f'From {ARC_MIN_GAMES} games'),
                ('CLOSE GAMES (≤8 pts)', rec(close), avg_net(close), f'{len(close)} games decided by 8 or fewer points')]:
         e += [splits_box(*sp), Spacer(1, 3)]
     e.append(Spacer(1, 10))
@@ -1097,8 +1108,9 @@ def page_situations(c):
         e += [splits_box(ql, wr, avg_net(lg), ex), Spacer(1, 3)]
     bad = sorted([g for g in qg['Q3'] + qg['Q4'] if g['result'] == 'L'], key=lambda g: g['opp_rank'])
     e.append(Spacer(1, 8))
-    e.append(P(f'<b>Quad Summary:</b> {T} went <b>{q1w}-{q1l} in Q1 games</b> and <b>{q12w}-{q12l} in Q1+Q2 combined</b>. '
-               f'Q3 record: {qr["Q3"][0]}-{qr["Q3"][1]}. Q4 record: {qr["Q4"][0]}-{qr["Q4"][1]}.'
+    wl = lambda w, l: f'{w}-{l}' if w + l else '\u2014'   # no games in that quad yet
+    e.append(P(f'<b>Quad Summary:</b> {T} went <b>{wl(q1w, q1l)} in Q1 games</b> and <b>{wl(q12w, q12l)} in Q1+Q2 combined</b>. '
+               f'Q3 record: {wl(*qr["Q3"])}. Q4 record: {wl(*qr["Q4"])}.'
                + (' Losses to Q3/Q4 opponents: ' + ', '.join(f'{g["opponent"]} (net rank #{g["opp_rank"]}, {g["date"]})' for g in bad) + '.' if bad else
                   ' No losses to Q3 or Q4 opponents.'), S(9, space_after=8)))
     losses = sorted([g for g in G if g['result'] == 'L'], key=lambda g: g['net'])
@@ -1229,15 +1241,19 @@ def check_report(c):
     for s in REQUIRED + (['Synergy Sports — Play Type Profile'] if c.syn_team else []):
         want = s.format(T=c.team, L=L, S=c.season)
         if want not in SECTIONS: probs.append(f'missing section: {want}')
-    if len(c.rotation) < 5: probs.append(f'only {len(c.rotation)} rotation players (need 5+)')
+    # How much data there is never stops a report (they're wanted from the first game): sections without enough show
+    # "—"; the counts are printed as notes only.
+    thin = []
+    if len(c.rotation) < 5: thin.append(f'{len(c.rotation)} rotation players')
     for p in c.rotation:
         txt = next((t for k, t in TEXT if k == 'player:' + p['name']), '')
-        if len(re.findall(r'[.!?](?:\s|$)', txt)) < 3: probs.append(f'thin profile: {p["name"]}')
+        if len(re.findall(r'[.!?](?:\s|$)', txt)) < 3: thin.append(f'short profile: {p["name"]}')
     if c.syn_team:
         miss = [p['name'] for p in c.rotation if not SYNP(c, p)]
         if miss: print(f'  note: {c.team} has a Synergy team export but no Synergy player data for: ' + ', '.join(miss))
-    if getattr(c, 'n_keys', 0) < 4: probs.append(f'only {getattr(c, "n_keys", 0)} keys to victory (need 4+)')
-    if len(c.games) < 10: probs.append(f'only {len(c.games)} games in the log')
+    if getattr(c, 'n_keys', 0) < 4: thin.append(f'{getattr(c, "n_keys", 0)} keys to victory')
+    if len(c.games) < 10: thin.append(f'{len(c.games)} games')
+    if thin: print(f'  note: {c.team}: early-season report (' + ', '.join(thin) + ')')
     # Descriptive data only outside the Keys: lint_scouting_prose.py's patterns.
     sys.path.insert(0, HERE)
     import lint_scouting_prose as lint

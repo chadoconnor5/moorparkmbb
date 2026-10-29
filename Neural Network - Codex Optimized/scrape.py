@@ -448,7 +448,13 @@ def patch_schedules(state: State, g: dict, bs: dict, have_box: bool):
             opp = g["sides"][team]["opponent"] or opp
         with open(path) as f:
             data = json.load(f)
-        for row in data.get("games", []):
+        rows = data.get("games", [])
+        if not any(r.get("date") == g["date_label"] and r.get("opponent") == opp for r in rows):
+            for r in rows:   # a TBA game (tournament): the box score names the opponent
+                if r.get("date") == g["date_label"] and (r.get("opponent") or "").strip().upper() in ("TBA", "TBD"):
+                    r["opponent"] = opp
+                    break
+        for row in rows:
             if row.get("date") != g["date_label"] or row.get("opponent") != opp:
                 continue
             mine, theirs = score.get(canon.get(team, "")), score.get(canon.get(opp, ""))
@@ -679,18 +685,19 @@ class Run:
             need = {k: c for k, c in need.items() if best not in c}
         return pages
 
-    def process(self, keys: list, discover: bool = True):
+    def process(self, keys: list, discover: bool = True, days=()):
         """Bring each game up to date: find its box link (fewest team pages), then
-        fetch the box once and save it for both teams."""
+        fetch the box once and save it for both teams. days: dates whose composite page is read even with no
+        master game missing a link (the nightly's night: its TBA games aren't in the master until a box posts)."""
         today = date.today()
         keys = [k for k in keys if k in self.state.games and game_date(self.state.games[k]) <= today]
         if not self.force:
             keys = [k for k in keys if self.state.entry(k)["status"] not in DONE]
         if discover:
             fallback = []
-            for d in sorted({game_date(self.state.games[k]) for k in keys}):
+            for d in sorted({game_date(self.state.games[k]) for k in keys} | {d for d in days if d <= today}):
                 day = [k for k in keys if self.state.games[k]["date"] == d.isoformat()]
-                if not any(not self.state.games[k].get("boxscore_url") for k in day):
+                if d not in days and not any(not self.state.games[k].get("boxscore_url") for k in day):
                     continue   # every game that day already has its link
                 links = self.composite(d)
                 if links is None:
@@ -894,7 +901,7 @@ def cmd_nightly(run: Run, args):
     # Older games missing stats are re-checked on demand with `scrape.py missing` (see `scrape.py status`).
     tonight = [k for k in select_games(state, start=night, end=night)]
     print(f"  {len(tonight)} games on {night} (older missing box scores: `scrape.py missing`)")
-    run.process(sorted(tonight))
+    run.process(sorted(tonight), days=(night,))   # the night's composite always: TBA games turn up there
 
 
 def cmd_day(run: Run, args):

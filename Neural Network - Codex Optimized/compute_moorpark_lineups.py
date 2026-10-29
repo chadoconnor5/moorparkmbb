@@ -1097,8 +1097,8 @@ def _subset_games(games, key):
     if key == "q12":          return [g for g in games if g.get("quad") in ("1A", "1", "2")]
     if key == "q3":           return [g for g in games if g.get("quad") == "3"]
     if key == "q4":           return [g for g in games if g.get("quad") == "4"]
-    if key == "last5":        return games[-5:]
-    if key == "last10":       return games[-10:]
+    if key == "last5":        return games[-5:] if len(games) >= 5 else []     # none until 5 games
+    if key == "last10":       return games[-10:] if len(games) >= 10 else []   # none until 10 games
     return games   # 'full'
 
 
