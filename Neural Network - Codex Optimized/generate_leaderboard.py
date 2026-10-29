@@ -11926,7 +11926,7 @@ function buildTeamDetail(t) {{
       const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
       if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
       if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
-        return {{ date, opponent: ev ? 'TBA (' + ev + ')' : 'TBA', canonical_opponent: ev ? 'TBA (' + ev + ')' : 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
+        return {{ date, opponent: 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
       return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
     }});
     games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
