@@ -58,9 +58,10 @@ SITE = "https://cccmbca.org"
 # links' dates won't match and the run falls back to team schedule pages.
 COMPOSITE_URL = "https://cccmbca.prestosports.com/composite?d={d:%Y-%m-%d}"
 BOX_LINK_RE = re.compile(r"(/sports/mbkb/\d{4}-\d{2}/boxscores/(\d{8})_[A-Za-z0-9]+\.xml)")
-DELAY_RANGE = (5.0, 8.0)      # seconds between requests, randomised
-THROTTLE_WAIT = 90            # seconds to wait after the first rate-limit response
-DEFAULT_MAX_REQUESTS = 150
+# Gentle on the site: one page at a time, 25-45s apart, a low cap per run (a night is ~1 scoreboard + ~20 box scores;
+# a rerun picks up the rest), and the run stops at the first sign of being refused or rate limited (no retries).
+DELAY_RANGE = (25.0, 45.0)    # seconds between requests, randomised
+DEFAULT_MAX_REQUESTS = 40
 
 MEMBERS = {t for teams in CONFERENCES.values() for t in teams}
 
@@ -111,10 +112,7 @@ class Fetcher:
 
     def _throttled(self, why: str):
         self.throttle_hits += 1
-        if self.throttle_hits >= 2:
-            raise Throttled(why)
-        print(f"    Rate limited ({why}), waiting {THROTTLE_WAIT}s...")
-        time.sleep(THROTTLE_WAIT)
+        raise Throttled(why)   # stop at the first one: never push through a rate limit
 
     def get(self, url: str) -> str:
         if not url.startswith("http"):
@@ -168,19 +166,25 @@ class Fetcher:
                 except Exception:
                     continue
             self._page = self._br.new_page()
+            # text only: no images, fonts or video, so each page costs the site as little as possible
+            self._page.route("**/*", lambda r: r.abort() if r.request.resource_type in ("image", "media", "font")
+                             else r.continue_())
             atexit.register(self.close)
         # the page's own content, not its ads (they keep loading, so "network idle" never comes)
-        resp = self._page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        resp = self._page.goto(url, wait_until="domcontentloaded", timeout=90000)
         try:
             self._page.wait_for_load_state("load", timeout=15000)
         except Exception:
             pass
         self._page.wait_for_timeout(2000)   # the scoreboard's events fill in after load
-        if resp is not None and resp.status in (429, 503):
+        if resp is not None and resp.status in (403, 429, 459, 503):   # refused or rate limited: stop the run
             raise Throttled(f"browser {resp.status}")
         if resp is not None and resp.status >= 400:
             raise urllib.error.HTTPError(url, resp.status, "browser", None, None)
-        return self._page.content()
+        html = self._page.content()
+        if re.search(r"just a moment|checking your browser|access denied|unusual traffic|captcha", html[:20000], re.I):
+            raise Throttled("the site showed a bot check")
+        return html
 
     def close(self):
         if self._page is not None:
@@ -1299,7 +1303,8 @@ def main(argv=None):
         elif args.cmd == "missing":
             cmd_missing(run, args)
     except Throttled as e:
-        print(f"\nSTOPPED: the site is rate limiting us ({e}). Progress is saved; run again later.")
+        print(f"\nSTOPPED: the site refused or rate limited us ({e}). Everything fetched so far is saved and still gets "
+              f"rebuilt and pushed. Don't rerun tonight: wait until tomorrow, and send screenshots for anything urgent.")
         code = 2
     except BudgetExhausted as e:
         print(f"\nSTOPPED: hit the request cap ({e}). Progress is saved; run again to continue.")
