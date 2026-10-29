@@ -8224,6 +8224,11 @@ function __switchSeasonNow(season) {{
   if (ppDiv && ppDiv.style.display !== 'none') {{
     closePlayerProfile();
   }}
+  const gpDiv = document.getElementById('gameplan-view');
+  if (gpDiv && gpDiv.style.display !== 'none' && gamePlanReturnTeam) {{
+    if (activeFullTeamData().some(d => d.team === gamePlanReturnTeam)) showGamePlan(gamePlanReturnTeam);
+    else closeGamePlan();
+  }}
   const mmDiv = document.getElementById('minmatrix-view');
   if (mmDiv && mmDiv.style.display !== 'none' && minMatrixReturnTeam) {{
     const mName = minMatrixReturnTeam;
@@ -9792,6 +9797,26 @@ function corrTipText(r100, label, isOrtg) {{
 
 let gamePlanReturnTeam = null;
 
+// A team's season in date order: its whole typed-in schedule where there is one (a played game takes its result
+// and stats from game_ratings, the rest have no result yet), plus any played game missing from the schedule.
+function __seasonGames(t) {{
+  const __dk = d => {{ const [m, dd, y] = String(d).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (dd || 0); }};
+  const __sch = (SEASON_SCHEDULES[activeSeason] || {{}})[t.team];
+  let games = t.game_ratings || [];
+  if (__sch) {{
+    const used = new Set();
+    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host, ev]) => {{
+      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
+      if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
+      if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
+        return {{ date, opponent: 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
+      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
+    }});
+    games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
+  }}
+  return games;
+}}
+
 function showGamePlan(teamName) {{
   gamePlanReturnTeam = teamName;
   const t = activeFullTeamData().find(d => d.team === teamName);
@@ -9801,7 +9826,7 @@ function showGamePlan(teamName) {{
   document.getElementById('gameplan-view').style.display = 'block';
   window.scrollTo(0, 0);
   const netRtgRanks = {{}};
-  const validT = (activeSeason === '1920' ? TEAM_DATA_1920 : activeSeason === '2122' ? TEAM_DATA_2021 : activeSeason === '2223' ? TEAM_DATA_2022 : activeSeason === '2324' ? TEAM_DATA_2023 : TEAM_DATA).filter(d => d.ortg > 0).sort((a,b) => b.net_rtg - a.net_rtg);
+  const validT = activeTeamData.filter(d => d.ortg > 0).sort((a,b) => b.net_rtg - a.net_rtg);
   validT.forEach((d,i) => {{ netRtgRanks[d.team] = i+1; }});
   const FOUR_FACTORS = ['o_efg','o_tov','o_or','o_ftr','d_efg','d_tov','d_or','d_ftr'];
   const STAT_LABELS = {{pace:'Pace',ortg:'Off Eff',o_efg:'Off eFG%',o_tov:'Off TO%',o_or:'Off OR%',o_ftr:'Off FTR',o_2p:'Off 2P%',o_3p:'Off 3P%',drtg:'Def Eff',d_efg:'Def eFG%',d_tov:'Def TO%',d_or:'Def OR%',d_ftr:'Def FTR',d_2p:'Def 2P%',d_3p:'Def 3P%'}};
@@ -9810,9 +9835,14 @@ function showGamePlan(teamName) {{
   const ortgVals=[], drtgVals=[];
   const ff = (v) => (typeof v === 'number') ? v.toFixed(1) : '—';
   let rowsHtml = '';
-  const games = t.game_ratings || [];
+  const games = __seasonGames(t);
   games.forEach(gr => {{
     const opp = gr.canonical_opponent || gr.opponent || '';
+    if (gr.result !== 'W' && gr.result !== 'L') {{   // not played yet
+      const oppTxt = opp === 'TBA' ? 'TBA' : `<a href="#" onclick="showTeamDetail('${{opp}}');return false" style="color:#000;text-decoration:none;font-weight:600">${{opp}}</a>${{gr.is_conference?' <span style="color:#888">*</span>':''}}`;
+      rowsHtml += `<tr><td style="text-align:left;white-space:nowrap;font-size:0.77rem;width:1%">${{gr.date||''}}</td><td style="text-align:center">${{netRtgRanks[opp] || ''}}</td><td style="text-align:left">${{oppTxt}}</td><td style="text-align:center">-</td>${{'<td style="text-align:center;color:#999">-</td>'.repeat(15)}}</tr>`;
+      return;
+    }}
     const slug = toSlug(opp);
     const rk = netRtgRanks[opp] || '';
     const isConf = gr.is_conference;
@@ -11444,8 +11474,8 @@ function renderPlayerProfile() {{
     #player-content .pp-table tbody tr.pp-band:first-child td {{ border-top: none; }}
     #player-content .pp-table tbody tr.pp-gw td {{ background: #cfe8d0; color: #000; }}
     #player-content .pp-table tbody tr.pp-gl td {{ background: #f4cfcf; color: #000; }}
-    #player-content .pp-table tbody tr.pp-gw:hover td {{ background: rgb(0,230,0); }}
-    #player-content .pp-table tbody tr.pp-gl:hover td {{ background: rgb(230,0,0); }}
+    #player-content .pp-table tbody tr.pp-gw:hover td {{ background: #bddfbf; }}
+    #player-content .pp-table tbody tr.pp-gl:hover td {{ background: #ecbcbc; }}
     #player-content .pp-st {{ display: inline-block; min-width: 18px; border: 1.6px solid #1a3e8f; border-radius: 2px; padding: 0 2px; font-weight: 700; }}
     #player-content .pp-trend {{ background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; max-width: fit-content; margin: 0 auto 16px; }}
     #player-content .pp-trend-head {{ font-size: 0.78rem; font-weight: 800; color: #1a3a6e; margin-bottom: 8px; text-align: center; letter-spacing: 0.04em; }}
@@ -11917,20 +11947,7 @@ function buildTeamDetail(t) {{
   // Find index of last conference game to insert Playoffs banner
   // The whole season schedule (typed-in schedules) where there is one: a played game shows its result from
   // game_ratings, the rest show the tip time; played games missing from the schedule are kept too.
-  const __dk = d => {{ const [m, dd, y] = String(d).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (dd || 0); }};
-  const __sch = (SEASON_SCHEDULES[activeSeason] || {{}})[t.team];
-  let games = t.game_ratings || [];
-  if (__sch) {{
-    const used = new Set();
-    const merged = __sch.map(([date, opp, copp, loc, conf, time, notes, host, ev]) => {{
-      const i = games.findIndex((gr, k) => !used.has(k) && gr.date === date && (gr.canonical_opponent || gr.opponent) === (copp || opp));
-      if (i >= 0) {{ used.add(i); return host ? Object.assign({{}}, games[i], {{ host }}) : games[i]; }}
-      if (!copp && /^(TBA|TBD)$/i.test(String(opp).trim()))
-        return {{ date, opponent: 'TBA', canonical_opponent: 'TBA', is_conference: !!conf, location: loc, time, notes, host, result: '' }};
-      return {{ date, opponent: copp || opp, canonical_opponent: copp || opp, is_conference: !!conf, location: loc, time, notes, host, result: '' }};
-    }});
-    games = merged.concat(games.filter((g, k) => !used.has(k))).sort((a, b) => __dk(a.date) - __dk(b.date));
-  }}
+  const games = __seasonGames(t);
   let lastConfIdx = -1;
   games.forEach((gr, idx) => {{ if (gr.is_conference) lastConfIdx = idx; }});
   let playoffBannerInserted = false;
