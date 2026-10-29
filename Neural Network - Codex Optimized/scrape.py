@@ -626,15 +626,38 @@ def box_from_disk(state: State, g: dict):
     return None
 
 
+def parse_box(page: str) -> dict:
+    """The box score, plus its play-by-play (on the same page: no extra request) under "_plays" for save_box."""
+    bs = parse_boxscore(page)
+    try:
+        import play_by_play
+        plays = play_by_play.parse(page, bs.get("visitor"), bs.get("home"))
+        if plays:
+            bs["_plays"] = plays
+    except Exception as err:
+        print(f"    play-by-play not read ({err})")
+    return bs
+
+
 def save_box(state: State, g: dict, bs: dict) -> list:
+    """The box score in each member team's folder; its play-by-play (once per game) in "<season> Play by Play/"
+    (its own folder: the box score readers take every .json in the team folders)."""
     saved = []
+    plays = bs.pop("_plays", None)
+    box = bs
+    if plays:
+        d = date.fromisoformat(g["date"])
+        pdir = Path(f"{state.season} Play by Play")
+        pdir.mkdir(exist_ok=True)
+        with open(pdir / f"{d:%Y%m%d}_{slug(box.get('visitor') or g['names'][0])}_at_{slug(box.get('home') or g['names'][-1])}.json", "w") as f:
+            json.dump(plays, f)
     for team in members_in(g):
         if team not in state.teams:
             continue
         p = box_path(state, team, g)
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "w") as f:
-            json.dump(bs, f, indent=2)
+            json.dump(box, f, indent=2)
         saved.append(team)
     return saved
 
@@ -712,7 +735,7 @@ class Run:
                 continue
             print(f"  Box score: {url}")
             try:
-                bs = parse_boxscore(self.fetcher.get(url))
+                bs = parse_box(self.fetcher.get(url))
             except urllib.error.HTTPError as e:
                 print(f"    {e.code} — skipped")
                 continue
@@ -835,7 +858,7 @@ class Run:
         if bs is None:
             print(f"  Box score: {label}")
             try:
-                bs = parse_boxscore(self.fetcher.get(url))
+                bs = parse_box(self.fetcher.get(url))
             except urllib.error.HTTPError as err:
                 self.record(e, g, NO_BOX, f"box score link returned {err.code}", "")
                 return
@@ -1043,7 +1066,7 @@ def game_from_url(run: Run, raw: str, gid: str):
         return
     ensure_team_index(state, run.fetcher)
     try:
-        bs = run.box_cache[url] = parse_boxscore(run.fetcher.get(url))
+        bs = run.box_cache[url] = parse_box(run.fetcher.get(url))
     except urllib.error.HTTPError as err:
         sys.exit(f"Box score {url} returned {err.code}.")
     g = match_game(state, d, bs) or new_game(state, d, bs)
