@@ -1,5 +1,14 @@
-MOORPARK SCRAPE COMMANDS  (copy a line, paste it into Command Prompt, press Enter)
-==================================================================================
+MOORPARK SCRAPE COMMANDS
+========================
+
+HOW TO USE THIS SHEET
+  1. Open Command Prompt: press the Windows key, type  cmd  and press Enter.
+  2. Copy ONE line below (highlight it, Ctrl+C).
+  3. Click in the Command Prompt window, right-click to paste (or Ctrl+V), press Enter.
+  4. Wait until it finishes (you see the  C:\...>  prompt again) before the next line.
+  Lines that start with spaces are notes, not commands.
+  (The latest copy of this sheet is always in the project folder: SCRAPE COMMANDS.txt)
+
 
 1. ALWAYS FIRST: go to the project folder, then get the latest code
 -------------------------------------------------------------------
@@ -58,7 +67,23 @@ python scrape.py nightly --browser --dry-run
 python scrape.py nightly --browser --no-push
 
 
-9. ONE-TIME SETUP (already done -- only if on a new computer)
+9. UPDATE THE LEADERBOARD ONLY (no scraping -- after a code change, or to refresh the site)
+-------------------------------------------------------------------------------------------
+   Step 2 (the nightly) already does all of this on its own. Use these only for a rebuild without new games.
+   Rebuild everyone's stats and ratings, then the leaderboard, then publish (one line at a time):
+
+python generate_team_stats.py --season 2026-27 --all
+python update_advanced_analytics.py --season 2026-27 --all
+python generate_leaderboard.py --cache
+git add -A :/
+git commit -m "Leaderboard update"
+git push
+
+   Just the leaderboard page (stats already up to date): the last four lines only.
+   The site updates a few minutes after the push (refresh the page).
+
+
+10. ONE-TIME SETUP (already done -- only if on a new computer)
 --------------------------------------------------------------
 pip install playwright
 python scrape.py master --from-typed
