@@ -76,6 +76,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   later games reference them (W:G1 / L:G1). FanMatch lists each later game once ("Winner A/B vs Winner C/D",
   filled in as results come in). TBA games of tournaments
   without a bracket entered show once per game (the TBA teams at a site paired up), not once per team.
+- TBA games (tournaments) aren't in the master schedule: the nightly reads its night's composite page every time, so
+  their box scores turn up there and are added; the TBA row takes the opponent's name. A tournament game against
+  the host is the host's Home game and the visitor's Away game (generate_team_stats.py, neutral_host() in
+  assemble_schedules.py); other tournament games stay Neutral. A played TBA game replaces its TBA row (team pages,
+  FanMatch).
 - Playoff dates (after the regular season, late Feb on) stay off the typed-in schedules during the regular season.
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
   flag them (is_conference).

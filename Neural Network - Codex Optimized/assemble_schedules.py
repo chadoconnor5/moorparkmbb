@@ -22,6 +22,8 @@ Usage:
 
 import argparse
 import json
+import re
+import unicodedata
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -41,6 +43,37 @@ def order(g):
     """Season order of a 'Nov 05' date."""
     m, _, d = g["date"].partition(" ")
     return (MONTHS.index(m) if m in MONTHS else 99, int(d) if d.isdigit() else 0)
+
+
+_HOST_PLACES = {"livermore, ca": "Las Positas", "santa rosa, ca": "Santa Rosa",
+                "msjc - san jacinto campus": "Mt. San Jacinto", "msjc": "Mt. San Jacinto", "stockton, ca": "San Joaquin Delta",
+                "pleasant hill, ca": "Diablo Valley", "aptos, ca": "Cabrillo", "aptos": "Cabrillo", "sbvc": "San Bernardino Valley",
+                "sj delta college": "San Joaquin Delta", "san joquin delta tournament": "San Joaquin Delta",
+                "ridgecrest, ca": "Cerro Coso", "rob gym": "Santa Barbara", "college of the seqoias": "Sequoias",
+                "west los angeles college": "West LA"}
+
+
+def neutral_host(notes):
+    """The host school of a neutral-site game from its schedule note ("Tournament name @ Host College"), canonical
+    name when it is an in-system school, else the place as written; None when the note names none."""
+    if "@" not in (notes or ""):
+        return None
+    raw = re.sub(r"\(.*?\)", "", notes.rsplit("@", 1)[1]).strip(" .")
+    x = unicodedata.normalize("NFKD", raw.lower()).encode("ascii", "ignore").decode()
+    if not x or "higher seed" in x:
+        return None
+    if "torrance" in x:
+        return "El Camino"
+    if x in _HOST_PLACES:
+        return _HOST_PLACES[x]
+    for cand in (x, re.sub(r"^(college of the|college of)\s+", "", x),
+                 re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", x)):
+        c = canon(cand) or canon(re.sub(r"\s+(junior college|city college|college|classic|tournament|tourney)$", "", cand))
+        if c:
+            return c
+    names = sorted(set(CANON.values()), key=len, reverse=True)
+    hit = next((t for t in names if t.lower() in x), None)
+    return hit or raw
 
 
 def is_scrimmage(d):
