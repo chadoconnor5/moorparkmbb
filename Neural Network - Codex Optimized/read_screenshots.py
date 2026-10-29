@@ -6,14 +6,16 @@ team box (the box score page's table for one team: its name on top, Player / MIN
 TM Team, TOTALS), named for the team and the date: "Citrus 1031.png" ("Citrus 1031 2.png" for a second shot of a box
 that didn't fit; short names like "Mt SAC" are fine). The date in the name wins over the folder's.
 
-    python read_screenshots.py              every folder not marked DONE
+    python read_screenshots.py              every night with something new
     python read_screenshots.py --date 1031  one night
 
 Each screenshot is read with Tesseract (the possession tracker's copy, run in Chrome) and checked: every player's points
 against his FG/3P/FT, REB = OREB + DREB, each column against TOTALS, minutes against 200 (+25 an overtime). Each one
 also gets a CSV beside it with what was read: fix a number there and rerun, and the CSV is used instead of the image.
 A game whose sides all check out is saved where scrape.py saves box scores, so the nightly counts it as done and never
-asks the site for it. Problems go to CHECK.txt in the folder; a folder with every game saved is renamed "<name> DONE".
+asks the site for it. CHECK.txt in each night's folder lists what's saved and what needs fixing. Folders are never
+renamed: screenshots can come in through the night or days later, and each run reads only what's new (a screenshot
+already read is reused from its CSV, a game already saved is skipped), whatever the date.
 scrape.py nightly reads that night's folder first on its own."""
 
 import argparse
@@ -345,23 +347,24 @@ def to_box_rows(t):
 
 
 def run(state=None, only=None, verbose=True):
-    """Read every pending night folder (or only=date). Returns the number of games saved."""
+    """Read every night folder with something new (or only=date). Returns the keys of the games saved."""
     import scrape
     state = state or scrape.State(scrape.DEFAULT_SEASON)
     base = root(state.season)
     if not base.exists():
-        return 0
-    reader, saved = Reader(), 0
+        return []
+    reader, saved = Reader(), []
     try:
         for folder in sorted((p for p in base.rglob("*") if p.is_dir()), key=lambda p: folder_date(p.name, state.season) or date.min):
-            if folder.name.upper().endswith("DONE"):
-                continue
             fdate = folder_date(folder.name, state.season)
             if fdate is None or (only and fdate != only):
                 continue
             images = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGES)
             if not images:
                 continue
+            if all(p.with_suffix(".csv").exists() for p in images) and (folder / "CHECK.txt").exists() \
+                    and (folder / "CHECK.txt").stat().st_mtime >= max(p.stat().st_mtime for p in folder.iterdir()) - 1:
+                continue   # nothing new in this folder since its last read
             if verbose:
                 print(f"\nScreenshots: {folder.name} ({len(images)} images)")
             sides, notes = {}, []   # (team, date) -> merged side
@@ -415,24 +418,22 @@ def run(state=None, only=None, verbose=True):
                       "teams": {t: to_box_rows(ok[(t, d)]) for t in (visitor, home) if (t, d) in ok}}
                 scrape.classify_box(bs, g)
                 scrape.save_box(state, g, bs)
-                saved += 1
+                saved.append(g["key"])
                 if verbose:
                     print(f"  saved {visitor} at {home} {g['date']} ({', '.join(f'{t} {bs['score'].get(t)}' for t in bs['score'])})")
             unmatched = [f"{t} {d:%m/%d}" for (t, d) in ok
                          if not any(g["date"] == d.isoformat() and t in g["names"] for g in state.games.values())]
             if unmatched:
                 notes.append("no game on the schedule for: " + ", ".join(unmatched) + " (check the team name / date in the file name)")
-            check_file = folder / "CHECK.txt"
-            if notes:
-                check_file.write_text("\n\n".join(notes) + "\n", encoding="utf-8")
-                if verbose:
-                    print("  " + "\n  ".join(n.splitlines()[0] for n in notes) + f"\n  -> {check_file}")
-            else:
-                if check_file.exists():
-                    check_file.unlink()
-                folder.rename(folder.with_name(folder.name + " DONE"))
-                if verbose:
-                    print(f"  all games saved -> {folder.name} DONE")
+            # the folder stays as it is (screenshots keep coming in through the night); CHECK.txt says where it stands
+            done = sorted({" vs ".join(g["names"]) for g in state.games.values()
+                           if g["date"] in {d.isoformat() for (_, d) in sides} and scrape.box_from_disk(state, g) is not None
+                           and any((t, date.fromisoformat(g["date"])) in sides for t in g["names"])})
+            report = (f"Saved ({len(done)}): " + ", ".join(done) if done else "Saved: none yet") + "\n\n" + \
+                     ("\n\n".join(notes) if notes else "Nothing to fix.") + "\n"
+            (folder / "CHECK.txt").write_text(report, encoding="utf-8")
+            if verbose and notes:
+                print("  " + "\n  ".join(n.splitlines()[0] for n in notes) + f"\n  -> {folder / 'CHECK.txt'}")
     finally:
         reader.close()
     return saved
@@ -446,7 +447,7 @@ def main():
     args = ap.parse_args()
     state = scrape.State(args.season)
     only = folder_date(args.date, args.season) if args.date else None
-    n = run(state, only)
+    n = len(run(state, only))
     state.save()
     print(f"\n{n} game(s) saved from screenshots. `python scrape.py nightly --browser` counts them as done.")
 

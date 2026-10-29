@@ -1295,7 +1295,9 @@ def main(argv=None):
         # box scores from screenshots first ("<season> Box Score Screenshots/<Month>/<MMDD>/"): those games need no request
         try:
             import read_screenshots
-            if read_screenshots.run(state):
+            got = read_screenshots.run(state)
+            if got:   # any date (a late screenshot for an older night too): COMPLETE, and those teams rebuild
+                run.process(got, discover=False)
                 print()
         except Exception as err:
             print(f"Screenshots: skipped ({err})")

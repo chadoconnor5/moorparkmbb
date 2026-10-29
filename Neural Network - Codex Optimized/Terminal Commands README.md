@@ -42,7 +42,7 @@ python3 scrape.py master
 python3 scrape.py master --resync              # refresh pages older than 24h (rerun resumes)
 
 # --- Box scores from screenshots (no site): 2026-27 Box Score Screenshots/<Month>/<MMDD>/<Team MMDD>.png ---
-python3 read_screenshots.py                # every night folder not DONE; --date 1031 for one (the nightly runs it first)
+python3 read_screenshots.py                # every night with new screenshots (any date); --date 1031 for one (the nightly runs it first)
 
 # --- Nightly (the scheduled job: today after 6 PM, otherwise yesterday) ---
 # Any scrape that saves new box scores then rebuilds, in the same run: those teams' stats, every team's analytics
