@@ -5247,10 +5247,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .td-schedule th {{ background: var(--sidebar); color: #e7ecf2; padding: 6px 8px; text-align: center; font-size: 0.74rem; font-weight: 650; border-bottom: 1px solid var(--sidebar-head); }}
   .td-schedule td {{ padding: 5px 6px; border-bottom: 1px solid #eee; font-size: 0.8rem; white-space: nowrap; }}
   .td-schedule tr:hover td {{ background: #f0f0f0; }}
-  .td-schedule tr.sched-win td {{ background: rgb(0,255,0) !important; color: #000 !important; }}
-  .td-schedule tr.sched-loss td {{ background: rgb(255,0,0) !important; color: #000 !important; }}
-  .td-schedule tr.sched-win:hover td {{ background: rgb(0,230,0) !important; }}
-  .td-schedule tr.sched-loss:hover td {{ background: rgb(230,0,0) !important; }}
+  .td-schedule tr.sched-win td {{ background: #cfe8d0 !important; color: #000 !important; }}
+  .td-schedule tr.sched-loss td {{ background: #f4cfcf !important; color: #000 !important; }}
+  .td-schedule tr.sched-win:hover td {{ background: #bddfbf !important; }}
+  .td-schedule tr.sched-loss:hover td {{ background: #ecbcbc !important; }}
   .td-schedule tr.sched-win a, .td-schedule tr.sched-loss a {{ color: #000 !important; }}
   .td-schedule tr a.box-link {{ color: #0d47a1 !important; font-weight: 700; text-decoration: none; }}
   @media (max-width: 900px) {{
