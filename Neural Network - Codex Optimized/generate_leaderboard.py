@@ -6,6 +6,7 @@ import csv
 import json
 from ccc_config import NO_TEAM as _NO_TEAM
 import season_rosters as _season_rosters
+import rank_history as _rank_history
 import math
 import re
 import shutil
@@ -4150,7 +4151,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         return ranks
 
     # Compute current-season daily rankings with iterative as-of-date logic
-    daily_ranks = compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True)
+    # the current season shows saved ranks (rank_history.py): each game's rank is the one it carried into tip-off
+    daily_ranks = _rank_history.update("2026-27", teams or [],
+                                       compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True))
     daily_ranks_json = _embed(daily_ranks)
 
     daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
@@ -9784,13 +9787,14 @@ function teamPageHref(teamName) {{
 }}
 
 // Ranks as of a date: that day's, else the latest earlier game day's, else the preseason ranks (last season's order).
+// Saved ranks (_strict, the current season): the latest save from before the game's date, the rank it took into tip-off.
 function __ranksAsOf(src, dateStr) {{
   if (!src) return {{}};
-  if (src[dateStr]) return src[dateStr];
+  if (src[dateStr] && !src._strict) return src[dateStr];
   const k = s => {{ const [m, d, y] = String(s).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (d || 0); }};
   const want = k(dateStr);
   let best = null;
-  for (const d of Object.keys(src)) if (d !== 'preseason' && k(d) <= want && (!best || k(d) > k(best))) best = d;
+  for (const d of Object.keys(src)) if (d !== 'preseason' && d !== '_strict' && (src._strict ? k(d) < want : k(d) <= want) && (!best || k(d) > k(best))) best = d;
   return best ? src[best] : (src.preseason || {{}});
 }}
 
@@ -12009,7 +12013,13 @@ function buildTeamDetail(t) {{
 
     // Team's own historical rank as of this game date
     const _dayRanksSource = activeSeason === '1718' ? DAILY_RANKS_1718 : activeSeason === '1819' ? DAILY_RANKS_1819 : activeSeason === '1920' ? DAILY_RANKS_1920 : activeSeason === '2122' ? DAILY_RANKS_2021 : activeSeason === '2223' ? DAILY_RANKS_2022 : activeSeason === '2324' ? DAILY_RANKS_2023 : activeSeason === '2425' ? DAILY_RANKS_2024 : activeSeason === '2526' ? DAILY_RANKS_2025 : DAILY_RANKS;
-    const dayRanks = __ranksAsOf(_dayRanksSource, dateStr);
+    // played games: the rank locked in before the game; of the games still to come only the next one shows (today's)
+    // (a past date with no result yet, stats not in, isn't the next game)
+    const _dk = s => {{ const [m, d, y] = String(s).split('/').map(Number); return (y || 0) * 10000 + (m || 0) * 100 + (d || 0); }};
+    const _now = new Date(), _todayK = _now.getFullYear() * 10000 + (_now.getMonth() + 1) * 100 + _now.getDate();
+    const _upcoming = x => !(x.result === 'W' || x.result === 'L') && _dk(x.date) >= _todayK;
+    const _isNext = _upcoming(gr) && !games.slice(0, idx).some(_upcoming);
+    const dayRanks = (result === 'W' || result === 'L' || _isNext) ? __ranksAsOf(_dayRanksSource, dateStr) : {{}};
     const teamRank = dayRanks[t.team] || '';
 
     // Opponent's historical rank as of this game date
