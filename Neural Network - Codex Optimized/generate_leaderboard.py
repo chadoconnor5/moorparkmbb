@@ -2258,10 +2258,12 @@ def _subset_games(games, subset):
     conference game; last5/last10 = the most recent N games."""
     if not games:
         return []
+    # Last 5 / Last 10 stay empty until a team has played that many games this season (never padded with fewer
+    # games, never last season's)
     if subset == "last5":
-        return games[-5:]
+        return games[-5:] if len(games) >= 5 else []
     if subset == "last10":
-        return games[-10:]
+        return games[-10:] if len(games) >= 10 else []
     if subset == "playoffs":
         last_conf = -1
         for i, g in enumerate(games):
@@ -11330,8 +11332,8 @@ function renderPlayerProfile() {{
     {{ band: 'By Month' }},
   ].concat(monthLines).concat([
     {{ band: 'Recent Form' }},
-    __ppLine('Last 5', games.slice(-5)),
-    __ppLine('Last 10', games.slice(-10)),
+    __ppLine('Last 5', games.length >= 5 ? games.slice(-5) : []),     // none until 5 games
+    __ppLine('Last 10', games.length >= 10 ? games.slice(-10) : []),  // none until 10 games
   ]);
   lineDefs.forEach(l => {{ if (l) lines.push(l); }});
 

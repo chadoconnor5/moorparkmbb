@@ -96,6 +96,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   A team without a coach (windows ["cur"]) gets 2026-27 only, from its first game. Rebuilt every run.
 - Charts: player bubbles show one letter per name and hyphen piece (John Paul Ozumba JPO, Jaxon Rous-Smith JRS),
   suffixes dropped, at most 3.
+- Last 5 / Last 10 (leaderboard scopes, charts, player pages, Moorpark lineups, the possession tracker's splits) are
+  empty until a team has played 5 / 10 games that season: never fewer games, never last season's.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:

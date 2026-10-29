@@ -6978,8 +6978,8 @@ function splitGames(split) {
     q1a: g => quadOf(g) === '1A', q1: g => ['1A', '1'].includes(quadOf(g)), q2: g => quadOf(g) === '2', q12: g => ['1A', '1', '2'].includes(quadOf(g)), q3: g => quadOf(g) === '3', q4: g => quadOf(g) === '4',
     top25: g => { const r = oppRank(g); return !!r && r.rank <= 25; }, nontop25: g => { const r = oppRank(g); return !!r && r.rank > 25; },
     pick: g => (UI.luPick || []).includes(g.id) }[split] || (() => true);
-  if (split === 'last5') return all.slice(-5);
-  if (split === 'last10') return all.slice(-10);
+  if (split === 'last5') return all.length >= 5 ? all.slice(-5) : [];     // none until 5 games
+  if (split === 'last10') return all.length >= 10 ? all.slice(-10) : [];  // none until 10 games
   return all.filter(f);
 }
 const splitName = k => (SPLITS.find(x => x[0] === k) || ['', 'Full season'])[1];
