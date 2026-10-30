@@ -12880,6 +12880,10 @@ function slRenderHeight() {{
     if (cmp === 0) cmp = (a.rank || 9999) - (b.rank || 9999);
     return slHeightSortAsc ? cmp : -cmp;
   }});
+  // The # is the team's place on the sorted column (biggest = 1): smallest-first counts down 80...1. Sorted by a
+  // name (team, conference), the # stays the team's overall height rank.
+  const byName = slHeightSortKey === 'rank' || (sorted.length && typeof slHeightSortVal(sorted[0], slHeightSortKey) === 'string');
+  const place = i => byName ? null : (slHeightSortAsc ? sorted.length - i : i + 1);
   const rows = sorted.map((r, i) => {{
     const bg = r.team === 'Moorpark' ? 'background:#ffe599;' : '';
     const avg = Number(r.avg_inches || 0);
@@ -12889,7 +12893,7 @@ function slRenderHeight() {{
     const fScoring = r.forward_scoring_pct == null ? null : Number(r.forward_scoring_pct);
     const range = (r.min_height && r.max_height) ? r.min_height + '–' + r.max_height : '—';
     return `<tr>
-      <td class="sl-th-r" style="${{bg}}color:#888;font-size:0.8rem">${{i + 1}}</td>
+      <td class="sl-th-r" style="${{bg}}color:#888;font-size:0.8rem">${{place(i) != null ? place(i) : (r.rank || i + 1)}}</td>
       <td style="${{bg}}">${{teamPageLink(r.team, 'color:#000;text-decoration:none;font-weight:600')}}</td>
       <td style="${{bg}}color:#555;font-size:0.82rem">${{r.conference || ''}}</td>
       <td class="sl-th-r" style="${{bg}}font-weight:700">${{avg.toFixed(2)}}</td>
