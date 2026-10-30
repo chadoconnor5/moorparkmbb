@@ -1801,6 +1801,21 @@ def load_teams(stats_dir=None):
 
             ta = adv.get("team", {})
             monthly_stats = adv.get("monthly_stats", {})
+            # 2026-27: points a game from the final scores (a game whose box score only the opponent posted still
+            # has its score), and a team with no box score of its own shows its box-only stats blank, not 0
+            scored, no_box = None, False
+            if Path(stats_dir) == Path(STATS_DIR):
+                try:
+                    _gl = json.load(open(team_dir / "game_log.json")).get("games", [])
+                except (OSError, ValueError):
+                    _gl = []
+                _sc = [(g.get("team_score") or 0, g.get("opponent_score") or 0) for g in _gl]
+                _sc = [x for x in _sc if x[0] > 0 and x[1] > 0]
+                if _sc:
+                    scored = (round(sum(a for a, _ in _sc) / len(_sc), 1), round(sum(b for _, b in _sc) / len(_sc), 1))
+                    avgs = dict(avgs, PTS=scored[0])
+                    opp_avgs = dict(opp_avgs, PTS=scored[1])
+                no_box = bool(_gl) and not summary.get("games_played")
 
             # Load per-game box scores to compute four-factor stats for game plan
             gl_path = team_dir / "game_log.json"
@@ -1960,6 +1975,16 @@ def load_teams(stats_dir=None):
                 "game_ratings": enriched_game_ratings,
                 "monthly_stats": monthly_stats,
             })
+            if no_box:   # box-only numbers unknown (not zero) for a team with no box score of its own yet
+                for _k in ("rpg", "orebpg", "drebpg", "apg", "spg", "bpg", "topg", "pfpg", "fgp", "twop",
+                           "tpp", "ftp", "tpa_pct", "ast_pct", "ast_ratio", "ast_tov", "nst_pct", "stl_to"):
+                    teams[-1][_k] = None
+            if Path(stats_dir) == Path(STATS_DIR) and not (summary.get("opponent_totals") or {}).get("games"):
+                # the opponents' box-only numbers, when no opponent has posted a box score against this team yet
+                for _k in ("opp_fgp", "opp_twop", "opp_tpp", "opp_ftp", "opp_orebpg", "opp_drebpg", "opp_rpg", "opp_apg",
+                           "opp_spg", "opp_bpg", "opp_topg", "opp_pfpg", "stl_to"):
+                    if _k in teams[-1]:
+                        teams[-1][_k] = None
 
     teams.sort(key=lambda x: -x["net_rtg"])
 
@@ -9624,6 +9649,9 @@ function renderTeams(data) {{
   renderTeamsAdvDefense(data);
 }}
 
+// One decimal, or "—" for a number that isn't known (a team with no box score of its own yet)
+function __n1(v, unit) {{ return v == null ? '\u2014' : Number(v).toFixed(1) + (unit || ''); }}
+
 function renderTeamsBasic(data) {{
   const tb = document.getElementById('team-basic-tbody');
   if (!tb) return;
@@ -9638,20 +9666,20 @@ function renderTeamsBasic(data) {{
       <td>${{t.gp}}</td>
       <td>${{fs.record}}</td>
       <td>${{fs.conf}}</td>
-      <td>${{Number(t.ppg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_ppg).toFixed(1)}}</td>
-      <td>${{Number(t.fgp).toFixed(1)}}%</td>
-      <td>${{Number(t.twop).toFixed(1)}}%</td>
-      <td>${{Number(t.tpp).toFixed(1)}}%</td>
-      <td>${{Number(t.ftp).toFixed(1)}}%</td>
-      <td>${{Number(t.orebpg).toFixed(1)}}</td>
-      <td>${{Number(t.drebpg).toFixed(1)}}</td>
-      <td>${{Number(t.rpg).toFixed(1)}}</td>
-      <td>${{Number(t.apg).toFixed(1)}}</td>
-      <td>${{Number(t.spg).toFixed(1)}}</td>
-      <td>${{Number(t.bpg).toFixed(1)}}</td>
-      <td>${{Number(t.topg).toFixed(1)}}</td>
-      <td>${{Number(t.pfpg).toFixed(1)}}</td>
+      <td>${{__n1(t.ppg)}}</td>
+      <td>${{__n1(t.opp_ppg)}}</td>
+      <td>${{__n1(t.fgp, '%')}}</td>
+      <td>${{__n1(t.twop, '%')}}</td>
+      <td>${{__n1(t.tpp, '%')}}</td>
+      <td>${{__n1(t.ftp, '%')}}</td>
+      <td>${{__n1(t.orebpg)}}</td>
+      <td>${{__n1(t.drebpg)}}</td>
+      <td>${{__n1(t.rpg)}}</td>
+      <td>${{__n1(t.apg)}}</td>
+      <td>${{__n1(t.spg)}}</td>
+      <td>${{__n1(t.bpg)}}</td>
+      <td>${{__n1(t.topg)}}</td>
+      <td>${{__n1(t.pfpg)}}</td>
     `;
     applyTeamStatsRowColor(tr, t.team);
     tb.appendChild(tr);
@@ -9672,19 +9700,19 @@ function renderTeamsBasicDefense(data) {{
       <td>${{t.gp}}</td>
       <td>${{fs.record}}</td>
       <td>${{fs.conf}}</td>
-      <td>${{Number(t.opp_ppg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_fgp).toFixed(1)}}%</td>
-      <td>${{Number(t.opp_twop).toFixed(1)}}%</td>
-      <td>${{Number(t.opp_tpp).toFixed(1)}}%</td>
-      <td>${{Number(t.opp_ftp).toFixed(1)}}%</td>
-      <td>${{Number(t.opp_orebpg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_drebpg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_rpg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_apg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_spg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_bpg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_topg).toFixed(1)}}</td>
-      <td>${{Number(t.opp_pfpg).toFixed(1)}}</td>
+      <td>${{__n1(t.opp_ppg)}}</td>
+      <td>${{__n1(t.opp_fgp, '%')}}</td>
+      <td>${{__n1(t.opp_twop, '%')}}</td>
+      <td>${{__n1(t.opp_tpp, '%')}}</td>
+      <td>${{__n1(t.opp_ftp, '%')}}</td>
+      <td>${{__n1(t.opp_orebpg)}}</td>
+      <td>${{__n1(t.opp_drebpg)}}</td>
+      <td>${{__n1(t.opp_rpg)}}</td>
+      <td>${{__n1(t.opp_apg)}}</td>
+      <td>${{__n1(t.opp_spg)}}</td>
+      <td>${{__n1(t.opp_bpg)}}</td>
+      <td>${{__n1(t.opp_topg)}}</td>
+      <td>${{__n1(t.opp_pfpg)}}</td>
     `;
     applyTeamStatsRowColor(tr, t.team);
     tb.appendChild(tr);

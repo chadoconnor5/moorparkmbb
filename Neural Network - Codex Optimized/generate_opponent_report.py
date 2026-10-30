@@ -144,6 +144,9 @@ class Ctx:
 
 def load(team, season):
     c = Ctx(); c.team, c.season = team, season
+    # the season still being played (the current season, before April): the report says "so far", not "finished"
+    from ccc_config import DEFAULT_SEASON
+    c.ongoing = season == DEFAULT_SEASON and date.today() < date(int(season[:4]) + 1, 4, 1)
     c.conf, d = find_team_dir(team, season)
     if not d: sys.exit(f'No {season} stats folder for "{team}" (try --list).')
     _, md = find_team_dir('Moorpark', season)
@@ -153,6 +156,16 @@ def load(team, season):
     wab_path = os.path.join(HERE, 'wab_results.json' if season == '2025-26' else f'wab_results_{season.replace("-", "_")}.json')
     c.wab_data = jload(wab_path) if os.path.exists(wab_path) else []
     c.avgs, c.opp_avgs, c.ta = c.team_sum['averages'], c.team_sum['opponent_averages'], c.adv_json['team']
+    # Points from the final scores (a game whose box score only one team posted still has its score; that team's
+    # averages can be empty): the same as the leaderboard
+    try:
+        _sc = [(g.get('team_score') or 0, g.get('opponent_score') or 0) for g in json.load(open(os.path.join(d, 'game_log.json'))).get('games', [])]
+    except (OSError, ValueError):
+        _sc = []
+    _sc = [x for x in _sc if x[0] > 0 and x[1] > 0]
+    if _sc:
+        c.avgs = dict(c.avgs or {}, PTS=round(sum(a for a, _ in _sc) / len(_sc), 1))
+        c.opp_avgs = dict(c.opp_avgs or {}, PTS=round(sum(b for _, b in _sc) / len(_sc), 1))
     c.game_log = c.ta.get('game_ratings', [])
     c.wab_map = {t['team']: t for t in c.wab_data}
     rec = c.team_sum.get('record', {})
@@ -485,7 +498,7 @@ def page_cover(c):
     elif drtg_r <= 35 and drtg_r + 20 < ortg_r: ident = f'a defense-first team — they win by holding opponents down, with an offense that is {o_t}'
     elif ortg_r > 65 and drtg_r > 65: ident = 'a team in the bottom third of the state at both ends'
     else: ident = f'a balanced team — {o_t} on offense and {d_t} on defense'
-    e.append(P(f'<b>Core Identity: {T} is {ident}.</b> They finished {c.rec_all}, ranked <b>#{net_r}/{c.n} in Net Rating</b> '
+    e.append(P(f'<b>Core Identity: {T} is {ident}.</b> {"They are " + c.rec_all + " so far" if c.ongoing else "They finished " + c.rec_all}, ranked <b>#{net_r}/{c.n} in Net Rating</b> '
                f'({sg(c.ta["net_rtg"])} pts per 100 possessions). Offensive Rating: {c.ta["ortg"]:.1f} (#{ortg_r}/{c.n} statewide, state avg '
                f'{AVG(c, "ortg")}) — {o_t}. Defensive Rating: {c.ta["drtg"]:.1f} (#{drtg_r}/{c.n} statewide, state avg {AVG(c, "drtg")}) '
                f'— {d_t}. Point differential: {sg(c.avgs["PTS"] - c.opp_avgs["PTS"])} PPG ({c.avgs["PTS"]:.1f} scored, {c.opp_avgs["PTS"]:.1f} allowed).',
@@ -984,7 +997,7 @@ def narrative(c, p, idx):
     if tpa >= 1.0:
         r, n = pool_rank(c.all_players, 'tpp', tpp, True, lambda q: q.get('tpa', 0) >= 2) if tpa >= 2 else (0, 0)
         s.append(f'He shoots {tpp:.1f}% on {tpa:.1f} 3PA a game' + (f' (#{r}/{n} among players with 2+ 3PA a game, {tw(r, n)}).' if r else '.'))
-    elif tot.get('3PA', 0) <= 3: s.append(f'He has taken {tot.get("3PA", 0)} three-point attempt{"s" if tot.get("3PA", 0) != 1 else ""} all season.')
+    elif tot.get('3PA', 0) <= 3: s.append(f'He has taken {tot.get("3PA", 0)} three-point attempt{"s" if tot.get("3PA", 0) != 1 else ""} {"so far this season" if c.ongoing else "all season"}.')
     twoa = tot.get('FGA', 0) - tot.get('3PA', 0)
     if twoa >= 40:
         twop = (tot.get('FGM', 0) - tot.get('3PM', 0)) / twoa * 100; r, n = pool_rank(c.all_players, 'twop', twop, True, lambda q: q.get('fga', 0) >= 5)
@@ -1089,9 +1102,9 @@ def page_situations(c):
                ('NON-CONFERENCE', rec(nconf), avg_net(nconf), 'Non-conference record'),
                ('vs. QUALITY OPPS (net > 0)', rec(good), avg_net(good), f'{len(good)} games vs. opponents with positive net rating'),
                (f'FIRST HALF (G1-{len(early)})', rec(early), avg_net(early), f'Games 1-{len(early)}') if len(G) >= ARC_MIN_GAMES else
-               ('FIRST HALF', '0-0', 0, f'From {ARC_MIN_GAMES} games'),
+               ('FIRST HALF', '0-0', 0, f'Shown from game {ARC_MIN_GAMES}'),
                (f'SECOND HALF (G{len(early) + 1}-{len(G)})', rec(late), avg_net(late), f'Games {len(early) + 1}-{len(G)}') if len(G) >= ARC_MIN_GAMES else
-               ('SECOND HALF', '0-0', 0, f'From {ARC_MIN_GAMES} games'),
+               ('SECOND HALF', '0-0', 0, f'Shown from game {ARC_MIN_GAMES}'),
                ('CLOSE GAMES (≤8 pts)', rec(close), avg_net(close), f'{len(close)} games decided by 8 or fewer points')]:
         e += [splits_box(*sp), Spacer(1, 3)]
     e.append(Spacer(1, 10))
@@ -1111,7 +1124,8 @@ def page_situations(c):
     bad = sorted([g for g in qg['Q3'] + qg['Q4'] if g['result'] == 'L'], key=lambda g: g['opp_rank'])
     e.append(Spacer(1, 8))
     wl = lambda w, l: f'{w}-{l}' if w + l else '\u2014'   # no games in that quad yet
-    e.append(P(f'<b>Quad Summary:</b> {T} went <b>{wl(q1w, q1l)} in Q1 games</b> and <b>{wl(q12w, q12l)} in Q1+Q2 combined</b>. '
+    e.append(P(f'<b>Quad Summary:</b> ' + (f'{T} {"is" if c.ongoing else "went"} <b>{wl(q1w, q1l)} in Q1 games</b> and <b>{wl(q12w, q12l)} in Q1+Q2 combined</b>{" so far" if c.ongoing else ""}. '
+               if q12w + q12l else f'{T} has not played a Q1 or Q2 game{" yet" if c.ongoing else ""}. ') +
                f'Q3 record: {wl(*qr["Q3"])}. Q4 record: {wl(*qr["Q4"])}.'
                + (' Losses to Q3/Q4 opponents: ' + ', '.join(f'{g["opponent"]} (net rank #{g["opp_rank"]}, {g["date"]})' for g in bad) + '.' if bad else
                   ' No losses to Q3 or Q4 opponents.'), S(9, space_after=8)))
@@ -1125,7 +1139,10 @@ def page_situations(c):
         ('FONTSIZE', (0, 0), (-1, -1), 8), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('ALIGN', (1, 1), (1, -1), 'LEFT'),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, ALT]), ('INNERGRID', (0, 0), (-1, -1), 0.3, MGRAY), ('BOX', (0, 0), (-1, -1), 0.5, TH_BG),
         ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4)]))
-    e += [KeepTogether(head + [lt]), PageBreak()]
+    if not losses:   # no table for none
+        e += [KeepTogether(head + [Paragraph('No losses so far.' if c.ongoing else 'No losses.', S(9, space_after=8))]), PageBreak()]
+    else:
+        e += [KeepTogether(head + [lt]), PageBreak()]
     return e
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
@@ -1224,7 +1241,7 @@ def page_scouting_guide(c):
         blocks.append([tbl, Spacer(1, 4)])
     c.n_keys = len(uniq[:6])
     for b in blocks[:-1]: e += b
-    e.append(KeepTogether((blocks[-1] if blocks else []) + [Spacer(1, 6), P(f'<b>Summary:</b> {T} finished {c.rec_all} (Net Rating {sg(c.ta["net_rtg"])}, #{R(c, "net_rtg")}/{c.n} statewide). ORTg {c.ta["ortg"]:.1f} '
+    e.append(KeepTogether((blocks[-1] if blocks else []) + [Spacer(1, 6), P(f'<b>Summary:</b> {T} {"is " + c.rec_all + " so far" if c.ongoing else "finished " + c.rec_all} (Net Rating {sg(c.ta["net_rtg"])}, #{R(c, "net_rtg")}/{c.n} statewide). ORTg {c.ta["ortg"]:.1f} '
                f'(#{R(c, "ortg")}/{c.n}); DRTg {c.ta["drtg"]:.1f} (#{R(c, "drtg")}/{c.n}). Leading scorers: '
                + ', '.join(f'{p["name"]} ({A(p)["PTS"]:.1f} PPG)' for p in scorers) + f'. Moorpark’s offensive benchmark: an ORTg above {T}’s '
                f'season DRTg of {c.ta["drtg"]:.1f}.', S(10, space_after=0))]))
