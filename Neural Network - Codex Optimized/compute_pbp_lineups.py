@@ -30,6 +30,7 @@ from ccc_config import DEFAULT_SEASON
 OUT = Path("internal_data/pbp_lineups")
 MIN_GAMES = 1          # a team's page needs at least this many usable games (the page shows the count)
 MIN_TOL = 2.5          # minutes: a player's play-by-play minutes vs the box score
+PER_TOL = 2.0          # minutes: the same, half by half, against the page's 1st Half / 2nd Half box scores
 BAD_FIVE_SHARE = 0.03  # share of plays with other than five on the floor before a game is set aside
 
 
@@ -201,6 +202,11 @@ def game_units(pbp, rosters):
             on[s].add(min(cand)[1]); fixes[0] += 1
 
     secs_on = [{}, {}]
+    secs_per = [{}, {}]   # (name, period) -> seconds: each half's minutes, checked against that half's box score
+
+    def credit(s2, n, per, secs):
+        secs_on[s2][n] = secs_on[s2].get(n, 0) + secs
+        secs_per[s2][(n, per)] = secs_per[s2].get((n, per), 0) + secs
     # Possessions in the game (both teams), for leverage's "trips left": the box score formula on the whole game.
     tot = [{}, {}]
     for p in plays:
@@ -210,6 +216,9 @@ def game_units(pbp, rosters):
     spt = end / game_poss   # seconds per possession
 
     units = [{}, {}]
+    # Stints for BPR (compute_bpr.py): each stretch with the same ten on the floor - both fives, time, and each
+    # side's counts and points. Garbage time is kept but flagged.
+    stints, cur = [], None
     gt = False
     bad_five, checked = 0, 0
     last_t, v_prev, h_prev = 0, 0, 0
@@ -224,7 +233,7 @@ def game_units(pbp, rosters):
                 gap = _clock(p["period"], "20:00" if p["period"] <= 2 else "05:00") - last_t
                 for s2 in (0, 1):
                     for n in on[s2]:
-                        secs_on[s2][n] = secs_on[s2].get(n, 0) + gap
+                        credit(s2, n, period, gap)
                     if not gt:
                         _unit(units[s2], on[s2], rosters[s2])["secs"] += gap
                 last_t += gap
@@ -243,13 +252,15 @@ def game_units(pbp, rosters):
         if t > last_t:
             for s in (0, 1):
                 for n in on[s]:
-                    secs_on[s][n] = secs_on[s].get(n, 0) + (t - last_t)
+                    credit(s, n, p["period"], t - last_t)
                 if not gt:
                     _unit(units[s], on[s], rosters[s])["secs"] += t - last_t
                     if band:
                         _unit(units[s], on[s], rosters[s])["lev"].setdefault(band, _blk())["secs"] += t - last_t
                     if clutch:
                         _unit(units[s], on[s], rosters[s])["lev"].setdefault("clutch", _blk())["secs"] += t - last_t
+            if cur is not None and len(on[0]) == 5 and len(on[1]) == 5:
+                cur["secs"] += t - last_t
             last_t = t
         # substitutions at this moment, all together
         if p["action"] in ("enters the game", "goes to the bench"):
@@ -287,6 +298,17 @@ def game_units(pbp, rosters):
         s = p["team"]
         c = _counts(p["action"])
         pts = (p["v"] - v_prev, p["h"] - h_prev)
+        if len(on[0]) == 5 and len(on[1]) == 5:
+            key = (tuple(sorted(on[0])), tuple(sorted(on[1])))
+            if cur is None or cur["key"] != key:
+                cur = {"key": key, "secs": 0, "c": [{}, {}], "pts": [0, 0], "gt": False, "lev": {}}
+                stints.append(cur)
+            for k, v in c.items():
+                cur["c"][s][k] = cur["c"][s].get(k, 0) + v
+            cur["pts"][0] += pts[0]; cur["pts"][1] += pts[1]
+            cur["gt"] = cur["gt"] or (gt and not ot)
+            if band:
+                cur["lev"][band] = cur["lev"].get(band, 0) + 1
         if not gt and len(on[0]) == 5 and len(on[1]) == 5:
             for side in (0, 1):
                 u = _unit(units[side], on[side], rosters[side])
@@ -302,7 +324,7 @@ def game_units(pbp, rosters):
     # the last stretch to the final horn
     for s in (0, 1):
         for n in on[s]:
-            secs_on[s][n] = secs_on[s].get(n, 0) + max(end - last_t, 0)
+            credit(s, n, period, max(end - last_t, 0))
 
     if checked and bad_five / checked > BAD_FIVE_SHARE:
         return None, f"five on the floor could not be followed ({bad_five} of {checked} plays)"
@@ -315,6 +337,28 @@ def game_units(pbp, rosters):
                    if abs(secs_on[s].get(p["name"], 0) / 60 - p["min"]) > MIN_TOL]
             if off:
                 return None, "minutes don't match the box score: " + "; ".join(off[:3])
+    # Half by half: each player's play-by-play minutes in a period against that period's box score (the page's
+    # 1st Half / 2nd Half tabs) - a wrong guess at who started the 2nd half shows up here.
+    labels = (pbp.get("visitor"), pbp.get("home"))
+    for per, tm in (pbp.get("periods") or {}).items():
+        per_len = 20 if int(per) <= 2 else 5
+        for s in (0, 1):
+            rows = tm.get(labels[s]) or []
+            mins = {}
+            for r in rows:
+                try:
+                    mins[_key(r.get("name", ""))] = int(str((r.get("stats") or {}).get("MIN") or 0).strip() or 0)
+                except ValueError:
+                    pass
+            if sum(mins.values()) < 0.75 * 5 * per_len:
+                continue   # that half's minutes weren't kept
+            for pl in rosters[s].players:
+                if pl["key"] not in mins:
+                    continue
+                have = secs_per[s].get((pl["name"], int(per)), 0) / 60
+                if abs(have - mins[pl["key"]]) > PER_TOL:
+                    half = {"1": "1st half", "2": "2nd half"}.get(str(per), "OT")
+                    return None, f"{half} minutes don't match the box score: {pl['name']} {have:.0f} vs {mins[pl['key']]}"
     out = []
     for s in (0, 1):
         us = []
@@ -325,7 +369,11 @@ def game_units(pbp, rosters):
             if u["secs"] > 0 or u["oT"] or u["dT"]:
                 us.append(u)
         out.append(us)
-    return out, {"fixes": fixes[0]}
+    st = [{"v": list(x["key"][0]), "h": list(x["key"][1]), "secs": x["secs"],
+           "poss": [round(_poss(x["c"][0]), 2), round(_poss(x["c"][1]), 2)], "pts": x["pts"], "gt": x["gt"],
+           "lev": max(x["lev"], key=x["lev"].get) if x["lev"] else None}
+          for x in stints if x["secs"] > 0 or any(x["c"][0].values()) or any(x["c"][1].values())]
+    return out, {"fixes": fixes[0], "stints": st}
 
 
 def _blk():
@@ -371,6 +419,7 @@ def build(season, only=None, verbose=False):
     factors = al.load_factors(season) if ratings else {}
     phase = al.season_phase()
     teams = {}
+    all_stints = []
     for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
         d = date(int(f.name[:4]), int(f.name[4:6]), int(f.name[6:8]))
         pbp = json.load(open(f))
@@ -386,6 +435,8 @@ def build(season, only=None, verbose=False):
         if res is not None:
             if verbose:
                 print(f"  {d} {pbp['visitor']} at {pbp['home']}: used ({why['fixes']} substitution repairs)")
+            all_stints.append({"date": d.isoformat(), "visitor": names[0], "home": names[1],
+                               "site": site_for(season, names[1], d), "stints": why["stints"]})
             why = None
         for s, team in enumerate(names):
             if only and team != only:
@@ -404,6 +455,10 @@ def build(season, only=None, verbose=False):
                                    "units": res[s]})
     out_dir = OUT / season
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Every usable game's stints, for compute_bpr.py (internal: not published)
+    sdir = Path("internal_data/pbp_stints")
+    sdir.mkdir(parents=True, exist_ok=True)
+    json.dump({"season": season, "games": all_stints}, open(sdir / f"{season}.json", "w"), separators=(",", ":"))
     written = 0
     for team, entry in sorted(teams.items()):
         if len(entry["games"]) < MIN_GAMES or not ratings:

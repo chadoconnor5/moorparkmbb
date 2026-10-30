@@ -96,9 +96,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   five from who shows up first; half-logged subs repaired from what players do next), possessions FGA-OREB+TO+.475FTA,
   leverage High/Med/Low/Clutch and garbage time as the possession tracker grades them, then adjust_lineups.adjust (the
   tracker lineups' opponent adjustment). A game is used only if five-on-the-floor holds, every player's minutes are
-  within 2.5 of the box score and the names match; the rest are listed with the reason. The leaderboard puts each
+  within 2.5 of the box score, each half's within 2.0 of that half's box score (the page's period tabs) and the names match; the rest are listed with the reason. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
+- Stints (internal, for a possible BPR later): compute_pbp_lineups.py also writes internal_data/pbp_stints/<season>.json,
+  every usable game's stretches with the same ten on the floor (both fives, seconds, each side's possessions and
+  points, garbage-time flag, leverage). Not used on the site; BPR only if play-by-play coverage per team turns out
+  high enough to mean something.
 - Box scores typed in from screenshots: saved where scrape.py saves them (`2026-27 Teams Schedules/<Conf>/<Team>/
   YYYYMMDD_<opponent slug>/<same>.json`, scrape_team.parse_boxscore's format, one copy per member team). The nightly
   takes a box score on disk first: the game is COMPLETE with no request, its teams rebuild, and a night with every game
