@@ -373,7 +373,7 @@ def _sl_game_flow(stats_dir: Path) -> dict:
     pdir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
         try:
-            pj = json.load(open(f))
+            pj = _pbp_fix(json.load(open(f)))
         except Exception:
             continue
         plays = pj.get("plays") or []
@@ -3381,6 +3381,12 @@ def attach_similar_players(season_players: dict, team_rosters: dict):
                         row["sim_mode"] = "shoot"
 
 
+def _pbp_fix(pj):
+    """A saved play-by-play file with its out-of-order names repaired (play_by_play.fix_plays)."""
+    import play_by_play
+    return play_by_play.fix_plays(pj)
+
+
 def _pbp_norm(name: str) -> str:
     """_box_norm of a play-by-play file's team label, "College of Marin" read as "Marin" (the labels are the box score
     page's; the leaderboard's names drop the "College of")."""
@@ -3747,7 +3753,7 @@ def build_game_boxes(stats_dir) -> dict:
     pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
         try:
-            pj = json.load(open(f))
+            pj = _pbp_fix(json.load(open(f)))
         except Exception:
             continue
         gk = (f.name[:8], frozenset(_pbp_norm(x) for x in (pj.get("visitor"), pj.get("home"))))

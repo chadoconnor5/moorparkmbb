@@ -708,6 +708,20 @@ class Run:
         self.processed = set()   # game keys already handled this run
         self.log = []
 
+    def read_box(self, url: str) -> dict:
+        """A box score page, parsed. One that comes back without its teams or players is kept as served (on this PC
+        only: scrape_state/<season>/unreadable/, not pushed), to see later whether the stats weren't up yet or the site
+        sent something else."""
+        page = self.fetcher.get(url)
+        bs = parse_box(page)
+        if not any((bs.get("teams") or {}).values()) or placeholder_names([bs.get("visitor"), bs.get("home")]):
+            keep = self.state.dir / "unreadable"
+            keep.mkdir(parents=True, exist_ok=True)
+            name = f"{url.rstrip('/').split('/')[-1].replace('.xml', '')}_{datetime.now():%Y%m%d_%H%M%S}.html"
+            (keep / name).write_text(page, encoding="utf-8")
+            print(f"    page had no box score on it (kept as {keep / name})")
+        return bs
+
     def composite(self, d: date):
         """Box score links posted for one day, from the composite page (1 request).
         None when the page can't be trusted for that date (fall back to team pages)."""
@@ -747,7 +761,7 @@ class Run:
                 continue
             print(f"  Box score: {url}")
             try:
-                bs = parse_box(self.fetcher.get(url))
+                bs = self.read_box(url)
             except urllib.error.HTTPError as e:
                 print(f"    {e.code} — skipped")
                 continue
@@ -873,7 +887,7 @@ class Run:
         if bs is None:
             print(f"  Box score: {label}")
             try:
-                bs = parse_box(self.fetcher.get(url))
+                bs = self.read_box(url)
             except urllib.error.HTTPError as err:
                 self.record(e, g, NO_BOX, f"box score link returned {err.code}", "")
                 return
@@ -1036,7 +1050,13 @@ def cmd_nightly(run: Run, args):
     # Older games missing stats are re-checked on demand with `scrape.py missing` (see `scrape.py status`).
     tonight = [k for k in select_games(state, start=night, end=night)]
     print(f"  {len(tonight)} games on {night} (older missing box scores: `scrape.py missing`)")
-    run.process(sorted(tonight), days=(night,))   # the night's composite always: TBA games turn up there
+    # Box scores often go up after the run (late games): the night before's still-missing games are looked for again
+    # on its composite page (one more page, only when that night left some)
+    prev = night - timedelta(days=1)
+    late = [k for k in select_games(state, start=prev, end=prev) if state.entry(k)["status"] in MISSING]
+    if late:
+        print(f"  {len(late)} games from {prev} still missing a box score: checking {prev}'s page again")
+    run.process(sorted(tonight + late), days=(night, prev) if late else (night,))   # the night's composite always: TBA games turn up there
 
 
 def cmd_day(run: Run, args):
