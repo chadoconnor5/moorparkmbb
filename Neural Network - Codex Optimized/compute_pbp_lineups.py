@@ -30,6 +30,7 @@ from ccc_config import DEFAULT_SEASON
 OUT = Path("internal_data/pbp_lineups")
 MIN_GAMES = 1          # a team's page needs at least this many usable games (the page shows the count)
 MIN_TOL = 2.5          # minutes: a player's play-by-play minutes vs the box score
+PER_TOL = 2.0          # minutes: the same, half by half, against the page's 1st Half / 2nd Half box scores
 BAD_FIVE_SHARE = 0.03  # share of plays with other than five on the floor before a game is set aside
 
 
@@ -201,6 +202,11 @@ def game_units(pbp, rosters):
             on[s].add(min(cand)[1]); fixes[0] += 1
 
     secs_on = [{}, {}]
+    secs_per = [{}, {}]   # (name, period) -> seconds: each half's minutes, checked against that half's box score
+
+    def credit(s2, n, per, secs):
+        secs_on[s2][n] = secs_on[s2].get(n, 0) + secs
+        secs_per[s2][(n, per)] = secs_per[s2].get((n, per), 0) + secs
     # Possessions in the game (both teams), for leverage's "trips left": the box score formula on the whole game.
     tot = [{}, {}]
     for p in plays:
@@ -227,7 +233,7 @@ def game_units(pbp, rosters):
                 gap = _clock(p["period"], "20:00" if p["period"] <= 2 else "05:00") - last_t
                 for s2 in (0, 1):
                     for n in on[s2]:
-                        secs_on[s2][n] = secs_on[s2].get(n, 0) + gap
+                        credit(s2, n, period, gap)
                     if not gt:
                         _unit(units[s2], on[s2], rosters[s2])["secs"] += gap
                 last_t += gap
@@ -246,7 +252,7 @@ def game_units(pbp, rosters):
         if t > last_t:
             for s in (0, 1):
                 for n in on[s]:
-                    secs_on[s][n] = secs_on[s].get(n, 0) + (t - last_t)
+                    credit(s, n, p["period"], t - last_t)
                 if not gt:
                     _unit(units[s], on[s], rosters[s])["secs"] += t - last_t
                     if band:
@@ -318,7 +324,7 @@ def game_units(pbp, rosters):
     # the last stretch to the final horn
     for s in (0, 1):
         for n in on[s]:
-            secs_on[s][n] = secs_on[s].get(n, 0) + max(end - last_t, 0)
+            credit(s, n, period, max(end - last_t, 0))
 
     if checked and bad_five / checked > BAD_FIVE_SHARE:
         return None, f"five on the floor could not be followed ({bad_five} of {checked} plays)"
@@ -331,6 +337,28 @@ def game_units(pbp, rosters):
                    if abs(secs_on[s].get(p["name"], 0) / 60 - p["min"]) > MIN_TOL]
             if off:
                 return None, "minutes don't match the box score: " + "; ".join(off[:3])
+    # Half by half: each player's play-by-play minutes in a period against that period's box score (the page's
+    # 1st Half / 2nd Half tabs) - a wrong guess at who started the 2nd half shows up here.
+    labels = (pbp.get("visitor"), pbp.get("home"))
+    for per, tm in (pbp.get("periods") or {}).items():
+        per_len = 20 if int(per) <= 2 else 5
+        for s in (0, 1):
+            rows = tm.get(labels[s]) or []
+            mins = {}
+            for r in rows:
+                try:
+                    mins[_key(r.get("name", ""))] = int(str((r.get("stats") or {}).get("MIN") or 0).strip() or 0)
+                except ValueError:
+                    pass
+            if sum(mins.values()) < 0.75 * 5 * per_len:
+                continue   # that half's minutes weren't kept
+            for pl in rosters[s].players:
+                if pl["key"] not in mins:
+                    continue
+                have = secs_per[s].get((pl["name"], int(per)), 0) / 60
+                if abs(have - mins[pl["key"]]) > PER_TOL:
+                    half = {"1": "1st half", "2": "2nd half"}.get(str(per), "OT")
+                    return None, f"{half} minutes don't match the box score: {pl['name']} {have:.0f} vs {mins[pl['key']]}"
     out = []
     for s in (0, 1):
         us = []

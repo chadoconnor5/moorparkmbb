@@ -96,7 +96,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   five from who shows up first; half-logged subs repaired from what players do next), possessions FGA-OREB+TO+.475FTA,
   leverage High/Med/Low/Clutch and garbage time as the possession tracker grades them, then adjust_lineups.adjust (the
   tracker lineups' opponent adjustment). A game is used only if five-on-the-floor holds, every player's minutes are
-  within 2.5 of the box score and the names match; the rest are listed with the reason. The leaderboard puts each
+  within 2.5 of the box score, each half's within 2.0 of that half's box score (the page's period tabs) and the names match; the rest are listed with the reason. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
 - Stints (internal, for a possible BPR later): compute_pbp_lineups.py also writes internal_data/pbp_stints/<season>.json,
