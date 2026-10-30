@@ -59,10 +59,8 @@ def _records_from(game_log):
     if game_log:
         pct, wl = rec(game_log)
         out[f"Overall ({pct})"] = wl
-        conf = [g for g in game_log if g.get("is_conference")]
-        if conf:
-            pct, wl = rec(conf)
-            out[f"Conference ({pct})"] = wl
+        pct, wl = rec([g for g in game_log if g.get("is_conference")])   # 0-0 before conference play
+        out[f"Conference ({pct})"] = wl
     return out
 
 

@@ -610,12 +610,21 @@ def main() -> None:
     out_prefix = Path(args.output_prefix) if args.output_prefix else default_prefix
 
     samples = collect_strict_samples()
+    min_team_games, min_player_games = args.min_team_games, args.min_player_games
+    from ccc_config import DEFAULT_SEASON
+    if args.season == DEFAULT_SEASON:
+        # the season in progress: the full-season minimums (18 team games, 5 player games of a 28-game season)
+        # pro-rated to how far it has gone (the most games any team has), so BPM shows from the first games
+        played = max((sm.games_used for sm in samples.values()), default=0)
+        min_team_games = min(min_team_games, max(1, math.ceil(played * 18 / 28)))
+        min_player_games = min(min_player_games, max(1, math.ceil(played * 5 / 28)))
+        print(f"Season in progress ({played} games at most): {min_team_games} team / {min_player_games} player games to qualify")
     result = calculate_bpm(
         samples,
         args.min_minutes,
         args.min_pct,
-        args.min_team_games,
-        args.min_player_games,
+        min_team_games,
+        min_player_games,
         args.team_context_scale,
     )
     write_outputs(result, out_prefix)
