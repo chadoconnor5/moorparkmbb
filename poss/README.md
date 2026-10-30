@@ -594,6 +594,9 @@ Tap a box for the numbers behind it; **Slices per box** 1 / 2 / 4 / 5 widens the
 Every stint, starters included. A stint is a player's run of possessions on the floor in one half: **Start** = on
 for the half's first possession, **In** = checked in off the bench (for = who left at that dead ball). Garbage time
 is always out (Possessions shows the No garbage time lock); the Half buttons filter stints by half.
+- **Stint record** (W-L-T): a stint is **won** when we outscore them while he's on (+/- above 0), **lost** below 0,
+  **tied** at 0. This game: next to each player's stints and +/-. Season: **Record** and **Win%** (a tie counts half)
+  for every player, across starts and check-ins. Green when he wins more stints than he loses, red when fewer.
 - **This game**: one block per player, each stint with half, score in and out, Poss (both ends averaged), +/- (points
   for minus against in the stint) and, for check-ins, **Swing** = our net per 100 over the 10 possessions (5 each
   way) after he came in minus the 10 before, in the same half (4+ each side). Tap a stint to open Play-by-Play at it.

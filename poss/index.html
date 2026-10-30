@@ -7067,6 +7067,8 @@ function rotView(g) {
    outside possessions, so a stint's +/- can differ from the box by those.
      LEN    possessions, both ends averaged (the Lineups tab's POSS): (ours + theirs) / 2
      +/-    points for minus against during the stint
+     RECORD W-L-T of his stints: a stint is won when we outscore them while he's on (+/- above 0), lost below 0,
+            tied at 0
      SWING  check-ins only: our net per 100 over the 10 possessions (5 each way) from his first one, minus the
             10 before he came in, both inside the same half; needs 4+ on each side, else blank
    Season: per player, starts and bench check-ins apart (different jobs), average +/- and length per stint;
@@ -7107,12 +7109,16 @@ function subFade(stints) {
 }
 const subPer = s => { const p = luPer(s.g); return !p || (p === 'OT*' ? s.per.startsWith('OT') : s.per === p); };
 const subNum = v => v == null ? '—' : sgn(Math.round(v));
+// A player's stint record: won (+/- above 0), lost (below 0), tied (0)
+const subRec = L => { const w = L.filter(s => s.pm > 0).length, l = L.filter(s => s.pm < 0).length; return { w, l, t: L.length - w - l, n: L.length }; };
+const subRecTxt = R => `${R.w}-${R.l}-${R.t}`;
+const subRecCls = R => R.w > R.l ? 'pos' : R.w < R.l ? 'neg' : '';
 const subCls = v => v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '';
 function subsView(g) {
   const sea = UI.luScope === 'season', list = sea ? splitGames() : [g], all = subStints(list), S = all.filter(subPer);
   if (!S.length) return '<div class="muted small">No stints yet: needs possessions with a full five.</div>';
   const nm = id => pShort(g, 'a', id), sc = o => `${o.a}–${o.b}`;
-  const foot = `<div class="small muted" style="margin-top:8px">Stint = his time on the floor in one half. <b>Start</b> = on for the half's first possession; <b>In</b> = checked in off the bench (for = who left at that dead ball). Poss = possessions, both ends averaged. +/- = points for minus against in the stint. <b>Swing</b> (check-ins) = our net per 100 over the ${SUB_W} possessions (${SUB_W / 2} each way) after he came in, minus the ${SUB_W} before, in the same half (${SUB_MIN}+ each side). <b>Fades</b> = the first point in a stint (${FADE_N}+ poss there and in his first 5) where he's ${FADE_DROP}+ below his first 5. Garbage time out.</div>`;
+  const foot = `<div class="small muted" style="margin-top:8px">Stint = his time on the floor in one half. <b>Start</b> = on for the half's first possession; <b>In</b> = checked in off the bench (for = who left at that dead ball). Poss = possessions, both ends averaged. +/- = points for minus against in the stint (a stint is won above 0, lost below, tied at 0). <b>Swing</b> (check-ins) = our net per 100 over the ${SUB_W} possessions (${SUB_W / 2} each way) after he came in, minus the ${SUB_W} before, in the same half (${SUB_MIN}+ each side). <b>Fades</b> = the first point in a stint (${FADE_N}+ poss there and in his first 5) where he's ${FADE_DROP}+ below his first 5. Garbage time out.</div>`;
   const stintRow = (s, withGame) => `<tr ${withGame ? '' : `data-act="sub-jump" data-id="${esc(s.poss[0].plays[0].id)}" style="cursor:pointer"`}>${withGame ? `<td class="l nw">${esc(String(s.g.date).slice(5))} ${s.g.loc === 'A' ? '@' : 'vs'} ${esc(s.g.opp)}</td>` : ''}
     <td class="l"><span class="sub-k ${s.kind}">${s.kind === 'start' ? 'Start' : 'In'}</span></td><td>${esc(PER_NAME(s.per))}</td><td class="nw">${sc(s.from)}</td>
     <td class="l nw">${s.replaced.length ? 'for ' + s.replaced.map(id => esc(nm(id).split(' ')[0])).join(', ') : ''}</td><td class="nw">${sc(s.to)}</td><td>${s.len}</td>
@@ -7121,7 +7127,7 @@ function subsView(g) {
   const ids = [...new Set(S.map(s => s.id))];
   if (!sea) {
     const byP = ids.map(id => ({ id, L: S.filter(s => s.id === id) })).sort((x, y) => y.L.reduce((t, s) => t + s.poss.length, 0) - x.L.reduce((t, s) => t + s.poss.length, 0));
-    return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead>${head(false)}</thead><tbody>${byP.map(P => `<tr class="sub-ph"><td class="l" colspan="9"><b>${esc(nm(P.id))}</b> <span class="muted small">· ${P.L.length} stint${P.L.length === 1 ? '' : 's'} · ${sgn(P.L.reduce((t, s) => t + s.pm, 0))}</span></td></tr>${P.L.map(s => stintRow(s, false)).join('')}`).join('')}</tbody></table></div>
+    return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead>${head(false)}</thead><tbody>${byP.map(P => `<tr class="sub-ph"><td class="l" colspan="9"><b>${esc(nm(P.id))}</b> <span class="muted small">· ${P.L.length} stint${P.L.length === 1 ? '' : 's'} · ${sgn(P.L.reduce((t, s) => t + s.pm, 0))} · </span><b class="small ${subRecCls(subRec(P.L))}" title="Stint record: won-lost-tied">${subRecTxt(subRec(P.L))}</b></td></tr>${P.L.map(s => stintRow(s, false)).join('')}`).join('')}</tbody></table></div>
       <div class="small muted" style="margin-top:4px">Tap a stint to see its plays in Play-by-Play.</div>${foot}`;
   }
   const avg = (L, f) => L.length ? L.reduce((t, s) => t + f(s), 0) / L.length : null;
@@ -7132,16 +7138,18 @@ function subsView(g) {
     .sort((x, y) => y.on - x.on);
   const fadeTxt = F => F.at ? `~${F.at} poss` : F.known ? 'none' : '<span class="muted">—</span>';
   const row = r => { const open = UI.subOpen === r.id;
+    const R = subRec(r.L);
     return `<tr data-act="sub-open" data-id="${esc(r.id)}" style="cursor:pointer" class="${open ? 'sub-on' : ''}"><td class="l nw"><b>${esc(nm(r.id))}</b></td>
-      <td>${r.st.length || '—'}</td><td class="${subCls(avg(r.st, s => s.pm))}">${r.st.length ? sg1(avg(r.st, s => s.pm)) : '—'}</td><td>${r.st.length ? Math.round(avg(r.st, s => s.len)) : '—'}</td>
+      <td class="b nw ${subRecCls(R)}">${subRecTxt(R)}</td><td>${R.n ? Math.round(100 * (R.w + R.t / 2) / R.n) + '%' : '—'}</td>
+      <td class="sub-gap">${r.st.length || '—'}</td><td class="${subCls(avg(r.st, s => s.pm))}">${r.st.length ? sg1(avg(r.st, s => s.pm)) : '—'}</td><td>${r.st.length ? Math.round(avg(r.st, s => s.len)) : '—'}</td>
       <td class="sub-gap">${r.ins.length || '—'}</td><td class="${subCls(avg(r.ins, s => s.pm))}">${r.ins.length ? sg1(avg(r.ins, s => s.pm)) : '—'}</td><td class="b ${subCls(r.swing)}">${subNum(r.swing)}${r.swing != null && r.swN < r.ins.length ? `<span class="tiny muted"> (${r.swN})</span>` : ''}</td><td>${r.ins.length ? Math.round(avg(r.ins, s => s.len)) : '—'}</td>
-      <td class="nw">${fadeTxt(r.fade)}</td></tr>${open ? `<tr class="sub-x"><td colspan="9">
+      <td class="nw">${fadeTxt(r.fade)}</td></tr>${open ? `<tr class="sub-x"><td colspan="11">
       <div class="sub-fit"><div class="sub-fb">${r.fade.B.map(b => `<div class="${b.n < FADE_N ? 'thin' : ''}"><span class="small muted">${b.l} poss in</span><b class="${subCls(b.N.net)}">${subNum(b.N.net)}</b><span class="tiny muted">${b.n} poss</span></div>`).join('')}</div>
       <div class="tbl-wrap"><table class="tbl zebra sub-t"><thead>${head(true)}</thead><tbody>${r.L.map(s => stintRow(s, true)).join('')}</tbody></table></div></div></td></tr>` : ''}`; };
-  return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead><tr><th></th><th colspan="3" class="sub-grp">As starter</th><th colspan="5" class="sub-grp sub-gap">Off the bench</th></tr>
-    <tr><th class="l">Player</th><th>Starts</th><th>Avg +/-</th><th>Avg poss</th><th class="sub-gap">Ins</th><th>Avg +/-</th><th>Swing</th><th>Avg poss</th><th>Fades</th></tr></thead>
+  return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead><tr><th></th><th colspan="2" class="sub-grp">Stints</th><th colspan="3" class="sub-grp sub-gap">As starter</th><th colspan="5" class="sub-grp sub-gap">Off the bench</th></tr>
+    <tr><th class="l">Player</th><th title="Stints won-lost-tied (+/- above, below, at 0)">Record</th><th title="Share of stints won (a tie counts half)">Win%</th><th class="sub-gap">Starts</th><th>Avg +/-</th><th>Avg poss</th><th class="sub-gap">Ins</th><th>Avg +/-</th><th>Swing</th><th>Avg poss</th><th>Fades</th></tr></thead>
     <tbody>${rows.map(row).join('')}</tbody></table></div>
-    <div class="small muted" style="margin-top:4px">Tap a player for his net by how deep into a stint, and every stint. Swing (n) = check-ins with a full window, when fewer than all. Fades — = not enough possessions yet.</div>${foot}`;
+    <div class="small muted" style="margin-top:4px">Record = his stints won-lost-tied (we outscored them, they outscored us, even while he was on); Win% counts a tie as half. Tap a player for his net by how deep into a stint, and every stint. Swing (n) = check-ins with a full window, when fewer than all. Fades — = not enough possessions yet.</div>${foot}`;
 }
 
 /* ---------- Player On/Off, pair synergy and projected fives (Lineups → View) ----------
