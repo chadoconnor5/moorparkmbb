@@ -7155,25 +7155,27 @@ function subsView(g) {
    A stint = his time on the court from when he checks in (or starts the half) until he checks out (or the half
    ends) - the same stints as Subs. It's WON when we outscore them while he's out there (+/- above 0), LOST when they
    outscore us, TIED when even. Per player: his record, win % (a tie counts half), total and average +/-, his best
-   and worst stint, and his record as a starter and off the bench. This game also lists every stint, in order, as
+   and worst stint, his record as a starter and off the bench, and (season) by the opponent's quadrant (quadOf). This game also lists every stint, in order, as
    W / L / T with its +/-. Garbage time out (as every lineup view). */
 function stintRecView(g) {
   const sea = UI.luScope === 'season', S = subStints(sea ? splitGames() : [g]).filter(subPer);
   if (!S.length) return '<div class="muted small">No stints yet: needs a full five on the floor.</div>';
   const nm = id => pShort(g, 'a', id), pct = R => R.n ? Math.round(100 * (R.w + R.t / 2) / R.n) : null;
   const rows = [...new Set(S.map(s => s.id))].map(id => { const L = S.filter(s => s.id === id), R = subRec(L), pm = L.reduce((t, s) => t + s.pm, 0);
+    const qd = q => subRec(L.filter(s => q.includes(quadOf(s.g))));
     return { id, L, R, pm, pct: pct(R), st: subRec(L.filter(s => s.kind === 'start')), bn: subRec(L.filter(s => s.kind === 'in')),
+      q: [qd(['1A', '1']), qd(['2']), qd(['3']), qd(['4'])],
       best: Math.max(...L.map(s => s.pm)), worst: Math.min(...L.map(s => s.pm)) }; })
     .sort((a, b) => (b.pct - a.pct) || (b.R.n - a.R.n));
   const rec = R => R.n ? `<span class="${subRecCls(R)}">${subRecTxt(R)}</span>` : '<span class="muted">—</span>';
   const chip = s => { const k = s.pm > 0 ? 'W' : s.pm < 0 ? 'L' : 'T';
     return `<span class="sr-chip sr-${k}" title="${esc(PER_NAME(s.per))}: ${s.from.a}–${s.from.b} to ${s.to.a}–${s.to.b}">${k} ${sgn(s.pm)}</span>`; };
   const all = subRec(S);
-  return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead><tr><th class="l">Player</th><th>Record</th><th>Win%</th><th>Stints</th><th>+/-</th><th>Avg +/-</th><th>Best</th><th>Worst</th><th class="sub-gap">As starter</th><th>Off the bench</th>${sea ? '' : '<th class="l sub-gap">Every stint, in order</th>'}</tr></thead>
+  return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead><tr><th class="l">Player</th><th>Record</th><th>Win%</th><th>Stints</th><th>+/-</th><th>Avg +/-</th><th>Best</th><th>Worst</th><th class="sub-gap">As starter</th><th>Off the bench</th>${sea ? '<th class="sub-gap" title="Stints in Q1 games (Q1A included), as the leaderboard\'s Quads">Q1</th><th>Q2</th><th>Q3</th><th>Q4</th>' : '<th class="l sub-gap">Every stint, in order</th>'}</tr></thead>
     <tbody>${rows.map(r => `<tr><td class="l nw"><b>${esc(nm(r.id))}</b></td><td class="b nw">${rec(r.R)}</td><td class="${r.pct > 50 ? 'pos' : r.pct < 50 ? 'neg' : ''}">${r.pct}%</td><td>${r.R.n}</td>
       <td class="${subCls(r.pm)}">${sgn(r.pm)}</td><td class="${subCls(r.pm / r.R.n)}">${sg1(r.pm / r.R.n)}</td><td class="${subCls(r.best)}">${sgn(r.best)}</td><td class="${subCls(r.worst)}">${sgn(r.worst)}</td>
-      <td class="nw sub-gap">${rec(r.st)}</td><td class="nw">${rec(r.bn)}</td>${sea ? '' : `<td class="l sub-gap"><div class="sr-chips">${r.L.map(chip).join('')}</div></td>`}</tr>`).join('')}</tbody></table></div>
-    <div class="small muted" style="margin-top:6px">A stint = his time on the court from when he checks in (or starts the half) until he checks out (or the half ends). <b>Won</b> = we outscored them while he was out there, <b>lost</b> = they outscored us, <b>tied</b> = even. Win% counts a tie as half. Best / Worst = his best and worst stint by +/-. Garbage time out. ${sea ? '' : 'Hover a stint for its half and the score in and out.'} Team: ${all.n} stints.</div>`;
+      <td class="nw sub-gap">${rec(r.st)}</td><td class="nw">${rec(r.bn)}</td>${sea ? r.q.map((R, i) => `<td class="nw${i ? '' : ' sub-gap'}">${rec(R)}</td>`).join('') : `<td class="l sub-gap"><div class="sr-chips">${r.L.map(chip).join('')}</div></td>`}</tr>`).join('')}</tbody></table></div>
+    <div class="small muted" style="margin-top:6px">A stint = his time on the court from when he checks in (or starts the half) until he checks out (or the half ends). <b>Won</b> = we outscored them while he was out there, <b>lost</b> = they outscored us, <b>tied</b> = even. Win% counts a tie as half. Best / Worst = his best and worst stint by +/-. Garbage time out. ${sea ? `Q1–Q4 = his record in stints against each quadrant (opponent's rating and the venue, as the leaderboard's Quads; Q1 includes Q1A)${ratingsData() ? '' : ': needs the ratings on this iPad'}.` : 'Hover a stint for its half and the score in and out.'} Team: ${all.n} stints.</div>`;
 }
 
 /* ---------- Player On/Off, pair synergy and projected fives (Lineups → View) ----------
