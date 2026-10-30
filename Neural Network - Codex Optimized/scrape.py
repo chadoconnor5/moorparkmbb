@@ -40,6 +40,10 @@ import ssl
 import subprocess
 import sys
 import time
+
+# Every script this starts reads and writes UTF-8 (on Windows Python's default is cp1252, which can't save the
+# leaderboard page's ─ ▲ → characters: a build there once left index.html empty)
+os.environ["PYTHONUTF8"] = "1"
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -267,6 +271,11 @@ class State:
         self.missing_path = self.dir / "missing_boxscores.md"
         self.master = self._load(self.master_path, {"season": season, "teams": {}, "games": {}})
         self.ledger = self._load(self.ledger_path, {})
+        # A box score link posted before its stats has no team names; an earlier run filed it as "Visitor vs Home"
+        # and then skipped the link as already seen. Drop those so the link is read again.
+        for key in [k for k, g in self.games.items() if placeholder_names(g.get("names"))]:
+            self.games.pop(key, None)
+            self.ledger.pop(key, None)
 
     @staticmethod
     def _load(path, default):
@@ -742,6 +751,9 @@ class Run:
             except urllib.error.HTTPError as e:
                 print(f"    {e.code} — skipped")
                 continue
+            if placeholder_names([bs.get("visitor"), bs.get("home")]):
+                print("    no teams on the page yet (stats not posted) — read again next run")
+                continue
             self.box_cache[url] = bs
             g = match_game(self.state, d, bs)
             if g is None:
@@ -903,6 +915,12 @@ def match_game(state: State, d: date, bs: dict):
         if score > best_score:
             best, best_score = g, score
     return best
+
+
+def placeholder_names(names) -> bool:
+    """A box score page without its teams yet: the labels are missing or just "Visitor" / "Home"."""
+    names = [(n or "").strip().lower() for n in (names or [])]
+    return len(names) < 2 or any(n in ("", "visitor", "home", "visitors") for n in names)
 
 
 def new_game(state: State, d: date, bs: dict) -> dict:
@@ -1236,6 +1254,12 @@ def publish(season: str, label: str):
     paths = [p for p in (Path(__file__).resolve().parent.name, "index.html", "season_data", "team_logos", "poss")
              if (root / p).exists()]
     git = lambda *a: subprocess.run(["git", "-C", str(root), *a], capture_output=True, text=True)
+    page = root / "index.html"
+    if page.exists() and page.stat().st_size < 1_000_000:   # the real page is ~8 MB: the build failed partway
+        git("checkout", "--", "index.html")
+        paths = [p for p in paths if p != "index.html"]
+        print("\nThe leaderboard page didn't build (index.html came out nearly empty) — kept the last good one, not "
+              "pushing it. Look above for the error.")
     git("add", "-A", "--", *paths)
     if git("diff", "--cached", "--quiet").returncode == 0:
         print("\nNothing new to push.")

@@ -1,4 +1,6 @@
 @echo off
+rem Python reads and writes UTF-8 (the leaderboard page has characters Windows' default can't save)
+set PYTHONUTF8=1
 rem Moorpark scraping: opens Command Prompt in the project folder and gets the latest code.
 rem Copy this file to the Desktop and double-click it (it works from anywhere).
 cd /d "%USERPROFILE%\Documents\GitHub\moorparkmbb\Neural Network - Codex Optimized"

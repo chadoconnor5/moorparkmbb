@@ -1,4 +1,6 @@
 @echo off
+rem Python reads and writes UTF-8 (the leaderboard page has characters Windows' default can't save)
+set PYTHONUTF8=1
 rem Moorpark NIGHTLY: run this once a night, after the games are final.
 rem Goes to the project folder, gets the latest code, then runs the nightly scrape
 rem (screenshots first, then the site, then rebuild and push). The window stays open at the end.

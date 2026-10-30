@@ -418,7 +418,7 @@ def _sl_game_flow(stats_dir: Path) -> dict:
             if s_:
                 prev = s_
         mx_lead, mx_def = max([0] + margins), max([0] + [-m for m in margins])
-        key = (f"{int(f.name[4:6])}/{int(f.name[6:8])}/{f.name[:4]}", frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
+        key = (f"{int(f.name[4:6])}/{int(f.name[6:8])}/{f.name[:4]}", frozenset(_pbp_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
         out[key] = {
             "excitement": round(sum(abs(wps[k + 1] - wps[k]) for k in range(len(wps) - 1)), 2),
             "tension": round(100.0 * sum((1.0 - 2.0 * abs(wps[k] - 0.5)) * dt[k] for k in range(len(dt))) / span, 1),
@@ -3381,6 +3381,12 @@ def attach_similar_players(season_players: dict, team_rosters: dict):
                         row["sim_mode"] = "shoot"
 
 
+def _pbp_norm(name: str) -> str:
+    """_box_norm of a play-by-play file's team label, "College of Marin" read as "Marin" (the labels are the box score
+    page's; the leaderboard's names drop the "College of")."""
+    return _box_norm(re.sub(r"^college of (the )?", "", (name or "").strip(), flags=re.I))
+
+
 def _box_norm(name: str) -> str:
     """Normalize a team name for game-box lookup keys.
 
@@ -3744,7 +3750,7 @@ def build_game_boxes(stats_dir) -> dict:
             pj = json.load(open(f))
         except Exception:
             continue
-        gk = (f.name[:8], frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
+        gk = (f.name[:8], frozenset(_pbp_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
         if pj.get("periods"):
             pbp_periods[gk] = pj["periods"]
         if pj.get("plays"):
@@ -3885,7 +3891,7 @@ def build_game_boxes(stats_dir) -> dict:
         record["p"] = round(sum(poss_vals) / len(poss_vals), 1) if poss_vals else None
         # Half / overtime box scores (when the page had them): "hv" {"1": {team: rows}, "2": ...}
         stamp8 = box_path.parts[-2].split("_")[0]
-        gk = (stamp8, frozenset(_box_norm(x) for x in raw_names))
+        gk = (stamp8, frozenset(_pbp_norm(x) for x in raw_names))
         seen = pbp_seen.get(gk) or {}
         # Players who didn't play (0 minutes, nothing in the box) come off the box score, unless the play-by-play
         # shows them on the floor.
@@ -3907,7 +3913,7 @@ def build_game_boxes(stats_dir) -> dict:
         # Win-probability chart: "wp" [visitor's box name, periods, plays string, visitor players, home players] (_wp_events)
         fl = pbp_flow.get(gk)
         if fl and fl[2][0]:
-            vis = next((tn for tn in names if _box_norm(tn) == _box_norm(fl[0])), None)
+            vis = next((tn for tn in names if _pbp_norm(tn) == _pbp_norm(fl[0])), None)
             if vis:
                 home = next(tn for tn in names if tn != vis)
 
@@ -15192,7 +15198,11 @@ def main():
         subset_by_season=subset_by_season,
     )
     output = Path(args.output)
-    output.write_text(html)
+    # UTF-8 always (Windows' default can't hold the page's characters), and written beside then swapped in, so a
+    # failed write never leaves the site an empty page
+    tmp = output.with_suffix(".tmp")
+    tmp.write_text(html, encoding="utf-8")
+    tmp.replace(output)
     season_dir = output.parent / SEASON_DATA_DIR
     season_dir.mkdir(parents=True, exist_ok=True)
     if args.fast:
@@ -15205,7 +15215,7 @@ def main():
         writable = season_files
     total = 0
     for filename, content in writable.items():
-        (season_dir / filename).write_text(content)
+        (season_dir / filename).write_text(content, encoding="utf-8")
         total += len(content)
     print(f"  Saved: {season_dir}/ ({len(writable)} files, {total // 1024} KB)")
     logo_src = Path("internal_data/team_logos/png")

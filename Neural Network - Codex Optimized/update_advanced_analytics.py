@@ -134,6 +134,12 @@ def _resolve_canonical_team_name(opp_name):
     matched = _match_canonical_team_name(opp_name)
     if matched:
         return matched
+    # "College of Marin" / "College of the Siskiyous" (box score and play-by-play labels) -> "Marin" / "Siskiyous"
+    bare = re.sub(r"^college of (the )?", "", (opp_name or "").strip(), flags=re.I)
+    if bare != (opp_name or "").strip():
+        matched = _match_canonical_team_name(bare)
+        if matched:
+            return matched
     alias = OPPONENT_ALIASES.get(opp_name)
     if alias:
         matched = _match_canonical_team_name(alias)
