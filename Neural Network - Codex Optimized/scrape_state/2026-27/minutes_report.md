@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-10-29T22:47:47
+Updated 2026-10-29T22:54:14
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
@@ -26,12 +26,14 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Pasadena City | 1 | 0 | 0 | 0 |
 | Reedley | 0 | 1 | 0 | 0 |
 | Rio Hondo | 1 | 0 | 0 | 0 |
+| Riverside | 1 | 0 | 0 | 0 |
 | Saddleback | 1 | 0 | 0 | 0 |
 | San Diego Mesa | 1 | 0 | 0 | 0 |
 | Santa Ana | 1 | 0 | 0 | 0 |
 | Santiago Canyon | 1 | 0 | 0 | 0 |
 | Southwestern | 1 | 0 | 0 | 0 |
 | Ventura | 1 | 0 | 0 | 0 |
+| West LA | 1 | 0 | 0 | 0 |
 | West Valley | 1 | 0 | 0 | 0 |
 
 ## Games without real minutes (1)
