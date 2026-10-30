@@ -167,12 +167,12 @@ function renderPbpLineups(team) {
   const size = +pluSize, skipped = D.skippedGames || [];
   box.innerHTML = `
     <div style="color:#ccc;font-size:0.8rem;text-align:center;margin:0 0 8px">
-      Lineups from <b style="color:#ffd700">${D.pbpGames} of ${D.teamGames} games</b> (play-by-play that holds together)
+      Lineups from <b style="color:#ffd700">${D.pbpGames} of ${D.teamGames} games</b> (only the stretches where the substitutions hold together)
       · adjusted against ${D.ratingsSeason} team ratings (league avg ORtg ${D.leagueAvg ? D.leagueAvg.ortg : '—'} / DRtg ${D.leagueAvg ? D.leagueAvg.drtg : '—'})
       ${skipped.length ? `<br><span style="color:#999">Not used: ${skipped.map(g => `${g.date.slice(5).replace('-', '/')} ${g.opponent} (${g.why})`).join(' · ')}</span>` : ''}</div>` +
     __luTable(__pluLevView(D, pluLev), { size: pluSize, sort: pluSort, dir: pluDir, min: pluMin, ff: pluFF, lev: pluLev, ns: 'plu' }) + `
     <div style="color:#999;font-size:0.72rem;text-align:center;margin-top:6px">
-      From the play-by-play: who was on the floor for every play (substitutions; a half-logged one is set right from what the players do next, and a game whose minutes don't match the box score is left out).
+      From the play-by-play: who was on the floor for every play, from the substitutions. Where the log doesn't hold together (a player acting while it has him on the bench, a check-in without its check-out), that stretch between substitutions is left out; only the stretches that needed no repair count.
       Possessions = FGA − OREB + TO + 0.475 FTA. Garbage time out. Leverage as in the possession tracker: High within 3, Medium 4–12 and still catchable, Low out of reach; Clutch the last 5:00 or overtime within 5.
       Adj: each game adjusted for the opponent's rating and home court${pluFF === 'adj' && D.factorsAdjusted ? '; four factors against the opponent\'s adjusted factors' : ''}.
       ${size === 1 ? 'Players: every possession that player was on the floor.' : size < 5 ? 'Units = how many five-man units this group was part of.' : 'GP = games this five played together.'} Click a header to sort.</div>`;

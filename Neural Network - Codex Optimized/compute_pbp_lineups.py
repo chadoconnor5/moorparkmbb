@@ -8,9 +8,12 @@ catchable / LOW; CLUTCH the last 5:00 or overtime within 5; garbage time out, st
 30 / 25 at 8:00 / 20 at 5:00 / 15 at 3:00 / 10 at 1:00). The units then go through adjust_lineups.adjust - the
 same opponent adjustment (ratings, home court, four factors, time of season) as Moorpark's tracker lineups.
 
-A game is used only when its play-by-play holds together: five on the floor for each team (substitutions can't be
-followed otherwise), every player's minutes within a couple of minutes of the box score, the final score matching.
-The rest are listed with the reason; nothing is estimated for them.
+Scorekeepers log substitutions loosely (a check-in minutes before the matching check-out, a player acting while the
+log has him on the bench), so who was on the floor is repaired from what players do. Only the stretches that needed
+no repair count: a stretch between two of a team's logged substitutions with any repair in it (or other than five on
+the floor) is left out of that team's units - nothing is estimated. A game is set aside only when names don't match
+the box score or most of it can't be followed. Minutes against the box score (whole game and half by half) are
+noted, not used to drop games: the box score is itself sometimes wrong (two players' minutes swapped).
 
     python3 compute_pbp_lineups.py                 # current season -> internal_data/pbp_lineups/<season>/<team>.json
     python3 compute_pbp_lineups.py --season 2025-26 --team Citrus --verbose
@@ -24,6 +27,7 @@ from datetime import date
 from pathlib import Path
 
 import adjust_lineups as al
+import play_by_play as pbpmod
 import update_advanced_analytics as uaa
 from ccc_config import DEFAULT_SEASON
 
@@ -31,7 +35,8 @@ OUT = Path("internal_data/pbp_lineups")
 MIN_GAMES = 1          # a team's page needs at least this many usable games (the page shows the count)
 MIN_TOL = 2.5          # minutes: a player's play-by-play minutes vs the box score
 PER_TOL = 2.0          # minutes: the same, half by half, against the page's 1st Half / 2nd Half box scores
-BAD_FIVE_SHARE = 0.03  # share of plays with other than five on the floor before a game is set aside
+BAD_FIVE_SHARE = 0.25  # share of plays with other than five on the floor before a game is set aside (the stretches
+                       # around any of them are left out anyway)
 
 
 def slug(s):
@@ -52,6 +57,15 @@ def _key(name):
     return clean(last), clean(first)
 
 
+def _tokens(name):
+    """A name's words, any order, suffixes and (nicknames) dropped: 'SILVA,CAIO DA' and 'Caio Da Silva' -> {caio, da,
+    silva} (the play-by-play writes some names out of order)."""
+    n = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+    n = re.sub(r"^#\S+\s+", "", n)
+    n = re.sub(r"\(.*?\)", " ", n)
+    return frozenset(w for w in re.split(r"[^a-z']+", n.replace("'", "")) if w and w not in ("jr", "sr", "ii", "iii", "iv"))
+
+
 class Roster:
     """A team's box score players, matched to the play-by-play's 'LAST,FIRST' names."""
 
@@ -59,14 +73,16 @@ class Roster:
         self.players = []
         for r in rows:
             raw = r.get("name", "")
-            m = re.match(r"^#(\S+)\s+(.*)$", raw)
+            # "#31 Brandon Woodards", or with the position first on some pages: "F 31 Brandon Woodards"
+            m = re.match(r"^(?:[A-Z]{1,2}\s+)?#?(\d+)\s+(.*)$", raw) or re.match(r"^#(\S+)\s+(.*)$", raw)
             num, name = (m.group(1), m.group(2)) if m else ("", raw)
+            raw = name
             st = r.get("stats") or {}
             try:
                 mins = int(str(st.get("MIN") or "0").strip() or 0)
             except ValueError:
                 mins = 0
-            self.players.append({"name": name.strip(), "num": num, "key": _key(raw), "min": mins,
+            self.players.append({"name": name.strip(), "num": num, "key": _key(raw), "tok": _tokens(raw), "min": mins,
                                  "starter": bool(r.get("is_starter"))})
         self.cache = {}
 
@@ -74,9 +90,12 @@ class Roster:
         if pbp_name in self.cache:
             return self.cache[pbp_name]
         last, first = _key(pbp_name)
+        tok = _tokens(pbp_name)
         hit = [p for p in self.players if p["key"] == (last, first)] or \
+              [p for p in self.players if p["tok"] == tok] or \
               [p for p in self.players if p["key"][0] == last and p["key"][1][:1] == first[:1]] or \
-              [p for p in self.players if p["key"][0] == last]
+              [p for p in self.players if p["key"][0] == last] or \
+              [p for p in self.players if tok and (p["tok"] <= tok or tok <= p["tok"])]
         p = hit[0] if len(hit) == 1 else None
         self.cache[pbp_name] = p
         return p
@@ -142,8 +161,34 @@ def _poss(c):
     return c.get("fga", 0) - c.get("oreb", 0) + c.get("tov", 0) + 0.475 * c.get("fta", 0)
 
 
-def game_units(pbp, rosters):
-    """{side: units} for both teams of one game, or (None, reason). rosters: [visitor Roster, home Roster]."""
+def _unsure_spans(plays, repairs, end):
+    """Per team, the stretches between its logged substitutions (and period starts) that had a repair in them:
+    [(from, to)] in elapsed seconds. repairs: [(side, seconds)]."""
+    out = []
+    for s in (0, 1):
+        bounds = sorted({0, 1200, 2400, end} | {2400 + 300 * k for k in range(1, (end - 2400) // 300)} |
+                        {_clock(p["period"], p["clock"]) for p in plays if p["team"] == s and p["action"] in ("enters the game", "goes to the bench")})
+        bad = set()
+        for side, t in repairs:
+            if side != s:
+                continue
+            k = max(i for i, b in enumerate(bounds) if b <= t)
+            bad.add(min(k, len(bounds) - 2))
+            if k > 0 and bounds[k] == t:   # at a substitution: the stretch before it too
+                bad.add(k - 1)
+        spans, merged = sorted((bounds[k], bounds[k + 1]) for k in bad), []
+        for a, b in spans:
+            if merged and merged[-1][1] >= a:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+            else:
+                merged.append((a, b))
+        out.append(merged)
+    return out
+
+
+def game_units(pbp, rosters, unsure=None):
+    """{side: units} for both teams of one game, or (None, reason). rosters: [visitor Roster, home Roster]. Runs twice:
+    first to find the repairs, then counting only the stretches without one (unsure: _unsure_spans)."""
     cols = pbp.get("cols") or ["period", "clock", "team", "player", "action", "v", "h"]
     plays = [dict(zip(cols, p)) for p in pbp["plays"]]
     periods = max(p["period"] for p in plays)
@@ -177,17 +222,23 @@ def game_units(pbp, rosters):
 
     last_seen = {}
     fixes = [0]
+    repairs = []   # (side, seconds): where the five had to be repaired, or wasn't five
+
+    def off(s, t):
+        """Is team s's five uncertain at t (second pass)?"""
+        return bool(unsure) and any(a <= t < b for a, b in unsure[s])
 
     def reconcile(s, j, per, actor):
         """Five on the floor for team s at play j: the player acting is on; someone whose next entry is 'enters the
         game' was off; someone whose next entry is anything else (an action, 'goes to the bench') was on."""
+        tj = _clock(plays[j]["period"], plays[j]["clock"])
         if actor and actor not in on[s]:
-            on[s].add(actor); fixes[0] += 1
+            on[s].add(actor); fixes[0] += 1; repairs.append((s, tj))
         while len(on[s]) > 5:
             cand = [n for n in on[s] if n != actor]
             nxt = {n: next_act(s, n, j, per) for n in cand}
             out = [n for n in cand if nxt[n][1] == "enters the game"] or [n for n in cand if nxt[n][0] is None] or cand
-            on[s].discard(min(out, key=lambda n: last_seen.get((s, n), -1))); fixes[0] += 1
+            on[s].discard(min(out, key=lambda n: last_seen.get((s, n), -1))); fixes[0] += 1; repairs.append((s, tj))
         while len(on[s]) < 5:
             cand = []
             for p2 in rosters[s].players:
@@ -199,7 +250,7 @@ def game_units(pbp, rosters):
                     cand.append((k, n))
             if not cand:
                 break
-            on[s].add(min(cand)[1]); fixes[0] += 1
+            on[s].add(min(cand)[1]); fixes[0] += 1; repairs.append((s, tj))
 
     secs_on = [{}, {}]
     secs_per = [{}, {}]   # (name, period) -> seconds: each half's minutes, checked against that half's box score
@@ -234,7 +285,7 @@ def game_units(pbp, rosters):
                 for s2 in (0, 1):
                     for n in on[s2]:
                         credit(s2, n, period, gap)
-                    if not gt:
+                    if not gt and not off(s2, last_t):
                         _unit(units[s2], on[s2], rosters[s2])["secs"] += gap
                 last_t += gap
             period = p["period"]
@@ -253,7 +304,7 @@ def game_units(pbp, rosters):
             for s in (0, 1):
                 for n in on[s]:
                     credit(s, n, p["period"], t - last_t)
-                if not gt:
+                if not gt and not off(s, last_t):
                     _unit(units[s], on[s], rosters[s])["secs"] += t - last_t
                     if band:
                         _unit(units[s], on[s], rosters[s])["lev"].setdefault(band, _blk())["secs"] += t - last_t
@@ -261,6 +312,7 @@ def game_units(pbp, rosters):
                         _unit(units[s], on[s], rosters[s])["lev"].setdefault("clutch", _blk())["secs"] += t - last_t
             if cur is not None and len(on[0]) == 5 and len(on[1]) == 5:
                 cur["secs"] += t - last_t
+                cur["unsure"] = cur.get("unsure") or off(0, last_t) or off(1, last_t)
             last_t = t
         # substitutions at this moment, all together
         if p["action"] in ("enters the game", "goes to the bench"):
@@ -294,6 +346,7 @@ def game_units(pbp, rosters):
         checked += 1
         if len(on[0]) != 5 or len(on[1]) != 5:
             bad_five += 1
+            repairs.extend((s2, t) for s2 in (0, 1) if len(on[s2]) != 5)
         # the play's counts, for the five of each team
         s = p["team"]
         c = _counts(p["action"])
@@ -307,10 +360,13 @@ def game_units(pbp, rosters):
                 cur["c"][s][k] = cur["c"][s].get(k, 0) + v
             cur["pts"][0] += pts[0]; cur["pts"][1] += pts[1]
             cur["gt"] = cur["gt"] or (gt and not ot)
+            cur["unsure"] = cur.get("unsure") or off(0, t) or off(1, t)
             if band:
                 cur["lev"][band] = cur["lev"].get(band, 0) + 1
         if not gt and len(on[0]) == 5 and len(on[1]) == 5:
             for side in (0, 1):
+                if off(side, t):
+                    continue
                 u = _unit(units[side], on[side], rosters[side])
                 blocks = [u, u["lev"].setdefault(band, _blk())] + ([u["lev"].setdefault("clutch", _blk())] if clutch else [])
                 for b in blocks:
@@ -330,13 +386,16 @@ def game_units(pbp, rosters):
         return None, f"five on the floor could not be followed ({bad_five} of {checked} plays)"
     if unknown:
         return None, "play-by-play names not in the box score: " + ", ".join(sorted(unknown))
+    if unsure is None:   # second pass: the same, counting only the stretches that needed no repair
+        return game_units(pbp, rosters, _unsure_spans(plays, repairs, end))
+    notes = []
     for s in (0, 1):
         real = sum(p["min"] for p in rosters[s].players) >= 150
         if real:
-            off = [f"{p['name']} {secs_on[s].get(p['name'], 0) / 60:.0f} vs {p['min']}" for p in rosters[s].players
+            wrong = [f"{p['name']} {secs_on[s].get(p['name'], 0) / 60:.0f} vs {p['min']}" for p in rosters[s].players
                    if abs(secs_on[s].get(p["name"], 0) / 60 - p["min"]) > MIN_TOL]
-            if off:
-                return None, "minutes don't match the box score: " + "; ".join(off[:3])
+            if wrong:
+                notes.append("minutes vs the box score: " + "; ".join(wrong[:3]))
     # Half by half: each player's play-by-play minutes in a period against that period's box score (the page's
     # 1st Half / 2nd Half tabs) - a wrong guess at who started the 2nd half shows up here.
     labels = (pbp.get("visitor"), pbp.get("home"))
@@ -358,7 +417,8 @@ def game_units(pbp, rosters):
                 have = secs_per[s].get((pl["name"], int(per)), 0) / 60
                 if abs(have - mins[pl["key"]]) > PER_TOL:
                     half = {"1": "1st half", "2": "2nd half"}.get(str(per), "OT")
-                    return None, f"{half} minutes don't match the box score: {pl['name']} {have:.0f} vs {mins[pl['key']]}"
+                    notes.append(f"{half} minutes vs the box score: {pl['name']} {have:.0f} vs {mins[pl['key']]}")
+                    break
     out = []
     for s in (0, 1):
         us = []
@@ -371,9 +431,10 @@ def game_units(pbp, rosters):
         out.append(us)
     st = [{"v": list(x["key"][0]), "h": list(x["key"][1]), "secs": x["secs"],
            "poss": [round(_poss(x["c"][0]), 2), round(_poss(x["c"][1]), 2)], "pts": x["pts"], "gt": x["gt"],
-           "lev": max(x["lev"], key=x["lev"].get) if x["lev"] else None}
+           "lev": max(x["lev"], key=x["lev"].get) if x["lev"] else None, "unsure": bool(x.get("unsure"))}
           for x in stints if x["secs"] > 0 or any(x["c"][0].values()) or any(x["c"][1].values())]
-    return out, {"fixes": fixes[0], "stints": st}
+    clean = [round(1 - sum(b - a for a, b in unsure[s]) / end, 3) for s in (0, 1)]
+    return out, {"fixes": fixes[0], "stints": st, "clean": clean, "notes": notes}
 
 
 def _blk():
@@ -422,22 +483,28 @@ def build(season, only=None, verbose=False):
     all_stints = []
     for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
         d = date(int(f.name[:4]), int(f.name[4:6]), int(f.name[6:8]))
-        pbp = json.load(open(f))
+        pbp = pbpmod.fix_plays(json.load(open(f)))
         if not pbp.get("plays"):
             continue   # half box scores only, no play-by-play
         names = [uaa.resolve_opponent(pbp["visitor"]) or pbp["visitor"], uaa.resolve_opponent(pbp["home"]) or pbp["home"]]
         boxes = [box_for(season, n, d) for n in names]
         box = next((b for b in boxes if b), None)
         rows = []
+        bteams = (box or {}).get("teams") or {}
         for side, label in ((0, pbp["visitor"]), (1, pbp["home"])):
-            rows.append(Roster(((box or {}).get("teams") or {}).get(label) or []))
+            # the box score's label for this team: the same text, else the same school ("College of Marin" / "Marin")
+            lab = label if label in bteams else next((k for k in bteams if (uaa.resolve_opponent(k) or k) == names[side]), label)
+            rows.append(Roster(bteams.get(lab) or []))
         res, why = (None, "no box score saved for it") if box is None else game_units(pbp, rows)
+        info = None
         if res is not None:
             if verbose:
-                print(f"  {d} {pbp['visitor']} at {pbp['home']}: used ({why['fixes']} substitution repairs)")
+                print(f"  {d} {pbp['visitor']} at {pbp['home']}: used, {round(100 * why['clean'][0])}% / "
+                      f"{round(100 * why['clean'][1])}% of the game clean ({why['fixes']} repairs)"
+                      + "".join(f"\n      note: {n}" for n in why["notes"]))
             all_stints.append({"date": d.isoformat(), "visitor": names[0], "home": names[1],
                                "site": site_for(season, names[1], d), "stints": why["stints"]})
-            why = None
+            info, why = why, None
         for s, team in enumerate(names):
             if only and team != only:
                 continue
@@ -452,7 +519,7 @@ def build(season, only=None, verbose=False):
                     print(f"  {team} {d} vs {opp}: skipped ({why})")
                 continue
             entry["games"].append({"id": gid, "date": d.isoformat(), "opponent": opp, "site": site_for(season, team, d),
-                                   "units": res[s]})
+                                   "clean": info["clean"][s], "units": res[s]})
     out_dir = OUT / season
     out_dir.mkdir(parents=True, exist_ok=True)
     # Every usable game's stints, for compute_bpr.py (internal: not published)

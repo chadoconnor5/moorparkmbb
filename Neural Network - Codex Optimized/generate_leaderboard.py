@@ -373,7 +373,7 @@ def _sl_game_flow(stats_dir: Path) -> dict:
     pdir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
         try:
-            pj = json.load(open(f))
+            pj = _pbp_fix(json.load(open(f)))
         except Exception:
             continue
         plays = pj.get("plays") or []
@@ -1352,6 +1352,14 @@ def _display_name(name):
     return s
 
 
+def _adv_clean_needed(stats_dir, games: int) -> int:
+    """Clean games (real minutes, shots) a team needs before its players' minutes-based stats show: 18 for a past
+    season; 2026-27, the same share of its games so far (18 of a 28-game season), at most 18."""
+    if Path(stats_dir) != Path(STATS_DIR):
+        return 18
+    return min(18, max(1, math.ceil(games * 18 / 28)))
+
+
 def load_players(stats_dir=None):
     """Load all qualified players from all teams."""
     if stats_dir is None:
@@ -1390,18 +1398,19 @@ def load_players(stats_dir=None):
 
             # Count clean games: real box score (MIN>=30, FGA>0)
             gl_path = team_dir / "game_log.json"
-            clean_games = 0
+            clean_games = log_games = 0
             if gl_path.exists():
                 try:
                     gl_data = json.load(open(gl_path))
                     for gm in gl_data.get("games", []):
+                        log_games += 1
                         ts = gm.get("team_stats") or {}
                         if gm.get("MIN", 0) >= 30 and ts.get("FGA", 0) > 0:
                             clean_games += 1
                 except Exception:
                     pass
             # Advanced stats require 18+ clean games and real minutes
-            adv_eligible = not is_fake and clean_games >= 18
+            adv_eligible = not is_fake and clean_games >= _adv_clean_needed(stats_dir, log_games)
 
             # For fake teams, check if there's meaningful minute variance
             if is_fake:
@@ -1627,17 +1636,18 @@ def load_full_rosters(stats_dir=None):
             avg_player_min_pg = total_player_min / games_played if games_played > 0 else 0
             is_fake = avg_player_min_pg < 100
             gl_path = team_dir / "game_log.json"
-            clean_games = 0
+            clean_games = log_games = 0
             if gl_path.exists():
                 try:
                     gl_data = json.load(open(gl_path))
                     for gm in gl_data.get("games", []):
+                        log_games += 1
                         ts = gm.get("team_stats") or {}
                         if gm.get("MIN", 0) >= 30 and ts.get("FGA", 0) > 0:
                             clean_games += 1
                 except Exception:
                     pass
-            adv_eligible = not is_fake and clean_games >= 18
+            adv_eligible = not is_fake and clean_games >= _adv_clean_needed(stats_dir, log_games)
 
             rows = []
             for p in pdata["players"]:
@@ -2027,18 +2037,19 @@ def load_conf_players(stats_dir=None):
 
             # Count clean games from full-season game_log (MIN>=30, FGA>0)
             gl_path = team_dir / "game_log.json"
-            clean_games = 0
+            clean_games = log_games = 0
             if gl_path.exists():
                 try:
                     gl_data = json.load(open(gl_path))
                     for gm in gl_data.get("games", []):
+                        log_games += 1
                         ts = gm.get("team_stats") or {}
                         if gm.get("MIN", 0) >= 30 and ts.get("FGA", 0) > 0:
                             clean_games += 1
                 except Exception:
                     pass
             # Advanced stats require 18+ clean games and real minutes
-            adv_eligible = not is_fake and clean_games >= 18
+            adv_eligible = not is_fake and clean_games >= _adv_clean_needed(stats_dir, log_games)
 
             if is_fake:
                 mpgs = [p["totals"]["MIN"] / max(p["totals"]["games"], 1)
@@ -3381,6 +3392,12 @@ def attach_similar_players(season_players: dict, team_rosters: dict):
                         row["sim_mode"] = "shoot"
 
 
+def _pbp_fix(pj):
+    """A saved play-by-play file with its out-of-order names repaired (play_by_play.fix_plays)."""
+    import play_by_play
+    return play_by_play.fix_plays(pj)
+
+
 def _pbp_norm(name: str) -> str:
     """_box_norm of a play-by-play file's team label, "College of Marin" read as "Marin" (the labels are the box score
     page's; the leaderboard's names drop the "College of")."""
@@ -3747,7 +3764,7 @@ def build_game_boxes(stats_dir) -> dict:
     pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
         try:
-            pj = json.load(open(f))
+            pj = _pbp_fix(json.load(open(f)))
         except Exception:
             continue
         gk = (f.name[:8], frozenset(_pbp_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
@@ -8122,6 +8139,16 @@ function chartShootingMinsPass(p) {{
   return [chartXMetric, chartYMetric].every(k => !CHART_METRIC_ATTEMPT_MIN[k] || CHART_METRIC_ATTEMPT_MIN[k](p));
 }}
 
+// Games-played minimum for charts and the individual leaderboard: 20; in 2026-27 pro-rated to the player's team's
+// games so far (20 of a 28-game season), so early-season charts and leaders have players. Past seasons keep 20.
+function seasonGpMin(p, teams) {{
+  if (activeSeason !== '2627') return 20;
+  const t = (teams || activeFullTeamData()).find(x => x.team === p.school);
+  const tg = t ? Number(t.gp || 0) : 0;
+  return tg > 0 ? Math.min(20, Math.ceil(tg * 20 / 28)) : 20;
+}}
+function chartMinGp(p) {{ return seasonGpMin(p, chartTeamDataSource()); }}
+
 function chartQualifierLabel() {{
   const preset = CHART_PRESETS[chartPreset];
   if (chartPreset === 'ast_tov' || chartPreset === 'team_ortg_drtg') return preset.qualifier;
@@ -8130,7 +8157,7 @@ function chartQualifierLabel() {{
   if (chartStatsScope === 'conference') {{
     return 'Minimum: 75% of team conference games' + (parts.length ? ' and ' + parts.join(', ') : '');
   }}
-  return 'Minimum: 20 GP' + (parts.length ? ' and ' + parts.join(', ') : '');
+  return (activeSeason === '2627' ? 'Minimum: 20 of 28 team games, pro-rated' : 'Minimum: 20 GP') + (parts.length ? ' and ' + parts.join(', ') : '');
 }}
 
 function activeChartMetrics() {{
@@ -8165,7 +8192,7 @@ function chartQualifies(p) {{
     if (playerGames <= 0) return false;
     return chartShootingMinsPass(p);
   }}
-  return Number(p.gp || 0) >= 20 && chartShootingMinsPass(p);
+  return Number(p.gp || 0) >= chartMinGp(p) && chartShootingMinsPass(p);
 }}
 
 function chartsTopFilteredPlayers() {{
@@ -9089,7 +9116,7 @@ const ADV_CAT_ATTEMPT_MIN = {{
   tpp: 'tpa',
   ftp: 'fta',
 }};
-const ADV_RATE_GP_MIN = 20;
+const ADV_RATE_GP_MIN = 20;   // pro-rated in 2026-27: seasonGpMin
 const ADV_RATE_ATTEMPTS_PER_GAME_MIN = 2.5;
 const ADV_RELAXED_CAT_KEYS = new Set(['efg_pct', 'ts_pct', 'ft_rate', 'twop', 'tpp', 'ftp']);
 const ADV_MAKE_ATTEMPT_CAT_KEYS = new Set(['efg_pct', 'ts_pct', 'twop', 'tpp', 'ftp']);
@@ -9142,23 +9169,23 @@ function advCatStandardQualifies(p, catKey) {{
   const minPct = ADV_CAT_MIN_PCT[catKey] || MIN_PCT_QUAL;
   if ((p.min_pct || 0) < minPct) return false;
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
-  if (attemptKey && (attemptsPerGame(p, attemptKey) < ADV_RATE_ATTEMPTS_PER_GAME_MIN || (p.gp || 0) < ADV_RATE_GP_MIN)) return false;
+  if (attemptKey && (attemptsPerGame(p, attemptKey) < ADV_RATE_ATTEMPTS_PER_GAME_MIN || (p.gp || 0) < seasonGpMin(p))) return false;
   return true;
 }}
 
 function advCatRelaxedQualifies(p, catKey) {{
   if (catKey === 'efg_pct') {{
-    return (p.gp || 0) >= ADV_RATE_GP_MIN && attemptsPerGame(p, 'fga') >= EFG_FGA_PG_MIN;
+    return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') >= EFG_FGA_PG_MIN;
   }}
   if (catKey === 'ts_pct') {{
-    return (p.gp || 0) >= ADV_RATE_GP_MIN && attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN;
+    return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN;
   }}
   if (catKey === 'ft_rate') {{
-    return (p.gp || 0) >= ADV_RATE_GP_MIN;
+    return (p.gp || 0) >= seasonGpMin(p);
   }}
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
   if (attemptKey) {{
-    return (p.gp || 0) >= ADV_RATE_GP_MIN && attemptsPerGame(p, attemptKey) >= ADV_RATE_ATTEMPTS_PER_GAME_MIN;
+    return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, attemptKey) >= ADV_RATE_ATTEMPTS_PER_GAME_MIN;
   }}
   return false;
 }}
@@ -10744,7 +10771,7 @@ function renderTeamStats(teamName) {{
     .forEach((d, i) => {{ netRtgRanks[d.team] = i + 1; }});
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
-    ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have 18 clean games with reliable minutes.</div>'
+    ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.</div>'
     : '';
 
   document.getElementById('teamstats-content').innerHTML = `<style>
