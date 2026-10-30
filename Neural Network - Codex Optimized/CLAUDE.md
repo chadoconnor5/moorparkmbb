@@ -132,6 +132,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   FanMatch).
 - Records (2026-27): typed-in schedules have none (or a preseason 0-0), so generate_team_stats.py counts them from
   the games played ("Overall (.500)": "1-1", "Conference ..."); past seasons keep the site's.
+- A box score page with no teams / players (stats not up yet, or the site sent something else) is not filed as a
+  game; its link is read again next run, and the page is kept as served in scrape_state/<season>/unreadable/ (local,
+  gitignored) to diagnose. 10/29: Riverside-West LA and Canyons-Cuyamaca came back empty at 10:02 / 10:07 PM and were
+  filed as one "Visitor vs Home" game, which hid both links (fixed: State drops such games when it loads).
 - The nightly also re-reads the night before's composite page when that night left games without a box score (late
   games post after the run): one more page, only then.
 - Python on the PC runs in UTF-8 (PYTHONUTF8 in the .bat files and for every script scrape.py starts); the site has
