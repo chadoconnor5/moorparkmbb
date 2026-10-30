@@ -99,6 +99,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   within 2.5 of the box score, each half's within 2.0 of that half's box score (the page's period tabs) and the names match; the rest are listed with the reason. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
+- Game attributes (Misc tabs, build_storylines): 2026-27 only, from the play-by-play (KenPom's, the teams assumed
+  equal; _sl_wp): Excitement (win probability's total movement), Tension (how close it stayed to 50%), Dominance
+  (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
+  play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
+  keep their tabs and formulas as they were (no new tabs).
 - Stints (internal, for a possible BPR later): compute_pbp_lineups.py also writes internal_data/pbp_stints/<season>.json,
   every usable game's stretches with the same ten on the floor (both fives, seconds, each side's possessions and
   points, garbage-time flag, leverage). Not used on the site; BPR only if play-by-play coverage per team turns out

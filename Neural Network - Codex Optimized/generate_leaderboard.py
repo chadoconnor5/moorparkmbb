@@ -259,6 +259,84 @@ def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = N
     return enriched
 
 
+GAME_SIGMA = 11.5   # the final margin's spread between equal teams over a full 40:00 (the in-game win probability)
+
+
+def _sl_wp(lead: float, left: float) -> float:
+    """Win probability of the team up `lead` with `left` seconds to play, the teams assumed equal (KenPom's game
+    attributes): the rest of the game is a coin flip with spread GAME_SIGMA * sqrt(left / 2400)."""
+    if left <= 0:
+        return 1.0 if lead > 0 else 0.0 if lead < 0 else 0.5
+    return 0.5 * (1.0 + math.erf(lead / (GAME_SIGMA * math.sqrt(left / 2400.0)) / math.sqrt(2.0)))
+
+
+def _sl_game_flow(stats_dir: Path) -> dict:
+    """KenPom's game attributes for each game with play-by-play, from the winner's side, the teams assumed equal:
+    {(M/D/YYYY, frozenset(box-norm teams)): {excitement (the win probability's total movement), tension (100 x how
+    close it stayed to 50%, time-weighted), dominance_pbp (the winner's time-weighted average lead = its expected
+    margin), min_wp (the winner's lowest, %), max_deficit, max_lead, window (largest lead + largest deficit),
+    lead_changes, ties}}. Sampled every 10 seconds and at every score."""
+    out = {}
+    pdir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
+    for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
+        try:
+            pj = json.load(open(f))
+        except Exception:
+            continue
+        plays = pj.get("plays") or []
+        if not plays or plays[-1][5] == plays[-1][6]:
+            continue
+        sign = 1 if plays[-1][5] > plays[-1][6] else -1   # the winner's side: visitor +1, home -1
+        events, ends = [], {}   # (elapsed seconds, winner's lead) at each score; each period's end
+        for per, clock, _team, _pl, _act, v, h in plays:
+            try:
+                mm, ss = (int(x) for x in clock.split(":"))
+            except ValueError:
+                continue
+            start, length = ((per - 1) * 1200, 1200) if per <= 2 else (2400 + (per - 3) * 300, 300)
+            ends[per] = start + length
+            t = start + length - (mm * 60 + ss)
+            m = sign * (v - h)
+            if not events or m != events[-1][1]:
+                events.append((t, m))
+        if not ends:
+            continue
+        total = max(ends.values())
+        regs = sorted(ends.values())
+        times = sorted(set(range(0, total + 1, 10)) | {t for t, _ in events})
+        wps, leads, i, m = [], [], 0, 0
+        for t in times:
+            while i < len(events) and events[i][0] <= t:
+                m = events[i][1]; i += 1
+            end = 2400 if t < 2400 else next(e for e in regs if e >= t)   # regulation, or this overtime's end
+            wps.append(_sl_wp(m, end - t)); leads.append(m)
+        wps[-1] = 1.0
+        dt = [times[k + 1] - times[k] for k in range(len(times) - 1)]
+        span = sum(dt) or 1
+        margins = [m for _, m in events]
+        lc = ties = 0
+        prev = 0
+        for m in margins:
+            s_ = (m > 0) - (m < 0)
+            if s_ == 0:
+                ties += 1
+            elif prev and s_ != prev:
+                lc += 1
+            if s_:
+                prev = s_
+        mx_lead, mx_def = max([0] + margins), max([0] + [-m for m in margins])
+        key = (f"{int(f.name[4:6])}/{int(f.name[6:8])}/{f.name[:4]}", frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
+        out[key] = {
+            "excitement": round(sum(abs(wps[k + 1] - wps[k]) for k in range(len(wps) - 1)), 2),
+            "tension": round(100.0 * sum((1.0 - 2.0 * abs(wps[k] - 0.5)) * dt[k] for k in range(len(dt))) / span, 1),
+            "dominance_pbp": round(sum(leads[k] * dt[k] for k in range(len(dt))) / span, 1),
+            "min_wp": round(100.0 * min(wps), 1),
+            "max_deficit": mx_def, "max_lead": mx_lead, "window": mx_lead + mx_def,
+            "lead_changes": lc, "ties": ties,
+        }
+    return out
+
+
 def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     sel = rows if predicate is None else [r for r in rows if predicate(r)]
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
@@ -518,11 +596,21 @@ def _with_hosts(stats_dir: Path, games: list) -> list:
 
 def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool = True,
                      hca_points: float = 3.0, wp_scale: float = 10.0,
-                     prior_stats_dir: Path = None) -> dict:
+                     prior_stats_dir: Path = None, pbp: bool = False) -> dict:
+    """pbp: the current season (2026-27 on): the play-by-play attributes, and upsets from game one (both teams rated
+    from last season)."""
     by_team, team_names = _sl_load_games(stats_dir)
     games = _sl_dedupe(by_team, team_names, exclude_zero_scores)
     priors = _sl_load_priors(prior_stats_dir) if prior_stats_dir is not None else {}
     rows = _sl_enrich(games, team_names, hca_points, wp_scale, priors)
+    # 2026-27 on (play_by_play): KenPom's play-by-play game attributes. Past seasons have no play-by-play and keep
+    # their lists as they were.
+    flow = _sl_game_flow(stats_dir) if pbp else {}
+    for r in rows:
+        fl = flow.get((r["date"], frozenset(_box_norm(x) for x in (r["winner"], r["loser"]))))
+        if fl:
+            r.update(fl)
+    pbp_rows = [r for r in rows if "excitement" in r]
     game_dates = {r["date"] for r in rows}
     sched_dir = Path(str(stats_dir).replace(" Team Statistics", " Teams Schedules"))
     lines_of_night = _sl_load_line_of_night(sched_dir, game_dates)
@@ -531,8 +619,17 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "stats_dir": str(stats_dir),
         "games_in_system": len(rows),
         "dominant_wins":  _sl_top_n(rows, "dominance_score", top),
-        "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
+        "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and (
+                              r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5
+                              or pbp and r["winner"] in priors and r["loser"] in priors)),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
+        "pbp_games":      len(pbp_rows),
+        "pbp_excitement": _sl_top_n(pbp_rows, "excitement", top),
+        "pbp_tension":    _sl_top_n(pbp_rows, "tension", top),
+        "pbp_dominance":  _sl_top_n(pbp_rows, "dominance_pbp", top),
+        "pbp_min_wp":     sorted(pbp_rows, key=lambda r: r["min_wp"])[:top],
+        "pbp_max_deficit": _sl_top_n(pbp_rows, "max_deficit", top),
+        "pbp_window":     sorted(pbp_rows, key=lambda r: (r["window"], -r["lead_changes"]))[:top],
         "bust_games":     _sl_top_n(rows, "bust_score", top),
         "fanmatch_games": sorted(_with_hosts(stats_dir, rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale)),
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
@@ -2569,7 +2666,7 @@ def load_storylines(stats_dir=None) -> dict:
         prior_dir = None
     try:
         return build_storylines(stats_dir=stats_dir, top=100, exclude_zero_scores=True,
-                                hca_points=3.0, wp_scale=10.0, prior_stats_dir=prior_dir)
+                                hca_points=3.0, wp_scale=10.0, prior_stats_dir=prior_dir, pbp=stats_dir == STATS_DIR)
     except Exception as e:
         print(f"  Warning: could not load storylines: {e}")
         return {}
@@ -6568,7 +6665,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     <div class="sl-game-count" id="sl-game-count" style="display:none"></div>
     <div id="sl-tab-dominance" class="sl-tab-content">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Margin</th><th class="sl-th-r">Value</th>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r" id="sl-th-dominance">Margin</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-dominance"></tbody></table></div></div>
     </div>
     <div id="sl-tab-upsets" class="sl-tab-content" style="display:none">
@@ -6578,13 +6675,33 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     </div>
     <div id="sl-tab-tension" class="sl-tab-content" style="display:none">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Margin / OT</th><th class="sl-th-r">Value</th>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r" id="sl-th-tension">Margin / OT</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-tension"></tbody></table></div></div>
     </div>
     <div id="sl-tab-busts" class="sl-tab-content" style="display:none">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
         <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Exp. Margin</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-busts"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-excitement" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Lead Changes / Ties</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-excitement"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-minwp" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Max Deficit</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-minwp"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-maxdef" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Min Win Prob</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-maxdef"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-window" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Lead / Deficit</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-window"></tbody></table></div></div>
     </div>
     <div id="sl-tab-height" class="sl-tab-content" style="display:none">
       <div style="padding:6px 10px 10px;color:#aaa;font-size:0.75rem;text-align:center">Average roster height from stored 2025-26 roster-height data. Ranked by average inches.</div>
@@ -12710,6 +12827,10 @@ const SL_TABS = [
   {{ id: 'upsets',    label: 'Upsets' }},
   {{ id: 'tension',   label: 'Tension' }},
   {{ id: 'busts',     label: 'Busts' }},
+  {{ id: 'excitement', label: 'Excitement', pbp: true }},
+  {{ id: 'minwp',     label: 'Min WP', pbp: true }},
+  {{ id: 'maxdef',    label: 'Max Deficit', pbp: true }},
+  {{ id: 'window',    label: 'Window', pbp: true }},
   {{ id: 'height',    label: 'Height' }},
   {{ id: 'wab',       label: 'WAB' }},
   {{ id: 'rate',      label: 'Rate' }},
@@ -12720,6 +12841,11 @@ const SL_TABS = [
   {{ id: 'trends',    label: 'Trends' }},
   {{ id: 'conf',      label: 'Conferences' }},
 ];
+// The play-by-play attributes (KenPom's, the teams assumed equal) start with 2026-27: its Tension and Dominance
+// come from the play-by-play and the pbp tabs show; past seasons are kept as they were.
+const SL_PBP_SEASON = '2627';
+function slPbpSeason() {{ return activeSeason === SL_PBP_SEASON; }}
+const SL_GAME_TABS = ['dominance', 'upsets', 'tension', 'busts', 'excitement', 'minwp', 'maxdef', 'window'];
 let slInitialized = false;
 let slActiveTab = 'dominance';
 let slFanmatchDates = [];
@@ -12739,12 +12865,10 @@ function activeStorylines() {{
 
 function slReinit() {{
   if (!slInitialized) return;
-  slRenderTab('dominance');
-  slRenderTab('upsets');
-  slRenderTab('tension');
-  slRenderTab('busts');
+  SL_GAME_TABS.forEach(slRenderTab);
   slRenderHeight();
   slInitFanmatch();
+  if (!slPbpSeason() && (SL_TABS.find(t => t.id === slActiveTab) || {{}}).pbp) slActiveTab = 'dominance';
   slRenderWab(slWabRegion || 'North');
   slRenderRate(activeSeason);
   slRenderTiers('All');
@@ -12761,8 +12885,9 @@ function slReinit() {{
 function slBuildNav() {{
   const nav = document.getElementById('sl-nav');
   if (!nav) return;
-  nav.innerHTML = SL_TABS.map((t, i) => {{
-    const sep = i < SL_TABS.length - 1 ? '<span class="sl-nav-sep">&middot;</span>' : '';
+  const tabs = SL_TABS.filter(t => !t.pbp || slPbpSeason());
+  nav.innerHTML = tabs.map((t, i) => {{
+    const sep = i < tabs.length - 1 ? '<span class="sl-nav-sep">&middot;</span>' : '';
     const cls = t.id === slActiveTab ? 'sl-active' : '';
     return `<a class="${{cls}}" onclick="slSwitchTab('${{t.id}}','${{t.label}}')">${{t.label}}</a>${{sep}}`;
   }}).join('');
@@ -12774,10 +12899,7 @@ function slInitOnce() {{
   slBuildNav();
   const sl = activeStorylines();
   if (sl && sl.dominant_wins) {{
-    slRenderTab('dominance');
-    slRenderTab('upsets');
-    slRenderTab('tension');
-    slRenderTab('busts');
+    SL_GAME_TABS.forEach(slRenderTab);
     slInitFanmatch();
   }}
   slRenderHeight();
@@ -12839,8 +12961,10 @@ function slSwitchTab(tab, label) {{
       const slYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = slYr + ' game attribute rankings (' + (label || tab) + ')';
       if (countEl) {{
-        const n = activeStorylines().games_in_system || 0;
-        countEl.textContent = n + ' game' + (n === 1 ? '' : 's') + ' played';
+        const _sl = activeStorylines();
+        const pbpTab = slPbpSeason() && ['dominance', 'tension', 'excitement', 'minwp', 'maxdef', 'window'].includes(tab);
+        const n = (pbpTab ? _sl.pbp_games : _sl.games_in_system) || 0;
+        countEl.textContent = n + ' game' + (n === 1 ? '' : 's') + (pbpTab ? ' with play-by-play' : ' played');
         countEl.style.display = 'block';
       }}
     }}
@@ -13976,8 +14100,29 @@ function slGameRow(g, idx, cols) {{
     value  = '<td class="sl-val-cell">' + g.upset_score + '</td>';
   }} else if (cols === 'tension') {{
     const ot = g.overtimes > 0 ? (g.overtimes > 1 ? g.overtimes + 'OT' : 'OT') : '\u2014';
-    detail = '<td class="sl-detail-cell">' + g.margin + ' / ' + ot + '</td>';
+    // play-by-play games also show lead changes / ties (title: late closeness, comeback)
+    const flow = g.lead_changes != null ? ` <span style="color:#777;font-size:0.75rem" title="Last 10:00 within 5: ${{Math.round(100 * g.close_late)}}% · winner came back from ${{g.comeback}}">· ${{g.lead_changes}} LC / ${{g.ties}} T</span>` : '';
+    detail = '<td class="sl-detail-cell">' + g.margin + ' / ' + ot + flow + '</td>';
     value  = '<td class="sl-val-cell">' + g.tension_score + '</td>';
+  }} else if (cols === 'dominance_pbp') {{
+    detail = '<td class="sl-detail-cell">' + g.margin + ' pts</td>';
+    value  = '<td class="sl-val-cell">' + g.dominance_pbp + '</td>';
+  }} else if (cols === 'tension_pbp') {{
+    const ot = g.overtimes > 0 ? (g.overtimes > 1 ? g.overtimes + 'OT' : 'OT') : '\u2014';
+    detail = '<td class="sl-detail-cell">' + g.margin + ' / ' + ot + '</td>';
+    value  = '<td class="sl-val-cell">' + g.tension + '</td>';
+  }} else if (cols === 'excitement') {{
+    detail = '<td class="sl-detail-cell">' + g.lead_changes + ' / ' + g.ties + '</td>';
+    value  = '<td class="sl-val-cell">' + g.excitement + '</td>';
+  }} else if (cols === 'minwp') {{
+    detail = '<td class="sl-detail-cell">' + g.max_deficit + '</td>';
+    value  = '<td class="sl-val-cell">' + g.min_wp + '%</td>';
+  }} else if (cols === 'maxdef') {{
+    detail = '<td class="sl-detail-cell">' + g.min_wp + '%</td>';
+    value  = '<td class="sl-val-cell">' + g.max_deficit + '</td>';
+  }} else if (cols === 'window') {{
+    detail = '<td class="sl-detail-cell">+' + g.max_lead + ' / \u2212' + g.max_deficit + '</td>';
+    value  = '<td class="sl-val-cell">' + g.window + '</td>';
   }} else if (cols === 'busts') {{
     const exp = g.pregame_model_margin_a != null ? Math.abs(g.pregame_model_margin_a).toFixed(1) : '\u2014';
     detail = '<td class="sl-detail-cell">\u00b1' + exp + '</td>';
@@ -14013,16 +14158,26 @@ function slGameRow(g, idx, cols) {{
 
 function slRenderTab(tab) {{
   const sl = activeStorylines();
+  const pbp = slPbpSeason();
   const map = {{
-    dominance: sl.dominant_wins,
+    dominance: pbp ? sl.pbp_dominance : sl.dominant_wins,
     upsets:    sl.upsets,
-    tension:   sl.tension_games,
+    tension:   pbp ? sl.pbp_tension : sl.tension_games,
     busts:     sl.bust_games,
+    excitement: sl.pbp_excitement,
+    minwp:     sl.pbp_min_wp,
+    maxdef:    sl.pbp_max_deficit,
+    window:    sl.pbp_window,
   }};
   const games = map[tab] || [];
   const body = document.getElementById('sl-body-' + tab);
   if (!body) return;
-  body.innerHTML = games.map((g, i) => slGameRow(g, i, tab)).join('');
+  const cols = pbp && (tab === 'dominance' || tab === 'tension') ? tab + '_pbp' : tab;
+  if (tab === 'dominance' || tab === 'tension') {{
+    const th = document.getElementById('sl-th-' + tab);
+    if (th) th.textContent = tab === 'dominance' ? 'Margin' : 'Margin / OT';
+  }}
+  body.innerHTML = games.map((g, i) => slGameRow(g, i, cols)).join('');
 }}
 
 function slInitFanmatch() {{
