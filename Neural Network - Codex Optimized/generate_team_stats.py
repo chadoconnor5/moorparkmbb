@@ -236,9 +236,10 @@ def aggregate_opponent_stats(team_name: str, boxscores: list[dict]) -> dict:
         opp_key = _find_opponent_key(team_name, bs)
         if not opp_key:
             continue
-        # Skip games where the team side has no players (empty roster)
+        # Skip games where the team side has no players (empty roster) - except in the current season, where a game
+        # whose box score only the opponent posted (10/29 Reedley-Sierra) still shows what that opponent did
         team_key = _find_team_key(team_name, bs)
-        if not team_key or not bs["teams"].get(team_key):
+        if (not team_key or not bs["teams"].get(team_key)) and STATS_DIR != stats_dir(DEFAULT_SEASON):
             continue
         game_totals = _sum_team_box(bs["teams"][opp_key])
         # Skip games where opponent reported no real stats (all zeroes)
