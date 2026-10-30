@@ -305,6 +305,7 @@ def load(team, season):
 
     # Statewide player pools (Min% > 10%, and Min% >= 30% for the advanced ranks).
     c.all_players, c.adv_players = [], []
+    lg_raw, rated = [0, 0, 0, 0], []   # league PTS, true shot attempts, 3PM, 3PA (every player); pool entries to rate after
     for conf in os.listdir(root):
         cp = os.path.join(root, conf)
         if not os.path.isdir(cp): continue
@@ -312,12 +313,16 @@ def load(team, season):
             pp, ap = os.path.join(cp, tn, 'player_stats.json'), os.path.join(cp, tn, 'advanced_analytics.json')
             if not (os.path.exists(pp) and os.path.exists(ap)): continue
             try:
-                ps, am = jload(pp), {p['name']: p for p in jload(ap).get('players', [])}
+                aj = jload(ap); ps, am = jload(pp), {p['name']: p for p in aj.get('players', [])}
                 # 10+ games, or early in the season 60%+ of the team's games so far (the pool fills from the first game)
                 tg = max([q['averages'].get('games', 0) for q in ps['players']] or [0])
                 need = min(10, max(1, round(0.6 * tg)))
+                # Per-100 box rates need the team's pace and real minutes (the same test as c.min_ok)
+                pace = (aj.get('team') or {}).get('possessions', 0) or 0
+                if sum(q['totals'].get('MIN', 0) for q in ps['players']) < 0.75 * 200 * max(tg, 1): pace = 0
                 for p in ps['players']:
                     avg, tot = p['averages'], p['totals']; mpg, gp = avg.get('MIN', 0), avg.get('games', 0)
+                    for i, v in enumerate((tot.get('PTS', 0), tot.get('FGA', 0) + 0.44 * tot.get('FTA', 0), tot.get('3PM', 0), tot.get('3PA', 0))): lg_raw[i] += v
                     if gp < need: continue
                     a2 = am.get(p['name'], {}); twoa = tot.get('FGA', 0) - tot.get('3PA', 0); twom = tot.get('FGM', 0) - tot.get('3PM', 0)
                     twop = round(twom / twoa * 100, 1) if twoa > 0 else 0
@@ -326,11 +331,15 @@ def load(team, season):
                             'apg': avg.get('AST', 0), 'spg': avg.get('STL', 0), 'bpg': avg.get('BLK', 0), 'ts_pct': a2.get('ts_pct', 0),
                             'tpp': avg.get('3P%', 0), 'tpa': avg.get('3PA', 0), 'ftp': avg.get('FT%', 0), 'fga': avg.get('FGA', 0),
                             'twop': twop, 'tov_pct': a2.get('tov_pct', 0), 'oreb_pct': a2.get('oreb_pct', 0)})
+                        rated.append((c.all_players[-1], tot, pace))
                     if mpg >= 12:
                         c.adv_players.append({'name': p['name'], 'team': tn, **{k: a2.get(k, 0) for k in
                             ('ind_ortg', 'ind_drtg', 'ast_rate', 'tov_pct', 'oreb_pct', 'dreb_pct', 'stl_pct', 'blk_pct', 'usage_pct',
                              'ft_rate', 'efg_pct', 'ts_pct')}, 'twop': twop, 'tpp': avg.get('3P%', 0), 'ftp': avg.get('FT%', 0)})
+                        rated.append((c.adv_players[-1], tot, pace))
             except Exception: pass
+    c.box_lg = (lg_raw[0] / (2 * lg_raw[1]) if lg_raw[1] else None, 1.5 * lg_raw[2] / lg_raw[3] if lg_raw[3] else None)
+    for q, tot, pace in rated: q.update(box_rates(tot, pace, c.box_lg))
 
     # The opponent's color (header bars, title, table heads, the head-to-head box).
     hexv = team_color(team)
@@ -383,13 +392,33 @@ def state_rank(c, key, val=None, hb=None):
 def R(c, key): return state_rank(c, key)[0]
 def AVG(c, key): return state_rank(c, key)[2]
 
+# Box-score rate stats (Databallr's glossary; the same math as the leaderboard's boxRate):
+#   rts       TS% minus the league's (points)            tsadd     points above a league-average shooter on the same
+#   tp_rts    3-point TS (1.5 x 3P%) minus the league's            true shot attempts, per 100 possessions on the floor
+#   tpr       3PA / FGA                                  shots100  true shot attempts (FGA + 0.44 FTA) per 100 possessions
+#   stl100, blk100 per 100 possessions on the floor
+# Possessions on the floor = the team's possessions a game x his minutes / 40; the per-100 ones need real minutes (pace 0
+# otherwise). The league is every player in the season's data. The relative ones can be negative (SIGNED).
+SIGNED = {'rts', 'tsadd', 'tp_rts'}
+def box_rates(tot, pace, lg):
+    fga, tpa, pts = tot.get('FGA', 0), tot.get('3PA', 0), tot.get('PTS', 0)
+    tsa, on = fga + 0.44 * tot.get('FTA', 0), pace * tot.get('MIN', 0) / 40
+    lts, ltp = lg
+    r = {'rts': 100 * (pts / (2 * tsa) - lts) if tsa > 0 and lts else None,
+         'tp_rts': 100 * (1.5 * tot.get('3PM', 0) / tpa - ltp) if tpa > 0 and ltp else None,
+         'tpr': 100 * tpa / fga if fga > 0 else None}
+    ok = on > 0
+    r.update(tsadd=100 * (pts - lts * 2 * tsa) / on if ok and tsa > 0 and lts else None, shots100=100 * tsa / on if ok and tsa > 0 else None,
+             stl100=100 * tot.get('STL', 0) / on if ok else None, blk100=100 * tot.get('BLK', 0) / on if ok else None)
+    return r
+
 def pool_rank(pool, key, val, hb=True, filt=None):
-    p = [x for x in pool if x.get(key, 0) > 0 and (not filt or filt(x))]
+    p = [x for x in pool if x.get(key) is not None and (key in SIGNED or x[key] > 0) and (not filt or filt(x))]
     vals = sorted([x[key] for x in p], reverse=hb)
     return next((i + 1 for i, v in enumerate(vals) if (hb and v <= val) or (not hb and v >= val)), len(vals)), len(vals)
 
 def get_top100(c, avg, adv_data, tot, mpg):
-    findings = []
+    findings, box = [], box_rates(tot, c.me['pace'] if c.min_ok else 0, c.box_lg)
     twoa = tot.get('FGA', 0) - tot.get('3PA', 0); twom = tot.get('FGM', 0) - tot.get('3PM', 0)
     twop = round(twom / twoa * 100, 1) if twoa > 0 else 0
     for key, val, label, unit, hb, pf in [
@@ -398,7 +427,9 @@ def get_top100(c, avg, adv_data, tot, mpg):
         ('bpg', avg.get('BLK', 0), 'BPG', '', True, None),
         ('tpp', avg.get('3P%', 0), '3P%', '%', True, lambda p: p.get('tpa', 0) >= 2),
         ('twop', twop, '2P%', '%', True, lambda p: p.get('fga', 0) >= 5),
-        ('ftp', avg.get('FT%', 0), 'FT%', '%', True, lambda p: p.get('fga', 0) >= 2)]:
+        ('ftp', avg.get('FT%', 0), 'FT%', '%', True, lambda p: p.get('fga', 0) >= 2),
+        ('tp_rts', (box.get('tp_rts') or 0) if avg.get('3PA', 0) >= 2 else 0, '3P rTS%', '', True, lambda p: p.get('tpa', 0) >= 2),
+        ('tpr', (box.get('tpr') or 0) if avg.get('FGA', 0) >= 2 else 0, '3PR', '%', True, lambda p: p.get('fga', 0) >= 2)]:
         if val <= 0: continue
         r, n = pool_rank(c.all_players, key, val, hb, pf)
         if n and r <= 100: findings.append((label, val, unit, r, n))
@@ -410,6 +441,11 @@ def get_top100(c, avg, adv_data, tot, mpg):
             if val <= 0: continue
             r, n = pool_rank(c.adv_players, key, val, hb)
             if n and r <= 100: findings.append((label, val, unit, r, n))
+        for key, label in (('rts', 'rTS%'), ('tsadd', 'TSAdd/100'), ('shots100', 'SHOTS/100'), ('stl100', 'STL/100'), ('blk100', 'BLK/100')):
+            val = box.get(key) or 0
+            if val <= 0: continue
+            r, n = pool_rank(c.adv_players, key, val)
+            if n and r <= 100: findings.append((label, val, '', r, n))
     return findings
 
 # ─── Styles ───────────────────────────────────────────────────────────────────────────
@@ -997,6 +1033,7 @@ def narrative(c, p, idx):
     name, T = p['name'], c.team
     mpg, gp, ppg = avg.get('MIN', 0), avg.get('games', 0), avg.get('PTS', 0)
     usage = adv.get('usage_pct', 0)
+    box = box_rates(tot, c.me['pace'] if c.min_ok else 0, c.box_lg)
     by_pts = rot_by(c, lambda q: A(q).get('PTS', 0)); prank = by_pts.index(p) + 1
     s = []
     pr, pn = pool_rank(c.all_players, 'ppg', ppg)
@@ -1012,10 +1049,19 @@ def narrative(c, p, idx):
     ts = adv.get('ts_pct', 0)
     if ts and mpg >= 12:
         r, n = pool_rank(c.adv_players, 'ts_pct', ts); s.append(f'TS% {ts:.1f}% (#{r}/{n}) — {tw(r, n)} shooting efficiency among qualified players.')
+        rel = [f'{lab} {box[k]:+.1f} (#{r}/{n})' for k, lab in (('rts', 'rTS%'), ('tsadd', 'TSAdd/100')) if box.get(k) is not None
+               for r, n in [pool_rank(c.adv_players, k, box[k])] if n]
+        if rel: s.append('Against a league-average shooter: ' + ', '.join(rel) + '.')
     tpa, tpp = avg.get('3PA', 0), avg.get('3P%', 0)
     if tpa >= 1.0:
         r, n = pool_rank(c.all_players, 'tpp', tpp, True, lambda q: q.get('tpa', 0) >= 2) if tpa >= 2 else (0, 0)
         s.append(f'He shoots {tpp:.1f}% on {tpa:.1f} 3PA a game' + (f' (#{r}/{n} among players with 2+ 3PA a game, {tw(r, n)}).' if r else '.'))
+        tr = []
+        if tpa >= 2 and box.get('tp_rts') is not None:
+            r, n = pool_rank(c.all_players, 'tp_rts', box['tp_rts'], True, lambda q: q.get('tpa', 0) >= 2); tr.append(f'3P rTS% {box["tp_rts"]:+.1f} (#{r}/{n})')
+        if box.get('tpr') is not None:
+            r, n = pool_rank(c.all_players, 'tpr', box['tpr'], True, lambda q: q.get('fga', 0) >= 2); tr.append(f'3PR {box["tpr"]:.1f}% of his shots from three (#{r}/{n})')
+        if tr: s.append('; '.join(tr) + '.')
     elif tot.get('3PA', 0) <= 3: s.append(f'He has taken {tot.get("3PA", 0)} three-point attempt{"s" if tot.get("3PA", 0) != 1 else ""} {"so far this season" if c.ongoing else "all season"}.')
     twoa = tot.get('FGA', 0) - tot.get('3PA', 0)
     if twoa >= 40:
@@ -1030,6 +1076,11 @@ def narrative(c, p, idx):
             if v > 0:
                 r, n = pool_rank(c.adv_players, key, v)
                 if n and r <= 0.25 * n: s.append(f'{lab} {v:.1f}% (#{r}/{n}) — top {max(1, round(100 * r / n))}% statewide in {word}.')
+        for key, lab, word in (('shots100', 'SHOTS/100', 'shot volume'), ('stl100', 'STL/100', 'steals'), ('blk100', 'BLK/100', 'shot-blocking')):
+            v = box.get(key) or 0
+            if v > 0:
+                r, n = pool_rank(c.adv_players, key, v)
+                if n and r <= 0.25 * n: s.append(f'{lab} {v:.1f} (#{r}/{n}) — top {max(1, round(100 * r / n))}% statewide in {word} per 100 possessions.')
         tv = adv.get('tov_pct', 0)
         if tv > 0:
             r, n = pool_rank(c.adv_players, 'tov_pct', tv, False)
