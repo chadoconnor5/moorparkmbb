@@ -1283,6 +1283,9 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 .sub-k.in{background:rgba(255,255,255,.12)}
 .sub-t th.sub-grp{text-align:center;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text2)}
 .sub-t .sub-gap{border-left:2px solid rgba(255,255,255,.12)}
+.sr-chips{display:flex;flex-wrap:wrap;gap:4px}
+.sr-chip{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sr-W{background:rgba(34,197,94,.18);color:var(--pos,#16a34a)}.sr-L{background:rgba(239,68,68,.18);color:var(--neg,#dc2626)}.sr-T{background:rgba(148,163,184,.22);color:var(--text2,#64748b)}
 .sub-t tr.sub-on td{background:#f3e3a6!important;color:#111!important}
 /* The opened detail never widens the table: it takes the row's width and scrolls inside it. */
 .sub-fit{width:0;min-width:100%;overflow-x:auto}
@@ -2896,15 +2899,15 @@ function lineupsView(g) {
   const ots = sea ? (games.some(x => (x.periods || []).some(p => p.startsWith('OT'))) ? ['OT'] : []) : g.periods.filter(p => p.startsWith('OT'));
   const halves = ['all', '1H', '2H', ...ots].map(p => `<button class="${curP === p || (p === 'all' && !luPer(g)) ? 'on' : ''}" data-act="lu-per" data-s="${p}" ${!sea && p !== 'all' && !g.periods.includes(p) ? 'disabled title="Not started yet"' : ''}>${p === 'all' ? 'All' : p}</button>`).join('');
   // View: one dropdown (lineups by size, WOWY, On/Off, Projected & synergy, Rotation map, Subs).
-  const vNow = UI.luSubs ? 'subs' : UI.luOO ? 'oo' : UI.luProj ? 'proj' : UI.luRot ? 'rot' : UI.luWowy ? 'wowy' : 'k' + (UI.luK || 5);
-  const views = `<select data-act="lu-view">${[['k5', '5-man lineups'], ['k4', '4-man groups'], ['k3', '3-man groups'], ['k2', '2-man pairs'], ['oo', 'Player on / off'], ['proj', 'Projected fives & synergy'], ['wowy', 'WOWY'], ['rot', 'Rotation map'], ['subs', 'Subs']].map(([k, l]) => `<option value="${k}" ${vNow === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const vNow = UI.luRec ? 'rec' : UI.luSubs ? 'subs' : UI.luOO ? 'oo' : UI.luProj ? 'proj' : UI.luRot ? 'rot' : UI.luWowy ? 'wowy' : 'k' + (UI.luK || 5);
+  const views = `<select data-act="lu-view">${[['k5', '5-man lineups'], ['k4', '4-man groups'], ['k3', '3-man groups'], ['k2', '2-man pairs'], ['oo', 'Player on / off'], ['proj', 'Projected fives & synergy'], ['wowy', 'WOWY'], ['rot', 'Rotation map'], ['subs', 'Subs'], ['rec', 'Stint records']].map(([k, l]) => `<option value="${k}" ${vNow === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   // A situation locks Possessions to No garbage time (every leverage, garbage time out), as the situational lineups use.
   // Subs always uses every possession but garbage time, so it shows the same lock.
-  const possLock = UI.luSit || UI.luSubs;
-  const possSel = `<select data-act="lu-filter-sel" ${possLock ? `disabled title="Locked to No garbage time while ${UI.luSubs ? 'Subs is open' : 'a situation is picked'}"` : ''}>${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time'], ['gt', 'Garbage time only']].map(([k, l]) => `<option value="${k}" ${(UI.luSubs ? 'nogt' : UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const possLock = UI.luSit || UI.luSubs || UI.luRec;
+  const possSel = `<select data-act="lu-filter-sel" ${possLock ? `disabled title="Locked to No garbage time while ${UI.luSubs ? 'Subs is open' : UI.luRec ? 'Stint records is open' : 'a situation is picked'}"` : ''}>${[['all', 'All'], ['high', 'High'], ['hm', 'High + Med'], ['med', 'Medium'], ['low', 'Low'], ['clutch', 'Clutch'], ['nogt', 'No garbage time'], ['gt', 'Garbage time only']].map(([k, l]) => `<option value="${k}" ${(UI.luSubs || UI.luRec ? 'nogt' : UI.luFilter || 'hm') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   // Situation: the best-fit groups for it (sit.js sitRankCard) in place of the tables, at the View's group size.
   const sitSel = `<select data-act="lu-sit-sel"><option value="">Any situation</option>${SITS.filter(s => SIT_MIX[s.id]).map(s => `<option value="${s.id}" ${UI.luSit === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`;
-  const FIT = UI.luSit && SIT_MIX[UI.luSit] && !(UI.luOO || UI.luProj || UI.luRot || UI.luWowy || UI.luSubs) ? luSitFit(g) : '';
+  const FIT = UI.luSit && SIT_MIX[UI.luSit] && !(UI.luOO || UI.luProj || UI.luRot || UI.luWowy || UI.luSubs || UI.luRec) ? luSitFit(g) : '';
   return `<div class="page-head"><h2>Lineups</h2></div>
     <div class="lu-ctl">
       <div class="lu-f"><span class="lu-l">Games</span>${splitSelect(g)}</div>
@@ -2914,9 +2917,9 @@ function lineupsView(g) {
       <div class="lu-f"><span class="lu-l">Situation</span>${sitSel}</div>
     </div>
     ${splitPicker()}
-    ${FIT ? FIT : UI.luSubs ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> subs <span class="muted">· every stint, starters included · ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${subsView(g)}</div>` : UI.luOO ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> player on / off <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${onOffView(g)}</div>` : UI.luProj ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> projected fives &amp; synergy <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${projectedView(g)}</div>` : UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${(() => { const T = lineupTable(g, D, 'a', null, null, UI.luK || 5, true); return luBuilderPanel(g, D, UI.luK || 5) + luMinSlider() + `<div class="tbl-wrap">${T}</div>`; })()}</div>`}
-    ${FIT || UI.luWowy || UI.luRot || UI.luSubs ? '' : UI.luScope === 'season' || UI.luOO || UI.luProj ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
-    ${FIT || UI.luWowy || UI.luRot || UI.luSubs || UI.luOO || UI.luProj ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
+    ${FIT ? FIT : UI.luRec ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> stint records <span class="muted">· won / lost / tied while he's on the court · ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${stintRecView(g)}</div>` : UI.luSubs ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> subs <span class="muted">· every stint, starters included · ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${subsView(g)}</div>` : UI.luOO ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> player on / off <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${onOffView(g)}</div>` : UI.luProj ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> projected fives &amp; synergy <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${projectedView(g)}</div>` : UI.luRot ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> rotation map <span class="muted">· ${esc(UI.luScope === 'season' ? splitName(UI.luSplit || 'full') : 'This game')}</span></h3>${rotView(g)}</div>` : UI.luWowy ? `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> WOWY <span class="muted">· with or without you · ${esc(splitName(UI.luScope === 'season' ? UI.luSplit : 'full'))}</span></h3>${wowyView(g)}</div>` : `<div class="card"><h3><span style="color:var(--us)">Moorpark</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'} <span class="muted">· tap a row for how its possessions ended</span></h3>${luTeamLine(g, D)}${(() => { const T = lineupTable(g, D, 'a', null, null, UI.luK || 5, true); return luBuilderPanel(g, D, UI.luK || 5) + luMinSlider() + `<div class="tbl-wrap">${T}</div>`; })()}</div>`}
+    ${FIT || UI.luWowy || UI.luRot || UI.luSubs || UI.luRec ? '' : UI.luScope === 'season' || UI.luOO || UI.luProj ? luDataCard() : `<div class="card"><h3><span style="color:var(--them-text)">${esc(g.opp)}</span> ${(UI.luK || 5) === 5 ? 'lineups' : (UI.luK) + '-man combos'}</h3><div class="tbl-wrap">${lineupTable(g, D, 'b', null, null, UI.luK || 5)}</div></div>`}
+    ${FIT || UI.luWowy || UI.luRot || UI.luSubs || UI.luRec || UI.luOO || UI.luProj ? '' : `<div class="small muted">POSS = possessions on the floor together (both ends averaged). +/- = actual points scored minus allowed (technical FTs included). ORTG / DRTG = points per 100 possessions${UI.luRaw || !ratingsData() ? ', raw' : ', <b>adjusted for the opponent</b> (their rating, home / away, time of season)'}. Offense: eFG%, TO% (turnovers per possession), OREB%, FT rate (FTA / FGA). Defense: the opponent's eFG%, TO% and FT rate, and our DREB%${UI.luRaw || !ratingsData() ? '' : '; all four factors adjusted too'}. Italic rows: no rated opponent in this view, so raw.</div>`}`;
 }
 
 /* ---------- new game: the game tracker's setup screen ---------- */
@@ -4315,7 +4318,7 @@ document.addEventListener('click', ev => {
     case 'gt-off': g.gtOff = true; g.gtFrom = null; save(); closeModal(); render(); toast('No garbage time in this game'); break;
     case 'gt-auto': g.gtOff = false; g.gtFrom = null; save(); closeModal(); render(); toast('Garbage time back to automatic'); break;
     case 'lu-filter': UI.luFilter = b.dataset.f; render(); break;
-    case 'lu-k': UI.luK = +b.dataset.k; UI.luSubs = false; UI.luWowy = false; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
+    case 'lu-k': UI.luK = +b.dataset.k; UI.luSubs = false; UI.luRec = false; UI.luWowy = false; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
     case 'lu-sort': { const key = b.dataset.s, c = LU_COLS.find(x => x[0] === key), S = UI.luSort || { key: 'poss', dir: -1 };
       UI.luSort = S.key === key ? { key, dir: -S.dir } : { key, dir: key === 'five' ? 1 : c && c[3] ? 1 : -1 }; render(); break; }
     case 'rep': UI.rep = b.dataset.r; render(); break;
@@ -4375,13 +4378,13 @@ document.addEventListener('click', ev => {
     case 'lu-scope': UI.luScope = b.dataset.s; render(); break;
     case 'lu-pick': { const P = UI.luPick = UI.luPick || [], i = P.indexOf(b.dataset.id); if (i < 0) P.push(b.dataset.id); else P.splice(i, 1); render(); break; }
     case 'lu-per': UI.luPer = b.dataset.s; UI.luOpen = null; render(); break;
-    case 'lu-wowy': UI.luSubs = false; UI.luWowy = true; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
+    case 'lu-wowy': UI.luSubs = false; UI.luRec = false; UI.luWowy = true; UI.luRot = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
     case 'rep-nogt': UI.repNoGt = !UI.repNoGt; render(); break;
     case 'sub-open': UI.subOpen = UI.subOpen === b.dataset.id ? null : b.dataset.id; render(); break;
     // A stint (this game) → Play-by-Play, scrolled to its first play, flashed.
     case 'sub-jump': { const id = b.dataset.id; UI.tab = 'pbp'; UI.pbpTeam = 'all'; render();
       setTimeout(() => { const r = document.querySelector(`.pbp-feed [data-id="${CSS.escape(id)}"]`); if (r) { r.scrollIntoView({ block: 'center' }); r.classList.add('sub-flash'); setTimeout(() => r.classList.remove('sub-flash'), 2200); } }, 30); break; }
-    case 'lu-rot': UI.luSubs = false; UI.luRot = true; UI.luWowy = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
+    case 'lu-rot': UI.luSubs = false; UI.luRec = false; UI.luRot = true; UI.luWowy = false; UI.luOO = false; UI.luProj = false; UI.luOpen = null; render(); break;
     case 'rot-mode': UI.rotMode = b.dataset.s; render(); break;
     case 'rot-w': UI.rotW = +b.dataset.s; UI.rotCell = null; render(); break;
     case 'rot-cell': { const y = window.scrollY; UI.rotCell = { id: b.dataset.id, c: +b.dataset.c }; render(); window.scrollTo(0, y); break; }
@@ -4477,7 +4480,7 @@ document.addEventListener('change', ev => { const rk = ev.target.closest && ev.t
   const f = ev.target.closest && ev.target.closest('select[data-act="lu-filter-sel"]');
   if (f) { UI.luFilter = f.value; UI.luOpen = null; render(); return; }
   const lv = ev.target.closest && ev.target.closest('select[data-act="lu-view"]');
-  if (lv) { const v = lv.value; Object.assign(UI, { luSubs: v === 'subs', luWowy: v === 'wowy', luRot: v === 'rot', luOO: v === 'oo', luProj: v === 'proj', luOpen: null }); if (v[0] === 'k') UI.luK = +v.slice(1); render(); return; }
+  if (lv) { const v = lv.value; Object.assign(UI, { luSubs: v === 'subs', luRec: v === 'rec', luWowy: v === 'wowy', luRot: v === 'rot', luOO: v === 'oo', luProj: v === 'proj', luOpen: null }); if (v[0] === 'k') UI.luK = +v.slice(1); render(); return; }
   const si = ev.target.closest && ev.target.closest('select[data-act="lu-sit-sel"]');
   if (si) { const was = UI.luSit; UI.luSit = si.value || null; UI.luOpen = null;
     if (UI.luSit && !was) { UI.luFilterPrev = UI.luFilter || 'hm'; UI.luFilter = 'nogt'; }
@@ -7107,6 +7110,10 @@ function subFade(stints) {
 }
 const subPer = s => { const p = luPer(s.g); return !p || (p === 'OT*' ? s.per.startsWith('OT') : s.per === p); };
 const subNum = v => v == null ? '—' : sgn(Math.round(v));
+// A player's stint record: won (+/- above 0), lost (below 0), tied (0)
+const subRec = L => { const w = L.filter(s => s.pm > 0).length, l = L.filter(s => s.pm < 0).length; return { w, l, t: L.length - w - l, n: L.length }; };
+const subRecTxt = R => `${R.w}-${R.l}-${R.t}`;
+const subRecCls = R => R.w > R.l ? 'pos' : R.w < R.l ? 'neg' : '';
 const subCls = v => v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : '';
 function subsView(g) {
   const sea = UI.luScope === 'season', list = sea ? splitGames() : [g], all = subStints(list), S = all.filter(subPer);
@@ -7142,6 +7149,33 @@ function subsView(g) {
     <tr><th class="l">Player</th><th>Starts</th><th>Avg +/-</th><th>Avg poss</th><th class="sub-gap">Ins</th><th>Avg +/-</th><th>Swing</th><th>Avg poss</th><th>Fades</th></tr></thead>
     <tbody>${rows.map(row).join('')}</tbody></table></div>
     <div class="small muted" style="margin-top:4px">Tap a player for his net by how deep into a stint, and every stint. Swing (n) = check-ins with a full window, when fewer than all. Fades — = not enough possessions yet.</div>${foot}`;
+}
+
+/* ---------- Stint records (Lineups → View → Stint records) ----------
+   A stint = his time on the court from when he checks in (or starts the half) until he checks out (or the half
+   ends) - the same stints as Subs. It's WON when we outscore them while he's out there (+/- above 0), LOST when they
+   outscore us, TIED when even. Per player: his record, win % (a tie counts half), total and average +/-, his best
+   and worst stint, his record as a starter and off the bench, and (season) by the opponent's quadrant (quadOf). This game also lists every stint, in order, as
+   W / L / T with its +/-. Garbage time out (as every lineup view). */
+function stintRecView(g) {
+  const sea = UI.luScope === 'season', S = subStints(sea ? splitGames() : [g]).filter(subPer);
+  if (!S.length) return '<div class="muted small">No stints yet: needs a full five on the floor.</div>';
+  const nm = id => pShort(g, 'a', id), pct = R => R.n ? Math.round(100 * (R.w + R.t / 2) / R.n) : null;
+  const rows = [...new Set(S.map(s => s.id))].map(id => { const L = S.filter(s => s.id === id), R = subRec(L), pm = L.reduce((t, s) => t + s.pm, 0);
+    const qd = q => subRec(L.filter(s => q.includes(quadOf(s.g))));
+    return { id, L, R, pm, pct: pct(R), st: subRec(L.filter(s => s.kind === 'start')), bn: subRec(L.filter(s => s.kind === 'in')),
+      q: [qd(['1A']), qd(['1A', '1']), qd(['2']), qd(['1A', '1', '2']), qd(['3']), qd(['4'])],   // Q1A, Q1, Q2, Q1+Q2, Q3, Q4
+      best: Math.max(...L.map(s => s.pm)), worst: Math.min(...L.map(s => s.pm)) }; })
+    .sort((a, b) => (b.pct - a.pct) || (b.R.n - a.R.n));
+  const rec = R => R.n ? `<span class="${subRecCls(R)}">${subRecTxt(R)}</span>` : '<span class="muted">—</span>';
+  const chip = s => { const k = s.pm > 0 ? 'W' : s.pm < 0 ? 'L' : 'T';
+    return `<span class="sr-chip sr-${k}" title="${esc(PER_NAME(s.per))}: ${s.from.a}–${s.from.b} to ${s.to.a}–${s.to.b}">${k} ${sgn(s.pm)}</span>`; };
+  const all = subRec(S);
+  return `<div class="tbl-wrap"><table class="tbl zebra sub-t"><thead><tr><th class="l">Player</th><th>Record</th><th>Win%</th><th>Stints</th><th>+/-</th><th>Avg +/-</th><th>Best</th><th>Worst</th><th class="sub-gap">As starter</th><th>Off the bench</th>${sea ? '<th class="sub-gap">Q1A</th><th title="Q1A included">Q1</th><th>Q2</th><th title="Q1A, Q1 and Q2">Q1+Q2</th><th>Q3</th><th>Q4</th>' : '<th class="l sub-gap">Every stint, in order</th>'}</tr></thead>
+    <tbody>${rows.map(r => `<tr><td class="l nw"><b>${esc(nm(r.id))}</b></td><td class="b nw">${rec(r.R)}</td><td class="${r.pct > 50 ? 'pos' : r.pct < 50 ? 'neg' : ''}">${r.pct}%</td><td>${r.R.n}</td>
+      <td class="${subCls(r.pm)}">${sgn(r.pm)}</td><td class="${subCls(r.pm / r.R.n)}">${sg1(r.pm / r.R.n)}</td><td class="${subCls(r.best)}">${sgn(r.best)}</td><td class="${subCls(r.worst)}">${sgn(r.worst)}</td>
+      <td class="nw sub-gap">${rec(r.st)}</td><td class="nw">${rec(r.bn)}</td>${sea ? r.q.map((R, i) => `<td class="nw${i ? '' : ' sub-gap'}">${rec(R)}</td>`).join('') : `<td class="l sub-gap"><div class="sr-chips">${r.L.map(chip).join('')}</div></td>`}</tr>`).join('')}</tbody></table></div>
+    <div class="small muted" style="margin-top:6px">A stint = his time on the court from when he checks in (or starts the half) until he checks out (or the half ends). <b>Won</b> = we outscored them while he was out there, <b>lost</b> = they outscored us, <b>tied</b> = even. Win% counts a tie as half. Best / Worst = his best and worst stint by +/-. Garbage time out. ${sea ? `Q1A–Q4 = his record in stints against each quadrant (opponent's rating and the venue, as the leaderboard's Quads; Q1 includes Q1A, Q1+Q2 is Q1A, Q1 and Q2)${ratingsData() ? '' : ': needs the ratings on this iPad'}.` : 'Hover a stint for its half and the score in and out.'} Team: ${all.n} stints.</div>`;
 }
 
 /* ---------- Player On/Off, pair synergy and projected fives (Lineups → View) ----------

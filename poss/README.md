@@ -602,6 +602,17 @@ is always out (Possessions shows the No garbage time lock); the Half buttons fil
   possessions there and in his first 5 where his net is 25+ below his first 5; "none" once a later bucket has 15+ and
   he holds up; — until then. Tap a player for those buckets and every stint he's had.
 
+## Stint records (Lineups → View → Stint records)
+
+Every player's record in his stints. A stint = his time on the court from when he checks in (or starts the half)
+until he checks out (or the half ends), the same stints as Subs. It's **won** when we outscore them while he's out
+there, **lost** when they outscore us, **tied** when even. Per player: **Record** (W-L-T), **Win%** (a tie counts
+half), stints, total and average +/-, **Best** / **Worst** stint, and his record **as a starter** and **off the
+bench**. Season: also his record by the opponent's **quadrant** (**Q1A**, **Q1**, **Q2**, **Q1+Q2**, **Q3**, **Q4**, the
+leaderboard's Quads by the opponent's rating and the venue; Q1 includes Q1A, Q1+Q2 is Q1A, Q1 and Q2; needs the
+ratings on the iPad). This game also shows every stint in order as W / L / T chips with its +/- (hover: the half, score in and
+out). Any split in Season. Garbage time out (Possessions shows the No garbage time lock).
+
 ## Lineup shooting and scoring (tap a five on Lineups)
 
 Under how its possessions ended, every five shows both ends (ours = OFF, theirs = DEF):
