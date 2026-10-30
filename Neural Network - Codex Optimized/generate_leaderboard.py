@@ -259,6 +259,84 @@ def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = N
     return enriched
 
 
+GAME_SIGMA = 11.5   # the final margin's spread between equal teams over a full 40:00 (the in-game win probability)
+
+
+def _sl_wp(lead: float, left: float) -> float:
+    """Win probability of the team up `lead` with `left` seconds to play, the teams assumed equal (KenPom's game
+    attributes): the rest of the game is a coin flip with spread GAME_SIGMA * sqrt(left / 2400)."""
+    if left <= 0:
+        return 1.0 if lead > 0 else 0.0 if lead < 0 else 0.5
+    return 0.5 * (1.0 + math.erf(lead / (GAME_SIGMA * math.sqrt(left / 2400.0)) / math.sqrt(2.0)))
+
+
+def _sl_game_flow(stats_dir: Path) -> dict:
+    """KenPom's game attributes for each game with play-by-play, from the winner's side, the teams assumed equal:
+    {(M/D/YYYY, frozenset(box-norm teams)): {excitement (the win probability's total movement), tension (100 x how
+    close it stayed to 50%, time-weighted), dominance_pbp (the winner's time-weighted average lead = its expected
+    margin), min_wp (the winner's lowest, %), max_deficit, max_lead, window (largest lead + largest deficit),
+    lead_changes, ties}}. Sampled every 10 seconds and at every score."""
+    out = {}
+    pdir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
+    for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
+        try:
+            pj = json.load(open(f))
+        except Exception:
+            continue
+        plays = pj.get("plays") or []
+        if not plays or plays[-1][5] == plays[-1][6]:
+            continue
+        sign = 1 if plays[-1][5] > plays[-1][6] else -1   # the winner's side: visitor +1, home -1
+        events, ends = [], {}   # (elapsed seconds, winner's lead) at each score; each period's end
+        for per, clock, _team, _pl, _act, v, h in plays:
+            try:
+                mm, ss = (int(x) for x in clock.split(":"))
+            except ValueError:
+                continue
+            start, length = ((per - 1) * 1200, 1200) if per <= 2 else (2400 + (per - 3) * 300, 300)
+            ends[per] = start + length
+            t = start + length - (mm * 60 + ss)
+            m = sign * (v - h)
+            if not events or m != events[-1][1]:
+                events.append((t, m))
+        if not ends:
+            continue
+        total = max(ends.values())
+        regs = sorted(ends.values())
+        times = sorted(set(range(0, total + 1, 10)) | {t for t, _ in events})
+        wps, leads, i, m = [], [], 0, 0
+        for t in times:
+            while i < len(events) and events[i][0] <= t:
+                m = events[i][1]; i += 1
+            end = 2400 if t < 2400 else next(e for e in regs if e >= t)   # regulation, or this overtime's end
+            wps.append(_sl_wp(m, end - t)); leads.append(m)
+        wps[-1] = 1.0
+        dt = [times[k + 1] - times[k] for k in range(len(times) - 1)]
+        span = sum(dt) or 1
+        margins = [m for _, m in events]
+        lc = ties = 0
+        prev = 0
+        for m in margins:
+            s_ = (m > 0) - (m < 0)
+            if s_ == 0:
+                ties += 1
+            elif prev and s_ != prev:
+                lc += 1
+            if s_:
+                prev = s_
+        mx_lead, mx_def = max([0] + margins), max([0] + [-m for m in margins])
+        key = (f"{int(f.name[4:6])}/{int(f.name[6:8])}/{f.name[:4]}", frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
+        out[key] = {
+            "excitement": round(sum(abs(wps[k + 1] - wps[k]) for k in range(len(wps) - 1)), 2),
+            "tension": round(100.0 * sum((1.0 - 2.0 * abs(wps[k] - 0.5)) * dt[k] for k in range(len(dt))) / span, 1),
+            "dominance_pbp": round(sum(leads[k] * dt[k] for k in range(len(dt))) / span, 1),
+            "min_wp": round(100.0 * min(wps), 1),
+            "max_deficit": mx_def, "max_lead": mx_lead, "window": mx_lead + mx_def,
+            "lead_changes": lc, "ties": ties,
+        }
+    return out
+
+
 def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     sel = rows if predicate is None else [r for r in rows if predicate(r)]
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
@@ -518,11 +596,21 @@ def _with_hosts(stats_dir: Path, games: list) -> list:
 
 def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool = True,
                      hca_points: float = 3.0, wp_scale: float = 10.0,
-                     prior_stats_dir: Path = None) -> dict:
+                     prior_stats_dir: Path = None, pbp: bool = False) -> dict:
+    """pbp: the current season (2026-27 on): the play-by-play attributes, and upsets from game one (both teams rated
+    from last season)."""
     by_team, team_names = _sl_load_games(stats_dir)
     games = _sl_dedupe(by_team, team_names, exclude_zero_scores)
     priors = _sl_load_priors(prior_stats_dir) if prior_stats_dir is not None else {}
     rows = _sl_enrich(games, team_names, hca_points, wp_scale, priors)
+    # 2026-27 on (play_by_play): KenPom's play-by-play game attributes. Past seasons have no play-by-play and keep
+    # their lists as they were.
+    flow = _sl_game_flow(stats_dir) if pbp else {}
+    for r in rows:
+        fl = flow.get((r["date"], frozenset(_box_norm(x) for x in (r["winner"], r["loser"]))))
+        if fl:
+            r.update(fl)
+    pbp_rows = [r for r in rows if "excitement" in r]
     game_dates = {r["date"] for r in rows}
     sched_dir = Path(str(stats_dir).replace(" Team Statistics", " Teams Schedules"))
     lines_of_night = _sl_load_line_of_night(sched_dir, game_dates)
@@ -531,8 +619,17 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "stats_dir": str(stats_dir),
         "games_in_system": len(rows),
         "dominant_wins":  _sl_top_n(rows, "dominance_score", top),
-        "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5),
+        "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and (
+                              r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5
+                              or pbp and r["winner"] in priors and r["loser"] in priors)),
         "tension_games":  _sl_top_n(rows, "tension_score", top),
+        "pbp_games":      len(pbp_rows),
+        "pbp_excitement": _sl_top_n(pbp_rows, "excitement", top),
+        "pbp_tension":    _sl_top_n(pbp_rows, "tension", top),
+        "pbp_dominance":  _sl_top_n(pbp_rows, "dominance_pbp", top),
+        "pbp_min_wp":     sorted(pbp_rows, key=lambda r: r["min_wp"])[:top],
+        "pbp_max_deficit": _sl_top_n(pbp_rows, "max_deficit", top),
+        "pbp_window":     sorted(pbp_rows, key=lambda r: (r["window"], -r["lead_changes"]))[:top],
         "bust_games":     _sl_top_n(rows, "bust_score", top),
         "fanmatch_games": sorted(_with_hosts(stats_dir, rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale)),
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
@@ -2569,7 +2666,7 @@ def load_storylines(stats_dir=None) -> dict:
         prior_dir = None
     try:
         return build_storylines(stats_dir=stats_dir, top=100, exclude_zero_scores=True,
-                                hca_points=3.0, wp_scale=10.0, prior_stats_dir=prior_dir)
+                                hca_points=3.0, wp_scale=10.0, prior_stats_dir=prior_dir, pbp=stats_dir == STATS_DIR)
     except Exception as e:
         print(f"  Warning: could not load storylines: {e}")
         return {}
@@ -3330,6 +3427,69 @@ def _game_bpm(side_tot, opp_tot, rows, opp_rows, team, opp, lg_ortg, priors):
     return result
 
 
+# The win-probability chart's plays: made / missed shots by type and turnovers (13 kinds: A-M visitor, N-Z home)
+WP_KINDS = ["made layup", "made jumper", "made 3", "made free throw", "made dunk", "made tip-in",
+            "missed layup", "missed jumper", "missed 3", "missed free throw", "missed dunk", "missed tip-in", "turnover"]
+WP_POINTS = [2, 2, 3, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0]
+
+
+def _wp_kind(act: str):
+    a = (act or "").lower()
+    if a.startswith("turnover"):
+        return 12
+    made = a.startswith("made")
+    if not (made or a.startswith("missed")):
+        return None
+    k = 3 if "free throw" in a else 2 if "3-pt" in a else 4 if "dunk" in a else 5 if "tip" in a else 0 if "layup" in a else 1
+    return k if made else k + 6
+
+
+def _wp_events(plays):
+    """A game's plays for the box score's win-probability chart: (string, visitor players, home players). Per play
+    (every shot, free throw and turnover), the seconds since the last one in base 36, the team and kind as a capital
+    (WP_KINDS: A-M visitor, N-Z home), then the player as one base-36 character (his place in that team's list; z the
+    team or a 36th player). The score follows from the made shots; where the play-by-play's score says otherwise, a
+    reset: <seconds>!<v>.<h>. (base 36). Elapsed time: 20:00 halves, 5:00 overtimes."""
+    out, last_t, ev, eh = [], 0, 0, 0
+    players = ([], [])
+    for per, clock, team, pl, act, v, h in plays:
+        k = _wp_kind(act)
+        if k is None and (v, h) == (ev, eh):
+            continue
+        try:
+            mm, ss = (int(x) for x in clock.split(":"))
+        except ValueError:
+            continue
+        t = (per * 1200 if per <= 2 else 2400 + (per - 2) * 300) - (mm * 60 + ss)
+        dt = max(0, t - last_t)
+        last_t = max(t, last_t)
+        if k is not None:
+            names = players[team]
+            if pl and pl != "TEAM" and pl not in names and len(names) < 35:
+                names.append(pl)
+            idx = _b36(names.index(pl)) if pl in names else "z"
+            out.append(_b36(dt) + chr((65 if team == 0 else 78) + k) + idx)
+            dt = 0
+            if team == 0:
+                ev += WP_POINTS[k]
+            else:
+                eh += WP_POINTS[k]
+        if (v, h) != (ev, eh):
+            out.append(f"{_b36(dt)}!{_b36(v)}.{_b36(h)}.")
+            ev, eh = v, h
+    return "".join(out), players
+
+
+def _b36(n: int) -> str:
+    d = "0123456789abcdefghijklmnopqrstuvwxyz"
+    s = ""
+    while True:
+        n, r = divmod(n, 36)
+        s = d[r] + s
+        if not n:
+            return s
+
+
 def build_game_boxes(stats_dir) -> dict:
     """Build per-game player box scores (Torvik-style) for one season.
 
@@ -3482,6 +3642,8 @@ def build_game_boxes(stats_dir) -> dict:
     # Who shows up in each game's play-by-play (any play, a check-in included), by period and in all: a box score's
     # 0-minute, no-stat player stays only if he's in it.
     pbp_seen = {}
+    # Each game's scoring, for the box score's win-probability chart (2026-27 on): {gk: (visitor, periods, events)}
+    pbp_flow = {}
     pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
         try:
@@ -3499,6 +3661,8 @@ def build_game_boxes(stats_dir) -> dict:
                     seen["all"].add(k)
                     seen.setdefault(str(pl[0]), set()).add(k)
             pbp_seen[gk] = seen
+            if stats_dir == STATS_DIR:
+                pbp_flow[gk] = (pj.get("visitor"), max(pl[0] for pl in pj["plays"]), _wp_events(pj["plays"]))
 
     for box_path in sched_dir.glob("*/*/*/*.json"):
         try:
@@ -3646,6 +3810,22 @@ def build_game_boxes(stats_dir) -> dict:
                           for tn, rows in period_rows(tp, 20 if int(pk) <= 2 else 5).items()}
             if hv:
                 record["hv"] = hv
+        # Win-probability chart: "wp" [visitor's box name, periods, plays string, visitor players, home players] (_wp_events)
+        fl = pbp_flow.get(gk)
+        if fl and fl[2][0]:
+            vis = next((tn for tn in names if _box_norm(tn) == _box_norm(fl[0])), None)
+            if vis:
+                home = next(tn for tn in names if tn != vis)
+
+                def shown(pbp_name, tn):   # the box score's name for a play-by-play "LAST,FIRST"
+                    k = pkey(pbp_name)
+                    r = next((r for r in record["t"][tn] if pkey(r["n"]) == k), None)
+                    if r:
+                        return re.sub(r"^#\S+\s+", "", r["n"])
+                    last, _, first = pbp_name.partition(",")
+                    return f"{first.strip().title()} {last.strip().title()}".strip()
+                record["wp"] = [vis, fl[1], fl[2][0], [shown(n, vis) for n in fl[2][1][0]],
+                                [shown(n, home) for n in fl[2][1][1]]]
         games[key] = record
         pending.append((record, names, sides, flags))
         # Safety net: when the game folder's date stamp disagrees with the
@@ -6568,7 +6748,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     <div class="sl-game-count" id="sl-game-count" style="display:none"></div>
     <div id="sl-tab-dominance" class="sl-tab-content">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Margin</th><th class="sl-th-r">Value</th>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r" id="sl-th-dominance">Margin</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-dominance"></tbody></table></div></div>
     </div>
     <div id="sl-tab-upsets" class="sl-tab-content" style="display:none">
@@ -6578,13 +6758,33 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     </div>
     <div id="sl-tab-tension" class="sl-tab-content" style="display:none">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Margin / OT</th><th class="sl-th-r">Value</th>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r" id="sl-th-tension">Margin / OT</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-tension"></tbody></table></div></div>
     </div>
     <div id="sl-tab-busts" class="sl-tab-content" style="display:none">
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
         <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Exp. Margin</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-busts"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-excitement" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Lead Changes / Ties</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-excitement"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-minwp" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Max Deficit</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-minwp"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-maxdef" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Min Win Prob</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-maxdef"></tbody></table></div></div>
+    </div>
+    <div id="sl-tab-window" class="sl-tab-content" style="display:none">
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Lead / Deficit</th><th class="sl-th-r">Value</th>
+      </tr></thead><tbody id="sl-body-window"></tbody></table></div></div>
     </div>
     <div id="sl-tab-height" class="sl-tab-content" style="display:none">
       <div style="padding:6px 10px 10px;color:#aaa;font-size:0.75rem;text-align:center">Average roster height from stored 2025-26 roster-height data. Ranked by average inches.</div>
@@ -7098,6 +7298,169 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '</table></div>';
 }}
 
+// Win probability through the game (g.wp, 2026-27 games with play-by-play), Torvik-style: the winner's chance from
+// the lead, the time left and the pregame expected margin (the FanMatch ratings: pregame nets + 3 home court), which
+// counts for less as the clock runs (spread 11.5 over a full 40:00). Dotted: the score margin (right axis, 0 at 50%).
+// Dots: every play (shots, free throws, turnovers) in the team's color, its time, player and play on hover; the
+// ring: where the winner's chance reached 99% for good.
+const WP_KINDS = ['made layup', 'made jumper', 'made 3', 'made free throw', 'made dunk', 'made tip-in', 'missed layup',
+  'missed jumper', 'missed 3', 'missed free throw', 'missed dunk', 'missed tip-in', 'turnover'];   // _wp_events
+const WP_POINTS = [2, 2, 3, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0];
+function __wpHex(c) {{ const m = /^#?([0-9a-f]{{6}})$/i.exec(c || ''); return m ? [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16)) : null; }}
+// The two teams' dot colors: school colors, the loser's second color (or gray) when the two are too alike
+function __wpColors(w, l) {{
+  const pc = typeof TEAM_PRIMARY_COLORS !== 'undefined' ? TEAM_PRIMARY_COLORS : {{}}, sc = typeof TEAM_SECONDARY_COLORS !== 'undefined' ? TEAM_SECONDARY_COLORS : {{}};
+  const near = (a, b) => {{ const x = __wpHex(a), y = __wpHex(b); return !x || !y || Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 90; }};
+  const light = c => {{ const x = __wpHex(c); return !x || 0.299 * x[0] + 0.587 * x[1] + 0.114 * x[2] > 215; }};
+  const cw = light(pc[w]) ? '#1a1f2e' : pc[w];
+  let cl = pc[l];
+  if (light(cl) || near(cl, cw)) cl = !light(sc[l]) && !near(sc[l], cw) ? sc[l] : '#9ca3af';
+  return [cw, cl];
+}}
+function __wpErf(x) {{
+  const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a);
+  return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a));
+}}
+function __wpProb(lead, left, exp) {{
+  if (left <= 0) return lead > 0 ? 1 : lead < 0 ? 0 : 0.5;
+  return 0.5 * (1 + __wpErf((lead + exp * left / 2400) / (11.5 * Math.sqrt(left / 2400)) / Math.SQRT2));
+}}
+function __wpEnd(t) {{ return t <= 2400 ? 2400 : 2400 + 300 * Math.ceil((t - 2400) / 300); }}
+function __wpClock(t) {{
+  const end = t <= 1200 ? 1200 : __wpEnd(t), left = end - t;
+  const per = t <= 1200 ? '1st' : t <= 2400 ? '2nd' : (end - 2400) / 300 > 1 ? (end - 2400) / 300 + 'OT' : 'OT';
+  return per + ' ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+}}
+// The winner's pregame expected margin, from the game's FanMatch row (0 when there isn't one)
+function __wpPregame(g, w, l) {{
+  let rows = [];
+  try {{ rows = (activeStorylines() || {{}}).fanmatch_games || []; }} catch (e) {{ return 0; }}
+  const nw = __boxNorm(w), nl = __boxNorm(l);
+  const r = rows.find(r => r.date === g.d && !r.upcoming && [__boxNorm(r.winner), __boxNorm(r.loser)].sort().join('|') === [nw, nl].sort().join('|'));
+  if (!r || r.pregame_winner_net == null || r.pregame_loser_net == null) return 0;
+  const gap = (__boxNorm(r.winner) === nw ? 1 : -1) * (r.pregame_winner_net - r.pregame_loser_net);
+  const home = r.home_team ? __boxNorm(r.home_team) : '';
+  return gap + (home === nw ? 3 : home === nl ? -3 : 0);
+}}
+function __bxWpChart(g, w, l) {{
+  if (!g.wp) return '';
+  const [vis, nper, str, vNames, hNames] = g.wp, wIsV = vis === w, l0 = wIsV ? l : w;
+  // plays: [seconds, side 0 visitor / 1 home, player, kind, visitor score, home score]; ev: the score after each
+  const plays = [], ev = [];
+  let t = 0, v = 0, h = 0;
+  const re = /([0-9a-z]+)(?:([A-Z])([0-9a-z])|!([0-9a-z]+)\.([0-9a-z]+)\.)/g;
+  let m;
+  while ((m = re.exec(str))) {{
+    t += parseInt(m[1], 36);
+    if (m[2]) {{
+      const c = m[2].charCodeAt(0) - 65, side = c >= 13 ? 1 : 0, kind = c % 13, pi = m[3] === 'z' ? -1 : parseInt(m[3], 36);
+      if (side) h += WP_POINTS[kind]; else v += WP_POINTS[kind];
+      const nm = pi < 0 ? 'Team' : ((side ? hNames : vNames) || [])[pi] || '';
+      plays.push([t, side, nm, kind, v, h]);
+    }} else {{ v = parseInt(m[4], 36); h = parseInt(m[5], 36); }}
+    ev.push([t, v, h]);
+  }}
+  const exp = __wpPregame(g, w, l);
+  const total = 2400 + 300 * Math.max(0, nper - 2);
+  const times = new Set();
+  for (let s = 0; s <= total; s += 10) times.add(s);
+  ev.forEach(e => times.add(e[0]));
+  // [seconds, winner's chance, visitor, home, winner's lead]
+  const pts = [];
+  let i = 0, cv = 0, ch = 0;
+  [...times].sort((a, b) => a - b).forEach(s => {{
+    while (i < ev.length && ev[i][0] <= s) {{ cv = ev[i][1]; ch = ev[i][2]; i++; }}
+    const lead = wIsV ? cv - ch : ch - cv;
+    pts.push([s, __wpProb(lead, __wpEnd(s) - s, exp), cv, ch, lead]);
+  }});
+  pts[pts.length - 1][1] = 1;
+  // each play's dot sits on the curve after it: [seconds, chance, side, player, kind, v, h]
+  const dotsP = plays.map(p => {{
+    const lead = wIsV ? p[4] - p[5] : p[5] - p[4];
+    return [p[0], p[0] >= total && lead > 0 ? 1 : __wpProb(lead, __wpEnd(p[0]) - p[0], exp), p[1], p[2], p[3], p[4], p[5]];
+  }});
+  let lock = pts.length - 1;
+  while (lock > 0 && pts[lock - 1][1] >= 0.99) lock--;
+  const [cw, cl] = __wpColors(w, l);
+  const sideColor = sd => (sd === 0) === wIsV ? cw : cl, sideTeam = sd => sd === 0 ? vis : l0;
+  __bxWpPts = dotsP.length ? dotsP : pts; __bxWpNames = [w, l, wIsV, sideTeam, dotsP.length > 0];
+  // Drawn at the screen's width (the modal's content area) so the text stays its real size on a phone and a desktop
+  const W = Math.max(300, Math.min(1100, (window.innerWidth || 800) - (window.innerWidth < 700 ? 60 : 160)));
+  const small = W < 500;
+  const H = small ? 230 : 300, L = 36, R = 30, T = 10, B = 38;
+  const D = Math.max(15, Math.ceil(Math.max(...pts.map(p => Math.abs(p[4]))) / 5) * 5);   // score axis: +-D
+  __bxWpGeom = {{ W, H, L, R, T, B, total }};
+  const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p), yd = d => y(0.5 + d / (2 * D));
+  const ink = '#6b7280', fs = small ? 10 : 11;
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${{L}}" x2="${{W - R}}" y1="${{y(p)}}" y2="${{y(p)}}" stroke="${{p === 0.5 ? '#1a1f2e' : '#e6e8ec'}}" stroke-width="1"/>`
+    + `<text x="${{L - 5}}" y="${{y(p) + 4}}" text-anchor="end" font-size="${{fs}}" fill="${{ink}}">${{p === 0 || p === 1 ? p.toFixed(1) : p}}</text>`).join('');
+  const step = D > 25 ? 10 : 5, dTicks = [];
+  for (let d = -D + (D % step); d <= D; d += step) if (d !== 0 && Math.abs(d) < D) dTicks.push(d);
+  const right = dTicks.concat([0]).map(d => `<text x="${{W - R + 5}}" y="${{yd(d) + 4}}" font-size="${{fs}}" fill="${{ink}}">${{d}}</text>`).join('');
+  const xt = [];
+  for (let s = 0; s <= total; s += (s < 2400 ? 300 : 300)) if (s <= 2400 ? s % 300 === 0 && (!small || s % 600 === 0 || s === 2400) : true) xt.push(s);
+  const xticks = xt.map(s => `<line x1="${{x(s)}}" x2="${{x(s)}}" y1="${{T}}" y2="${{H - B}}" stroke="#eef0f3" stroke-width="1"/>`
+    + `<text x="${{x(s)}}" y="${{H - B + 15}}" text-anchor="middle" font-size="${{fs}}" fill="${{ink}}">${{s / 60}}</text>`).join('');
+  const frame = `<line x1="${{L}}" x2="${{L}}" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e"/><line x1="${{L}}" x2="${{W - R}}" y1="${{H - B}}" y2="${{H - B}}" stroke="#1a1f2e"/>`;
+  const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
+  let diff = '';   // the score margin as steps
+  pts.forEach((p, k) => {{ diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); }});
+  const r0 = small ? 2.2 : 2.8;
+  const dots = dotsP.map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{WP_POINTS[p[4]] ? sideColor(p[2]) : '#fff'}}" stroke="${{sideColor(p[2])}}" stroke-width="1.2"/>`).join('');
+  const ring = lock < pts.length - 1 ? `<circle cx="${{x(pts[lock][0])}}" cy="${{y(pts[lock][1])}}" r="${{small ? 5 : 6.5}}" fill="none" stroke="#1a1f2e" stroke-width="2.5"/>` : '';
+  const minWp = Math.min(...pts.map(p => p[1]));
+  const [mo, da, yr] = (g.d || '').split('/');
+  const dShort = mo ? mo + '/' + da + '/' + String(yr).slice(-2) : '';
+  const key = (sw, dash) => `<svg width="22" height="8" style="vertical-align:middle"><line x1="0" x2="22" y1="4" y2="4" stroke="${{sw}}" stroke-width="${{dash ? 1.5 : 4}}"${{dash ? ' stroke-dasharray="2 2"' : ''}}/></svg>`;
+  const dot = c => `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${{c}};vertical-align:middle"></span>`;
+  return '<div style="margin:0 0 14px">'
+    + `<div style="text-align:center;font-weight:700;font-size:${{small ? '0.8rem' : '0.95rem'}};color:#1a1f2e;margin:0 0 6px">Win probability for ${{w}} over ${{l}} ${{dShort}} (Minimum chance: ${{(100 * minWp).toFixed(1)}}%)</div>`
+    + '<div style="position:relative">'
+    + `<svg viewBox="0 0 ${{W}} ${{H}}" style="width:100%;max-width:${{W}}px;height:auto;display:block;margin:0 auto;touch-action:pan-y" onpointermove="__bxWpHover(event, this)" onpointerleave="__bxWpHover(null, this)">`
+    + xticks + grid + frame + right
+    + `<path d="${{diff}}" fill="none" stroke="#1a1f2e" stroke-width="1.2" stroke-dasharray="2 2"/>`
+    + `<path d="${{line}}" fill="none" stroke="#5b9bd5" stroke-width="${{small ? 3.5 : 5}}" stroke-linejoin="round" stroke-linecap="round"/>`
+    + dots + ring
+    + `<text x="${{(L + W - R) / 2}}" y="${{H - 4}}" text-anchor="middle" font-size="${{fs}}" font-style="italic" fill="${{ink}}">Minutes elapsed</text>`
+    + `<line class="wp-x" x1="0" x2="0" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
+    + `<circle class="wp-dot" r="5" fill="#5b9bd5" stroke="#fff" stroke-width="2" visibility="hidden"/>`
+    + `<rect x="${{L}}" y="${{T}}" width="${{W - L - R}}" height="${{H - T - B}}" fill="transparent"/>`
+    + '</svg>'
+    + '<div class="wp-tip" style="position:absolute;top:0;display:none;pointer-events:none;background:#1a1f2e;color:#fff;font-size:0.75rem;padding:4px 8px;border-radius:4px;white-space:nowrap"></div>'
+    + '</div>'
+    + `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:4px 14px;font-size:0.72rem;color:${{ink}};margin-top:4px">`
+    + `<span>${{key('#5b9bd5')}} ${{w}} win probability (left)</span><span>${{key('#1a1f2e', 1)}} score margin (right)</span>`
+    + `<span>${{dot(cw)}} ${{w}} play</span><span>${{dot(cl)}} ${{l}} play</span><span>filled: made · open: miss / turnover</span>`
+    + (ring ? '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #1a1f2e;vertical-align:middle"></span> 99% for good</span>' : '')
+    + '</div></div>';
+}}
+let __bxWpPts = [], __bxWpNames = [], __bxWpGeom = {{}};
+function __bxWpHover(e, svg) {{
+  const wrap = svg.parentNode, tip = wrap.querySelector('.wp-tip'), xl = svg.querySelector('.wp-x'), dot = svg.querySelector('.wp-dot');
+  if (!e || !__bxWpPts.length) {{ tip.style.display = 'none'; xl.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); return; }}
+  const {{ W, H, L, R, T, B, total }} = __bxWpGeom;
+  const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width;
+  const s = Math.max(0, Math.min(total, (sx - L) / (W - L - R) * total));
+  let best = __bxWpPts[0];
+  for (const p of __bxWpPts) {{ if (Math.abs(p[0] - s) < Math.abs(best[0] - s)) best = p; }}
+  const px = L + (W - L - R) * best[0] / total, py = T + (H - T - B) * (1 - best[1]);
+  xl.setAttribute('x1', px); xl.setAttribute('x2', px); xl.setAttribute('visibility', 'visible');
+  dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
+  const [w, l, wIsV, sideTeam, byPlay] = __bxWpNames;
+  if (byPlay) {{
+    const ws = wIsV ? best[5] : best[6], ls = wIsV ? best[6] : best[5];
+    tip.innerHTML = '<b>' + __wpClock(best[0]) + '</b> · ' + (best[3] && best[3] !== 'Team' ? best[3] + ' (' + sideTeam(best[2]) + ')' : sideTeam(best[2]))
+      + ' ' + WP_KINDS[best[4]] + '<br>' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + w + ' ' + (100 * best[1]).toFixed(1) + '%';
+  }} else {{
+    const ws = wIsV ? best[2] : best[3], ls = wIsV ? best[3] : best[2];
+    tip.textContent = __wpClock(best[0]) + ' · ' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + (100 * best[1]).toFixed(1) + '%';
+  }}
+  tip.style.display = 'block';
+  const left = px / W * r.width, tw = tip.offsetWidth;
+  tip.style.left = Math.max(0, Math.min(r.width - tw, left - tw / 2)) + 'px';
+  tip.style.top = Math.max(0, py / H * r.height - 50) + 'px';
+}}
+
 // Final (the default) or one period's box score: g.hv, period -> team -> rows, when the page had them.
 let __bxGame = null, __bxPer = 'F';
 function bxPeriod(p) {{ __bxPer = p; renderBoxScore(__bxGame, true); }}
@@ -7119,7 +7482,7 @@ function renderBoxScore(g, keepPeriod) {{
   const tabs = hv ? '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 0 10px">' +
     [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
       `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
-  document.getElementById('bx-content').innerHTML = tabs +
+  document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
     __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || []);
   const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
   const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
@@ -12710,6 +13073,10 @@ const SL_TABS = [
   {{ id: 'upsets',    label: 'Upsets' }},
   {{ id: 'tension',   label: 'Tension' }},
   {{ id: 'busts',     label: 'Busts' }},
+  {{ id: 'excitement', label: 'Excitement', pbp: true }},
+  {{ id: 'minwp',     label: 'Min WP', pbp: true }},
+  {{ id: 'maxdef',    label: 'Max Deficit', pbp: true }},
+  {{ id: 'window',    label: 'Window', pbp: true }},
   {{ id: 'height',    label: 'Height' }},
   {{ id: 'wab',       label: 'WAB' }},
   {{ id: 'rate',      label: 'Rate' }},
@@ -12720,6 +13087,11 @@ const SL_TABS = [
   {{ id: 'trends',    label: 'Trends' }},
   {{ id: 'conf',      label: 'Conferences' }},
 ];
+// The play-by-play attributes (KenPom's, the teams assumed equal) start with 2026-27: its Tension and Dominance
+// come from the play-by-play and the pbp tabs show; past seasons are kept as they were.
+const SL_PBP_SEASON = '2627';
+function slPbpSeason() {{ return activeSeason === SL_PBP_SEASON; }}
+const SL_GAME_TABS = ['dominance', 'upsets', 'tension', 'busts', 'excitement', 'minwp', 'maxdef', 'window'];
 let slInitialized = false;
 let slActiveTab = 'dominance';
 let slFanmatchDates = [];
@@ -12739,12 +13111,10 @@ function activeStorylines() {{
 
 function slReinit() {{
   if (!slInitialized) return;
-  slRenderTab('dominance');
-  slRenderTab('upsets');
-  slRenderTab('tension');
-  slRenderTab('busts');
+  SL_GAME_TABS.forEach(slRenderTab);
   slRenderHeight();
   slInitFanmatch();
+  if (!slPbpSeason() && (SL_TABS.find(t => t.id === slActiveTab) || {{}}).pbp) slActiveTab = 'dominance';
   slRenderWab(slWabRegion || 'North');
   slRenderRate(activeSeason);
   slRenderTiers('All');
@@ -12761,8 +13131,9 @@ function slReinit() {{
 function slBuildNav() {{
   const nav = document.getElementById('sl-nav');
   if (!nav) return;
-  nav.innerHTML = SL_TABS.map((t, i) => {{
-    const sep = i < SL_TABS.length - 1 ? '<span class="sl-nav-sep">&middot;</span>' : '';
+  const tabs = SL_TABS.filter(t => !t.pbp || slPbpSeason());
+  nav.innerHTML = tabs.map((t, i) => {{
+    const sep = i < tabs.length - 1 ? '<span class="sl-nav-sep">&middot;</span>' : '';
     const cls = t.id === slActiveTab ? 'sl-active' : '';
     return `<a class="${{cls}}" onclick="slSwitchTab('${{t.id}}','${{t.label}}')">${{t.label}}</a>${{sep}}`;
   }}).join('');
@@ -12774,10 +13145,7 @@ function slInitOnce() {{
   slBuildNav();
   const sl = activeStorylines();
   if (sl && sl.dominant_wins) {{
-    slRenderTab('dominance');
-    slRenderTab('upsets');
-    slRenderTab('tension');
-    slRenderTab('busts');
+    SL_GAME_TABS.forEach(slRenderTab);
     slInitFanmatch();
   }}
   slRenderHeight();
@@ -12839,8 +13207,10 @@ function slSwitchTab(tab, label) {{
       const slYr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = slYr + ' game attribute rankings (' + (label || tab) + ')';
       if (countEl) {{
-        const n = activeStorylines().games_in_system || 0;
-        countEl.textContent = n + ' game' + (n === 1 ? '' : 's') + ' played';
+        const _sl = activeStorylines();
+        const pbpTab = slPbpSeason() && ['dominance', 'tension', 'excitement', 'minwp', 'maxdef', 'window'].includes(tab);
+        const n = (pbpTab ? _sl.pbp_games : _sl.games_in_system) || 0;
+        countEl.textContent = n + ' game' + (n === 1 ? '' : 's') + (pbpTab ? ' with play-by-play' : ' played');
         countEl.style.display = 'block';
       }}
     }}
@@ -13976,8 +14346,29 @@ function slGameRow(g, idx, cols) {{
     value  = '<td class="sl-val-cell">' + g.upset_score + '</td>';
   }} else if (cols === 'tension') {{
     const ot = g.overtimes > 0 ? (g.overtimes > 1 ? g.overtimes + 'OT' : 'OT') : '\u2014';
-    detail = '<td class="sl-detail-cell">' + g.margin + ' / ' + ot + '</td>';
+    // play-by-play games also show lead changes / ties (title: late closeness, comeback)
+    const flow = g.lead_changes != null ? ` <span style="color:#777;font-size:0.75rem" title="Last 10:00 within 5: ${{Math.round(100 * g.close_late)}}% · winner came back from ${{g.comeback}}">· ${{g.lead_changes}} LC / ${{g.ties}} T</span>` : '';
+    detail = '<td class="sl-detail-cell">' + g.margin + ' / ' + ot + flow + '</td>';
     value  = '<td class="sl-val-cell">' + g.tension_score + '</td>';
+  }} else if (cols === 'dominance_pbp') {{
+    detail = '<td class="sl-detail-cell">' + g.margin + ' pts</td>';
+    value  = '<td class="sl-val-cell">' + g.dominance_pbp + '</td>';
+  }} else if (cols === 'tension_pbp') {{
+    const ot = g.overtimes > 0 ? (g.overtimes > 1 ? g.overtimes + 'OT' : 'OT') : '\u2014';
+    detail = '<td class="sl-detail-cell">' + g.margin + ' / ' + ot + '</td>';
+    value  = '<td class="sl-val-cell">' + g.tension + '</td>';
+  }} else if (cols === 'excitement') {{
+    detail = '<td class="sl-detail-cell">' + g.lead_changes + ' / ' + g.ties + '</td>';
+    value  = '<td class="sl-val-cell">' + g.excitement + '</td>';
+  }} else if (cols === 'minwp') {{
+    detail = '<td class="sl-detail-cell">' + g.max_deficit + '</td>';
+    value  = '<td class="sl-val-cell">' + g.min_wp + '%</td>';
+  }} else if (cols === 'maxdef') {{
+    detail = '<td class="sl-detail-cell">' + g.min_wp + '%</td>';
+    value  = '<td class="sl-val-cell">' + g.max_deficit + '</td>';
+  }} else if (cols === 'window') {{
+    detail = '<td class="sl-detail-cell">+' + g.max_lead + ' / \u2212' + g.max_deficit + '</td>';
+    value  = '<td class="sl-val-cell">' + g.window + '</td>';
   }} else if (cols === 'busts') {{
     const exp = g.pregame_model_margin_a != null ? Math.abs(g.pregame_model_margin_a).toFixed(1) : '\u2014';
     detail = '<td class="sl-detail-cell">\u00b1' + exp + '</td>';
@@ -14013,16 +14404,26 @@ function slGameRow(g, idx, cols) {{
 
 function slRenderTab(tab) {{
   const sl = activeStorylines();
+  const pbp = slPbpSeason();
   const map = {{
-    dominance: sl.dominant_wins,
+    dominance: pbp ? sl.pbp_dominance : sl.dominant_wins,
     upsets:    sl.upsets,
-    tension:   sl.tension_games,
+    tension:   pbp ? sl.pbp_tension : sl.tension_games,
     busts:     sl.bust_games,
+    excitement: sl.pbp_excitement,
+    minwp:     sl.pbp_min_wp,
+    maxdef:    sl.pbp_max_deficit,
+    window:    sl.pbp_window,
   }};
   const games = map[tab] || [];
   const body = document.getElementById('sl-body-' + tab);
   if (!body) return;
-  body.innerHTML = games.map((g, i) => slGameRow(g, i, tab)).join('');
+  const cols = pbp && (tab === 'dominance' || tab === 'tension') ? tab + '_pbp' : tab;
+  if (tab === 'dominance' || tab === 'tension') {{
+    const th = document.getElementById('sl-th-' + tab);
+    if (th) th.textContent = tab === 'dominance' ? 'Margin' : 'Margin / OT';
+  }}
+  body.innerHTML = games.map((g, i) => slGameRow(g, i, cols)).join('');
 }}
 
 function slInitFanmatch() {{

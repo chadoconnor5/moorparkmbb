@@ -99,6 +99,18 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   within 2.5 of the box score, each half's within 2.0 of that half's box score (the page's period tabs) and the names match; the rest are listed with the reason. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
+- Game attributes (Misc tabs, build_storylines): 2026-27 only, from the play-by-play (KenPom's, the teams assumed
+  equal; _sl_wp): Excitement (win probability's total movement), Tension (how close it stayed to 50%), Dominance
+  (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
+  play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
+  keep their tabs and formulas as they were (no new tabs).
+- Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
+  from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
+  the score margin dotted on the right axis, a dot per play (shots, free throws, turnovers) in the team's color
+  (filled made, open missed / turnover) with time, player and play on hover, a ring where it reached 99% for good.
+  build_game_boxes stores "wp" [visitor, periods, plays string, visitor players, home players] (_wp_events); the
+  page rebuilds the curve (__bxWpChart). The Min WP / Excitement / Tension tabs stay KenPom's (teams equal). The box
+  score's tables are unchanged. Past seasons: no chart.
 - Stints (internal, for a possible BPR later): compute_pbp_lineups.py also writes internal_data/pbp_stints/<season>.json,
   every usable game's stretches with the same ten on the floor (both fives, seconds, each side's possessions and
   points, garbage-time flag, leverage). Not used on the site; BPR only if play-by-play coverage per team turns out
@@ -120,6 +132,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   daily_ranks/<season>.json (rank_history.py; the nightly commits and pushes it). A played game shows the rank saved before
   its date (locked at tip-off); of the games to come only a team's next one shows a rank (today's). A saved day is
   recomputed only when a game dated on/before it arrives late. Past seasons keep their reconstructed daily ranks.
+- WAB from 2026-27 on (calculate_wab.py / compute_wab_sim.py, ADJUSTED_FROM): every game is graded against the
+  opponent's current leaderboard rating (update_advanced_analytics: opponent-adjusted, last season fading out), the
+  bubble is the 48th (split: 24th) team on those ratings, and a team is listed from its first game - sensible from
+  night one. Earlier seasons keep the raw per-game method (published WAB unchanged). Scouting reports read the
+  season's own wab_results_<season>.json.
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
   re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
   the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.

@@ -3,7 +3,7 @@
 import json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from calculate_wab import (load_team_data, calculate_team_ratings, calculate_wab_for_team)
+from calculate_wab import (load_team_data, load_ratings, calculate_wab_for_team)
 
 CONF_REGION = {
     'WSC North': 'South', 'WSC South': 'South', 'Orange Empire Athletic': 'South',
@@ -12,10 +12,10 @@ CONF_REGION = {
     'Coast-South': 'North', 'Bay Valley': 'North', 'Central Valley': 'North', 'Golden Valley': 'North',
 }
 
-def sim_wab(ratings, teams, bubble_rank=24, region_filter=None):
+def sim_wab(ratings, teams, bubble_rank=24, region_filter=None, bubble_min=10, list_min=5):
     pool = {k: v for k, v in ratings.items()
             if region_filter is None or CONF_REGION.get(v['conference']) == region_filter}
-    qualified = sorted([(v['net'], v['ortg'], v['drtg']) for v in pool.values() if v['games'] >= 10],
+    qualified = sorted([(v['net'], v['ortg'], v['drtg']) for v in pool.values() if v['games'] >= bubble_min],
                         key=lambda x: -x[0])
     if not qualified:
         return []
@@ -27,7 +27,7 @@ def sim_wab(ratings, teams, bubble_rank=24, region_filter=None):
     results = []
     for name, td in teams.items():
         r = ratings.get(name)
-        if not r or r['games'] < 5:
+        if not r or r['games'] < list_min:
             continue
         if region_filter and CONF_REGION.get(r['conference']) != region_filter:
             continue
@@ -44,10 +44,10 @@ def sim_wab(ratings, teams, bubble_rank=24, region_filter=None):
 def run_for_season(season_dir, out_path):
     print(f"Loading {season_dir} team data...")
     teams = load_team_data(season_dir)
-    ratings = calculate_team_ratings(teams)
+    ratings, bmin, lmin = load_ratings(season_dir, teams)   # the adjusted ratings from 2026-27 on
     print(f"\nComputing simulation: split North/South, bubble @24")
-    north = sim_wab(ratings, teams, bubble_rank=24, region_filter='North')
-    south = sim_wab(ratings, teams, bubble_rank=24, region_filter='South')
+    north = sim_wab(ratings, teams, bubble_rank=24, region_filter='North', bubble_min=bmin, list_min=lmin)
+    south = sim_wab(ratings, teams, bubble_rank=24, region_filter='South', bubble_min=bmin, list_min=lmin)
     with open(out_path, 'w') as f:
         json.dump({'north': north, 'south': south}, f)
     print(f"Saved {out_path}")

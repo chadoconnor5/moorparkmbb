@@ -136,13 +136,38 @@ def log5(prob_a: float, prob_b: float) -> float:
     return numerator / denominator
 
 
-def determine_bubble_rating(ratings: Dict[str, Dict]) -> Dict[str, float]:
+# From 2026-27 on, teams are rated with the leaderboard's own ratings (update_advanced_analytics.py: opponent-adjusted,
+# last season's rating fading out as games come in) - meaningful from the first night, where raw per-game averages
+# from a game or two aren't. Earlier seasons keep the raw method so their published WAB doesn't change.
+ADJUSTED_FROM = "2026-27"
+
+
+def load_ratings(season: str, teams: Dict[str, Dict]):
+    """(ratings, bubble_min_games, list_min_games) for a season: the adjusted ratings from 2026-27 on (every team
+    rated, so the bubble and the list start from game one), else calculate_team_ratings with the 10 / 5 game floors."""
+    if season < ADJUSTED_FROM:
+        return calculate_team_ratings(teams), 10, 5
+    ratings = {}
+    for adv in Path(f"{season} Team Statistics").glob("*/*/advanced_analytics.json"):
+        try:
+            t = json.load(open(adv)).get("team", {})
+        except Exception:
+            continue
+        if not t.get("ortg") or not t.get("drtg"):
+            continue
+        name = adv.parent.name
+        ratings[name] = {"ortg": float(t["ortg"]), "drtg": float(t["drtg"]), "net": float(t["ortg"]) - float(t["drtg"]),
+                         "games": len((teams.get(name) or {}).get("games", [])), "conference": adv.parent.parent.name}
+    return ratings, 0, 1
+
+
+def determine_bubble_rating(ratings: Dict[str, Dict], min_games: int = 10) -> Dict[str, float]:
     """Determine the ORTG/DRTG of the bubble team (48th percentile by NET).
     
     48 of ~100 CCCAA teams make the playoffs (24 North + 24 South),
     so the bubble is the last team in — roughly rank 48 out of 100.
     """
-    qualified = [(t['net'], t['ortg'], t['drtg']) for t in ratings.values() if t['games'] >= 10]
+    qualified = [(t['net'], t['ortg'], t['drtg']) for t in ratings.values() if t['games'] >= min_games]
     
     if not qualified:
         return {'net': 0.0, 'ortg': 100.0, 'drtg': 100.0}
@@ -242,18 +267,19 @@ def main():
         return
     
     print("\nCalculating team ratings...")
-    current_ratings = calculate_team_ratings(current_teams)
-    
-    print(f"Calculated ratings for {len(current_ratings)} teams")
-    
+    current_ratings, bubble_min, list_min = load_ratings(season, current_teams)
+
+    print(f"Calculated ratings for {len(current_ratings)} teams"
+          + (" (the leaderboard's adjusted ratings)" if season >= ADJUSTED_FROM else ""))
+
     # Determine bubble team benchmark
-    bubble = determine_bubble_rating(current_ratings)
+    bubble = determine_bubble_rating(current_ratings, bubble_min)
     
     print("\nCalculating WAB for each team...")
     wab_results = []
     
     for team_name, team_data in current_teams.items():
-        if team_name in current_ratings and current_ratings[team_name]['games'] >= 5:
+        if team_name in current_ratings and current_ratings[team_name]['games'] >= list_min:
             wab = calculate_wab_for_team(team_name, team_data, current_ratings, bubble)
             
             team_rating = current_ratings[team_name]
