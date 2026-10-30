@@ -34,6 +34,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
                                 # and the tracker's scouting reports for the teams that played (--no-rebuild skips),
                                 # then commits and pushes it all (--no-push skips; a pull conflict stops before the push)
   python3 scrape.py status      # what's missing (no network)
+  python3 scrape.py rebuild     # stats, ratings, lineups, WAB/BPM, leaderboard, reports from disk, then push (no site requests)
   python3 scrape.py missing     # re-check older games missing stats (only when asked; --team/--conference/--date/--to)
 - Opponent-adjust the trackers' lineups (game tracker Season page, or possession tracker
   Lineups -> Season -> Lineup file); ratings AND four factors, the four factors against
@@ -130,6 +131,16 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   the host is the host's Home game and the visitor's Away game (generate_team_stats.py, neutral_host() in
   assemble_schedules.py); other tournament games stay Neutral. A played TBA game replaces its TBA row (team pages,
   FanMatch).
+- One team's box score only (the other side posted nothing, or fake minutes): update_advanced_analytics takes the
+  posted side's possessions for both teams and the final score for each, so both get that game's ORtg / DRtg / net
+  (four factors need both sides: those skip it). Fake (placeholder) minutes don't affect possessions; the game
+  counts as 40 minutes.
+- Early-season minimums (2026-27; past seasons keep the full-season numbers): a full season's bar is pro-rated to
+  the games so far (of a 28-game season). Charts and the individual leaderboard's rate stats: 20 GP -> 20/28 of
+  the player's team's games (seasonGpMin). Players' minutes-based stats (ORtg, usage, rebound %, PER, WS...): a
+  team needs 18 clean games -> 18/28 of its games (_adv_clean_needed). BPM (compute_ccc_bpm.py): 18 team / 5
+  player games -> 18/28 and 5/28 of the most games any team has played. Records always show a Conference line
+  (0-0 before conference play).
 - Records (2026-27): typed-in schedules have none (or a preseason 0-0), so generate_team_stats.py counts them from
   the games played ("Overall (.500)": "1-1", "Conference ..."); past seasons keep the site's.
 - A box score page with no teams / players (stats not up yet, or the site sent something else) is not filed as a

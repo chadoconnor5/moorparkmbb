@@ -814,17 +814,19 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
     game_ratings = []
     if game_log:
         for g in game_log:
-            ts = g.get("team_stats")
-            os_ = g.get("opponent_stats")
-            if not ts or not os_:
-                continue
+            # One side's stats can be missing outright (the site posted only one team's box score): then, as for a
+            # side with an empty box, the posted team's possessions stand for both, with the final score
+            ts = g.get("team_stats") or {}
+            os_ = g.get("opponent_stats") or {}
             # Skip games where either side has a broken box score (no shooting data)
             t_broken = ts.get("FGA", 0) == 0 and ts.get("PTS", 0) == 0
             o_broken = os_.get("FGA", 0) == 0 and os_.get("PTS", 0) == 0
             if t_broken and o_broken:
                 continue
-            t_poss = (ts["FGA"] - ts["OREB"]) + ts["TO"] + 0.475 * ts["FTA"]
-            o_poss = (os_["FGA"] - os_["OREB"]) + os_["TO"] + 0.475 * os_["FTA"]
+            if (t_broken and not g.get("team_score")) or (o_broken and not g.get("opponent_score")):
+                continue   # no final score for the side without stats
+            _p = lambda x: (x.get("FGA", 0) - x.get("OREB", 0)) + x.get("TO", 0) + 0.475 * x.get("FTA", 0)
+            t_poss, o_poss = _p(ts), _p(os_)
             # If one side has a broken box score, use the valid team's possessions
             if t_broken or t_poss <= 0:
                 if o_poss > 0:
@@ -837,8 +839,8 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
                 avg_poss = (t_poss + o_poss) / 2
             if avg_poss > 0:
                 # Use schedule scores when box score data is broken
-                t_pts = g.get("team_score", 0) if t_broken else ts["PTS"]
-                o_pts = g.get("opponent_score", 0) if o_broken else os_["PTS"]
+                t_pts = g.get("team_score", 0) if t_broken else ts.get("PTS", 0)
+                o_pts = g.get("opponent_score", 0) if o_broken else os_.get("PTS", 0)
                 g_ortg = t_pts / avg_poss * 100
                 g_drtg = o_pts / avg_poss * 100
                 game_min = g.get("MIN", 0)
