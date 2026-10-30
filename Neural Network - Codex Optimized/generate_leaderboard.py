@@ -7065,7 +7065,7 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '</table></div>';
 }}
 
-// Final (the default) or one period's box score: g.hv {"1": {team: rows}, "2": ...} when the page had them.
+// Final (the default) or one period's box score: g.hv, period -> team -> rows, when the page had them.
 let __bxGame = null, __bxPer = 'F';
 function bxPeriod(p) {{ __bxPer = p; renderBoxScore(__bxGame, true); }}
 function renderBoxScore(g, keepPeriod) {{
