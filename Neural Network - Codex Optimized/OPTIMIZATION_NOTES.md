@@ -66,6 +66,9 @@ This copy keeps the original project intact and starts consolidating the working
   first five listed players as starters. After backfilling roles for more
   seasons, refresh the box files: delete
   `internal_data/cache/leaderboard/*_boxes.json` and rebuild with `--cache`.
+  2026-27 games with play-by-play also carry "wp": the scoring compressed to ~3 characters per score
+  (_wp_events: base-36 seconds since the last score + A/B/C / X/Y/Z), ~200 bytes a game; the page computes
+  the win-probability curve from it instead of shipping the curve.
 - practice_tracker.html (hand-maintained, not generated): roster lives in
   localStorage (`pt_roster`, edited in-app via the Roster button); the embedded
   `#roster-data` block is only the first-run seed. The Backup nav button

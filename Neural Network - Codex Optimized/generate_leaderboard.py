@@ -3427,6 +3427,38 @@ def _game_bpm(side_tot, opp_tot, rows, opp_rows, team, opp, lg_ortg, priors):
     return result
 
 
+def _wp_events(plays) -> str:
+    """A game's scoring as a short string for the box score's win-probability chart: per score, the seconds since the
+    last one in base 36 then the team and points as a capital (A/B/C visitor 1-3, X/Y/Z home 1-3), or R<v>.<h>.
+    (base 36, the score reset) for anything else (a corrected score). Elapsed time: 20:00 halves, 5:00 overtimes."""
+    out, last_t, v0, h0 = [], 0, 0, 0
+    for per, clock, _team, _pl, _act, v, h in plays:
+        if (v, h) == (v0, h0):
+            continue
+        try:
+            mm, ss = (int(x) for x in clock.split(":"))
+        except ValueError:
+            continue
+        t = (per * 1200 if per <= 2 else 2400 + (per - 2) * 300) - (mm * 60 + ss)
+        dt = max(0, t - last_t)
+        dv, dh = v - v0, h - h0
+        code = ("ABC"[dv - 1] if dh == 0 and 1 <= dv <= 3 else "XYZ"[dh - 1] if dv == 0 and 1 <= dh <= 3
+                else f"R{_b36(v)}.{_b36(h)}.")
+        out.append(_b36(dt) + code)
+        last_t, v0, h0 = max(t, last_t), v, h
+    return "".join(out)
+
+
+def _b36(n: int) -> str:
+    d = "0123456789abcdefghijklmnopqrstuvwxyz"
+    s = ""
+    while True:
+        n, r = divmod(n, 36)
+        s = d[r] + s
+        if not n:
+            return s
+
+
 def build_game_boxes(stats_dir) -> dict:
     """Build per-game player box scores (Torvik-style) for one season.
 
@@ -3579,6 +3611,8 @@ def build_game_boxes(stats_dir) -> dict:
     # Who shows up in each game's play-by-play (any play, a check-in included), by period and in all: a box score's
     # 0-minute, no-stat player stays only if he's in it.
     pbp_seen = {}
+    # Each game's scoring, for the box score's win-probability chart (2026-27 on): {gk: (visitor, periods, events)}
+    pbp_flow = {}
     pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
         try:
@@ -3596,6 +3630,8 @@ def build_game_boxes(stats_dir) -> dict:
                     seen["all"].add(k)
                     seen.setdefault(str(pl[0]), set()).add(k)
             pbp_seen[gk] = seen
+            if stats_dir == STATS_DIR:
+                pbp_flow[gk] = (pj.get("visitor"), max(pl[0] for pl in pj["plays"]), _wp_events(pj["plays"]))
 
     for box_path in sched_dir.glob("*/*/*/*.json"):
         try:
@@ -3743,6 +3779,12 @@ def build_game_boxes(stats_dir) -> dict:
                           for tn, rows in period_rows(tp, 20 if int(pk) <= 2 else 5).items()}
             if hv:
                 record["hv"] = hv
+        # Win-probability chart: "wp" [visitor's box name, periods, scoring string] (_wp_events)
+        fl = pbp_flow.get(gk)
+        if fl and fl[2]:
+            vis = next((tn for tn in names if _box_norm(tn) == _box_norm(fl[0])), None)
+            if vis:
+                record["wp"] = [vis, fl[1], fl[2]]
         games[key] = record
         pending.append((record, names, sides, flags))
         # Safety net: when the game folder's date stamp disagrees with the
@@ -7215,6 +7257,93 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '</table></div>';
 }}
 
+// Win probability through the game (g.wp, 2026-27 games with play-by-play): the winner's chance from the lead and
+// the time left, the teams assumed equal (_sl_wp in generate_leaderboard.py: spread 11.5 over a full 40:00).
+function __wpErf(x) {{
+  const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a);
+  return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a));
+}}
+function __wpProb(lead, left) {{
+  if (left <= 0) return lead > 0 ? 1 : lead < 0 ? 0 : 0.5;
+  return 0.5 * (1 + __wpErf(lead / (11.5 * Math.sqrt(left / 2400)) / Math.SQRT2));
+}}
+function __wpEnd(t) {{ return t <= 2400 ? 2400 : 2400 + 300 * Math.ceil((t - 2400) / 300); }}
+function __wpClock(t) {{
+  const end = t <= 1200 ? 1200 : __wpEnd(t), left = end - t;
+  const per = t <= 1200 ? '1st' : t <= 2400 ? '2nd' : (end - 2400) / 300 > 1 ? (end - 2400) / 300 + 'OT' : 'OT';
+  return per + ' ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+}}
+function __bxWpChart(g, w, l) {{
+  if (!g.wp) return '';
+  const [vis, nper, str] = g.wp, wIsV = vis === w;
+  const ev = [];
+  let t = 0, v = 0, h = 0;
+  const re = /([0-9a-z]+)([A-Z])(?:([0-9a-z]+)\.([0-9a-z]+)\.)?/g;
+  let m;
+  while ((m = re.exec(str))) {{
+    t += parseInt(m[1], 36);
+    const c = m[2];
+    if (c === 'R') {{ v = parseInt(m[3], 36); h = parseInt(m[4], 36); }}
+    else if ('ABC'.includes(c)) v += 'ABC'.indexOf(c) + 1;
+    else h += 'XYZ'.indexOf(c) + 1;
+    ev.push([t, v, h]);
+  }}
+  const total = 2400 + 300 * Math.max(0, nper - 2);
+  const times = new Set();
+  for (let s = 0; s <= total; s += 10) times.add(s);
+  ev.forEach(e => times.add(e[0]));
+  const pts = [];
+  let i = 0, cv = 0, ch = 0;
+  [...times].sort((a, b) => a - b).forEach(s => {{
+    while (i < ev.length && ev[i][0] <= s) {{ cv = ev[i][1]; ch = ev[i][2]; i++; }}
+    const lead = wIsV ? cv - ch : ch - cv;
+    pts.push([s, __wpProb(lead, __wpEnd(s) - s), cv, ch]);
+  }});
+  pts[pts.length - 1][1] = 1;
+  __bxWpPts = pts; __bxWpNames = [w, l, wIsV];
+  const W = 720, H = 190, L = 44, R = 12, T = 14, B = 24;
+  const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p);
+  const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${{L}}" x2="${{W - R}}" y1="${{y(p)}}" y2="${{y(p)}}" stroke="${{p === 0.5 ? '#9aa1ad' : '#e6e8ec'}}" stroke-width="1"${{p === 0.5 ? ' stroke-dasharray="4 4"' : ''}}/>`).join('');
+  const ylab = [[1, '100%'], [0.5, '50%'], [0, '0%']].map(([p, s]) => `<text x="${{L - 6}}" y="${{y(p) + 4}}" text-anchor="end" font-size="11" fill="#6b7280">${{s}}</text>`).join('');
+  const marks = [1200, 2400].concat(Array.from({{ length: Math.max(0, nper - 3) }}, (_, k) => 2700 + 300 * k)).filter(s => s < total);
+  const vlines = marks.map(s => `<line x1="${{x(s)}}" x2="${{x(s)}}" y1="${{T}}" y2="${{H - B}}" stroke="#d1d5db" stroke-width="1"/>`).join('');
+  const segs = [[0, 1200, '1st Half'], [1200, 2400, '2nd Half']].concat(Array.from({{ length: Math.max(0, nper - 2) }}, (_, k) => [2400 + 300 * k, 2700 + 300 * k, (k ? k + 1 : '') + 'OT']));
+  const xlab = segs.map(([a, b, s]) => `<text x="${{(x(a) + x(b)) / 2}}" y="${{H - 7}}" text-anchor="middle" font-size="11" fill="#6b7280">${{s}}</text>`).join('');
+  const minWp = Math.min(...pts.map(p => p[1]));
+  return '<div style="margin:0 0 14px">'
+    + `<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:0 2px 4px"><span style="font-weight:700;font-size:0.9rem;color:#1a1f2e">${{w}} win probability</span><span style="font-size:0.75rem;color:#6b7280">lowest ${{Math.round(100 * minWp)}}% · teams assumed equal</span></div>`
+    + '<div style="position:relative">'
+    + `<svg viewBox="0 0 ${{W}} ${{H}}" style="width:100%;height:auto;display:block" onpointermove="__bxWpHover(event, this)" onpointerleave="__bxWpHover(null, this)">`
+    + grid + vlines + ylab + xlab
+    + `<path d="${{line}}" fill="none" stroke="#0d47a1" stroke-width="2" stroke-linejoin="round"/>`
+    + `<line class="wp-x" x1="0" x2="0" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
+    + `<circle class="wp-dot" r="4" fill="#0d47a1" stroke="#fff" stroke-width="2" visibility="hidden"/>`
+    + `<rect x="${{L}}" y="${{T}}" width="${{W - L - R}}" height="${{H - T - B}}" fill="transparent"/>`
+    + '</svg>'
+    + '<div class="wp-tip" style="position:absolute;top:0;display:none;pointer-events:none;background:#1a1f2e;color:#fff;font-size:0.75rem;padding:4px 8px;border-radius:4px;white-space:nowrap"></div>'
+    + '</div></div>';
+}}
+let __bxWpPts = [], __bxWpNames = [];
+function __bxWpHover(e, svg) {{
+  const wrap = svg.parentNode, tip = wrap.querySelector('.wp-tip'), xl = svg.querySelector('.wp-x'), dot = svg.querySelector('.wp-dot');
+  if (!e || !__bxWpPts.length) {{ tip.style.display = 'none'; xl.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); return; }}
+  const W = 720, H = 190, L = 44, R = 12, T = 14, B = 24, total = __bxWpPts[__bxWpPts.length - 1][0];
+  const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width;
+  const s = Math.max(0, Math.min(total, (sx - L) / (W - L - R) * total));
+  let best = __bxWpPts[0];
+  for (const p of __bxWpPts) {{ if (Math.abs(p[0] - s) < Math.abs(best[0] - s)) best = p; }}
+  const px = L + (W - L - R) * best[0] / total, py = T + (H - T - B) * (1 - best[1]);
+  xl.setAttribute('x1', px); xl.setAttribute('x2', px); xl.setAttribute('visibility', 'visible');
+  dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
+  const [w, l, wIsV] = __bxWpNames, ws = wIsV ? best[2] : best[3], ls = wIsV ? best[3] : best[2];
+  tip.textContent = __wpClock(best[0]) + ' · ' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + Math.round(100 * best[1]) + '%';
+  tip.style.display = 'block';
+  const left = px / W * r.width, tw = tip.offsetWidth;
+  tip.style.left = Math.max(0, Math.min(r.width - tw, left - tw / 2)) + 'px';
+  tip.style.top = Math.max(0, py / H * r.height - 34) + 'px';
+}}
+
 // Final (the default) or one period's box score: g.hv, period -> team -> rows, when the page had them.
 let __bxGame = null, __bxPer = 'F';
 function bxPeriod(p) {{ __bxPer = p; renderBoxScore(__bxGame, true); }}
@@ -7236,7 +7365,7 @@ function renderBoxScore(g, keepPeriod) {{
   const tabs = hv ? '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 0 10px">' +
     [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
       `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
-  document.getElementById('bx-content').innerHTML = tabs +
+  document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
     __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || []);
   const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
   const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
