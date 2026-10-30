@@ -210,6 +210,9 @@ def game_units(pbp, rosters):
     spt = end / game_poss   # seconds per possession
 
     units = [{}, {}]
+    # Stints for BPR (compute_bpr.py): each stretch with the same ten on the floor - both fives, time, and each
+    # side's counts and points. Garbage time is kept but flagged.
+    stints, cur = [], None
     gt = False
     bad_five, checked = 0, 0
     last_t, v_prev, h_prev = 0, 0, 0
@@ -250,6 +253,8 @@ def game_units(pbp, rosters):
                         _unit(units[s], on[s], rosters[s])["lev"].setdefault(band, _blk())["secs"] += t - last_t
                     if clutch:
                         _unit(units[s], on[s], rosters[s])["lev"].setdefault("clutch", _blk())["secs"] += t - last_t
+            if cur is not None and len(on[0]) == 5 and len(on[1]) == 5:
+                cur["secs"] += t - last_t
             last_t = t
         # substitutions at this moment, all together
         if p["action"] in ("enters the game", "goes to the bench"):
@@ -287,6 +292,17 @@ def game_units(pbp, rosters):
         s = p["team"]
         c = _counts(p["action"])
         pts = (p["v"] - v_prev, p["h"] - h_prev)
+        if len(on[0]) == 5 and len(on[1]) == 5:
+            key = (tuple(sorted(on[0])), tuple(sorted(on[1])))
+            if cur is None or cur["key"] != key:
+                cur = {"key": key, "secs": 0, "c": [{}, {}], "pts": [0, 0], "gt": False, "lev": {}}
+                stints.append(cur)
+            for k, v in c.items():
+                cur["c"][s][k] = cur["c"][s].get(k, 0) + v
+            cur["pts"][0] += pts[0]; cur["pts"][1] += pts[1]
+            cur["gt"] = cur["gt"] or (gt and not ot)
+            if band:
+                cur["lev"][band] = cur["lev"].get(band, 0) + 1
         if not gt and len(on[0]) == 5 and len(on[1]) == 5:
             for side in (0, 1):
                 u = _unit(units[side], on[side], rosters[side])
@@ -325,7 +341,11 @@ def game_units(pbp, rosters):
             if u["secs"] > 0 or u["oT"] or u["dT"]:
                 us.append(u)
         out.append(us)
-    return out, {"fixes": fixes[0]}
+    st = [{"v": list(x["key"][0]), "h": list(x["key"][1]), "secs": x["secs"],
+           "poss": [round(_poss(x["c"][0]), 2), round(_poss(x["c"][1]), 2)], "pts": x["pts"], "gt": x["gt"],
+           "lev": max(x["lev"], key=x["lev"].get) if x["lev"] else None}
+          for x in stints if x["secs"] > 0 or any(x["c"][0].values()) or any(x["c"][1].values())]
+    return out, {"fixes": fixes[0], "stints": st}
 
 
 def _blk():
@@ -371,6 +391,7 @@ def build(season, only=None, verbose=False):
     factors = al.load_factors(season) if ratings else {}
     phase = al.season_phase()
     teams = {}
+    all_stints = []
     for f in sorted(pdir.glob("*.json")) if pdir.exists() else []:
         d = date(int(f.name[:4]), int(f.name[4:6]), int(f.name[6:8]))
         pbp = json.load(open(f))
@@ -386,6 +407,8 @@ def build(season, only=None, verbose=False):
         if res is not None:
             if verbose:
                 print(f"  {d} {pbp['visitor']} at {pbp['home']}: used ({why['fixes']} substitution repairs)")
+            all_stints.append({"date": d.isoformat(), "visitor": names[0], "home": names[1],
+                               "site": site_for(season, names[1], d), "stints": why["stints"]})
             why = None
         for s, team in enumerate(names):
             if only and team != only:
@@ -404,6 +427,10 @@ def build(season, only=None, verbose=False):
                                    "units": res[s]})
     out_dir = OUT / season
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Every usable game's stints, for compute_bpr.py (internal: not published)
+    sdir = Path("internal_data/pbp_stints")
+    sdir.mkdir(parents=True, exist_ok=True)
+    json.dump({"season": season, "games": all_stints}, open(sdir / f"{season}.json", "w"), separators=(",", ":"))
     written = 0
     for team, entry in sorted(teams.items()):
         if len(entry["games"]) < MIN_GAMES or not ratings:
