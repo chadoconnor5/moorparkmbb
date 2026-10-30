@@ -120,6 +120,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   daily_ranks/<season>.json (rank_history.py; the nightly commits and pushes it). A played game shows the rank saved before
   its date (locked at tip-off); of the games to come only a team's next one shows a rank (today's). A saved day is
   recomputed only when a game dated on/before it arrives late. Past seasons keep their reconstructed daily ranks.
+- WAB from 2026-27 on (calculate_wab.py / compute_wab_sim.py, ADJUSTED_FROM): every game is graded against the
+  opponent's current leaderboard rating (update_advanced_analytics: opponent-adjusted, last season fading out), the
+  bubble is the 48th (split: 24th) team on those ratings, and a team is listed from its first game - sensible from
+  night one. Earlier seasons keep the raw per-game method (published WAB unchanged). Scouting reports read the
+  season's own wab_results_<season>.json.
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
   re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
   the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.

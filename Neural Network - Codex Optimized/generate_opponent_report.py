@@ -149,7 +149,8 @@ def load(team, season):
     _, md = find_team_dir('Moorpark', season)
     c.team_sum, c.adv_json, c.plyr_stats = jload(f'{d}/team_summary.json'), jload(f'{d}/advanced_analytics.json'), jload(f'{d}/player_stats.json')
     c.mp_adv, c.mp_sum = jload(f'{md}/advanced_analytics.json'), jload(f'{md}/team_summary.json')
-    wab_path = os.path.join(REPO, 'wab_results.json')
+    # this season's WAB (calculate_wab.py writes wab_results.json for 2025-26, wab_results_<season>.json otherwise)
+    wab_path = os.path.join(HERE, 'wab_results.json' if season == '2025-26' else f'wab_results_{season.replace("-", "_")}.json')
     c.wab_data = jload(wab_path) if os.path.exists(wab_path) else []
     c.avgs, c.opp_avgs, c.ta = c.team_sum['averages'], c.team_sum['opponent_averages'], c.adv_json['team']
     c.game_log = c.ta.get('game_ratings', [])
