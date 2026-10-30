@@ -135,6 +135,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   posted side's possessions for both teams and the final score for each, so both get that game's ORtg / DRtg / net
   (four factors need both sides: those skip it). Fake (placeholder) minutes don't affect possessions; the game
   counts as 40 minutes.
+- Box-score rate stats (Databallr's glossary; boxRate in the page, from each player's season totals, every season):
+  rTS% (TS% minus the league's), TSAdd/100 (points above a league-average shooter on the same shots per 100
+  possessions on the floor), 3P rTS% (1.5 x 3P% minus the league's), 3PR (3PA/FGA), SHOTS/100, STL/100, BLK/100.
+  Possessions on the floor = team possessions a game x his minutes / 40 x games (needs real minutes). Shown as
+  Individual Stats -> Advanced buttons (qualifying like their base stat: TS%, 3P%, Stl%/Blk%), chart axes, and a
+  Shooting & Defense Rates card on player pages (value + statewide rank).
 - Early-season minimums (2026-27; past seasons keep the full-season numbers): a full season's bar is pro-rated to
   the games so far (of a 28-game season). Charts and the individual leaderboard's rate stats: 20 GP -> 20/28 of
   the player's team's games (seasonGpMin). Players' minutes-based stats (ORtg, usage, rebound %, PER, WS...): a
