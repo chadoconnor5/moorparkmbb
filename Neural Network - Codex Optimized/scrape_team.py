@@ -372,6 +372,7 @@ def parse_boxscore(html: str) -> dict:
             if cleaned[0] in ("TOTALS", "Totals"):
                 continue
             name = re.sub(r"\s+", " ", cleaned[0]).strip()
+            name = re.sub(r"^[A-Z]{1,2} (\d+ )", r"\1", name)   # some pages put the position first: "F 31 Brandon Woodards"
             parts = name.split(" ", 1)
             if parts[0].isdigit() and len(parts) > 1:
                 name = f"#{parts[0]} {parts[1]}"

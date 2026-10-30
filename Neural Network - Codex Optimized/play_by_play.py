@@ -131,6 +131,7 @@ def parse_periods(page):
                     role = "reserve"; continue
                 if up.startswith("TOTALS") or up.startswith("TM") or up.startswith("TEAM") or len(cells) < len(BOX_COLS):
                     continue
+                name = re.sub(r"^[A-Z]{1,2} (\d+ )", r"\1", name)   # position first on some pages: "F 31 Name"
                 parts = name.split(" ", 1)
                 if parts[0].isdigit() and len(parts) > 1:
                     name = f"#{parts[0]} {parts[1].strip()}"
