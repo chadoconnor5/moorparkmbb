@@ -147,6 +147,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   suffixes dropped, at most 3.
 - Last 5 / Last 10 (leaderboard scopes, charts, player pages, Moorpark lineups, the possession tracker's splits) are
   empty until a team has played 5 / 10 games that season: never fewer games, never last season's.
+- FanMatch's played games (2026-27 on): the pregame nets, expected margin and win probability come from
+  opponent-adjusted ratings as of each game's date (_sl_adjusted_pregame: KenPom-style, last season's final ratings
+  regressed 30% as 3 games), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
+  winners, 9.7-9.8 pts off the margin vs 76-78% / 10.8-11.3; Torvik-style recency / blowout weighting didn't help.
+  Feeds Upsets, Busts and the box score chart's pregame odds.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
   that season (generate_leaderboard.py).
   python3 build_master_schedule.py         # -> master_schedule.csv/.xlsx/.html (every game once; rows colored:

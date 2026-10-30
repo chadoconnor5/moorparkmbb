@@ -216,22 +216,114 @@ def _sl_dedupe(by_team: dict, system_teams: set, exclude_zero: bool) -> list:
     return games
 
 
-def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = None) -> list:
+# Opponent-adjusted pregame ratings for FanMatch's played games (2026-27 on): every game is predicted from the games
+# before its date only, KenPom-style (each team's offense / defense / tempo adjusted for its opponents, every game
+# weighted the same, home court 1.4% of efficiency each way), seeded with last season's final ratings regressed 30%
+# toward average and counted as 3 games. A backtest of 2024-25 and 2025-26 (every game, ratings as of its date):
+# 78-79% of winners and 9.7-9.8 points off the margin, against 76-78% and 10.8-11.3 for the running ratings
+# (_RunningRating) the older seasons keep. Recency weighting and discounting blowouts (Torvik's) didn't help.
+ADJ_HCA, ADJ_SIGMA, ADJ_PRIOR_GAMES, ADJ_REGRESS = 0.014, 11.0, 3.0, 0.30
+
+
+def _adj_solve(rows: dict, teams, prior: dict, lg_o: float, lg_t: float, iters: int = 25):
+    """rows: team -> [(opponent, ortg, drtg, possessions)] home-neutralized. -> ({team: (O, D, T)})."""
+    O = {t: prior.get(t, (lg_o, lg_o, lg_t))[0] for t in teams}
+    D = {t: prior.get(t, (lg_o, lg_o, lg_t))[1] for t in teams}
+    T = {t: prior.get(t, (lg_o, lg_o, lg_t))[2] for t in teams}
+    for _ in range(iters):
+        nO, nD, nT = {}, {}, {}
+        for t in teams:
+            po, pd, pt = prior.get(t, (lg_o, lg_o, lg_t))
+            so, sd, st, n = ADJ_PRIOR_GAMES * po, ADJ_PRIOR_GAMES * pd, ADJ_PRIOR_GAMES * pt, ADJ_PRIOR_GAMES
+            for o, ortg, drtg, poss in rows.get(t, ()):
+                so += ortg * lg_o / D[o]
+                sd += drtg * lg_o / O[o]
+                st += poss * lg_t / T[o]
+                n += 1
+            nO[t], nD[t], nT[t] = so / n, sd / n, st / n
+        O, D, T = nO, nD, nT
+    return {t: (O[t], D[t], T[t]) for t in teams}
+
+
+def _adj_rows(games: list):
+    """Each game's home-neutralized lines for both teams, in date order: [(date, a, b, a's line, b's line)]."""
+    out = []
+    for g in games:
+        a, b, home = g["team"], g["opponent"], g.get("home_team")
+        ha = 1 + ADJ_HCA if home == a else 1 - ADJ_HCA if home == b else 1
+        out.append((g["date_obj"], a, b, (b, g["team_ortg"] / ha, g["team_drtg"] * ha, g["possessions"]),
+                    (a, g["opp_ortg"] * ha, g["opp_drtg"] / ha, g["possessions"])))
+    return out
+
+
+def _adj_league(games: list):
+    lg_o = sum(g["team_ortg"] + g["opp_ortg"] for g in games) / (2 * len(games))
+    return lg_o, sum(g["possessions"] for g in games) / len(games)
+
+
+def _adj_prior(prior_stats_dir) -> dict:
+    """Last season's final opponent-adjusted ratings, regressed toward average: {team: (O, D, T)}."""
+    if prior_stats_dir is None or not Path(prior_stats_dir).exists():
+        return {}
+    by_team, names = _sl_load_games(Path(prior_stats_dir))
+    games = _sl_dedupe(by_team, names, True)
+    if not games:
+        return {}
+    lg_o, lg_t = _adj_league(games)
+    rows = {}
+    for _, a, b, la, lb in _adj_rows(games):
+        rows.setdefault(a, []).append(la)
+        rows.setdefault(b, []).append(lb)
+    end = _adj_solve(rows, names, {}, lg_o, lg_t)
+    return {t: (o * (1 - ADJ_REGRESS) + lg_o * ADJ_REGRESS, d * (1 - ADJ_REGRESS) + lg_o * ADJ_REGRESS, tp)
+            for t, (o, d, tp) in end.items()}
+
+
+def _sl_adjusted_pregame(games: list, teams: set, prior: dict) -> list:
+    """Per game (games in date order): (a's pregame net, b's pregame net, a's expected margin in points incl. home)."""
+    if not games:
+        return []
+    lg_o, lg_t = _adj_league(games)
+    lines = _adj_rows(games)
+    rows, out, i, cur, rat = {}, [], 0, None, None
+    for g in games:
+        d = g["date_obj"]
+        if d != cur:
+            while i < len(lines) and lines[i][0] < d:
+                _, a, b, la, lb = lines[i]
+                rows.setdefault(a, []).append(la)
+                rows.setdefault(b, []).append(lb)
+                i += 1
+            rat, cur = _adj_solve(rows, teams, prior, lg_o, lg_t), d
+        a, b, home = g["team"], g["opponent"], g.get("home_team")
+        ha = 1 + ADJ_HCA if home == a else 1 - ADJ_HCA if home == b else 1
+        (oa, da, ta), (ob, db, tb) = rat[a], rat[b]
+        margin = (oa * db / lg_o * ha - ob * da / lg_o / ha) * (ta * tb / lg_t) / 100.0
+        out.append((oa - da, ob - db, margin))
+    return out
+
+
+def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = None, adjusted: list = None) -> list:
+    """adjusted (_sl_adjusted_pregame, 2026-27 on): the pregame nets, expected margin and win probability come from
+    it instead of the running ratings."""
     priors = priors or {}
     ratings = {t: _RunningRating(prior_net=priors.get(t, 0.0)) for t in teams}
     enriched = []
     for g in games:
         a, b = g["team"], g["opponent"]
         pre_a, pre_b = ratings[a].net, ratings[b].net
+        hca_a = hca if g.get("home_team") == a else (-hca if g.get("home_team") == b else 0.0)
+        pred_a = (pre_a - pre_b) + hca_a
+        wp_a = _sl_logistic(pred_a / max(wps, 1e-6))
+        if adjusted:
+            pre_a, pre_b, pred_a = adjusted[len(enriched)]
+            wp_a = 0.5 * (1.0 + math.erf(pred_a / ADJ_SIGMA / math.sqrt(2.0)))
         games_a, games_b = ratings[a].games, ratings[b].games
         winner, loser = g["winner"], g["loser"]
         w_pre = pre_a if winner == a else pre_b
         l_pre = pre_b if winner == a else pre_a
         w_games = games_a if winner == a else games_b
         l_games = games_b if winner == a else games_a
-        hca_a = hca if g.get("home_team") == a else (-hca if g.get("home_team") == b else 0.0)
-        pred_a = (pre_a - pre_b) + hca_a
-        wp_a = _sl_logistic(pred_a / max(wps, 1e-6))
         w_wp = wp_a if winner == a else (1.0 - wp_a)
         margin, w_net, ots = g["margin"], g["winner_game_net"], g["overtimes"]
         pre_gap = w_pre - l_pre
@@ -247,6 +339,7 @@ def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = N
             "pregame_winner_games": w_games, "pregame_loser_games": l_games,
             "pregame_gap": round(pre_gap, 1), "underdog_gap": round(max(0.0, l_pre - w_pre), 1),
             "pregame_model_margin_a": round(pred_a, 2), "pregame_model_wp_winner": round(w_wp, 3),
+            **({"pregame_margin_w": round(pred_a if winner == a else -pred_a, 2)} if adjusted else {}),
             "home_team": g.get("home_team"),
             "dominance_score": round(margin * (1.0 + math.tanh(l_pre / 20.0)) * 0.50 + w_net * 0.25, 2),
             "upset_score": round(100.0 * (1.0 - w_wp) + 0.20 * margin, 2),
@@ -602,7 +695,8 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
     by_team, team_names = _sl_load_games(stats_dir)
     games = _sl_dedupe(by_team, team_names, exclude_zero_scores)
     priors = _sl_load_priors(prior_stats_dir) if prior_stats_dir is not None else {}
-    rows = _sl_enrich(games, team_names, hca_points, wp_scale, priors)
+    adjusted = _sl_adjusted_pregame(games, team_names, _adj_prior(prior_stats_dir)) if pbp else None
+    rows = _sl_enrich(games, team_names, hca_points, wp_scale, priors, adjusted)
     # 2026-27 on (play_by_play): KenPom's play-by-play game attributes. Past seasons have no play-by-play and keep
     # their lists as they were.
     flow = _sl_game_flow(stats_dir) if pbp else {}
@@ -7331,12 +7425,14 @@ function __wpClock(t) {{
   const per = t <= 1200 ? '1st' : t <= 2400 ? '2nd' : (end - 2400) / 300 > 1 ? (end - 2400) / 300 + 'OT' : 'OT';
   return per + ' ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
 }}
-// The winner's pregame expected margin, from the game's FanMatch row (0 when there isn't one)
+// The winner's pregame expected margin, from the game's FanMatch row (0 when there isn't one); 2026-27 rows carry
+// it (opponent-adjusted ratings as of the game, _sl_adjusted_pregame), older ones from the nets + 3 home court
 function __wpPregame(g, w, l) {{
   let rows = [];
   try {{ rows = (activeStorylines() || {{}}).fanmatch_games || []; }} catch (e) {{ return 0; }}
   const nw = __boxNorm(w), nl = __boxNorm(l);
   const r = rows.find(r => r.date === g.d && !r.upcoming && [__boxNorm(r.winner), __boxNorm(r.loser)].sort().join('|') === [nw, nl].sort().join('|'));
+  if (r && r.pregame_margin_w != null) return (__boxNorm(r.winner) === nw ? 1 : -1) * r.pregame_margin_w;   // 2026-27: the expected margin
   if (!r || r.pregame_winner_net == null || r.pregame_loser_net == null) return 0;
   const gap = (__boxNorm(r.winner) === nw ? 1 : -1) * (r.pregame_winner_net - r.pregame_loser_net);
   const home = r.home_team ? __boxNorm(r.home_team) : '';
