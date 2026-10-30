@@ -76,6 +76,7 @@ class Roster:
             # "#31 Brandon Woodards", or with the position first on some pages: "F 31 Brandon Woodards"
             m = re.match(r"^(?:[A-Z]{1,2}\s+)?#?(\d+)\s+(.*)$", raw) or re.match(r"^#(\S+)\s+(.*)$", raw)
             num, name = (m.group(1), m.group(2)) if m else ("", raw)
+            num = num if num in ("0", "00") else (num.lstrip("0") or ("0" if num else ""))   # "03" is #3
             raw = name
             st = r.get("stats") or {}
             try:

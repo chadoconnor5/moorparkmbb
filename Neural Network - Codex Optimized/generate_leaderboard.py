@@ -2830,6 +2830,12 @@ def _player_key(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", cleaned.lower()).strip()
 
 
+def _jersey(n) -> str:
+    """A jersey number as worn: some box scores pad single digits ("03", "04"); 0 and 00 are their own numbers."""
+    n = str(n).strip()
+    return n if n in ("0", "00") else (n.lstrip("0") or "0")
+
+
 def attach_player_jerseys(players, season_dir="2025-26 Teams Schedules"):
     """Add jersey numbers to aggregate player rows from the saved box scores."""
     if not players:
@@ -2851,11 +2857,11 @@ def attach_player_jerseys(players, season_dir="2025-26 Teams Schedules"):
                 continue
             for row in team_players:
                 raw_name = str(row.get("name", "") if isinstance(row, dict) else "")
-                match = re.match(r"^#\s*(\d+)\s+(.+)$", raw_name.strip())
+                match = re.match(r"^(?:[A-Za-z]{1,2}\s+)?#?\s*(\d+)\s+(.+)$", raw_name.strip())
                 if not match:
                     continue
                 key = (team_name, _player_key(match.group(2)))
-                jersey_by_team_player.setdefault(key, match.group(1))
+                jersey_by_team_player.setdefault(key, _jersey(match.group(1)))
     for player in players:
         if not isinstance(player, dict) or player.get("jersey"):
             continue
@@ -3722,7 +3728,7 @@ def build_game_boxes(stats_dir) -> dict:
                 st = p.get("stats", {})
                 fgm, fga = parse_ma(st.get("FGM-A", "0-0")); tpm, tpa = parse_ma(st.get("3PM-A", "0-0")); ftm, fta = parse_ma(st.get("FTM-A", "0-0"))
                 jm = re.match(r"^(?:[A-Za-z]{1,2}\s+)?#?(\d+)\s+(.*)$", p.get("name", ""))
-                rows.append({"name": jm.group(2) if jm else p.get("name", ""), "JER": jm.group(1) if jm else "",
+                rows.append({"name": jm.group(2) if jm else p.get("name", ""), "JER": _jersey(jm.group(1)) if jm else "",
                              "ST": 1 if (p.get("is_starter") or p.get("role") == "starter") else 0, "MIN": parse_int(st.get("MIN", 0)),
                              "FGM": fgm, "FGA": fga, "3PM": tpm, "3PA": tpa, "FTM": ftm, "FTA": fta,
                              "OREB": parse_int(st.get("OREB", 0)), "DREB": parse_int(st.get("DREB", 0)), "AST": parse_int(st.get("AST", 0)),
@@ -3848,7 +3854,7 @@ def build_game_boxes(stats_dir) -> dict:
                 jm = re.match(r"^(?:[A-Za-z]{1,2}\s+)?#?(\d+)\s+(.*)$", raw_name)
                 rows.append({
                     "name": jm.group(2) if jm else raw_name,
-                    "JER": jm.group(1) if jm else "",
+                    "JER": _jersey(jm.group(1)) if jm else "",
                     "ST": starter,
                     "MIN": parse_int(s.get("MIN", 0)),
                     "FGM": fgm, "FGA": fga, "3PM": tpm, "3PA": tpa,

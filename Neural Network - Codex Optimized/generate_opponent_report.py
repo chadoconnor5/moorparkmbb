@@ -84,6 +84,11 @@ def luminance(hexv):
 # ─── Data ─────────────────────────────────────────────────────────────────────────────
 def stats_root(season): return os.path.join(HERE, f'{season} Team Statistics')
 
+def _jersey(n):
+    """A jersey number as worn: some box scores pad single digits ("03"); 0 and 00 are their own numbers."""
+    n = str(n).strip()
+    return n if n in ('0', '00') else (n.lstrip('0') or '0')
+
 def find_team_dir(team, season):
     root = stats_root(season)
     for conf in sorted(os.listdir(root)):
@@ -188,7 +193,7 @@ def load(team, season):
         logs_ok = (pj.get('games_rated') or 0) >= 0.8 * max(c.n_games, 1)   # the logs skip games without minutes
         for k, v in pj.get('game_logs', {}).items():
             m = re.match(r'#(\S+)\s+(.*)', k); nm = m.group(2) if m else k
-            if m: c.num[nm] = m.group(1)
+            if m: c.num[nm] = _jersey(m.group(1))
             if v: last_g[nm] = max(md(x['date']) for x in v)
     c.num_logs = set(c.num)
     # Jersey numbers also from the team's box scores ("#12 Dev Hamilton", some pages "F 31 Brandon Woodards"), for any
@@ -203,7 +208,7 @@ def load(team, season):
             for r in rows or []:
                 m = re.match(r'^(?:[A-Za-z]{1,2}\s+)?#?(\d+)\s+(.*)$', (r.get('name') or '').strip())
                 if m and m.group(2).strip() in names and m.group(2).strip() not in c.num_logs:
-                    c.num[m.group(2).strip()] = m.group(1)
+                    c.num[m.group(2).strip()] = _jersey(m.group(1))
     dates = sorted(md(g['date']) for g in c.game_log)
     cut = dates[-GONE_GAMES] if logs_ok and len(dates) >= GONE_GAMES else None
     # Minutes are reliable when the box scores add up to most of a game's 200 player-minutes; on teams whose stat crews don't
