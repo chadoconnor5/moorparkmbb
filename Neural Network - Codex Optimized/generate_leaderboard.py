@@ -6378,6 +6378,63 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   }}
   th:hover {{ background: #323d4d !important; }}
   th.active {{ color: #ffcf70 !important; }}
+
+  /* ── iPhone / iPad (portrait): the sidebar becomes a slide-out drawer behind a top bar; tables keep the name
+     column pinned while the stats scroll sideways. Wider screens (iPad landscape, PC) keep the fixed sidebar. ── */
+  #mob-bar, #mob-backdrop {{ display: none; }}
+  .sl-table-wrap {{ max-width: 100%; }}   /* a wide table scrolls inside the page instead of widening it */
+  @media (max-width: 1024px) {{
+    body {{ margin-left: 0; padding: 54px 10px 32px; }}
+    #mob-bar {{
+      display: flex; align-items: center; gap: 10px; position: fixed; top: 0; left: 0; right: 0; height: 46px;
+      padding: 0 10px; background: var(--sidebar-head); color: #fff; z-index: 1001;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    }}
+    #mob-bar button {{
+      background: none; border: 0; color: #fff; font-size: 1.5rem; line-height: 1; width: 44px; height: 44px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }}
+    #mob-bar .mob-title {{ font-weight: 700; letter-spacing: 0.05em; font-size: 0.95rem; }}
+    #mob-bar .mob-view {{ margin-left: auto; font-size: 0.8rem; color: var(--sidebar-ink); }}
+    .toggle-center {{
+      position: fixed !important; top: 0; bottom: 0; left: 0; width: 250px !important; margin: 0 !important;
+      transform: translateX(-105%); transition: transform 0.22s ease; z-index: 1002; overflow-y: auto;
+      padding: 0 0 16px !important; box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
+    }}
+    body.nav-open .toggle-center {{ transform: none; }}
+    body.nav-open #mob-backdrop {{ display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 1000; }}
+    .toggle-center button {{ min-height: 46px; font-size: 1rem; }}
+    .table-wrap {{ -webkit-overflow-scrolling: touch; }}
+    .top-bar {{ margin: 0 -10px 14px; padding: 10px; }}
+    .season-toggle {{ max-width: 100%; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }}
+    #mob-bar .mob-view {{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 4px; }}
+    .sl-table-outer {{ max-width: 100%; }}
+    .sl-table-wrap {{ display: block; max-width: 100%; -webkit-overflow-scrolling: touch; }}
+    .sl-nav {{ display: flex; flex-wrap: wrap; justify-content: center; align-items: center; line-height: 2; }}
+    .sl-nav a {{ white-space: nowrap; }}
+    select {{ max-width: 100%; }}
+    .td-content > * {{ min-width: 0; max-width: 100%; }}
+    .td-scouting {{ max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }}
+    .sl-cal-nav {{ flex-wrap: wrap; row-gap: 8px; }}
+    #sl-date-input {{ margin-left: 0 !important; }}
+    #leaderboard th:nth-child(2), #leaderboard td:nth-child(2),
+    #team-leaderboard th:nth-child(2), #team-leaderboard td:nth-child(2),
+    #team-defense-leaderboard th:nth-child(2), #team-defense-leaderboard td:nth-child(2),
+    #team-basic-leaderboard th:nth-child(2), #team-basic-leaderboard td:nth-child(2),
+    #team-basic-defense-leaderboard th:nth-child(2), #team-basic-defense-leaderboard td:nth-child(2),
+    #team-adv-offense-leaderboard th:nth-child(2), #team-adv-offense-leaderboard td:nth-child(2),
+    #team-adv-defense-leaderboard th:nth-child(2), #team-adv-defense-leaderboard td:nth-child(2) {{
+      position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--line), 3px 0 4px -2px rgba(0, 0, 0, 0.15);
+    }}
+    #leaderboard td:nth-child(2), #team-leaderboard td:nth-child(2), #team-defense-leaderboard td:nth-child(2),
+    #team-basic-leaderboard td:nth-child(2), #team-basic-defense-leaderboard td:nth-child(2),
+    #team-adv-offense-leaderboard td:nth-child(2), #team-adv-defense-leaderboard td:nth-child(2) {{
+      background: var(--surface); max-width: 46vw; overflow: hidden; text-overflow: ellipsis;
+    }}
+    #leaderboard thead th:nth-child(2), #team-leaderboard thead th:nth-child(2), #team-defense-leaderboard thead th:nth-child(2),
+    #team-basic-leaderboard thead th:nth-child(2), #team-basic-defense-leaderboard thead th:nth-child(2),
+    #team-adv-offense-leaderboard thead th:nth-child(2), #team-adv-defense-leaderboard thead th:nth-child(2) {{ z-index: 4; }}
+  }}
 </style>
 </head>
 <body>
@@ -6413,6 +6470,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       </div>
     </div>
   </div>
+  <div id="mob-bar"><button aria-label="Menu" onclick="toggleNav()">&#9776;</button><span class="mob-title">WSC NORTH</span><span class="mob-view" id="mob-view">Team Stats</span></div>
+  <div id="mob-backdrop" onclick="toggleNav(false)"></div>
   <div class="toggle-center">
     <div class="toggle-wrap" style="margin-bottom:0">
       <button id="btn-team" class="active" onclick="showView('team')">Team Stats</button>
@@ -6424,6 +6483,23 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <button id="btn-storylines" onclick="showView('storylines')">Miscellaneous</button>
     </div>
   </div>
+  <script>
+  // Phone / iPad portrait: the menu is a drawer (the ☰ button); picking a section closes it and names it in the top bar
+  function toggleNav(open) {{
+    document.body.classList.toggle('nav-open', open === undefined ? !document.body.classList.contains('nav-open') : open);
+  }}
+  document.querySelectorAll('.toggle-center button').forEach(b => b.addEventListener('click', () => toggleNav(false)));
+  // the top bar names the section showing, however it was opened (the menu, a link from another section)
+  window.addEventListener('load', () => {{
+    const show = window.showView; if (typeof show !== 'function') return;
+    window.showView = function (v) {{
+      const r = show.apply(this, arguments);
+      const b = document.getElementById('btn-' + v), lab = document.getElementById('mob-view');
+      if (lab && b) lab.textContent = b.textContent.trim();
+      return r;
+    }};
+  }});
+  </script>
   <div class="team-search-wrap">
     <input type="text" id="team-search-input" placeholder="Search Teams" oninput="onTeamSearch()" onfocus="onTeamSearch()">
     <div class="search-dropdown" id="team-search-dropdown"></div>
@@ -11183,7 +11259,7 @@ function renderKeys() {{
   const td = (t, a) => `<td style="padding:7px 13px;text-align:${{a || 'center'}};border-bottom:1px solid #edeff2;color:#2b3240;font-size:0.87rem;white-space:nowrap">${{t}}</td>`;
   const mtTable = (rows) => `<table style="border-collapse:collapse"><thead><tr>${{th('Metric','left')}}${{th('Target','left')}}</tr></thead><tbody>${{rows}}</tbody></table>`;
   const hitHead = `<thead><tr>${{th('Targets Hit')}}${{th('Num Games')}}${{th('Team Win Pct')}}${{th('W')}}${{th('L')}}${{th('Avg Margin of Victory')}}${{th('Global Win Pct')}}${{th('Global Avg MOV')}}</tr></thead>`;
-  const twoCol = (a, b) => `<div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start;margin-top:8px"><div>${{a}}</div><div style="flex:1;min-width:520px;overflow-x:auto">${{b}}</div></div>`;
+  const twoCol = (a, b) => `<div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start;margin-top:8px"><div>${{a}}</div><div style="flex:1;min-width:min(520px,100%);max-width:100%;overflow-x:auto">${{b}}</div></div>`;
 
   // ── selects ──
   const teamOpts = teamNames.map(t => `<option value="${{t}}" ${{t === currentKeysTeam ? 'selected' : ''}}>${{t}}</option>`).join('');
@@ -11242,7 +11318,7 @@ function renderKeys() {{
     ${{card(
       `<div style="font-size:1.3rem;font-weight:600;color:#1a1f2e;margin:0 0 2px">Keys to Victory Automated Team Report</div>` +
       para('<b>Instructions:</b> This report identifies certain metrics that have been important predictors of game success for each team. Select a team, then choose what seasons to analyze. You can either choose recent seasons under the current head coach (up to 5 years) or just the current season. Finally, choose a <b style="color:#2f6fed">Number of Targets</b> which determines the number of important metrics that will be identified together for the team. The report will also cover the key stylistic metrics for the team at the bottom.') +
-      `<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:10px"><div style="flex:1;min-width:240px">${{lbl('Team:')}}${{sel(teamOpts, 'keysSetTeam(this.value)')}}</div><div style="flex:2;min-width:320px">${{lbl('Choose Seasons to Analyze:')}}${{sel(winOpts, 'keysSetWindow(this.value)')}}</div></div>`
+      `<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:10px"><div style="flex:1;min-width:240px">${{lbl('Team:')}}${{sel(teamOpts, 'keysSetTeam(this.value)')}}</div><div style="flex:2;min-width:min(320px,100%)">${{lbl('Choose Seasons to Analyze:')}}${{sel(winOpts, 'keysSetWindow(this.value)')}}</div></div>`
     )}}
     ${{card(
       `<div style="max-width:240px">${{lbl('Number of Targets:')}}${{sel(nOptsHtml, 'keysSetN(this.value)')}}</div>` +

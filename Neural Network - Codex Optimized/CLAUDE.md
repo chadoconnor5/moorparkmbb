@@ -199,6 +199,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 
 ## Folder Structure
 - ../index.html: the published leaderboard (generate_leaderboard.py writes it to the repo root, which GitHub Pages
+  iPhone / iPad portrait (up to 1024 px wide): the sidebar is a slide-out drawer behind a top bar (☰, toggleNav; the bar
+  names the section showing), the main tables pin the name column while the stats scroll, and wide tables / panels
+  scroll inside the page (no sideways page scroll on any section at 320-1280 px). iPad landscape and PC keep the
+  fixed sidebar. The mobile CSS is the last block of the page's first <style>.
   serves; ../wsc_north_leaderboard.html only redirects there). The page is the redesign (light theme, left sidebar).
 - ../season_data/*.js (lazy-loaded per-season data) and ../team_logos/: written next to it; must stay beside it
 - 2025-26 Teams Schedules/<Team>/
