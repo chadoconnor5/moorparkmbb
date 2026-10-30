@@ -7257,21 +7257,34 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '</table></div>';
 }}
 
-// Win probability through the game (g.wp, 2026-27 games with play-by-play): the winner's chance from the lead and
-// the time left, the teams assumed equal (_sl_wp in generate_leaderboard.py: spread 11.5 over a full 40:00).
+// Win probability through the game (g.wp, 2026-27 games with play-by-play), Torvik-style: the winner's chance from
+// the lead, the time left and the pregame expected margin (the FanMatch ratings: pregame nets + 3 home court), which
+// counts for less as the clock runs (spread 11.5 over a full 40:00). Dotted: the score margin (right axis, 0 at 50%).
+// Dots: each score, green the winner's, red the loser's; the ring: where the winner's chance reached 99% for good.
 function __wpErf(x) {{
   const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a);
   return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a));
 }}
-function __wpProb(lead, left) {{
+function __wpProb(lead, left, exp) {{
   if (left <= 0) return lead > 0 ? 1 : lead < 0 ? 0 : 0.5;
-  return 0.5 * (1 + __wpErf(lead / (11.5 * Math.sqrt(left / 2400)) / Math.SQRT2));
+  return 0.5 * (1 + __wpErf((lead + exp * left / 2400) / (11.5 * Math.sqrt(left / 2400)) / Math.SQRT2));
 }}
 function __wpEnd(t) {{ return t <= 2400 ? 2400 : 2400 + 300 * Math.ceil((t - 2400) / 300); }}
 function __wpClock(t) {{
   const end = t <= 1200 ? 1200 : __wpEnd(t), left = end - t;
   const per = t <= 1200 ? '1st' : t <= 2400 ? '2nd' : (end - 2400) / 300 > 1 ? (end - 2400) / 300 + 'OT' : 'OT';
   return per + ' ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+}}
+// The winner's pregame expected margin, from the game's FanMatch row (0 when there isn't one)
+function __wpPregame(g, w, l) {{
+  let rows = [];
+  try {{ rows = (activeStorylines() || {{}}).fanmatch_games || []; }} catch (e) {{ return 0; }}
+  const nw = __boxNorm(w), nl = __boxNorm(l);
+  const r = rows.find(r => r.date === g.d && !r.upcoming && [__boxNorm(r.winner), __boxNorm(r.loser)].sort().join('|') === [nw, nl].sort().join('|'));
+  if (!r || r.pregame_winner_net == null || r.pregame_loser_net == null) return 0;
+  const gap = (__boxNorm(r.winner) === nw ? 1 : -1) * (r.pregame_winner_net - r.pregame_loser_net);
+  const home = r.home_team ? __boxNorm(r.home_team) : '';
+  return gap + (home === nw ? 3 : home === nl ? -3 : 0);
 }}
 function __bxWpChart(g, w, l) {{
   if (!g.wp) return '';
@@ -7288,43 +7301,76 @@ function __bxWpChart(g, w, l) {{
     else h += 'XYZ'.indexOf(c) + 1;
     ev.push([t, v, h]);
   }}
+  const exp = __wpPregame(g, w, l);
   const total = 2400 + 300 * Math.max(0, nper - 2);
   const times = new Set();
   for (let s = 0; s <= total; s += 10) times.add(s);
   ev.forEach(e => times.add(e[0]));
+  // [seconds, winner's chance, visitor, home, winner's lead, who scored: 1 winner / -1 loser / 0 none]
   const pts = [];
   let i = 0, cv = 0, ch = 0;
   [...times].sort((a, b) => a - b).forEach(s => {{
-    while (i < ev.length && ev[i][0] <= s) {{ cv = ev[i][1]; ch = ev[i][2]; i++; }}
+    let who = 0;
+    while (i < ev.length && ev[i][0] <= s) {{
+      const wGot = wIsV ? ev[i][1] - cv : ev[i][2] - ch, lGot = wIsV ? ev[i][2] - ch : ev[i][1] - cv;
+      who = wGot > 0 ? 1 : lGot > 0 ? -1 : who;
+      cv = ev[i][1]; ch = ev[i][2]; i++;
+    }}
     const lead = wIsV ? cv - ch : ch - cv;
-    pts.push([s, __wpProb(lead, __wpEnd(s) - s), cv, ch]);
+    pts.push([s, __wpProb(lead, __wpEnd(s) - s, exp), cv, ch, lead, who]);
   }});
   pts[pts.length - 1][1] = 1;
+  let lock = pts.length - 1;
+  while (lock > 0 && pts[lock - 1][1] >= 0.99) lock--;
   __bxWpPts = pts; __bxWpNames = [w, l, wIsV];
   // Drawn at the screen's width (the modal's content area) so the text stays its real size on a phone and a desktop
   const W = Math.max(300, Math.min(1100, (window.innerWidth || 800) - (window.innerWidth < 700 ? 60 : 160)));
-  const H = W < 500 ? 160 : 200, L = 40, R = 10, T = 14, B = 24;
+  const small = W < 500;
+  const H = small ? 230 : 300, L = 36, R = 30, T = 10, B = 38;
+  const D = Math.max(15, Math.ceil(Math.max(...pts.map(p => Math.abs(p[4]))) / 5) * 5);   // score axis: +-D
   __bxWpGeom = {{ W, H, L, R, T, B, total }};
-  const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p);
+  const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p), yd = d => y(0.5 + d / (2 * D));
+  const ink = '#6b7280', fs = small ? 10 : 11;
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${{L}}" x2="${{W - R}}" y1="${{y(p)}}" y2="${{y(p)}}" stroke="${{p === 0.5 ? '#1a1f2e' : '#e6e8ec'}}" stroke-width="1"/>`
+    + `<text x="${{L - 5}}" y="${{y(p) + 4}}" text-anchor="end" font-size="${{fs}}" fill="${{ink}}">${{p === 0 || p === 1 ? p.toFixed(1) : p}}</text>`).join('');
+  const step = D > 25 ? 10 : 5, dTicks = [];
+  for (let d = -D + (D % step); d <= D; d += step) if (d !== 0 && Math.abs(d) < D) dTicks.push(d);
+  const right = dTicks.concat([0]).map(d => `<text x="${{W - R + 5}}" y="${{yd(d) + 4}}" font-size="${{fs}}" fill="${{ink}}">${{d}}</text>`).join('');
+  const xt = [];
+  for (let s = 0; s <= total; s += (s < 2400 ? 300 : 300)) if (s <= 2400 ? s % 300 === 0 && (!small || s % 600 === 0 || s === 2400) : true) xt.push(s);
+  const xticks = xt.map(s => `<line x1="${{x(s)}}" x2="${{x(s)}}" y1="${{T}}" y2="${{H - B}}" stroke="#eef0f3" stroke-width="1"/>`
+    + `<text x="${{x(s)}}" y="${{H - B + 15}}" text-anchor="middle" font-size="${{fs}}" fill="${{ink}}">${{s / 60}}</text>`).join('');
+  const frame = `<line x1="${{L}}" x2="${{L}}" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e"/><line x1="${{L}}" x2="${{W - R}}" y1="${{H - B}}" y2="${{H - B}}" stroke="#1a1f2e"/>`;
   const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
-  const grid = [0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${{L}}" x2="${{W - R}}" y1="${{y(p)}}" y2="${{y(p)}}" stroke="${{p === 0.5 ? '#9aa1ad' : '#e6e8ec'}}" stroke-width="1"${{p === 0.5 ? ' stroke-dasharray="4 4"' : ''}}/>`).join('');
-  const ylab = [[1, '100%'], [0.5, '50%'], [0, '0%']].map(([p, s]) => `<text x="${{L - 6}}" y="${{y(p) + 4}}" text-anchor="end" font-size="11" fill="#6b7280">${{s}}</text>`).join('');
-  const marks = [1200, 2400].concat(Array.from({{ length: Math.max(0, nper - 3) }}, (_, k) => 2700 + 300 * k)).filter(s => s < total);
-  const vlines = marks.map(s => `<line x1="${{x(s)}}" x2="${{x(s)}}" y1="${{T}}" y2="${{H - B}}" stroke="#d1d5db" stroke-width="1"/>`).join('');
-  const segs = [[0, 1200, '1st Half'], [1200, 2400, '2nd Half']].concat(Array.from({{ length: Math.max(0, nper - 2) }}, (_, k) => [2400 + 300 * k, 2700 + 300 * k, (k ? k + 1 : '') + 'OT']));
-  const xlab = segs.map(([a, b, s]) => `<text x="${{(x(a) + x(b)) / 2}}" y="${{H - 7}}" text-anchor="middle" font-size="11" fill="#6b7280">${{s}}</text>`).join('');
+  let diff = '';   // the score margin as steps
+  pts.forEach((p, k) => {{ diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); }});
+  const r0 = small ? 2.2 : 2.8;
+  const dots = pts.filter(p => p[5]).map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{p[5] > 0 ? '#22c55e' : '#ef4444'}}"/>`).join('');
+  const ring = lock < pts.length - 1 ? `<circle cx="${{x(pts[lock][0])}}" cy="${{y(pts[lock][1])}}" r="${{small ? 5 : 6.5}}" fill="none" stroke="#1a1f2e" stroke-width="2.5"/>` : '';
   const minWp = Math.min(...pts.map(p => p[1]));
+  const [mo, da, yr] = (g.d || '').split('/');
+  const dShort = mo ? mo + '/' + da + '/' + String(yr).slice(-2) : '';
+  const key = (sw, dash) => `<svg width="22" height="8" style="vertical-align:middle"><line x1="0" x2="22" y1="4" y2="4" stroke="${{sw}}" stroke-width="${{dash ? 1.5 : 4}}"${{dash ? ' stroke-dasharray="2 2"' : ''}}/></svg>`;
+  const dot = c => `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${{c}};vertical-align:middle"></span>`;
   return '<div style="margin:0 0 14px">'
-    + `<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:0 2px 4px"><span style="font-weight:700;font-size:0.9rem;color:#1a1f2e">${{w}} win probability</span><span style="font-size:0.75rem;color:#6b7280">lowest ${{Math.round(100 * minWp)}}% · teams assumed equal</span></div>`
+    + `<div style="text-align:center;font-weight:700;font-size:${{small ? '0.8rem' : '0.95rem'}};color:#1a1f2e;margin:0 0 6px">Win probability for ${{w}} over ${{l}} ${{dShort}} (Minimum chance: ${{(100 * minWp).toFixed(1)}}%)</div>`
     + '<div style="position:relative">'
     + `<svg viewBox="0 0 ${{W}} ${{H}}" style="width:100%;max-width:${{W}}px;height:auto;display:block;margin:0 auto;touch-action:pan-y" onpointermove="__bxWpHover(event, this)" onpointerleave="__bxWpHover(null, this)">`
-    + grid + vlines + ylab + xlab
-    + `<path d="${{line}}" fill="none" stroke="#0d47a1" stroke-width="2" stroke-linejoin="round"/>`
+    + xticks + grid + frame + right
+    + `<path d="${{diff}}" fill="none" stroke="#1a1f2e" stroke-width="1.2" stroke-dasharray="2 2"/>`
+    + `<path d="${{line}}" fill="none" stroke="#5b9bd5" stroke-width="${{small ? 3.5 : 5}}" stroke-linejoin="round" stroke-linecap="round"/>`
+    + dots + ring
+    + `<text x="${{(L + W - R) / 2}}" y="${{H - 4}}" text-anchor="middle" font-size="${{fs}}" font-style="italic" fill="${{ink}}">Minutes elapsed</text>`
     + `<line class="wp-x" x1="0" x2="0" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
-    + `<circle class="wp-dot" r="4" fill="#0d47a1" stroke="#fff" stroke-width="2" visibility="hidden"/>`
+    + `<circle class="wp-dot" r="5" fill="#5b9bd5" stroke="#fff" stroke-width="2" visibility="hidden"/>`
     + `<rect x="${{L}}" y="${{T}}" width="${{W - L - R}}" height="${{H - T - B}}" fill="transparent"/>`
     + '</svg>'
     + '<div class="wp-tip" style="position:absolute;top:0;display:none;pointer-events:none;background:#1a1f2e;color:#fff;font-size:0.75rem;padding:4px 8px;border-radius:4px;white-space:nowrap"></div>'
+    + '</div>'
+    + `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:4px 14px;font-size:0.72rem;color:${{ink}};margin-top:4px">`
+    + `<span>${{key('#5b9bd5')}} ${{w}} win probability (left)</span><span>${{key('#1a1f2e', 1)}} score margin (right)</span>`
+    + `<span>${{dot('#22c55e')}} ${{w}} scores</span><span>${{dot('#ef4444')}} ${{l}} scores</span>`
+    + (ring ? '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #1a1f2e;vertical-align:middle"></span> 99% for good</span>' : '')
     + '</div></div>';
 }}
 let __bxWpPts = [], __bxWpNames = [], __bxWpGeom = {{}};
@@ -7340,7 +7386,7 @@ function __bxWpHover(e, svg) {{
   xl.setAttribute('x1', px); xl.setAttribute('x2', px); xl.setAttribute('visibility', 'visible');
   dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
   const [w, l, wIsV] = __bxWpNames, ws = wIsV ? best[2] : best[3], ls = wIsV ? best[3] : best[2];
-  tip.textContent = __wpClock(best[0]) + ' · ' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + Math.round(100 * best[1]) + '%';
+  tip.textContent = __wpClock(best[0]) + ' · ' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + (100 * best[1]).toFixed(1) + '%';
   tip.style.display = 'block';
   const left = px / W * r.width, tw = tip.offsetWidth;
   tip.style.left = Math.max(0, Math.min(r.width - tw, left - tw / 2)) + 'px';

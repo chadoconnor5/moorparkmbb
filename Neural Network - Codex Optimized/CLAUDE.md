@@ -104,9 +104,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
   play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
   keep their tabs and formulas as they were (no new tabs).
-- Box score win-probability chart (2026-27 games with play-by-play, Final view): the winner's chance through the game,
-  the same model (teams equal). build_game_boxes stores the scoring as "wp" [visitor, periods, string] (_wp_events);
-  the page rebuilds the curve (__bxWpChart). Past seasons: no chart.
+- Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
+  from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
+  the score margin dotted on the right axis, green/red dots for each team's scores, a ring where it reached 99% for
+  good. build_game_boxes stores the scoring as "wp" [visitor, periods, string] (_wp_events); the page rebuilds the
+  curve (__bxWpChart). The Min WP / Excitement / Tension tabs stay KenPom's (teams equal). Past seasons: no chart.
 - Stints (internal, for a possible BPR later): compute_pbp_lineups.py also writes internal_data/pbp_stints/<season>.json,
   every usable game's stretches with the same ten on the floor (both fives, seconds, each side's possessions and
   points, garbage-time flag, leverage). Not used on the site; BPR only if play-by-play coverage per team turns out
