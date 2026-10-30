@@ -1156,8 +1156,11 @@ def _compute_win50(opp_ratings, c=18.0):
     return (lo + hi) / 2.0
 
 
-def compute_sos(teams, ratings_override=None):
-    """Pass 2: compute Opp ORTG, Opp DRTG, SOS (WIN50) for each team using opponents' ratings."""
+def compute_sos(teams, ratings_override=None, prior=None):
+    """Pass 2: compute Opp ORTG, Opp DRTG, SOS (WIN50) for each team using opponents' ratings.
+    prior (the current season): {team: last season's sos / ncsos / opp_ortg / opp_drtg}, blended in as fading virtual
+    games exactly like the ratings (prior_weight: 8 games at the start, ~3.6 at game 8), so one opponent doesn't make a
+    team's SOS early in the season."""
     # Load all team ratings from pass 1
     team_ratings = {}
     for team_name in all_stat_teams():
@@ -1202,7 +1205,16 @@ def compute_sos(teams, ratings_override=None):
             adv = json.load(f)
         game_ratings = adv.get("team", {}).get("game_ratings", [])
         if not game_ratings and adv.get("team", {}).get("preseason"):
-            continue   # no games yet: build_preseason.py's schedule-based SOS stays
+            # no games yet: last season's schedule strength when the fade has it (game 0: all last season), else
+            # build_preseason.py's schedule-based SOS stays
+            pr = (prior or {}).get(team_name)
+            if pr and any(k in pr for k in ("sos", "ncsos", "opp_ortg", "opp_drtg")):
+                for k in ("sos", "ncsos", "opp_ortg", "opp_drtg"):
+                    if k in pr:
+                        adv["team"][k] = round(pr[k], 1)
+                with open(adv_path, "w") as f:
+                    json.dump(adv, f, indent=2)
+            continue
 
         # Collect all in-system game appearances (repeats count each time)
         opp_ortgs = []
@@ -1233,6 +1245,20 @@ def compute_sos(teams, ratings_override=None):
                 if canonical and canonical in team_ratings:
                     nc_nets.append(team_ratings[canonical]["net_rtg"])
         adv["team"]["ncsos"] = round(_compute_win50(nc_nets), 1) if nc_nets else 0.0
+
+        pr = (prior or {}).get(team_name)
+        if pr:
+            def _fade(key, played, n):
+                """this season's value over n games blended with last season's as prior_weight(n) virtual games"""
+                last = pr.get(key)
+                if last is None:
+                    return adv["team"][key]
+                w = prior_weight(n)
+                return round((n * played + w * last) / (n + w), 1) if n else round(last, 1)
+            n_all = len(opp_nets)
+            for key in ("sos", "opp_ortg", "opp_drtg"):
+                adv["team"][key] = _fade(key, adv["team"][key], n_all)
+            adv["team"]["ncsos"] = _fade("ncsos", adv["team"]["ncsos"], len(nc_nets))
 
         # Opponent Adjust: regression slope of residuals vs opponent quality
         # Positive = plays UP to competition; Negative = crushes weak, disappoints vs strong
@@ -1653,7 +1679,10 @@ def main():
                         adv = json.load(open(adv_path))
                         ta = adv.get("team", {})
                         if ta.get("ortg") and ta.get("drtg"):
-                            prior_map[team_name] = {"ortg": ta["ortg"], "drtg": ta["drtg"]}
+                            prior_map[team_name] = {"ortg": ta["ortg"], "drtg": ta["drtg"],
+                                                    # last season's schedule strength, for compute_sos's fade
+                                                    **{k: ta[k] for k in ("sos", "ncsos", "opp_ortg", "opp_drtg")
+                                                       if isinstance(ta.get(k), (int, float))}}
                             loaded += 1
                     except Exception:
                         pass
@@ -1669,7 +1698,7 @@ def main():
     iter_ratings = compute_iterative_adjusted_ratings(teams, prior=prior_map if args.season == DEFAULT_SEASON else None)
 
     # Pass 3: compute SOS using iterative ratings
-    compute_sos(teams, ratings_override=iter_ratings)
+    compute_sos(teams, ratings_override=iter_ratings, prior=prior_map if args.season == DEFAULT_SEASON else None)
 
     # Pass 4: opponent-adjusted four factors
     compute_iterative_adjusted_factors(teams)
