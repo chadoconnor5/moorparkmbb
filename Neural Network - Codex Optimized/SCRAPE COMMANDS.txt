@@ -97,18 +97,21 @@ python scrape.py nightly --browser --no-push
 
 9. UPDATE THE LEADERBOARD ONLY (no scraping -- after a code change, or to refresh the site)
 -------------------------------------------------------------------------------------------
-   Step 2 (the nightly) already does all of this on its own. Use these only for a rebuild without new games.
-   Rebuild everyone's stats and ratings, then the leaderboard, then publish (one line at a time):
+   Step 2 (the nightly) already does all of this on its own. Use this only for a rebuild without new games.
+   Rebuilds every team's stats, ratings, lineups, WAB, the leaderboard and the scouting reports from what's already
+   on the PC, then pushes. Uses no internet except GitHub:
 
-python generate_team_stats.py --season 2026-27 --all
-python update_advanced_analytics.py --season 2026-27 --all
-python generate_leaderboard.py --cache
-git add -A :/
-git commit -m "Leaderboard update"
-git push
+python scrape.py rebuild
 
-   Just the leaderboard page (stats already up to date): the last four lines only.
    The site updates a few minutes after the push (refresh the page).
+
+
+   IF A RUN SAYS "PUSH SKIPPED: pulling GitHub's changes conflicted":
+   your run is saved on the PC. Get GitHub's changes keeping your box scores, then rebuild and push (one line at a time):
+
+cd "%USERPROFILE%\Documents\GitHub\moorparkmbb\Neural Network - Codex Optimized"
+git pull --no-rebase -X ours --no-edit
+python scrape.py rebuild
 
 
 10. ONE-TIME SETUP (already done -- only if on a new computer)

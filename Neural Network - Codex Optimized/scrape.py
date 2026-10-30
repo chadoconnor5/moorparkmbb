@@ -1345,6 +1345,8 @@ def build_parser():
     s.add_argument("--date", help="Only games on this date (YYYY-MM-DD), or from it with --to")
     s.add_argument("--to", help="End of the date range")
 
+    sub.add_parser("rebuild", parents=[common],
+                   help="Rebuild stats, lineups, the leaderboard and reports from what's on disk, then push (no network)")
     s = sub.add_parser("status", parents=[common], help="Show the ledger (no network)")
     s.add_argument("--team", nargs="+")
     s.add_argument("--conference", nargs="+")
@@ -1358,6 +1360,14 @@ def main(argv=None):
     state = State(args.season)
     if args.cmd == "status":
         return cmd_status(state, args)
+    if args.cmd == "rebuild":
+        # every team with a box score saved this season, from what's on disk: no request to the site
+        teams = {t for k, g in state.games.items() if state.entry(k)["status"] in (COMPLETE, PARTIAL) for t in members_in(g)}
+        print(f"Rebuilding from disk (no requests): {len(teams)} teams with box scores")
+        rebuild(args.season, teams)
+        if not args.no_push:
+            publish(args.season, "scrape.py rebuild")
+        return 0
 
     fetcher = Fetcher(args.max_requests, browser=args.browser)
     run = Run(state, fetcher, args)

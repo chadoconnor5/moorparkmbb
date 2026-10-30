@@ -310,7 +310,8 @@ def load(team, season):
     return c
 
 def team_metrics(name, a, s):
-    av, ov, tot, otot = s['averages'], s['opponent_averages'], s.get('totals', {}), s.get('opponent_totals', {})
+    # .get throughout: a team with no games yet (Moorpark before its opener) has empty averages
+    av, ov, tot, otot = s.get('averages') or {}, s.get('opponent_averages') or {}, s.get('totals', {}), s.get('opponent_totals', {})
     fga, poss, pf = max(av.get('FGA', 1), 1), max(a.get('possessions', 0.01), 0.01), max(tot.get('PF', 0.1), 0.1)
     stlt, blkt = tot.get('STL', 0), tot.get('BLK', 0)
     opp_poss = max((otot.get('FGA', 0) - otot.get('OREB', 0)) + otot.get('TO', 0) + 0.475 * otot.get('FTA', 0), 0.1)
@@ -329,8 +330,8 @@ def team_metrics(name, a, s):
             # Team fouls a game from the box totals (the advanced file's fc_per_40 and the minutes totals are unusable on
             # false-minutes teams).
             'fc_per_40': av.get('PF', 0),
-            '3par': round(av.get('3PA', 0) / fga * 100, 1), 'ppg': av['PTS'], 'oppg': ov['PTS'],
-            'stl': av['STL'], 'blk': av['BLK'], 'ast': av['AST'], 'tov': av['TO']}
+            '3par': round(av.get('3PA', 0) / fga * 100, 1), 'ppg': av.get('PTS', 0), 'oppg': ov.get('PTS', 0),
+            'stl': av.get('STL', 0), 'blk': av.get('BLK', 0), 'ast': av.get('AST', 0), 'tov': av.get('TO', 0)}
 
 # ─── Ranks ────────────────────────────────────────────────────────────────────────────
 HB = {'net_rtg': True, 'ortg': True, 'drtg': False, 'efg_pct': True, 'opp_efg_pct': False, 'tov_pct': False,
