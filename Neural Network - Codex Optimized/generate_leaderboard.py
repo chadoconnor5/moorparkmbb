@@ -3463,16 +3463,42 @@ def build_game_boxes(stats_dir) -> dict:
             out[tn] = out_rows
         return out
 
+    def pkey(name):
+        """('ricketts', 'leo') from 'Leo Ricketts' / 'RICKETTS,LEO' / 'Darryl Holt Jr': box and play-by-play names meet."""
+        n = re.sub(r"\b(jr|sr|ii|iii|iv)\.?$", "", re.sub(r"^#\S+\s+", "", (name or "").lower()).strip()).strip(" ,.")
+        if "," in n:
+            last, first = (x.strip() for x in n.split(",", 1))
+        else:
+            parts = n.split()
+            first, last = (parts[0], " ".join(parts[1:])) if len(parts) > 1 else ("", n)
+        return re.sub(r"[^a-z]", "", last), re.sub(r"[^a-z]", "", first)[:1]
+
+    def dnp(r):
+        """0 minutes and nothing in the box: didn't play."""
+        return (r.get("min") or 0) <= 0 and not any(r.get(k) for k in ("fga", "fta", "or", "dr", "ast", "stl", "blk", "to", "pf", "pts"))
+
     # Each game's half (and overtime) box scores, saved with its play-by-play: {(YYYYMMDD, frozenset(norm names)): periods}
     pbp_periods = {}
+    # Who shows up in each game's play-by-play (any play, a check-in included), by period and in all: a box score's
+    # 0-minute, no-stat player stays only if he's in it.
+    pbp_seen = {}
     pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
         try:
             pj = json.load(open(f))
         except Exception:
             continue
+        gk = (f.name[:8], frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))
         if pj.get("periods"):
-            pbp_periods[(f.name[:8], frozenset(_box_norm(x) for x in (pj.get("visitor"), pj.get("home"))))] = pj["periods"]
+            pbp_periods[gk] = pj["periods"]
+        if pj.get("plays"):
+            seen = {"all": set()}
+            for pl in pj["plays"]:
+                if pl[3] and pl[3] != "TEAM":
+                    k = pkey(pl[3])
+                    seen["all"].add(k)
+                    seen.setdefault(str(pl[0]), set()).add(k)
+            pbp_seen[gk] = seen
 
     for box_path in sched_dir.glob("*/*/*/*.json"):
         try:
@@ -3601,7 +3627,13 @@ def build_game_boxes(stats_dir) -> dict:
         record["p"] = round(sum(poss_vals) / len(poss_vals), 1) if poss_vals else None
         # Half / overtime box scores (when the page had them): "hv" {"1": {team: rows}, "2": ...}
         stamp8 = box_path.parts[-2].split("_")[0]
-        per = pbp_periods.get((stamp8, frozenset(_box_norm(x) for x in raw_names)))
+        gk = (stamp8, frozenset(_box_norm(x) for x in raw_names))
+        seen = pbp_seen.get(gk) or {}
+        # Players who didn't play (0 minutes, nothing in the box) come off the box score, unless the play-by-play
+        # shows them on the floor.
+        for tn in names:
+            record["t"][tn] = [r for r in record["t"][tn] if not dnp(r) or pkey(r["n"]) in seen.get("all", ())]
+        per = pbp_periods.get(gk)
         if per:
             hv = {}
             for pk, teams_p in per.items():
@@ -3610,7 +3642,8 @@ def build_game_boxes(stats_dir) -> dict:
                 tp = {(rename or {}).get(lab, lab): pl for lab, pl in teams_p.items()}
                 if set(tp) != set(names):
                     continue
-                hv[pk] = period_rows(tp, 20 if int(pk) <= 2 else 5)
+                hv[pk] = {tn: [r for r in rows if not dnp(r) or pkey(r["n"]) in seen.get(pk, ())]
+                          for tn, rows in period_rows(tp, 20 if int(pk) <= 2 else 5).items()}
             if hv:
                 record["hv"] = hv
         games[key] = record
@@ -12880,6 +12913,10 @@ function slRenderHeight() {{
     if (cmp === 0) cmp = (a.rank || 9999) - (b.rank || 9999);
     return slHeightSortAsc ? cmp : -cmp;
   }});
+  // The # is the team's place on the sorted column (biggest = 1): smallest-first counts down 80...1. Sorted by a
+  // name (team, conference), the # stays the team's overall height rank.
+  const byName = slHeightSortKey === 'rank' || (sorted.length && typeof slHeightSortVal(sorted[0], slHeightSortKey) === 'string');
+  const place = i => byName ? null : (slHeightSortAsc ? sorted.length - i : i + 1);
   const rows = sorted.map((r, i) => {{
     const bg = r.team === 'Moorpark' ? 'background:#ffe599;' : '';
     const avg = Number(r.avg_inches || 0);
@@ -12889,7 +12926,7 @@ function slRenderHeight() {{
     const fScoring = r.forward_scoring_pct == null ? null : Number(r.forward_scoring_pct);
     const range = (r.min_height && r.max_height) ? r.min_height + '–' + r.max_height : '—';
     return `<tr>
-      <td class="sl-th-r" style="${{bg}}color:#888;font-size:0.8rem">${{i + 1}}</td>
+      <td class="sl-th-r" style="${{bg}}color:#888;font-size:0.8rem">${{place(i) != null ? place(i) : (r.rank || i + 1)}}</td>
       <td style="${{bg}}">${{teamPageLink(r.team, 'color:#000;text-decoration:none;font-weight:600')}}</td>
       <td style="${{bg}}color:#555;font-size:0.82rem">${{r.conference || ''}}</td>
       <td class="sl-th-r" style="${{bg}}font-weight:700">${{avg.toFixed(2)}}</td>
