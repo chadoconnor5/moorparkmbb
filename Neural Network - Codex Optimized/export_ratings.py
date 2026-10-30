@@ -216,16 +216,37 @@ COMPOSITES = {
     "poor3": (lambda p: _pg(p, "tpa") >= 2 or (_rate(p) or 0) >= 35, {"tpp_vol": 100}, {"syn_three": 30, "syn_cs": 10, "syn_pull": 10}, 0.30, True),
     "slasher": (lambda p: (_rate(p) or 100) < 25 and _pg(p, "twoa") >= 2,
                 {"ft_rate": 35, "fd_per_40": 30, "twoa_pg": 20, "usage_pct": 15}, {"syn_rim": 25}, 0.25, False),
-    "all_around": (lambda p: 25 <= (_rate(p) or 0) <= 55, {"ts_pct": 40, "ft_rate": 30, "balance": 30}, {"syn_rim": 15, "syn_three": 15}, 0.25, False),
+    "all_around": (lambda p: 25 <= (_rate(p) or 0) <= 55, {"ts_pct": 30, "tsadd100": 10, "ft_rate": 30, "balance": 30}, {"syn_rim": 15, "syn_three": 15}, 0.25, False),
     "draws": (lambda p: True, {"fd_per_40": 50, "ft_rate": 50}, {}, 0.20, False),
     "struggles_in": (lambda p: _pg(p, "twoa") >= 3, {"twop": 100}, {"syn_rim": 40}, 0.20, True),
-    "eff_role": (lambda p: (p.get("usage_pct") or 99) < 20, {"ind_ortg": 50, "ts_pct": 30, "tov_pct": 20}, {}, 0.10, False),
-    "ineff_vol": (lambda p: (p.get("usage_pct") or 0) >= 24, {"ts_pct": 50, "ind_ortg": 30, "tov_pct": 20}, {}, 0.30, True),
+    # TSAdd/100 (box_rates) backs the efficiency roles: points above a league-average shooter, so volume counts too
+    "eff_role": (lambda p: (p.get("usage_pct") or 99) < 20, {"ind_ortg": 45, "ts_pct": 25, "tsadd100": 15, "tov_pct": 15}, {}, 0.10, False),
+    "ineff_vol": (lambda p: (p.get("usage_pct") or 0) >= 24, {"ts_pct": 35, "tsadd100": 25, "ind_ortg": 25, "tov_pct": 15}, {}, 0.30, True),
     "floor_gen": (lambda p: True, {"ast_rate": 60, "tov_pct": 25, "usage_pct": 15}, {}, 0.10, False),
-    "rim_prot": (lambda p: True, {"blk_pct": 75, "dreb_pct": 25}, {}, 0.15, False),
+    "rim_prot": (lambda p: True, {"blk_pct": 60, "blk100": 15, "dreb_pct": 25}, {}, 0.15, False),
+    "ball_hawk": (lambda p: True, {"stl_pct": 75, "stl100": 25}, {}, 0.20, False),
     # Scorer: the volume scoring threat, whatever the style (points produced a game leads; points a game and usage back it)
-    "scorer": (lambda p: True, {"pprod_pg": 60, "ppg": 20, "usage_pct": 20}, {}, 0.10, False),
+    "scorer": (lambda p: True, {"pprod_pg": 50, "ppg": 15, "usage_pct": 15, "shots100": 10, "tsadd100": 10}, {}, 0.10, False),
 }
+# rTS% and 3PR need no factor of their own: rTS% ranks players exactly as TS% does, 3PR is tpa_rate, and 3P rTS% is 3P%.
+BOX_RATES = ("tsadd100", "shots100", "stl100", "blk100")
+
+
+def box_rates(pool, teams):
+    """Databallr's per-100 box rates on each player (the leaderboard's boxRate): TSAdd/100 = points above a
+    league-average shooter on his true shot attempts (FGA + 0.44 FTA); SHOTS/100, STL/100, BLK/100. Per 100 possessions
+    on the floor = his team's possessions a game x his minutes / 40 x games; None on false-minutes teams."""
+    pts, tsa = sum(p.get("pts") or 0 for p in pool), sum((p.get("fga") or 0) + 0.44 * (p.get("fta") or 0) for p in pool)
+    lg = pts / (2 * tsa) if tsa else None
+    pace = {t["team"]: t.get("possessions") or t.get("tempo") or 0 for t in teams}
+    for p in pool:
+        on = pace.get(p["school"], 0) * (p.get("mpg") or 0) / 40 * (p.get("gp") or 0) if not p.get("fm") else 0
+        a = (p.get("fga") or 0) + 0.44 * (p.get("fta") or 0)
+        p.update(dict.fromkeys(BOX_RATES))
+        if on > 0:
+            p.update(tsadd100=round(100 * ((p.get("pts") or 0) - lg * 2 * a) / on, 1) if a and lg else None,
+                     shots100=round(100 * a / on, 1) if a else None,
+                     stl100=round(100 * (p.get("spg") or 0) * p["gp"] / on, 1), blk100=round(100 * (p.get("bpg") or 0) * p["gp"] / on, 1))
 
 
 def load_synergy(season):
@@ -266,7 +287,7 @@ def composites(pool, ranks, totals, syn):
         return lambda x: None if x is None or not n else 100 * bisect.bisect_right(v, x) / n
     raw = {"usage_pct": lambda p: p.get("usage_pct"), "tpa_rate": _rate, "tpa_pg": lambda p: _pg(p, "tpa"),
            "twoa_pg": lambda p: _pg(p, "twoa"), "pprod_pg": lambda p: _pg(p, "pprod") if p.get("pprod") is not None else None,
-           "ppg": lambda p: p.get("ppg")}
+           "ppg": lambda p: p.get("ppg"), **{k: (lambda k: lambda p: p.get(k))(k) for k in BOX_RATES}}
     pf = {k: pct_of([f(p) for p in qual if f(p) is not None]) for k, f in raw.items()}
     # Low-info players often miss the State Ranks' games bar for these (20 games): their value's percentile among the
     # qualified players stands in for the rank.
@@ -518,7 +539,9 @@ def leaderboard_tables(teams=()):
         pool = gl.load_players()
         # PORPAGATU! (the leaderboard's attach_porpagatu, same team context): each player's value and statewide rank
         # among players with 30%+ of minutes, for the tracker's Star label.
-        gl.attach_porpagatu(pool, gl.load_teams())
+        teams = gl.load_teams()
+        gl.attach_porpagatu(pool, teams)
+        box_rates(pool, teams)
         ranks, totals = state_ranks(pool)
         q = sorted([p for p in pool if p.get("porp") is not None and (p.get("min_pct") or 0) >= 30], key=lambda p: -p["porp"])
         totals["porp"] = len(q)
@@ -532,10 +555,12 @@ def leaderboard_tables(teams=()):
         ft_volume(pool, ranks)
         tiers(pool, ranks, totals)
         box_pct(pool, ranks)
-        porp = {(p["name"], p["school"]): p.get("porp") for p in pool}
+        porp = {(p["name"], p["school"]): p for p in pool}
         for team, r in rosters.items():
             for row in r["players"]:
-                row["porp"] = porp.get((row["name"], team))
+                q = porp.get((row["name"], team)) or {}
+                row["porp"] = q.get("porp")
+                row.update({k: q.get(k) for k in BOX_RATES})   # for the tracker's why lines
                 sp = syn.get((row["name"], SLUG(team)))
                 if sp:
                     row["syn"] = syn_summary(sp)
