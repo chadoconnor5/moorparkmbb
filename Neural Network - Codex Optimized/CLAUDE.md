@@ -87,6 +87,18 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   with the tracker's Tesseract in Chrome, checks points/rebounds/TOTALS/minutes, writes a CSV beside each (edit it to
   correct; it is used over the image), saves a game once its member sides pass, CHECK.txt lists saved / to fix. Folders
   are never renamed: screenshots come in through the night or days later; each run reads only what's new (any date). scrape.py nightly/day/missing runs it first. SCRAPE COMMANDS.txt: the copy-paste list.
+- Play-by-play: on the box score page scrape.py already fetches (no extra request). play_by_play.py reads it and
+  scrape.save_box writes it once per game to `2026-27 Play by Play/<YYYYMMDD>_<visitor>_at_<home>.json` (each play:
+  period, clock, team, player LAST,FIRST, action, score after; points by half). Kept out of the team folders (the box
+  score readers take every .json there). Games from screenshots have no play-by-play.
+- Every team's lineups from the play-by-play: python3 compute_pbp_lineups.py [--season S] (the nightly runs it) ->
+  internal_data/pbp_lineups/<season>/<team>.json: five-man units per game from the substitutions (each later period's
+  five from who shows up first; half-logged subs repaired from what players do next), possessions FGA-OREB+TO+.475FTA,
+  leverage High/Med/Low/Clutch and garbage time as the possession tracker grades them, then adjust_lineups.adjust (the
+  tracker lineups' opponent adjustment). A game is used only if five-on-the-floor holds, every player's minutes are
+  within 2.5 of the box score and the names match; the rest are listed with the reason. The leaderboard puts each
+  team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
+  team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
 - Box scores typed in from screenshots: saved where scrape.py saves them (`2026-27 Teams Schedules/<Conf>/<Team>/
   YYYYMMDD_<opponent slug>/<same>.json`, scrape_team.parse_boxscore's format, one copy per member team). The nightly
   takes a box score on disk first: the game is COMPLETE with no request, its teams rebuild, and a night with every game

@@ -323,3 +323,9 @@ Observed on this copy: fast cached builds run in about 3 seconds; full cached bu
 - Move report generation into reusable templates by report type.
 - Add golden-file tests for one known box score and one known team summary.
 - Decide which generated JSON/PDF/HTML artifacts should be versioned and which should live outside git.
+
+## Play-by-play lineups (lazy, per team)
+- Each team's play-by-play lineups ship as `season_data/lineups_2627_<team slug>.js` (`__installLineups(team, {...})`,
+  roughly 60-150 KB each), loaded only when that team's Lineups opens (ensurePbpLineups). The page itself carries just
+  the small `PBP_LU` index ({team: {s, used, total}}). `--fast` builds rewrite them with the other current-season files.
+
