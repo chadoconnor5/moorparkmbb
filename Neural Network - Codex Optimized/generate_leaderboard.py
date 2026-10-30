@@ -6561,20 +6561,27 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <button class="adv-cat-btn" data-cat="ind_drtg" onclick="switchIndCat('ind_drtg')">DRtg</button>
   <button class="adv-cat-btn" data-cat="efg_pct" onclick="switchIndCat('efg_pct')">eFG%</button>
   <button class="adv-cat-btn" data-cat="ts_pct" onclick="switchIndCat('ts_pct')">TS%</button>
+  <button class="adv-cat-btn" data-cat="rts" onclick="switchIndCat('rts')">rTS%</button>
+  <button class="adv-cat-btn" data-cat="tsadd" onclick="switchIndCat('tsadd')">TSAdd/100</button>
   <button class="adv-cat-btn" data-cat="min_pct" onclick="switchIndCat('min_pct')">%Min</button>
   <button class="adv-cat-btn" data-cat="usage_pct" onclick="switchIndCat('usage_pct')">%Poss</button>
   <button class="adv-cat-btn" data-cat="shot_pct" onclick="switchIndCat('shot_pct')">%Shots</button>
+  <button class="adv-cat-btn" data-cat="shots100" onclick="switchIndCat('shots100')">SHOTS/100</button>
   <button class="adv-cat-btn" data-cat="oreb_pct" onclick="switchIndCat('oreb_pct')">OREB%</button>
   <button class="adv-cat-btn" data-cat="dreb_pct" onclick="switchIndCat('dreb_pct')">DREB%</button>
   <button class="adv-cat-btn" data-cat="tov_pct" onclick="switchIndCat('tov_pct')">TO%</button>
   <button class="adv-cat-btn" data-cat="ast_rate" onclick="switchIndCat('ast_rate')">ARate</button>
   <button class="adv-cat-btn" data-cat="blk_pct" onclick="switchIndCat('blk_pct')">Blk%</button>
   <button class="adv-cat-btn" data-cat="stl_pct" onclick="switchIndCat('stl_pct')">Stl%</button>
+  <button class="adv-cat-btn" data-cat="stl100" onclick="switchIndCat('stl100')">STL/100</button>
+  <button class="adv-cat-btn" data-cat="blk100" onclick="switchIndCat('blk100')">BLK/100</button>
   <button class="adv-cat-btn" data-cat="ft_rate" onclick="switchIndCat('ft_rate')">FTRate</button>
   <button class="adv-cat-btn" data-cat="fc_per_40" onclick="switchIndCat('fc_per_40')">FC/40</button>
   <button class="adv-cat-btn" data-cat="fd_per_40" onclick="switchIndCat('fd_per_40')">FD/40</button>
   <button class="adv-cat-btn" data-cat="twop" onclick="switchIndCat('twop')">2P%</button>
   <button class="adv-cat-btn" data-cat="tpp" onclick="switchIndCat('tpp')">3P%</button>
+  <button class="adv-cat-btn" data-cat="tp_rts" onclick="switchIndCat('tp_rts')">3P rTS%</button>
+  <button class="adv-cat-btn" data-cat="tpr" onclick="switchIndCat('tpr')">3PR</button>
   <button class="adv-cat-btn" data-cat="ftp" onclick="switchIndCat('ftp')">FT%</button>
   <button class="adv-cat-btn" data-cat="bpm2" onclick="switchIndCat('bpm2')">BPM 2.0</button>
   <button class="adv-cat-btn" data-cat="porp" onclick="switchIndCat('porp')">PRPG!</button>
@@ -8070,6 +8077,12 @@ const CHART_METRICS = {{
   tpp: {{ label: '3-Point Percentage', short: '3P%', unit: '%', value: p => __cnum(p.tpp), tickStep: 5 }},
   tpa_rate: {{ label: 'Three Point Attempt Rate', short: '3PA Rate', unit: '%', value: p => {{ const fga = Number(p.fga || 0); return fga > 0 ? Number(p.tpa || 0) / fga * 100 : NaN; }}, tickStep: 10 }},
   ts_pct: {{ label: 'True Shooting Percentage', short: 'TS%', unit: '%', value: p => __cnum(p.ts_pct), tickStep: 5 }},
+  rts: {{ label: 'Relative True Shooting (vs league)', short: 'rTS%', unit: '', value: p => __cnum(boxRate(p, 'rts')), tickStep: 5 }},
+  tsadd: {{ label: 'True Shooting Added / 100 Poss', short: 'TSAdd/100', unit: '', value: p => __cnum(boxRate(p, 'tsadd')), tickStep: 2 }},
+  tp_rts: {{ label: '3-Point Relative True Shooting', short: '3P rTS%', unit: '', value: p => __cnum(boxRate(p, 'tp_rts')), tickStep: 5 }},
+  shots100: {{ label: 'True Shot Attempts / 100 Poss', short: 'SHOTS/100', unit: '', value: p => __cnum(boxRate(p, 'shots100')), tickStep: 5 }},
+  stl100: {{ label: 'Steals / 100 Poss', short: 'STL/100', unit: '', value: p => __cnum(boxRate(p, 'stl100')), tickStep: 1 }},
+  blk100: {{ label: 'Blocks / 100 Poss', short: 'BLK/100', unit: '', value: p => __cnum(boxRate(p, 'blk100')), tickStep: 1 }},
   usage_pct: {{ label: 'Usage Percentage', short: '%Poss', unit: '%', value: p => __cnum(p.usage_pct), tickStep: 5 }},
   efg_pct: {{ label: 'Effective FG Percentage', short: 'eFG%', unit: '%', value: p => __cnum(p.efg_pct), tickStep: 5 }},
   twop: {{ label: 'Two Point Percentage', short: '2P%', unit: '%', value: p => __cnum(p.twop), tickStep: 5 }},
@@ -8127,7 +8140,7 @@ function __per40(p, pgKey) {{
   if (Number(p.fm) !== 0) return NaN;
   return mpg > 0 ? Number(p[pgKey] || 0) * 40 / mpg : NaN;
 }}
-const CHART_METRIC_ORDER = ['tpp','tpa_rate','ts_pct','usage_pct','shot_pct','efg_pct','twop','ftp','ft_rate','ind_ortg','ind_drtg','porp','bpm','per','ws','ows','dws','ws40','min_pct','mpg','gs','ast_rate','tov_pct','oreb_pct','dreb_pct','stl_pct','blk_pct','ppg','rpg','orpg','drpg','apg','spg','bpg','topg','pts40','reb40','ast40','stl40','blk40','to40','ast_tov','stl_tov','fc_per_40','fd_per_40','opf40','dpf40','hakeem'];
+const CHART_METRIC_ORDER = ['tpp','tpa_rate','tp_rts','ts_pct','rts','tsadd','shots100','usage_pct','shot_pct','efg_pct','twop','ftp','ft_rate','ind_ortg','ind_drtg','porp','bpm','per','ws','ows','dws','ws40','min_pct','mpg','gs','ast_rate','tov_pct','oreb_pct','dreb_pct','stl_pct','blk_pct','stl100','blk100','ppg','rpg','orpg','drpg','apg','spg','bpg','topg','pts40','reb40','ast40','stl40','blk40','to40','ast_tov','stl_tov','fc_per_40','fd_per_40','opf40','dpf40','hakeem'];
 const TEAM_CHART_METRICS = {{
   ortg: {{ label: 'Offensive Rating', short: 'ORtg', unit: '', value: t => Number(t.ortg), tickStep: 5 }},
   drtg: {{ label: 'Defensive Rating', short: 'DRtg', unit: '', value: t => Number(t.drtg), tickStep: 5, lowerBetter: true }},
@@ -8244,10 +8257,14 @@ const CHART_METRIC_ATTEMPT_MIN = {{
   ftp:      p => attemptsPerGame(p, 'fta') >= 2.5,
   efg_pct:  p => attemptsPerGame(p, 'fga') >= EFG_FGA_PG_MIN,
   ts_pct:   p => attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN,
+  rts:      p => attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN,
+  tsadd:    p => attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN,
+  tp_rts:   p => attemptsPerGame(p, 'tpa') >= 2.5,
 }};
 const CHART_METRIC_MIN_LABEL = {{
   tpp: '2.5 3PA/G', tpa_rate: '2.5 3PA/G', twop: '2.5 2PA/G', ftp: '2.5 FTA/G',
-  efg_pct: EFG_FGA_PG_MIN + ' FGA/G', ts_pct: TS_ATT_PG_MIN + ' FGA+FTA/G',
+  efg_pct: EFG_FGA_PG_MIN + ' FGA/G', ts_pct: TS_ATT_PG_MIN + ' FGA+FTA/G', rts: TS_ATT_PG_MIN + ' FGA+FTA/G',
+  tsadd: TS_ATT_PG_MIN + ' FGA+FTA/G', tp_rts: '2.5 3PA/G',
 }};
 
 function chartShootingMinsPass(p) {{
@@ -9189,6 +9206,9 @@ const ADV_CATS = [
   {{key:'pir',       label:'PIR',    desc:'Performance Index Rating — EuroLeague box formula, per game: (PTS + REB + AST + STL + BLK + fouls drawn) − (missed FG + missed FT + TO + fouls committed). Shots-rejected is not tracked; players with unreliable minutes excluded.', asc:false}},
   {{key:'efg_pct',   label:'eFG%',   desc:'Effective Field Goal % (3-pointers worth 1.5x)',         asc:false}},
   {{key:'ts_pct',    label:'TS%',    desc:'True Shooting % (2s, 3s, and FTs)',                      asc:false}},
+  {{key:'rts',       label:'rTS%',   desc:'Relative True Shooting — his TS% minus the league average (percentage points)', asc:false}},
+  {{key:'tsadd',     label:'TSAdd/100', desc:'True Shooting Added — points above a league-average shooter on the same shots, per 100 possessions on the floor', asc:false}},
+  {{key:'shots100',  label:'SHOTS/100', desc:'True shot attempts (FGA + 0.44 FTA) per 100 possessions on the floor', asc:false}},
   {{key:'min_pct',   label:'%Min',   desc:'Minutes played % \u2014 player MIN / (40 \u00d7 GP)',    asc:false}},
   {{key:'usage_pct', label:'%Poss',  desc:'% of team possessions used while on floor',              asc:false}},
   {{key:'shot_pct',  label:'%Shots', desc:'% of team field goal attempts taken',                    asc:false}},
@@ -9198,11 +9218,15 @@ const ADV_CATS = [
   {{key:'ast_rate',  label:'ARate',  desc:'Assist Rate \u2014 % of teammate FGs assisted',          asc:false}},
   {{key:'blk_pct',   label:'Blk%',   desc:'Block % \u2014 % of opponent 2-pt attempts blocked',    asc:false}},
   {{key:'stl_pct',   label:'Stl%',   desc:'Steal % \u2014 % of opp possessions ended with steal',  asc:false}},
+  {{key:'stl100',    label:'STL/100', desc:'Steals per 100 possessions on the floor',               asc:false}},
+  {{key:'blk100',    label:'BLK/100', desc:'Blocks per 100 possessions on the floor',               asc:false}},
   {{key:'ft_rate',   label:'FTRate', desc:'Free Throw Rate \u2014 FTA per FGA',                     asc:false}},
   {{key:'fc_per_40', label:'FC/40',  desc:'Personal fouls committed per 40 minutes',               asc:true}},
   {{key:'fd_per_40', label:'FD/40',  desc:'Personal fouls drawn per 40 minutes',                   asc:false}},
   {{key:'twop',      label:'2P%',    desc:'2-point field goal percentage',                         asc:false}},
   {{key:'tpp',       label:'3P%',    desc:'3-point field goal percentage',                         asc:false}},
+  {{key:'tp_rts',    label:'3P rTS%', desc:'3-point True Shooting (1.5 × 3P%) minus the league average; FTs from 3-point fouls are not in box scores', asc:false}},
+  {{key:'tpr',       label:'3PR',    desc:'Three-point rate — 3PA / FGA, the share of his shots that are threes', asc:false}},
   {{key:'ftp',       label:'FT%',    desc:'Free throw percentage',                                 asc:false}},
   {{key:'bpm2',      label:'OBPM',   desc:'In-house strict box-score BPM 2.0',                      asc:false}},
   {{key:'per',       label:'PER',    desc:'Player Efficiency Rating (Hollinger; league average = 15)', asc:false}},
@@ -9254,7 +9278,47 @@ function pirValue(p) {{
        + fdG - missFg - missFt - (p.topg || 0) - fcG;
 }}
 
+// ── Box-score rate stats (Databallr's glossary, from each player's season totals) ──
+//   rTS%      TS% minus the league's (percentage points)          TS = PTS / (2 × (FGA + 0.44 FTA))
+//   TSAdd/100 points above a league-average shooter on the same true shot attempts, per 100 possessions on the floor
+//   3P rTS%   3-point TS (1.5 × 3P%) minus the league's; FTs from 3-point fouls aren't in box scores
+//   3PR       3PA / FGA
+//   SHOTS/100 true shot attempts (FGA + 0.44 FTA) per 100 possessions on the floor
+//   STL/100, BLK/100 per 100 possessions on the floor
+// Possessions on the floor = his team's possessions a game × his minutes / 40 × games, so the per-100 ones need real
+// minutes (not a false-minutes team). The league is every player in the season's data.
+const BOX_RATE_BASE = {{ rts: 'ts_pct', tsadd: 'ts_pct', tp_rts: 'tpp', tpr: 'tpp', shots100: 'ts_pct', stl100: 'stl_pct', blk100: 'blk_pct' }};
+const __boxLgCache = new WeakMap();
+function __boxLeague(pool) {{
+  if (__boxLgCache.has(pool)) return __boxLgCache.get(pool);
+  let pts = 0, tsa = 0, tpm = 0, tpa = 0;
+  (pool || []).forEach(p => {{ pts += +p.pts || 0; tsa += (+p.fga || 0) + 0.44 * (+p.fta || 0); tpm += +p.tpm || 0; tpa += +p.tpa || 0; }});
+  const lg = {{ ts: tsa ? pts / (2 * tsa) : null, tp: tpa ? 1.5 * tpm / tpa : null }};
+  __boxLgCache.set(pool, lg);
+  return lg;
+}}
+function __boxOnPoss(p) {{
+  if (Number(p.fm) !== 0 || !p.mpg || !p.gp) return null;
+  const t = activeFullTeamData().find(x => x.team === p.school), pace = t ? Number(t.possessions || t.tempo) : 0;
+  return pace > 0 ? pace * p.mpg / 40 * p.gp : null;
+}}
+function boxRate(p, key) {{
+  const fga = +p.fga || 0, fta = +p.fta || 0, tpa = +p.tpa || 0, tsa = fga + 0.44 * fta, lg = __boxLeague(activeFullPlayerData());
+  const per100 = x => {{ const on = __boxOnPoss(p); return on ? 100 * x / on : null; }};
+  switch (key) {{
+    case 'rts': return tsa > 0 && lg.ts != null ? 100 * ((+p.pts || 0) / (2 * tsa) - lg.ts) : null;
+    case 'tsadd': return tsa > 0 && lg.ts != null ? per100((+p.pts || 0) - lg.ts * 2 * tsa) : null;
+    case 'tp_rts': return tpa > 0 && lg.tp != null ? 100 * (1.5 * (+p.tpm || 0) / tpa - lg.tp) : null;
+    case 'tpr': return fga > 0 ? 100 * tpa / fga : null;
+    case 'shots100': return tsa > 0 ? per100(tsa) : null;
+    case 'stl100': return per100((+p.spg || 0) * p.gp);
+    case 'blk100': return per100((+p.bpg || 0) * p.gp);
+  }}
+  return null;
+}}
+
 function advCatValue(p, catKey) {{
+  if (BOX_RATE_BASE[catKey]) return boxRate(p, catKey);
   if (p[catKey] != null) return p[catKey];
   if (catKey === 'pir') return pirValue(p);
   const fga = p.fga || 0;
@@ -9281,6 +9345,7 @@ function advMakeAttemptText(p, catKey) {{
 }}
 
 function advCatStandardQualifies(p, catKey) {{
+  catKey = BOX_RATE_BASE[catKey] || catKey;   // a box rate stat qualifies like its base stat
   const minPct = ADV_CAT_MIN_PCT[catKey] || MIN_PCT_QUAL;
   if ((p.min_pct || 0) < minPct) return false;
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
@@ -9289,6 +9354,7 @@ function advCatStandardQualifies(p, catKey) {{
 }}
 
 function advCatRelaxedQualifies(p, catKey) {{
+  catKey = BOX_RATE_BASE[catKey] || catKey;   // a box rate stat qualifies like its base stat
   if (catKey === 'efg_pct') {{
     return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') >= EFG_FGA_PG_MIN;
   }}
@@ -12070,6 +12136,28 @@ function ppFilterLog(value) {{
   }});
 }}
 
+// The player page's box-score rate stats (boxRate): each with his statewide rank among the players who qualify for
+// it on Individual Stats -> Advanced (the same minimums).
+function __ppBoxRates(p) {{
+  if (!p) return '';
+  const pool = activeFullPlayerData();
+  const items = [['rts', 'rTS%', 1, true], ['tsadd', 'TSAdd/100', 1, true], ['tp_rts', '3P rTS%', 1, true], ['tpr', '3PR', 1, false, '%'],
+                 ['shots100', 'SHOTS/100', 1], ['stl100', 'STL/100', 1], ['blk100', 'BLK/100', 1]];
+  const cells = items.map(([k, lab, d, signed, unit]) => {{
+    const v = boxRate(p, k);
+    if (v == null) return '';
+    const q = pool.filter(x => advCatQualifies(x, k) && boxRate(x, k) != null).map(x => boxRate(x, k)).sort((a, b) => b - a);
+    const rk = advCatQualifies(p, k) ? q.findIndex(x => x <= v) + 1 : 0;
+    const txt = (signed && v > 0 ? '+' : '') + v.toFixed(d) + (unit || '');
+    const col = signed ? (v > 0 ? '#15803d' : v < 0 ? '#b91c1c' : '#1a1f2e') : '#1a1f2e';
+    const desc = (ADV_CATS.find(c => c.key === k) || {{}}).desc || '';
+    return '<div style="min-width:96px;text-align:center;padding:6px 8px" title="' + __ppEsc(desc) + '"><div style="font-size:0.7rem;color:#6b7280;font-weight:700;letter-spacing:.03em">' + lab
+      + '</div><div style="font-size:1.25rem;font-weight:800;color:' + col + '">' + txt + '</div><div style="font-size:0.7rem;color:#6b7280">'
+      + (rk ? '#' + rk + ' of ' + q.length : 'not qualified') + '</div></div>';
+  }}).filter(Boolean).join('');
+  return cells ? '<div class="pp-card"><div class="pp-sub">Shooting &amp; Defense Rates <small>(vs the league · ranks among qualified players)</small></div><div style="display:flex;flex-wrap:wrap;justify-content:center;gap:4px">' + cells + '</div></div>' : '';
+}}
+
 function renderPlayerProfile() {{
   const {{ name, school }} = playerProfileCtx || {{}};
   if (!name) return;
@@ -12297,6 +12385,7 @@ function renderPlayerProfile() {{
     <div style="color:#fff;font-size:1rem;font-weight:600;margin-top:4px">${{rRow.gp}} GP · ${{starts}} starts &nbsp;|&nbsp; ${{hl.join(' &nbsp;·&nbsp; ')}}</div>
   </div>
   ${{trendHtml}}
+  ${{__ppBoxRates(dRow)}}
   <div class="pp-card" style="width:900px">
     <div class="pp-sub">Game-by-Game <small>(dots = games · solid = season moving avg · dashed = 5-game avg)</small></div>
     <div style="text-align:center;margin-bottom:8px"><select id="pp-cstat" onchange="ppDrawChart()">${{chartOpts}}</select></div>
