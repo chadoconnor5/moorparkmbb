@@ -797,7 +797,9 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
                                 prior: dict = None) -> dict:
     """Compute team-only stats that require team_summary.json data."""
     result = {}
-    gp = summary.get("games_played", 0)
+    # A team whose only box scores were posted by its opponents (no stats of its own: games_played 0) still has those
+    # games in its log, rated from the opponent's possessions and the final score (and last season blended in)
+    gp = summary.get("games_played", 0) or len(game_log or [])
     if gp == 0:
         return {k: 0.0 for k in TEAM_STAT_DEFINITIONS}
 

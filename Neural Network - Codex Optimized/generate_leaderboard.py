@@ -3696,7 +3696,7 @@ def build_game_boxes(stats_dir) -> dict:
             for p in plist:
                 st = p.get("stats", {})
                 fgm, fga = parse_ma(st.get("FGM-A", "0-0")); tpm, tpa = parse_ma(st.get("3PM-A", "0-0")); ftm, fta = parse_ma(st.get("FTM-A", "0-0"))
-                jm = re.match(r"^[a-z]?\s*#?(\d+)\s+(.*)$", p.get("name", ""))
+                jm = re.match(r"^(?:[A-Za-z]{1,2}\s+)?#?(\d+)\s+(.*)$", p.get("name", ""))
                 rows.append({"name": jm.group(2) if jm else p.get("name", ""), "JER": jm.group(1) if jm else "",
                              "ST": 1 if (p.get("is_starter") or p.get("role") == "starter") else 0, "MIN": parse_int(st.get("MIN", 0)),
                              "FGM": fgm, "FGA": fga, "3PM": tpm, "3PA": tpa, "FTM": ftm, "FTA": fta,
@@ -3820,7 +3820,7 @@ def build_game_boxes(stats_dir) -> dict:
                 else:
                     starter = 1 if idx < 5 else 0
                 raw_name = p.get("name", "")
-                jm = re.match(r"^[a-z]?\s*#?(\d+)\s+(.*)$", raw_name)
+                jm = re.match(r"^(?:[A-Za-z]{1,2}\s+)?#?(\d+)\s+(.*)$", raw_name)
                 rows.append({
                     "name": jm.group(2) if jm else raw_name,
                     "JER": jm.group(1) if jm else "",
@@ -3953,6 +3953,8 @@ def build_game_boxes(stats_dir) -> dict:
             fdate = f"{int(stamp[4:6])}/{int(stamp[6:8])}/{stamp[:4]}"
             if fdate != date:
                 games.setdefault(_box_game_key(fdate, names[0], names[1]), record)
+                if Path(stats_dir) == Path(STATS_DIR):
+                    record["d"] = fdate   # 2026-27: show the schedule's date (a page dated a day off, 10/29 Marin)
 
     # Second pass: single-game BPM 2.0 once the league-average ORtg is known.
     lg_ortg = 100.0 * lg_pts / lg_poss if lg_poss > 0 else 100.0
@@ -7493,10 +7495,14 @@ function __bxWpChart(g, w, l) {{
     pts.push([s, __wpProb(lead, __wpEnd(s) - s, exp), cv, ch, lead]);
   }});
   pts[pts.length - 1][1] = 1;
-  // each play's dot sits on the curve after it: [seconds, chance, side, player, kind, v, h]
+  // Plays logged at the same second are one moment (a miss, the rebound and the putback at 0:00): every dot of a moment
+  // sits on the curve after all of them, with that moment's final score. [seconds, chance, side, player, kind, v, h]
+  const after = {{}};
+  plays.forEach(p => {{ after[p[0]] = [p[4], p[5]]; }});
   const dotsP = plays.map(p => {{
-    const lead = wIsV ? p[4] - p[5] : p[5] - p[4];
-    return [p[0], p[0] >= total && lead > 0 ? 1 : __wpProb(lead, __wpEnd(p[0]) - p[0], exp), p[1], p[2], p[3], p[4], p[5]];
+    const [v1, h1] = after[p[0]], lead = wIsV ? v1 - h1 : h1 - v1;
+    const chance = p[0] >= total ? (lead > 0 ? 1 : lead < 0 ? 0 : 0.5) : __wpProb(lead, __wpEnd(p[0]) - p[0], exp);
+    return [p[0], chance, p[1], p[2], p[3], v1, h1];
   }});
   let lock = pts.length - 1;
   while (lock > 0 && pts[lock - 1][1] >= 0.99) lock--;
@@ -7567,9 +7573,11 @@ function __bxWpHover(e, svg) {{
   dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
   const [w, l, wIsV, sideTeam, byPlay] = __bxWpNames;
   if (byPlay) {{
+    // every play of that moment, in order, then the score and chance after them
     const ws = wIsV ? best[5] : best[6], ls = wIsV ? best[6] : best[5];
-    tip.innerHTML = '<b>' + __wpClock(best[0]) + '</b> · ' + (best[3] && best[3] !== 'Team' ? best[3] + ' (' + sideTeam(best[2]) + ')' : sideTeam(best[2]))
-      + ' ' + WP_KINDS[best[4]] + '<br>' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + w + ' ' + (100 * best[1]).toFixed(1) + '%';
+    const who = q => (q[3] && q[3] !== 'Team' ? q[3] + ' (' + sideTeam(q[2]) + ')' : sideTeam(q[2])) + ' ' + WP_KINDS[q[4]];
+    tip.innerHTML = '<b>' + __wpClock(best[0]) + '</b> · ' + __bxWpPts.filter(q => q[0] === best[0]).map(who).join('<br>')
+      + '<br>' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + w + ' ' + (100 * best[1]).toFixed(1) + '%';
   }} else {{
     const ws = wIsV ? best[2] : best[3], ls = wIsV ? best[3] : best[2];
     tip.textContent = __wpClock(best[0]) + ' · ' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + (100 * best[1]).toFixed(1) + '%';
