@@ -67,7 +67,8 @@ This copy keeps the original project intact and starts consolidating the working
   seasons, refresh the box files: delete
   `internal_data/cache/leaderboard/*_boxes.json` and rebuild with `--cache`.
   2026-27 games with play-by-play also carry "wp": the scoring compressed to ~3 characters per score
-  (_wp_events: base-36 seconds since the last score + A/B/C / X/Y/Z), ~200 bytes a game; the page computes
+  (_wp_events: base-36 seconds since the last score + A/B/C / X/Y/Z, O/P a miss or turnover), ~400 bytes a
+  game, and box rows carry shot zones zd/zr/zm; the page computes
   the win-probability curve from it instead of shipping the curve.
 - practice_tracker.html (hand-maintained, not generated): roster lives in
   localStorage (`pt_roster`, edited in-app via the Roster button); the embedded

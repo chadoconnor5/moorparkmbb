@@ -107,7 +107,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
   from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
   the score margin dotted on the right axis, green/red dots for each team's scores, a ring where it reached 99% for
-  good. build_game_boxes stores the scoring as "wp" [visitor, periods, string] (_wp_events); the page rebuilds the
+  good, open circles for misses / turnovers. Box rows of those games also get Torvik's shot zones from the play-by-play
+  (zd / zr / zm [made, att]: Dunk, Rim = layups + tip-ins, Mid = 2-pt jumpers; Final and each half); 2026-27 BPMs
+  show green / red. build_game_boxes stores the scoring as "wp" [visitor, periods, string] (_wp_events); the page rebuilds the
   curve (__bxWpChart). The Min WP / Excitement / Tension tabs stay KenPom's (teams equal). Past seasons: no chart.
 - Stints (internal, for a possible BPR later): compute_pbp_lineups.py also writes internal_data/pbp_stints/<season>.json,
   every usable game's stretches with the same ten on the floor (both fives, seconds, each side's possessions and

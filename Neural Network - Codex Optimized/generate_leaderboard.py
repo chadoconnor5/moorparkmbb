@@ -3429,11 +3429,14 @@ def _game_bpm(side_tot, opp_tot, rows, opp_rows, team, opp, lg_ortg, priors):
 
 def _wp_events(plays) -> str:
     """A game's scoring as a short string for the box score's win-probability chart: per score, the seconds since the
-    last one in base 36 then the team and points as a capital (A/B/C visitor 1-3, X/Y/Z home 1-3), or R<v>.<h>.
+    last one in base 36 then the team and points as a capital (A/B/C visitor 1-3, X/Y/Z home 1-3; O / P a visitor /
+    home miss or turnover, the score unchanged), or R<v>.<h>.
     (base 36, the score reset) for anything else (a corrected score). Elapsed time: 20:00 halves, 5:00 overtimes."""
     out, last_t, v0, h0 = [], 0, 0, 0
-    for per, clock, _team, _pl, _act, v, h in plays:
-        if (v, h) == (v0, h0):
+    for per, clock, team, _pl, act, v, h in plays:
+        act = (act or "").lower()
+        empty = (act.startswith("missed") and "free throw" not in act) or act.startswith("turnover")
+        if (v, h) == (v0, h0) and not empty:
             continue
         try:
             mm, ss = (int(x) for x in clock.split(":"))
@@ -3442,8 +3445,8 @@ def _wp_events(plays) -> str:
         t = (per * 1200 if per <= 2 else 2400 + (per - 2) * 300) - (mm * 60 + ss)
         dt = max(0, t - last_t)
         dv, dh = v - v0, h - h0
-        code = ("ABC"[dv - 1] if dh == 0 and 1 <= dv <= 3 else "XYZ"[dh - 1] if dv == 0 and 1 <= dh <= 3
-                else f"R{_b36(v)}.{_b36(h)}.")
+        code = ("OP"[team] if (dv, dh) == (0, 0) else "ABC"[dv - 1] if dh == 0 and 1 <= dv <= 3
+                else "XYZ"[dh - 1] if dv == 0 and 1 <= dh <= 3 else f"R{_b36(v)}.{_b36(h)}.")
         out.append(_b36(dt) + code)
         last_t, v0, h0 = max(t, last_t), v, h
     return "".join(out)
@@ -3613,6 +3616,9 @@ def build_game_boxes(stats_dir) -> dict:
     pbp_seen = {}
     # Each game's scoring, for the box score's win-probability chart (2026-27 on): {gk: (visitor, periods, events)}
     pbp_flow = {}
+    # Torvik's shot zones (2026-27 on): {gk: {period "1"/"2"/.. and "all": {(team norm, pkey): {"zd"/"zr"/"zm": [made, att]}}}}
+    # dunks; rim: layups, tip-ins; mid: 2-point jump shots
+    pbp_zones = {}
     pbp_dir = Path(str(stats_dir).replace(" Team Statistics", " Play by Play"))
     for f in sorted(pbp_dir.glob("*.json")) if pbp_dir.exists() else []:
         try:
@@ -3632,6 +3638,21 @@ def build_game_boxes(stats_dir) -> dict:
             pbp_seen[gk] = seen
             if stats_dir == STATS_DIR:
                 pbp_flow[gk] = (pj.get("visitor"), max(pl[0] for pl in pj["plays"]), _wp_events(pj["plays"]))
+                sides_n = (_box_norm(pj.get("visitor")), _box_norm(pj.get("home")))
+                zg = {"all": {}}
+                for pl in pj["plays"]:
+                    act = (pl[4] or "").lower()
+                    made = act.startswith("made")
+                    if not (made or act.startswith("missed")) or "3-pt" in act or "free throw" in act or not pl[3]:
+                        continue
+                    z = "zd" if "dunk" in act else "zr" if ("layup" in act or "tip" in act) else "zm" if "jump shot" in act else None
+                    if not z:
+                        continue
+                    k = (sides_n[pl[2]], pkey(pl[3]))
+                    for bucket in (zg["all"], zg.setdefault(str(pl[0]), {})):
+                        c = bucket.setdefault(k, {}).setdefault(z, [0, 0])
+                        c[0] += made; c[1] += 1
+                pbp_zones[gk] = zg
 
     for box_path in sched_dir.glob("*/*/*/*.json"):
         try:
@@ -3779,6 +3800,16 @@ def build_game_boxes(stats_dir) -> dict:
                           for tn, rows in period_rows(tp, 20 if int(pk) <= 2 else 5).items()}
             if hv:
                 record["hv"] = hv
+        zg = pbp_zones.get(gk)
+        if zg:
+            def add_zones(teams_rows, bucket):
+                for tn, rows in teams_rows.items():
+                    for r in rows:
+                        z = bucket.get((_box_norm(tn), pkey(r["n"]))) or {}
+                        r.update({k: z.get(k, [0, 0]) for k in ("zd", "zr", "zm")})
+            add_zones(record["t"], zg["all"])
+            for pk, teams_rows in (record.get("hv") or {}).items():
+                add_zones(teams_rows, zg.get(pk, {}))
         # Win-probability chart: "wp" [visitor's box name, periods, scoring string] (_wp_events)
         fl = pbp_flow.get(gk)
         if fl and fl[2]:
@@ -7195,6 +7226,13 @@ function __bxTeamTable(name, rows, oppRows) {{
   const tPoss = tFga + 0.475 * tFta - tOr + tTo;
   const oPoss = oFga + 0.475 * oFta - oOr + oTo;
 
+  // Torvik's shot zones from the play-by-play (2026-27 games that have it): Dunk / Rim (layups, tip-ins) / Mid (2-pt jumpers)
+  const hasZ = rows.some(r => r.zr);
+  const zs = (rs, k) => rs.reduce((s, r) => [s[0] + ((r[k] || [])[0] || 0), s[1] + ((r[k] || [])[1] || 0)], [0, 0]);
+  const zCells = zz => hasZ ? ['zd', 'zr', 'zm'].map(k => '<td>' + zz(k)[0] + '-' + zz(k)[1] + '</td>').join('') : '';
+  // BPM green / red (2026-27 on)
+  const bpmC = v => activeSeason === '2627' && v != null && v !== 0
+    ? '<td style="color:' + (v > 0 ? '#15803d' : '#b91c1c') + '">' + (v > 0 ? '+' : '') + __bxF(v) + '</td>' : '<td>' + __bxF(v) + '</td>';
   const cells = r => {{
     return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name) + '</td><td>' + r.min + '</td>'
       + '<td>' + __bxF(r.ortg) + '</td><td>' + __bxF(r.usg) + '</td>'
@@ -7202,12 +7240,13 @@ function __bxTeamTable(name, rows, oppRows) {{
       + '<td>' + __bxF(r.orp) + '</td><td>' + __bxF(r.drp) + '</td>'
       + '<td>' + __bxF(r.ap) + '</td><td>' + __bxF(r.top) + '</td>'
       + '<td>' + __bxF(r.stp) + '</td><td>' + __bxF(r.blp) + '</td>'
+      + zCells(k => r[k] || [0, 0])
       + '<td>' + (r.fgm - r.tpm) + '-' + (r.fga - r.tpa) + '</td>'
       + '<td>' + r.tpm + '-' + r.tpa + '</td>'
       + '<td>' + r.ftm + '-' + r.fta + '</td>'
       + '<td>' + r.ast + '</td><td>' + r.to + '</td><td>' + r.stl + '</td><td>' + r.blk + '</td>'
       + '<td>' + r.or + '</td><td>' + r.dr + '</td><td>' + r.pf + '</td>'
-      + '<td>' + __bxF(r.bpm) + '</td><td>' + __bxF(r.obpm) + '</td><td>' + __bxF(r.dbpm) + '</td>'
+      + bpmC(r.bpm) + bpmC(r.obpm) + bpmC(r.dbpm)
       + '<td><b>' + r.pts + '</b></td>';
   }};
 
@@ -7237,9 +7276,10 @@ function __bxTeamTable(name, rows, oppRows) {{
   }}).join('');
 
   return '<div class="bx-table-wrap"><table class="bx-table">'
-    + '<thead><tr><th colspan="27" class="bx-team-hdr">' + name.toUpperCase() + '</th></tr>'
+    + '<thead><tr><th colspan="' + (hasZ ? 30 : 27) + '" class="bx-team-hdr">' + name.toUpperCase() + '</th></tr>'
     + '<tr><th>#</th><th class="bx-l">Player</th><th>Min</th><th>ORtg</th><th>Usg</th><th>eFG</th><th>TS%</th>'
     + '<th>OR%</th><th>DR%</th><th>A%</th><th>TO%</th><th>Stl%</th><th>Blk%</th>'
+    + (hasZ ? '<th>Dunk</th><th>Rim</th><th>Mid</th>' : '')
     + '<th>2Pt</th><th>3Pt</th><th>FT</th><th>Ast</th><th>TO</th><th>Stl</th><th>Blk</th>'
     + '<th>OR</th><th>DR</th><th>PF</th><th>BPM</th><th>OBPM</th><th>DBPM</th><th>Pts</th></tr></thead>'
     + '<tbody>' + bodyHtml + '</tbody>'
@@ -7249,6 +7289,7 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '<td>' + __bxF(totOrp) + '</td><td>' + __bxF(totDrp) + '</td>'
     + '<td>' + __bxF(totAp) + '</td><td>' + __bxF(totTop) + '</td>'
     + '<td>' + __bxF(totStp) + '</td><td>' + __bxF(totBlp) + '</td>'
+    + zCells(k => zs(rows, k))
     + '<td>' + (tFgm - tTpm) + '-' + (tFga - tTpa) + '</td>'
     + '<td>' + tTpm + '-' + tTpa + '</td><td>' + tFtm + '-' + tFta + '</td>'
     + '<td>' + tAst + '</td><td>' + tTo + '</td><td>' + tStl + '</td><td>' + tBlk + '</td>'
@@ -7260,7 +7301,7 @@ function __bxTeamTable(name, rows, oppRows) {{
 // Win probability through the game (g.wp, 2026-27 games with play-by-play), Torvik-style: the winner's chance from
 // the lead, the time left and the pregame expected margin (the FanMatch ratings: pregame nets + 3 home court), which
 // counts for less as the clock runs (spread 11.5 over a full 40:00). Dotted: the score margin (right axis, 0 at 50%).
-// Dots: each score, green the winner's, red the loser's; the ring: where the winner's chance reached 99% for good.
+// Dots: each score, green the winner's, red the loser's; open: a miss or turnover; the ring: where the winner's chance reached 99% for good.
 function __wpErf(x) {{
   const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a);
   return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a));
@@ -7296,24 +7337,25 @@ function __bxWpChart(g, w, l) {{
   while ((m = re.exec(str))) {{
     t += parseInt(m[1], 36);
     const c = m[2];
+    const empty = c === 'O' || c === 'P';
     if (c === 'R') {{ v = parseInt(m[3], 36); h = parseInt(m[4], 36); }}
     else if ('ABC'.includes(c)) v += 'ABC'.indexOf(c) + 1;
-    else h += 'XYZ'.indexOf(c) + 1;
-    ev.push([t, v, h]);
+    else if ('XYZ'.includes(c)) h += 'XYZ'.indexOf(c) + 1;
+    ev.push([t, v, h, empty]);
   }}
   const exp = __wpPregame(g, w, l);
   const total = 2400 + 300 * Math.max(0, nper - 2);
   const times = new Set();
   for (let s = 0; s <= total; s += 10) times.add(s);
   ev.forEach(e => times.add(e[0]));
-  // [seconds, winner's chance, visitor, home, winner's lead, who scored: 1 winner / -1 loser / 0 none]
+  // [seconds, winner's chance, visitor, home, winner's lead, who scored: 1 winner / -1 loser / 2 a miss or turnover / 0 none]
   const pts = [];
   let i = 0, cv = 0, ch = 0;
   [...times].sort((a, b) => a - b).forEach(s => {{
     let who = 0;
     while (i < ev.length && ev[i][0] <= s) {{
       const wGot = wIsV ? ev[i][1] - cv : ev[i][2] - ch, lGot = wIsV ? ev[i][2] - ch : ev[i][1] - cv;
-      who = wGot > 0 ? 1 : lGot > 0 ? -1 : who;
+      who = wGot > 0 ? 1 : lGot > 0 ? -1 : ev[i][3] && !who ? 2 : who;
       cv = ev[i][1]; ch = ev[i][2]; i++;
     }}
     const lead = wIsV ? cv - ch : ch - cv;
@@ -7345,7 +7387,8 @@ function __bxWpChart(g, w, l) {{
   let diff = '';   // the score margin as steps
   pts.forEach((p, k) => {{ diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); }});
   const r0 = small ? 2.2 : 2.8;
-  const dots = pts.filter(p => p[5]).map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{p[5] > 0 ? '#22c55e' : '#ef4444'}}"/>`).join('');
+  const opens = pts.filter(p => p[5] === 2).map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="#fff" stroke="#374151" stroke-width="1"/>`).join('');
+  const dots = pts.filter(p => p[5] === 1 || p[5] === -1).map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{p[5] > 0 ? '#22c55e' : '#ef4444'}}"/>`).join('');
   const ring = lock < pts.length - 1 ? `<circle cx="${{x(pts[lock][0])}}" cy="${{y(pts[lock][1])}}" r="${{small ? 5 : 6.5}}" fill="none" stroke="#1a1f2e" stroke-width="2.5"/>` : '';
   const minWp = Math.min(...pts.map(p => p[1]));
   const [mo, da, yr] = (g.d || '').split('/');
@@ -7359,7 +7402,7 @@ function __bxWpChart(g, w, l) {{
     + xticks + grid + frame + right
     + `<path d="${{diff}}" fill="none" stroke="#1a1f2e" stroke-width="1.2" stroke-dasharray="2 2"/>`
     + `<path d="${{line}}" fill="none" stroke="#5b9bd5" stroke-width="${{small ? 3.5 : 5}}" stroke-linejoin="round" stroke-linecap="round"/>`
-    + dots + ring
+    + opens + dots + ring
     + `<text x="${{(L + W - R) / 2}}" y="${{H - 4}}" text-anchor="middle" font-size="${{fs}}" font-style="italic" fill="${{ink}}">Minutes elapsed</text>`
     + `<line class="wp-x" x1="0" x2="0" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
     + `<circle class="wp-dot" r="5" fill="#5b9bd5" stroke="#fff" stroke-width="2" visibility="hidden"/>`
@@ -7370,6 +7413,7 @@ function __bxWpChart(g, w, l) {{
     + `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:4px 14px;font-size:0.72rem;color:${{ink}};margin-top:4px">`
     + `<span>${{key('#5b9bd5')}} ${{w}} win probability (left)</span><span>${{key('#1a1f2e', 1)}} score margin (right)</span>`
     + `<span>${{dot('#22c55e')}} ${{w}} scores</span><span>${{dot('#ef4444')}} ${{l}} scores</span>`
+    + '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;border:1px solid #374151;background:#fff;vertical-align:middle"></span> miss / turnover</span>'
     + (ring ? '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #1a1f2e;vertical-align:middle"></span> 99% for good</span>' : '')
     + '</div></div>';
 }}
