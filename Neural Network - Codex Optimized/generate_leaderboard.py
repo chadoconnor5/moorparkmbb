@@ -7301,7 +7301,10 @@ function __bxWpChart(g, w, l) {{
   }});
   pts[pts.length - 1][1] = 1;
   __bxWpPts = pts; __bxWpNames = [w, l, wIsV];
-  const W = 720, H = 190, L = 44, R = 12, T = 14, B = 24;
+  // Drawn at the screen's width (the modal's content area) so the text stays its real size on a phone and a desktop
+  const W = Math.max(300, Math.min(1100, (window.innerWidth || 800) - (window.innerWidth < 700 ? 60 : 160)));
+  const H = W < 500 ? 160 : 200, L = 40, R = 10, T = 14, B = 24;
+  __bxWpGeom = {{ W, H, L, R, T, B, total }};
   const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p);
   const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
   const grid = [0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${{L}}" x2="${{W - R}}" y1="${{y(p)}}" y2="${{y(p)}}" stroke="${{p === 0.5 ? '#9aa1ad' : '#e6e8ec'}}" stroke-width="1"${{p === 0.5 ? ' stroke-dasharray="4 4"' : ''}}/>`).join('');
@@ -7314,7 +7317,7 @@ function __bxWpChart(g, w, l) {{
   return '<div style="margin:0 0 14px">'
     + `<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:0 2px 4px"><span style="font-weight:700;font-size:0.9rem;color:#1a1f2e">${{w}} win probability</span><span style="font-size:0.75rem;color:#6b7280">lowest ${{Math.round(100 * minWp)}}% · teams assumed equal</span></div>`
     + '<div style="position:relative">'
-    + `<svg viewBox="0 0 ${{W}} ${{H}}" style="width:100%;height:auto;display:block" onpointermove="__bxWpHover(event, this)" onpointerleave="__bxWpHover(null, this)">`
+    + `<svg viewBox="0 0 ${{W}} ${{H}}" style="width:100%;max-width:${{W}}px;height:auto;display:block;margin:0 auto;touch-action:pan-y" onpointermove="__bxWpHover(event, this)" onpointerleave="__bxWpHover(null, this)">`
     + grid + vlines + ylab + xlab
     + `<path d="${{line}}" fill="none" stroke="#0d47a1" stroke-width="2" stroke-linejoin="round"/>`
     + `<line class="wp-x" x1="0" x2="0" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
@@ -7324,11 +7327,11 @@ function __bxWpChart(g, w, l) {{
     + '<div class="wp-tip" style="position:absolute;top:0;display:none;pointer-events:none;background:#1a1f2e;color:#fff;font-size:0.75rem;padding:4px 8px;border-radius:4px;white-space:nowrap"></div>'
     + '</div></div>';
 }}
-let __bxWpPts = [], __bxWpNames = [];
+let __bxWpPts = [], __bxWpNames = [], __bxWpGeom = {{}};
 function __bxWpHover(e, svg) {{
   const wrap = svg.parentNode, tip = wrap.querySelector('.wp-tip'), xl = svg.querySelector('.wp-x'), dot = svg.querySelector('.wp-dot');
   if (!e || !__bxWpPts.length) {{ tip.style.display = 'none'; xl.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); return; }}
-  const W = 720, H = 190, L = 44, R = 12, T = 14, B = 24, total = __bxWpPts[__bxWpPts.length - 1][0];
+  const {{ W, H, L, R, T, B, total }} = __bxWpGeom;
   const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width;
   const s = Math.max(0, Math.min(total, (sx - L) / (W - L - R) * total));
   let best = __bxWpPts[0];
