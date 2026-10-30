@@ -30,15 +30,38 @@ def _clean(s):
     return re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", " ", s))).strip()
 
 
+# The plays that follow the player's name (lowercase; names are capitals). The site writes some names out of order
+# ("SILVA,CAIO DA" for Caio Da Silva, "JR,KEIAN WILLIAMS" for Keian Williams Jr., "JOHNSON,RODERICK (QUICK)"), so
+# the name is everything before the play, not "LAST,FIRST" up to the first space.
+_ACT = re.compile(r"^(.+?)\s+((?:made|missed|enters the game|goes to the bench|offensive rebound|defensive rebound"
+                  r"|deadball rebound|team rebound|blocked)\b.*)$")
+
+
 def _split(text):
     """(player, action) from a play's text."""
     m = _BY.match(text)
     if m:
         return m.group(2).strip(), f"{m.group(1)} by"
+    m = _ACT.match(text)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
     m = re.match(r"^([A-Z][A-Z' .\-]*,[A-Z' .\-]+?|TEAM)\s+(\S.*)$", text)
     if m:
         return m.group(1).strip(), m.group(2).strip()
     return "", text
+
+
+def fix_plays(pj):
+    """Repair a saved file's plays split before _ACT (a name's last word left on the action: "SILVA,CAIO" + "DA missed
+    3-pt. jump shot"): the play is re-split from its text. Returns pj (its plays fixed in place)."""
+    for p in pj.get("plays") or []:
+        player, action = p[3] or "", p[4] or ""
+        if not action or _ACT.match("X " + action) or _BY.match(action + " X") or action.endswith(" by"):
+            continue
+        name, act = _split(f"{player} {action}".strip())
+        if name and act != action and _ACT.match("X " + act):
+            p[3], p[4] = name, act
+    return pj
 
 
 def _linescore(page, visitor, home):

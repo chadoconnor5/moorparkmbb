@@ -1036,7 +1036,13 @@ def cmd_nightly(run: Run, args):
     # Older games missing stats are re-checked on demand with `scrape.py missing` (see `scrape.py status`).
     tonight = [k for k in select_games(state, start=night, end=night)]
     print(f"  {len(tonight)} games on {night} (older missing box scores: `scrape.py missing`)")
-    run.process(sorted(tonight), days=(night,))   # the night's composite always: TBA games turn up there
+    # Box scores often go up after the run (late games): the night before's still-missing games are looked for again
+    # on its composite page (one more page, only when that night left some)
+    prev = night - timedelta(days=1)
+    late = [k for k in select_games(state, start=prev, end=prev) if state.entry(k)["status"] in MISSING]
+    if late:
+        print(f"  {len(late)} games from {prev} still missing a box score: checking {prev}'s page again")
+    run.process(sorted(tonight + late), days=(night, prev) if late else (night,))   # the night's composite always: TBA games turn up there
 
 
 def cmd_day(run: Run, args):

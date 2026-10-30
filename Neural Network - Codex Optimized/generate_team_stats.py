@@ -48,6 +48,24 @@ TEAM_ALIASES = {
 _CANONICAL_TEAMS = None
 
 
+def _records_from(game_log):
+    """{"Overall (.500)": "1-1", "Conference (...)": ...} from the games played (W / L results)."""
+    def rec(games):
+        w = sum(1 for g in games if g.get("result") == "W")
+        l = sum(1 for g in games if g.get("result") == "L")
+        pct = f"{w / (w + l):.3f}".lstrip("0") if w + l else ".000"
+        return pct, f"{w}-{l}"
+    out = {}
+    if game_log:
+        pct, wl = rec(game_log)
+        out[f"Overall ({pct})"] = wl
+        conf = [g for g in game_log if g.get("is_conference")]
+        if conf:
+            pct, wl = rec(conf)
+            out[f"Conference ({pct})"] = wl
+    return out
+
+
 def _canonical_teams():
     """Return all canonical team names for the current season."""
     global _CANONICAL_TEAMS
@@ -551,9 +569,18 @@ def generate_stats(team_name: str, conference: str = None):
         conf_opp_totals["MIN"] = conf_team_totals["MIN"]
     conf_opp_averages = compute_averages(conf_opp_totals) if conf_opp_totals["games"] > 0 else {}
 
+    # Records: the site's, from a scraped schedule page, while they cover every game played; a typed-in schedule
+    # (2026-27) has none, or a preseason 0-0 that never updates, so then they come from the games played, in the
+    # site's form ("Overall (.938)": "30-2", "Conference (1.000)": "14-0")
+    records = schedule.get("records") or {}
+    shown = next((v for k, v in records.items() if "overall" in k.lower()), "")
+    m = re.match(r"(\d+)-(\d+)", shown or "")
+    if not m or int(m.group(1)) + int(m.group(2)) < sum(1 for g in game_log if g.get("result") in ("W", "L")):
+        records = _records_from(game_log)
+
     # Conference record from schedule
     conf_record = {}
-    for k, v in schedule.get("records", {}).items():
+    for k, v in records.items():
         if "conference" in k.lower():
             conf_record[k] = v
 
@@ -562,7 +589,7 @@ def generate_stats(team_name: str, conference: str = None):
         "team_name": team_name,
         "generated": datetime.now().isoformat(),
         "games_played": team_totals["games"],
-        "record": schedule.get("records", {}),
+        "record": records,
         "team_totals": team_totals,
         "team_averages": team_averages,
         "opponent_totals": opp_totals,
@@ -587,7 +614,7 @@ def generate_stats(team_name: str, conference: str = None):
     summary = {
         "team": team_name,
         "games_played": team_totals["games"],
-        "record": schedule.get("records", {}),
+        "record": records,
         "totals": team_totals,
         "averages": team_averages,
         "opponent_totals": opp_totals,

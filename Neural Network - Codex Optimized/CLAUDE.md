@@ -95,8 +95,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   internal_data/pbp_lineups/<season>/<team>.json: five-man units per game from the substitutions (each later period's
   five from who shows up first; half-logged subs repaired from what players do next), possessions FGA-OREB+TO+.475FTA,
   leverage High/Med/Low/Clutch and garbage time as the possession tracker grades them, then adjust_lineups.adjust (the
-  tracker lineups' opponent adjustment). A game is used only if five-on-the-floor holds, every player's minutes are
-  within 2.5 of the box score, each half's within 2.0 of that half's box score (the page's period tabs) and the names match; the rest are listed with the reason. The leaderboard puts each
+  tracker lineups' opponent adjustment). Scorekeepers log subs loosely, so the five is repaired from what players do;
+  only stretches that needed no repair count (a stretch between two of a team's logged subs with a repair in it is
+  left out of that team's units; each game records its "clean" share). A game is dropped only if names don't match
+  the box score or over 25% of plays lack five on the floor. Box-score minutes (whole game, each half) are notes, not
+  a reason to drop: box scores are sometimes wrong (10/29 Marin: two players' minutes swapped). The site writes some
+  names out of order ("SILVA,CAIO DA", "JR,KEIAN WILLIAMS"): play_by_play splits at the play, fix_plays repairs saved
+  files as they are read, and names match the box score by all their words. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
 - Game attributes (Misc tabs, build_storylines): 2026-27 only, from the play-by-play (KenPom's, the teams assumed
@@ -125,6 +130,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   the host is the host's Home game and the visitor's Away game (generate_team_stats.py, neutral_host() in
   assemble_schedules.py); other tournament games stay Neutral. A played TBA game replaces its TBA row (team pages,
   FanMatch).
+- Records (2026-27): typed-in schedules have none (or a preseason 0-0), so generate_team_stats.py counts them from
+  the games played ("Overall (.500)": "1-1", "Conference ..."); past seasons keep the site's.
+- The nightly also re-reads the night before's composite page when that night left games without a box score (late
+  games post after the run): one more page, only then.
+- Python on the PC runs in UTF-8 (PYTHONUTF8 in the .bat files and for every script scrape.py starts); the site has
+  a .nojekyll (GitHub Pages serves the files as they are, no Jekyll build to break on a file's encoding).
 - Playoff dates (after the regular season, late Feb on) stay off the typed-in schedules during the regular season.
 - No conference games before mid-December, and never at a neutral site / tournament: typed-in schedules must not
   flag them (is_conference).
