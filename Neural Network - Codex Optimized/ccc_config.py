@@ -1,5 +1,6 @@
 """Shared configuration helpers for the CCC men's basketball pipeline."""
 
+import re
 from pathlib import Path
 
 DEFAULT_SEASON = "2026-27"
@@ -29,6 +30,25 @@ CONFERENCES = {
 NO_TEAM = {
     "2026-27": {"Alameda"},
 }
+
+
+# Forfeits: (date, winner, loser). The game's stats stay (players, team totals, ORtg / DRtg / net from the score on the
+# court), but its result is a 2-0 forfeit: record, game log, schedules, WAB, quads. generate_team_stats.py applies it
+# (team_score / opponent_score 2-0, court_score keeps the real one).
+FORFEITS = [
+    ("2026-10-29", "Desert", "LA Southwest"),   # LA Southwest won 85-82 on the court
+]
+
+
+def forfeit_of(date: str, team: str, opponent: str):
+    """'W' / 'L' when this game (box score date M/D/YYYY or YYYY-MM-DD) is a forfeit for team, else None."""
+    m = re.match(r"(\d+)/(\d+)/(\d{4})", date or "")
+    iso = f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}" if m else (date or "")[:10]
+    low = lambda s: (s or "").strip().lower()
+    for d, w, l in FORFEITS:
+        if d == iso and {low(w), low(l)} == {low(team), low(opponent)}:
+            return "W" if low(w) == low(team) else "L"
+    return None
 
 
 def fields_team(team_name: str, season: str) -> bool:

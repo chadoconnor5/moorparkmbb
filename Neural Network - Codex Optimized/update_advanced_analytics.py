@@ -22,6 +22,12 @@ from pathlib import Path
 
 from ccc_config import DEFAULT_SEASON
 
+
+def _court(g):
+    """(team, opponent) points on the court: a forfeit's game log keeps them in court_score (its score is 2-0)."""
+    c = g.get("court_score")
+    return (c[0], c[1]) if c else (g.get("team_score", 0), g.get("opponent_score", 0))
+
 STATS_DIR = Path("2025-26 Team Statistics")  # may be overridden by --season arg
 
 # ---------------------------------------------------------------------------
@@ -747,8 +753,8 @@ def compute_monthly_stats(game_log: list[dict]) -> dict:
         ff  = _ff_from_game(ts, os_, g.get("MIN", 40))
         buckets[mb].append({
             "ff":      ff,
-            "t_pts":   g.get("team_score", 0),
-            "o_pts":   g.get("opponent_score", 0),
+            "t_pts":   _court(g)[0],
+            "o_pts":   _court(g)[1],
             "t_fga":   ts.get("FGA", 0),
             "t_poss":  ff["poss"] if ff else None,
         })
@@ -825,7 +831,7 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
             o_broken = os_.get("FGA", 0) == 0 and os_.get("PTS", 0) == 0
             if t_broken and o_broken:
                 continue
-            if (t_broken and not g.get("team_score")) or (o_broken and not g.get("opponent_score")):
+            if (t_broken and not _court(g)[0]) or (o_broken and not _court(g)[1]):
                 continue   # no final score for the side without stats
             _p = lambda x: (x.get("FGA", 0) - x.get("OREB", 0)) + x.get("TO", 0) + 0.475 * x.get("FTA", 0)
             t_poss, o_poss = _p(ts), _p(os_)
@@ -841,8 +847,8 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
                 avg_poss = (t_poss + o_poss) / 2
             if avg_poss > 0:
                 # Use schedule scores when box score data is broken
-                t_pts = g.get("team_score", 0) if t_broken else ts.get("PTS", 0)
-                o_pts = g.get("opponent_score", 0) if o_broken else os_.get("PTS", 0)
+                t_pts = _court(g)[0] if t_broken else ts.get("PTS", 0)
+                o_pts = _court(g)[1] if o_broken else os_.get("PTS", 0)
                 g_ortg = t_pts / avg_poss * 100
                 g_drtg = o_pts / avg_poss * 100
                 game_min = g.get("MIN", 0)
@@ -860,6 +866,7 @@ def compute_team_only_analytics(team_totals: dict, summary: dict,
                     "team_score": g.get("team_score", 0),
                     "opponent_score": g.get("opponent_score", 0),
                     "result": g.get("result", ""),
+                    **({"forfeit": True, "court_score": g["court_score"]} if g.get("forfeit") else {}),
                     "ortg": round(g_ortg, 1),
                     "drtg": round(g_drtg, 1),
                     "possessions": round(avg_poss, 1),
@@ -1251,7 +1258,7 @@ def compute_sos(teams, ratings_override=None, kenpom=False):
                 continue
             opp_net = team_ratings[canonical]["net_rtg"]
             expected_margin = (my_net - opp_net) * 0.67
-            actual_margin = g.get("team_score", 0) - g.get("opponent_score", 0)
+            actual_margin = _court(g)[0] - _court(g)[1]
             opp_adjust_games.append((opp_net, actual_margin - expected_margin))
 
         if len(opp_adjust_games) >= 5:
@@ -1280,7 +1287,7 @@ def compute_sos(teams, ratings_override=None, kenpom=False):
                 continue
             opp_net = team_ratings[canonical]["net_rtg"]
             expected_margin = (my_net - opp_net) * 0.67
-            actual_margin = g.get("team_score", 0) - g.get("opponent_score", 0)
+            actual_margin = _court(g)[0] - _court(g)[1]
             pace_adjust_games.append((game_poss, actual_margin - expected_margin))
 
         if len(pace_adjust_games) >= 5:
@@ -1394,7 +1401,7 @@ def compute_iterative_adjusted_ratings(teams_to_update, prior=None):
             recency = RECENCY_MIN_WEIGHT + (RECENCY_MAX_WEIGHT - RECENCY_MIN_WEIGHT) * frac
 
         # Game-importance sensitivity is deliberately light.
-        margin = abs(float(game.get("team_score", 0)) - float(game.get("opponent_score", 0)))
+        margin = abs(float(_court(game)[0]) - float(_court(game)[1]))
         margin_term = min(margin, IMPORTANCE_SCALE) / IMPORTANCE_SCALE
         opp_term = min(abs(float(opp_net)), IMPORTANCE_SCALE) / IMPORTANCE_SCALE
         importance = (

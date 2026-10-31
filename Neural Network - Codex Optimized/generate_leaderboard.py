@@ -172,6 +172,12 @@ def _sl_load_priors(prior_stats_dir: Path, decay: float = 0.60) -> dict:
     return priors
 
 
+def _court_pts(g: dict):
+    """(team, opponent) points on the court: a forfeit keeps them in court_score (its team / opponent score is 2-0)."""
+    c = g.get("court_score")
+    return (c[0], c[1]) if c else (g.get("team_score", 0) or 0, g.get("opponent_score", 0) or 0)
+
+
 def _sl_dedupe(by_team: dict, system_teams: set, exclude_zero: bool) -> list:
     unique: dict = {}
     for team in sorted(by_team):
@@ -186,11 +192,13 @@ def _sl_dedupe(by_team: dict, system_teams: set, exclude_zero: bool) -> list:
             os_ = g.get("opponent_stats") or {}
             poss = _sl_safe_possessions(ts, os_)
             if not poss or poss <= 0: continue
+            # a forfeit (ccc_config.FORFEITS): the 2-0 result names the winner and the score; the ratings use the court's
             ts_, os = g.get("team_score", 0), g.get("opponent_score", 0)
-            if exclude_zero and (ts_ == 0 or os == 0): continue
+            cts, cos = _court_pts(g)
+            if exclude_zero and (cts == 0 or cos == 0): continue
             mins = g.get("MIN", 40)
-            t_ortg, t_drtg = (ts_ / poss) * 100, (os / poss) * 100
-            o_ortg, o_drtg = (os / poss) * 100, (ts_ / poss) * 100
+            t_ortg, t_drtg = (cts / poss) * 100, (cos / poss) * 100
+            o_ortg, o_drtg = (cos / poss) * 100, (cts / poss) * 100
             if ts_ >= os:
                 winner, loser, ws, ls = team, opp, ts_, os
                 w_ortg, w_drtg = t_ortg, t_drtg
@@ -210,6 +218,7 @@ def _sl_dedupe(by_team: dict, system_teams: set, exclude_zero: bool) -> list:
                 "opp_ortg": o_ortg, "opp_drtg": o_drtg,
                 "winner_ortg": w_ortg, "winner_drtg": w_drtg,
                 "winner_game_net": w_ortg - w_drtg, "home_team": home,
+                **({"forfeit": True} if g.get("forfeit") else {}),
             }
     games = list(unique.values())
     games.sort(key=lambda g: (g["date_obj"], min(g["team"], g["opponent"]), max(g["team"], g["opponent"])))
@@ -341,6 +350,7 @@ def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = N
             "pregame_model_margin_a": round(pred_a, 2), "pregame_model_wp_winner": round(w_wp, 3),
             **({"pregame_margin_w": round(pred_a if winner == a else -pred_a, 2)} if adjusted else {}),
             "home_team": g.get("home_team"),
+            **({"forfeit": True} if g.get("forfeit") else {}),
             "dominance_score": round(margin * (1.0 + math.tanh(l_pre / 20.0)) * 0.50 + w_net * 0.25, 2),
             "upset_score": round(100.0 * (1.0 - w_wp) + 0.20 * margin, 2),
             "tension_score": round(100.0 / (1.0 + abs(w_net)) + 40.0 / (1.0 + margin) + 12.0 * ots, 2),
@@ -704,7 +714,13 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         fl = flow.get((r["date"], frozenset(_box_norm(x) for x in (r["winner"], r["loser"]))))
         if fl:
             r.update(fl)
-    pbp_rows = [r for r in rows if "excitement" in r]
+    # A forfeit (ccc_config.FORFEITS) is on FanMatch with its 2-0 result, but not in the ranked lists: the result
+    # wasn't decided on the court (a forfeit "upset", or the court game's flow credited to the forfeit winner)
+    ranked = [r for r in rows if not r.get("forfeit")]
+    for r in rows:
+        if r.get("forfeit"):
+            r.update(upset_score=None, bust_score=None)
+    pbp_rows = [r for r in ranked if "excitement" in r]
     game_dates = {r["date"] for r in rows}
     sched_dir = Path(str(stats_dir).replace(" Team Statistics", " Teams Schedules"))
     lines_of_night = _sl_load_line_of_night(sched_dir, game_dates)
@@ -712,11 +728,11 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "stats_dir": str(stats_dir),
         "games_in_system": len(rows),
-        "dominant_wins":  _sl_top_n(rows, "dominance_score", top),
-        "upsets":         _sl_top_n(rows, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and (
+        "dominant_wins":  _sl_top_n(ranked, "dominance_score", top),
+        "upsets":         _sl_top_n(ranked, "upset_score", top, predicate=lambda r: r["underdog_gap"] > 0 and (
                               r["pregame_winner_games"] >= 5 and r["pregame_loser_games"] >= 5
                               or pbp and r["winner"] in priors and r["loser"] in priors)),
-        "tension_games":  _sl_top_n(rows, "tension_score", top),
+        "tension_games":  _sl_top_n(ranked, "tension_score", top),
         "pbp_games":      len(pbp_rows),
         "pbp_excitement": _sl_top_n(pbp_rows, "excitement", top),
         "pbp_tension":    _sl_top_n(pbp_rows, "tension", top),
@@ -724,7 +740,7 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
         "pbp_min_wp":     sorted(pbp_rows, key=lambda r: r["min_wp"])[:top],
         "pbp_max_deficit": _sl_top_n(pbp_rows, "max_deficit", top),
         "pbp_window":     sorted(pbp_rows, key=lambda r: (r["window"], -r["lead_changes"]))[:top],
-        "bust_games":     _sl_top_n(rows, "bust_score", top),
+        "bust_games":     _sl_top_n(ranked, "bust_score", top),
         "fanmatch_games": sorted(_with_hosts(stats_dir, rows + _sl_upcoming(stats_dir, rows, hca_points, wp_scale)),
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
                                                 _sl_time_key(r.get("time")), bool(r.get("tba")))),
@@ -1809,7 +1825,7 @@ def load_teams(stats_dir=None):
                     _gl = json.load(open(team_dir / "game_log.json")).get("games", [])
                 except (OSError, ValueError):
                     _gl = []
-                _sc = [(g.get("team_score") or 0, g.get("opponent_score") or 0) for g in _gl]
+                _sc = [_court_pts(g) for g in _gl]   # points scored: a forfeit's court score
                 _sc = [x for x in _sc if x[0] > 0 and x[1] > 0]
                 if _sc:
                     scored = (round(sum(a for a, _ in _sc) / len(_sc), 1), round(sum(b for _, b in _sc) / len(_sc), 1))
@@ -2274,7 +2290,7 @@ def load_conf_teams(stats_dir=None):
                 continue
             _opp_net = adj_ratings[_opp]["ortg"] - adj_ratings[_opp]["drtg"]
             _exp_margin = (_my_net - _opp_net) * 0.67
-            _act_margin = g.get("team_score", 0) - g.get("opponent_score", 0)
+            _act_margin = _court_pts(g)[0] - _court_pts(g)[1]
             _resid = _act_margin - _exp_margin
             _opp_pairs.append((_opp_net, _resid))
             _poss = g.get("possessions", 0)
@@ -4423,8 +4439,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                     "drtg": float(gr["drtg"]),
                     "opp": canonical,
                     "loc": gr.get("location", ""),
-                    "team_score": float(gr.get("team_score", 0) or 0),
-                    "opp_score": float(gr.get("opponent_score", 0) or 0),
+                    "team_score": float(_court_pts(gr)[0]),
+                    "opp_score": float(_court_pts(gr)[1]),
                 })
 
         all_dates = sorted({e["date"] for vals in team_events.values() for e in vals}, key=parse_date)
@@ -14444,7 +14460,7 @@ function trendAggFromGames(games, month) {{
     ast_pct:  gFgm     > 0 ? gAst  / gFgm     * 100 : null,
     blk_pct:  gOppFga  > 0 ? gBlk  / gOppFga  * 100 : null,
     stl_pct:  gOppPoss > 0 ? gStl  / gOppPoss * 100 : null,
-    ppg:      avg('team_score'),
+    ppg:      (v => v.length ? v.reduce((a, b) => a + b, 0) / v.length : null)(filtered.map(g => g.court_score ? g.court_score[0] : g.team_score).filter(v => v != null)),   // a forfeit: court points
   }};
 }}
 

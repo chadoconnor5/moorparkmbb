@@ -164,7 +164,8 @@ def load(team, season):
     # Points from the final scores (a game whose box score only one team posted still has its score; that team's
     # averages can be empty): the same as the leaderboard
     try:
-        _sc = [(g.get('team_score') or 0, g.get('opponent_score') or 0) for g in json.load(open(os.path.join(d, 'game_log.json'))).get('games', [])]
+        _sc = [tuple(g['court_score']) if g.get('court_score') else (g.get('team_score') or 0, g.get('opponent_score') or 0)   # a forfeit: court points
+               for g in json.load(open(os.path.join(d, 'game_log.json'))).get('games', [])]
     except (OSError, ValueError):
         _sc = []
     _sc = [x for x in _sc if x[0] > 0 and x[1] > 0]
