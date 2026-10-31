@@ -1205,8 +1205,9 @@ def compute_sos(teams, ratings_override=None, kenpom=False):
         with open(adv_path) as f:
             adv = json.load(f)
         game_ratings = adv.get("team", {}).get("game_ratings", [])
-        if not game_ratings and adv.get("team", {}).get("preseason"):
-            continue   # no games yet: build_preseason.py's schedule-based SOS stays
+        if not game_ratings and adv.get("team", {}).get("preseason") and not kenpom:
+            continue   # no games yet: build_preseason.py's schedule-based SOS stays (past seasons)
+        # 2026-27 on: no games yet = 0.0 (SOS, NCSOS, Opp ORtg / DRtg build up as the games are played)
 
         # Collect all in-system game appearances (repeats count each time)
         opp_ortgs = []

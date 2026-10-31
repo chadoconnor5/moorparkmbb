@@ -64,7 +64,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Partial schedules for every other team from those (mirrored games), plus cross-checks between typed-in teams:
   python3 assemble_schedules.py            # -> <Team>/schedule_from_opponents.json + assembled_schedules_report.txt
   python3 build_preseason.py               # new season: every team starts at last season's ORtg/DRtg/net (+ tempo);
-                                           #   SOS/NCSOS = this season's schedule rated by last season's net. Teams
+                                           #   SOS/NCSOS/Opp ORtg/DRtg 0.0 until it plays. Teams
                                            #   with games are left to update_advanced_analytics.py (prior fades in)
 - Rosters typed in from the teams' roster pages: `2026-27 Rosters/<Conference>/<Team>/roster.json` (+ screenshot;
   height_adjustments.json for teams that list heights high). season_rosters.py loads them for the leaderboard (Team
@@ -171,7 +171,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   season's own wab_results_<season>.json.
 - SOS / NCSOS (2026-27 on): KenPom's - the plain average of the opponents' current net ratings over the games played
   (NCSOS: non-conference games). Last season enters only through the opponents' own ratings (their prior); a team
-  with no games keeps build_preseason.py's schedule projection. Earlier seasons keep WIN50 (compute_sos kenpom=False).
+  with no games is 0.0 (SOS, NCSOS, Opp ORtg / DRtg build up as games are played). Earlier seasons keep WIN50 (compute_sos kenpom=False).
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
   re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
   the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.
