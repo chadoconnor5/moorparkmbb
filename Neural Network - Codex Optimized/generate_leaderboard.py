@@ -7474,6 +7474,38 @@ function __bxF(v, d) {{
   return v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d == null ? 1 : d);
 }}
 
+// Box score colors (the rates and analytics, not the counting stats; the text only, not the cell): each value
+// against the season's qualified players (their average in the normal text color; two standard deviations better
+// in full green, worse full red), TO% the other way round. The totals row against the teams. Usage is a role, not
+// good or bad: no color.
+// Short stints (9 minutes or fewer, minutes tracked) stay plain: too few possessions to mean anything.
+const BX_COLOR_P = {{ ortg: 'ind_ortg', efg: 'efg_pct', ts: 'ts_pct', orp: 'oreb_pct', drp: 'dreb_pct', ap: 'ast_rate',
+  top: 'tov_pct', stp: 'stl_pct', blp: 'blk_pct', bpm: 'bpm', obpm: 'obpm', dbpm: 'dbpm' }};
+const BX_COLOR_T = {{ ortg: 'ortg', efg: 'efg_pct', ts: 'ts_pct', orp: 'oreb_pct', drp: 'dreb_pct', ap: 'ast_pct',
+  top: 'tov_pct', stp: 'stl_pct', blp: 'blk_pct' }};
+const __bxScaleCache = new Map();
+function __bxScales(pool, map, keep) {{
+  if (__bxScaleCache.has(pool)) return __bxScaleCache.get(pool);
+  const use = (pool || []).filter(keep), out = {{}};
+  Object.entries(map).forEach(([k, sk]) => {{
+    const v = use.map(p => Number(p[sk])).filter(x => p_ok(x));
+    if (v.length < 10) return;
+    const m = v.reduce((a, b) => a + b, 0) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / v.length);
+    if (sd > 0) out[k] = {{ m, sd }};
+  }});
+  __bxScaleCache.set(pool, out);
+  return out;
+}}
+function p_ok(x) {{ return x != null && Number.isFinite(x) && x !== 0; }}
+function __bxTd(v, k, sc, plain) {{
+  const txt = __bxF(v), s = sc[k];
+  if (plain || v == null || Number.isNaN(v) || !s) return '<td>' + txt + '</td>';
+  const z = Math.max(-1, Math.min(1, (k === 'top' ? -1 : 1) * (v - s.m) / (2 * s.sd)));
+  const a = Math.abs(z), base = [26, 31, 46], to = z > 0 ? [0, 150, 60] : [210, 30, 30];
+  const rgb = base.map((x, i) => Math.round(x + (to[i] - x) * a));
+  return '<td style="color:rgb(' + rgb.join(',') + ')' + (a >= 0.5 ? ';font-weight:700' : '') + '">' + txt + '</td>';
+}}
+
 function __bxTeamTable(name, rows, oppRows) {{
   const sum = (rs, k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
   const tFgm = sum(rows, 'fgm'), tFga = sum(rows, 'fga'), tTpm = sum(rows, 'tpm'), tTpa = sum(rows, 'tpa');
@@ -7485,19 +7517,23 @@ function __bxTeamTable(name, rows, oppRows) {{
   const tPoss = tFga + 0.475 * tFta - tOr + tTo;
   const oPoss = oFga + 0.475 * oFta - oOr + oTo;
 
+  const minutesReal = tMin >= 150;
+  const pSc = __bxScales(activeFullPlayerData(), BX_COLOR_P, p => p.q || (p.mpg || 0) >= 10);
+  const tSc = __bxScales(activeTeamData, BX_COLOR_T, t => (t.gp || 0) > 0);
   const cells = r => {{
+    const plain = minutesReal && r.min <= 9, c = (v, k) => __bxTd(v, k, pSc, plain);
     return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name) + '</td><td>' + r.min + '</td>'
-      + '<td>' + __bxF(r.ortg) + '</td><td>' + __bxF(r.usg) + '</td>'
-      + '<td>' + __bxF(r.efg) + '</td><td>' + __bxF(r.ts) + '</td>'
-      + '<td>' + __bxF(r.orp) + '</td><td>' + __bxF(r.drp) + '</td>'
-      + '<td>' + __bxF(r.ap) + '</td><td>' + __bxF(r.top) + '</td>'
-      + '<td>' + __bxF(r.stp) + '</td><td>' + __bxF(r.blp) + '</td>'
+      + c(r.ortg, 'ortg') + '<td>' + __bxF(r.usg) + '</td>'
+      + c(r.efg, 'efg') + c(r.ts, 'ts')
+      + c(r.orp, 'orp') + c(r.drp, 'drp')
+      + c(r.ap, 'ap') + c(r.top, 'top')
+      + c(r.stp, 'stp') + c(r.blp, 'blp')
       + '<td>' + (r.fgm - r.tpm) + '-' + (r.fga - r.tpa) + '</td>'
       + '<td>' + r.tpm + '-' + r.tpa + '</td>'
       + '<td>' + r.ftm + '-' + r.fta + '</td>'
       + '<td>' + r.ast + '</td><td>' + r.to + '</td><td>' + r.stl + '</td><td>' + r.blk + '</td>'
       + '<td>' + r.or + '</td><td>' + r.dr + '</td><td>' + r.pf + '</td>'
-      + '<td>' + __bxF(r.bpm) + '</td><td>' + __bxF(r.obpm) + '</td><td>' + __bxF(r.dbpm) + '</td>'
+      + c(r.bpm, 'bpm') + c(r.obpm, 'obpm') + c(r.dbpm, 'dbpm')
       + '<td><b>' + r.pts + '</b></td>';
   }};
 
@@ -7516,8 +7552,7 @@ function __bxTeamTable(name, rows, oppRows) {{
   const totBlp = (oFga - oTpa) > 0 ? tBlk / (oFga - oTpa) * 100 : null;
 
   // Grey out short-stint players (9 minutes or fewer) — but only when the
-  // team's minutes are actually tracked; all-1-minute teams stay white.
-  const minutesReal = tMin >= 150;
+  // team's minutes are actually tracked; all-1-minute teams stay white (minutesReal, above).
   const bodyHtml = rows.map((r, i) => {{
     const classes = [];
     if (r.st === 0 && i > 0 && rows[i - 1].st === 1) classes.push('bx-bench-sep');
@@ -7534,11 +7569,11 @@ function __bxTeamTable(name, rows, oppRows) {{
     + '<th>OR</th><th>DR</th><th>PF</th><th>BPM</th><th>OBPM</th><th>DBPM</th><th>Pts</th></tr></thead>'
     + '<tbody>' + bodyHtml + '</tbody>'
     + '<tfoot><tr><td class="bx-l" colspan="2">Totals</td><td>' + tMin + '</td>'
-    + '<td>' + __bxF(totOrtg) + '</td><td></td>'
-    + '<td>' + __bxF(totEfg) + '</td><td>' + __bxF(totTs) + '</td>'
-    + '<td>' + __bxF(totOrp) + '</td><td>' + __bxF(totDrp) + '</td>'
-    + '<td>' + __bxF(totAp) + '</td><td>' + __bxF(totTop) + '</td>'
-    + '<td>' + __bxF(totStp) + '</td><td>' + __bxF(totBlp) + '</td>'
+    + __bxTd(totOrtg, 'ortg', tSc) + '<td></td>'
+    + __bxTd(totEfg, 'efg', tSc) + __bxTd(totTs, 'ts', tSc)
+    + __bxTd(totOrp, 'orp', tSc) + __bxTd(totDrp, 'drp', tSc)
+    + __bxTd(totAp, 'ap', tSc) + __bxTd(totTop, 'top', tSc)
+    + __bxTd(totStp, 'stp', tSc) + __bxTd(totBlp, 'blp', tSc)
     + '<td>' + (tFgm - tTpm) + '-' + (tFga - tTpa) + '</td>'
     + '<td>' + tTpm + '-' + tTpa + '</td><td>' + tFtm + '-' + tFta + '</td>'
     + '<td>' + tAst + '</td><td>' + tTo + '</td><td>' + tStl + '</td><td>' + tBlk + '</td>'
