@@ -4,13 +4,13 @@ Preseason team ratings for a new season: last season's final ratings as every te
 For each team with a rating last season, writes "<season> Team Statistics/<Conference>/<Team>/":
     team_summary.json       0-0 record, no totals yet
     advanced_analytics.json ORtg / DRtg / net (and tempo) = last season's final numbers,
-                            SOS / NCSOS / Opp ORtg / Opp DRtg = this season's schedule rated by last season's ratings
+                            SOS / NCSOS / Opp ORtg / Opp DRtg = 0.0 (they build as games are played)
 A team that already has games this season (its advanced_analytics.json has game_ratings) is left alone:
 update_advanced_analytics.py owns it from the first game, blending last season's ratings in as decaying
 virtual games (PRIOR_CHAIN / prior_weight), so the preseason numbers fade as real games come in.
 
 The schedule is the typed-in one (assemble_schedules.py's "<season> Schedule Screenshots"), in-system games only,
-scrimmages left out, each game counted once per appearance (the same as compute_sos() does with game_ratings).
+scrimmages left out: scheduled_games counts it.
 
 Usage:
     python3 build_preseason.py                       # DEFAULT_SEASON from last season
@@ -23,7 +23,6 @@ from pathlib import Path
 
 from assemble_schedules import canon, is_scrimmage
 from ccc_config import CONFERENCES, DEFAULT_SEASON, fields_team
-from update_advanced_analytics import _compute_win50
 
 CARRY = ("ortg", "drtg", "net_rtg", "tempo", "possessions")
 
@@ -68,14 +67,10 @@ def build(season, prior):
                 kept += 1
                 continue
             sched = [(o, c) for o, c in load_schedule(season, team, conf) if o in ratings]
-            nets = [ratings[o]["net_rtg"] for o, _ in sched]
-            nc = [ratings[o]["net_rtg"] for o, c in sched if not c]
             team_block = dict(ratings[team])
             team_block.update({
-                "sos": round(_compute_win50(nets), 1) if nets else 0.0,
-                "ncsos": round(_compute_win50(nc), 1) if nc else 0.0,
-                "opp_ortg": round(sum(ratings[o]["ortg"] for o, _ in sched) / len(sched), 1) if sched else 0.0,
-                "opp_drtg": round(sum(ratings[o]["drtg"] for o, _ in sched) / len(sched), 1) if sched else 0.0,
+                # Strength of schedule starts the season at 0.0 and builds as games are played (compute_sos)
+                "sos": 0.0, "ncsos": 0.0, "opp_ortg": 0.0, "opp_drtg": 0.0,
                 "game_ratings": [],
                 "preseason": True,
                 "prior_season": prior,
