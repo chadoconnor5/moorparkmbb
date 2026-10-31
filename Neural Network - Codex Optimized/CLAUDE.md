@@ -141,6 +141,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Possessions on the floor = team possessions a game x his minutes / 40 x games (needs real minutes). Shown as
   Individual Stats -> Advanced buttons (qualifying like their base stat: TS%, 3P%, Stl%/Blk%), chart axes, and a
   Shooting & Defense Rates card on player pages (value + statewide rank).
+- Forfeits: ccc_config.FORFEITS lists (date, winner, loser). The game's stats stay (players, team totals, PPG, and
+  ORtg / DRtg / net from the score on the court); its result is a 2-0 forfeit everywhere a result shows (record, game
+  log, team schedules, FanMatch, WAB, quads). generate_team_stats.py writes team_score / opponent_score 2-0 and
+  court_score (the real one) into the game log; the ratings and points read court_score. A forfeit is left out of the
+  ranked game lists (Upsets, Busts, Dominance, Tension, the play-by-play tabs). 10/29: LA Southwest (won 85-82) forfeited
+  to Desert.
 - Early-season minimums (2026-27; past seasons keep the full-season numbers): a full season's bar is pro-rated to
   the games so far (of a 28-game season). Charts and the individual leaderboard's rate stats: 20 GP -> 20/28 of
   the player's team's games (seasonGpMin). Players' minutes-based stats (ORtg, usage, rebound %, PER, WS...): a

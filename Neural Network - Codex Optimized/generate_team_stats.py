@@ -18,7 +18,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from assemble_schedules import neutral_host
-from ccc_config import DEFAULT_SEASON, schedule_dir, stats_dir
+from ccc_config import DEFAULT_SEASON, forfeit_of, schedule_dir, stats_dir
 
 SCHEDULES_DIR = schedule_dir(DEFAULT_SEASON)
 STATS_DIR = stats_dir(DEFAULT_SEASON)
@@ -453,6 +453,12 @@ def compute_game_log(team_name: str, boxscores: list[dict], schedule: dict) -> l
             entry["result"] = "L"
         else:
             entry["result"] = "T"
+        # A forfeit (ccc_config.FORFEITS): the result is 2-0; the score on the court is kept for the ratings
+        ff = forfeit_of(entry["date"], team_name, opponent)
+        if ff:
+            entry["court_score"] = [entry["team_score"], entry["opponent_score"]]
+            entry["team_score"], entry["opponent_score"] = (2, 0) if ff == "W" else (0, 2)
+            entry["result"], entry["forfeit"] = ff, True
 
         game_log.append(entry)
 
