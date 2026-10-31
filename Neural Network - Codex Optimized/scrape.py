@@ -103,6 +103,7 @@ class Fetcher:
         self.count = 0
         self.throttle_hits = 0
         self._last = 0.0
+        self.last = {}           # the last page: how it was read, its HTTP status, size, time (for the night's log)
         # Mirrors scrape_team.fetch: some local Pythons lack a CA bundle.
         self._ctx = ssl.create_default_context()
         self._ctx.check_hostname = False
@@ -127,23 +128,27 @@ class Fetcher:
             self._wait()
             self.count += 1
             self._last = time.time()
+            self.last = {"url": url, "at": datetime.now().strftime("%H:%M:%S"), "via": "browser" if self.browser else "script"}
             if self.browser:
                 return self._browser_get(url)
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
             try:
                 with urllib.request.urlopen(req, timeout=30, context=self._ctx) as resp:
                     data = resp.read().decode("utf-8", errors="replace")
+                    self.last.update(status=resp.status, bytes=len(data))
                     if resp.status == 202 and not data:
                         self._throttled("202")
                         continue
                     return data
             except urllib.error.HTTPError as e:
+                self.last.update(status=e.code)
                 if e.code in (429, 459, 503):
                     self._throttled(str(e.code))
                     continue
                 if e.code == 403 and self._browser_ok():   # refused: the same page through the browser from now on
                     print("    site refused the script (403) — reading pages through the browser from here on")
                     self.browser = True
+                    self.last["via"] = "browser (after a 403)"
                     return self._browser_get(url)
                 raise
 
@@ -185,14 +190,24 @@ class Fetcher:
         except Exception:
             pass
         self._page.wait_for_timeout(2000)   # the scoreboard's events fill in after load
+        self.last.update(status=resp.status if resp is not None else None)
         if resp is not None and resp.status in (403, 429, 459, 503):   # refused or rate limited: stop the run
             raise Throttled(f"browser {resp.status}")
         if resp is not None and resp.status >= 400:
             raise urllib.error.HTTPError(url, resp.status, "browser", None, None)
         html = self._page.content()
+        self.last.update(bytes=len(html))
         if re.search(r"just a moment|checking your browser|access denied|unusual traffic|captcha", html[:20000], re.I):
             raise Throttled("the site showed a bot check")
         return html
+
+    def reread(self, wait_ms: int):
+        """The page already open in the browser, read again after waiting (no new request to the site): None
+        without a browser page."""
+        if not self.browser or self._page is None:
+            return None
+        self._page.wait_for_timeout(wait_ms)
+        return self._page.content()
 
     def close(self):
         if self._page is not None:
@@ -583,6 +598,29 @@ def minutes_quality(players: list) -> dict:
     return {"minutes": "REAL" if lo <= total <= hi else "WRONG_TOTAL", "total": total}
 
 
+def page_facts(page: str, bs: dict) -> str:
+    """What a box score page held, in one line for the night's log: enough to tell a page served without its stats
+    from one we failed to read."""
+    page = page or ""
+    m = re.search(r"<title>(.*?)</title>", page, re.S | re.I)
+    title = re.sub(r"\s+", " ", m.group(1)).strip()[:90] if m else None
+    flags = [w for w in ("not available", "no statistics", "coming soon", "in progress", "live stats", "postponed",
+                         "cancel", "forfeit") if w in page.lower()]
+    tables = len(re.findall(r'class="[^"]*stats-box[^"]*"', page))
+    rows = {n: len(p or []) for n, p in (bs.get("teams") or {}).items()}
+    parts = [f"{len(page)} bytes",
+             f'title "{title}"' if title else "no <title>",
+             "og:title " + ("found" if 'og:title" content=' in page else "MISSING"),
+             f"teams {bs.get('visitor')} / {bs.get('home')}",
+             f"final score {bs.get('score') or 'none'}",
+             f"stats-box tables {tables}",
+             "player rows " + (", ".join(f"{n} {c}" for n, c in rows.items()) if rows else "none"),
+             "STARTERS " + ("yes" if "STARTERS" in page else "no")]
+    if flags:
+        parts.append("page says: " + ", ".join(flags))
+    return "; ".join(parts)
+
+
 def classify_box(bs: dict, g: dict):
     """(status, reason, note) for a parsed box score. Also marks each side's minutes (bs["minutes_quality"],
     saved with the box score and copied to the ledger entry)."""
@@ -707,6 +745,9 @@ class Run:
         self.composites = {}     # date -> list of box urls, or None if unusable
         self.processed = set()   # game keys already handled this run
         self.log = []
+        self.events = []         # the night's log (scrape_state/<season>/logs/): pages read and why a game failed
+        self.facts = {}          # box url -> what the page held, the reads, the retries
+        self.retried = set()
 
     def read_box(self, url: str) -> dict:
         """A box score page, parsed. One that comes back without its teams or players is kept as served (on this PC
@@ -714,11 +755,26 @@ class Run:
         sent something else."""
         page = self.fetcher.get(url)
         bs = parse_box(page)
+        how = dict(self.fetcher.last)
+        reads = [f"{how.get('at', '?')} via {how.get('via', '?')}, HTTP {how.get('status', '?')}"]
+        # No stats on it: the same page, read again in the browser a few seconds later (no new request): its
+        # tables may not have filled in yet when it was first read
+        for wait in (4000, 8000):
+            if any((bs.get("teams") or {}).values()):
+                break
+            again = self.fetcher.reread(wait)
+            if again is None:
+                break
+            page, bs = again, parse_box(again)
+            reads.append(f"read again after {wait // 1000}s more on the same page: "
+                         + ("stats there now" if any((bs.get("teams") or {}).values()) else "still no stats"))
+        self.facts[url] = {"reads": reads, "page": page_facts(page, bs)}
         if not any((bs.get("teams") or {}).values()) or placeholder_names([bs.get("visitor"), bs.get("home")]):
             keep = self.state.dir / "unreadable"
             keep.mkdir(parents=True, exist_ok=True)
             name = f"{url.rstrip('/').split('/')[-1].replace('.xml', '')}_{datetime.now():%Y%m%d_%H%M%S}.html"
             (keep / name).write_text(page, encoding="utf-8")
+            self.facts[url]["kept"] = str(keep / name)
             print(f"    page had no box score on it (kept as {keep / name})")
         return bs
 
@@ -736,6 +792,7 @@ class Run:
         try:
             html = self.fetcher.get(url)
         except (urllib.error.HTTPError, urllib.error.URLError) as err:   # blocked / down: those games stay missing
+            self.events.append(f"Composite {d}: REFUSED ({err}) — that night's games without a box score stay missing")
             print(f"    composite page refused ({err}) — no box scores from it this run; "
                   f"send screenshots or rerun later (`scrape.py missing`)")
             self.composites[d] = []
@@ -750,6 +807,9 @@ class Run:
             self.composites[d] = None
         else:
             self.composites[d] = links
+        self.events.append(f"Composite {d}: {len(links)} box score links ({len(dated)} dated {d}) — "
+                           f"{self.fetcher.last.get('at', '?')} via {self.fetcher.last.get('via', '?')}"
+                           + (" — not that date's page: team pages used" if self.composites[d] is None else ""))
         return self.composites[d]
 
     def attach_links(self, d: date, links: list):
@@ -767,6 +827,10 @@ class Run:
                 continue
             if placeholder_names([bs.get("visitor"), bs.get("home")]):
                 print("    no teams on the page yet (stats not posted) — read again next run")
+                fx = self.facts.get(url) or {}
+                self.events.append(f"New link {url}: no teams on the page yet — read again next run"
+                                   + "".join(f"\n    {r}" for r in fx.get("reads", []))
+                                   + (f"\n    page: {fx['page']}" if fx.get("page") else ""))
                 continue
             self.box_cache[url] = bs
             g = match_game(self.state, d, bs)
@@ -847,8 +911,19 @@ class Run:
         for k in keys:
             if k in self.state.games:
                 self.process_game(k)
+        # A box score page that came back without stats is fetched once more at the end of the run (a minute or more
+        # later): the site can serve a copy from before the stats were posted
+        again = [k for k in keys if k in self.state.games and k not in self.retried and self.state.games[k].get("boxscore_url")
+                 and self.state.entry(k)["status"] == NO_BOX and "no stats" in self.state.entry(k).get("reason", "")]
+        if again and not self.dry:
+            self.retried.update(again)
+            time.sleep(60)
+            print(f"  {len(again)} box score page(s) had no stats: reading them once more")
+            for k in again:
+                self.processed.discard(k)
+                self.process_game(k, retry=True)
 
-    def process_game(self, key: str):
+    def process_game(self, key: str, retry: bool = False):
         if key in self.processed:
             return
         self.processed.add(key)
@@ -877,6 +952,7 @@ class Run:
             if self.dry:
                 print(f"  {label}: no box score link known ({reason})")
                 return
+            self.events.append(f"{label}: {status} — {reason} (no box score link on the night's page)")
             self.record(e, g, status, reason, "")
             return
 
@@ -889,9 +965,17 @@ class Run:
             try:
                 bs = self.read_box(url)
             except urllib.error.HTTPError as err:
+                self.events.append(f"{label}: NO_BOX — box score link returned {err.code}\n    {url}")
                 self.record(e, g, NO_BOX, f"box score link returned {err.code}", "")
                 return
         status, reason, note = classify_box(bs, g)
+        fx = self.facts.get(url) or {}
+        self.events.append(f"{label}: {status}{' — ' + reason if reason else ''}{' (second try at the end of the run)' if retry else ''}"
+                           + (f"\n    {SITE + url if not url.startswith('http') else url}"
+                              + "".join(f"\n    {r}" for r in fx.get("reads", []))
+                              + (f"\n    page: {fx['page']}" if fx.get("page") else "")
+                              + (f"\n    page kept on the PC: {fx['kept']}" if fx.get("kept") else "")
+                              if status != COMPLETE or retry or len(fx.get("reads", [])) > 1 else ""))
         if status != NO_BOX:
             self.touched.update(save_box(self.state, g, bs))
         self.record(e, g, status, reason, note)
@@ -1355,6 +1439,29 @@ def build_parser():
     return p
 
 
+def write_night_log(state, run, args, fetcher, started, stopped):
+    """scrape_state/<season>/logs/<date>_<time>_<command>.md (pushed with the run): every page read and every game
+    this run looked at, and for each one that failed, why: what the page held (bytes, title, teams, score, stat
+    tables, player rows, any "not available" text), when and how it was read (browser / script, HTTP status), the
+    same-page re-reads and the end-of-run retry, and where the page was kept on the PC."""
+    d = state.dir / "logs"
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"{datetime.now():%Y-%m-%d_%H%M}_{args.cmd}.md"
+    last = {}   # each game's final outcome this run (a retried game's second try)
+    for x in run.events:
+        if not x.startswith("Composite"):
+            last[x.split(": ", 1)[0]] = x
+    fails = [x for x in last.values() if not x.split(": ", 1)[-1].startswith("COMPLETE")]
+    lines = [f"# scrape.py {args.cmd} — {datetime.now():%Y-%m-%d %H:%M}", "",
+             f"{fetcher.count} requests in {time.time() - started:.0f}s"
+             + (f", pages read through the browser" if fetcher.browser else "") + ".",
+             stopped or "Finished normally.", "",
+             f"## Not complete ({len(fails)})", ""] + [f"- {x}" for x in fails] + \
+            ["", "## Everything this run did", ""] + [f"- {x}" for x in run.events] + [""]
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Night log: {path}")
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
     state = State(args.season)
@@ -1372,7 +1479,7 @@ def main(argv=None):
     fetcher = Fetcher(args.max_requests, browser=args.browser)
     run = Run(state, fetcher, args)
     started = time.time()
-    code = 0
+    code, stopped = 0, ""
     if args.cmd in ("nightly", "day", "missing", "game") and not args.dry_run:
         # box scores from screenshots first ("<season> Box Score Screenshots/<Month>/<MMDD>/"): those games need no request
         try:
@@ -1401,15 +1508,16 @@ def main(argv=None):
     except Throttled as e:
         print(f"\nSTOPPED: the site refused or rate limited us ({e}). Everything fetched so far is saved and still gets "
               f"rebuilt and pushed. Don't rerun tonight: wait until tomorrow, and send screenshots for anything urgent.")
-        code = 2
+        code, stopped = 2, f"STOPPED: the site refused or rate limited us ({e}) at {fetcher.last.get('url', '?')}"
     except BudgetExhausted as e:
         print(f"\nSTOPPED: hit the request cap ({e}). Progress is saved; run again to continue.")
-        code = 2
+        code, stopped = 2, f"STOPPED: hit the request cap ({e})"
 
     if args.dry_run:
         print("\nDry run: nothing fetched or saved.")
         return code
     state.save()
+    write_night_log(state, run, args, fetcher, started, stopped)
     for line in run.log:
         print(f"  {line}")
     missing = len(missing_rows(state, sorted(state.games)))

@@ -159,6 +159,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   game; its link is read again next run, and the page is kept as served in scrape_state/<season>/unreadable/ (local,
   gitignored) to diagnose. 10/29: Riverside-West LA and Canyons-Cuyamaca came back empty at 10:02 / 10:07 PM and were
   filed as one "Visitor vs Home" game, which hid both links (fixed: State drops such games when it loads).
+- Night log: every scrape run writes scrape_state/<season>/logs/<date>_<time>_<command>.md (pushed with the run):
+  the composite pages read, every game it looked at and its outcome, and for each failure why: when and how the page
+  was read (browser / script, HTTP status) and what it held (bytes, title, teams, final score, stats-box tables,
+  player rows, any "live stats" / "not available" text), plus where the page was kept on the PC (unreadable/). A box
+  score page with no stats is read again on the same browser page after 4s and 8s more (no new request), then fetched
+  once more at the end of the run (a minute or more later); both show in the log. 10/30 El Camino-Santa Barbara and
+  10/29 Riverside-West LA / Canyons-Cuyamaca came back without stats though they were posted.
 - The nightly also re-reads the night before's composite page when that night left games without a box score (late
   games post after the run): one more page, only then.
 - Python on the PC runs in UTF-8 (PYTHONUTF8 in the .bat files and for every script scrape.py starts); the site has
