@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-10-30T22:59:04
+Updated 2026-10-30T23:03:06
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
