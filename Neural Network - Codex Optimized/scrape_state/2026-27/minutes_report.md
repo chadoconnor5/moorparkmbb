@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-10-30T22:48:38
+Updated 2026-10-30T22:59:04
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
@@ -14,6 +14,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Cosumnes River | 1 | 0 | 0 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
 | Desert | 2 | 0 | 0 | 0 |
+| El Camino | 1 | 0 | 0 | 0 |
 | Glendale | 1 | 0 | 0 | 0 |
 | Grossmont | 1 | 0 | 0 | 0 |
 | Irvine Valley | 1 | 0 | 0 | 0 |
@@ -34,6 +35,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Saddleback | 2 | 0 | 0 | 0 |
 | San Diego Mesa | 1 | 0 | 0 | 0 |
 | Santa Ana | 1 | 0 | 0 | 0 |
+| Santa Barbara | 1 | 0 | 0 | 0 |
 | Santiago Canyon | 1 | 0 | 0 | 0 |
 | Southwestern | 2 | 0 | 0 | 0 |
 | Ventura | 1 | 0 | 1 | 0 |

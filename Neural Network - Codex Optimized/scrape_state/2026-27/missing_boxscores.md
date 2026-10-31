@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-10-30T22:48:38
+Updated 2026-10-30T22:59:04
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -13,7 +13,6 @@ Updated 2026-10-30T22:48:38
 | 2026-10-30 | Cabrillo vs Redwoods | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-10-30T22:48 |
 | 2026-10-30 | Canada vs Diablo Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-10-30T22:48 |
 | 2026-10-30 | Copper Mountain vs South Mountain | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-10-30T22:48 |
-| 2026-10-30 | El Camino vs Santa Barbara | NO_BOX | box score page has no stats yet | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261030_arqz.xml | 1 | 2026-10-30T22:43 |
 | 2026-10-30 | Feather River vs Reedley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-10-30T22:48 |
 | 2026-10-30 | Ohlone vs Shasta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-10-30T22:48 |
 | 2026-10-30 | Orange Coast vs San Mateo | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-10-30T22:48 |
