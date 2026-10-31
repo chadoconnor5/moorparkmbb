@@ -110,6 +110,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
   play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
   keep their tabs and formulas as they were (no new tabs).
+- Box score colors: the rate and analytics columns (ORtg, eFG, TS%, OR%, DR%, A%, TO%, Stl%, Blk%, BPM, OBPM,
+  DBPM) color their text only (not the cell) against the season's qualified players: average in the normal text
+  color, 2 standard deviations better full green, worse full red (TO% reversed); the totals row against the teams.
+  Usage and the counting stats stay plain, and so do short stints (9 minutes or fewer when minutes are tracked).
+- Player nicknames in parentheses ("#2 Roderick (Quick) Johnson", "JOHNSON,RODERICK (QUICK)") are dropped when a
+  box score is saved (scrape.drop_nicknames: the box, its period boxes and its plays).
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
   from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
   the score margin dotted on the right axis, a dot per play (shots, free throws, turnovers) in the team's color

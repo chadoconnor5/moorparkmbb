@@ -689,12 +689,28 @@ def parse_box(page: str) -> dict:
     return bs
 
 
+_NICK = re.compile(r"\s*\([^)]*\)")
+
+
+def drop_nicknames(box: dict, plays: dict = None):
+    """Player names without a nickname in parentheses ("#2 Roderick (Quick) Johnson" -> "#2 Roderick Johnson",
+    "JOHNSON,RODERICK (QUICK)" -> "JOHNSON,RODERICK"): in the box score, its period box scores and its plays."""
+    nick = lambda n: _NICK.sub("", n).strip() if isinstance(n, str) else n
+    for ps in list((box.get("teams") or {}).values()) + [p for per in ((plays or {}).get("periods") or {}).values()
+                                                          for p in per.values()]:
+        for p in ps or []:
+            p["name"] = nick(p.get("name"))
+    for p in (plays or {}).get("plays") or []:
+        p[3] = nick(p[3])
+
+
 def save_box(state: State, g: dict, bs: dict) -> list:
     """The box score in each member team's folder; its play-by-play (once per game) in "<season> Play by Play/"
     (its own folder: the box score readers take every .json in the team folders)."""
     saved = []
     plays = bs.pop("_plays", None)
     box = bs
+    drop_nicknames(box, plays)
     if plays:
         d = date.fromisoformat(g["date"])
         pdir = Path(f"{state.season} Play by Play")
