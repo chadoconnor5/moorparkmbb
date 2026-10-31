@@ -1536,6 +1536,23 @@ def load_players(stats_dir=None):
     return players
 
 
+def _match_box_names(team: str, rows: list, out: dict):
+    import difflib
+    d = next((p for p in Path(STATS_DIR).glob(f"*/{team}") if p.is_dir()), None)
+    try:
+        names = [p["name"] for p in json.load(open(d / "player_stats.json"))["players"]] if d else []
+    except (OSError, ValueError, KeyError):
+        return
+    keyed = [(_height_player_key(r["name"]), r) for r in rows if _parse_height_to_inches(r.get("ht", ""))]
+    for n in names:
+        k = _height_player_key(n)
+        if (team, k) in out or not keyed:
+            continue
+        sc = sorted(((difflib.SequenceMatcher(None, k, rk).ratio(), rk) for rk, _ in keyed), reverse=True)
+        if sc[0][0] >= 0.9 and (len(sc) == 1 or sc[0][0] - sc[1][0] >= 0.1):
+            out[(team, k)] = out[(team, sc[0][1])]
+
+
 def _load_player_heights() -> dict:
     """(team, height-player-key) -> formatted height: the 2026-27 rosters, else the 2025-26 CSV."""
     out = {}
@@ -1546,6 +1563,10 @@ def _load_player_heights() -> dict:
                 inches = _parse_height_to_inches(r.get("ht", ""))
                 if inches:
                     out[(team, _height_player_key(r["name"]))] = _fmt_height_inches(inches)
+            # Roster pages and box scores spell some names differently ("Ryder Sunquist" / "Ryder Sundquist", "Welbi" /
+            # "Wellbi"): a box-score name with no exact match takes the team's closest roster name, when it is close
+            # (90%+ alike) and clearly closer than the next one
+            _match_box_names(team, rows, out)
         return out
     if not _HEIGHTS_CSV.exists():
         return out
