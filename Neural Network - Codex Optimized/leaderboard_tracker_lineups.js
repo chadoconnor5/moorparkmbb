@@ -142,7 +142,7 @@ let pluTeam = null, pluSize = '5', pluSort = 'poss', pluDir = -1, pluMin = null,
 function ensurePbpLineups(team, cb) {
   if (window.__PBPLU[team] || typeof PBP_LU === 'undefined' || !PBP_LU[team]) { cb(); return; }
   const s = document.createElement('script');
-  s.src = 'season_data/lineups_2627_' + PBP_LU[team].s + '.js';
+  s.src = 'season_data/lineups_2627_' + PBP_LU[team].s + '.js' + (typeof __sdv === 'function' ? __sdv('season_data/lineups_2627_' + PBP_LU[team].s + '.js') : '');
   s.onload = cb; s.onerror = () => { console.error('Lineup file missing for ' + team); cb(); };
   document.head.appendChild(s);
 }

@@ -333,3 +333,8 @@ Observed on this copy: fast cached builds run in about 3 seconds; full cached bu
   roughly 60-150 KB each), loaded only when that team's Lineups opens (ensurePbpLineups). The page itself carries just
   the small `PBP_LU` index ({team: {s, used, total}}). `--fast` builds rewrite them with the other current-season files.
 
+## Data file versions (cache busting)
+The lazy season_data files (season_*, boxes_*, rosters_*, lineups_2627_*) load with `?v=<first 10 hex of the file's
+MD5>` from the page's `SD_VER` map, which `stamp_season_versions(page)` writes after the files are saved (the build
+calls it; call it again after changing a season_data file by hand). A changed file gets a new address, so a browser
+holding its old copy (Safari on the iPad) fetches the new one; unchanged files keep theirs and stay cached.
