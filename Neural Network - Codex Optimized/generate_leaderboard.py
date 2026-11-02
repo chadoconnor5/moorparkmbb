@@ -3505,49 +3505,55 @@ def attach_badges(players, history=()):
             tier = 4
         out[id(p)].append([code, tier, 1] if stand_in else [code, tier])
 
-    def award(pool, val, code):
-        ranked = sorted([p for p in pool if val(p) is not None], key=lambda p: -val(p))
-        n = len(ranked)
-        for i, p in enumerate(ranked):
-            tier = next((t for share, t in TIERS if i < max(1, round(share * n))), 0)
-            if not tier:
-                break
-            give(p, code, tier, p.get("fm") and code in stand)
+    def place(pool, val, est):
+        """[(player, place)], n: players on real numbers ranked among themselves (place 0 = best); a player on an
+        estimate (est) gets the place his value would take among them, without pushing anyone down."""
+        base = sorted([p for p in pool if not est(p) and val(p) is not None], key=lambda p: -val(p))
+        neg = [-val(p) for p in base]
+        items = [(p, i) for i, p in enumerate(base)]
+        items += [(p, bisect.bisect_left(neg, -val(p))) for p in pool if est(p) and val(p) is not None]
+        return items, len(base)
 
-    def award_rank(ranked, code, skip=()):
-        i = 0
-        for p in ranked:
-            if id(p) in skip:
-                continue
+    def award(pool, val, code):   # skill badges: Gold / Silver / Bronze by share of the season's real-number players
+        items, n = place(pool, val, lambda p: p.get("fm") and code in stand)
+        for p, i in items:
+            tier = next((t for share, t in TIERS if i < max(1, round(share * n))), 0)
+            if tier:
+                give(p, code, tier, p.get("fm") and code in stand)
+
+    def award_rank(pool, val, code, skip=()):   # rank badges: top 10 / 25 / 50 among the real-minutes players
+        items, _ = place([p for p in pool if id(p) not in skip], val, lambda p: p.get("fm"))
+        for p, i in items:
             tier = next((t for top, t in RANK_TIERS if i < top), 0)
-            if not tier:
-                break
-            give(p, code, tier, p.get("fm"))
-            i += 1
+            if tier:
+                give(p, code, tier, p.get("fm"))
     for code in BADGE_SKILLS:
         award(*skill[code], code)
     # Ratings: PRPG!; a fake-minutes player's Game Score a game placed on it
     porp_of = qmap([p for p in real if p.get("porp") is not None], gs, key("porp"))
     rv = lambda p: porp_of(gs(p)) if p.get("fm") else p.get("porp")
-    rated = sorted([p for p in q if rv(p) is not None], key=lambda p: -rv(p))
-    allstate = {id(p) for p in rated[:10]}
-    award_rank(rated, "allstate")
-    by_conf = {}
-    for p in rated:
-        by_conf.setdefault(p.get("conference"), []).append(p)
+    fm_est = lambda p: p.get("fm")
+    items, nr = place(q, rv, fm_est)
+    allstate = {id(p) for p, i in items if i < 10}
+    award_rank(q, rv, "allstate")
     # All-Conference: top 5 in his conference, and in the state's top 25% too (early on a conference can have one
-    # team's players and little else: top 5 of 11 isn't all-conference)
-    top25 = {id(p) for p in rated[:max(1, round(0.25 * len(rated)))]}
+    # team's players and little else: top 5 of 11 isn't all-conference); real-minutes players ranked among themselves
+    real_rv = sorted([rv(p) for p in q if not p.get("fm") and rv(p) is not None], reverse=True)
+    cut25 = real_rv[max(1, round(0.25 * len(real_rv))) - 1] if real_rv else None
+    by_conf = {}
+    for p in q:
+        if rv(p) is not None:
+            by_conf.setdefault(p.get("conference"), []).append(p)
     for ps in by_conf.values():   # Silver for the top 3 in the conference, Bronze for #4-5
-        for p in [p for p in ps if id(p) not in allstate][:5]:
-            if ps.index(p) < 5 and id(p) in top25:
-                give(p, "allconf", 2 if ps.index(p) < 3 else 1, p.get("fm"))
+        for p, i in place(ps, rv, fm_est)[0]:
+            if i < 5 and id(p) not in allstate and cut25 is not None and rv(p) >= cut25:
+                give(p, "allconf", 2 if i < 3 else 1, p.get("fm"))
     # Offensive Engine / Defensive Anchor: OBPM / DBPM; a fake-minutes player's offensive / defensive Game Score on it
     for k, code, part in (("obpm", "engine", gs_off), ("dbpm", "anchor", gs_def)):
         has = [p for p in players if p.get(k) is not None and p.get("gp") and not p.get("fm")]
         on = qmap(has, part, key(k))
         val = lambda p: on(part(p)) if p.get("fm") else p.get(k)
-        award_rank(sorted([p for p in has + fmq if val(p) is not None], key=lambda p: -val(p)), code, allstate)
+        award_rank(has + fmq, val, code, allstate)
     # Indispensable: his share of his team's win shares; a fake-minutes player's share of his team's Game Score on it
     team_ws, team_gs = {}, {}
     for p in players:
@@ -3558,7 +3564,7 @@ def attach_badges(players, history=()):
     gs_sh = lambda p: max(gs(p) * p["gp"], 0) / team_gs[p["school"]] if team_gs.get(p["school"]) else None
     ws_of = qmap(real, gs_sh, ws_sh)
     sv = lambda p: ws_of(gs_sh(p)) if p.get("fm") else ws_sh(p)
-    award_rank(sorted([p for p in q if sv(p) is not None], key=lambda p: -sv(p)), "indisp")
+    award_rank(q, sv, "indisp")
     try:   # Glue Guy = the Glue guy label, decided by the label's own rule
         import export_ratings as _er
         rk = {}
@@ -9650,7 +9656,7 @@ function render(data) {{
     const schoolDisplay = p.school === 'La Pierce' ? 'LA Pierce' : p.school;
     tr.innerHTML = `
       <td>${{rank}}</td>
-      <td>${{playerLink(p.name, p.school)}}${{p.pos ? `<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">${{p.pos}}</span>` : ''}}</td>
+      <td>${{playerLink(p.name, p.school, null, p.pos)}}</td>
       <td>${{teamPageLink(p.school, 'color:inherit;text-decoration:none', schoolDisplay)}}</td>
       <td>${{p.gp}}</td>
       <td>${{p.mpg.toFixed(1)}}</td>
@@ -9962,7 +9968,7 @@ function renderWs(data) {{
   pool.forEach((p, i) => {{
     const tr = tb.insertRow();
     const schoolDisplay = p.school === 'La Pierce' ? 'LA Pierce' : p.school;
-    tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school)}}${{p.pos ? `<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">${{p.pos}}</span>` : ''}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td><td>${{Number(p.ows).toFixed(2)}}</td><td>${{Number(p.dws).toFixed(2)}}</td><td>${{Number(p.ws).toFixed(2)}}</td><td>${{p.ws40 != null ? Number(p.ws40).toFixed(3) : '—'}}</td>`;
+    tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td><td>${{Number(p.ows).toFixed(2)}}</td><td>${{Number(p.dws).toFixed(2)}}</td><td>${{Number(p.ws).toFixed(2)}}</td><td>${{p.ws40 != null ? Number(p.ws40).toFixed(3) : '—'}}</td>`;
     if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
   }});
 }}
@@ -10000,7 +10006,7 @@ function renderBpm2(data) {{
   pool.forEach((p, i) => {{
     const tr = tb.insertRow();
     const schoolDisplay = p.school === 'La Pierce' ? 'LA Pierce' : p.school;
-    tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school)}}${{p.pos ? `<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">${{p.pos}}</span>` : ''}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.bpm_gp || p.gp}}</td><td>${{Number(p.obpm).toFixed(2)}}</td><td>${{Number(p.dbpm).toFixed(2)}}</td><td>${{Number(p.bpm).toFixed(2)}}</td><td>${{Number(p.vorp).toFixed(3)}}</td>`;
+    tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.bpm_gp || p.gp}}</td><td>${{Number(p.obpm).toFixed(2)}}</td><td>${{Number(p.dbpm).toFixed(2)}}</td><td>${{Number(p.bpm).toFixed(2)}}</td><td>${{Number(p.vorp).toFixed(3)}}</td>`;
     if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
   }});
 }}
@@ -10049,7 +10055,7 @@ function renderAdv(data, catKey) {{
         const statVal = typeof val === 'number' ? val.toFixed(1) : '\u2014';
         const poss = p.usage_pct != null ? ` (${{p.usage_pct.toFixed(1)}})` : '';
         const maCell = showMakeAttempt ? `<td>${{advMakeAttemptText(p, catKey)}}</td>` : '';
-        tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school)}}${{p.pos ? `<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">${{p.pos}}</span>` : ''}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td>${{maCell}}<td>${{statVal}}${{poss}}</td>`;
+        tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td>${{maCell}}<td>${{statVal}}${{poss}}</td>`;
         if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
       }});
     }});
@@ -10064,7 +10070,7 @@ function renderAdv(data, catKey) {{
       const val = advCatValue(p, catKey);
       const fmt = typeof val === 'number' ? val.toFixed(1) : '\u2014';
       const maCell = showMakeAttempt ? `<td>${{advMakeAttemptText(p, catKey)}}</td>` : '';
-      tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school)}}${{p.pos ? `<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">${{p.pos}}</span>` : ''}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td>${{maCell}}<td>${{fmt}}</td>`;
+      tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td>${{maCell}}<td>${{fmt}}</td>`;
       if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
     }});
   }}
@@ -12310,8 +12316,9 @@ function __ppEsc(s) {{
   return String(s || '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'").replace(/"/g, '&quot;');
 }}
 
-function playerLink(name, school, style) {{
-  return '<a href="#" onclick="showPlayerProfile(\\'' + __ppEsc(name) + '\\',\\'' + __ppEsc(school) + '\\');return false" style="' + (style || 'color:inherit;text-decoration:none') + '">' + name + '</a>' + __bdgIcons(name, school);
+function playerLink(name, school, style, pos) {{   // pos: the position marker, between the name and the badges
+  return '<a href="#" onclick="showPlayerProfile(\\'' + __ppEsc(name) + '\\',\\'' + __ppEsc(school) + '\\');return false" style="' + (style || 'color:inherit;text-decoration:none') + '">' + name + '</a>'
+    + (pos ? '<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">' + pos + '</span>' : '') + __bdgIcons(name, school);
 }}
 
 function showPlayerProfile(name, school) {{
