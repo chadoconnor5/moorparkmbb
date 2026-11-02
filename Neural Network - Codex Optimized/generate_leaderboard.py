@@ -3306,10 +3306,10 @@ _SIM_TARGET_MIN_PCT = 10
 # ---- Player badges (2026-27): what a player does best this season, statewide ----
 # Skill badges: gold for the top 1% of qualified players (the leaderboard's q), silver for the top 3%, on a stat
 # pulled toward the state's average by a few attempts' worth of it (so a hot first week doesn't earn Sniper).
-# Rating badges (one metal each) from BPM, among players with a BPM: All-State (top 10 in the state), All-Conference
-# (top 5 in his conference, not All-State), Offensive Engine / Defensive Anchor (top 10 in OBPM / DBPM, not
-# All-State). Roles: Indispensable (top 10 in the state in his share of his team's win shares) and Glue Guy (BPM
-# top 1% / 3% while under the 60th percentile in scoring). p["bdg"] = [[code, 2 gold / 1 silver], ...].
+# Rating badges (one metal each) from PRPG! (PORPAGATU!, among qualified players): All-State (top 10 in the state),
+# All-Conference (top 5 in his conference, not All-State); Offensive Engine / Defensive Anchor from OBPM / DBPM (top
+# 10, not All-State: PRPG! has no offense / defense split). Roles: Indispensable (top 10 in the state in his share of
+# his team's win shares) and Glue Guy (PRPG! top 1% / 3% while under the 60th percentile in scoring). p["bdg"] = [[code, 2 gold / 1 silver], ...].
 BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot")
 
 
@@ -3356,7 +3356,7 @@ def attach_badges(players):
             out[id(p)].append([code, 2 if i < max(1, round(gold * n)) else 1])
     for code in BADGE_SKILLS:
         award(*skill[code], code)
-    rated = sorted([p for p in players if p.get("bpm") is not None and p.get("gp")], key=lambda p: -p["bpm"])
+    rated = sorted([p for p in q if p.get("porp") is not None], key=lambda p: -p["porp"])
     allstate = {id(p) for p in rated[:10]}
     for p in rated[:10]:
         out[id(p)].append(["allstate", 2])
@@ -3368,7 +3368,7 @@ def attach_badges(players):
             if ps.index(p) < 5:
                 out[id(p)].append(["allconf", 1])
     for k, code in (("obpm", "engine"), ("dbpm", "anchor")):
-        for p in sorted([p for p in rated if p.get(k) is not None], key=lambda p: -p[k])[:10]:
+        for p in sorted([p for p in players if p.get(k) is not None and p.get("gp")], key=lambda p: -p[k])[:10]:
             if id(p) not in allstate:
                 out[id(p)].append([code, 2])
     team_ws = {}
@@ -3380,7 +3380,7 @@ def attach_badges(players):
         out[id(p)].append(["indisp", 2])
     pp = sorted(p.get("ppg") or 0 for p in q)
     low_scorer = lambda p: sum(1 for x in pp if x <= (p.get("ppg") or 0)) / len(pp) < 0.60
-    award([p for p in rated if p.get("q") and low_scorer(p)], lambda p: p["bpm"], "glue")
+    award([p for p in rated if low_scorer(p)], lambda p: p["porp"], "glue")
     for p in players:
         if out[id(p)]:
             p["bdg"] = out[id(p)]
@@ -8009,8 +8009,8 @@ let activeData = DATA;
 function __closest(t, sel) {{ return t && t.closest ? t.closest(sel) : null; }}
 // var, not const: tables earlier in the script call playerLink before this line runs (no badges until it has)
 var BADGES = {{
-  allstate: ['👑', 'All-State', 'A top-10 player in the state by BPM', 'rating'],
-  allconf: ['⭐', 'All-Conference', 'A top-5 player in his conference by BPM (and not All-State)', 'rating'],
+  allstate: ['👑', 'All-State', 'A top-10 player in the state by PRPG!', 'rating'],
+  allconf: ['⭐', 'All-Conference', 'A top-5 player in his conference by PRPG! (and not All-State)', 'rating'],
   engine: ['🚀', 'Offensive Engine', 'Top 10 in the state in offensive BPM (and not All-State)', 'rating'],
   anchor: ['⚓', 'Defensive Anchor', 'Top 10 in the state in defensive BPM (and not All-State)', 'rating'],
   scorer: ['🔥', 'Volume Scorer', 'scoring volume: points a game', 'skill'],
@@ -8022,7 +8022,7 @@ var BADGES = {{
   pickpocket: ['🥷', 'Pickpocket', 'steal rate (Stl%)', 'skill'],
   rimprot: ['✋', 'Rim Protector', 'block rate (Blk%)', 'skill'],
   indisp: ['🔑', 'Indispensable', 'Top 10 in the state in his share of his team’s win shares', 'role'],
-  glue: ['🧩', 'Glue Guy', 'impact without the ball: BPM in the top 3% while under the 60th percentile in scoring', 'role'],
+  glue: ['🧩', 'Glue Guy', 'impact without the ball: PRPG! in the top 3% while under the 60th percentile in scoring', 'role'],
 }};
 function __bdgText(code, tier) {{
   const b = BADGES[code];
