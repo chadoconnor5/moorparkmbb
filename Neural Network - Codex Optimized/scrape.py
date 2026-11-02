@@ -1363,6 +1363,11 @@ def rebuild(season: str, teams: set):
     print("\nRebuilding WAB and BPM for the season")
     for script in ("calculate_wab.py", "compute_wab_sim.py", "compute_ccc_bpm.py"):   # league-wide: WAB, WAB split sim, BPM
         subprocess.run([sys.executable, script, "--season", season], check=False)
+    # Positions from the box scores (a player gets his once he has 5 games and 5 shots), before the leaderboard reads them
+    print("\nUpdating positions from the box scores")
+    pos = subprocess.run([sys.executable, "compute_positions_from_boxscore.py", "--season", season], check=False)
+    if pos.returncode:
+        print("  positions not updated (the step needs scikit-learn: pip install scikit-learn); the rest carries on")
     print("\nRebuilding the leaderboard (and the tracker's ratings / team files)")
     subprocess.run([sys.executable, "generate_leaderboard.py", "--cache"], check=False)
     print("\nUpdating scouting reports for the tracker")

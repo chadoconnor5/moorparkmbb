@@ -19,7 +19,11 @@ Implementation:
   - Height Bayesian adjustment uses the article's CCCAA-tier mean/std values.
 
 Outputs:
-  - internal_data/player_positions_2025_26.csv
+  - internal_data/player_positions_<season>.csv (every season in SEASONS; --season for one)
+
+2026-27 on: the nightly rebuild (scrape.py) runs it for the current season every night, so a player gets his
+position once he has MIN_GAMES games and MIN_FGA shots; heights for the Bayesian touch-up come from that season's
+typed-in rosters (generate_leaderboard._load_player_heights: its name matching, close spellings included).
 """
 
 import csv
@@ -40,7 +44,8 @@ from sklearn.preprocessing import StandardScaler
 # height); returning players reuse their 2025-26 height for the Bayesian touch-up.
 TRAIN_SEASON = "2025-26"
 SEASONS = ["2017-18", "2018-19", "2019-20", "2021-22",
-           "2022-23", "2023-24", "2024-25", "2025-26"]
+           "2022-23", "2023-24", "2024-25", "2025-26", "2026-27"]
+ROSTER_HEIGHT_SEASONS = {"2026-27"}   # heights from the typed-in rosters, not roster_heights_2025_26.csv
 HEIGHTS_CSV = Path("internal_data/roster_heights_2025_26.csv")
 
 
@@ -358,8 +363,30 @@ def train_model(heights):
     return scaler, lda
 
 
+def roster_heights():
+    """{(team, height-player-key): inches} from the season's typed-in rosters (the leaderboard's loader), and the
+    key function; None when it can't load."""
+    try:
+        import generate_leaderboard as gl
+        out = {}
+        for k, v in gl._load_player_heights().items():
+            inches = gl._parse_height_to_inches(v)
+            if inches:
+                out[k] = inches
+        return out, gl._height_player_key
+    except Exception as err:
+        print(f"  roster heights not loaded ({err}): positions from box scores alone")
+        return None
+
+
 def classify_season(season, scaler, lda, heights):
     """Apply the frozen model to one season's box scores; write its CSV."""
+    if season in ROSTER_HEIGHT_SEASONS:
+        rh = roster_heights()
+        if rh:
+            table, key = rh
+            heights = {(t, n): table[(t, key(n))] for t, n in
+                       ((p["team"], p["name"]) for p in load_all_players(season)) if (t, key(n)) in table}
     from collections import Counter
     all_players = load_all_players(season)
     qualifying = []
@@ -416,11 +443,15 @@ def classify_season(season, scaler, lda, heights):
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser(description="Box-score position classes for every season (or --season S)")
+    ap.add_argument("--season", action="append", help="only this season (repeatable); default every season")
+    args = ap.parse_args()
     heights = load_heights()
     print(f"Height records loaded: {len(heights)}\n")
     scaler, lda = train_model(heights)
     print()
-    for season in SEASONS:
+    for season in args.season or SEASONS:
         classify_season(season, scaler, lda, heights)
 
 
