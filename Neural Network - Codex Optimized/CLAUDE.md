@@ -119,11 +119,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
   DR%, Stl%, Blk%) blank (build_game_boxes "miss").
-- Player badges (2026-27 only; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
+- Player badges (every season, each ranked within its own season; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
   __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver
   and Gold rank this season (skills: top 15% / 7% / 3% of qualified players; rank badges: top 50 / 25 / 10); Hall of
   Fame is the all-time top HOF_SHARE = 3% for that badge, every season since 2017-18 pooled as one pool
-  (real-minutes, qualified, HOF_MIN_GP = 20+ games); a Gold this season is raised to it only by clearing that bar. Indispensable needs 4+ players on the team with positive
+  (real-minutes, qualified, HOF_MIN_GP = 20+ games); any season that clears that pooled bar earns it, whatever its rank
+  within its own season. Indispensable needs 4+ players on the team with positive
   win shares. Skills: Volume
   Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
   Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
