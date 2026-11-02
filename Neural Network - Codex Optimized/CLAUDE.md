@@ -119,17 +119,20 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
   DR%, Stl%, Blk%) blank (build_game_boxes "miss").
-- Player badges (2026-27 only; generate_leaderboard.attach_badges, page: BADGES / __bdgIcons / __ppBadges /
-  ppBadgeGuide): what a player does best this season, statewide. Skill badges, gold top 1% / silver top 3% of
-  qualified players (p.q): Volume Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts),
-  Finisher (2P%, 3+ 2PA/g, 25), Ice Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner
-  (OR% and DR%), Pickpocket (Stl%), Rim Protector (Blk%); the last four need real minutes. Ratings by PRPG!: All-State
-  (top 10 in the state), All-Conference (top 5 in the conference, not All-State); Offensive Engine / Defensive Anchor
-  by OBPM / DBPM (top 10, not All-State; PRPG! has no split). Roles: Indispensable (top 10 in share of the team's
-  win shares), Glue Guy (the tracker's Glue guy label: export_ratings.glue_guys, usage
-  under 17% and top 30% in 3+ of OR%, DR%, Stl%, Blk%, assist rate; one metal). Emoji after the name wherever playerLink draws one (hover
-  for the meaning), hexagons on the player page with a "What badges mean" guide. The badge block sits before the
-  first table render (var, not const) so the first tables get them.
+- Player badges (2026-27 only; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
+  __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver
+  and Gold rank this season (skills: top 15% / 7% / 3% of qualified players; rank badges: top 50 / 25 / 10); Hall of
+  Fame ranks his season against every season since 2017-18 pooled (real-minutes, qualified, HOF_MIN_GP = 20+ games:
+  a skill's top 1% of player-seasons, a rank badge's top 25), and only a Gold can be raised to it. Skills: Volume
+  Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
+  Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
+  Protector (Blk%). Ratings: All-State by PRPG!, All-Conference (Silver top 3 / Bronze #4-5 in the conference, the
+  state's top 25% too, not a Gold All-State), Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold
+  All-State). Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
+  Bronze, four Silver, five Gold, all five in the pooled top 15% HoF). Fake-minutes teams: box-score stand-ins placed
+  on the real scales by percentile, marked est., no Hall of Fame; their players qualify with half the team's games
+  and 4+ ppg or 3+ rpg. Tables show Gold and HoF emoji after the name (playerLink); player pages every level as
+  hexagons, with the guide. The badge block sits before the first table render (var, not const).
 - Box score colors: the rate and analytics columns (ORtg, eFG, TS%, OR%, DR%, A%, TO%, Stl%, Blk%, BPM, OBPM,
   DBPM) color their text only (not the cell) against the season's qualified players: average in the normal text
   color, 2 standard deviations better full green, worse full red (TO% reversed); the totals row against the teams.
