@@ -122,14 +122,16 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Player badges (2026-27 only; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
   __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver
   and Gold rank this season (skills: top 15% / 7% / 3% of qualified players; rank badges: top 50 / 25 / 10); Hall of
-  Fame ranks his season against every season since 2017-18 pooled (real-minutes, qualified, HOF_MIN_GP = 20+ games:
-  a skill's top 1% of player-seasons, a rank badge's top 25), and only a Gold can be raised to it. Skills: Volume
+  Fame is the all-time top HOF_SHARE = 3% for that badge, every season since 2017-18 pooled as one pool
+  (real-minutes, qualified, HOF_MIN_GP = 20+ games); a Gold this season is raised to it only by clearing that bar. Indispensable needs 4+ players on the team with positive
+  win shares. Skills: Volume
   Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
   Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
   Protector (Blk%). Ratings: All-State by PRPG!, All-Conference (Silver top 3 / Bronze #4-5 in the conference, the
   state's top 25% too, not a Gold All-State), Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold
   All-State). Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
-  Bronze, four Silver, five Gold, all five in the pooled top 15% HoF). Fake-minutes teams: box-score stand-ins placed
+  Bronze, four Silver, five Gold; HoF the all-time top 3% of glue seasons: average pooled
+  percentile of the five rates, among under-17%-usage seasons). Fake-minutes teams: box-score stand-ins placed
   on the real scales by percentile, marked est., no Hall of Fame; their players qualify with half the team's games
   and 4+ ppg or 3+ rpg. Tables show Gold and HoF emoji after the name (playerLink); player pages every level as
   hexagons, with the guide. The badge block sits before the first table render (var, not const).

@@ -3319,6 +3319,7 @@ BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass",
 
 
 HOF_MIN_GP = 20   # a Hall of Fame season needs this many games: a solid sample that won't swing
+HOF_SHARE = 0.03  # Hall of Fame: the top 3% of player-seasons ever for each badge, every season since 2017-18 pooled
 TIERS = ((0.03, 3), (0.07, 2), (0.15, 1))   # skill badges this season: Gold top 3%, Silver top 7%, Bronze top 15%
 RANK_TIERS = ((10, 3), (25, 2), (50, 1))    # rank badges: Gold top 10, Silver 11-25, Bronze 26-50
 
@@ -3343,9 +3344,10 @@ def _badge_values(players):
         sd = (sum((x - m) ** 2 for x in v) / len(v)) ** 0.5 or 1
         return lambda p: None if p.get(k) is None else (p[k] - m) / sd
     za, zt, zo, zd = z("ast_rate"), z("tov_pct"), z("oreb_pct"), z("dreb_pct")
-    team_ws = {}
+    team_ws, n_pos = {}, {}
     for p in players:
         team_ws[p["school"]] = team_ws.get(p["school"], 0) + max(p.get("ws") or 0, 0)
+        n_pos[p["school"]] = n_pos.get(p["school"], 0) + ((p.get("ws") or 0) > 0)
     vol3 = lambda p: (p.get("tpa") or 0) >= 10 and (p.get("tpa") or 0) / p["gp"] >= 2
     vol2 = lambda p: (p.get("twoa") or 0) >= 10 and (p.get("twoa") or 0) / p["gp"] >= 3
     volf = lambda p: (p.get("fta") or 0) >= 10 and (p.get("fta") or 0) / p["gp"] >= 2
@@ -3361,7 +3363,8 @@ def _badge_values(players):
         "allstate": lambda p: p.get("porp"),
         "engine": lambda p: p.get("obpm"),
         "anchor": lambda p: p.get("dbpm"),
-        "indisp": lambda p: p["ws"] / team_ws[p["school"]] if (p.get("ws") or 0) > 0 and team_ws.get(p["school"]) else None,
+        # (a team needs 4+ players with positive win shares: a box with one player's minutes can hand him 100%)
+        "indisp": lambda p: p["ws"] / team_ws[p["school"]] if (p.get("ws") or 0) > 0 and team_ws.get(p["school"]) and n_pos[p["school"]] >= 4 else None,
     }
 
 
@@ -3369,10 +3372,12 @@ GLUE_KEYS = ("oreb_pct", "dreb_pct", "stl_pct", "blk_pct", "ast_rate")
 
 
 def _hof_bars(history):
-    """The Hall of Fame bars from every season pooled (real-minutes, qualified, HOF_MIN_GP+ games): a skill badge's
-    top 1% of player-seasons, a rank badge's top 25, and the Glue Guy's five rates' 85th percentiles."""
+    """The Hall of Fame bars: for each badge, the top HOF_SHARE of player-seasons ever, every season since 2017-18
+    pooled (real-minutes, qualified, HOF_MIN_GP+ games), as if all those players were in one pool. Glue Guy: the top
+    HOF_SHARE of glue scores (his five rates' average percentile in the pooled seasons) among low-usage (under 17%)
+    player-seasons."""
     import bisect
-    pooled, glue = {}, {k: [] for k in GLUE_KEYS}
+    pooled, rows = {}, []
     for season in history:
         real, vals = _badge_values(season)
         for p in real:
@@ -3383,18 +3388,26 @@ def _hof_bars(history):
                 if v is not None:
                     pooled.setdefault(code, []).append(v)
             if (p.get("min_pct") or 0) >= 30:
-                for k in GLUE_KEYS:
-                    if p.get(k) is not None:
-                        glue[k].append(p[k])
+                rows.append(p)
     bars = {}
     for code, v in pooled.items():
         v.sort(reverse=True)
-        bars[code] = v[min(len(v), 25 if code in ("allstate", "engine", "anchor", "indisp") else max(1, round(0.01 * len(v)))) - 1]
-    for k in GLUE_KEYS:
-        glue[k].sort()
-    bars["glue"] = {k: glue[k][min(len(glue[k]) - 1, int(0.85 * len(glue[k])))] for k in GLUE_KEYS if glue[k]}
-    bars["_n"] = len(pooled.get("scorer", []))
+        bars[code] = v[max(1, round(HOF_SHARE * len(v))) - 1]
+    dist = {k: sorted(p[k] for p in rows if p.get(k) is not None) for k in GLUE_KEYS}
+    bars["_glue_dist"] = dist
+    gs = sorted((glue_score(p, dist) for p in rows if (p.get("usage_pct") or 99) < 17), reverse=True)
+    gs = [g for g in gs if g is not None]
+    bars["glue"] = gs[max(1, round(HOF_SHARE * len(gs))) - 1] if gs else None
     return bars
+
+
+def glue_score(p, dist):
+    """A Glue Guy's dirty work in one number: the average percentile of his OR%, DR%, Stl%, Blk% and assist rate
+    among every season pooled."""
+    import bisect
+    if any(p.get(k) is None or not dist.get(k) for k in GLUE_KEYS):
+        return None
+    return sum(bisect.bisect_right(dist[k], p[k]) / len(dist[k]) for k in GLUE_KEYS) / len(GLUE_KEYS)
 
 
 def attach_badges(players, history=()):
@@ -3541,7 +3554,7 @@ def attach_badges(players, history=()):
         if p.get("gp"):
             team_ws[p["school"]] = team_ws.get(p["school"], 0) + max(p.get("ws") or 0, 0)
             team_gs[p["school"]] = team_gs.get(p["school"], 0) + max(gs(p) * p["gp"], 0)
-    ws_sh = lambda p: p["ws"] / team_ws[p["school"]] if (p.get("ws") or 0) > 0 and team_ws.get(p["school"]) else None
+    ws_sh = own.get("indisp") or (lambda p: None)
     gs_sh = lambda p: max(gs(p) * p["gp"], 0) / team_gs[p["school"]] if team_gs.get(p["school"]) else None
     ws_of = qmap(real, gs_sh, ws_sh)
     sv = lambda p: ws_of(gs_sh(p)) if p.get("fm") else ws_sh(p)
@@ -3557,10 +3570,10 @@ def attach_badges(players, history=()):
             if "Glue guy" in rk.get((p["name"], p["school"]), {}).get("roles", []):
                 n = sum(gpct(p, k) >= 0.70 for k in GLUE_KEYS)   # how many of the five: 3 Bronze, 4 Silver, 5 Gold
                 tier = 3 if n >= 5 else 2 if n == 4 else 1
-                gb = bars.get("glue") or {}
-                if (tier == 3 and not p.get("fm") and (p.get("gp") or 0) >= HOF_MIN_GP and len(gb) == len(GLUE_KEYS)
-                        and all(p.get(k) is not None and p[k] >= gb[k] for k in GLUE_KEYS)):
-                    tier = 4   # all five in the top 15% of every season pooled
+                gsc = glue_score(p, bars.get("_glue_dist") or {})
+                if (tier == 3 and not p.get("fm") and (p.get("gp") or 0) >= HOF_MIN_GP and bars.get("glue") is not None
+                        and gsc is not None and gsc >= bars["glue"]):
+                    tier = 4   # the all-time top 3% of glue seasons
                 out[id(p)].append(["glue", tier])
     except Exception as err:
         print(f"  badges: no Glue Guy ({err})")
@@ -8232,7 +8245,7 @@ var BADGES = {{
   pickpocket: ['🥷', 'Pickpocket', 'steal rate (Stl%)', 'skill', 'steal rate'],
   rimprot: ['✋', 'Rim Protector', 'block rate (Blk%)', 'skill', 'block rate'],
   indisp: ['🔑', 'Indispensable', 'The biggest shares of their team\u2019s win shares in the state', 'role', 'share of his team\u2019s win shares'],
-  glue: ['🧩', 'Glue Guy', 'Does the dirty work: under 17% usage and top 30% in the state in 3+ of OR%, DR%, Stl%, Blk% and assist rate (the Glue guy label)', 'role', 'all five of OR%, DR%, Stl%, Blk% and assist rate (top 15%)'],
+  glue: ['🧩', 'Glue Guy', 'Does the dirty work: under 17% usage and top 30% in the state in 3+ of OR%, DR%, Stl%, Blk% and assist rate (the Glue guy label)', 'role', 'dirty work (OR%, DR%, Stl%, Blk% and assist rate together)'],
 }};
 const BDG_TIER = {{ 4: 'Hall of Fame', 3: 'Gold', 2: 'Silver', 1: 'Bronze' }};
 const BDG_SHARE = {{ 3: '3%', 2: '7%', 1: '15%' }};
@@ -8243,7 +8256,7 @@ function __bdgText(code, tier, est) {{
   if (!b) return '';
   const e = est ? ' (estimated: his team\u2019s box scores have no real minutes, so this is from his per-game numbers)' : '';
   const lv = BDG_TIER[tier] + ' ' + b[1] + ': ';
-  if (tier === 4) return lv + 'one of the best seasons since 2017-18 in ' + b[4] + ' (every season pooled, ' + BDG_HOF_GP + '+ games)' + e;
+  if (tier === 4) return lv + 'all-time top 3% in ' + b[4] + ' (every season since 2017-18 pooled, ' + BDG_HOF_GP + '+ games)' + e;
   if (b[3] === 'skill') return lv + 'top ' + BDG_SHARE[tier] + ' in the state in ' + b[2] + e;
   if (code === 'allconf') return lv + (tier === 2 ? 'top 3' : '#4-5') + ' in his conference by PRPG! (and the state\u2019s top 25%)' + e;
   if (code === 'glue') return lv + b[2] + ' \u2014 ' + (tier === 3 ? 'all five' : tier === 2 ? 'four of the five' : 'three of the five') + e;
@@ -8283,14 +8296,14 @@ function ppBadgeGuide() {{
       + (c === 'allconf' ? __bdgHex(c, 2, true) + __bdgHex(c, 1, true) : hexes(c)) + '<span class="bdg-g-e">' + b[0] + '</span></span><div><b>' + b[1] + '</b><div>'
       + (kind === 'skill' ? 'The state\u2019s best in ' + b[2] : b[2]) + '</div><div class="bdg-tiers">'
       + (c === 'allconf' ? lv('s', 'Silver') + ' top 3 · ' + lv('b', 'Bronze') + ' #4-5'
-        : c === 'glue' ? lv('h', 'HoF') + ' all five in the top 15% of every season · ' + lv('g', 'Gold') + ' all five · ' + lv('s', 'Silver') + ' four · ' + lv('b', 'Bronze') + ' three'
-        : lv('h', 'HoF') + (kind === 'skill' ? ' top 1% of every season since 2017-18' : ' top 25 seasons since 2017-18') + ' · ' + lv('g', 'Gold') + (kind === 'skill' ? ' top 3% · ' : ' top 10 · ')
+        : c === 'glue' ? lv('h', 'HoF') + ' all-time top 3% of glue seasons · ' + lv('g', 'Gold') + ' all five · ' + lv('s', 'Silver') + ' four · ' + lv('b', 'Bronze') + ' three'
+        : lv('h', 'HoF') + ' all-time top 3% · ' + lv('g', 'Gold') + (kind === 'skill' ? ' top 3% · ' : ' top 10 · ')
           + lv('s', 'Silver') + (kind === 'skill' ? ' top 7% · ' : ' top 25 · ') + lv('b', 'Bronze') + (kind === 'skill' ? ' top 15%' : ' top 50'))
       + '</div></div></div>').join('');
   el.innerHTML = '<div class="bdg-guide-box"><button class="bdg-x" onclick="ppBadgeGuideClose()">\u00d7</button><h2>Player Badges</h2>'
     + '<p class="bdg-note">Badges mark what a player does best this season, against every qualified player in the state (the leaderboard\u2019s minutes / games bar). Four levels: '
-    + '<b>Bronze</b>, <b>Silver</b> and <b>Gold</b> rank him in this season; <b>Hall of Fame</b> ranks his season against every season since 2017-18 pooled together, '
-    + 'as if all those players were in one pool, and opens only at ' + BDG_HOF_GP + '+ games so a short hot stretch can\u2019t reach it. Player pages show every level as hexagons; '
+    + '<b>Bronze</b>, <b>Silver</b> and <b>Gold</b> rank him in this season; <b>Hall of Fame</b> is the best of the best: the all-time top 3% for that badge, '
+    + 'every season since 2017-18 pooled together as if all those players were in one pool. A Gold this season reaches it only by clearing that all-time bar, and only at ' + BDG_HOF_GP + '+ games, so a short hot stretch can\u2019t. Player pages show every level as hexagons; '
     + 'the tables show Gold and Hall of Fame as the emoji. Hover one for what it means.</p>'
     + '<p class="bdg-note">Teams whose box scores have no real minutes: their players qualify with half the team\u2019s games and 4+ points or 3+ rebounds a game, and the badges that need minutes come from per-game numbers placed on the same scale (Game Score for the ratings; rebounds, steals, blocks and assists a game for the rates). Those are marked <i>est.</i> and can\u2019t reach the Hall of Fame.</p>'
     + sect('Ratings', 'rating') + sect('Skills', 'skill', 'Shooting badges use the percentage pulled toward the state\u2019s average by a few games\u2019 attempts, so a 9-for-15 start from three won\u2019t earn Sniper.') + sect('Roles', 'role')
