@@ -348,6 +348,7 @@ def load(team, season):
     c.OPP_TINT = colors.HexColor(mix(hexv, '#FFFFFF', 0.9)); c.OPP_DEEP = colors.HexColor(mix(hexv, '#000000', 0.45))
     ini = ''.join(w[0] for w in team.replace('.', '').split())
     load_synergy(c)
+    load_labels(c, team, season)
     c.abbr = (ini + 'C' if len(ini) == 2 else ini if len(ini) > 2 else team[:3]).upper()[:4]   # IVC, SBC, VEN
     return c
 
@@ -788,6 +789,29 @@ def load_team_syn(team, season):
     return {'games': d.get('games_played', d.get('games')), 'off': [norm_pt(x) for x in d.get('offense', {}).get('play_types', [])],
             'def': [norm_pt(x) for x in d.get('defense', {}).get('play_types', [])], 'path': os.path.relpath(path, HERE)}
 
+# The possession tracker's player labels (export_ratings.auto_labels, decided once for the tracker and these reports),
+# for the profiles. The tracker's season only (the labels read the leaderboard's current State Ranks).
+WEAK_LABELS = {'Non-shooter', 'Poor 3PT', 'Inefficient volume', 'Struggles inside', 'Bad FT', 'Non-passer', 'TO-prone',
+               'Foul-prone', 'Help off'}
+
+
+def load_labels(c, team, season):
+    c.labels = {}
+    try:
+        from ccc_config import TRACKER_SEASON
+        if season != TRACKER_SEASON:
+            return
+        import export_ratings as er
+        rosters, ranks, totals = er.leaderboard_tables()
+        r = rosters.get(team)
+        if not r:
+            return
+        table = {"adv": r["adv"], "rankOf": totals, "rows": [dict(p, rank=ranks.get((p["name"], team), {})) for p in r["players"]]}
+        c.labels = {row["name"]: [x["l"] for x in er.auto_labels(row, table)] for row in table["rows"]}
+    except Exception as err:
+        print(f'  note: no player labels ({err})')
+
+
 def load_synergy(c):
     c.syn_team, c.syn_mp, c.syn_players = load_team_syn(c.team, c.season), load_team_syn('Moorpark', c.season), {}
     arch = os.path.join(HERE, 'internal_data', 'synergy_archetypes.json')
@@ -1042,6 +1066,11 @@ def narrative(c, p, idx):
     if prank == 1: s.append(f'{name} is {T}’s leading scorer: {ppg:.1f} PPG (#{pr}/{pn} statewide){mn} ({gp} GP).')
     elif prank == 2: s.append(f'{name} is {T}’s second-leading scorer: {ppg:.1f} PPG (#{pr}/{pn} statewide){mn} ({gp} GP).')
     else: s.append(f'{name} averages {ppg:.1f} PPG (#{pr}/{pn} statewide){mn} ({gp} GP), #{prank} in scoring among {T}’s rotation players.')
+    lab = c.labels.get(name) or []
+    good, weak = [l for l in lab if l not in WEAK_LABELS], [l for l in lab if l in WEAK_LABELS]
+    if lab:
+        s.append('; '.join(filter(None, ['Labels: ' + ', '.join(f'<b>{l}</b>' for l in good) if good else '',
+                                         ('weak spots: ' if good else 'Weak-spot labels: ') + ', '.join(f'<b>{l}</b>' for l in weak) if weak else ''])) + '.')
     rpg, apg = avg.get('REB', 0), avg.get('AST', 0)
     if not c.min_ok:   # no rates on these teams: the per-game lines and their state ranks stand in
         rr, rn = pool_rank(c.all_players, 'rpg', rpg); ar_, an = pool_rank(c.all_players, 'apg', apg)

@@ -6187,6 +6187,9 @@ const SH3 = { K: 25, LG: 32.4, HI: 35, LO: 30, MIN_A: 15 };
 function autoLabels(g, t, id) {
   let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
   const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
+  // The team file's labels when it has them (export_ratings.py auto_labels: these same rules, decided once for the tracker
+  // and the scouting reports); the rules below are for older files and players known only from our tracked games.
+  if (R && Array.isArray(R.labels)) return R.labels.map(x => ({ l: x.l, why: x.why }));
   const basic = !(F && F.table && F.table.adv === 1);   // per-game / per-40 fallbacks only for low-info teams
   const top = (k, cut) => rk[k] != null && tot[k] ? rk[k] <= Math.max(1, Math.round(cut * tot[k])) : false;
   const bot = (k, cut) => rk[k] != null && tot[k] ? rk[k] > Math.round((1 - cut) * tot[k]) : false;

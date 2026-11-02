@@ -110,6 +110,25 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
   play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
   keep their tabs and formulas as they were (no new tabs).
+- Player labels (export_ratings.auto_labels, a port of the tracker's autoLabels, checked label-for-label and why-line
+  for-line against it on every 2026-27 player): written into each team file's Team Stats rows (row["labels"]); the
+  tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the
+  scouting report's player profiles list them ("Labels: Scorer, Elite shooter; weak spots: Foul-prone"). Change a
+  label rule in both places.
+- A box score side whose players all have 0 in every stat (minutes aside) didn't post: the game stays PARTIAL / NO_BOX
+  and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
+  leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
+  DR%, Stl%, Blk%) blank (build_game_boxes "miss").
+- Player badges (2026-27 only; generate_leaderboard.attach_badges, page: BADGES / __bdgIcons / __ppBadges /
+  ppBadgeGuide): what a player does best this season, statewide. Skill badges, gold top 1% / silver top 3% of
+  qualified players (p.q): Volume Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts),
+  Finisher (2P%, 3+ 2PA/g, 25), Ice Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner
+  (OR% and DR%), Pickpocket (Stl%), Rim Protector (Blk%); the last four need real minutes. Ratings by PRPG!: All-State
+  (top 10 in the state), All-Conference (top 5 in the conference, not All-State); Offensive Engine / Defensive Anchor
+  by OBPM / DBPM (top 10, not All-State; PRPG! has no split). Roles: Indispensable (top 10 in share of the team's
+  win shares), Glue Guy (PRPG! top 1% / 3% under the 60th percentile in scoring). Emoji after the name wherever playerLink draws one (hover
+  for the meaning), hexagons on the player page with a "What badges mean" guide. The badge block sits before the
+  first table render (var, not const) so the first tables get them.
 - Box score colors: the rate and analytics columns (ORtg, eFG, TS%, OR%, DR%, A%, TO%, Stl%, Blk%, BPM, OBPM,
   DBPM) color their text only (not the cell) against the season's qualified players: average in the normal text
   color, 2 standard deviations better full green, worse full red (TO% reversed); the totals row against the teams.

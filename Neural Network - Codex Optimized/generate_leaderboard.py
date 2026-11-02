@@ -1536,6 +1536,23 @@ def load_players(stats_dir=None):
     return players
 
 
+def _match_box_names(team: str, rows: list, out: dict):
+    import difflib
+    d = next((p for p in Path(STATS_DIR).glob(f"*/{team}") if p.is_dir()), None)
+    try:
+        names = [p["name"] for p in json.load(open(d / "player_stats.json"))["players"]] if d else []
+    except (OSError, ValueError, KeyError):
+        return
+    keyed = [(_height_player_key(r["name"]), r) for r in rows if _parse_height_to_inches(r.get("ht", ""))]
+    for n in names:
+        k = _height_player_key(n)
+        if (team, k) in out or not keyed:
+            continue
+        sc = sorted(((difflib.SequenceMatcher(None, k, rk).ratio(), rk) for rk, _ in keyed), reverse=True)
+        if sc[0][0] >= 0.9 and (len(sc) == 1 or sc[0][0] - sc[1][0] >= 0.1):
+            out[(team, k)] = out[(team, sc[0][1])]
+
+
 def _load_player_heights() -> dict:
     """(team, height-player-key) -> formatted height: the 2026-27 rosters, else the 2025-26 CSV."""
     out = {}
@@ -1546,6 +1563,10 @@ def _load_player_heights() -> dict:
                 inches = _parse_height_to_inches(r.get("ht", ""))
                 if inches:
                     out[(team, _height_player_key(r["name"]))] = _fmt_height_inches(inches)
+            # Roster pages and box scores spell some names differently ("Ryder Sunquist" / "Ryder Sundquist", "Welbi" /
+            # "Wellbi"): a box-score name with no exact match takes the team's closest roster name, when it is close
+            # (90%+ alike) and clearly closer than the next one
+            _match_box_names(team, rows, out)
         return out
     if not _HEIGHTS_CSV.exists():
         return out
@@ -3282,6 +3303,89 @@ _SIM_SHOOT_MIN_FGA = 50  # volume floor so percentages are stable
 _SIM_TARGET_MIN_PCT = 10
 
 
+# ---- Player badges (2026-27): what a player does best this season, statewide ----
+# Skill badges: gold for the top 1% of qualified players (the leaderboard's q), silver for the top 3%, on a stat
+# pulled toward the state's average by a few attempts' worth of it (so a hot first week doesn't earn Sniper).
+# Rating badges (one metal each) from PRPG! (PORPAGATU!, among qualified players): All-State (top 10 in the state),
+# All-Conference (top 5 in his conference, not All-State); Offensive Engine / Defensive Anchor from OBPM / DBPM (top
+# 10, not All-State: PRPG! has no offense / defense split). Roles: Indispensable (top 10 in the state in his share of
+# his team's win shares) and Glue Guy (PRPG! top 1% / 3% while under the 60th percentile in scoring). p["bdg"] = [[code, 2 gold / 1 silver], ...].
+BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot")
+
+
+def attach_badges(players):
+    for p in players:
+        p.pop("bdg", None)
+    q = [p for p in players if p.get("q") and p.get("gp")]
+    if not q:
+        return
+    tot = lambda k: sum(p.get(k) or 0 for p in q)
+    lg3 = tot("tpm") / tot("tpa") if tot("tpa") else 0.32
+    lg2 = tot("twom") / tot("twoa") if tot("twoa") else 0.48
+    lgf = tot("ftm") / tot("fta") if tot("fta") else 0.68
+    est = lambda m, a, lg, k: (m + k * lg) / (a + k)
+
+    def z(pool, k):
+        v = [p[k] for p in pool if p.get(k) is not None]
+        if len(v) < 5:
+            return lambda p: None
+        m = sum(v) / len(v)
+        sd = (sum((x - m) ** 2 for x in v) / len(v)) ** 0.5 or 1
+        return lambda p: None if p.get(k) is None else (p[k] - m) / sd
+    mins = [p for p in q if not p.get("fm")]
+    za, zt, zo, zd = z(mins, "ast_rate"), z(mins, "tov_pct"), z(mins, "oreb_pct"), z(mins, "dreb_pct")
+    skill = {
+        "scorer": (q, lambda p: p.get("ppg")),
+        "sniper": ([p for p in q if (p.get("tpa") or 0) >= 10 and (p.get("tpa") or 0) / p["gp"] >= 2],
+                   lambda p: est(p["tpm"], p["tpa"], lg3, 25)),
+        "finisher": ([p for p in q if (p.get("twoa") or 0) >= 10 and (p.get("twoa") or 0) / p["gp"] >= 3],
+                     lambda p: est(p["twom"], p["twoa"], lg2, 25)),
+        "icewater": ([p for p in q if (p.get("fta") or 0) >= 10 and (p.get("fta") or 0) / p["gp"] >= 2],
+                     lambda p: est(p["ftm"], p["fta"], lgf, 20)),
+        "floorgen": (mins, lambda p: None if za(p) is None or zt(p) is None else za(p) - 0.5 * zt(p)),
+        "glass": (mins, lambda p: None if zo(p) is None or zd(p) is None else (zo(p) + zd(p)) / 2),
+        "pickpocket": (mins, lambda p: p.get("stl_pct")),
+        "rimprot": (mins, lambda p: p.get("blk_pct")),
+    }
+    out = {id(p): [] for p in players}
+
+    def award(pool, val, code, gold=0.01, silver=0.03):
+        ranked = sorted([p for p in pool if val(p) is not None], key=lambda p: -val(p))
+        n = len(ranked)
+        for i, p in enumerate(ranked[:max(1, round(silver * n))] if n else []):
+            out[id(p)].append([code, 2 if i < max(1, round(gold * n)) else 1])
+    for code in BADGE_SKILLS:
+        award(*skill[code], code)
+    rated = sorted([p for p in q if p.get("porp") is not None], key=lambda p: -p["porp"])
+    allstate = {id(p) for p in rated[:10]}
+    for p in rated[:10]:
+        out[id(p)].append(["allstate", 2])
+    by_conf = {}
+    for p in rated:
+        by_conf.setdefault(p.get("conference"), []).append(p)
+    for ps in by_conf.values():
+        for p in [p for p in ps if id(p) not in allstate][:5]:
+            if ps.index(p) < 5:
+                out[id(p)].append(["allconf", 1])
+    for k, code in (("obpm", "engine"), ("dbpm", "anchor")):
+        for p in sorted([p for p in players if p.get(k) is not None and p.get("gp")], key=lambda p: -p[k])[:10]:
+            if id(p) not in allstate:
+                out[id(p)].append([code, 2])
+    team_ws = {}
+    for p in players:
+        team_ws[p["school"]] = team_ws.get(p["school"], 0) + max(p.get("ws") or 0, 0)
+    share = sorted([p for p in q if (p.get("ws") or 0) > 0 and team_ws.get(p["school"])],
+                   key=lambda p: -p["ws"] / team_ws[p["school"]])
+    for p in share[:10]:
+        out[id(p)].append(["indisp", 2])
+    pp = sorted(p.get("ppg") or 0 for p in q)
+    low_scorer = lambda p: sum(1 for x in pp if x <= (p.get("ppg") or 0)) / len(pp) < 0.60
+    award([p for p in rated if low_scorer(p)], lambda p: p["porp"], "glue")
+    for p in players:
+        if out[id(p)]:
+            p["bdg"] = out[id(p)]
+
+
 def attach_similar_players(season_players: dict, team_rosters: dict):
     """Cross-season statistical nearest neighbors for player profiles.
 
@@ -3880,30 +3984,34 @@ def build_game_boxes(stats_dir) -> dict:
                     "BLK": parse_int(s.get("BLK", 0)), "TO": parse_int(s.get("TO", 0)),
                     "PF": parse_int(s.get("PF", 0)), "PTS": parse_int(s.get("PTS", 0)),
                 })
-            if not rows:
-                ok = False
-                break
             tot = {k: sum(r[k] for r in rows) for k in
                    ("MIN", "FGM", "FGA", "3PM", "3PA", "FTM", "FTA", "OREB", "DREB",
                     "AST", "STL", "BLK", "TO", "PF", "PTS")}
             tot["POSS"] = tot["FGA"] + 0.475 * tot["FTA"] - tot["OREB"] + tot["TO"]
             sides[tn] = {"rows": rows, "tot": tot}
-        if not ok:
+        # One team's box score only (the other side posted nothing): the game still shows, the posted side's numbers
+        # that need the other side's box (DRtg, OR%, DR%, Stl%, Blk%) blank; no side at all: no box score
+        if not ok or not any(sides[tn]["rows"] for tn in names):
             continue
 
         record = {"d": date, "h": box.get("home", ""), "v": box.get("visitor", ""),
                   "sc": box.get("score", {}), "t": {}}
+        miss = [tn for tn in names if not sides[tn]["rows"]]
+        if miss:
+            record["miss"] = miss   # the page shows "no box score posted" for that side
         poss_vals = []
         flags = {}
         for tn in names:
             opp = [x for x in names if x != tn][0]
             tot, opp_tot = sides[tn]["tot"], sides[opp]["tot"]
-            poss_vals.append(tot["POSS"])
+            if sides[tn]["rows"]:
+                poss_vals.append(tot["POSS"])
             # 5 players x game clock => team_min is total player minutes / 5
             min_ok = 150 <= tot["MIN"] <= 290
             to_ok = tot["TO"] > 0
             pf_ok = tot["PF"] > 0
             opp_to_ok = opp_tot["TO"] > 0
+            opp_ok = bool(sides[opp]["rows"])
             flags[tn] = (min_ok, to_ok, pf_ok)
             if min_ok and to_ok:
                 lg_pts += tot["PTS"]
@@ -3915,9 +4023,9 @@ def build_game_boxes(stats_dir) -> dict:
                 "top": to_ok,
                 "usg": min_ok and to_ok,
                 "ortg": min_ok and to_ok,
-                "drtg": min_ok and to_ok and pf_ok and opp_to_ok,
-                "stp": min_ok and to_ok,
-                "orp": min_ok, "drp": min_ok, "ap": min_ok, "blp": min_ok,
+                "drtg": min_ok and to_ok and pf_ok and opp_to_ok and opp_ok,
+                "stp": min_ok and to_ok and opp_ok,
+                "orp": min_ok and opp_ok, "drp": min_ok and opp_ok, "ap": min_ok, "blp": min_ok and opp_ok,
             }
             ctx = {
                 "team_min": tot["MIN"] / 5.0, "team_fgm": tot["FGM"], "team_fga": tot["FGA"],
@@ -4194,6 +4302,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     ]:
         attach_porpagatu(_pl, _tm)
         attach_win_shares_per(_pl, _tm)
+    attach_badges(players)   # 2026-27 only: past seasons keep their pages as they were
     attach_similar_players(
         {"2627": players, "2526": players_2025, "2425": players_2024, "2324": players_2023,
          "2223": players_2022, "2122": players_2021, "1920": players_2019,
@@ -5180,9 +5289,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   tr:nth-child(even) td {{ background: var(--zebra); }}
   tr:nth-child(even):hover td {{ background: var(--hover-row); }}
 
-  /* Individual Basic Stats: cap the Name column so a long name can't stretch it */
+  /* Individual Basic Stats: cap the Name column so a long name can't stretch it (room for the badge emoji too) */
   #leaderboard th:nth-child(2), #leaderboard td:nth-child(2) {{
-    max-width: 160px;
+    max-width: 230px;
     overflow: hidden;
     text-overflow: ellipsis;
   }}
@@ -7279,6 +7388,25 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     /* Neutralize the page-wide odd/even row striping inside the box score */
     .bx-table tbody tr:nth-child(odd) td, .bx-table tbody tr:nth-child(even) td {{ background:#fff; }}
     .bx-table tbody tr:nth-child(odd):hover td, .bx-table tbody tr:nth-child(even):hover td {{ background:#eaf1fb; }}
+  .bdg-row {{ white-space: nowrap; margin-left: 2px; }}
+  .bdg-e {{ font-size: 0.85em; cursor: help; margin-left: 1px; }}
+  .bdg-hex {{ display: inline-flex; width: 30px; height: 34px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); align-items: center; justify-content: center; cursor: help; vertical-align: middle; }}
+  .bdg-hex.big {{ width: 40px; height: 46px; }}
+  .bdg-hex.gold {{ background: linear-gradient(160deg, #f5d77a, #b8860b); }}
+  .bdg-hex.silver {{ background: linear-gradient(160deg, #eef1f5, #8a95a3); }}
+  .bdg-hex > span {{ display: flex; width: 80%; height: 80%; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #1f2a3a; align-items: center; justify-content: center; font-size: 15px; }}
+  .bdg-hex.big > span {{ font-size: 19px; }}
+  .bdg-pp {{ display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: center; align-items: center; margin-top: 10px; }}
+  .bdg-item {{ display: inline-flex; align-items: center; gap: 6px; color: #e7ecf2; font-size: 0.85rem; font-weight: 600; }}
+  .bdg-help {{ color: #8fb8ff; font-size: 0.78rem; }}
+  #bdg-guide {{ position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 3000; display: flex; justify-content: center; align-items: flex-start; overflow-y: auto; padding: 30px 12px; }}
+  .bdg-guide-box {{ background: #fff; color: #1a1f2e; max-width: 640px; width: 100%; border-radius: 10px; padding: 20px 22px; position: relative; }}
+  .bdg-guide-box h2 {{ margin: 0 0 8px; }} .bdg-guide-box h3 {{ margin: 18px 0 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }}
+  .bdg-note {{ color: #555; font-size: 0.85rem; }}
+  .bdg-g-row {{ display: flex; gap: 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.88rem; }}
+  .bdg-g-icons {{ display: flex; gap: 6px; align-items: center; min-width: 120px; }} .bdg-g-e {{ font-size: 18px; margin-left: 6px; }}
+  .bdg-tiers {{ font-size: 0.8rem; color: #555; }} .bdg-tiers .g {{ color: #9a7410; font-weight: 700; }} .bdg-tiers .s {{ color: #5b6573; font-weight: 700; }}
+  .bdg-x {{ position: absolute; right: 12px; top: 8px; border: none; background: none; font-size: 26px; cursor: pointer; }}
     .bx-table tbody tr.bx-low td {{ background:#d6d6d6; color:#666; }}
     .bx-table tr.bx-bench-sep td {{ border-top:3px solid #1a3e8f; }}
     .bx-table .bx-team-hdr {{ background:#1a3e8f;color:#fff;text-align:center;font-weight:800;padding:5px;font-size:0.8rem; }}
@@ -7507,6 +7635,9 @@ function __bxTd(v, k, sc, plain) {{
 }}
 
 function __bxTeamTable(name, rows, oppRows) {{
+  if (!rows.length) return '<div class="bx-table-wrap"><table class="bx-table"><thead><tr><th class="bx-team-hdr">' + name.toUpperCase()
+    + '</th></tr></thead><tbody><tr><td style="padding:14px;color:#6b7280">' + name + ' hasn\u2019t posted its box score for this game.</td></tr></tbody></table></div>';
+  const oppOk = oppRows.length > 0;   // the other side's box: the rates that need it stay blank without it
   const sum = (rs, k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
   const tFgm = sum(rows, 'fgm'), tFga = sum(rows, 'fga'), tTpm = sum(rows, 'tpm'), tTpa = sum(rows, 'tpa');
   const tFtm = sum(rows, 'ftm'), tFta = sum(rows, 'fta'), tOr = sum(rows, 'or'), tDr = sum(rows, 'dr');
@@ -7544,12 +7675,12 @@ function __bxTeamTable(name, rows, oppRows) {{
   const totEfg = tFga > 0 ? (tFgm + 0.5 * tTpm) / tFga * 100 : null;
   const totTsDen = 2 * (tFga + 0.475 * tFta);
   const totTs = totTsDen > 0 ? tPts / totTsDen * 100 : null;
-  const totOrp = (tOr + oDr) > 0 ? tOr / (tOr + oDr) * 100 : null;
-  const totDrp = (tDr + oOr) > 0 ? tDr / (tDr + oOr) * 100 : null;
+  const totOrp = oppOk && (tOr + oDr) > 0 ? tOr / (tOr + oDr) * 100 : null;
+  const totDrp = oppOk && (tDr + oOr) > 0 ? tDr / (tDr + oOr) * 100 : null;
   const totAp = tFgm > 0 ? tAst / tFgm * 100 : null;
   const totTop = toOk && (tFga + 0.475 * tFta + tTo) > 0 ? tTo / (tFga + 0.475 * tFta + tTo) * 100 : null;
-  const totStp = oToOk && oPoss > 0 ? tStl / oPoss * 100 : null;
-  const totBlp = (oFga - oTpa) > 0 ? tBlk / (oFga - oTpa) * 100 : null;
+  const totStp = oppOk && oToOk && oPoss > 0 ? tStl / oPoss * 100 : null;
+  const totBlp = oppOk && (oFga - oTpa) > 0 ? tBlk / (oFga - oTpa) * 100 : null;
 
   // Grey out short-stint players (9 minutes or fewer) — but only when the
   // team's minutes are actually tracked; all-1-minute teams stay white (minutesReal, above).
@@ -7872,6 +8003,75 @@ const RPI_DATA_1718 = __unpack({rpi_data_1718_json});
 
 // Active data references (swapped by toggle)
 let activeData = DATA;
+// ── Player badges (2026-27; attach_badges): emoji after a player's name in the tables (hover for what it means), the
+// gold / silver hexagons on his page, and the guide (ppBadgeGuide)
+// An event's target may not be an element (a text node, the document): no .closest there
+function __closest(t, sel) {{ return t && t.closest ? t.closest(sel) : null; }}
+// var, not const: tables earlier in the script call playerLink before this line runs (no badges until it has)
+var BADGES = {{
+  allstate: ['👑', 'All-State', 'A top-10 player in the state by PRPG!', 'rating'],
+  allconf: ['⭐', 'All-Conference', 'A top-5 player in his conference by PRPG! (and not All-State)', 'rating'],
+  engine: ['🚀', 'Offensive Engine', 'Top 10 in the state in offensive BPM (and not All-State)', 'rating'],
+  anchor: ['⚓', 'Defensive Anchor', 'Top 10 in the state in defensive BPM (and not All-State)', 'rating'],
+  scorer: ['🔥', 'Volume Scorer', 'scoring volume: points a game', 'skill'],
+  sniper: ['🎯', 'Sniper', '3P% (2+ threes a game), pulled toward the state’s 3P% by 25 attempts so a hot week doesn’t earn it', 'skill'],
+  finisher: ['🔨', 'Finisher', '2P% (3+ twos a game), pulled toward the state’s 2P% by 25 attempts', 'skill'],
+  icewater: ['🧊', 'Ice Water', 'FT% (2+ free throws a game), pulled toward the state’s FT% by 20 attempts', 'skill'],
+  floorgen: ['🪄', 'Floor General', 'playmaking: assist rate, less half the turnover rate', 'skill'],
+  glass: ['🧽', 'Glass Cleaner', 'rebounding: OR% and DR% together', 'skill'],
+  pickpocket: ['🥷', 'Pickpocket', 'steal rate (Stl%)', 'skill'],
+  rimprot: ['✋', 'Rim Protector', 'block rate (Blk%)', 'skill'],
+  indisp: ['🔑', 'Indispensable', 'Top 10 in the state in his share of his team’s win shares', 'role'],
+  glue: ['🧩', 'Glue Guy', 'impact without the ball: PRPG! in the top 3% while under the 60th percentile in scoring', 'role'],
+}};
+function __bdgText(code, tier) {{
+  const b = BADGES[code];
+  if (!b) return '';
+  if (b[3] === 'rating' || code === 'indisp') return b[1] + ': ' + b[2];
+  return (tier === 2 ? 'Gold ' : 'Silver ') + b[1] + ': top ' + (tier === 2 ? '1%' : '3%') + ' in the state in ' + b[2];
+}}
+var __bdgCache = null;
+function __bdgOf(name, school) {{
+  if (activeSeason !== '2627' || !BADGES) return null;
+  const pool = activeFullPlayerData();
+  if (!pool) return null;
+  __bdgCache = __bdgCache || new WeakMap();
+  let m = __bdgCache.get(pool);
+  if (!m) {{ m = new Map(); pool.forEach(p => {{ if (p.bdg) m.set(p.name + '|' + p.school, p.bdg); }}); __bdgCache.set(pool, m); }}
+  return m.get(name + '|' + school) || null;
+}}
+function __bdgIcons(name, school) {{
+  const bs = __bdgOf(name, school);
+  return bs ? ' <span class="bdg-row">' + bs.map(([c, t]) => '<span class="bdg-e" title="' + __ppEsc(__bdgText(c, t)) + '">' + BADGES[c][0] + '</span>').join('') + '</span>' : '';
+}}
+function __bdgHex(code, tier, big) {{
+  return '<span class="bdg-hex ' + (tier === 2 ? 'gold' : 'silver') + (big ? ' big' : '') + '" title="' + __ppEsc(__bdgText(code, tier)) + '"><span>' + BADGES[code][0] + '</span></span>';
+}}
+function __ppBadges(dRow) {{
+  const bs = dRow && activeSeason === '2627' ? dRow.bdg : null;
+  if (!bs || !bs.length) return '';
+  return '<div class="bdg-pp">' + bs.map(([c, t]) => '<span class="bdg-item">' + __bdgHex(c, t) + '<span>' + (BADGES[c][3] === 'skill' || c === 'glue' ? (t === 2 ? 'Gold ' : 'Silver ') : '') + BADGES[c][1] + '</span></span>').join('')
+    + '<a href="#" onclick="ppBadgeGuide();return false" class="bdg-help">What badges mean</a></div>';
+}}
+function ppBadgeGuideClose() {{ const el = document.getElementById('bdg-guide'); if (el) el.remove(); }}
+function ppBadgeGuide() {{
+  let el = document.getElementById('bdg-guide');
+  if (!el) {{ el = document.createElement('div'); el.id = 'bdg-guide'; document.body.appendChild(el); }}
+  const sect = (title, kind, note) => '<h3>' + title + '</h3>' + (note ? '<p class="bdg-note">' + note + '</p>' : '')
+    + Object.entries(BADGES).filter(([c, b]) => b[3] === kind).map(([c, b]) => '<div class="bdg-g-row"><span class="bdg-g-icons">'
+      + (kind === 'rating' || c === 'indisp' ? __bdgHex(c, c === 'allconf' ? 1 : 2, true) : __bdgHex(c, 2, true) + __bdgHex(c, 1, true))
+      + '<span class="bdg-g-e">' + b[0] + '</span></span><div><b>' + b[1] + '</b><div>'
+      + (kind === 'skill' ? 'Top 3% in the state in ' + b[2] : c === 'glue' ? b[2].replace(/^./, x => x.toUpperCase()) : b[2]) + '</div>'
+      + (kind === 'skill' || c === 'glue' ? '<div class="bdg-tiers"><span class="g">Gold</span> top 1% · <span class="s">Silver</span> top 3%</div>' : '')
+      + '</div></div>').join('');
+  el.innerHTML = '<div class="bdg-guide-box"><button class="bdg-x" onclick="ppBadgeGuideClose()">×</button><h2>Player Badges</h2>'
+    + '<p class="bdg-note">Badges mark what a player does best this season, against every qualified player in the state (the leaderboard’s minutes / games bar). '
+    + 'Skill badges come in gold (top 1%) or silver (top 3%); the rating and role badges in the metal shown. Player pages show the hexagons, the tables the emoji: hover one for what it means.</p>'
+    + sect('Ratings', 'rating') + sect('Skills', 'skill', 'Shooting badges use the percentage pulled toward the state’s average by a few games’ attempts, so a 9-for-15 start from three won’t earn Sniper.') + sect('Roles', 'role')
+    + '</div>';
+  el.onclick = e => {{ if (e.target === el) el.remove(); }};
+}}
+
 let activeTeamData = TEAM_DATA;
 let activeLeagueAvg = LEAGUE_AVG;
 let activeSeason = '2627';
@@ -7911,7 +8111,7 @@ function togglePanel(id) {{
   panel.classList.toggle('open');
 }}
 document.addEventListener('click', e => {{
-  if (!e.target.closest('.multi-select')) document.querySelectorAll('.ms-panel.open').forEach(p => p.classList.remove('open'));
+  if (!__closest(e.target, '.multi-select')) document.querySelectorAll('.ms-panel.open').forEach(p => p.classList.remove('open'));
 }});
 
 function buildConfPanel() {{
@@ -10560,7 +10760,7 @@ function selectSearchTeam(name) {{
   showTeamDetail(name);
 }}
 document.addEventListener('click', function(e) {{
-  if (!e.target.closest('.team-search-wrap')) {{
+  if (!__closest(e.target, '.team-search-wrap')) {{
     document.getElementById('team-search-dropdown').style.display = 'none';
   }}
 }});
@@ -11857,7 +12057,7 @@ function __ppEsc(s) {{
 }}
 
 function playerLink(name, school, style) {{
-  return '<a href="#" onclick="showPlayerProfile(\\'' + __ppEsc(name) + '\\',\\'' + __ppEsc(school) + '\\');return false" style="' + (style || 'color:inherit;text-decoration:none') + '">' + name + '</a>';
+  return '<a href="#" onclick="showPlayerProfile(\\'' + __ppEsc(name) + '\\',\\'' + __ppEsc(school) + '\\');return false" style="' + (style || 'color:inherit;text-decoration:none') + '">' + name + '</a>' + __bdgIcons(name, school);
 }}
 
 function showPlayerProfile(name, school) {{
@@ -12434,6 +12634,7 @@ function renderPlayerProfile() {{
     <h2 style="color:#B9D9EB;font-size:1.7rem;margin:4px 0">${{name}}</h2>
     <div style="color:#aeb9c6;font-size:0.9rem"><a href="#" onclick="closePlayerProfile();showTeamDetail('${{__ppEsc(school)}}');return false" style="color:#1a5dab;text-decoration:none">${{school}}</a> · ${{t.conference}} · ${{seasonLabel}}</div>
     <div style="color:#fff;font-size:1rem;font-weight:600;margin-top:4px">${{rRow.gp}} GP · ${{starts}} starts &nbsp;|&nbsp; ${{hl.join(' &nbsp;·&nbsp; ')}}</div>
+    ${{__ppBadges(dRow)}}
   </div>
   ${{trendHtml}}
   ${{__ppBoxRates(dRow)}}
@@ -14966,7 +15167,7 @@ function slRenderFanmatch(dateStr) {{
 (function() {{
   const tip = document.getElementById('opp-float-tip');
   document.addEventListener('mouseenter', function(e) {{
-    const wrap = e.target.closest('.opp-bar-wrap');
+    const wrap = __closest(e.target, '.opp-bar-wrap');
     if (!wrap) return;
     const msg = wrap.dataset.opptip;
     if (!msg) return;
@@ -14991,7 +15192,7 @@ function slRenderFanmatch(dateStr) {{
     }}
   }}, true);
   document.addEventListener('mouseleave', function(e) {{
-    const wrap = e.target.closest('.opp-bar-wrap');
+    const wrap = __closest(e.target, '.opp-bar-wrap');
     if (!wrap) return;
     tip.style.display = 'none';
   }}, true);
@@ -15001,7 +15202,7 @@ function slRenderFanmatch(dateStr) {{
 (function() {{
   const tip = document.getElementById('pace-float-tip');
   document.addEventListener('mouseenter', function(e) {{
-    const wrap = e.target.closest('.pace-bar-wrap');
+    const wrap = __closest(e.target, '.pace-bar-wrap');
     if (!wrap) return;
     const msg = wrap.dataset.pacetip;
     if (!msg) return;
@@ -15026,7 +15227,7 @@ function slRenderFanmatch(dateStr) {{
     }}
   }}, true);
   document.addEventListener('mouseleave', function(e) {{
-    const wrap = e.target.closest('.pace-bar-wrap');
+    const wrap = __closest(e.target, '.pace-bar-wrap');
     if (!wrap) return;
     tip.style.display = 'none';
   }}, true);
@@ -15036,7 +15237,7 @@ function slRenderFanmatch(dateStr) {{
 (function() {{
   const tip = document.getElementById('td-form-tip');
   document.addEventListener('mouseenter', function(e) {{
-    const wrap = e.target.closest('.td-bar-wrap');
+    const wrap = __closest(e.target, '.td-bar-wrap');
     if (!wrap || !tip) return;
     const msg = wrap.dataset.gametip;
     if (!msg) return;
@@ -15061,13 +15262,13 @@ function slRenderFanmatch(dateStr) {{
     }}
   }}, true);
   document.addEventListener('mouseleave', function(e) {{
-    const wrap = e.target.closest('.td-bar-wrap');
+    const wrap = __closest(e.target, '.td-bar-wrap');
     if (!wrap || !tip) return;
     tip.style.display = 'none';
   }}, true);
   // Hide the tip when a bar is clicked — the box score modal opens on top
   document.addEventListener('click', function(e) {{
-    if (tip && e.target.closest('.td-bar-wrap')) tip.style.display = 'none';
+    if (tip && __closest(e.target, '.td-bar-wrap')) tip.style.display = 'none';
   }}, true);
 }})();
 </script>

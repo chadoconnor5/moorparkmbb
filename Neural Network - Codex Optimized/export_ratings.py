@@ -32,6 +32,7 @@ generate_leaderboard.py runs it at the end of every build.
 import argparse
 import hashlib
 import json
+import math
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -568,6 +569,187 @@ def leaderboard_tables(teams=()):
     return _TABLES
 
 
+# ---- Player labels: the possession tracker's autoLabels, decided here once for the tracker and the scouting reports ----
+# A port of the tracker's rules (same cuts, same order, same why lines), applied to the leaderboard's Team Stats rows
+# with their State Ranks (rank) and the table's totals (rankOf). The tracker reads row["labels"] when a file has them;
+# its own copy of the rules remains for older files and for players it knows only from our tracked games.
+AUTO_CUT = {"top": 0.20, "topTight": 0.15, "shooter": 0.35, "draws": 0.25, "bottom": 0.20, "aaTs": 0.35, "aaFtr": 0.50,
+            "aaRateLo": 25, "aaRateHi": 55}
+SH3 = {"K": 25, "LG": 32.4, "HI": 35, "LO": 30, "MIN_A": 15}
+ORTG_BANDS = ["Go-to Guys", "Major Contributors", "Significant Contributors", "Role Players", "Limited Roles", "Nearly Invisible"]
+
+
+def _fx(x, d):   # JavaScript's toFixed (halves up): the why lines read the same as the tracker's
+    from decimal import Decimal, ROUND_HALF_UP   # the float's exact value, rounded as JavaScript does
+    return str(Decimal(x).quantize(Decimal(1).scaleb(-d), rounding=ROUND_HALF_UP))
+
+
+def _jround(x):   # JavaScript's Math.round (halves up), so the cuts land where the tracker's do
+    return math.floor(x + 0.5)
+
+
+def auto_labels(R, table):
+    """[{"l": label, "why": the numbers behind it}] for one Team Stats row (R) of a team's table."""
+    tot, rk = table.get("rankOf") or {}, R.get("rank") or {}
+    out = []
+    add = lambda l, why: out.append({"l": l, "why": why})
+    top = lambda k, c: rk.get(k) is not None and bool(tot.get(k)) and rk[k] <= max(1, _jround(c * tot[k]))
+    bot = lambda k, c: rk.get(k) is not None and bool(tot.get(k)) and rk[k] > _jround((1 - c) * tot[k])
+    f1 = lambda v: "—" if v is None else _fx(float(v), 1)
+    br = lambda k, lab, sg=False: f" · {lab} {'+' if sg and (R.get(k) or 0) > 0 else ''}{f1(R[k])}" if R.get(k) is not None else ""
+    C, CC = rk.get("comp"), tot.get("compCut")
+    hasC = bool(C and CC)
+    cut = lambda k: hasC and C.get(k) is not None and CC.get(k) is not None and C[k] >= CC[k]
+    S = R.get("syn") or {}
+
+    def synW(*ks):
+        p = []
+        if "rim" in ks and S.get("rim"):
+            p.append(f"rim {f1(S['rim'][1])}% on {_fx(float(S['rim'][0]), 0)}% of shots")
+        if "cs" in ks and S.get("cs"):
+            p.append(f"C&S {f1(S['cs'][1])}%")
+        if "pull" in ks and S.get("pull") is not None:
+            p.append(f"pull-up {f1(S['pull'])}%")
+        return " · Synergy: " + ", ".join(p) if p else ""
+    roles = rk.get("roles") or []
+    if "Help off" in roles:
+        add("Help off", f"{f1(R.get('ppg'))} pts/g as a starter")
+    rows = table.get("rows") or []
+    games = max([r.get("gp") or 0 for r in rows] or [0])
+    minG = min(10, max(3, math.ceil(games / 2)))
+    adv = table.get("adv") == 1
+    plays = (R.get("min_pct") or 0) >= 30 if adv else (R.get("gp") or 0) >= minG and ((R.get("ppg") or 0) >= 4 or (R.get("rpg") or 0) >= 3)
+    if not plays:
+        return out
+    tpa, fga = R.get("tpa") or 0, R.get("fga") or 0
+    rate = 100 * tpa / fga if fga else None
+    pg = tpa / R["gp"] if R.get("gp") else None
+    m3 = R.get("tpm") or 0
+    est3 = 100 * (m3 + SH3["K"] * SH3["LG"] / 100) / (tpa + SH3["K"])
+    nonShooter = tpa < SH3["MIN_A"] or (fga >= 20 and rate is not None and rate < 10)
+    call = "Non-shooter" if nonShooter else "Shooter" if est3 >= SH3["HI"] else "Avg 3PT" if est3 >= SH3["LO"] else "Poor 3PT"
+    shooter = call == "Shooter"
+    shootWhy3 = ((f"3P {_fx(100 * m3 / tpa, 1)}% ({m3}-{tpa})" if tpa else "no threes")
+                 + (f" · est {_fx(est3, 1)}% = {_fx(3 * est3 / 100, 2)} pts a three" if not nonShooter else "")
+                 + (f" · {_fx(pg, 1)} 3PA/g" if pg is not None else ""))
+    draws = cut("slasher") if hasC else (top("ft_rate", AUTO_CUT["draws"]) or top("fd_per_40", AUTO_CUT["draws"]))
+    drawWhy = f"FT rate {f1(R.get('ft_rate'))}, FD/40 {f1(R.get('fd_per_40'))}" if (R.get("ft_rate") is not None or R.get("fd_per_40") is not None) else ""
+    band = rk.get("ortg_band")
+    bandN = tot["ortg_band"][band] if band is not None and tot.get("ortg_band") else None
+    bandTop = lambda c: rk.get("ind_ortg") is not None and bool(bandN) and rk["ind_ortg"] <= max(1, _jround(c * bandN))
+    ortgWhy = (f"ORtg {f1(R.get('ind_ortg'))} ({_ordinal(rk['ind_ortg'])} of {bandN} {ORTG_BANDS[band]}), {f1(R.get('usage_pct'))}% of possessions"
+               if R.get("ind_ortg") is not None and bandN else "")
+    usg = R.get("usage_pct")
+    star = rk.get("tier") == "Star" if tot.get("starTop") else top("porp", 0.05)
+    if star:
+        add("Star", f"#{rk.get('srank') or '—'} in the state · "
+                    + (f"PORPAGATU! {f1(R['porp'])}" if R.get("porp") is not None else f"Game Score {f1(rk.get('gsc'))} a game")
+                    + (f" · {f1(usg)}% of possessions" if usg is not None else ""))
+    scorer = not star and cut("scorer")
+    if scorer:
+        add("Scorer", f"{f1(R.get('ppg'))} pts/g" + (f" · {f1(usg)}% of possessions" if usg is not None else "") + br("shots100", "SHOTS/100"))
+    if not star and not scorer and usg is not None and usg > 28:
+        add("Go-to", f"{f1(usg)}% of possessions" + (" · " + ortgWhy.split(",")[0] if ortgWhy else ""))
+    if "Sixth man" in roles:
+        add("Sixth man", f"{f1(R.get('ppg'))} pts/g off the bench")
+    if "Glue guy" in roles:
+        add("Glue guy", f"{f1(usg)}% of possessions · {f1(R.get('ppg'))} pts/g")
+    regs = sorted([r for r in rows if (r.get("gp") or 0) >= minG and (not adv or (r.get("min_pct") or 0) >= 30) and r.get("ppg") is not None],
+                  key=lambda r: -r["ppg"])
+    if (len(regs) >= 3 and regs[1] is R and R["ppg"] >= 10 and R["ppg"] - regs[2]["ppg"] >= 1.5
+            and not any(x["l"] in ("Star", "Scorer") for x in out)):
+        add("2nd option", f"{f1(R['ppg'])} pts/g (#1 {regs[0]['name']} {f1(regs[0]['ppg'])}, #3 {f1(regs[2]['ppg'])})")
+    if not star and (cut("eff_role") if hasC else usg is not None and usg < 20 and bandTop(0.10)):
+        add("Efficient role player", ortgWhy + (f" · TS {f1(R['ts_pct'])}%" if R.get("ts_pct") is not None else "") + br("tsadd100", "TSAdd/100", True))
+    if cut("ineff_vol") if hasC else usg is not None and usg >= 24 and bot("ts_pct", 0.30):
+        add("Inefficient volume", f"TS {f1(R.get('ts_pct'))}% on {f1(usg)}% of possessions"
+            + (f" · ORtg {f1(R['ind_ortg'])}" if R.get("ind_ortg") is not None else "") + br("tsadd100", "TSAdd/100", True))
+    twoA = (R.get("twoa") or 0) / R["gp"] if R.get("gp") else 0
+    interior = cut("interior") if hasC else top("twop", 0.20) and twoA >= 4 and rate is not None and rate < 25
+    if interior:
+        add("Interior scorer", f"2P {f1(R.get('twop'))}% ({R.get('twom')}-{R.get('twoa')}), {_fx(100 - rate, 0)}% of his shots inside · FT rate {f1(R.get('ft_rate'))}{synW('rim')}")
+    allAround = cut("all_around") if hasC else (rate is not None and AUTO_CUT["aaRateLo"] <= rate <= AUTO_CUT["aaRateHi"]
+                                                 and top("ts_pct", AUTO_CUT["aaTs"]) and top("ft_rate", AUTO_CUT["aaFtr"]))
+    if allAround:
+        ftr = R.get("ft_rate") if R.get("ft_rate") is not None else (100 * (R.get("fta") or 0) / fga if fga else None)
+        add("All-Around", f"TS {f1(R.get('ts_pct'))}%{br('tsadd100', 'TSAdd/100', True)} · {_fx(rate, 0)}% of shots threes · FT rate {f1(ftr)}{synW('rim', 'pull')}")
+    balanced = (not allAround and rate is not None and 30 <= rate <= 55 and top("ft_rate", 0.50) and usg is not None and usg >= 20)
+    if balanced:
+        add("Balanced", f"{_fx(rate, 0)}% of shots threes · FT rate {f1(R.get('ft_rate'))}")
+    elite = shooter and (cut("elite_shooter") if hasC else rk.get("tpp") is not None and top("tpp", 0.10))
+    if shooter and (elite or not allAround):
+        add("Elite shooter" if elite else "Shooter", shootWhy3 + synW("cs", "pull"))
+    slasher = not shooter and not allAround and not interior and draws and (hasC or nonShooter)
+    if slasher:
+        add("Slasher", drawWhy + (f", {_fx(twoA, 1)} 2PA/g" if twoA else "") + synW("rim"))
+    if not interior and not slasher and fga >= 40 and rate is not None and rate < 20 and (R.get("ts_pct") or 0) >= 58:
+        add("Finisher", f"TS {f1(R.get('ts_pct'))}% · {_fx(100 - rate, 0)}% of his shots inside")
+    if call == "Non-shooter":
+        add("Non-shooter", shootWhy3 + (f" · {_fx(rate, 0)}% of his shots are threes" if rate is not None else ""))
+    if call in ("Avg 3PT", "Poor 3PT"):
+        add(call, shootWhy3 + synW("cs", "pull"))
+    if rate is not None and rate >= 55 and pg is not None and pg >= 2:
+        add("3PT heavy", f"{_fx(rate, 0)}% of his shots are threes, {_fx(pg, 1)} a game")
+    if not slasher and not allAround and not balanced and (cut("draws") if hasC else top("fd_per_40", 0.20) or top("ft_rate", 0.15)):
+        add("Draws fouls", f"FD/40 {f1(R.get('fd_per_40'))} · FT rate {f1(R.get('ft_rate'))}")
+    if cut("struggles_in") if hasC else (R.get("twoa") or 0) >= 3 * (R.get("gp") or 1) and bot("twop", 0.20):
+        add("Struggles inside", f"2P {f1(R.get('twop'))}% ({R.get('twom')}-{R.get('twoa')}){synW('rim')}")
+    bx = rk.get("box")
+    bTop = lambda k, c: bool(bx) and bx.get(k) is not None and bx[k] >= 100 * (1 - c)
+    bBot = lambda k, c: bool(bx) and bx.get(k) is not None and bx[k] <= 100 * c
+    dr = top("dreb_pct", AUTO_CUT["top"]) if rk.get("dreb_pct") is not None else bTop("drpg", AUTO_CUT["top"])
+    orr = top("oreb_pct", AUTO_CUT["top"]) if rk.get("oreb_pct") is not None else bTop("orpg", AUTO_CUT["top"])
+
+    def glW(o, d):
+        if R.get("oreb_pct") is not None or R.get("dreb_pct") is not None:
+            return " · ".join(filter(None, [f"OR% {f1(R.get('oreb_pct'))}" if o else "", f"DR% {f1(R.get('dreb_pct'))}" if d else ""]))
+        return " · ".join(filter(None, [f"{f1(R.get('orpg'))} OR/g" if o else "", f"{f1(R.get('drpg'))} DR/g" if d else ""]))
+    if dr and orr:
+        add("Glass cleaner", glW(True, True))
+    else:
+        if dr:
+            add("Rebounder", glW(False, True))
+        if orr:
+            add("Off. rebounder", glW(True, False))
+    if (cut("floor_gen") and top("ast_rate", AUTO_CUT["top"])) if hasC else (top("ast_rate", 0.10) and not bot("tov_pct", 0.30)):
+        add("Floor general", f"ARate {f1(R.get('ast_rate'))} · TORate {f1(R.get('tov_pct'))} · {f1(usg)}% of possessions")
+    elif top("ast_rate", AUTO_CUT["top"]):
+        add("Passer", f"ARate {f1(R.get('ast_rate'))}")
+    elif rk.get("ast_rate") is None and bTop("apg", 0.10) and not bTop("tor", 0.30):
+        add("Floor general", f"{f1(R.get('apg'))} apg · {f1(R.get('topg'))} TO/g")
+    elif rk.get("ast_rate") is None and bTop("apg", AUTO_CUT["top"]):
+        add("Passer", f"{f1(R.get('apg'))} apg")
+    hawk = (cut("ball_hawk") if hasC and C.get("ball_hawk") is not None else top("stl_pct", AUTO_CUT["top"])
+            if rk.get("stl_pct") is not None else bTop("spg", AUTO_CUT["top"]))
+    if hawk:
+        add("Ball hawk", f"Stl% {f1(R.get('stl_pct'))}{br('stl100', 'STL/100')}" if rk.get("stl_pct") is not None else f"{f1(R.get('spg'))} stl/g")
+    rim = (cut("rim_prot") if hasC and C.get("rim_prot") is not None else top("blk_pct", AUTO_CUT["topTight"])
+           if rk.get("blk_pct") is not None else bTop("bpg", AUTO_CUT["topTight"]))
+    if rim:
+        add("Rim protector", f"Blk% {f1(R.get('blk_pct'))}{br('blk100', 'BLK/100')} · DR% {f1(R.get('dreb_pct'))}"
+            if rk.get("blk_pct") is not None else f"{f1(R.get('bpg'))} blk/g")
+    ftMin = min(40, 2 * max([0] + [r.get("gp") or 0 for r in rows]))
+    ftv = rk.get("ftv")
+    ftOk = lambda v: bool(v) and (R.get("fta") or 0) >= ftMin
+    ftTop = (ftOk(ftv) and (R.get("ftp") or 0) >= 75) if ftv else top("ftp", 0.10)
+    ftBad = (ftOk(ftv) and (R.get("ftp") or 0) < 65) if ftv else (rk.get("ftp") is not None and bot("ftp", AUTO_CUT["bottom"]))
+    if ftTop:
+        add("FT shooter", f"FT {f1(R.get('ftp'))}% ({R.get('ftm')}-{R.get('fta')})")
+    if (ftv is not None or rk.get("ftp") is not None) and ftBad:
+        add("Bad FT", f"FT {f1(R.get('ftp'))}% ({R.get('ftm')}-{R.get('fta')})")
+    if bot("ast_rate", 0.10) if rk.get("ast_rate") is not None else bBot("astr", 0.10):
+        add("Non-passer", f"ARate {f1(R.get('ast_rate'))}" if rk.get("ast_rate") is not None else f"{f1(R.get('apg'))} apg")
+    if bot("tov_pct", AUTO_CUT["bottom"]) if rk.get("tov_pct") is not None else bTop("tor", AUTO_CUT["bottom"]):
+        add("TO-prone", f"TORate {f1(R.get('tov_pct'))}" if rk.get("tov_pct") is not None else f"{f1(R.get('topg'))} TO/g")
+    if rk.get("fc_per_40") is not None and bot("fc_per_40", AUTO_CUT["bottom"]):
+        add("Foul-prone", f"{f1(R.get('fc_per_40'))} fouls / 40")
+    return out
+
+
+def _ordinal(n):
+    return f"{n}{'th' if 11 <= n % 100 <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
 def team_file(season, ratings, team):
     """One team's season stats and every player's lines, for the tracker."""
     d = uaa.find_team_stats(team)
@@ -587,6 +769,8 @@ def team_file(season, ratings, team):
         if r:
             body["table"] = {"adv": r["adv"], "rankOf": totals,
                              "rows": [dict(p, rank=ranks.get((p["name"], team), {})) for p in r["players"]]}
+            for row in body["table"]["rows"]:   # the labels, decided once here (auto_labels): the tracker and the reports
+                row["labels"] = auto_labels(row, body["table"])
     except Exception as ex:   # the table is extra: never lose the rest of the file over it
         print(f"export_ratings: no Team Stats table for {team}: {ex}")
     return body
