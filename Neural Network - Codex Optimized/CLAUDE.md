@@ -126,7 +126,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (OR% and DR%), Pickpocket (Stl%), Rim Protector (Blk%); the last four need real minutes. Ratings by PRPG!: All-State
   (top 10 in the state), All-Conference (top 5 in the conference, not All-State); Offensive Engine / Defensive Anchor
   by OBPM / DBPM (top 10, not All-State; PRPG! has no split). Roles: Indispensable (top 10 in share of the team's
-  win shares), Glue Guy (PRPG! top 1% / 3% under the 60th percentile in scoring). Emoji after the name wherever playerLink draws one (hover
+  win shares), Glue Guy (the tracker's Glue guy label: export_ratings.glue_guys, usage
+  under 17% and top 30% in 3+ of OR%, DR%, Stl%, Blk%, assist rate; one metal). Emoji after the name wherever playerLink draws one (hover
   for the meaning), hexagons on the player page with a "What badges mean" guide. The badge block sits before the
   first table render (var, not const) so the first tables get them.
 - Box score colors: the rate and analytics columns (ORtg, eFG, TS%, OR%, DR%, A%, TO%, Stl%, Blk%, BPM, OBPM,

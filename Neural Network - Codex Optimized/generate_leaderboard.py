@@ -3309,7 +3309,8 @@ _SIM_TARGET_MIN_PCT = 10
 # Rating badges (one metal each) from PRPG! (PORPAGATU!, among qualified players): All-State (top 10 in the state),
 # All-Conference (top 5 in his conference, not All-State); Offensive Engine / Defensive Anchor from OBPM / DBPM (top
 # 10, not All-State: PRPG! has no offense / defense split). Roles: Indispensable (top 10 in the state in his share of
-# his team's win shares) and Glue Guy (PRPG! top 1% / 3% while under the 60th percentile in scoring). p["bdg"] = [[code, 2 gold / 1 silver], ...].
+# his team's win shares) and Glue Guy (the tracker's Glue guy label, export_ratings.glue_guys: usage under 17% and
+# top 30% of the state in 3+ of OR%, DR%, Stl%, Blk%, assist rate). p["bdg"] = [[code, 2 gold / 1 silver], ...].
 BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot")
 
 
@@ -3378,9 +3379,15 @@ def attach_badges(players):
                    key=lambda p: -p["ws"] / team_ws[p["school"]])
     for p in share[:10]:
         out[id(p)].append(["indisp", 2])
-    pp = sorted(p.get("ppg") or 0 for p in q)
-    low_scorer = lambda p: sum(1 for x in pp if x <= (p.get("ppg") or 0)) / len(pp) < 0.60
-    award([p for p in rated if low_scorer(p)], lambda p: p["porp"], "glue")
+    try:   # Glue Guy = the Glue guy label, decided by the label's own rule
+        import export_ratings as _er
+        rk = {}
+        _er.glue_guys(players, rk)
+        for p in players:
+            if "Glue guy" in rk.get((p["name"], p["school"]), {}).get("roles", []):
+                out[id(p)].append(["glue", 2])
+    except Exception as err:
+        print(f"  badges: no Glue Guy ({err})")
     for p in players:
         if out[id(p)]:
             p["bdg"] = out[id(p)]
@@ -8022,12 +8029,12 @@ var BADGES = {{
   pickpocket: ['🥷', 'Pickpocket', 'steal rate (Stl%)', 'skill'],
   rimprot: ['✋', 'Rim Protector', 'block rate (Blk%)', 'skill'],
   indisp: ['🔑', 'Indispensable', 'Top 10 in the state in his share of his team’s win shares', 'role'],
-  glue: ['🧩', 'Glue Guy', 'impact without the ball: PRPG! in the top 3% while under the 60th percentile in scoring', 'role'],
+  glue: ['🧩', 'Glue Guy', 'Does the dirty work: under 17% usage and top 30% in the state in 3+ of OR%, DR%, Stl%, Blk% and assist rate (the Glue guy label)', 'role'],
 }};
 function __bdgText(code, tier) {{
   const b = BADGES[code];
   if (!b) return '';
-  if (b[3] === 'rating' || code === 'indisp') return b[1] + ': ' + b[2];
+  if (b[3] !== 'skill') return b[1] + ': ' + b[2];
   return (tier === 2 ? 'Gold ' : 'Silver ') + b[1] + ': top ' + (tier === 2 ? '1%' : '3%') + ' in the state in ' + b[2];
 }}
 var __bdgCache = null;
@@ -8050,7 +8057,7 @@ function __bdgHex(code, tier, big) {{
 function __ppBadges(dRow) {{
   const bs = dRow && activeSeason === '2627' ? dRow.bdg : null;
   if (!bs || !bs.length) return '';
-  return '<div class="bdg-pp">' + bs.map(([c, t]) => '<span class="bdg-item">' + __bdgHex(c, t) + '<span>' + (BADGES[c][3] === 'skill' || c === 'glue' ? (t === 2 ? 'Gold ' : 'Silver ') : '') + BADGES[c][1] + '</span></span>').join('')
+  return '<div class="bdg-pp">' + bs.map(([c, t]) => '<span class="bdg-item">' + __bdgHex(c, t) + '<span>' + (BADGES[c][3] === 'skill' ? (t === 2 ? 'Gold ' : 'Silver ') : '') + BADGES[c][1] + '</span></span>').join('')
     + '<a href="#" onclick="ppBadgeGuide();return false" class="bdg-help">What badges mean</a></div>';
 }}
 function ppBadgeGuideClose() {{ const el = document.getElementById('bdg-guide'); if (el) el.remove(); }}
@@ -8059,10 +8066,10 @@ function ppBadgeGuide() {{
   if (!el) {{ el = document.createElement('div'); el.id = 'bdg-guide'; document.body.appendChild(el); }}
   const sect = (title, kind, note) => '<h3>' + title + '</h3>' + (note ? '<p class="bdg-note">' + note + '</p>' : '')
     + Object.entries(BADGES).filter(([c, b]) => b[3] === kind).map(([c, b]) => '<div class="bdg-g-row"><span class="bdg-g-icons">'
-      + (kind === 'rating' || c === 'indisp' ? __bdgHex(c, c === 'allconf' ? 1 : 2, true) : __bdgHex(c, 2, true) + __bdgHex(c, 1, true))
+      + (kind !== 'skill' ? __bdgHex(c, c === 'allconf' ? 1 : 2, true) : __bdgHex(c, 2, true) + __bdgHex(c, 1, true))
       + '<span class="bdg-g-e">' + b[0] + '</span></span><div><b>' + b[1] + '</b><div>'
-      + (kind === 'skill' ? 'Top 3% in the state in ' + b[2] : c === 'glue' ? b[2].replace(/^./, x => x.toUpperCase()) : b[2]) + '</div>'
-      + (kind === 'skill' || c === 'glue' ? '<div class="bdg-tiers"><span class="g">Gold</span> top 1% · <span class="s">Silver</span> top 3%</div>' : '')
+      + (kind === 'skill' ? 'Top 3% in the state in ' + b[2] : b[2]) + '</div>'
+      + (kind === 'skill' ? '<div class="bdg-tiers"><span class="g">Gold</span> top 1% · <span class="s">Silver</span> top 3%</div>' : '')
       + '</div></div>').join('');
   el.innerHTML = '<div class="bdg-guide-box"><button class="bdg-x" onclick="ppBadgeGuideClose()">×</button><h2>Player Badges</h2>'
     + '<p class="bdg-note">Badges mark what a player does best this season, against every qualified player in the state (the leaderboard’s minutes / games bar). '
