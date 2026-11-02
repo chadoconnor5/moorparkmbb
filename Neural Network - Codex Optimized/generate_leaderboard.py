@@ -2909,6 +2909,22 @@ def attach_player_jerseys(players, season_dir="2025-26 Teams Schedules"):
 
 SEASON_DATA_DIR = "season_data"
 
+
+def stamp_season_versions(page):
+    """Writes each season_data file's version (the first 10 hex of its MD5) into the page's SD_VER, which the loaders
+    add to the file's address (?v=...), so a browser holding an old copy fetches the new one. Run after the files are
+    final (the build does; run it again after editing a season_data file by hand)."""
+    import hashlib
+    page = Path(page)
+    ver = {f.name: hashlib.md5(f.read_bytes()).hexdigest()[:10]
+           for f in sorted((page.parent / SEASON_DATA_DIR).glob("*.js"))}
+    html = page.read_text(encoding="utf-8")
+    new = re.sub(r"const SD_VER = \{.*?\}; // SD_VER", lambda m: "const SD_VER = " + json.dumps(ver, separators=(",", ":")) + "; // SD_VER", html, count=1)
+    if new != html:
+        tmp = page.with_suffix(".tmp")
+        tmp.write_text(new, encoding="utf-8")
+        tmp.replace(page)
+
 # Shooting-qualification thresholds for the eFG% / TS% leaderboards and charts.
 # Intent: a floor that simulates the shot volume of a typical player at the
 # 50% min% standard those categories use. Derived June 2026 as the MEDIAN
@@ -7758,6 +7774,10 @@ const SEASON_SOURCES = {{
 }};
 const __loadedSeasons = new Set(['2627']);
 const __seasonWaiters = {{}};
+// Each data file's version (a hash of its contents, stamp_season_versions): its address changes when the file does,
+// so a browser that saved the old copy (Safari on the iPad) fetches the new one
+const SD_VER = {{}}; // SD_VER
+function __sdv(f) {{ const k = f.replace(/^season_data\//, ''); return SD_VER[k] ? '?v=' + SD_VER[k] : ''; }}
 function __installSeason(key, payload) {{
   const vals = {{}};
   for (const name in payload) vals[name] = __unpack(payload[name]);
@@ -7771,7 +7791,7 @@ function ensureSeason(key, cb) {{
   if (__seasonWaiters[key]) {{ __seasonWaiters[key].push(cb); return; }}
   __seasonWaiters[key] = [cb];
   const s = document.createElement('script');
-  s.src = SEASON_SOURCES[key];
+  s.src = SEASON_SOURCES[key] + __sdv(SEASON_SOURCES[key]);
   s.onload = () => {{ const w = __seasonWaiters[key] || []; delete __seasonWaiters[key]; w.forEach(f => f()); }};
   s.onerror = () => {{ delete __seasonWaiters[key]; console.error('Season data file missing: ' + SEASON_SOURCES[key]); }};
   document.head.appendChild(s);
@@ -7795,7 +7815,7 @@ function ensureBoxes(key, cb) {{
   if (__boxWaiters[key]) {{ __boxWaiters[key].push(cb); return; }}
   __boxWaiters[key] = [cb];
   const s = document.createElement('script');
-  s.src = 'season_data/boxes_' + key + '.js';
+  s.src = 'season_data/boxes_' + key + '.js' + __sdv('season_data/boxes_' + key + '.js');
   s.onload = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; w.forEach(f => f()); }};
   s.onerror = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
@@ -7813,7 +7833,7 @@ function ensureRosters(key, cb) {{
   if (__rosterWaiters[key]) {{ __rosterWaiters[key].push(cb); return; }}
   __rosterWaiters[key] = [cb];
   const s = document.createElement('script');
-  s.src = 'season_data/rosters_' + key + '.js';
+  s.src = 'season_data/rosters_' + key + '.js' + __sdv('season_data/rosters_' + key + '.js');
   s.onload = () => {{ const w = __rosterWaiters[key] || []; delete __rosterWaiters[key]; w.forEach(f => f()); }};
   s.onerror = () => {{ const w = __rosterWaiters[key] || []; delete __rosterWaiters[key]; console.error('Roster data file missing: rosters_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
@@ -15965,6 +15985,7 @@ def main():
         (season_dir / filename).write_text(content, encoding="utf-8")
         total += len(content)
     print(f"  Saved: {season_dir}/ ({len(writable)} files, {total // 1024} KB)")
+    stamp_season_versions(output)
     logo_src = Path("internal_data/team_logos/png")
     if logo_src.exists():
         logo_dest = output.parent / "team_logos"
