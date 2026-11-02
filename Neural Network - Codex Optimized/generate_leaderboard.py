@@ -3901,30 +3901,34 @@ def build_game_boxes(stats_dir) -> dict:
                     "BLK": parse_int(s.get("BLK", 0)), "TO": parse_int(s.get("TO", 0)),
                     "PF": parse_int(s.get("PF", 0)), "PTS": parse_int(s.get("PTS", 0)),
                 })
-            if not rows:
-                ok = False
-                break
             tot = {k: sum(r[k] for r in rows) for k in
                    ("MIN", "FGM", "FGA", "3PM", "3PA", "FTM", "FTA", "OREB", "DREB",
                     "AST", "STL", "BLK", "TO", "PF", "PTS")}
             tot["POSS"] = tot["FGA"] + 0.475 * tot["FTA"] - tot["OREB"] + tot["TO"]
             sides[tn] = {"rows": rows, "tot": tot}
-        if not ok:
+        # One team's box score only (the other side posted nothing): the game still shows, the posted side's numbers
+        # that need the other side's box (DRtg, OR%, DR%, Stl%, Blk%) blank; no side at all: no box score
+        if not ok or not any(sides[tn]["rows"] for tn in names):
             continue
 
         record = {"d": date, "h": box.get("home", ""), "v": box.get("visitor", ""),
                   "sc": box.get("score", {}), "t": {}}
+        miss = [tn for tn in names if not sides[tn]["rows"]]
+        if miss:
+            record["miss"] = miss   # the page shows "no box score posted" for that side
         poss_vals = []
         flags = {}
         for tn in names:
             opp = [x for x in names if x != tn][0]
             tot, opp_tot = sides[tn]["tot"], sides[opp]["tot"]
-            poss_vals.append(tot["POSS"])
+            if sides[tn]["rows"]:
+                poss_vals.append(tot["POSS"])
             # 5 players x game clock => team_min is total player minutes / 5
             min_ok = 150 <= tot["MIN"] <= 290
             to_ok = tot["TO"] > 0
             pf_ok = tot["PF"] > 0
             opp_to_ok = opp_tot["TO"] > 0
+            opp_ok = bool(sides[opp]["rows"])
             flags[tn] = (min_ok, to_ok, pf_ok)
             if min_ok and to_ok:
                 lg_pts += tot["PTS"]
@@ -3936,9 +3940,9 @@ def build_game_boxes(stats_dir) -> dict:
                 "top": to_ok,
                 "usg": min_ok and to_ok,
                 "ortg": min_ok and to_ok,
-                "drtg": min_ok and to_ok and pf_ok and opp_to_ok,
-                "stp": min_ok and to_ok,
-                "orp": min_ok, "drp": min_ok, "ap": min_ok, "blp": min_ok,
+                "drtg": min_ok and to_ok and pf_ok and opp_to_ok and opp_ok,
+                "stp": min_ok and to_ok and opp_ok,
+                "orp": min_ok and opp_ok, "drp": min_ok and opp_ok, "ap": min_ok, "blp": min_ok and opp_ok,
             }
             ctx = {
                 "team_min": tot["MIN"] / 5.0, "team_fgm": tot["FGM"], "team_fga": tot["FGA"],
@@ -7528,6 +7532,9 @@ function __bxTd(v, k, sc, plain) {{
 }}
 
 function __bxTeamTable(name, rows, oppRows) {{
+  if (!rows.length) return '<div class="bx-table-wrap"><table class="bx-table"><thead><tr><th class="bx-team-hdr">' + name.toUpperCase()
+    + '</th></tr></thead><tbody><tr><td style="padding:14px;color:#6b7280">' + name + ' hasn\u2019t posted its box score for this game.</td></tr></tbody></table></div>';
+  const oppOk = oppRows.length > 0;   // the other side's box: the rates that need it stay blank without it
   const sum = (rs, k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
   const tFgm = sum(rows, 'fgm'), tFga = sum(rows, 'fga'), tTpm = sum(rows, 'tpm'), tTpa = sum(rows, 'tpa');
   const tFtm = sum(rows, 'ftm'), tFta = sum(rows, 'fta'), tOr = sum(rows, 'or'), tDr = sum(rows, 'dr');
@@ -7565,12 +7572,12 @@ function __bxTeamTable(name, rows, oppRows) {{
   const totEfg = tFga > 0 ? (tFgm + 0.5 * tTpm) / tFga * 100 : null;
   const totTsDen = 2 * (tFga + 0.475 * tFta);
   const totTs = totTsDen > 0 ? tPts / totTsDen * 100 : null;
-  const totOrp = (tOr + oDr) > 0 ? tOr / (tOr + oDr) * 100 : null;
-  const totDrp = (tDr + oOr) > 0 ? tDr / (tDr + oOr) * 100 : null;
+  const totOrp = oppOk && (tOr + oDr) > 0 ? tOr / (tOr + oDr) * 100 : null;
+  const totDrp = oppOk && (tDr + oOr) > 0 ? tDr / (tDr + oOr) * 100 : null;
   const totAp = tFgm > 0 ? tAst / tFgm * 100 : null;
   const totTop = toOk && (tFga + 0.475 * tFta + tTo) > 0 ? tTo / (tFga + 0.475 * tFta + tTo) * 100 : null;
-  const totStp = oToOk && oPoss > 0 ? tStl / oPoss * 100 : null;
-  const totBlp = (oFga - oTpa) > 0 ? tBlk / (oFga - oTpa) * 100 : null;
+  const totStp = oppOk && oToOk && oPoss > 0 ? tStl / oPoss * 100 : null;
+  const totBlp = oppOk && (oFga - oTpa) > 0 ? tBlk / (oFga - oTpa) * 100 : null;
 
   // Grey out short-stint players (9 minutes or fewer) — but only when the
   // team's minutes are actually tracked; all-1-minute teams stay white (minutesReal, above).

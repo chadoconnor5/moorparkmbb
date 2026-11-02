@@ -637,7 +637,10 @@ def classify_box(bs: dict, g: dict):
                 pts += int(p["stats"].get("PTS") or 0)
             except (ValueError, TypeError):
                 pass
-        if not players or (pts == 0 and (score.get(name) or 0) > 0):
+        # A side with every stat 0 for every player (minutes aside) didn't post its stats, whatever the score line says
+        blank = all(str(v).strip() in ("", "0", "0-0", "-", "--") for p in players
+                    for k, v in (p.get("stats") or {}).items() if k != "MIN")
+        if not players or blank or (pts == 0 and (score.get(name) or 0) > 0):
             missing.append(name)
         else:
             present.append(name)

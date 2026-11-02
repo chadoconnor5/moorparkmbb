@@ -110,6 +110,15 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
   play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
   keep their tabs and formulas as they were (no new tabs).
+- Player labels (export_ratings.auto_labels, a port of the tracker's autoLabels, checked label-for-label and why-line
+  for-line against it on every 2026-27 player): written into each team file's Team Stats rows (row["labels"]); the
+  tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the
+  scouting report's player profiles list them ("Labels: Scorer, Elite shooter; weak spots: Foul-prone"). Change a
+  label rule in both places.
+- A box score side whose players all have 0 in every stat (minutes aside) didn't post: the game stays PARTIAL / NO_BOX
+  and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
+  leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
+  DR%, Stl%, Blk%) blank (build_game_boxes "miss").
 - Box score colors: the rate and analytics columns (ORtg, eFG, TS%, OR%, DR%, A%, TO%, Stl%, Blk%, BPM, OBPM,
   DBPM) color their text only (not the cell) against the season's qualified players: average in the normal text
   color, 2 standard deviations better full green, worse full red (TO% reversed); the totals row against the teams.
