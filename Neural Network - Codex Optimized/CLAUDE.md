@@ -92,6 +92,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   scrape.save_box writes it once per game to `2026-27 Play by Play/<YYYYMMDD>_<visitor>_at_<home>.json` (each play:
   period, clock, team, player LAST,FIRST, action, score after; points by half). Kept out of the team folders (the box
   score readers take every .json there). Games from screenshots have no play-by-play.
+- Positions (compute_positions_from_boxscore.py, the hoop-explorer LDA trained on 2025-26 heights): every season
+  in SEASONS, or --season S. The rebuild (scrape.py) runs it for the current season every night before the
+  leaderboard, so a player gets his position once he has MIN_GAMES (5) games and MIN_FGA (5) shots; 2026-27 heights
+  for the touch-up come from the typed-in rosters (generate_leaderboard._load_player_heights). Needs scikit-learn
+  (the rebuild carries on without it).
 - Every team's lineups from the play-by-play: python3 compute_pbp_lineups.py [--season S] (the nightly runs it) ->
   internal_data/pbp_lineups/<season>/<team>.json: five-man units per game from the substitutions (each later period's
   five from who shows up first; half-logged subs repaired from what players do next), possessions FGA-OREB+TO+.475FTA,
