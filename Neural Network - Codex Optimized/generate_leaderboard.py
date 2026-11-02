@@ -3605,8 +3605,14 @@ def attach_badges(players, history=()):
             if hof(p, code) and not any(b[0] == code for b in out[id(p)]):
                 out[id(p)].append([code, 4])
     for p in players:
-        if out[id(p)]:
-            p["bdg"] = out[id(p)]
+        bs = out[id(p)]
+        # A Gold or Hall of Fame All-State already says it: no All-Conference, Offensive Engine or Defensive Anchor
+        # beside it (they're for the players just below; checked after the Hall of Fame step, which can raise a
+        # Silver All-State to HoF)
+        if any(b[0] == "allstate" and b[1] >= 3 for b in bs):
+            bs = [b for b in bs if b[0] not in ("allconf", "engine", "anchor")]
+        if bs:
+            p["bdg"] = bs
 
 
 def attach_similar_players(season_players: dict, team_rosters: dict):
