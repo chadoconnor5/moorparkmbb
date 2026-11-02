@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-01T10:47:31
+Updated 2026-11-01T21:37:00
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -17,8 +17,8 @@ Updated 2026-11-01T10:47:31
 | 2026-10-30 | Ohlone vs Shasta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-01T10:46 |
 | 2026-10-30 | Orange Coast vs San Mateo | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-01T10:46 |
 | 2026-10-30 | Sierra vs Yuba | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-01T10:46 |
-| 2026-10-31 | Copper Mountain vs Imperial Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-01T10:46 |
-| 2026-10-31 | Merced vs Skyline | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-01T10:46 |
-| 2026-10-31 | Ohlone vs Orange Coast | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-01T10:46 |
-| 2026-10-31 | San Mateo vs Shasta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-01T10:46 |
-| 2026-10-31 | Santa Monica vs Victor Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-01T10:46 |
+| 2026-10-31 | Copper Mountain vs Imperial Valley | PARTIAL | only Copper Mountain posted stats; missing Imperial Valley | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_k685.xml | 3 | 2026-11-01T21:36 |
+| 2026-10-31 | Merced vs Skyline | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-01T21:37 |
+| 2026-10-31 | Ohlone vs Orange Coast | PARTIAL | only Ohlone posted stats; missing Orange Coast | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_avzx.xml | 3 | 2026-11-01T21:35 |
+| 2026-10-31 | San Mateo vs Shasta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-01T21:37 |
+| 2026-10-31 | Santa Monica vs Victor Valley | PARTIAL | only Victor Valley posted stats; missing Santa Monica | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_12c9.xml | 3 | 2026-11-01T21:34 |

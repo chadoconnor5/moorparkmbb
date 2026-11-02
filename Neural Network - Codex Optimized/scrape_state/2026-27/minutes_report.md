@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-01T10:47:31
+Updated 2026-11-01T21:37:00
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
@@ -15,6 +15,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Chaffey | 1 | 0 | 0 | 0 |
 | Citrus | 1 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
+| Copper Mountain | 0 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 0 | 0 | 0 |
 | Cuesta | 0 | 1 | 0 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
@@ -23,7 +24,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | East Los Angeles | 1 | 0 | 0 | 0 |
 | El Camino | 1 | 0 | 0 | 0 |
 | Gavilan | 1 | 0 | 0 | 0 |
-| Glendale | 1 | 0 | 0 | 0 |
+| Glendale | 2 | 0 | 0 | 0 |
 | Grossmont | 1 | 0 | 0 | 0 |
 | Irvine Valley | 1 | 0 | 0 | 0 |
 | LA Southwest | 2 | 0 | 0 | 0 |
@@ -33,6 +34,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Mendocino | 1 | 0 | 0 | 0 |
 | Mt. San Antonio | 1 | 0 | 0 | 0 |
 | Mt. San Jacinto | 2 | 0 | 0 | 0 |
+| Ohlone | 0 | 1 | 0 | 0 |
 | Oxnard | 2 | 0 | 0 | 0 |
 | Palo Verde | 2 | 0 | 0 | 0 |
 | Palomar | 2 | 0 | 0 | 0 |
@@ -44,17 +46,19 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Saddleback | 2 | 0 | 0 | 0 |
 | San Diego City | 1 | 0 | 0 | 0 |
 | San Diego Mesa | 1 | 0 | 0 | 0 |
-| Santa Ana | 1 | 0 | 0 | 0 |
+| Santa Ana | 2 | 0 | 0 | 0 |
 | Santa Barbara | 1 | 0 | 0 | 0 |
+| Santa Monica | 0 | 1 | 0 | 0 |
 | Santiago Canyon | 1 | 0 | 0 | 0 |
 | Sequoias | 1 | 0 | 0 | 0 |
 | Solano | 1 | 0 | 0 | 0 |
 | Southwestern | 2 | 0 | 0 | 0 |
 | Ventura | 1 | 0 | 1 | 0 |
+| Victor Valley | 0 | 1 | 0 | 0 |
 | West LA | 2 | 0 | 0 | 0 |
 | West Valley | 1 | 0 | 0 | 0 |
 
-## Games without real minutes (10)
+## Games without real minutes (13)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -67,4 +71,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-10-30 | Riverside vs Ventura | Ventura: WRONG_TOTAL (177 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261030_wup5.xml |
 | 2026-10-31 | Bakersfield vs Cerro Coso | Cerro Coso: WRONG_TOTAL (175 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_dfjb.xml |
 | 2026-10-31 | Barstow vs South Mountain | Barstow: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_5a4z.xml |
+| 2026-10-31 | Copper Mountain vs Imperial Valley | Copper Mountain: PLACEHOLDER (14 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_k685.xml |
 | 2026-10-31 | Cuesta vs Sequoias | Cuesta: PLACEHOLDER (7 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_b00x.xml |
+| 2026-10-31 | Ohlone vs Orange Coast | Ohlone: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_avzx.xml |
+| 2026-10-31 | Santa Monica vs Victor Valley | Santa Monica: PLACEHOLDER (5 min), Victor Valley: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_12c9.xml |
