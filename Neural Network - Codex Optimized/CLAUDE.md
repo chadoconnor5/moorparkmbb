@@ -144,6 +144,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   players is the totals line; minutes add up within 2 (the printout rounds). Tested on the 11/2 Antelope Valley
   photos: halftime (curved) 7 of 323 cells wrong, final (at an angle) 19 of 336, every miss caught by an add-up
   check (old reader: 278 of 323); a flat printout 0. ~12 s in desktop Chrome.
+  Check screen: ✎ on each row (and the totals; also "Retype the whole row" in Clarify) retypes a row as one line in the
+  sheet's order, REB optional ("4 0-4 0-2 0-0 0 1 1 0 0 0 0 1 0"): for numbers put in the wrong boxes (a dash added
+  or lost shifts the whole row). Checked as typed (count, dashes only in made-attempted, REB = OREB + DREB, points).
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
   conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half

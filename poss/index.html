@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.300';
+const VERSION = 'v2026.11.03.400';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4268,6 +4268,9 @@ document.addEventListener('click', ev => {
     case 'sh-swap': { const x = SHEET.a; SHEET.a = SHEET.b; SHEET.b = x; sheetModal(); break; }
     case 'sh-add': SHEET[b.dataset.t].rows.push(Object.assign({ num: '', name: '', starter: false }, Object.fromEntries(SH_NUM.map(k => [k, 0])))); sheetModal(); break;
     case 'sh-del': SHEET[b.dataset.t].rows.splice(+b.dataset.i, 1); sheetModal(); break;
+    case 'sh-row': if (SHEET.stage === 'clarify') clarifySave(); SHEET.rowEdit = { t: b.dataset.t, i: b.dataset.i === 'tot' ? 'tot' : +b.dataset.i, back: SHEET.stage }; SHEET.stage = 'row'; sheetModal(); break;
+    case 'sh-row-save': if (sheetRowSave()) { const bk = SHEET.rowEdit.back; SHEET.stage = bk; SHEET.rowEdit = null; if (bk === 'clarify') clarifyModal(); else sheetModal(); } break;
+    case 'sh-row-cancel': { const bk = SHEET.rowEdit.back; SHEET.stage = bk; SHEET.rowEdit = null; if (bk === 'clarify') clarifyModal(); else sheetModal(); break; }
     case 'sh-save': sheetSave(); break;
     case 'sh-clarify': clarifyOpen(); break;
     case 'cl-next': clarifySave(); SHEET.ci++; clarifyModal(); break;
@@ -5230,6 +5233,7 @@ function sheetSum(T) { const s = {}; SH_NUM.forEach(k => { s[k] = T.rows.reduce(
 function sheetModal() {
   const g = cur(), S = SHEET;
   if (S.stage === 'clarify') { clarifyModal(); return; }
+  if (S.stage === 'row') { sheetRowModal(); return; }
   const sc = S.sc, scBtns = `<div class="row" style="gap:6px">${[['1H', 'Halftime sheet'], ['G', 'Final sheet']].map(([k, l]) => `<button class="btn ${sc === k ? 'btn-primary' : ''}" data-act="sh-sc" data-s="${k}">${l}</button>`).join('')}</div>`;
   if (S.stage === 'pick' || S.stage === 'reading') {
     modal(`<h2>${S.auto ? 'Halftime — stat sheet' : 'Read the stat sheet'}</h2>
@@ -5245,8 +5249,8 @@ function sheetModal() {
   const team = (t) => { const T = S[t], sum = sheetSum(T), tot = T.totals;
     const cell = (i, k, v) => `<td data-c="${t}:${i}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="${i}" data-k="${k}" value="${v == null ? '' : v}"></td>`;
     const rows = T.rows.map((r, i) => `<tr data-row="${t}:${i}"><td><input class="sh-in num" data-t="${t}" data-i="${i}" data-k="num" value="${esc(r.num)}"></td><td class="l"><input class="sh-in nm" data-t="${t}" data-i="${i}" data-k="name" value="${esc(r.name)}"></td>
-        ${SH_NUM.map(k => cell(i, k, r[k])).join('')}<td><button class="btn btn-sm btn-bad" data-act="sh-del" data-t="${t}" data-i="${i}">✕</button></td></tr>`).join('');
-    const totRow = tot ? `<tr class="sh-tot"><td></td><td class="l">Sheet totals</td><td></td>${SH_NUM.filter(k => k !== 'min').map(k => `<td data-tot="${t}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="tot" data-k="${k}" value="${tot[k] == null ? '' : tot[k]}"></td>`).join('')}<td></td></tr>` : '';
+        ${SH_NUM.map(k => cell(i, k, r[k])).join('')}<td style="white-space:nowrap"><button class="btn btn-sm" data-act="sh-row" data-t="${t}" data-i="${i}" title="Retype the whole row">✎</button> <button class="btn btn-sm btn-bad" data-act="sh-del" data-t="${t}" data-i="${i}">✕</button></td></tr>`).join('');
+    const totRow = tot ? `<tr class="sh-tot"><td></td><td class="l">Sheet totals</td><td></td>${SH_NUM.filter(k => k !== 'min').map(k => `<td data-tot="${t}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="tot" data-k="${k}" value="${tot[k] == null ? '' : tot[k]}"></td>`).join('')}<td><button class="btn btn-sm" data-act="sh-row" data-t="${t}" data-i="tot" title="Retype the whole row">✎</button></td></tr>` : '';
     return `<div class="sh-team"><div class="sh-th"><b style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</b> <span class="muted small">read as "${esc(T.title || '—')}"</span><span class="sh-st" data-st="${t}"></span></div>
       <div class="tbl-wrap"><table class="tbl sh-tbl"><thead><tr><th>#</th><th class="l">Player</th>${SH_COLS.map(c => `<th>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>${rows}
         <tr class="sh-sum"><td></td><td class="l">Players add up to</td>${SH_NUM.map(k => `<td data-sum="${t}:${k}">${sum[k]}</td>`).join('')}<td></td></tr>${totRow}</tbody></table></div>
@@ -5353,6 +5357,7 @@ function clarifyModal() {
     ${img ? `<img class="cl-img" src="${img}" alt="">` : '<div class="muted small" style="margin:10px 0">No photo strip for this one.</div>'}
     <div class="cl-in">${pair ? `${inp(it.keys[0], 'made')}<span>–</span>${inp(it.keys[1], 'att')}` : inp(it.keys[0], '')}</div>
     ${it.keys[0] === 'pts' && R.ptsRead != null ? `<div class="small muted" style="text-align:center">Read as ${R.ptsRead}; FG / 3P / FT add up to ${shCalcPts(R)}.</div>` : ''}
+    <div style="text-align:center;margin-top:8px"><button class="btn" data-act="sh-row" data-t="${it.t}" data-i="${it.i}">✎ Numbers in the wrong boxes? Retype the whole row</button></div>
     <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-lg" data-act="cl-prev" ${S.ci ? '' : 'disabled'}>◀ Back</button><button class="btn btn-good btn-lg" data-act="cl-next">✓ That's right · Next ▶</button></div>`, 'sheet-modal wide');
   const f = document.getElementById('cl-' + it.keys[0]); if (f) { f.focus(); f.select(); }
 }
@@ -5361,6 +5366,60 @@ function clarifySave() {
   const T = S[it.t], R = it.i === 'tot' ? T.totals : T.rows[it.i];
   it.keys.forEach(k => { const el = document.getElementById('cl-' + k); if (el) { const v = el.value.trim(); R[k] = v === '' ? null : (parseInt(v, 10) || 0); } if (R.iffy) delete R.iffy[k]; });
   if (it.keys.includes('pts')) delete R.ptsFixed;
+}
+/* Retype a whole row as one line ("4 0-4 0-2 0-0 0 1 0 0 0 1 0 0"): for a row the reader put in the wrong boxes
+   (a dash where there was none, or none where there was one: "4" minutes and "0-4" read as one "404"), where
+   fixing box by box would mean moving every number over. Checked as it's typed; nothing changes until Save. */
+// In the sheet's own order, REB included (it's on the printout; a line typed without it is taken too).
+const SH_ROWKEYS = (tot, reb = true) => (tot ? [] : ['min']).concat(['fg', 'fg3', 'ft', 'oreb', 'dreb'], reb ? ['reb'] : [], ['ast', 'stl', 'blk', 'tov', 'pf', 'pts']);
+const SH_ROWLBL = { min: 'MIN', fg: 'FGM-A', fg3: '3PM-A', ft: 'FTM-A', oreb: 'OREB', dreb: 'DREB', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tov: 'TO', pf: 'PF', pts: 'PTS' };
+const SH_PAIRK = { fg: ['fgm', 'fga'], fg3: ['fg3m', 'fg3a'], ft: ['ftm', 'fta'] };
+function sheetRowText(R, tot) {
+  const v = x => x == null ? '?' : x, reb = R.oreb != null && R.dreb != null ? R.oreb + R.dreb : null;
+  return SH_ROWKEYS(tot).map(k => SH_PAIRK[k] ? `${v(R[SH_PAIRK[k][0]])}-${v(R[SH_PAIRK[k][1]])}` : k === 'reb' ? v(reb) : v(R[k])).join(' ');
+}
+function sheetRowParse(txt, tot) {
+  const tk = txt.replace(/[—–_]/g, '-').trim().split(/[\s,]+/).filter(Boolean), out = {}, full = SH_ROWKEYS(tot);
+  const keys = tk.length === full.length - 1 ? SH_ROWKEYS(tot, false) : full;
+  if (tk.length !== keys.length) return { err: `${tk.length} number${tk.length === 1 ? '' : 's'} — the row needs ${full.length} (${full.map(k => SH_ROWLBL[k]).join(' ')})` };
+  for (let i = 0; i < keys.length; i++) { const k = keys[i], t = tk[i];
+    if (SH_PAIRK[k]) { const m = t.match(/^(\d{1,3})-(\d{1,3})$/); if (!m) return { err: `${SH_ROWLBL[k]} is made-attempted, with a dash (like 3-7): "${t}"` };
+      if (+m[1] > +m[2]) return { err: `${SH_ROWLBL[k]}: more made than attempted (${t})` }; [out[SH_PAIRK[k][0]], out[SH_PAIRK[k][1]]] = [+m[1], +m[2]]; }
+    else { if (!/^\d{1,3}$/.test(t)) return { err: `${SH_ROWLBL[k]} is one number, no dash: "${t}"` }; out[k] = +t; } }
+  if (out.fg3a > out.fga) return { err: '3PT attempts are more than FG attempts' };
+  if (out.reb != null && !tot && out.reb !== out.oreb + out.dreb) return { err: `REB ${out.reb} isn't OREB + DREB (${out.oreb + out.dreb})` };
+  delete out.reb;   // the sheet's REB is OREB + DREB (the totals' takes in the team rebounds)
+  return { v: out };
+}
+function sheetRowModal() {
+  const g = cur(), S = SHEET, E = S.rowEdit, T = S[E.t], tot = E.i === 'tot', R = tot ? T.totals : T.rows[E.i];
+  const who = tot ? 'Sheet totals' : `${R.num ? '#' + esc(R.num) + ' ' : ''}${esc(R.name || '')}`, img = sheetCrop(S, T, R, 'fgm');
+  modal(`<h2>Retype the row</h2>
+    <div class="cl-who"><b style="color:${E.t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, E.t))}</b> · ${who}</div>
+    ${img ? `<img class="cl-img" src="${img}" alt="">` : ''}
+    <p class="small muted" style="margin:8px 0 4px">Type the row as it reads on the sheet, spaces between the numbers, a dash only in made-attempted:</p>
+    <div class="small" style="font-weight:600;margin-bottom:4px">${SH_ROWKEYS(tot).map(k => SH_ROWLBL[k]).join(' · ')}</div>
+    <input class="sh-rowtxt" id="sh-rowtxt" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%;font-size:20px;padding:8px;font-family:ui-monospace,Menlo,monospace" value="${esc(sheetRowText(R, tot))}">
+    <div class="small" id="sh-rowmsg" style="margin-top:6px;min-height:1.4em"></div>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="sh-row-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="sh-row-save">Save row</button></div>`, 'sheet-modal');
+  sheetRowCheck(); const f = document.getElementById('sh-rowtxt'); if (f) f.focus();
+}
+function sheetRowCheck() {
+  const S = SHEET, E = S && S.rowEdit, f = document.getElementById('sh-rowtxt'), m = document.getElementById('sh-rowmsg'); if (!E || !f || !m) return null;
+  const tot = E.i === 'tot', r = sheetRowParse(f.value, tot);
+  if (r.err) { m.innerHTML = `<span class="neg">${esc(r.err)}</span>`; return r; }
+  const p = r.v, calc = shCalcPts(p);
+  m.innerHTML = p.pts === calc ? `<span class="pos">✓ ${p.pts} points = 2 × ${p.fgm} FG + ${p.fg3m} 3PT + ${p.ftm} FT</span>`
+    : `<span style="color:var(--warn)">Points ${p.pts}, but FG / 3P / FT add up to ${calc} — check the sheet (it saves either way)</span>`;
+  return r;
+}
+function sheetRowSave() {
+  const S = SHEET, E = S.rowEdit, T = S[E.t], tot = E.i === 'tot', R = tot ? T.totals : T.rows[E.i], r = sheetRowCheck();
+  if (!r || r.err) { toast(r ? r.err : 'Nothing to save', 'bad'); return false; }
+  Object.assign(R, r.v); R.iffy = {}; delete R.ptsFixed; delete R.ptsRead; delete R.rebOff;
+  // its Clarify questions are answered (the queue moves on to the next row's)
+  if (S.cq) { const hit = q => q.t === E.t && q.i === E.i; S.ci = Math.max(0, (S.ci || 0) - S.cq.slice(0, S.ci || 0).filter(hit).length); S.cq = S.cq.filter(q => !hit(q)); }
+  return true;
 }
 function clarifyOpen() { const S = SHEET; S.cq = sheetQueue(); S.ci = 0; S.stage = 'clarify'; if (!S.cq.length) { S.stage = 'check'; sheetModal(); return; } clarifyModal(); }
 
@@ -5444,6 +5503,8 @@ async function sheetRead(file) {
 }
 $('#sh-file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) sheetRead(f); });
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('sh-in') && SHEET) { sheetInput(e.target); sheetRefresh(); } });
+document.addEventListener('input', e => { if (e.target.id === 'sh-rowtxt' && SHEET) sheetRowCheck(); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sh-rowtxt' && SHEET) { e.preventDefault(); const b = document.querySelector('[data-act="sh-row-save"]'); if (b) b.click(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('sh-cl') && SHEET) { e.preventDefault();
   const ins = [...document.querySelectorAll('.sh-cl')], i = ins.indexOf(e.target); if (i < ins.length - 1) { ins[i + 1].focus(); ins[i + 1].select(); } else document.querySelector('[data-act="cl-next"]').click(); } });
 
