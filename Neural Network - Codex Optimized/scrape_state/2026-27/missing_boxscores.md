@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-01T21:37:00
+Updated 2026-11-02T22:07:57
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|

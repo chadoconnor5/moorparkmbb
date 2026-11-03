@@ -1,11 +1,12 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-01T21:37:00
+Updated 2026-11-02T22:07:57
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
 | Team | Real | Placeholder | Wrong total | None |
 |---|---|---|---|---|
+| Antelope Valley | 1 | 0 | 0 | 0 |
 | Bakersfield | 1 | 0 | 0 | 0 |
 | Barstow | 0 | 2 | 0 | 0 |
 | Butte | 0 | 2 | 0 | 0 |
@@ -15,6 +16,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Chaffey | 1 | 0 | 0 | 0 |
 | Citrus | 1 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
+| Compton | 1 | 0 | 0 | 0 |
 | Copper Mountain | 0 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 0 | 0 | 0 |
 | Cuesta | 0 | 1 | 0 | 0 |
@@ -23,6 +25,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Diablo Valley | 0 | 1 | 0 | 0 |
 | East Los Angeles | 1 | 0 | 0 | 0 |
 | El Camino | 1 | 0 | 0 | 0 |
+| Fullerton | 1 | 0 | 0 | 0 |
 | Gavilan | 1 | 0 | 0 | 0 |
 | Glendale | 2 | 0 | 0 | 0 |
 | Grossmont | 1 | 0 | 0 | 0 |
@@ -32,6 +35,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Long Beach | 1 | 0 | 0 | 0 |
 | Los Angeles City | 2 | 0 | 0 | 0 |
 | Mendocino | 1 | 0 | 0 | 0 |
+| Moorpark | 1 | 0 | 0 | 0 |
 | Mt. San Antonio | 1 | 0 | 0 | 0 |
 | Mt. San Jacinto | 2 | 0 | 0 | 0 |
 | Ohlone | 0 | 1 | 0 | 0 |
@@ -44,8 +48,10 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Riverside | 2 | 0 | 0 | 0 |
 | Sacramento City | 0 | 1 | 0 | 0 |
 | Saddleback | 2 | 0 | 0 | 0 |
+| San Bernardino Valley | 1 | 0 | 0 | 0 |
 | San Diego City | 1 | 0 | 0 | 0 |
 | San Diego Mesa | 1 | 0 | 0 | 0 |
+| San Diego Miramar | 1 | 0 | 0 | 0 |
 | Santa Ana | 2 | 0 | 0 | 0 |
 | Santa Barbara | 1 | 0 | 0 | 0 |
 | Santa Monica | 0 | 1 | 0 | 0 |
