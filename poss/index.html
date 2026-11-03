@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.100';
+const VERSION = 'v2026.11.03.400';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4268,6 +4268,9 @@ document.addEventListener('click', ev => {
     case 'sh-swap': { const x = SHEET.a; SHEET.a = SHEET.b; SHEET.b = x; sheetModal(); break; }
     case 'sh-add': SHEET[b.dataset.t].rows.push(Object.assign({ num: '', name: '', starter: false }, Object.fromEntries(SH_NUM.map(k => [k, 0])))); sheetModal(); break;
     case 'sh-del': SHEET[b.dataset.t].rows.splice(+b.dataset.i, 1); sheetModal(); break;
+    case 'sh-row': if (SHEET.stage === 'clarify') clarifySave(); SHEET.rowEdit = { t: b.dataset.t, i: b.dataset.i === 'tot' ? 'tot' : +b.dataset.i, back: SHEET.stage }; SHEET.stage = 'row'; sheetModal(); break;
+    case 'sh-row-save': if (sheetRowSave()) { const bk = SHEET.rowEdit.back; SHEET.stage = bk; SHEET.rowEdit = null; if (bk === 'clarify') clarifyModal(); else sheetModal(); } break;
+    case 'sh-row-cancel': { const bk = SHEET.rowEdit.back; SHEET.stage = bk; SHEET.rowEdit = null; if (bk === 'clarify') clarifyModal(); else sheetModal(); break; }
     case 'sh-save': sheetSave(); break;
     case 'sh-clarify': clarifyOpen(); break;
     case 'cl-next': clarifySave(); SHEET.ci++; clarifyModal(); break;
@@ -4767,17 +4770,22 @@ function shTokens(line) {
     if (shNumish(c)) { const v = shDigits(c).replace(/[:.]/g, '-'); return { v, conf: w.conf, bbox: w.bbox, fixed: v !== c, raw: w.t }; }
     return { w: w.t, raw: w.t }; });
 }
-// A made-attempted pair, with or without its dash: "3-5", "35" → 3-5, "110" → 1-10.
-function shPair(v) {
+/* A made-attempted pair, with or without its dash: "3-5", "35" → 3-5, "110" → 1-10. The reader often takes
+   the thin dash for a 4 ("1-1" → "141", "6-11" → "6411"): an inner 4 that makes a sensible pair is the dash.
+   max: the most attempts a line can have (a player's, or a team's on the totals line). */
+function shPair(v, max = 40) {
   if (v == null) return null;
   if (/^\d+-\d+$/.test(v)) return v.split('-').map(Number);
-  if (/^\d{2}$/.test(v)) return [+v[0], +v[1]];
-  if (/^\d{3}$/.test(v)) { const a = [+v[0], +v.slice(1)], b = [+v.slice(0, 2), +v[2]]; return a[0] <= a[1] ? a : b[0] <= b[1] ? b : a; }
   if (/^\d$/.test(v)) return [+v, +v];
-  return null;
+  if (!/^\d{2,4}$/.test(v)) return null;
+  const ok = x => x[0] <= x[1] && x[1] <= max, cand = [];
+  for (let i = 1; i < v.length - 1; i++) if (v[i] === '4') cand.push([+v.slice(0, i), +v.slice(i + 1)]);
+  for (let i = 1; i < v.length; i++) cand.push([+v.slice(0, i), +v.slice(i)]);
+  return cand.find(ok) || cand.find(x => x[0] <= x[1]) || cand[cand.length - 1];
 }
 const shInt = v => v != null && /^\d{1,3}$/.test(v) ? +v : v != null && /^\d+-\d+$/.test(v) ? null : null;
-const shIsHeader = line => /FG/i.test(line) && /(PTS|TP|PF|REB)/i.test(line);
+// The header line: four or more of the column names (a word or two may be misread: "RER", "PIS").
+const shIsHeader = line => [/FG/i, /3P/i, /FT/i, /RE[B8R]/i, /\bAST/i, /STL/i, /BLK/i, /P[TI][S5]/i, /\bMIN\b/i, /\bPF\b/i].filter(r => r.test(line)).length >= 4;
 function shHeaderOrder(line) {
   const toks = line.replace(/[^A-Za-z0-9%\- ]/g, ' ').split(/\s+/).map(t => t.toLowerCase()).filter(Boolean);
   const out = { min: false, post: [] }; let seenFG = false, pairs = 0;
@@ -4805,7 +4813,9 @@ function shAssign(V, lay) {
     P = V.slice(i0).filter(x => /-/.test(x.v)).slice(0, 4); rest = V.slice(i0).filter(x => !/-/.test(x.v));
     if (P.length < 3) return null;
   }
-  const pr = P.map(x => shPair(val(x))), rep11 = [];
+  // 3-point attempts are field goal attempts too: never more of them ("1-2" read "122" is 1-2, not 1-22)
+  const mx = lay.tot ? 150 : 40, pr = P.map(x => shPair(val(x), mx)), rep11 = [];
+  if (pr[0] && P[1]) pr[1] = shPair(val(P[1]), Math.min(mx, pr[0][1]));
   // Made more than attempted can't be: a "1" of the attempts was dropped ("5-11" read as "5-1").
   pr.forEach((x, i) => { if (x && x[0] > x[1] && x[1] < 10 && 10 + x[1] >= x[0]) { x[1] += 10; rep11[i] = true; } });
   if (pr.slice(0, 3).some(x => !x)) return null;
@@ -4815,6 +4825,25 @@ function shAssign(V, lay) {
   let ord = post.slice();
   if (pr.length >= 4 && pr[3]) { [r.oreb, r.dreb] = pr[3]; note(['oreb', 'dreb'], P[3], !/-/.test(P[3].v)); ord = ord.filter(k => k !== 'oreb' && k !== 'dreb'); }
   ord.forEach((k, i) => { const n = shInt(val(rest[i])); if (n != null) { r[k] = n; note([k], rest[i]); } });
+  return r;
+}
+/* A line's numbers by where they sit: each goes to the nearest column (C: column → x on the photo), the
+   closer one wins when two land on one column, and one more than half a column away from any is dropped. */
+function shAssignX(V, C, tot, loose) {
+  const cols = Object.keys(C).filter(k => !['fga', 'fg3a', 'fta'].includes(k)).sort((a, b) => C[a] - C[b]);
+  if (cols.length < 3) return null;
+  let gap = Infinity; for (let i = 1; i < cols.length; i++) gap = Math.min(gap, C[cols[i]] - C[cols[i - 1]]);
+  const at = {};
+  V.forEach(x => { if (!x.bbox) return; const cx = (x.bbox.x0 + x.bbox.x1) / 2; let bk = null, bd = Infinity;
+    cols.forEach(k => { const d = Math.abs(C[k] - cx); if (d < bd) { bd = d; bk = k; } });
+    if (bk && bd <= gap * (loose ? 0.75 : 0.6) && (!at[bk] || at[bk].d > bd)) at[bk] = { x, d: bd }; });
+  const r = { _q: {} }, note = (keys, x, fixed) => keys.forEach(k => { r._q[k] = { conf: x.conf, bbox: x.bbox, fixed: !!(x.fixed || fixed) }; });
+  let pairs = 0;
+  [['fgm', 'fga'], ['fg3m', 'fg3a'], ['ftm', 'fta']].forEach(([m, a]) => { const e = at[m]; if (!e) return; const p = shPair(e.x.v, Math.min(tot ? 150 : 40, m === 'fg3m' && r.fga != null ? r.fga : 999));
+    if (!p) return; let fix = !/-/.test(e.x.v); if (p[0] > p[1] && p[1] < 10 && 10 + p[1] >= p[0]) { p[1] += 10; fix = true; }
+    [r[m], r[a]] = p; note([m, a], e.x, fix); pairs++; });
+  if (!loose && pairs < 3) return null;
+  cols.forEach(k => { if (SH_PAIR[k] || !at[k]) return; const n = shInt(at[k].x.v); if (n != null) { r[k] = n; note([k], at[k].x); } });
   return r;
 }
 // A number the reader was under 85% sure of, or one it had to repair, is "iffy": asked about on Clarify.
@@ -4833,11 +4862,16 @@ function parseSheet(src) {
   const start = () => { cur = { title: lastTitle, rows: [], team: null, totals: null, lay }; secs.push(cur); };
   lines.forEach(L => { const line = L.text;
     if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; return; }
-    if (/%/.test(line) && !/[A-Za-z]{3}/.test(line.replace(/%/g, ''))) return;            // the FG% / 3P% / FT% line
+    // the FG% / 3P% / FT% lines under a table ("TOTAL FG% 1st Half: 23-42 54.8%")
+    if (/%/.test(line) && (/FG%|Half|Game|Throw|3-?Pt/i.test(line) || !/[A-Za-z]{3}/.test(line.replace(/%/g, '')))) return;
     const T = shTokens(L.words || line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
     if (/^(STARTERS|RESERVES|BENCH)\b/i.test(words) && V.length === 0) { group = /^START/i.test(words) ? 'S' : 'R'; return; }
-    if (/\bTOTALS?\b/i.test(words)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
-    if (/\bTEAM\b/i.test(words) && V.length <= 6 && !V.some(x => /-/.test(x.v))) { if (cur) cur.team = V.map(x => shInt(x.v)).filter(n => n != null); return; }
+    // the TOTALS line ("Tolale" too; not "Score by periods 1st Total" further down: a totals line has the whole row of numbers)
+    // (or a whole row of numbers with no name, after a table's players: "Totals" misread beyond recognition)
+    if ((/\bT[O0o][TtlI][AaGo4][LlIie1][Ss5e]?\b/.test(words) && /^T/i.test(words.replace(/^[^A-Za-z]+/, '')) && V.length >= 6)
+      || (V.length >= 10 && !/[A-Za-z]{2}/.test(words) && cur && !cur.closed && cur.rows.length >= 5)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
+    // The team line ("TEAM", "TM Team", "TMTeam"): team rebounds, placed by column when the photo gives positions.
+    if (/TEAM\b/i.test(words) && V.length <= 6 && !V.some(x => /-/.test(x.v))) { if (cur) { cur.team = V.map(x => shInt(x.v)).filter(n => n != null); cur.teamV = V; } return; }
     // A player line: jersey number, the name, then the numbers.
     if (T[0] && T[0].v != null && /^\d{1,2}$/.test(T[0].v) && T[1] && T[1].w && V.length >= 8) {
       if (!cur || cur.closed) start();
@@ -4849,23 +4883,45 @@ function parseSheet(src) {
       cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null), box: L.bbox });
       return;
     }
-    if (V.length === 0 && /[A-Za-z]{3,}/.test(line) && line.length < 40) lastTitle = line;
+    // A team's title: "Antelope Valley 55 • 0-0" (the name, then score and record), or the name alone. Not the
+    // game's heading ("Antelope Valley vs. Moorpark (11/2/2026 at ...)"), the time or "about:blank".
+    if (V.length <= 3 && !/:|\bvs\b|\bat\b|\//i.test(line) && line.length < 50) {
+      const m = line.match(/^\s*([A-Za-z][A-Za-z .'&\-]*?[A-Za-z])\s*(?:\d|[•*«=·]|$)/);
+      if (m && /[A-Za-z]{3,}/.test(m[1])) lastTitle = m[1].trim(); }
   });
   // The column layout per section: the header's if it adds up best, else the best known layout.
   return secs.filter(s => s.rows.length).map(s => {
-    const cands = [s.lay, ...SH_ALT.map(post => ({ min: true, post })), ...SH_ALT.map(post => ({ min: false, post }))].filter(Boolean);
-    const score = o => s.rows.reduce((x, r) => { const v = shAssign(r.V, o); return x + (v ? 1 : 0) + (v && shPtsOk(v) ? 2 : 0) + (v && shRebOk(v) ? 1 : 0); }, 0);
+    // A header that was read settles whether there's a MIN column (rows with a number dropped can add up
+    // better, by accident, without it). A header read in full (all nine columns after the shooting) is the layout.
+    const cands = s.lay && s.lay.post.length >= 9 ? [s.lay] : [s.lay, ...SH_ALT.map(post => ({ min: true, post })), ...SH_ALT.map(post => ({ min: false, post }))].filter(o => o && (!s.lay || o.min === s.lay.min));
+    const rate = v => (v ? 1 : 0) + (v && shPtsOk(v) ? 2 : 0) + (v && shRebOk(v) ? 1 : 0);
+    const score = o => s.rows.reduce((x, r) => x + rate(shAssign(r.V, o)), 0);
     const best = cands.map(o => [o, score(o)]).sort((x, y) => y[1] - x[1])[0][0];
-    const rows = s.rows.map(r => { const v = Object.assign({ num: r.num, name: r.name, starter: r.starter }, shAssign(r.V, best) || {});
+    // Where each column sits on the photo (from the rows read whole and adding up): a line with a number
+    // missing or extra (a smudge, a stray mark) is then read by position instead of by count.
+    const want = (best.min ? 1 : 0) + 3 + best.post.length, xs = {};
+    s.rows.forEach(r => { if (r.V.length !== want) return; const v = shAssign(r.V, best); if (!v || !shPtsOk(v)) return;
+      Object.keys(v._q).forEach(k => { const b = v._q[k].bbox; if (b) (xs[k] = xs[k] || []).push((b.x0 + b.x1) / 2); }); });
+    const C = {}; Object.keys(xs).forEach(k => { if (xs[k].length >= 2) C[k] = xs[k].sort((x, y) => x - y)[xs[k].length >> 1]; });
+    const byX = Object.keys(C).length >= 8 ? C : null;
+    const rows = s.rows.map(r => { let a = shAssign(r.V, best);
+      if (byX && rate(a) < 4) { const b = shAssignX(r.V, byX, false); if (rate(b) > rate(a)) a = b; }
+      const v = Object.assign({ num: r.num, name: r.name, starter: r.starter }, a || {});
       // Points are FG/3P/FT added up; a misread PTS is replaced and marked for a look.
       v.iffy = shIffy(v); v.box = r.box;
       if (v.fgm != null && !shPtsOk(v)) { v.ptsRead = v.pts == null ? null : v.pts; v.pts = shCalcPts(v); v.ptsFixed = true; v.iffy.pts = v._q.pts ? v._q.pts.bbox : null; }
       if (v.oreb != null && v.dreb != null && v.reb != null && v.reb !== v.oreb + v.dreb) v.rebOff = true;
       return v; });
-    const tot = s.totals ? shAssign(s.totals, Object.assign({}, best, { min: false })) : null;
+    let tot = s.totals ? shAssign(s.totals, Object.assign({}, best, { min: false, tot: true })) : null;
+    // The totals line carries the minutes too (200 / 100): read it by position when it can be.
+    if (s.totals && byX) { const b = shAssignX(s.totals, byX, true); if (b && (!tot || rate(b) >= rate(tot))) tot = b; }
     if (tot) { tot.iffy = shIffy(tot); tot.box = s.totBox; }
     const team = s.team || [];
-    return { title: s.title, rows, totals: tot, headBox: s.headBox, teamReb: team.length >= 2 ? { oreb: team[0], dreb: team[1] } : null };
+    let teamReb = team.length >= 2 ? { oreb: team[0], dreb: team[1] } : null;
+    // By position: "TMTeam 1 . 1" is 1 offensive (REB 1), "TMTeam . 5 5" is 5 defensive.
+    if (byX && s.teamV && s.teamV.length) { const t = shAssignX(s.teamV, byX, true, true);
+      if (t && (t.oreb != null || t.dreb != null || t.reb != null)) { const o = t.oreb || 0, d = t.dreb != null ? t.dreb : Math.max(0, (t.reb || 0) - o); teamReb = { oreb: o, dreb: d }; } }
+    return { title: s.title, rows, totals: tot, headBox: s.headBox, teamReb };
   });
 }
 /* Which section is Moorpark: the one whose title says so; else by home / away (home is listed second). */
@@ -4886,15 +4942,113 @@ function loadTess() {
   if (window.Tesseract) return Promise.resolve();
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/tess/tesseract.min.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the reader')); document.head.appendChild(s); });
 }
-// Grey, and big enough for small print (Tesseract wants ~30px capitals).
+// Grey, and 2600px wide: big enough for small print (Tesseract wants ~30px capitals), small enough for the iPad.
 function shPrep(file) {
   return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => { const sc = Math.min(3, Math.max(1, 2600 / img.width)), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    img.onload = () => { const sc = Math.min(3, 2600 / img.width), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
       for (let i = 0; i < p.length; i += 4) { const v = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = v; }
-      x.putImageData(d, 0, 0); URL.revokeObjectURL(url); res(shDeskew(c)); };
+      x.putImageData(d, 0, 0); URL.revokeObjectURL(url); res(shUnrule(shDewarp(shDeskew(shFlatten(c))))); };
     img.onerror = () => rej(new Error('That photo could not be opened')); img.src = url; });
+}
+/* Even out the light: a phone photo of a printout is brighter in one corner than another (and shadowed
+   by the hand or the phone). The paper's brightness is measured on a coarse grid (the brightest pixel of
+   each 16px block, spread and smoothed) and each pixel is divided by it, so the paper comes out white
+   everywhere and the print dark. */
+function shFlatten(c) {
+  const W = c.width, H = c.height, x = c.getContext('2d', { willReadFrequently: true }), d = x.getImageData(0, 0, W, H), p = d.data;
+  const k = 16, w = Math.ceil(W / k), h = Math.ceil(H / k), bg = new Float32Array(w * h);
+  for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { let m = 0;
+    for (let j = yy * k; j < Math.min(H, yy * k + k); j += 2) for (let i = xx * k; i < Math.min(W, xx * k + k); i += 2) { const v = p[(j * W + i) * 4]; if (v > m) m = v; }
+    bg[yy * w + xx] = m; }
+  const pass = (a, r, fn) => { const o = new Float32Array(w * h);
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { let m = fn ? 0 : 0, n = 0;
+      for (let j = Math.max(0, yy - r); j <= Math.min(h - 1, yy + r); j++) for (let i = Math.max(0, xx - r); i <= Math.min(w - 1, xx + r); i++) { const v = a[j * w + i]; if (fn) { if (v > m) m = v; } else { m += v; n++; } }
+      o[yy * w + xx] = fn ? m : m / n; }
+    return o; };
+  const B = pass(pass(bg, 2, true), 2, false);
+  for (let j = 0; j < H; j++) { const fy = Math.min(h - 1.001, Math.max(0, j / k - 0.5)), y0 = fy | 0, ty = fy - y0;
+    for (let i = 0; i < W; i++) { const fx = Math.min(w - 1.001, Math.max(0, i / k - 0.5)), x0 = fx | 0, tx = fx - x0;
+      const b = (B[y0 * w + x0] * (1 - tx) + B[y0 * w + x0 + 1] * tx) * (1 - ty) + (B[(y0 + 1) * w + x0] * (1 - tx) + B[(y0 + 1) * w + x0 + 1] * tx) * ty;
+      const q = (j * W + i) * 4, v = Math.min(255, 255 * p[q] / Math.max(40, b)); p[q] = p[q + 1] = p[q + 2] = v; } }
+  // Not paper (the table, a lap, a hand around the sheet): a block with no light pixel at all, and the blocks
+  // touching it, are painted white, so the background isn't read as ink.
+  const sorted = Array.from(bg).sort((a, b) => a - b), paper = sorted[Math.floor(sorted.length * 0.75)], dark = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (bg[i] < paper * 0.55) dark[i] = 1;
+  for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { let hit = false;
+    for (let j = Math.max(0, yy - 1); j <= Math.min(h - 1, yy + 1) && !hit; j++) for (let i = Math.max(0, xx - 1); i <= Math.min(w - 1, xx + 1); i++) if (dark[j * w + i]) { hit = true; break; }
+    if (hit) for (let j = yy * k; j < Math.min(H, yy * k + k); j++) for (let i = xx * k; i < Math.min(W, xx * k + k); i++) { const q = (j * W + i) * 4; p[q] = p[q + 1] = p[q + 2] = 255; } }
+  x.putImageData(d, 0, 0); return c;
+}
+/* Curved paper (held in the hand, the right-hand columns bend up into the row above): trace the text rows
+   across the page and straighten them. On a 1000px-wide copy, each 24px strip's ink profile gives its rows'
+   heights; rows are chained strip to strip (across the white space between columns), and the bend is fitted
+   as a smooth surface (x up to cubed, changing down the page) with each row's own height free. Every pixel
+   then moves up or down by the bend at its spot. A flat photo (under 1.5px of bend) is left as it is. */
+function shDewarp(c) {
+  const W = c.width, H = c.height, sw = 1000, sc = W / sw, sh = Math.round(H / sc), s = document.createElement('canvas'); s.width = sw; s.height = sh;
+  const sx = s.getContext('2d', { willReadFrequently: true }); sx.drawImage(c, 0, 0, sw, sh); const p = sx.getImageData(0, 0, sw, sh).data;
+  const STW = 24, NS = Math.floor(sw / STW), peaks = [];
+  for (let st = 0; st < NS; st++) {
+    const a = new Float32Array(sh); for (let y = 0; y < sh; y++) { let n = 0; for (let xx = st * STW; xx < (st + 1) * STW; xx++) if (p[(y * sw + xx) * 4] < 130) n++; a[y] = n; }
+    const g = new Float32Array(sh); for (let y = 2; y < sh - 2; y++) g[y] = (a[y - 2] + 2 * a[y - 1] + 3 * a[y] + 2 * a[y + 1] + a[y + 2]) / 9;
+    const pk = []; for (let y = 3; y < sh - 3; y++) if (g[y] >= 2.5 && g[y] >= g[y - 1] && g[y] > g[y + 1] && g[y] >= g[y - 2] && g[y] >= g[y + 2] && g[y] > g[y - 3] && g[y] > g[y + 3]) {
+      let up = y, dn = y; while (up > 0 && g[up] > g[y] * 0.3) up--; while (dn < sh - 1 && g[dn] > g[y] * 0.3) dn++;
+      if (dn - up <= 16) pk.push(y); }   // a line of print, not the edge of the photo or a dark patch
+    peaks.push(pk);
+  }
+  const used = peaks.map(a => a.map(() => false)), chains = [];
+  for (let st = 0; st < NS; st++) peaks[st].forEach((y0, i0) => { if (used[st][i0]) return;
+    const ch = [[st, y0]]; used[st][i0] = true; let cs = st, cy = y0, slope = 0;
+    for (let t = st + 1; t < NS && t - cs <= 8; t++) { const want = cy + slope * (t - cs); let bi = -1, bd = 3.5;
+      peaks[t].forEach((y, i) => { const dd = Math.abs(y - want); if (!used[t][i] && dd < bd) { bd = dd; bi = i; } });
+      if (bi >= 0) { const y = peaks[t][bi]; used[t][bi] = true; if (ch.length >= 3) slope = 0.7 * slope + 0.3 * (y - cy) / (t - cs); ch.push([t, y]); cs = t; cy = y; } }
+    if (ch.length >= 8 && ch[ch.length - 1][0] - ch[0][0] >= NS * 0.3) chains.push(ch); });
+  if (chains.length < 4) return c;
+  const X = st => ((st + 0.5) * STW - sw / 2) / (sw / 2), Y = y => (y - sh / 2) / (sh / 2), terms = [];
+  for (let i = 1; i <= 3; i++) for (let j = 0; j <= 2; j++) terms.push([i, j]);
+  const n = terms.length, A = Array.from({ length: n }, () => new Float64Array(n + 1));
+  chains.forEach(ch => { const ym = ch.reduce((t, q) => t + q[1], 0) / ch.length;
+    const rows = ch.map(([st]) => terms.map(([i, j]) => Math.pow(X(st), i) * Math.pow(Y(ym), j)));
+    const mean = terms.map((_, k) => rows.reduce((t, r) => t + r[k], 0) / rows.length);
+    ch.forEach(([, y], r) => { const v = rows[r].map((q, k) => q - mean[k]), b = y - ym;
+      for (let a = 0; a < n; a++) { for (let e = 0; e < n; e++) A[a][e] += v[a] * v[e]; A[a][n] += v[a] * b; } }); });
+  for (let a = 0; a < n; a++) A[a][a] += 1e-3;
+  for (let col = 0; col < n; col++) { let pv = col; for (let r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[pv][col])) pv = r;
+    [A[col], A[pv]] = [A[pv], A[col]]; for (let r = 0; r < n; r++) if (r !== col) { const f = A[r][col] / A[col][col]; for (let e = col; e <= n; e++) A[r][e] -= f * A[col][e]; } }
+  const coef = A.map((r, k) => r[n] / r[k]);
+  // Past the first and last traced rows the fit is extrapolated: kept within 25px (of the 1000px copy).
+  const ylo = Math.min(...chains.map(ch => ch[0][1])), yhi = Math.max(...chains.map(ch => ch[0][1]));
+  const f = (xs, ys) => { const XX = (xs - sw / 2) / (sw / 2), YY = (ys - sh / 2) / (sh / 2); let v = 0; terms.forEach(([i, j], k) => { v += coef[k] * Math.pow(XX, i) * Math.pow(YY, j); }); return Math.max(-25, Math.min(25, v)); };
+  let mx = 0; for (let xx = 0; xx <= sw; xx += 50) for (let yy = ylo; yy <= yhi; yy += (yhi - ylo) / 4 || 1) mx = Math.max(mx, Math.abs(f(xx, yy)));
+  if (!isFinite(mx) || mx < 1.5 || mx > 60) return c;
+  const S = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data, o = document.createElement('canvas'); o.width = W; o.height = H;
+  const ox = o.getContext('2d', { willReadFrequently: true }), dst = ox.createImageData(W, H), D = dst.data, G = 16, gw = Math.ceil(W / G) + 1, gh = Math.ceil(H / G) + 1, F = new Float32Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) F[gy * gw + gx] = f(gx * G / sc, gy * G / sc) * sc;
+  for (let y = 0; y < H; y++) { const fy = y / G, y0 = Math.min(gh - 2, fy | 0), ty = fy - y0;
+    for (let xx = 0; xx < W; xx++) { const fx = xx / G, x0 = Math.min(gw - 2, fx | 0), tx = fx - x0;
+      const dy = (F[y0 * gw + x0] * (1 - tx) + F[y0 * gw + x0 + 1] * tx) * (1 - ty) + (F[(y0 + 1) * gw + x0] * (1 - tx) + F[(y0 + 1) * gw + x0 + 1] * tx) * ty;
+      const yy = y + dy, a = Math.floor(yy), t = yy - a, q = (y * W + xx) * 4;
+      const v = a >= 0 && a + 1 < H ? S[(a * W + xx) * 4] * (1 - t) + S[((a + 1) * W + xx) * 4] * t : 255;
+      D[q] = D[q + 1] = D[q + 2] = v; D[q + 3] = 255; } }
+  ox.putImageData(dst, 0, 0); return o;
+}
+/* Erase the table's ruled lines (under the header, over the totals): a line touching a row of print makes
+   the reader take the two as one and garble both. Any dark run (breaks of up to 4px allowed) 15% of the page
+   wide is a rule (a row of print breaks wider between words and columns), and is painted white. */
+function shUnrule(c) {
+  const W = c.width, H = c.height, x = c.getContext('2d', { willReadFrequently: true }), d = x.getImageData(0, 0, W, H), p = d.data, L = Math.round(W * 0.15);
+  // dark here or within 2 pixel rows (a thin rule drifting a pixel or two across the page stays one run)
+  const dk = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) { let m = 255; for (let yy = Math.max(0, y - 2); yy <= Math.min(H - 1, y + 2); yy++) m = Math.min(m, p[(yy * W + i) * 4]); dk[y * W + i] = m < 190 ? 1 : 0; }
+  const kill = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) { let run = 0, gap = 0;
+    for (let i = 0; i <= W; i++) { if (i < W && dk[y * W + i]) { run += gap + 1; gap = 0; continue; }
+      if (i < W && run && gap < 4) { gap++; continue; }
+      if (run >= L) for (let k = i - gap - run; k < i - gap; k++) kill[y * W + k] = 1; run = 0; gap = 0; } }
+  for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) if (kill[y * W + i]) for (let yy = Math.max(0, y - 2); yy <= Math.min(H - 1, y + 2); yy++) { const q = (yy * W + i) * 4; if (p[q] < 215) p[q] = p[q + 1] = p[q + 2] = 255; }
+  x.putImageData(d, 0, 0); return c;
 }
 /* Straighten a tilted photo: on a small dark-pixel map, try angles from -6° to 6° and keep the one whose
    row sums are spikiest (text lines level = rows of ink and rows of paper), then rotate the full image. */
@@ -4916,24 +5070,170 @@ function shDeskew(c) {
   const x = o.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
   x.translate(o.width / 2, o.height / 2); x.rotate(a); x.drawImage(c, -c.width / 2, -c.height / 2); return o;
 }
+let SH_PH = { a: 0, b: 1, cb: null };   // the progress bar across the reader's passes
 async function readSheetPhoto(file, onProg) {
   await loadTess();
   if (!TESS) {
     TESS = await Tesseract.createWorker('eng', 1, { workerPath: 'vendor/tess/worker.min.js', corePath: 'vendor/tess', langPath: 'vendor/tess', workerBlobURL: false,
-      logger: m => { if (onProg && m.status === 'recognizing text') onProg(m.progress); } });
-    await TESS.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+      logger: m => { if (SH_PH.cb && m.status === 'recognizing text') SH_PH.cb(SH_PH.a + (SH_PH.b - SH_PH.a) * m.progress); } });
   }
+  SH_PH = { a: 0, b: 0.55, cb: onProg };
+  await TESS.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1', tessedit_char_whitelist: '' });
   const c = await shPrep(file);
   const { data } = await TESS.recognize(c);
-  return { text: data.text, canvas: c, lines: (data.lines || []).map(l => ({ bbox: l.bbox, words: l.words.map(w => ({ text: w.text, conf: w.confidence, bbox: w.bbox })) })) };
+  let lines = (data.lines || []).map(l => ({ bbox: l.bbox, words: l.words.map(w => ({ text: w.text, conf: w.confidence, bbox: w.bbox })) }));
+  try { lines = await shGrid(c, lines); } catch (e) { console.warn('column pass', e); }
+  SH_PH.cb = null;
+  return { text: data.text, canvas: c, lines };
 }
-
+/* Second pass, the numbers column by column. Read across a whole row, the reader runs neighbouring columns
+   together ("0 0 0" → "W000") and drops lone 0s. So for each table (from its header line to the FG% lines
+   under it) the number columns are found from the white space between them, each column is cut out and
+   read on its own (digits and dashes only), and every row is rebuilt: its name from the first pass, its numbers from the
+   columns, matched by height on the page. */
+async function shGrid(c, lines) {
+  const W = c.width, H = c.height, px = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+  const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[b.length >> 1] : null; };
+  const txt = l => l.words.map(w => w.text).join(' '), yc = b => (b.y0 + b.y1) / 2;
+  const hm = med([].concat(...lines.map(l => l.words.filter(w => /^\d/.test(w.text)).map(w => w.bbox.y1 - w.bbox.y0)))) || 30;
+  const heads = lines.filter(l => shIsHeader(txt(l))); if (!heads.length) return lines;
+  const tables = [];
+  heads.forEach((h, hi) => {
+    // the header's own words (the line may have taken in the row under it): the ones that are column names
+    const hw = h.words.filter(w => /[A-Za-z]{2,}/.test(w.text)); const hy = med(hw.map(w => yc(w.bbox))); if (hy == null) return;
+    const top = Math.round(hy + 0.7 * hm), nextH = hi + 1 < heads.length ? med(heads[hi + 1].words.map(w => yc(w.bbox))) - 0.7 * hm : H;
+    // the bottom: just over the "FG%" / "Half:" words of the first percentage line (its line box can reach up into Totals)
+    const pw = [].concat(...lines.map(l => l.words)).filter(w => /FG%|Half:|Game:/i.test(w.text) && yc(w.bbox) > top && yc(w.bbox) < nextH).map(w => yc(w.bbox));
+    const bot = Math.round(Math.min(nextH, pw.length ? Math.min(...pw) - 0.45 * hm : nextH));
+    // where the numbers start: the first number after the name on the player lines
+    // (and on the totals line: its minutes, 3 digits, reach further left than a player's)
+    const xs = [], xt = []; lines.forEach(l => { if (yc(l.bbox) < top || yc(l.bbox) > bot) return; const ws = l.words;
+      const tl = ws.findIndex(w => /^T[O0o][TtlI][AaGo4][LlIie1][Ss5e]?$/.test(w.text));
+      if (tl >= 0 && ws[tl + 1] && /^\d/.test(ws[tl + 1].text)) { xt.push(ws[tl + 1].bbox.x0); return; }
+      if (!(ws[0] && /^\d{1,2}$/.test(ws[0].text) && ws[1] && /[A-Za-z]/.test(ws[1].text))) return;
+      const k = ws.findIndex((w, i) => i > 1 && /^\d/.test(w.text)); if (k > 1) xs.push(ws[k].bbox.x0); });
+    if (xs.length < 3) return;
+    const x0 = Math.max(0, Math.round(Math.min(med(xs), ...xt.filter(x => x > med(xs) - 2 * hm)) - 0.5 * hm));
+    const ink = new Int32Array(W); for (let y = top; y < bot; y++) for (let x = x0; x < W; x++) if (px[(y * W + x) * 4] < 150) ink[x]++;
+    const runs = []; let r0 = -1, gap = 0;
+    for (let x = x0; x <= W; x++) { if (x < W && ink[x] > 2) { if (r0 < 0) r0 = x; gap = 0; continue; }
+      if (r0 >= 0 && (x === W || ++gap > 0.35 * hm)) { const r1 = x - gap; if (r1 - r0 >= 0.25 * hm) runs.push([r0, r1]); r0 = -1; gap = 0; } }
+    // Two columns run together (the paper's bend at a corner: PF and PTS): a run under two of the header's
+    // column names is split where its ink is thinnest between them.
+    const hx = hw.map(w => (w.bbox.x0 + w.bbox.x1) / 2).filter(x => x > x0).sort((a, b) => a - b);
+    for (let i = 0; i < runs.length; i++) { const [a, b] = runs[i], inr = hx.filter(x => x >= a && x <= b); if (inr.length < 2) continue;
+      let mx = -1, mv = Infinity; for (let x = Math.round(inr[0]); x <= inr[1]; x++) if (ink[x] < mv) { mv = ink[x]; mx = x; }
+      if (mx > a && mx < b) { runs.splice(i, 1, [a, mx - 1], [mx + 1, b]); i++; } }
+    if (runs.length >= 8 && runs.length <= 20) tables.push({ top, bot, x0, runs });
+  });
+  if (!tables.length) return lines;
+  // Each column cut out on its own small piece of paper (sending the reader the whole page for each costs
+  // seconds) and read with digits and dashes only.
+  const pad = Math.round(0.3 * hm), parts = [];
+  tables.forEach(T => { T.cols = []; T.runs.forEach(([a, b]) => { const left = Math.max(0, a - pad), w = Math.min(W, b + pad) - left, col = []; T.cols.push(col);
+    if (w >= 8 && T.bot - T.top >= hm) parts.push({ left, top: T.top, w, h: T.bot - T.top, col }); }); });
+  await TESS.setParameters({ tessedit_char_whitelist: '0123456789-' });
+  try {
+    for (let n = 0; n < parts.length; n++) { const q = parts[n];
+      SH_PH.a = 0.55 + 0.45 * n / parts.length; SH_PH.b = 0.55 + 0.45 * (n + 1) / parts.length;
+      const sc = document.createElement('canvas'); sc.width = q.w + 2 * pad; sc.height = q.h + 2 * pad;
+      const sx = sc.getContext('2d'); sx.fillStyle = '#fff'; sx.fillRect(0, 0, sc.width, sc.height); sx.drawImage(c, q.left, q.top, q.w, q.h, pad, pad, q.w, q.h);
+      const { data } = await TESS.recognize(sc);
+      const dx = q.left - pad, dy = q.top - pad;   // back to page coordinates
+      (data.words || []).forEach(w => { const t = w.text.replace(/[^0-9-]/g, '').replace(/^-+|-+$/g, ''); if (!t) return;
+        q.col.push({ text: t, conf: w.confidence, bbox: { x0: w.bbox.x0 + dx, x1: w.bbox.x1 + dx, y0: w.bbox.y0 + dy, y1: w.bbox.y1 + dy } }); });
+    }
+  } finally { await TESS.setParameters({ tessedit_char_whitelist: '' }); }
+  // The names: a photo at an angle tilts the name column more than the rest (it's furthest from the middle),
+  // so each table's names are cut out, levelled on their own and read again.
+  for (const T of tables) {
+    const ny0 = Math.max(0, Math.round(T.top - 1.0 * hm)), nx1 = Math.round(T.x0 - 0.2 * hm), nh = T.bot - ny0;
+    if (nx1 < 4 * hm || nh < 2 * hm) continue;
+    const nc = document.createElement('canvas'); nc.width = nx1; nc.height = nh; nc.getContext('2d').drawImage(c, 0, ny0, nx1, nh, 0, 0, nx1, nh);
+    const deg = shSkewAngle(nc), th = deg * Math.PI / 180, rc = Math.abs(deg) < 0.1 ? nc : shDeskew(nc);
+    const { data } = await TESS.recognize(rc), cx = nx1 / 2, cy = nh / 2;
+    // (slivers of the header's letters above the first name read as words: too short to be a name)
+    T.names = (data.words || []).filter(w => w.text.trim() && w.bbox.y1 - w.bbox.y0 >= 0.6 * hm).map(w => { const px = (w.bbox.x0 + w.bbox.x1) / 2 - cx, py = (w.bbox.y0 + w.bbox.y1) / 2 - cy;
+      const qx = px * Math.cos(th) - py * Math.sin(th) + cx, qy = px * Math.sin(th) + py * Math.cos(th) + cy + ny0, hw = (w.bbox.x1 - w.bbox.x0) / 2, hh = (w.bbox.y1 - w.bbox.y0) / 2;
+      return { text: w.text, conf: w.confidence, bbox: { x0: qx - hw, x1: qx + hw, y0: qy - hh, y1: qy + hh } }; });
+    T.nameBox = { x1: nx1, y0: ny0, y1: T.bot };
+  }
+  // Rebuild: words in a table's number area are replaced by the column reads; names and the rest stay.
+  const inNum = (w, T) => yc(w.bbox) >= T.top && yc(w.bbox) <= T.bot && w.bbox.x0 >= T.x0 - 0.2 * hm;
+  const keep = [], out = [];
+  const inName = (w, T) => T.nameBox && w.bbox.x1 <= T.nameBox.x1 + 0.3 * hm && yc(w.bbox) >= T.nameBox.y0 && yc(w.bbox) <= T.nameBox.y1;
+  lines.forEach(l => { const ws = l.words.filter(w => !tables.some(T => inNum(w, T) || (T.names && inName(w, T)))); if (ws.length) keep.push(ws); });
+  tables.forEach(T => { if (T.names && T.names.length) keep.push(T.names); });
+  // rows: traced across the columns left to right, each row following its own height (what's left of the
+  // paper's bend), after the column's shift as a whole
+  const rows = [];
+  tables.forEach(T => { const R = [];
+    // Two numbers on one row of a column: in a made-attempted column they're a pair whose dash
+    // didn't come out ("0 0" → 0-0); in a plain column where that's common, two columns ran together (the
+    // paper's bend at a corner): split it down the middle.
+    const split = [];
+    // the made-attempted columns: of the first six, the three with the most dashed numbers
+    const share = T.cols.map(col => col.length ? col.filter(t => /-/.test(t.text)).length / col.length : 0);
+    const pairCols = share.map((v, i) => [v, i]).slice(0, 6).filter(x => x[0] > 0.15).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]), lastPair = Math.max(-1, ...pairCols);
+    T.cols.forEach((col, ci) => { col.sort((p, q) => p.bbox.x0 - q.bbox.x0); const grp = [];
+      col.forEach(t => { const g = grp.find(g => Math.abs(yc(g[0].bbox) - yc(t.bbox)) < 0.4 * hm); if (g) g.push(t); else grp.push([t]); });
+      const dashed = pairCols.includes(ci), multi = pairCols.length === 3 && ci > lastPair ? grp.filter(g => g.length > 1).length : 0;
+      if (dashed) { col.length = 0; grp.forEach(g => col.push(g.length === 2 && !g.some(t => /-/.test(t.text)) ? { text: g[0].text + '-' + g[1].text, conf: Math.min(g[0].conf, g[1].conf, 60),
+          bbox: { x0: g[0].bbox.x0, x1: g[1].bbox.x1, y0: Math.min(g[0].bbox.y0, g[1].bbox.y0), y1: Math.max(g[0].bbox.y1, g[1].bbox.y1) } } : g[0], ...(g.length === 2 && !g.some(t => /-/.test(t.text)) ? [] : g.slice(1)))); split.push(col); }
+      else if (multi >= 3 && multi >= 0.3 * grp.length) { const mid = (Math.min(...col.map(t => t.bbox.x0)) + Math.max(...col.map(t => t.bbox.x1))) / 2;
+        split.push(col.filter(t => (t.bbox.x0 + t.bbox.x1) / 2 < mid), col.filter(t => (t.bbox.x0 + t.bbox.x1) / 2 >= mid)); }
+      else split.push(col); });
+    T.cols = split;
+    T.cols.forEach(col => { const near = t => { let b = null, bd = Infinity; R.forEach(r => { const d = yc(t.bbox) - r.y; if (Math.abs(d) < Math.abs(bd)) { bd = d; b = r; } }); return [b, bd]; };
+      const off = med(col.map(t => near(t)[1]).filter(d => Math.abs(d) < 0.6 * hm)) || 0, hit = new Set();
+      col.sort((p, q) => yc(p.bbox) - yc(q.bbox)).forEach(t => { const y = yc(t.bbox) - off; let b = null, bd = 0.5 * hm;
+        R.forEach(r => { const d = Math.abs(y - r.y); if (!hit.has(r) && d < bd) { bd = d; b = r; } });
+        if (b) { b.w.push(t); b.y = yc(t.bbox); hit.add(b); } else { const r = { T, y: yc(t.bbox), w: [t] }; R.push(r); hit.add(r); } });
+      R.forEach(r => { if (!hit.has(r)) r.y += off; }); });
+    // a row's height for its name: where its first column sits
+    R.forEach(r => { r.y = yc(r.w[0].bbox); rows.push(r); }); });
+  // The first pass, where it was sure of a clean number, fills in: a number the column pass dropped (a lone
+  // 0 or 1), or a leading digit it lost ("11" read "1", "13-18" read "3-18", "201" read "01").
+  const ov = (a, b) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.5 * Math.min(a.x1 - a.x0, b.x1 - b.x0);
+  lines.forEach(l => l.words.forEach(w => { const T = tables.find(T => inNum(w, T)); if (!T || w.conf < 85 || !/^\d{1,3}(-\d{1,3})?$/.test(w.text)) return;
+    const near = rows.filter(r => r.T === T).map(r => { const k = r.w.reduce((a, b) => Math.abs(b.bbox.x0 - w.bbox.x0) < Math.abs(a.bbox.x0 - w.bbox.x0) ? b : a);
+      return { r, d: Math.abs(yc(k.bbox) - yc(w.bbox)) }; }).sort((a, b) => a.d - b.d)[0];
+    if (!near || near.d > 0.5 * hm) return;
+    const same = near.r.w.find(t => ov(t.bbox, w.bbox));
+    // (a column that already has a number on this row takes no second one: half of a "0-0" read apart)
+    const run = T.runs.find(([a, b]) => (w.bbox.x0 + w.bbox.x1) / 2 >= a - 0.3 * hm && (w.bbox.x0 + w.bbox.x1) / 2 <= b + 0.3 * hm);
+    if (!same && run && near.r.w.some(t => (t.bbox.x0 + t.bbox.x1) / 2 >= run[0] - 0.3 * hm && (t.bbox.x0 + t.bbox.x1) / 2 <= run[1] + 0.3 * hm)) return;
+    if (!same) { near.r.w.push({ text: w.text, conf: w.conf, bbox: w.bbox }); return; }
+    if (w.text.length > same.text.length && w.text.endsWith(same.text)) { same.text = w.text; same.conf = Math.min(same.conf, w.conf); same.bbox = w.bbox; } }));
+  // The rest of the words, chained left to right into lines (each word next to the one before it, at about
+  // its height: a name tilted on the photo stays one name). A line ending by a table's numbers goes to the row
+  // nearest its right end (the end next to the numbers), or stays a line of its own.
+  const chains = [];
+  [].concat(...keep).sort((a, b) => a.bbox.x0 - b.bbox.x0).forEach(w => { let best = null, bd = 0.6 * hm;
+    chains.forEach(ch => { const l = ch[ch.length - 1], d = Math.abs(yc(l.bbox) - yc(w.bbox)); if (l.bbox.x0 + l.bbox.x1 < w.bbox.x0 + w.bbox.x1 && w.bbox.x0 - l.bbox.x1 < 4 * hm && d < bd) { bd = d; best = ch; } });
+    if (best) best.push(w); else chains.push([w]); });
+  // A photo at an angle can leave the names a little off their numbers' height: per table, the shift that lines
+  // up the most names with rows is found first.
+  const loose = [], end = ch => ch[ch.length - 1], used = new Set();
+  tables.forEach(T => { const R = rows.filter(r => r.T === T), C = chains.filter(ch => !used.has(ch) && end(ch).bbox.x1 <= T.x0 + 0.5 * hm && yc(end(ch).bbox) > T.top - hm && yc(end(ch).bbox) < T.bot + hm);
+    let sh = 0, bn = -1;
+    for (let d = -Math.round(1.2 * hm); d <= 1.2 * hm; d++) { const n = C.filter(ch => R.some(r => Math.abs(r.y - yc(end(ch).bbox) - d) < 0.3 * hm)).length; if (n > bn || (n === bn && Math.abs(d) < Math.abs(sh))) { bn = n; sh = d; } }
+    const pairs = []; C.forEach(ch => R.forEach(r => { const d = Math.abs(r.y - yc(end(ch).bbox) - sh); if (d < 0.5 * hm) pairs.push([d, ch, r]); }));
+    pairs.sort((a, b) => a[0] - b[0]).forEach(([, ch, r]) => { if (used.has(ch) || r.pre) return; r.pre = ch; used.add(ch); }); });
+  chains.forEach(ch => { if (!used.has(ch)) loose.push(...ch); });
+  const group = ws => { const g = []; ws.sort((a, b) => yc(a.bbox) - yc(b.bbox)).forEach(w => { const l = g.find(l => Math.abs(l.y - yc(w.bbox)) < 0.5 * hm); if (l) l.w.push(w); else g.push({ y: yc(w.bbox), w: [w] }); }); return g; };
+  const box = ws => ({ x0: Math.min(...ws.map(w => w.bbox.x0)), y0: Math.min(...ws.map(w => w.bbox.y0)), x1: Math.max(...ws.map(w => w.bbox.x1)), y1: Math.max(...ws.map(w => w.bbox.y1)) });
+  rows.forEach(r => { const ws = (r.pre || []).concat(r.w).sort((a, b) => a.bbox.x0 - b.bbox.x0); out.push({ bbox: box(ws), words: ws }); });
+  group(loose).forEach(l => { const ws = l.w.sort((a, b) => a.bbox.x0 - b.bbox.x0); out.push({ bbox: box(ws), words: ws }); });
+  return out.sort((a, b) => yc(a.bbox) - yc(b.bbox));
+}
 /* ---------- the check-and-fix screen ---------- */
 let SHEET = null;   // { sc, a, b, photo, text, stage }
 function sheetSum(T) { const s = {}; SH_NUM.forEach(k => { s[k] = T.rows.reduce((x, r) => x + (+r[k] || 0), 0); }); return s; }
 function sheetModal() {
   const g = cur(), S = SHEET;
   if (S.stage === 'clarify') { clarifyModal(); return; }
+  if (S.stage === 'row') { sheetRowModal(); return; }
   const sc = S.sc, scBtns = `<div class="row" style="gap:6px">${[['1H', 'Halftime sheet'], ['G', 'Final sheet']].map(([k, l]) => `<button class="btn ${sc === k ? 'btn-primary' : ''}" data-act="sh-sc" data-s="${k}">${l}</button>`).join('')}</div>`;
   if (S.stage === 'pick' || S.stage === 'reading') {
     modal(`<h2>${S.auto ? 'Halftime — stat sheet' : 'Read the stat sheet'}</h2>
@@ -4949,8 +5249,8 @@ function sheetModal() {
   const team = (t) => { const T = S[t], sum = sheetSum(T), tot = T.totals;
     const cell = (i, k, v) => `<td data-c="${t}:${i}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="${i}" data-k="${k}" value="${v == null ? '' : v}"></td>`;
     const rows = T.rows.map((r, i) => `<tr data-row="${t}:${i}"><td><input class="sh-in num" data-t="${t}" data-i="${i}" data-k="num" value="${esc(r.num)}"></td><td class="l"><input class="sh-in nm" data-t="${t}" data-i="${i}" data-k="name" value="${esc(r.name)}"></td>
-        ${SH_NUM.map(k => cell(i, k, r[k])).join('')}<td><button class="btn btn-sm btn-bad" data-act="sh-del" data-t="${t}" data-i="${i}">✕</button></td></tr>`).join('');
-    const totRow = tot ? `<tr class="sh-tot"><td></td><td class="l">Sheet totals</td><td></td>${SH_NUM.filter(k => k !== 'min').map(k => `<td data-tot="${t}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="tot" data-k="${k}" value="${tot[k] == null ? '' : tot[k]}"></td>`).join('')}<td></td></tr>` : '';
+        ${SH_NUM.map(k => cell(i, k, r[k])).join('')}<td style="white-space:nowrap"><button class="btn btn-sm" data-act="sh-row" data-t="${t}" data-i="${i}" title="Retype the whole row">✎</button> <button class="btn btn-sm btn-bad" data-act="sh-del" data-t="${t}" data-i="${i}">✕</button></td></tr>`).join('');
+    const totRow = tot ? `<tr class="sh-tot"><td></td><td class="l">Sheet totals</td><td></td>${SH_NUM.filter(k => k !== 'min').map(k => `<td data-tot="${t}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="tot" data-k="${k}" value="${tot[k] == null ? '' : tot[k]}"></td>`).join('')}<td><button class="btn btn-sm" data-act="sh-row" data-t="${t}" data-i="tot" title="Retype the whole row">✎</button></td></tr>` : '';
     return `<div class="sh-team"><div class="sh-th"><b style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</b> <span class="muted small">read as "${esc(T.title || '—')}"</span><span class="sh-st" data-st="${t}"></span></div>
       <div class="tbl-wrap"><table class="tbl sh-tbl"><thead><tr><th>#</th><th class="l">Player</th>${SH_COLS.map(c => `<th>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>${rows}
         <tr class="sh-sum"><td></td><td class="l">Players add up to</td>${SH_NUM.map(k => `<td data-sum="${t}:${k}">${sum[k]}</td>`).join('')}<td></td></tr>${totRow}</tbody></table></div>
@@ -4973,11 +5273,11 @@ function sheetRefresh() {
       const tr = q(`tr[data-row="${t}:${i}"]`); if (tr) tr.classList.toggle('sh-badrow', !ok || rb);
       SH_NUM.forEach(k => { const c = q(`td[data-c="${t}:${i}:${k}"]`); if (c) c.classList.toggle('sh-iffy', !!(r.iffy && k in r.iffy)); });
       const td = q(`td[data-c="${t}:${i}:pts"]`); if (td) { td.classList.toggle('sh-bad', !ok); td.classList.toggle('sh-fix', !!fix); td.title = fix ? 'Points worked out from FG / 3P / FT — check the sheet' : ''; } });
-    SH_NUM.forEach(k => { const c = q(`td[data-sum="${t}:${k}"]`); if (c) { c.textContent = sum[k]; c.className = k === 'min' && sum.min && sum.min !== minWant ? 'sh-bad' : ''; }
+    SH_NUM.forEach(k => { const c = q(`td[data-sum="${t}:${k}"]`); if (c) { c.textContent = sum[k]; c.className = k === 'min' && sum.min && !shMinOk(sum.min, minWant) ? 'sh-bad' : ''; }
       const d = q(`td[data-tot="${t}:${k}"]`); if (d) { d.classList.toggle('sh-bad', !!(tot && tot[k] != null && !shTotOk(T, k, tot[k], sum[k]))); d.classList.toggle('sh-iffy', !!(tot && tot.iffy && k in tot.iffy)); } });
     const mism = tot ? SH_NUM.filter(k => k !== 'min' && tot[k] != null && !shTotOk(T, k, tot[k], sum[k])) : [];
     const st = q(`[data-st="${t}"]`);
-    if (st) st.innerHTML = `${sum.min && sum.min !== minWant ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line found' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
+    if (st) st.innerHTML = `${sum.min && !shMinOk(sum.min, minWant) ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line found' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
   const n = sheetQueue().length, cb = q('.sh-clar');
   if (cb) { cb.textContent = `🔎 Clarify iffy numbers (${n})`; cb.style.display = n ? '' : 'none'; }
   const all = q('[data-st="all"]');
@@ -5018,12 +5318,14 @@ function sheetQueue() {
   return out;
 }
 /* The sheet vouches for itself: a column whose players add up to the TOTALS line, minutes that add up to
-   100 / 200, and made shots that add up to a row's points are taken as right — only what's left is iffy. */
+   100 / 200 (within 2), and made shots that add up to a row's points are taken as right — only what's left is iffy. */
 // A TOTALS number adds up when it is the players' sum, or (rebounds) the players' sum plus the TM Team row.
+// Minutes add up when within 2 of 100 / 200: the printout rounds each player's minutes (a right sheet shows 99 or 101).
+const shMinOk = (sum, want) => Math.abs(sum - want) <= 2;
 const shTotOk = (T, k, tv, sv) => tv === sv || ((k === 'oreb' || k === 'dreb') && T.teamReb && tv === sv + (T.teamReb[k] || 0));
 function sheetSettle(S, minWant) {
   ['a', 'b'].forEach(t => { const T = S[t], sum = sheetSum(T), tot = T.totals;
-    SH_NUM.forEach(k => { const okCol = k === 'min' ? sum.min === minWant : tot && tot[k] != null && shTotOk(T, k, tot[k], sum[k]);
+    SH_NUM.forEach(k => { const okCol = k === 'min' ? shMinOk(sum.min, minWant) : tot && tot[k] != null && shTotOk(T, k, tot[k], sum[k]);
       if (!okCol) return; T.rows.forEach(r => { if (r.iffy) delete r.iffy[k]; }); if (tot && tot.iffy) delete tot.iffy[k]; });
     T.rows.forEach(r => { if (r.iffy && shPtsOk(r) && !r.ptsFixed) ['fgm', 'fg3m', 'ftm', 'pts'].forEach(k => delete r.iffy[k]); }); });
 }
@@ -5055,6 +5357,7 @@ function clarifyModal() {
     ${img ? `<img class="cl-img" src="${img}" alt="">` : '<div class="muted small" style="margin:10px 0">No photo strip for this one.</div>'}
     <div class="cl-in">${pair ? `${inp(it.keys[0], 'made')}<span>–</span>${inp(it.keys[1], 'att')}` : inp(it.keys[0], '')}</div>
     ${it.keys[0] === 'pts' && R.ptsRead != null ? `<div class="small muted" style="text-align:center">Read as ${R.ptsRead}; FG / 3P / FT add up to ${shCalcPts(R)}.</div>` : ''}
+    <div style="text-align:center;margin-top:8px"><button class="btn" data-act="sh-row" data-t="${it.t}" data-i="${it.i}">✎ Numbers in the wrong boxes? Retype the whole row</button></div>
     <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-lg" data-act="cl-prev" ${S.ci ? '' : 'disabled'}>◀ Back</button><button class="btn btn-good btn-lg" data-act="cl-next">✓ That's right · Next ▶</button></div>`, 'sheet-modal wide');
   const f = document.getElementById('cl-' + it.keys[0]); if (f) { f.focus(); f.select(); }
 }
@@ -5063,6 +5366,60 @@ function clarifySave() {
   const T = S[it.t], R = it.i === 'tot' ? T.totals : T.rows[it.i];
   it.keys.forEach(k => { const el = document.getElementById('cl-' + k); if (el) { const v = el.value.trim(); R[k] = v === '' ? null : (parseInt(v, 10) || 0); } if (R.iffy) delete R.iffy[k]; });
   if (it.keys.includes('pts')) delete R.ptsFixed;
+}
+/* Retype a whole row as one line ("4 0-4 0-2 0-0 0 1 0 0 0 1 0 0"): for a row the reader put in the wrong boxes
+   (a dash where there was none, or none where there was one: "4" minutes and "0-4" read as one "404"), where
+   fixing box by box would mean moving every number over. Checked as it's typed; nothing changes until Save. */
+// In the sheet's own order, REB included (it's on the printout; a line typed without it is taken too).
+const SH_ROWKEYS = (tot, reb = true) => (tot ? [] : ['min']).concat(['fg', 'fg3', 'ft', 'oreb', 'dreb'], reb ? ['reb'] : [], ['ast', 'stl', 'blk', 'tov', 'pf', 'pts']);
+const SH_ROWLBL = { min: 'MIN', fg: 'FGM-A', fg3: '3PM-A', ft: 'FTM-A', oreb: 'OREB', dreb: 'DREB', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tov: 'TO', pf: 'PF', pts: 'PTS' };
+const SH_PAIRK = { fg: ['fgm', 'fga'], fg3: ['fg3m', 'fg3a'], ft: ['ftm', 'fta'] };
+function sheetRowText(R, tot) {
+  const v = x => x == null ? '?' : x, reb = R.oreb != null && R.dreb != null ? R.oreb + R.dreb : null;
+  return SH_ROWKEYS(tot).map(k => SH_PAIRK[k] ? `${v(R[SH_PAIRK[k][0]])}-${v(R[SH_PAIRK[k][1]])}` : k === 'reb' ? v(reb) : v(R[k])).join(' ');
+}
+function sheetRowParse(txt, tot) {
+  const tk = txt.replace(/[—–_]/g, '-').trim().split(/[\s,]+/).filter(Boolean), out = {}, full = SH_ROWKEYS(tot);
+  const keys = tk.length === full.length - 1 ? SH_ROWKEYS(tot, false) : full;
+  if (tk.length !== keys.length) return { err: `${tk.length} number${tk.length === 1 ? '' : 's'} — the row needs ${full.length} (${full.map(k => SH_ROWLBL[k]).join(' ')})` };
+  for (let i = 0; i < keys.length; i++) { const k = keys[i], t = tk[i];
+    if (SH_PAIRK[k]) { const m = t.match(/^(\d{1,3})-(\d{1,3})$/); if (!m) return { err: `${SH_ROWLBL[k]} is made-attempted, with a dash (like 3-7): "${t}"` };
+      if (+m[1] > +m[2]) return { err: `${SH_ROWLBL[k]}: more made than attempted (${t})` }; [out[SH_PAIRK[k][0]], out[SH_PAIRK[k][1]]] = [+m[1], +m[2]]; }
+    else { if (!/^\d{1,3}$/.test(t)) return { err: `${SH_ROWLBL[k]} is one number, no dash: "${t}"` }; out[k] = +t; } }
+  if (out.fg3a > out.fga) return { err: '3PT attempts are more than FG attempts' };
+  if (out.reb != null && !tot && out.reb !== out.oreb + out.dreb) return { err: `REB ${out.reb} isn't OREB + DREB (${out.oreb + out.dreb})` };
+  delete out.reb;   // the sheet's REB is OREB + DREB (the totals' takes in the team rebounds)
+  return { v: out };
+}
+function sheetRowModal() {
+  const g = cur(), S = SHEET, E = S.rowEdit, T = S[E.t], tot = E.i === 'tot', R = tot ? T.totals : T.rows[E.i];
+  const who = tot ? 'Sheet totals' : `${R.num ? '#' + esc(R.num) + ' ' : ''}${esc(R.name || '')}`, img = sheetCrop(S, T, R, 'fgm');
+  modal(`<h2>Retype the row</h2>
+    <div class="cl-who"><b style="color:${E.t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, E.t))}</b> · ${who}</div>
+    ${img ? `<img class="cl-img" src="${img}" alt="">` : ''}
+    <p class="small muted" style="margin:8px 0 4px">Type the row as it reads on the sheet, spaces between the numbers, a dash only in made-attempted:</p>
+    <div class="small" style="font-weight:600;margin-bottom:4px">${SH_ROWKEYS(tot).map(k => SH_ROWLBL[k]).join(' · ')}</div>
+    <input class="sh-rowtxt" id="sh-rowtxt" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%;font-size:20px;padding:8px;font-family:ui-monospace,Menlo,monospace" value="${esc(sheetRowText(R, tot))}">
+    <div class="small" id="sh-rowmsg" style="margin-top:6px;min-height:1.4em"></div>
+    <div class="modal-foot"><button class="btn btn-lg" data-act="sh-row-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="sh-row-save">Save row</button></div>`, 'sheet-modal');
+  sheetRowCheck(); const f = document.getElementById('sh-rowtxt'); if (f) f.focus();
+}
+function sheetRowCheck() {
+  const S = SHEET, E = S && S.rowEdit, f = document.getElementById('sh-rowtxt'), m = document.getElementById('sh-rowmsg'); if (!E || !f || !m) return null;
+  const tot = E.i === 'tot', r = sheetRowParse(f.value, tot);
+  if (r.err) { m.innerHTML = `<span class="neg">${esc(r.err)}</span>`; return r; }
+  const p = r.v, calc = shCalcPts(p);
+  m.innerHTML = p.pts === calc ? `<span class="pos">✓ ${p.pts} points = 2 × ${p.fgm} FG + ${p.fg3m} 3PT + ${p.ftm} FT</span>`
+    : `<span style="color:var(--warn)">Points ${p.pts}, but FG / 3P / FT add up to ${calc} — check the sheet (it saves either way)</span>`;
+  return r;
+}
+function sheetRowSave() {
+  const S = SHEET, E = S.rowEdit, T = S[E.t], tot = E.i === 'tot', R = tot ? T.totals : T.rows[E.i], r = sheetRowCheck();
+  if (!r || r.err) { toast(r ? r.err : 'Nothing to save', 'bad'); return false; }
+  Object.assign(R, r.v); R.iffy = {}; delete R.ptsFixed; delete R.ptsRead; delete R.rebOff;
+  // its Clarify questions are answered (the queue moves on to the next row's)
+  if (S.cq) { const hit = q => q.t === E.t && q.i === E.i; S.ci = Math.max(0, (S.ci || 0) - S.cq.slice(0, S.ci || 0).filter(hit).length); S.cq = S.cq.filter(q => !hit(q)); }
+  return true;
 }
 function clarifyOpen() { const S = SHEET; S.cq = sheetQueue(); S.ci = 0; S.stage = 'clarify'; if (!S.cq.length) { S.stage = 'check'; sheetModal(); return; } clarifyModal(); }
 
@@ -5146,6 +5503,8 @@ async function sheetRead(file) {
 }
 $('#sh-file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) sheetRead(f); });
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('sh-in') && SHEET) { sheetInput(e.target); sheetRefresh(); } });
+document.addEventListener('input', e => { if (e.target.id === 'sh-rowtxt' && SHEET) sheetRowCheck(); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sh-rowtxt' && SHEET) { e.preventDefault(); const b = document.querySelector('[data-act="sh-row-save"]'); if (b) b.click(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('sh-cl') && SHEET) { e.preventDefault();
   const ins = [...document.querySelectorAll('.sh-cl')], i = ins.indexOf(e.target); if (i < ins.length - 1) { ins[i + 1].focus(); ins[i + 1].select(); } else document.querySelector('[data-act="cl-next"]').click(); } });
 

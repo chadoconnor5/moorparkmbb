@@ -8056,7 +8056,7 @@ function __bxTeamTable(name, rows, oppRows) {{
   const tSc = __bxScales(activeTeamData, BX_COLOR_T, t => (t.gp || 0) > 0);
   const cells = r => {{
     const plain = minutesReal && r.min <= 9, c = (v, k) => __bxTd(v, k, pSc, plain);
-    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name) + '</td><td>' + r.min + '</td>'
+    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name, null, null, true) + '</td><td>' + r.min + '</td>'
       + c(r.ortg, 'ortg') + '<td>' + __bxF(r.usg) + '</td>'
       + c(r.efg, 'efg') + c(r.ts, 'ts')
       + c(r.orp, 'orp') + c(r.drp, 'drp')
@@ -12486,9 +12486,9 @@ function __ppEsc(s) {{
   return String(s || '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'").replace(/"/g, '&quot;');
 }}
 
-function playerLink(name, school, style, pos) {{   // pos: the position marker, between the name and the badges
+function playerLink(name, school, style, pos, noBadges) {{   // pos: the position marker, between the name and the badges; noBadges: box scores
   return '<a href="#" onclick="showPlayerProfile(\\'' + __ppEsc(name) + '\\',\\'' + __ppEsc(school) + '\\');return false" style="' + (style || 'color:inherit;text-decoration:none') + '">' + name + '</a>'
-    + (pos ? '<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">' + pos + '</span>' : '') + __bdgIcons(name, school);
+    + (pos ? '<span style="font-size:0.65rem;color:#888;margin-left:5px;vertical-align:middle">' + pos + '</span>' : '') + (noBadges ? '' : __bdgIcons(name, school));
 }}
 
 function showPlayerProfile(name, school) {{
