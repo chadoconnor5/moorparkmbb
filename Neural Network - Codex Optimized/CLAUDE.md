@@ -147,6 +147,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Check screen: ✎ on each row (and the totals; also "Retype the whole row" in Clarify) retypes a row as one line in the
   sheet's order, REB optional ("4 0-4 0-2 0-0 0 1 1 0 0 0 0 1 0"): for numbers put in the wrong boxes (a dash added
   or lost shifts the whole row). Checked as typed (count, dashes only in made-attempted, REB = OREB + DREB, points).
+  Screenshots of the box score page (with Wi-Fi) work too: pick several at once (both teams, scrolled, overlaps fine);
+  they're read in order and put together (sheetRead: a screenshot starting mid-box carries on the box before it; a
+  team's box shown again is merged, a row shown twice counts once; Clarify crops each row from its own screenshot).
+  Tested on a 11/2 iPad screenshot: Moorpark's 12 players and TOTALS all right, also split in two overlapping shots.
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
   conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half

@@ -1336,12 +1336,12 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
   <div id="sc-fileview"></div>
 </div>
 <input type="file" id="sc-file" accept="application/pdf,.pdf" class="hidden">
-<input type="file" id="sh-file" accept="image/*" class="hidden">
+<input type="file" id="sh-file" accept="image/*" multiple class="hidden">
 <div id="modal-root"></div>
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.400';
+const VERSION = 'v2026.11.03.500';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4857,11 +4857,11 @@ const shRebOk = r => r.reb == null || r.oreb == null || r.dreb == null || r.reb 
 function parseSheet(src) {
   // src: the reader's lines (words with confidence and position), or plain text.
   const lines = typeof src === 'string' ? src.split('\n').map(l => l.trim()).filter(Boolean).map(t => ({ text: t, words: null, bbox: null }))
-    : src.map(l => ({ text: l.words.map(w => w.text).join(' '), words: l.words, bbox: l.bbox }));
+    : src.map(l => ({ text: l.words.map(w => w.text).join(' '), words: l.words, bbox: l.bbox, pg: l.pg }));
   const secs = []; let cur = null, lastTitle = '', lay = null, group = null;   // group: STARTERS / RESERVES heading in force
   const start = () => { cur = { title: lastTitle, rows: [], team: null, totals: null, lay }; secs.push(cur); };
   lines.forEach(L => { const line = L.text;
-    if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; return; }
+    if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; cur.headPg = L.pg; return; }
     // the FG% / 3P% / FT% lines under a table ("TOTAL FG% 1st Half: 23-42 54.8%")
     if (/%/.test(line) && (/FG%|Half|Game|Throw|3-?Pt/i.test(line) || !/[A-Za-z]{3}/.test(line.replace(/%/g, '')))) return;
     const T = shTokens(L.words || line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
@@ -4869,7 +4869,7 @@ function parseSheet(src) {
     // the TOTALS line ("Tolale" too; not "Score by periods 1st Total" further down: a totals line has the whole row of numbers)
     // (or a whole row of numbers with no name, after a table's players: "Totals" misread beyond recognition)
     if ((/\bT[O0o][TtlI][AaGo4][LlIie1][Ss5e]?\b/.test(words) && /^T/i.test(words.replace(/^[^A-Za-z]+/, '')) && V.length >= 6)
-      || (V.length >= 10 && !/[A-Za-z]{2}/.test(words) && cur && !cur.closed && cur.rows.length >= 5)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
+      || (V.length >= 10 && !/[A-Za-z]{2}/.test(words) && cur && !cur.closed && cur.rows.length >= 5)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.totPg = L.pg; cur.closed = true; return; }
     // The team line ("TEAM", "TM Team", "TMTeam"): team rebounds, placed by column when the photo gives positions.
     if (/TEAM\b/i.test(words) && V.length <= 6 && !V.some(x => /-/.test(x.v))) { if (cur) { cur.team = V.map(x => shInt(x.v)).filter(n => n != null); cur.teamV = V; } return; }
     // A player line: jersey number, the name, then the numbers.
@@ -4880,7 +4880,7 @@ function parseSheet(src) {
       if (T[iNum - 1] && T[iNum - 1].w && /^(n|u|ll|Il|lI|II|ii|H)$/.test(T[iNum - 1].w) && iNum - 1 > 1) {
         const wd = (L.words || []).find(w => w.text === T[iNum - 1].raw); T[iNum - 1] = { v: '11', raw: T[iNum - 1].raw, conf: wd ? wd.conf : 0, bbox: wd ? wd.bbox : null, fixed: true }; iNum--; }
       const name = T.slice(1, iNum).filter(x => x.w).map(x => x.w.replace(/[^A-Za-z'\-,.]/g, '')).filter(Boolean).join(' ').replace(/\.{2,}.*$/, '').replace(/^[,.\s]+|[,.\s]+$/g, '');
-      cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null), box: L.bbox });
+      cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null), box: L.bbox, pg: L.pg });
       return;
     }
     // A team's title: "Antelope Valley 55 • 0-0" (the name, then score and record), or the name alone. Not the
@@ -4889,8 +4889,17 @@ function parseSheet(src) {
       const m = line.match(/^\s*([A-Za-z][A-Za-z .'&\-]*?[A-Za-z])\s*(?:\d|[•*«=·]|$)/);
       if (m && /[A-Za-z]{3,}/.test(m[1])) lastTitle = m[1].trim(); }
   });
+  // Screenshots of one box score (scrolled, overlapping): a team's box shown again is one section, and a row
+  // shown twice counts once.
+  const merged = [];
+  secs.forEach(s => { const m = s.title && merged.find(x => x.title === s.title);
+    if (!m) { merged.push(s); return; }
+    s.rows.forEach(r => { if (!m.rows.some(x => x.num === r.num && x.name === r.name)) m.rows.push(r); });
+    if (!m.totals && s.totals) Object.assign(m, { totals: s.totals, totBox: s.totBox, totPg: s.totPg });
+    if (!m.team && s.team) Object.assign(m, { team: s.team, teamV: s.teamV }); if (!m.lay && s.lay) m.lay = s.lay; });
+  merged.forEach(s => { const seen = new Set(); s.rows = s.rows.filter(r => { const k = r.num + '|' + r.name; if (seen.has(k)) return false; seen.add(k); return true; }); });
   // The column layout per section: the header's if it adds up best, else the best known layout.
-  return secs.filter(s => s.rows.length).map(s => {
+  return merged.filter(s => s.rows.length).map(s => {
     // A header that was read settles whether there's a MIN column (rows with a number dropped can add up
     // better, by accident, without it). A header read in full (all nine columns after the shooting) is the layout.
     const cands = s.lay && s.lay.post.length >= 9 ? [s.lay] : [s.lay, ...SH_ALT.map(post => ({ min: true, post })), ...SH_ALT.map(post => ({ min: false, post }))].filter(o => o && (!s.lay || o.min === s.lay.min));
@@ -4908,20 +4917,20 @@ function parseSheet(src) {
       if (byX && rate(a) < 4) { const b = shAssignX(r.V, byX, false); if (rate(b) > rate(a)) a = b; }
       const v = Object.assign({ num: r.num, name: r.name, starter: r.starter }, a || {});
       // Points are FG/3P/FT added up; a misread PTS is replaced and marked for a look.
-      v.iffy = shIffy(v); v.box = r.box;
+      v.iffy = shIffy(v); v.box = r.box; v.pg = r.pg;
       if (v.fgm != null && !shPtsOk(v)) { v.ptsRead = v.pts == null ? null : v.pts; v.pts = shCalcPts(v); v.ptsFixed = true; v.iffy.pts = v._q.pts ? v._q.pts.bbox : null; }
       if (v.oreb != null && v.dreb != null && v.reb != null && v.reb !== v.oreb + v.dreb) v.rebOff = true;
       return v; });
     let tot = s.totals ? shAssign(s.totals, Object.assign({}, best, { min: false, tot: true })) : null;
     // The totals line carries the minutes too (200 / 100): read it by position when it can be.
     if (s.totals && byX) { const b = shAssignX(s.totals, byX, true); if (b && (!tot || rate(b) >= rate(tot))) tot = b; }
-    if (tot) { tot.iffy = shIffy(tot); tot.box = s.totBox; }
+    if (tot) { tot.iffy = shIffy(tot); tot.box = s.totBox; tot.pg = s.totPg; }
     const team = s.team || [];
     let teamReb = team.length >= 2 ? { oreb: team[0], dreb: team[1] } : null;
     // By position: "TMTeam 1 . 1" is 1 offensive (REB 1), "TMTeam . 5 5" is 5 defensive.
     if (byX && s.teamV && s.teamV.length) { const t = shAssignX(s.teamV, byX, true, true);
       if (t && (t.oreb != null || t.dreb != null || t.reb != null)) { const o = t.oreb || 0, d = t.dreb != null ? t.dreb : Math.max(0, (t.reb || 0) - o); teamReb = { oreb: o, dreb: d }; } }
-    return { title: s.title, rows, totals: tot, headBox: s.headBox, teamReb };
+    return { title: s.title, rows, totals: tot, headBox: s.headBox, headPg: s.headPg, teamReb };
   });
 }
 /* Which section is Moorpark: the one whose title says so; else by home / away (home is listed second). */
@@ -4931,8 +4940,8 @@ function sheetTeams(g, secs) {
   if (ia < 0) { const ob = secs.findIndex(s => g.opp && s.title && s.title.toLowerCase().includes(String(g.opp).split(' ')[0].toLowerCase())); ia = ob >= 0 ? (ob === 0 ? 1 : 0) : (g.loc === 'A' ? 0 : 1); }
   if (ia >= secs.length) ia = 0;
   const ib = secs.length > 1 ? (ia === 0 ? 1 : 0) : -1;
-  const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
-    totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null }) : null, teamReb: s ? s.teamReb : null });
+  const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, headPg: s ? s.headPg : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null, pg: r.pg }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
+    totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null, pg: s.totals.pg }) : null, teamReb: s ? s.teamReb : null });
   return { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
 }
 
@@ -5238,10 +5247,10 @@ function sheetModal() {
   if (S.stage === 'pick' || S.stage === 'reading') {
     modal(`<h2>${S.auto ? 'Halftime — stat sheet' : 'Read the stat sheet'}</h2>
       ${S.auto ? '<p style="margin-bottom:8px">Got the halftime printout? Add a photo of it for the full individual and team advanced numbers. No printout? Skip straight to the halftime report.</p>' : ''}
-      <p class="muted" style="margin-bottom:10px">Take a photo of the box score printout with both teams in view (flat, straight on, good light), or pick one from Photos. It's read on the iPad — no internet needed. You'll check the numbers before anything is saved.</p>
+      <p class="muted" style="margin-bottom:10px">Take a photo of the box score printout with both teams in view (flat, straight on, good light), or pick one from Photos. With Wi-Fi you can screenshot the box score page instead and pick all the screenshots at once (both teams, scrolled — overlaps are fine). It's read on the iPad. You'll check the numbers before anything is saved.</p>
       ${S.auto ? '' : scBtns}
       <div style="margin:14px 0">${S.stage === 'reading' ? `<div class="sh-prog"><div style="width:${Math.round(100 * (S.prog || 0))}%"></div></div><div class="small muted" style="margin-top:6px">${S.msg || 'Reading…'}</div>`
-        : '<button class="btn btn-good btn-lg" data-act="sh-photo" style="width:100%">📷 Take or choose photo</button>'}</div>
+        : '<button class="btn btn-good btn-lg" data-act="sh-photo" style="width:100%">📷 Take or choose photo / screenshots</button>'}</div>
       ${g.sheet && g.sheet[sc] ? `<div class="small muted">A ${sc === '1H' ? 'halftime' : 'final'} sheet is already saved — <button class="btn btn-sm" data-act="sh-edit">Edit it</button></div>` : ''}
       <div class="modal-foot"><button class="btn btn-lg" data-act="sh-close">${S.auto ? 'Skip → halftime report' : 'Cancel'}</button></div>`, 'sheet-modal');
     return;
@@ -5256,9 +5265,9 @@ function sheetModal() {
         <tr class="sh-sum"><td></td><td class="l">Players add up to</td>${SH_NUM.map(k => `<td data-sum="${t}:${k}">${sum[k]}</td>`).join('')}<td></td></tr>${totRow}</tbody></table></div>
       <button class="btn btn-sm" data-act="sh-add" data-t="${t}">+ Add player</button></div>`; };
   modal(`<div class="sub-head"><h2>Check the ${sc === '1H' ? 'halftime' : 'final'} sheet</h2><div class="sub-top"><button class="btn btn-lg" data-act="sh-close">Cancel</button><button class="btn btn-good btn-lg" data-act="sh-save">Save → report</button></div></div>
-    <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">${scBtns}<button class="btn" data-act="sh-swap">⇅ Swap teams</button>${S.photo ? '<button class="btn" data-act="sh-photo">📷 Read again</button>' : ''}<button class="btn btn-warn sh-clar" data-act="sh-clarify"></button>
+    <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">${scBtns}<button class="btn" data-act="sh-swap">⇅ Swap teams</button>${S.photos ? '<button class="btn" data-act="sh-photo">📷 Read again</button>' : ''}<button class="btn btn-warn sh-clar" data-act="sh-clarify"></button>
       <span class="small sh-st" data-st="all" style="margin-left:auto"></span></div>
-    ${S.photo ? `<details class="sh-photo"><summary>Show the photo</summary><img src="${S.photo}" alt=""></details>` : ''}
+    ${S.photos && S.photos.length ? `<details class="sh-photo"><summary>Show the photo${S.photos.length > 1 ? 's' : ''}</summary>${S.photos.map(u => `<img src="${u}" alt="">`).join('')}</details>` : ''}
     ${team('a')}${team('b')}`, 'sheet-modal wide');
   sheetRefresh();
 }
@@ -5330,11 +5339,12 @@ function sheetSettle(S, minWant) {
     T.rows.forEach(r => { if (r.iffy && shPtsOk(r) && !r.ptsFixed) ['fgm', 'fg3m', 'ftm', 'pts'].forEach(k => delete r.iffy[k]); }); });
 }
 function sheetCrop(S, T, R, key) {
-  const c = S.canvas, box = R.box, cell = R.iffy && R.iffy[key];
+  // (several screenshots: each row from its own; the header strip only when it's on the same one)
+  const c = S.canvases && R.pg != null ? S.canvases[R.pg] : S.canvas, box = R.box, cell = R.iffy && R.iffy[key];
   if (!c || !box) return '';
   const pad = 14, rowY0 = Math.max(0, box.y0 - pad), rowY1 = Math.min(c.height, box.y1 + pad), rowH = rowY1 - rowY0;
   const cx = cell ? (cell.x0 + cell.x1) / 2 : (box.x0 + box.x1) / 2, winW = Math.min(c.width, 1100), wx0 = Math.max(0, Math.min(c.width - winW, cx - winW / 2));
-  const nameW = Math.min(620, Math.max(0, wx0 - box.x0)), hb = T.headBox, headH = hb ? Math.min(90, hb.y1 - hb.y0 + 2 * pad) : 0;
+  const nameW = Math.min(620, Math.max(0, wx0 - box.x0)), hb = (T.headPg == null || T.headPg === R.pg) ? T.headBox : null, headH = hb ? Math.min(90, hb.y1 - hb.y0 + 2 * pad) : 0;
   const o = document.createElement('canvas'); o.width = nameW + (nameW ? 24 : 0) + winW; o.height = headH + rowH;
   const x = o.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
   const ox = nameW ? nameW + 24 : 0;
@@ -5488,20 +5498,27 @@ function sheetEdit(sc) {
   const g = cur(), S = g.sheet && g.sheet[sc]; if (!S) { sheetOpen(sc); return; }
   SHEET = { sc, stage: 'check', a: JSON.parse(JSON.stringify(S.a)), b: JSON.parse(JSON.stringify(S.b)) }; sheetModal();
 }
-async function sheetRead(file) {
-  const g = cur(), S = SHEET; if (!S || !file) return;
+/* One photo of the printout, or several screenshots of the box score page (where there's Wi-Fi: both teams'
+   boxes, scrolled; overlaps are fine): read one after another and put together in order, so a screenshot that
+   starts mid-box (the rest of a team's players, its TM Team and TOTALS) carries on the box before it. */
+async function sheetRead(files) {
+  const g = cur(), S = SHEET; files = Array.from(files || []); if (!S || !files.length) return;
   S.stage = 'reading'; S.prog = 0; S.msg = 'Loading the reader…'; sheetModal();
   try {
-    const rd = new FileReader(); rd.onload = () => { if (SHEET) SHEET.photo = rd.result; }; rd.readAsDataURL(file);
-    const res = await readSheetPhoto(file, p => { if (SHEET && SHEET.stage === 'reading') { SHEET.prog = p; SHEET.msg = `Reading… ${Math.round(100 * p)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * p) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
-    if (!SHEET) return;
-    SHEET.text = res.text; SHEET.canvas = res.canvas;
-    const T = sheetTeams(g, parseSheet(res.lines.length ? res.lines : res.text));
+    S.photos = []; files.forEach((f, i) => { const rd = new FileReader(); rd.onload = () => { if (SHEET && SHEET.photos) SHEET.photos[i] = rd.result; }; rd.readAsDataURL(f); });
+    const n = files.length, lines = [], canvases = [], texts = [];
+    for (let i = 0; i < n; i++) {
+      const res = await readSheetPhoto(files[i], p => { if (SHEET && SHEET.stage === 'reading') { const q = (i + p) / n; SHEET.prog = q; SHEET.msg = `Reading${n > 1 ? ` ${i + 1} of ${n}` : ''}… ${Math.round(100 * q)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * q) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
+      if (!SHEET) return;
+      canvases.push(res.canvas); texts.push(res.text); res.lines.forEach(l => { l.pg = i; lines.push(l); });
+    }
+    SHEET.text = texts.join('\n'); SHEET.canvas = canvases[0]; SHEET.canvases = canvases;
+    const T = sheetTeams(g, parseSheet(lines.length ? lines : SHEET.text));
     if (!T || (!T.a.rows.length && !T.b.rows.length)) { SHEET.stage = 'pick'; sheetModal(); toast('Couldn\'t find a box score in that photo — try again closer and straight on', 'bad'); return; }
     Object.assign(SHEET, T, { stage: 'check' }); sheetSettle(SHEET, SHEET.sc === '1H' ? 100 : 200 + 25 * otCount(g)); sheetModal();
   } catch (err) { if (SHEET) { SHEET.stage = 'pick'; sheetModal(); } toast('Reading failed: ' + err.message, 'bad'); }
 }
-$('#sh-file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) sheetRead(f); });
+$('#sh-file').addEventListener('change', e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) sheetRead(f); });
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('sh-in') && SHEET) { sheetInput(e.target); sheetRefresh(); } });
 document.addEventListener('input', e => { if (e.target.id === 'sh-rowtxt' && SHEET) sheetRowCheck(); });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sh-rowtxt' && SHEET) { e.preventDefault(); const b = document.querySelector('[data-act="sh-row-save"]'); if (b) b.click(); } });
