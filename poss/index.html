@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.200';
+const VERSION = 'v2026.11.03.300';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4863,8 +4863,10 @@ function parseSheet(src) {
     if (/%/.test(line) && (/FG%|Half|Game|Throw|3-?Pt/i.test(line) || !/[A-Za-z]{3}/.test(line.replace(/%/g, '')))) return;
     const T = shTokens(L.words || line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
     if (/^(STARTERS|RESERVES|BENCH)\b/i.test(words) && V.length === 0) { group = /^START/i.test(words) ? 'S' : 'R'; return; }
-    // the TOTALS line (not "Score by periods 1st Total" further down: a totals line has the whole row of numbers)
-    if (/\bT[O0]TALS?\b/i.test(words) && V.length >= 6) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
+    // the TOTALS line ("Tolale" too; not "Score by periods 1st Total" further down: a totals line has the whole row of numbers)
+    // (or a whole row of numbers with no name, after a table's players: "Totals" misread beyond recognition)
+    if ((/\bT[O0o][TtlI][AaGo4][LlIie1][Ss5e]?\b/.test(words) && /^T/i.test(words.replace(/^[^A-Za-z]+/, '')) && V.length >= 6)
+      || (V.length >= 10 && !/[A-Za-z]{2}/.test(words) && cur && !cur.closed && cur.rows.length >= 5)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
     // The team line ("TEAM", "TM Team", "TMTeam"): team rebounds, placed by column when the photo gives positions.
     if (/TEAM\b/i.test(words) && V.length <= 6 && !V.some(x => /-/.test(x.v))) { if (cur) { cur.team = V.map(x => shInt(x.v)).filter(n => n != null); cur.teamV = V; } return; }
     // A player line: jersey number, the name, then the numbers.
@@ -4887,8 +4889,8 @@ function parseSheet(src) {
   // The column layout per section: the header's if it adds up best, else the best known layout.
   return secs.filter(s => s.rows.length).map(s => {
     // A header that was read settles whether there's a MIN column (rows with a number dropped can add up
-    // better, by accident, without it).
-    const cands = [s.lay, ...SH_ALT.map(post => ({ min: true, post })), ...SH_ALT.map(post => ({ min: false, post }))].filter(o => o && (!s.lay || o.min === s.lay.min));
+    // better, by accident, without it). A header read in full (all nine columns after the shooting) is the layout.
+    const cands = s.lay && s.lay.post.length >= 9 ? [s.lay] : [s.lay, ...SH_ALT.map(post => ({ min: true, post })), ...SH_ALT.map(post => ({ min: false, post }))].filter(o => o && (!s.lay || o.min === s.lay.min));
     const rate = v => (v ? 1 : 0) + (v && shPtsOk(v) ? 2 : 0) + (v && shRebOk(v) ? 1 : 0);
     const score = o => s.rows.reduce((x, r) => x + rate(shAssign(r.V, o)), 0);
     const best = cands.map(o => [o, score(o)]).sort((x, y) => y[1] - x[1])[0][0];
@@ -5103,7 +5105,7 @@ async function shGrid(c, lines) {
     // where the numbers start: the first number after the name on the player lines
     // (and on the totals line: its minutes, 3 digits, reach further left than a player's)
     const xs = [], xt = []; lines.forEach(l => { if (yc(l.bbox) < top || yc(l.bbox) > bot) return; const ws = l.words;
-      const tl = ws.findIndex(w => /^T[O0]TALS?$/i.test(w.text));
+      const tl = ws.findIndex(w => /^T[O0o][TtlI][AaGo4][LlIie1][Ss5e]?$/.test(w.text));
       if (tl >= 0 && ws[tl + 1] && /^\d/.test(ws[tl + 1].text)) { xt.push(ws[tl + 1].bbox.x0); return; }
       if (!(ws[0] && /^\d{1,2}$/.test(ws[0].text) && ws[1] && /[A-Za-z]/.test(ws[1].text))) return;
       const k = ws.findIndex((w, i) => i > 1 && /^\d/.test(w.text)); if (k > 1) xs.push(ws[k].bbox.x0); });
@@ -5113,6 +5115,12 @@ async function shGrid(c, lines) {
     const runs = []; let r0 = -1, gap = 0;
     for (let x = x0; x <= W; x++) { if (x < W && ink[x] > 2) { if (r0 < 0) r0 = x; gap = 0; continue; }
       if (r0 >= 0 && (x === W || ++gap > 0.35 * hm)) { const r1 = x - gap; if (r1 - r0 >= 0.25 * hm) runs.push([r0, r1]); r0 = -1; gap = 0; } }
+    // Two columns run together (the paper's bend at a corner: PF and PTS): a run under two of the header's
+    // column names is split where its ink is thinnest between them.
+    const hx = hw.map(w => (w.bbox.x0 + w.bbox.x1) / 2).filter(x => x > x0).sort((a, b) => a - b);
+    for (let i = 0; i < runs.length; i++) { const [a, b] = runs[i], inr = hx.filter(x => x >= a && x <= b); if (inr.length < 2) continue;
+      let mx = -1, mv = Infinity; for (let x = Math.round(inr[0]); x <= inr[1]; x++) if (ink[x] < mv) { mv = ink[x]; mx = x; }
+      if (mx > a && mx < b) { runs.splice(i, 1, [a, mx - 1], [mx + 1, b]); i++; } }
     if (runs.length >= 8 && runs.length <= 20) tables.push({ top, bot, x0, runs });
   });
   if (!tables.length) return lines;
@@ -5120,7 +5128,7 @@ async function shGrid(c, lines) {
   // seconds) and read with digits and dashes only.
   const pad = Math.round(0.3 * hm), parts = [];
   tables.forEach(T => { T.cols = []; T.runs.forEach(([a, b]) => { const left = Math.max(0, a - pad), w = Math.min(W, b + pad) - left, col = []; T.cols.push(col);
-    parts.push({ left, top: T.top, w, h: T.bot - T.top, col }); }); });
+    if (w >= 8 && T.bot - T.top >= hm) parts.push({ left, top: T.top, w, h: T.bot - T.top, col }); }); });
   await TESS.setParameters({ tessedit_char_whitelist: '0123456789-' });
   try {
     for (let n = 0; n < parts.length; n++) { const q = parts[n];
@@ -5133,14 +5141,46 @@ async function shGrid(c, lines) {
         q.col.push({ text: t, conf: w.confidence, bbox: { x0: w.bbox.x0 + dx, x1: w.bbox.x1 + dx, y0: w.bbox.y0 + dy, y1: w.bbox.y1 + dy } }); });
     }
   } finally { await TESS.setParameters({ tessedit_char_whitelist: '' }); }
+  // The names: a photo at an angle tilts the name column more than the rest (it's furthest from the middle),
+  // so each table's names are cut out, levelled on their own and read again.
+  for (const T of tables) {
+    const ny0 = Math.max(0, Math.round(T.top - 1.0 * hm)), nx1 = Math.round(T.x0 - 0.2 * hm), nh = T.bot - ny0;
+    if (nx1 < 4 * hm || nh < 2 * hm) continue;
+    const nc = document.createElement('canvas'); nc.width = nx1; nc.height = nh; nc.getContext('2d').drawImage(c, 0, ny0, nx1, nh, 0, 0, nx1, nh);
+    const deg = shSkewAngle(nc), th = deg * Math.PI / 180, rc = Math.abs(deg) < 0.1 ? nc : shDeskew(nc);
+    const { data } = await TESS.recognize(rc), cx = nx1 / 2, cy = nh / 2;
+    // (slivers of the header's letters above the first name read as words: too short to be a name)
+    T.names = (data.words || []).filter(w => w.text.trim() && w.bbox.y1 - w.bbox.y0 >= 0.6 * hm).map(w => { const px = (w.bbox.x0 + w.bbox.x1) / 2 - cx, py = (w.bbox.y0 + w.bbox.y1) / 2 - cy;
+      const qx = px * Math.cos(th) - py * Math.sin(th) + cx, qy = px * Math.sin(th) + py * Math.cos(th) + cy + ny0, hw = (w.bbox.x1 - w.bbox.x0) / 2, hh = (w.bbox.y1 - w.bbox.y0) / 2;
+      return { text: w.text, conf: w.confidence, bbox: { x0: qx - hw, x1: qx + hw, y0: qy - hh, y1: qy + hh } }; });
+    T.nameBox = { x1: nx1, y0: ny0, y1: T.bot };
+  }
   // Rebuild: words in a table's number area are replaced by the column reads; names and the rest stay.
   const inNum = (w, T) => yc(w.bbox) >= T.top && yc(w.bbox) <= T.bot && w.bbox.x0 >= T.x0 - 0.2 * hm;
   const keep = [], out = [];
-  lines.forEach(l => { const ws = l.words.filter(w => !tables.some(T => inNum(w, T))); if (ws.length) keep.push(ws); });
+  const inName = (w, T) => T.nameBox && w.bbox.x1 <= T.nameBox.x1 + 0.3 * hm && yc(w.bbox) >= T.nameBox.y0 && yc(w.bbox) <= T.nameBox.y1;
+  lines.forEach(l => { const ws = l.words.filter(w => !tables.some(T => inNum(w, T) || (T.names && inName(w, T)))); if (ws.length) keep.push(ws); });
+  tables.forEach(T => { if (T.names && T.names.length) keep.push(T.names); });
   // rows: traced across the columns left to right, each row following its own height (what's left of the
   // paper's bend), after the column's shift as a whole
   const rows = [];
   tables.forEach(T => { const R = [];
+    // Two numbers on one row of a column: in a made-attempted column they're a pair whose dash
+    // didn't come out ("0 0" → 0-0); in a plain column where that's common, two columns ran together (the
+    // paper's bend at a corner): split it down the middle.
+    const split = [];
+    // the made-attempted columns: of the first six, the three with the most dashed numbers
+    const share = T.cols.map(col => col.length ? col.filter(t => /-/.test(t.text)).length / col.length : 0);
+    const pairCols = share.map((v, i) => [v, i]).slice(0, 6).filter(x => x[0] > 0.15).sort((a, b) => b[0] - a[0]).slice(0, 3).map(x => x[1]), lastPair = Math.max(-1, ...pairCols);
+    T.cols.forEach((col, ci) => { col.sort((p, q) => p.bbox.x0 - q.bbox.x0); const grp = [];
+      col.forEach(t => { const g = grp.find(g => Math.abs(yc(g[0].bbox) - yc(t.bbox)) < 0.4 * hm); if (g) g.push(t); else grp.push([t]); });
+      const dashed = pairCols.includes(ci), multi = pairCols.length === 3 && ci > lastPair ? grp.filter(g => g.length > 1).length : 0;
+      if (dashed) { col.length = 0; grp.forEach(g => col.push(g.length === 2 && !g.some(t => /-/.test(t.text)) ? { text: g[0].text + '-' + g[1].text, conf: Math.min(g[0].conf, g[1].conf, 60),
+          bbox: { x0: g[0].bbox.x0, x1: g[1].bbox.x1, y0: Math.min(g[0].bbox.y0, g[1].bbox.y0), y1: Math.max(g[0].bbox.y1, g[1].bbox.y1) } } : g[0], ...(g.length === 2 && !g.some(t => /-/.test(t.text)) ? [] : g.slice(1)))); split.push(col); }
+      else if (multi >= 3 && multi >= 0.3 * grp.length) { const mid = (Math.min(...col.map(t => t.bbox.x0)) + Math.max(...col.map(t => t.bbox.x1))) / 2;
+        split.push(col.filter(t => (t.bbox.x0 + t.bbox.x1) / 2 < mid), col.filter(t => (t.bbox.x0 + t.bbox.x1) / 2 >= mid)); }
+      else split.push(col); });
+    T.cols = split;
     T.cols.forEach(col => { const near = t => { let b = null, bd = Infinity; R.forEach(r => { const d = yc(t.bbox) - r.y; if (Math.abs(d) < Math.abs(bd)) { bd = d; b = r; } }); return [b, bd]; };
       const off = med(col.map(t => near(t)[1]).filter(d => Math.abs(d) < 0.6 * hm)) || 0, hit = new Set();
       col.sort((p, q) => yc(p.bbox) - yc(q.bbox)).forEach(t => { const y = yc(t.bbox) - off; let b = null, bd = 0.5 * hm;
@@ -5150,18 +5190,34 @@ async function shGrid(c, lines) {
     // a row's height for its name: where its first column sits
     R.forEach(r => { r.y = yc(r.w[0].bbox); rows.push(r); }); });
   // The first pass, where it was sure of a clean number, fills in: a number the column pass dropped (a lone
-  // 0 or 1), or a leading 1 it lost ("11" read "1", "13-18" read "3-18").
+  // 0 or 1), or a leading digit it lost ("11" read "1", "13-18" read "3-18", "201" read "01").
   const ov = (a, b) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.5 * Math.min(a.x1 - a.x0, b.x1 - b.x0);
   lines.forEach(l => l.words.forEach(w => { const T = tables.find(T => inNum(w, T)); if (!T || w.conf < 85 || !/^\d{1,3}(-\d{1,3})?$/.test(w.text)) return;
     const near = rows.filter(r => r.T === T).map(r => { const k = r.w.reduce((a, b) => Math.abs(b.bbox.x0 - w.bbox.x0) < Math.abs(a.bbox.x0 - w.bbox.x0) ? b : a);
       return { r, d: Math.abs(yc(k.bbox) - yc(w.bbox)) }; }).sort((a, b) => a.d - b.d)[0];
     if (!near || near.d > 0.5 * hm) return;
     const same = near.r.w.find(t => ov(t.bbox, w.bbox));
+    // (a column that already has a number on this row takes no second one: half of a "0-0" read apart)
+    const run = T.runs.find(([a, b]) => (w.bbox.x0 + w.bbox.x1) / 2 >= a - 0.3 * hm && (w.bbox.x0 + w.bbox.x1) / 2 <= b + 0.3 * hm);
+    if (!same && run && near.r.w.some(t => (t.bbox.x0 + t.bbox.x1) / 2 >= run[0] - 0.3 * hm && (t.bbox.x0 + t.bbox.x1) / 2 <= run[1] + 0.3 * hm)) return;
     if (!same) { near.r.w.push({ text: w.text, conf: w.conf, bbox: w.bbox }); return; }
-    if (w.text.length === same.text.length + 1 && w.text === '1' + same.text) { same.text = w.text; same.conf = Math.min(same.conf, w.conf); same.bbox = w.bbox; } }));
-  // each kept word goes to the row at its height (a name to its numbers), or stays on its own line
-  const loose = [];
-  keep.forEach(ws => ws.forEach(w => { const r = rows.find(r => Math.abs(r.y - yc(w.bbox)) < 0.6 * hm && w.bbox.x1 <= r.T.x0 + 0.5 * hm); if (r) (r.pre = r.pre || []).push(w); else loose.push(w); }));
+    if (w.text.length > same.text.length && w.text.endsWith(same.text)) { same.text = w.text; same.conf = Math.min(same.conf, w.conf); same.bbox = w.bbox; } }));
+  // The rest of the words, chained left to right into lines (each word next to the one before it, at about
+  // its height: a name tilted on the photo stays one name). A line ending by a table's numbers goes to the row
+  // nearest its right end (the end next to the numbers), or stays a line of its own.
+  const chains = [];
+  [].concat(...keep).sort((a, b) => a.bbox.x0 - b.bbox.x0).forEach(w => { let best = null, bd = 0.6 * hm;
+    chains.forEach(ch => { const l = ch[ch.length - 1], d = Math.abs(yc(l.bbox) - yc(w.bbox)); if (l.bbox.x0 + l.bbox.x1 < w.bbox.x0 + w.bbox.x1 && w.bbox.x0 - l.bbox.x1 < 4 * hm && d < bd) { bd = d; best = ch; } });
+    if (best) best.push(w); else chains.push([w]); });
+  // A photo at an angle can leave the names a little off their numbers' height: per table, the shift that lines
+  // up the most names with rows is found first.
+  const loose = [], end = ch => ch[ch.length - 1], used = new Set();
+  tables.forEach(T => { const R = rows.filter(r => r.T === T), C = chains.filter(ch => !used.has(ch) && end(ch).bbox.x1 <= T.x0 + 0.5 * hm && yc(end(ch).bbox) > T.top - hm && yc(end(ch).bbox) < T.bot + hm);
+    let sh = 0, bn = -1;
+    for (let d = -Math.round(1.2 * hm); d <= 1.2 * hm; d++) { const n = C.filter(ch => R.some(r => Math.abs(r.y - yc(end(ch).bbox) - d) < 0.3 * hm)).length; if (n > bn || (n === bn && Math.abs(d) < Math.abs(sh))) { bn = n; sh = d; } }
+    const pairs = []; C.forEach(ch => R.forEach(r => { const d = Math.abs(r.y - yc(end(ch).bbox) - sh); if (d < 0.5 * hm) pairs.push([d, ch, r]); }));
+    pairs.sort((a, b) => a[0] - b[0]).forEach(([, ch, r]) => { if (used.has(ch) || r.pre) return; r.pre = ch; used.add(ch); }); });
+  chains.forEach(ch => { if (!used.has(ch)) loose.push(...ch); });
   const group = ws => { const g = []; ws.sort((a, b) => yc(a.bbox) - yc(b.bbox)).forEach(w => { const l = g.find(l => Math.abs(l.y - yc(w.bbox)) < 0.5 * hm); if (l) l.w.push(w); else g.push({ y: yc(w.bbox), w: [w] }); }); return g; };
   const box = ws => ({ x0: Math.min(...ws.map(w => w.bbox.x0)), y0: Math.min(...ws.map(w => w.bbox.y0)), x1: Math.max(...ws.map(w => w.bbox.x1)), y1: Math.max(...ws.map(w => w.bbox.y1)) });
   rows.forEach(r => { const ws = (r.pre || []).concat(r.w).sort((a, b) => a.bbox.x0 - b.bbox.x0); out.push({ bbox: box(ws), words: ws }); });

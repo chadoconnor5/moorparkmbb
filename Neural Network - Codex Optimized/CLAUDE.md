@@ -134,12 +134,16 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
 - Possession tracker stat sheet photo (readSheetPhoto / parseSheet, Tesseract on the iPad): the photo is scaled to
   2600px wide, its light evened out (shFlatten, not-paper blanked), deskewed, the paper's bend straightened
-  (shDewarp: text rows traced and fitted), the table rules erased (shUnrule); a first pass reads the page, then each
-  number column is cut out and read on its own, digits and dashes only (shGrid), rows traced across the columns,
-  confident first-pass numbers filling gaps. Columns are placed by position (shAssignX) when a row's count is off; a
-  read header decides MIN or not; 3PA never above FGA; minutes add up within 2 (the printout rounds). Tested on the
-  11/2 Antelope Valley halftime photo (curved, hand-held): 7 of 323 cells wrong, each caught by an add-up check
-  (old reader: 278); ~11 s in desktop Chrome.
+  (shDewarp: text rows traced and fitted), the table rules erased (shUnrule); a first pass reads the page, then
+  (shGrid) each number column is cut out and read on its own, digits and dashes only, and each table's name column is
+  levelled and read on its own (a photo at an angle tilts it most). Rows are traced across the columns; names are
+  chained left to right and matched to rows with a per-table shift; confident first-pass numbers fill gaps. The three
+  made-attempted columns are the most-dashed (two numbers in one = a pair that lost its dash); a column under two
+  header names is split (PF / PTS run together at a bent corner). A header read in full is the layout; columns are
+  placed by position (shAssignX) when a row's count is off; 3PA never above FGA; a nameless row of numbers after the
+  players is the totals line; minutes add up within 2 (the printout rounds). Tested on the 11/2 Antelope Valley
+  photos: halftime (curved) 7 of 323 cells wrong, final (at an angle) 19 of 336, every miss caught by an add-up
+  check (old reader: 278 of 323); a flat printout 0. ~12 s in desktop Chrome.
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
   conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
