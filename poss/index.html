@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.600';
+const VERSION = 'v2026.11.03.700';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4951,13 +4951,22 @@ function sheetTeams(g, secs) {
   const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, headPg: s ? s.headPg : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null, pg: r.pg }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
     totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null, pg: s.totals.pg }) : null, teamReb: s ? s.teamReb : null });
   const out = { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
-  // Jersey numbers from the game's rosters, matched by name (same last name and first initial): a misread number
-  // ("11" read "1") is put right, and the report ties each row to the right player.
+  // The game's rosters, matched by name (same last name and first initial).
   const key = n => String(n || '').toLowerCase().replace(/[^a-z ]/g, ' ').trim().split(/\s+/).filter(Boolean);
-  ['a', 'b'].forEach(t => { let ros = []; try { ros = t === 'a' ? roster() : (g.oppRoster || []); } catch (e) { ros = []; }
-    out[t].rows.forEach(r => { const k = key(r.name); if (k.length < 2) return;
-      const hit = ros.filter(p => { const q = key(p.name); return q.length >= 2 && q[q.length - 1] === k[k.length - 1] && q[0][0] === k[0][0]; });
-      if (hit.length === 1 && hit[0].num != null && String(hit[0].num) !== '') r.num = String(hit[0].num); }); });
+  const ros = {}; try { ros.a = roster(); } catch (e) { ros.a = []; } ros.b = g.oppRoster || [];
+  const find = (t, r) => { const k = key(r.name); if (k.length < 2) return [];
+    // (a last name of 5+ letters may be one letter off: the reader drops or swaps a letter now and then)
+    const near = (x, y) => { if (x === y) return true; if (Math.min(x.length, y.length) < 5 || Math.abs(x.length - y.length) > 1) return false;
+      let i = 0; while (i < x.length && x[i] === y[i]) i++; return x.slice(i + 1) === y.slice(i + 1) || x.slice(i + 1) === y.slice(i) || x.slice(i) === y.slice(i + 1); };
+    return ros[t].filter(p => { const q = key(p.name); return q.length >= 2 && near(q[q.length - 1], k[k.length - 1]) && q[0][0] === k[0][0]; }); };
+  // A player on the other team's roster and not this one's is the other team's: two teams' players read as one
+  // table (screenshots where the second team's start wasn't seen) are sorted out.
+  ['a', 'b'].forEach(t => { const o = t === 'a' ? 'b' : 'a';
+    out[t].rows = out[t].rows.filter(r => { if (find(o, r).length && !find(t, r).length) { out[o].rows.push(r); return false; } return true; }); });
+  // Jersey numbers from the rosters: a misread number ("11" read "1") is put right, and the report ties each row to
+  // the right player.
+  ['a', 'b'].forEach(t => out[t].rows.forEach(r => { const hit = find(t, r);
+    if (hit.length === 1 && hit[0].num != null && String(hit[0].num) !== '') r.num = String(hit[0].num); }));
   return out;
 }
 

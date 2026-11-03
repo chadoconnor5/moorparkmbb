@@ -156,7 +156,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   quarter pure white) skips deskew / straightening / evening out, gets its dark header bars flipped (shUnbar; never on a
   photo: shadowed paper is dark too), and keeps the whole-page read or the column pass, whichever has more rows that add
   up; the % columns are skipped; a big-type heading after a table's players starts the next team; jersey numbers come
-  from the game's rosters by name ("11" read "1"). The site's menu / cookie banner aren't team names. Tested on the
+  from the game's rosters by name ("11" read "1"). A row on the other team's roster and not its own table's team's moves there
+  (sheetTeams; two teams read as one table: 11/3 San Bernardino Valley's players all landed in Moorpark's). Names
+  match by last name (5+ letters may be one letter off) and first initial. The site's menu / cookie banner aren't team names. Tested on the
   11/2 Antelope Valley-San Diego Miramar halftime screenshots: 0 of 286 cells wrong.
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
