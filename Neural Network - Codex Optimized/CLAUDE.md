@@ -139,9 +139,16 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   win shares. Skills: Volume
   Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
   Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
-  Protector (Blk%). Ratings: All-State by PRPG!, All-Conference (Silver top 3 / Bronze #4-5 in the conference, the
-  state's top 25% too, not a Gold All-State), Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold
-  All-State). Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
+  Protector (Blk%). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
+  alone without a BPM; a fake-minutes player's Game Score placed on PRPG!): All-State in the CCCMBCA's shape (2025-26:
+  24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
+  14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference
+  standings (_conf_places: overall win % then net until every team has 3 conference games, then conference win %),
+  first team Gold 4 / 3 / 2 / 1 by place, honorable mention Bronze 2 / 2 / 1 (a Gold All-State fills the spot but shows
+  All-State); Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold All-State). The All-State / All-Conference rating also
+  counts the team's net rating (ALL_STATE_TEAM_W = 0.4), and a fake-minutes player gets the PRPG! at his Game Score
+  percentile among fake-minutes players: tested on the real 2025-26 team, 20 of our 38 were real selections (11 of our
+  24 Gold on the real first team), 13 of ours from fake-minutes teams against the real 12. Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
   Bronze, four Silver, five Gold; HoF the all-time top 3% of glue seasons: average pooled
   percentile of the five rates, among under-17%-usage seasons). Fake-minutes teams: box-score stand-ins placed
   on the real scales by percentile, marked est., no Hall of Fame; their players qualify with half the team's games
