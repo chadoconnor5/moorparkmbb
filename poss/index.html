@@ -8028,7 +8028,10 @@ function upgradeAll() { let n = 0; games.forEach(g => { if ((g.dv || 0) < DATA_V
    asks for the passcode (once; this iPad remembers it), unlocks it and merges it like Import season: adds what's
    missing, replaces a game only with a longer copy, never deletes. A fresh or wiped iPad is never blank. */
 const LS_BASE_AT = 'pt2_baseline_at', LS_BASE_KEY = 'pt2_baseline_pass', BASE_URL = 'baseline.enc.json';
-const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))), unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+// In 32 KB chunks: spreading a whole season's bytes into one call overflows Safari's stack ("Maximum call stack size
+// exceeded") once the season is a few hundred KB.
+const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); },
+  unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function baseKey(pass, salt, iter) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
