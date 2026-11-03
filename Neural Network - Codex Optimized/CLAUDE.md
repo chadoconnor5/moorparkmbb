@@ -132,6 +132,14 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Possession tracker technicals (techModal): on a player (his foul + team foul), the team / bench (team foul only,
   e.bench) or the coach (no foul); 2, 1 (Class B) or no free throws; Double technical logs one on each team, linked
   by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
+- Possession tracker stat sheet photo (readSheetPhoto / parseSheet, Tesseract on the iPad): the photo is scaled to
+  2600px wide, its light evened out (shFlatten, not-paper blanked), deskewed, the paper's bend straightened
+  (shDewarp: text rows traced and fitted), the table rules erased (shUnrule); a first pass reads the page, then each
+  number column is cut out and read on its own, digits and dashes only (shGrid), rows traced across the columns,
+  confident first-pass numbers filling gaps. Columns are placed by position (shAssignX) when a row's count is off; a
+  read header decides MIN or not; 3PA never above FGA; minutes add up within 2 (the printout rounds). Tested on the
+  11/2 Antelope Valley halftime photo (curved, hand-held): 7 of 323 cells wrong, each caught by an add-up check
+  (old reader: 278); ~11 s in desktop Chrome.
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
   conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
