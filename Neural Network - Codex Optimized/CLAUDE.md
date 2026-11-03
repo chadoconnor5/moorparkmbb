@@ -136,7 +136,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   defensive rebounds a game, minus individual DRtg, minus 1.5 x team DRtg z) and Sixth Man (35% or fewer of his games
   started, by the POY rating), the POY left out of the other three; named with CONF_ABBR (WSC North, PCAC, OEC, ...),
   badge [code, 3, est, abbr]. All-Conference first team (Gold) / second team (Silver, honorable mention rolled in) by
-  conference place: 4/3/3/2/2/1 and 4/3/2/2/2/1/0. Tested on the real 2025-26 awards: POY right in 3 of 4, OPOY 1 of
+  conference place: 4/3/3/2/2/1 and 3/2/2/1/1/1/0 (five real 2025-26 conferences: 136 picks for 132, 49 of 67
+  first-teamers right). Tested on the real 2025-26 awards: POY right in 3 of 4, OPOY 1 of
   2, DPOY 0 of 3 (the real winners rank 4th-8th).
 - Player badges (every season, each ranked within its own season; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
   __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver

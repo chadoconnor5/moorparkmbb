@@ -3437,7 +3437,9 @@ ALL_STATE_TEAM_W = 0.4                        # the team's strength in the All-S
 # first-teamers right): first team (Gold) 4 / 3 / 3 / 2 / 2 / 1, second team (Silver) 2 / 2 / 1 / 1 / 1 / 1 / 0,
 # honorable mention (Bronze) 2 / 1 / 1 / 1 / 1 / 0
 ALL_CONF_FIRST = (4, 3, 3, 2, 2, 1)
-ALL_CONF_SECOND = (4, 3, 2, 2, 2, 1, 0)     # second team and honorable mention together (2/2/1/1/1/1/0 + 2/1/1/1/1/0)
+ALL_CONF_SECOND = (3, 2, 2, 1, 1, 1, 0)     # second team, honorable mentions rolled in: with conference-only stats, on the real
+                                            # 2025-26 WSC North, PCAC, OEC, IEAC and Coast-North teams 136 picks for their 132,
+                                            # 99 real honorees, 49 of 67 first-teamers right
 CONF_ABBR = {"WSC North": "WSC North", "WSC South": "WSC South", "Pacific Coast Athletic": "PCAC",
              "Orange Empire Athletic": "OEC", "Inland Empire Athletic": "IEAC", "South Coast-North": "SCC North",
              "South Coast-South": "SCC South", "Coast-North": "Coast North", "Coast-South": "Coast South",
@@ -8416,7 +8418,7 @@ var BADGES = {{
   c6moy: ['6️⃣', 'Sixth Man of the Year', 'His conference\u2019s best player off the bench (35% or fewer of his games started), by the Player of the Year rating in conference games', 'conf'],
   poy: ['🏆', 'Player of the Year', 'The best player in his region (North / South) by PRPG! and BPM blended', 'rating', 'PRPG! and BPM'],
   allstate: ['👑', 'All-State', 'The CCCMBCA\u2019s shape: 24 first team (each conference\u2019s best, then the best of the rest) and 14 honorable mention, by PRPG! and BPM blended', 'rating', 'PRPG! and BPM blended'],
-  allconf: ['⭐', 'All-Conference', 'By the conference standings, like the real conference teams, from conference games only: first team 4 / 3 / 3 / 2 / 2 / 1 from 1st place down, second team (honorable mentions rolled in) 4 / 3 / 2 / 2 / 2 / 1 (each team\u2019s best by conference PRPG!; overall record until every team has 3 conference games)', 'rating', 'conference PRPG!'],
+  allconf: ['⭐', 'All-Conference', 'By the conference standings, like the real conference teams, from conference games only: first team 4 / 3 / 3 / 2 / 2 / 1 from 1st place down, second team (honorable mentions rolled in) 3 / 2 / 2 / 1 / 1 / 1 (each team\u2019s best by conference PRPG!; overall record until every team has 3 conference games)', 'rating', 'conference PRPG!'],
   engine: ['🚀', 'Offensive Engine', 'The state\u2019s best by offensive BPM (not a Gold All-State)', 'rating', 'offensive BPM'],
   anchor: ['⚓', 'Defensive Anchor', 'The state\u2019s best by defensive BPM (not a Gold All-State)', 'rating', 'defensive BPM'],
   scorer: ['🔥', 'Volume Scorer', 'scoring volume: points a game', 'skill', 'points a game'],
