@@ -3432,8 +3432,12 @@ def glue_score(p, dist):
 
 ALL_STATE_GOLD, ALL_STATE_SILVER = 24, 14     # the CCCMBCA's 2025-26 All-State: 24 first team, 14 honorable mention
 ALL_STATE_TEAM_W = 0.4                        # the team's strength in the All-State / All-Conference rating
-ALL_CONF_FIRST = (4, 3, 2, 1)                 # All-Conference first team by conference place: 1st 4, 2nd 3, 3rd 2, rest 1
-ALL_CONF_HM = (2, 2, 1)                       # honorable mention: 1st 2, 2nd 2, rest 1
+# All-Conference by conference place (the last number repeats down the standings), fitted on the real 2025-26
+# WSC North, PCAC and Orange Empire teams (80 picks for their 77; 28 of 37 first-teamers right): first team (Gold)
+# 4 / 3 / 3 / 2 / 2 / 1, second team (Silver) 2 / 2 / 1 / 1 / 1 / 0, honorable mention (Bronze) 2 / 1 / 1 / 1 / 0
+ALL_CONF_FIRST = (4, 3, 3, 2, 2, 1)
+ALL_CONF_SECOND = (2, 2, 1, 1, 1, 0)
+ALL_CONF_HM = (2, 1, 1, 1, 0)
 
 
 def _conf_places(teams):
@@ -3618,8 +3622,8 @@ def attach_badges(players, history=(), teams=None):
         best = next((p for p in cand if p.get("region") == region), None)
         if best:
             give(best, "poy", 3, best.get("fm"))
-    # All-Conference by the conference standings (_conf_places): first team Gold, honorable mention Bronze; the 1st-place
-    # team gets 4 + 2, 2nd 3 + 2, 3rd 2 + 1, the rest 1 + 1, each team's best by the same rating. A Gold All-State
+    # All-Conference by the conference standings (_conf_places): first team Gold, second team Silver, honorable mention
+    # Bronze, so many from each team by its place (ALL_CONF_*), each team's best by the same rating. A Gold All-State
     # fills his team's spot but shows All-State, not both.
     places = _conf_places(teams or [])
     by_team = {}
@@ -3630,10 +3634,11 @@ def attach_badges(players, history=(), teams=None):
         pl = places.get(team)
         if pl is None:
             continue
-        n1, nh = ALL_CONF_FIRST[min(pl, len(ALL_CONF_FIRST) - 1)], ALL_CONF_HM[min(pl, len(ALL_CONF_HM) - 1)]
-        for i, p in enumerate(sorted(ps, key=lambda p: -R(p))[:n1 + nh]):
+        at = lambda L: L[min(pl, len(L) - 1)]
+        n1, n2, nh = at(ALL_CONF_FIRST), at(ALL_CONF_SECOND), at(ALL_CONF_HM)
+        for i, p in enumerate(sorted(ps, key=lambda p: -R(p))[:n1 + n2 + nh]):
             if id(p) not in allstate:
-                give(p, "allconf", 3 if i < n1 else 1, p.get("fm"))
+                give(p, "allconf", 3 if i < n1 else 2 if i < n1 + n2 else 1, p.get("fm"))
     # Offensive Engine / Defensive Anchor: OBPM / DBPM; a fake-minutes player's offensive / defensive Game Score on it
     for k, code, part in (("obpm", "engine", gs_off), ("dbpm", "anchor", gs_def)):
         has = [p for p in players if p.get(k) is not None and p.get("gp") and not p.get("fm")]
@@ -8348,7 +8353,7 @@ function __closest(t, sel) {{ return t && t.closest ? t.closest(sel) : null; }}
 var BADGES = {{
   poy: ['🏆', 'Player of the Year', 'The best player in his region (North / South) by PRPG! and BPM blended', 'rating', 'PRPG! and BPM'],
   allstate: ['👑', 'All-State', 'The CCCMBCA\u2019s shape: 24 first team (each conference\u2019s best, then the best of the rest) and 14 honorable mention, by PRPG! and BPM blended', 'rating', 'PRPG! and BPM blended'],
-  allconf: ['⭐', 'All-Conference', 'By the conference standings: the 1st-place team\u2019s best 4 on the first team and next 2 honorable mention, 2nd place 3 + 2, 3rd 2 + 1, the rest 1 + 1 (PRPG! and BPM blended; overall record until every team has 3 conference games)', 'rating', 'PRPG! and BPM'],
+  allconf: ['⭐', 'All-Conference', 'By the conference standings, like the real conference teams: first team 4 / 3 / 3 / 2 / 2 / 1 from 1st place down, second team 2 / 2 / 1 / 1 / 1, honorable mention 2 / 1 / 1 / 1 (each team\u2019s best by PRPG! and BPM blended; overall record until every team has 3 conference games)', 'rating', 'PRPG! and BPM'],
   engine: ['🚀', 'Offensive Engine', 'The state\u2019s best by offensive BPM (not a Gold All-State)', 'rating', 'offensive BPM'],
   anchor: ['⚓', 'Defensive Anchor', 'The state\u2019s best by defensive BPM (not a Gold All-State)', 'rating', 'defensive BPM'],
   scorer: ['🔥', 'Volume Scorer', 'scoring volume: points a game', 'skill', 'points a game'],
@@ -8375,7 +8380,7 @@ function __bdgText(code, tier, est) {{
   if (b[3] === 'skill') return lv + 'top ' + BDG_SHARE[tier] + ' in the state in ' + b[2] + e;
   if (code === 'poy') return b[1] + ': the best player in his region by PRPG! and BPM blended' + e;
   if (code === 'allstate') return (tier === 3 ? 'All-State first team' : 'All-State honorable mention') + ' (24 first team, 14 honorable mention; PRPG! and BPM blended)' + e;
-  if (code === 'allconf') return (tier === 3 ? 'All-Conference first team' : 'All-Conference honorable mention') + ' (picks by his team\u2019s place in the conference standings)' + e;
+  if (code === 'allconf') return (tier === 3 ? 'All-Conference first team' : tier === 2 ? 'All-Conference second team' : 'All-Conference honorable mention') + ' (picks by his team\u2019s place in the conference standings)' + e;
   if (code === 'glue') return lv + b[2] + ' \u2014 ' + (tier === 3 ? 'all five' : tier === 2 ? 'four of the five' : 'three of the five') + e;
   return lv + BDG_RANK[tier] + ' in the state in ' + b[4] + e;
 }}
@@ -8410,9 +8415,9 @@ function ppBadgeGuide() {{
   const lv = (k, txt) => '<span class="' + k + '">' + txt + '</span>';
   const sect = (title, kind, note) => '<h3>' + title + '</h3>' + (note ? '<p class="bdg-note">' + note + '</p>' : '')
     + Object.entries(BADGES).filter(([c, b]) => b[3] === kind).map(([c, b]) => '<div class="bdg-g-row"><span class="bdg-g-icons">'
-      + (c === 'allconf' ? __bdgHex(c, 3, true) + __bdgHex(c, 1, true) : c === 'allstate' ? [4, 3, 2].map(t => __bdgHex(c, t, true)).join('') : c === 'poy' ? __bdgHex(c, 3, true) : hexes(c)) + '<span class="bdg-g-e">' + b[0] + '</span></span><div><b>' + b[1] + '</b><div>'
+      + (c === 'allconf' ? [3, 2, 1].map(t => __bdgHex(c, t, true)).join('') : c === 'allstate' ? [4, 3, 2].map(t => __bdgHex(c, t, true)).join('') : c === 'poy' ? __bdgHex(c, 3, true) : hexes(c)) + '<span class="bdg-g-e">' + b[0] + '</span></span><div><b>' + b[1] + '</b><div>'
       + (kind === 'skill' ? 'The state\u2019s best in ' + b[2] : b[2]) + '</div><div class="bdg-tiers">'
-      + (c === 'allconf' ? lv('g', 'Gold') + ' first team · ' + lv('b', 'Bronze') + ' honorable mention'
+      + (c === 'allconf' ? lv('g', 'Gold') + ' first team · ' + lv('s', 'Silver') + ' second team · ' + lv('b', 'Bronze') + ' honorable mention'
         : c === 'allstate' ? lv('h', 'HoF') + ' all-time top 3% · ' + lv('g', 'Gold') + ' first team (24) · ' + lv('s', 'Silver') + ' honorable mention (14)'
         : c === 'poy' ? lv('g', 'Gold') + ' one in the North, one in the South'
         : c === 'glue' ? lv('h', 'HoF') + ' all-time top 3% of glue seasons · ' + lv('g', 'Gold') + ' all five · ' + lv('s', 'Silver') + ' four · ' + lv('b', 'Bronze') + ' three'

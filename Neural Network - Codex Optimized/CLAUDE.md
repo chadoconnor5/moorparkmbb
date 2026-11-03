@@ -144,8 +144,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
   14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference
   standings (_conf_places: overall win % then net until every team has 3 conference games, then conference win %),
-  first team Gold 4 / 3 / 2 / 1 by place, honorable mention Bronze 2 / 2 / 1 (a Gold All-State fills the spot but shows
-  All-State); Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold All-State). The All-State / All-Conference rating also
+  first team Gold 4 / 3 / 3 / 2 / 2 / 1 by place, second team Silver 2 / 2 / 1 / 1 / 1 / 0, honorable mention Bronze
+  2 / 1 / 1 / 1 / 0 (fitted on the real 2025-26 WSC North, PCAC and Orange Empire teams: 80 picks for their 77, 28 of
+  37 first-teamers right; a Gold All-State fills the spot but shows All-State); Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold All-State). The All-State / All-Conference rating also
   counts the team's net rating (ALL_STATE_TEAM_W = 0.4), and a fake-minutes player gets the PRPG! at his Game Score
   percentile among fake-minutes players: tested on the real 2025-26 team, 20 of our 38 were real selections (11 of our
   24 Gold on the real first team), 13 of ours from fake-minutes teams against the real 12. Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
