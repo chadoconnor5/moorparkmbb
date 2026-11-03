@@ -130,6 +130,14 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Possession tracker technicals (techModal): on a player (his foul + team foul), the team / bench (team foul only,
   e.bench) or the coach (no foul); 2, 1 (Class B) or no free throws; Double technical logs one on each team, linked
   by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
+- Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
+  conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
+  conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
+  defensive rebounds a game, minus individual DRtg, minus 1.5 x team DRtg z) and Sixth Man (35% or fewer of his games
+  started, by the POY rating), the POY left out of the other three; named with CONF_ABBR (WSC North, PCAC, OEC, ...),
+  badge [code, 3, est, abbr]. All-Conference first team (Gold) / second team (Silver, honorable mention rolled in) by
+  conference place: 4/3/3/2/2/1 and 4/3/2/2/2/1/0. Tested on the real 2025-26 awards: POY right in 3 of 4, OPOY 1 of
+  2, DPOY 0 of 3 (the real winners rank 4th-8th).
 - Player badges (every season, each ranked within its own season; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
   __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver
   and Gold rank this season (skills: top 15% / 7% / 3% of qualified players; rank badges: top 50 / 25 / 10); Hall of
