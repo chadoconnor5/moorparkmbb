@@ -3433,11 +3433,12 @@ def glue_score(p, dist):
 ALL_STATE_GOLD, ALL_STATE_SILVER = 24, 14     # the CCCMBCA's 2025-26 All-State: 24 first team, 14 honorable mention
 ALL_STATE_TEAM_W = 0.4                        # the team's strength in the All-State / All-Conference rating
 # All-Conference by conference place (the last number repeats down the standings), fitted on the real 2025-26
-# WSC North, PCAC and Orange Empire teams (80 picks for their 77; 28 of 37 first-teamers right): first team (Gold)
-# 4 / 3 / 3 / 2 / 2 / 1, second team (Silver) 2 / 2 / 1 / 1 / 1 / 0, honorable mention (Bronze) 2 / 1 / 1 / 1 / 0
+# WSC North, PCAC, Orange Empire and Inland Empire teams (111 picks for their 109, 78 of them real honorees; 36 of 50
+# first-teamers right): first team (Gold) 4 / 3 / 3 / 2 / 2 / 1, second team (Silver) 2 / 2 / 1 / 1 / 1 / 1 / 0,
+# honorable mention (Bronze) 2 / 1 / 1 / 1 / 1 / 0
 ALL_CONF_FIRST = (4, 3, 3, 2, 2, 1)
-ALL_CONF_SECOND = (2, 2, 1, 1, 1, 0)
-ALL_CONF_HM = (2, 1, 1, 1, 0)
+ALL_CONF_SECOND = (2, 2, 1, 1, 1, 1, 0)
+ALL_CONF_HM = (2, 1, 1, 1, 1, 0)
 
 
 def _conf_places(teams):
@@ -8353,7 +8354,7 @@ function __closest(t, sel) {{ return t && t.closest ? t.closest(sel) : null; }}
 var BADGES = {{
   poy: ['🏆', 'Player of the Year', 'The best player in his region (North / South) by PRPG! and BPM blended', 'rating', 'PRPG! and BPM'],
   allstate: ['👑', 'All-State', 'The CCCMBCA\u2019s shape: 24 first team (each conference\u2019s best, then the best of the rest) and 14 honorable mention, by PRPG! and BPM blended', 'rating', 'PRPG! and BPM blended'],
-  allconf: ['⭐', 'All-Conference', 'By the conference standings, like the real conference teams: first team 4 / 3 / 3 / 2 / 2 / 1 from 1st place down, second team 2 / 2 / 1 / 1 / 1, honorable mention 2 / 1 / 1 / 1 (each team\u2019s best by PRPG! and BPM blended; overall record until every team has 3 conference games)', 'rating', 'PRPG! and BPM'],
+  allconf: ['⭐', 'All-Conference', 'By the conference standings, like the real conference teams: first team 4 / 3 / 3 / 2 / 2 / 1 from 1st place down, second team 2 / 2 / 1 / 1 / 1 / 1, honorable mention 2 / 1 / 1 / 1 / 1 (each team\u2019s best by PRPG! and BPM blended; overall record until every team has 3 conference games)', 'rating', 'PRPG! and BPM'],
   engine: ['🚀', 'Offensive Engine', 'The state\u2019s best by offensive BPM (not a Gold All-State)', 'rating', 'offensive BPM'],
   anchor: ['⚓', 'Defensive Anchor', 'The state\u2019s best by defensive BPM (not a Gold All-State)', 'rating', 'defensive BPM'],
   scorer: ['🔥', 'Volume Scorer', 'scoring volume: points a game', 'skill', 'points a game'],
