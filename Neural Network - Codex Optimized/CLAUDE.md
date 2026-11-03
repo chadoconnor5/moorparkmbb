@@ -124,6 +124,23 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
   DR%, Stl%, Blk%) blank (build_game_boxes "miss").
+- Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current
+  net rating of the conference's three best teams, whichever they are) and Avg Net (every member's current net),
+  each with its rank among the conferences.
+- Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
+  the site's VERSION is newer than its own (checkUpdate).
+- Possession tracker technicals (techModal): on a player (his foul + team foul), the team / bench (team foul only,
+  e.bench) or the coach (no foul); 2, 1 (Class B) or no free throws; Double technical logs one on each team, linked
+  by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
+- Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
+  conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
+  conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
+  defensive rebounds a game, minus individual DRtg, minus 1.5 x team DRtg z) and Sixth Man (35% or fewer of his games
+  started, by the POY rating), the POY left out of the other three; named with CONF_ABBR (WSC North, PCAC, OEC, ...),
+  badge [code, 3, est, abbr]. All-Conference first team (Gold) / second team (Silver, honorable mention rolled in) by
+  conference place: 4/3/3/2/2/1 and 3/2/2/1/1/1/0 (five real 2025-26 conferences: 136 picks for 132, 49 of 67
+  first-teamers right). Tested on the real 2025-26 awards: POY right in 3 of 4, OPOY 1 of
+  2, DPOY 0 of 3 (the real winners rank 4th-8th).
 - Player badges (every season, each ranked within its own season; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
   __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver
   and Gold rank this season (skills: top 15% / 7% / 3% of qualified players; rank badges: top 50 / 25 / 10); Hall of
@@ -133,9 +150,17 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   win shares. Skills: Volume
   Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
   Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
-  Protector (Blk%). Ratings: All-State by PRPG!, All-Conference (Silver top 3 / Bronze #4-5 in the conference, the
-  state's top 25% too, not a Gold All-State), Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold
-  All-State). Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
+  Protector (Blk%). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
+  alone without a BPM; a fake-minutes player's Game Score placed on PRPG!): All-State in the CCCMBCA's shape (2025-26:
+  24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
+  14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference
+  standings (_conf_places: overall win % then net until every team has 3 conference games, then conference win %),
+  first team Gold 4 / 3 / 3 / 2 / 2 / 1 by place, second team Silver 2 / 2 / 1 / 1 / 1 / 1 / 0, honorable mention Bronze
+  2 / 1 / 1 / 1 / 1 / 0 (fitted on the real 2025-26 WSC North, PCAC, Orange Empire and Inland Empire teams: 111 picks
+  for their 109, 78 real honorees, 36 of 50 first-teamers right; a Gold All-State fills the spot but shows All-State); Offensive Engine / Defensive Anchor by OBPM / DBPM (not a Gold All-State). The All-State / All-Conference rating also
+  counts the team's net rating (ALL_STATE_TEAM_W = 0.4), and a fake-minutes player gets the PRPG! at his Game Score
+  percentile among fake-minutes players: tested on the real 2025-26 team, 20 of our 38 were real selections (11 of our
+  24 Gold on the real first team), 13 of ours from fake-minutes teams against the real 12. Roles: Indispensable (share of the team's win shares), Glue Guy (the Glue guy label: three of the five
   Bronze, four Silver, five Gold; HoF the all-time top 3% of glue seasons: average pooled
   percentile of the five rates, among under-17%-usage seasons). Fake-minutes teams: box-score stand-ins placed
   on the real scales by percentile, marked est., no Hall of Fame; their players qualify with half the team's games

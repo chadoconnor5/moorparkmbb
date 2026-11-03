@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.10.28.300';
+const VERSION = 'v2026.11.03.100';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3596,22 +3596,31 @@ function ftqModal() {
     <div class="row" style="gap:8px"><button class="btn btn-lg btn-primary" style="flex:1" data-act="ftq" data-v="tech">Technical (${o.left})</button><button class="btn btn-lg" style="flex:1" data-act="ftq" data-v="foul">Foul shots</button></div>
     <div class="modal-foot"><button class="btn btn-lg" data-act="ftq-cancel">Cancel</button></div>`);
 }
+// Who a technical is on: the coach (no foul counted), the team / bench (team foul only), or a player (his foul + team foul).
+const techOn = (g, e) => e.coach ? teamName(g, e.team) + ' coach' : e.bench ? teamName(g, e.team) + ' bench' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
+const techDbl = (g, e) => { const o = e.dbl ? g.ev.find(x => x.t === 'tech' && x.dbl === e.dbl && x !== e) : null; return o ? ` (double technical with ${techOn(g, o)})` : ''; };
 function techText(g, e) {
   if (e.techFt) { const x = e.src; return `Technical FT · ${x.player && x.player !== 'TEAM' ? pShort(g, x.team, x.player) : teamName(g, x.team)} ${x.k === 'ftm' ? 'make' : 'miss'}`; }
-  if (e.ftLater) { const S = techFtsOf(g, e), on2 = e.coach ? teamName(g, e.team) + ' coach' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
-    return `Technical on ${on2} — ${e.fta === 0 ? 'no free throws (double technical)' : S.length ? `${teamName(g, other(e.team))} ${S.filter(x => x.k === 'ftm').length}/${S.length} FT${S.length < 2 ? ` (${2 - S.length} to shoot)` : ''}` : `${teamName(g, other(e.team))} 2 FTs to shoot`}`; }
-  const on = e.coach ? teamName(g, e.team) + ' coach' : e.player && e.player !== 'TEAM' ? pShort(g, e.team, e.player) : teamName(g, e.team) + ' player';
-  return `Technical on ${on} — ${e.fta === 0 ? 'no free throws (double technical)' : `${e.shooter ? pShort(g, other(e.team), e.shooter) : teamName(g, other(e.team))} ${e.ftm}/2 FT`}`;
+  const n = e.fta == null ? 2 : e.fta;
+  if (e.ftLater) { const S = techFtsOf(g, e);
+    return `Technical on ${techOn(g, e)}${techDbl(g, e)} — ${n === 0 ? (e.dbl ? 'no free throws' : 'no free throws (double technical)') : S.length ? `${teamName(g, other(e.team))} ${S.filter(x => x.k === 'ftm').length}/${S.length} FT${S.length < n ? ` (${n - S.length} to shoot)` : ''}` : `${teamName(g, other(e.team))} ${n} FT${n > 1 ? 's' : ''} to shoot`}`; }
+  return `Technical on ${techOn(g, e)}${techDbl(g, e)} — ${n === 0 ? 'no free throws (double technical)' : `${e.shooter ? pShort(g, other(e.team), e.shooter) : teamName(g, other(e.team))} ${e.ftm}/${n} FT`}`;
 }
 function techModal() {
   const g = cur(), T = TECH, D = derive(g);
-  const ps = D.five[T.team].length ? fiveSorted(g, T.team, D.five[T.team]).map(id => pInfo(g, T.team, id)) : teamPlayers(g, T.team);
+  const plist = t => D.five[t].length ? fiveSorted(g, t, D.five[t]).map(id => pInfo(g, t, id)) : teamPlayers(g, t);
+  const grid = (t, sel, act) => `<div class="sub-grid">${plist(t).map(p => `<button class="sub-p ${sel === p.id ? 'in' : ''}" data-act="${act}" data-t="${t}" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div>`;
+  const on = T.coach ? 'coach' : T.bench ? 'bench' : 'player', fta = T.fta == null ? 2 : T.fta;
   modal(`<div class="sub-head"><h2>Technical foul</h2><div class="sub-top"><button class="btn btn-lg" data-act="tech-cancel">Cancel</button><button class="btn btn-good btn-lg" data-act="tech-ok">Log it</button></div></div>
+    <div class="field"><div class="row" style="gap:6px"><button class="btn ${!T.dbl ? 'btn-primary' : ''}" style="flex:1" data-act="tech-dbl" data-v="0">One technical</button><button class="btn ${T.dbl ? 'btn-primary' : ''}" style="flex:1" data-act="tech-dbl" data-v="1">Double technical — one on each team, no free throws</button></div></div>
+    ${T.dbl ? `<div class="field"><label>${esc(teamName(g, 'a'))} player</label>${grid('a', T.pa, 'tech-p2')}</div>
+      <div class="field"><label>${esc(teamName(g, 'b'))} player (optional)</label>${grid('b', T.pb, 'tech-p2')}</div>
+      <div class="small muted">Each player gets the technical (his foul + team foul); nobody shoots.</div>` : `
     <div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn ${T.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="tech-team" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>
-    <div class="field"><label>On</label><div class="row" style="gap:6px"><button class="btn ${!T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="0">A player — his foul + team foul</button><button class="btn ${T.coach ? 'btn-primary' : ''}" style="flex:1" data-act="tech-coach" data-v="1">The coach — no foul counted</button></div></div>
-    ${!T.coach ? `<div class="field"><label>Which player (optional for ${esc(g.opp)})</label><div class="sub-grid">${ps.map(p => `<button class="sub-p ${T.player === p.id ? 'in' : ''}" data-act="tech-p" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}</div></div>` : ''}
-    <div class="field"><label>Free throws for ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px"><button class="btn btn-lg ${T.fta !== 0 ? 'btn-primary' : ''}" style="flex:2" data-act="tech-ft" data-n="2">2 · shoot them when they happen</button><button class="btn btn-lg ${T.fta === 0 ? 'btn-primary' : ''}" style="flex:1" data-act="tech-ft" data-n="none">None · double tech</button></div>
-      ${T.fta !== 0 ? '<div class="small muted" style="margin-top:6px">Log the shots like any free throws, in the order they\'re shot (before or after the foul shots): FT Shooter, pick the shooter, then <b>Technical</b>.</div>' : ''}</div>`);
+    <div class="field"><label>On</label><div class="row" style="gap:6px"><button class="btn ${on === 'player' ? 'btn-primary' : ''}" style="flex:1" data-act="tech-on" data-v="player">A player — his foul + team foul</button><button class="btn ${on === 'bench' ? 'btn-primary' : ''}" style="flex:1" data-act="tech-on" data-v="bench">The team / bench — team foul only</button><button class="btn ${on === 'coach' ? 'btn-primary' : ''}" style="flex:1" data-act="tech-on" data-v="coach">The coach — no foul counted</button></div></div>
+    ${on === 'player' ? `<div class="field"><label>Which player (optional for ${esc(g.opp)})</label>${grid(T.team, T.player, 'tech-p')}</div>` : ''}
+    <div class="field"><label>Free throws for ${esc(teamName(g, other(T.team)))}</label><div class="row" style="gap:6px"><button class="btn btn-lg ${fta === 2 ? 'btn-primary' : ''}" style="flex:1" data-act="tech-ft" data-n="2">2</button><button class="btn btn-lg ${fta === 1 ? 'btn-primary' : ''}" style="flex:1" data-act="tech-ft" data-n="1">1 · Class B</button><button class="btn btn-lg ${fta === 0 ? 'btn-primary' : ''}" style="flex:1" data-act="tech-ft" data-n="0">None</button></div>
+      ${fta ? '<div class="small muted" style="margin-top:6px">Log the shots like any free throws, in the order they\'re shot (before or after the foul shots): FT Shooter, pick the shooter, then <b>Technical</b>.</div>' : ''}</div>`}`);
 }
 
 /* POSSESSION PILL = the possession ARROW (as the game tracker): the team that gets the next held ball, not the team
@@ -4337,13 +4346,24 @@ document.addEventListener('click', ev => {
     case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
 
     case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; techModal(); break;
-    case 'tech-coach': TECH.coach = b.dataset.v === '1'; if (TECH.coach) TECH.player = null; techModal(); break;
+    case 'tech-on': TECH.coach = b.dataset.v === 'coach'; TECH.bench = b.dataset.v === 'bench'; if (b.dataset.v !== 'player') TECH.player = null; techModal(); break;
+    case 'tech-coach': TECH.coach = b.dataset.v === '1'; TECH.bench = false; if (TECH.coach) TECH.player = null; techModal(); break;
     case 'tech-p': TECH.player = TECH.player === b.dataset.p ? null : b.dataset.p; techModal(); break;
-    case 'tech-ft': if (b.dataset.n === 'none') TECH.fta = 0; else delete TECH.fta; techModal(); break;
+    case 'tech-dbl': TECH.dbl = b.dataset.v === '1'; techModal(); break;
+    case 'tech-p2': { const k = b.dataset.t === 'a' ? 'pa' : 'pb'; TECH[k] = TECH[k] === b.dataset.p ? null : b.dataset.p; techModal(); break; }
+    case 'tech-ft': TECH.fta = +b.dataset.n; if (TECH.fta === 2) delete TECH.fta; techModal(); break;
     case 'tech-cancel': TECH = null; closeModal(); break;
     case 'tech-ok': {
-      if (!TECH.coach && TECH.team === 'a' && !TECH.player) { toast('Pick the Moorpark player (or The coach)', 'bad'); return; }
-      const D = derive(g), e = Object.assign({ t: 'tech' }, TECH, { ftm: 0, ftLater: true }); if (e.coach) e.player = null;
+      if (TECH.dbl) {   // double technical: one on each side, linked (dbl), no free throws; each his foul + team foul
+        if (!TECH.pa) { toast('Pick the Moorpark player', 'bad'); return; }
+        const link = uid(), ea = { t: 'tech', team: 'a', coach: false, player: TECH.pa, ftm: 0, fta: 0, ftLater: true, dbl: link },
+          eb = { t: 'tech', team: 'b', coach: false, player: TECH.pb || null, ftm: 0, fta: 0, ftLater: true, dbl: link };
+        const ins = UI.ins; push(g, ea); if (ins) UI.ins = ins; push(g, eb); TECH = null; save(); closeModal(); render();   // inserting: both go in before the picked play
+        const outA = playerTechs(g, 'a', ea.player) >= 2 || playerFouls(g, 'a', ea.player) >= 5;
+        toast(techText(g, ea) + (outA ? ' — OUT OF THE GAME' : ''), outA ? 'bad' : ''); break; }
+      if (!TECH.coach && !TECH.bench && TECH.team === 'a' && !TECH.player) { toast('Pick the Moorpark player (or The team / bench, or The coach)', 'bad'); return; }
+      const D = derive(g), e = Object.assign({ t: 'tech' }, TECH, { ftm: 0, ftLater: true }); if (e.coach || e.bench) e.player = null;
+      delete e.dbl; delete e.pa; delete e.pb; if (!e.bench) delete e.bench;
       push(g, e); TECH = null; save(); closeModal(); render();
       const out = e.player && (playerTechs(g, e.team, e.player) >= 2 || playerFouls(g, e.team, e.player) >= 5);
       const cOut = e.coach && g.ev.filter(x => x.t === 'tech' && x.coach && x.team === e.team).length >= 2;
@@ -8008,7 +8028,10 @@ function upgradeAll() { let n = 0; games.forEach(g => { if ((g.dv || 0) < DATA_V
    asks for the passcode (once; this iPad remembers it), unlocks it and merges it like Import season: adds what's
    missing, replaces a game only with a longer copy, never deletes. A fresh or wiped iPad is never blank. */
 const LS_BASE_AT = 'pt2_baseline_at', LS_BASE_KEY = 'pt2_baseline_pass', BASE_URL = 'baseline.enc.json';
-const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))), unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+// In 32 KB chunks: spreading a whole season's bytes into one call overflows Safari's stack ("Maximum call stack size
+// exceeded") once the season is a few hundred KB.
+const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); },
+  unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function baseKey(pass, salt, iter) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
