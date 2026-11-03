@@ -7596,6 +7596,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
           <th class="sl-th-r" rowspan="2" style="vertical-align:bottom;cursor:pointer" onclick="slSortConf('w')">W-L</th>
           <th class="sl-th-r" rowspan="2" style="vertical-align:bottom;cursor:pointer" onclick="slSortConf('win_pct')">Win%</th>
           <th class="sl-th-r" rowspan="2" style="vertical-align:bottom;background:#2a3a5c;cursor:pointer" onclick="slSortConf('net')" title="Net Rating: ORtg − DRtg (points per 100 possessions)">Net</th>
+          <th class="sl-th-r" rowspan="2" style="vertical-align:bottom;background:#2a3a5c;border-left:2px solid #555;cursor:pointer" onclick="slSortConf('top3')" title="Top-team strength: the average net rating of the conference's three best teams right now (the teams' current ratings, whichever three they are)">Top 3</th>
+          <th class="sl-th-r" rowspan="2" style="vertical-align:bottom;background:#2a3a5c;cursor:pointer" onclick="slSortConf('avg_net')" title="Average net rating of every team in the conference (the teams' current ratings)">Avg Net</th>
           <th class="sl-th-r" colspan="5" style="background:#1e3a5f;border-left:2px solid #555" title="Offensive Four Factors (this conference's teams)">Team Four Factors</th>
           <th class="sl-th-r" colspan="5" style="background:#5f1e1e;border-left:2px solid #555" title="Defensive Four Factors (what this conference's teams allowed)">Opponent Four Factors</th>
         </tr>
@@ -14619,11 +14621,20 @@ function slRenderConf() {{
   const sel = document.getElementById('conf-scope');
   const scope = sel ? sel.value : 'nonconf';
   const bySeason = (typeof CONF_FF !== 'undefined' && CONF_FF[activeSeason]) || {{}};
-  const rows = (bySeason[scope] || []).slice();
+  const rows = (bySeason[scope] || []).map(r => Object.assign({{}}, r));
   if (!rows.length) {{
-    body.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#888;padding:18px">No conference data for this season / scope.</td></tr>';
+    body.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#888;padding:18px">No conference data for this season / scope.</td></tr>';
     return;
   }}
+  // Top 3 / Avg Net: from each team's current net rating (the Team Stats ratings), so the top three are whoever they
+  // are today; the small number is the conference's rank among the conferences
+  const nets = {{}};
+  (activeFullTeamData() || []).forEach(t => {{ const n = Number(t.net_rtg); if (t.conference && isFinite(n) && (t.ortg || 0) > 0) (nets[t.conference] = nets[t.conference] || []).push(n); }});
+  rows.forEach(r => {{ const v = (nets[r.conf] || []).slice().sort((a, b) => b - a);
+    r.top3 = v.length ? v.slice(0, 3).reduce((a, b) => a + b, 0) / Math.min(3, v.length) : null;
+    r.avg_net = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }});
+  const rankOf = key => {{ const o = rows.filter(r => r[key] != null).sort((a, b) => b[key] - a[key]); return r => r[key] == null ? '' : `<sub style="color:#888;margin-left:3px">${{o.indexOf(r) + 1}}</sub>`; }};
+  const rkTop3 = rankOf('top3'), rkAvg = rankOf('avg_net');
   const k = slConfSortKey;
   rows.sort((a, b) => {{
     let av = a[k], bv = b[k];
@@ -14640,6 +14651,8 @@ function slRenderConf() {{
       + `<td class="sl-th-r">${{r.w}}-${{r.l}}</td>`
       + td('win_pct', (r.win_pct != null ? (r.win_pct * 100).toFixed(1) : '—'))
       + td('net', fmt(r.net, 1), 'border-left:2px solid #555')
+      + td('top3', fmt(r.top3, 1) + rkTop3(r), 'border-left:2px solid #555')
+      + td('avg_net', fmt(r.avg_net, 1) + rkAvg(r))
       + td('ortg', fmt(r.ortg, 1), 'border-left:2px solid #555')
       + td('efg', fmt(r.efg, 1))
       + td('orb', fmt(r.orb, 1))

@@ -124,6 +124,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
   DR%, Stl%, Blk%) blank (build_game_boxes "miss").
+- Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current
+  net rating of the conference's three best teams, whichever they are) and Avg Net (every member's current net),
+  each with its rank among the conferences.
+- Possession tracker technicals (techModal): on a player (his foul + team foul), the team / bench (team foul only,
+  e.bench) or the coach (no foul); 2, 1 (Class B) or no free throws; Double technical logs one on each team, linked
+  by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
 - Player badges (every season, each ranked within its own season; generate_leaderboard.attach_badges / _badge_values / _hof_bars, page: BADGES /
   __bdgIcons / __ppBadges / ppBadgeGuide): what a player does best this season, statewide. Four levels: Bronze, Silver
   and Gold rank this season (skills: top 15% / 7% / 3% of qualified players; rank badges: top 50 / 25 / 10); Hall of
