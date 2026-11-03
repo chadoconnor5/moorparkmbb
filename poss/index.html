@@ -1336,12 +1336,12 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
   <div id="sc-fileview"></div>
 </div>
 <input type="file" id="sc-file" accept="application/pdf,.pdf" class="hidden">
-<input type="file" id="sh-file" accept="image/*" class="hidden">
+<input type="file" id="sh-file" accept="image/*" multiple class="hidden">
 <div id="modal-root"></div>
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.400';
+const VERSION = 'v2026.11.03.600';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4746,10 +4746,11 @@ const SH_COLS = [['min', 'MIN'], ['fgm', 'FGM'], ['fga', 'FGA'], ['fg3m', '3PM']
   ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK'], ['tov', 'TO'], ['pf', 'PF'], ['pts', 'PTS']];
 const SH_NUM = SH_COLS.map(c => c[0]);
 const SH_HEAD = { min: 'min', mins: 'min', mp: 'min', oreb: 'oreb', or: 'oreb', orb: 'oreb', off: 'oreb', of: 'oreb', dreb: 'dreb', dr: 'dreb', drb: 'dreb', def: 'dreb', de: 'dreb',
-  reb: 'reb', tot: 'reb', ast: 'ast', a: 'ast', stl: 'stl', st: 'stl', s: 'stl', blk: 'blk', bk: 'blk', b: 'blk', to: 'tov', tov: 'tov', pf: 'pf', pts: 'pts', tp: 'pts' };
+  reb: 'reb', tot: 'reb', ast: 'ast', a: 'ast', stl: 'stl', st: 'stl', s: 'stl', blk: 'blk', bk: 'blk', b: 'blk', to: 'tov', tov: 'tov', pf: 'pf', f: 'pf', r: 'reb', pts: 'pts', tp: 'pts' };
 const SH_DEFAULT = ['oreb', 'dreb', 'reb', 'ast', 'stl', 'blk', 'tov', 'pf', 'pts'];
 const SH_ALT = [SH_DEFAULT, ['oreb', 'dreb', 'reb', 'pf', 'pts', 'ast', 'tov', 'blk', 'stl', 'min'], ['oreb', 'dreb', 'reb', 'pf', 'ast', 'tov', 'blk', 'stl', 'pts'],
-  ['oreb', 'dreb', 'reb', 'ast', 'tov', 'stl', 'blk', 'pf', 'pts']];
+  ['oreb', 'dreb', 'reb', 'ast', 'tov', 'stl', 'blk', 'pf', 'pts'],
+  ['reb', 'oreb', 'dreb', 'ast', 'tov', 'blk', 'stl', 'pf', 'pts']];   // the website's live stats (R OR DR A TO BLK STL F PTS)
 
 // OCR slips in numbers: O→0, l/I/|→1, S→5, B→8, Z→2, a→4 (a 4 often comes out as "a").
 const shDigits = t => t.replace(/[Oo]/g, '0').replace(/[Il|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/a/g, '4');
@@ -4764,7 +4765,9 @@ function shTokens(line) {
     if (p && ((/\d$/.test(p.t) && /^[-:]\d*$/.test(w.t)) || (/\d[-:]$/.test(p.t) && /^\d/.test(w.t)) || (/^\d+$/.test(p.t) && /^[-:]\d/.test(w.t)))) {
       p.t += w.t; p.conf = Math.min(p.conf, w.conf); if (p.bbox && w.bbox) p.bbox = { x0: Math.min(p.bbox.x0, w.bbox.x0), y0: Math.min(p.bbox.y0, w.bbox.y0), x1: Math.max(p.bbox.x1, w.bbox.x1), y1: Math.max(p.bbox.y1, w.bbox.y1) };
     } else M.push(Object.assign({}, w)); });
-  return M.map(w => { const c = w.t.replace(/[,;]+$/, '').replace(/[|]/g, '');
+  return M.map(w => { let c = w.t.replace(/[,;]+$/, '').replace(/[|]/g, '');
+    // a spaced "1 - 6" on a highlighted row read "1=E": the = is the dash (E a 6, g a 9 there)
+    if (/^[0-9IlOo]{1,2}=[0-9IlOoEgS]{1,2}$/.test(c)) c = c.replace('=', '-').replace(/E/g, '6').replace(/g/g, '9');
     // A tall, thin "11" (Poppins and similar) comes out as letters: "n", "mn", "ll", "Il", "u", "H".
     if (/^(n|mn|nn|rn|ll|Il|lI|II|ii|u|N|H|M)$/.test(c)) return { v: '11', conf: Math.min(w.conf, 60), bbox: w.bbox, fixed: true, raw: w.t };
     if (shNumish(c)) { const v = shDigits(c).replace(/[:.]/g, '-'); return { v, conf: w.conf, bbox: w.bbox, fixed: v !== c, raw: w.t }; }
@@ -4857,11 +4860,11 @@ const shRebOk = r => r.reb == null || r.oreb == null || r.dreb == null || r.reb 
 function parseSheet(src) {
   // src: the reader's lines (words with confidence and position), or plain text.
   const lines = typeof src === 'string' ? src.split('\n').map(l => l.trim()).filter(Boolean).map(t => ({ text: t, words: null, bbox: null }))
-    : src.map(l => ({ text: l.words.map(w => w.text).join(' '), words: l.words, bbox: l.bbox }));
+    : src.map(l => ({ text: l.words.map(w => w.text).join(' '), words: l.words, bbox: l.bbox, pg: l.pg }));
   const secs = []; let cur = null, lastTitle = '', lay = null, group = null;   // group: STARTERS / RESERVES heading in force
   const start = () => { cur = { title: lastTitle, rows: [], team: null, totals: null, lay }; secs.push(cur); };
   lines.forEach(L => { const line = L.text;
-    if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; return; }
+    if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; cur.headPg = L.pg; return; }
     // the FG% / 3P% / FT% lines under a table ("TOTAL FG% 1st Half: 23-42 54.8%")
     if (/%/.test(line) && (/FG%|Half|Game|Throw|3-?Pt/i.test(line) || !/[A-Za-z]{3}/.test(line.replace(/%/g, '')))) return;
     const T = shTokens(L.words || line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
@@ -4869,7 +4872,7 @@ function parseSheet(src) {
     // the TOTALS line ("Tolale" too; not "Score by periods 1st Total" further down: a totals line has the whole row of numbers)
     // (or a whole row of numbers with no name, after a table's players: "Totals" misread beyond recognition)
     if ((/\bT[O0o][TtlI][AaGo4][LlIie1][Ss5e]?\b/.test(words) && /^T/i.test(words.replace(/^[^A-Za-z]+/, '')) && V.length >= 6)
-      || (V.length >= 10 && !/[A-Za-z]{2}/.test(words) && cur && !cur.closed && cur.rows.length >= 5)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.closed = true; return; }
+      || (V.length >= 10 && !/[A-Za-z]{2}/.test(words) && cur && !cur.closed && cur.rows.length >= 5)) { if (!cur) start(); cur.totals = V; cur.totBox = L.bbox; cur.totPg = L.pg; cur.closed = true; return; }
     // The team line ("TEAM", "TM Team", "TMTeam"): team rebounds, placed by column when the photo gives positions.
     if (/TEAM\b/i.test(words) && V.length <= 6 && !V.some(x => /-/.test(x.v))) { if (cur) { cur.team = V.map(x => shInt(x.v)).filter(n => n != null); cur.teamV = V; } return; }
     // A player line: jersey number, the name, then the numbers.
@@ -4880,17 +4883,31 @@ function parseSheet(src) {
       if (T[iNum - 1] && T[iNum - 1].w && /^(n|u|ll|Il|lI|II|ii|H)$/.test(T[iNum - 1].w) && iNum - 1 > 1) {
         const wd = (L.words || []).find(w => w.text === T[iNum - 1].raw); T[iNum - 1] = { v: '11', raw: T[iNum - 1].raw, conf: wd ? wd.conf : 0, bbox: wd ? wd.bbox : null, fixed: true }; iNum--; }
       const name = T.slice(1, iNum).filter(x => x.w).map(x => x.w.replace(/[^A-Za-z'\-,.]/g, '')).filter(Boolean).join(' ').replace(/\.{2,}.*$/, '').replace(/^[,.\s]+|[,.\s]+$/g, '');
-      cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null), box: L.bbox });
+      cur.rows.push({ num: T[0].v, name, starter: group ? group === 'S' : /\*/.test(line), V: T.slice(iNum).filter(x => x.v != null), box: L.bbox, pg: L.pg });
       return;
     }
     // A team's title: "Antelope Valley 55 • 0-0" (the name, then score and record), or the name alone. Not the
     // game's heading ("Antelope Valley vs. Moorpark (11/2/2026 at ...)"), the time or "about:blank".
-    if (V.length <= 3 && !/:|\bvs\b|\bat\b|\//i.test(line) && line.length < 50) {
+    // (the website's menu, share and cookie banner aren't team names)
+    if (V.length <= 3 && !/:|\bvs\b|\bat\b|\/|%|\.com\b/i.test(line) && line.length < 50 && !/^(SCHEDULES?|ROSTERS?|STANDINGS|STATISTICS|BOARD|3C2A|CHAMPIONSHIP|HALL|OF|FAME|MORE|SHARE|I ACCEPT|ACCEPT|PLAYER|STARTERS|RESERVES|BENCH)\b/i.test(line.trim())) {
       const m = line.match(/^\s*([A-Za-z][A-Za-z .'&\-]*?[A-Za-z])\s*(?:\d|[•*«=·]|$)/);
-      if (m && /[A-Za-z]{3,}/.test(m[1])) lastTitle = m[1].trim(); }
+      if (m && /[A-Za-z]{3,}/.test(m[1])) { lastTitle = m[1].trim();
+        // a team's heading in big type after a table's players (the website's live stats: no TOTALS line to end the
+        // table) ends that table; the players after it are the named team's
+        const hs = cur && !cur.closed && L.bbox ? cur.rows.filter(r => r.box).map(r => r.box.y1 - r.box.y0).sort((a, b) => a - b) : [];
+        if (hs.length >= 3 && L.bbox.y1 - L.bbox.y0 > 1.3 * hs[hs.length >> 1]) cur.closed = true; } }
   });
+  // Screenshots of one box score (scrolled, overlapping): a team's box shown again is one section, and a row
+  // shown twice counts once.
+  const merged = [];
+  secs.forEach(s => { const m = s.title && merged.find(x => x.title === s.title);
+    if (!m) { merged.push(s); return; }
+    s.rows.forEach(r => { if (!m.rows.some(x => x.num === r.num && x.name === r.name)) m.rows.push(r); });
+    if (!m.totals && s.totals) Object.assign(m, { totals: s.totals, totBox: s.totBox, totPg: s.totPg });
+    if (!m.team && s.team) Object.assign(m, { team: s.team, teamV: s.teamV }); if (!m.lay && s.lay) m.lay = s.lay; });
+  merged.forEach(s => { const seen = new Set(); s.rows = s.rows.filter(r => { const k = r.num + '|' + r.name; if (seen.has(k)) return false; seen.add(k); return true; }); });
   // The column layout per section: the header's if it adds up best, else the best known layout.
-  return secs.filter(s => s.rows.length).map(s => {
+  return merged.filter(s => s.rows.length).map(s => {
     // A header that was read settles whether there's a MIN column (rows with a number dropped can add up
     // better, by accident, without it). A header read in full (all nine columns after the shooting) is the layout.
     const cands = s.lay && s.lay.post.length >= 9 ? [s.lay] : [s.lay, ...SH_ALT.map(post => ({ min: true, post })), ...SH_ALT.map(post => ({ min: false, post }))].filter(o => o && (!s.lay || o.min === s.lay.min));
@@ -4908,20 +4925,20 @@ function parseSheet(src) {
       if (byX && rate(a) < 4) { const b = shAssignX(r.V, byX, false); if (rate(b) > rate(a)) a = b; }
       const v = Object.assign({ num: r.num, name: r.name, starter: r.starter }, a || {});
       // Points are FG/3P/FT added up; a misread PTS is replaced and marked for a look.
-      v.iffy = shIffy(v); v.box = r.box;
+      v.iffy = shIffy(v); v.box = r.box; v.pg = r.pg;
       if (v.fgm != null && !shPtsOk(v)) { v.ptsRead = v.pts == null ? null : v.pts; v.pts = shCalcPts(v); v.ptsFixed = true; v.iffy.pts = v._q.pts ? v._q.pts.bbox : null; }
       if (v.oreb != null && v.dreb != null && v.reb != null && v.reb !== v.oreb + v.dreb) v.rebOff = true;
       return v; });
     let tot = s.totals ? shAssign(s.totals, Object.assign({}, best, { min: false, tot: true })) : null;
     // The totals line carries the minutes too (200 / 100): read it by position when it can be.
     if (s.totals && byX) { const b = shAssignX(s.totals, byX, true); if (b && (!tot || rate(b) >= rate(tot))) tot = b; }
-    if (tot) { tot.iffy = shIffy(tot); tot.box = s.totBox; }
+    if (tot) { tot.iffy = shIffy(tot); tot.box = s.totBox; tot.pg = s.totPg; }
     const team = s.team || [];
     let teamReb = team.length >= 2 ? { oreb: team[0], dreb: team[1] } : null;
     // By position: "TMTeam 1 . 1" is 1 offensive (REB 1), "TMTeam . 5 5" is 5 defensive.
     if (byX && s.teamV && s.teamV.length) { const t = shAssignX(s.teamV, byX, true, true);
       if (t && (t.oreb != null || t.dreb != null || t.reb != null)) { const o = t.oreb || 0, d = t.dreb != null ? t.dreb : Math.max(0, (t.reb || 0) - o); teamReb = { oreb: o, dreb: d }; } }
-    return { title: s.title, rows, totals: tot, headBox: s.headBox, teamReb };
+    return { title: s.title, rows, totals: tot, headBox: s.headBox, headPg: s.headPg, teamReb };
   });
 }
 /* Which section is Moorpark: the one whose title says so; else by home / away (home is listed second). */
@@ -4931,9 +4948,17 @@ function sheetTeams(g, secs) {
   if (ia < 0) { const ob = secs.findIndex(s => g.opp && s.title && s.title.toLowerCase().includes(String(g.opp).split(' ')[0].toLowerCase())); ia = ob >= 0 ? (ob === 0 ? 1 : 0) : (g.loc === 'A' ? 0 : 1); }
   if (ia >= secs.length) ia = 0;
   const ib = secs.length > 1 ? (ia === 0 ? 1 : 0) : -1;
-  const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
-    totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null }) : null, teamReb: s ? s.teamReb : null });
-  return { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
+  const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, headPg: s ? s.headPg : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null, pg: r.pg }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
+    totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null, pg: s.totals.pg }) : null, teamReb: s ? s.teamReb : null });
+  const out = { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
+  // Jersey numbers from the game's rosters, matched by name (same last name and first initial): a misread number
+  // ("11" read "1") is put right, and the report ties each row to the right player.
+  const key = n => String(n || '').toLowerCase().replace(/[^a-z ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  ['a', 'b'].forEach(t => { let ros = []; try { ros = t === 'a' ? roster() : (g.oppRoster || []); } catch (e) { ros = []; }
+    out[t].rows.forEach(r => { const k = key(r.name); if (k.length < 2) return;
+      const hit = ros.filter(p => { const q = key(p.name); return q.length >= 2 && q[q.length - 1] === k[k.length - 1] && q[0][0] === k[0][0]; });
+      if (hit.length === 1 && hit[0].num != null && String(hit[0].num) !== '') r.num = String(hit[0].num); }); });
+  return out;
 }
 
 /* ---------- reading the photo ---------- */
@@ -4948,9 +4973,24 @@ function shPrep(file) {
     img.onload = () => { const sc = Math.min(3, 2600 / img.width), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
-      for (let i = 0; i < p.length; i += 4) { const v = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = v; }
-      x.putImageData(d, 0, 0); URL.revokeObjectURL(url); res(shUnrule(shDewarp(shDeskew(shFlatten(c))))); };
+      let pure = 0; for (let i = 0; i < p.length; i += 4) { if (p[i] >= 250 && p[i] === p[i + 1] && p[i] === p[i + 2]) pure++; const v = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = v; }
+      // A screenshot (a quarter of it pure white, which a camera never gives): flat, level and evenly lit already, so
+      // it isn't deskewed, straightened or evened out (the website's row boxes would pass for a bend, its big bold
+      // team name for dark background).
+      const shot = pure > 0.25 * p.length / 4;   // (only a screenshot's header bars are flipped: shadowed paper is dark too)
+      if (shot) shUnbar(c.width, c.height, p); x.putImageData(d, 0, 0); URL.revokeObjectURL(url); if (shot) { c.shot = true; res(shUnrule(c)); } else res(shUnrule(shDewarp(shDeskew(shFlatten(c))))); };
     img.onerror = () => rej(new Error('That photo could not be opened')); img.src = url; });
+}
+/* A table header in light text on a dark bar (the website's live stats): a pixel row dark over more than half
+   the page (64px windows) that has light text in it is turned light-on-dark → dark-on-light over its dark span,
+   so the header reads like the printout's. A photo's dark surroundings stay (under half a row, or no text). */
+function shUnbar(W, H, p) {
+  const win = 64, dark = new Uint8Array(W);
+  for (let y = 0; y < H; y++) { let s = 0, n = 0, bright = 0;
+    for (let i = 0; i < W; i++) { const v = p[(y * W + i) * 4]; s += v; if (i >= win) s -= p[(y * W + i - win) * 4]; dark[i] = 0; if (i >= win - 1 && s / win < 130) { for (let k = i - win + 1; k <= i; k++) dark[k] = 1; } }
+    for (let i = 0; i < W; i++) { if (dark[i]) n++; if (dark[i] && p[(y * W + i) * 4] > 200) bright++; }
+    if (n < 0.5 * W || bright < 3) continue;
+    for (let i = 0; i < W; i++) if (dark[i]) { const q = (y * W + i) * 4, v = 255 - p[q]; p[q] = p[q + 1] = p[q + 2] = v; } }
 }
 /* Even out the light: a phone photo of a printout is brighter in one corner than another (and shadowed
    by the hand or the phone). The paper's brightness is measured on a coarse grid (the brightest pixel of
@@ -5082,7 +5122,12 @@ async function readSheetPhoto(file, onProg) {
   const c = await shPrep(file);
   const { data } = await TESS.recognize(c);
   let lines = (data.lines || []).map(l => ({ bbox: l.bbox, words: l.words.map(w => ({ text: w.text, conf: w.confidence, bbox: w.bbox })) }));
-  try { lines = await shGrid(c, lines); } catch (e) { console.warn('column pass', e); }
+  // A photo: the column pass's rows. A screenshot usually reads cleanly whole (the column pass can pull a spaced
+  // "6 - 7" apart), so both are tried and the one with more rows that add up (points, rebounds) is kept.
+  try { const gl = await shGrid(c, lines);
+    if (!c.shot) lines = gl;
+    else { const ok = L => { try { return parseSheet(L).reduce((t, x) => t + x.rows.filter(r => shPtsOk(r) && !r.ptsFixed && shRebOk(r)).length, 0); } catch (e) { return -1; } };
+      if (ok(gl) > ok(lines)) lines = gl; } } catch (e) { console.warn('column pass', e); }
   SH_PH.cb = null;
   return { text: data.text, canvas: c, lines };
 }
@@ -5124,6 +5169,9 @@ async function shGrid(c, lines) {
     for (let i = 0; i < runs.length; i++) { const [a, b] = runs[i], inr = hx.filter(x => x >= a && x <= b); if (inr.length < 2) continue;
       let mx = -1, mv = Infinity; for (let x = Math.round(inr[0]); x <= inr[1]; x++) if (ink[x] < mv) { mv = ink[x]; mx = x; }
       if (mx > a && mx < b) { runs.splice(i, 1, [a, mx - 1], [mx + 1, b]); i++; } }
+    // percentage columns (the website's FG% / 3PT% / FT%) aren't read: the first pass's "33.3%" words mark them
+    const pcx = [].concat(...lines.map(l => l.words)).filter(w => /\d%$/.test(w.text) && yc(w.bbox) > top && yc(w.bbox) < bot).map(w => (w.bbox.x0 + w.bbox.x1) / 2);
+    for (let i = runs.length - 1; i >= 0; i--) { const [a, b] = runs[i]; if (pcx.filter(x => x >= a - 0.3 * hm && x <= b + 0.3 * hm).length >= 3) runs.splice(i, 1); }
     if (runs.length >= 8 && runs.length <= 20) tables.push({ top, bot, x0, runs });
   });
   if (!tables.length) return lines;
@@ -5238,10 +5286,10 @@ function sheetModal() {
   if (S.stage === 'pick' || S.stage === 'reading') {
     modal(`<h2>${S.auto ? 'Halftime — stat sheet' : 'Read the stat sheet'}</h2>
       ${S.auto ? '<p style="margin-bottom:8px">Got the halftime printout? Add a photo of it for the full individual and team advanced numbers. No printout? Skip straight to the halftime report.</p>' : ''}
-      <p class="muted" style="margin-bottom:10px">Take a photo of the box score printout with both teams in view (flat, straight on, good light), or pick one from Photos. It's read on the iPad — no internet needed. You'll check the numbers before anything is saved.</p>
+      <p class="muted" style="margin-bottom:10px">Take a photo of the box score printout with both teams in view (flat, straight on, good light), or pick one from Photos. With Wi-Fi you can screenshot the box score page instead and pick all the screenshots at once (both teams, scrolled — overlaps are fine). It's read on the iPad. You'll check the numbers before anything is saved.</p>
       ${S.auto ? '' : scBtns}
       <div style="margin:14px 0">${S.stage === 'reading' ? `<div class="sh-prog"><div style="width:${Math.round(100 * (S.prog || 0))}%"></div></div><div class="small muted" style="margin-top:6px">${S.msg || 'Reading…'}</div>`
-        : '<button class="btn btn-good btn-lg" data-act="sh-photo" style="width:100%">📷 Take or choose photo</button>'}</div>
+        : '<button class="btn btn-good btn-lg" data-act="sh-photo" style="width:100%">📷 Take or choose photo / screenshots</button>'}</div>
       ${g.sheet && g.sheet[sc] ? `<div class="small muted">A ${sc === '1H' ? 'halftime' : 'final'} sheet is already saved — <button class="btn btn-sm" data-act="sh-edit">Edit it</button></div>` : ''}
       <div class="modal-foot"><button class="btn btn-lg" data-act="sh-close">${S.auto ? 'Skip → halftime report' : 'Cancel'}</button></div>`, 'sheet-modal');
     return;
@@ -5256,9 +5304,9 @@ function sheetModal() {
         <tr class="sh-sum"><td></td><td class="l">Players add up to</td>${SH_NUM.map(k => `<td data-sum="${t}:${k}">${sum[k]}</td>`).join('')}<td></td></tr>${totRow}</tbody></table></div>
       <button class="btn btn-sm" data-act="sh-add" data-t="${t}">+ Add player</button></div>`; };
   modal(`<div class="sub-head"><h2>Check the ${sc === '1H' ? 'halftime' : 'final'} sheet</h2><div class="sub-top"><button class="btn btn-lg" data-act="sh-close">Cancel</button><button class="btn btn-good btn-lg" data-act="sh-save">Save → report</button></div></div>
-    <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">${scBtns}<button class="btn" data-act="sh-swap">⇅ Swap teams</button>${S.photo ? '<button class="btn" data-act="sh-photo">📷 Read again</button>' : ''}<button class="btn btn-warn sh-clar" data-act="sh-clarify"></button>
+    <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">${scBtns}<button class="btn" data-act="sh-swap">⇅ Swap teams</button>${S.photos ? '<button class="btn" data-act="sh-photo">📷 Read again</button>' : ''}<button class="btn btn-warn sh-clar" data-act="sh-clarify"></button>
       <span class="small sh-st" data-st="all" style="margin-left:auto"></span></div>
-    ${S.photo ? `<details class="sh-photo"><summary>Show the photo</summary><img src="${S.photo}" alt=""></details>` : ''}
+    ${S.photos && S.photos.length ? `<details class="sh-photo"><summary>Show the photo${S.photos.length > 1 ? 's' : ''}</summary>${S.photos.map(u => `<img src="${u}" alt="">`).join('')}</details>` : ''}
     ${team('a')}${team('b')}`, 'sheet-modal wide');
   sheetRefresh();
 }
@@ -5277,7 +5325,7 @@ function sheetRefresh() {
       const d = q(`td[data-tot="${t}:${k}"]`); if (d) { d.classList.toggle('sh-bad', !!(tot && tot[k] != null && !shTotOk(T, k, tot[k], sum[k]))); d.classList.toggle('sh-iffy', !!(tot && tot.iffy && k in tot.iffy)); } });
     const mism = tot ? SH_NUM.filter(k => k !== 'min' && tot[k] != null && !shTotOk(T, k, tot[k], sum[k])) : [];
     const st = q(`[data-st="${t}"]`);
-    if (st) st.innerHTML = `${sum.min && !shMinOk(sum.min, minWant) ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line found' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
+    if (st) st.innerHTML = `${sum.min && !shMinOk(sum.min, minWant) ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line (the players\' sum is used)' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
   const n = sheetQueue().length, cb = q('.sh-clar');
   if (cb) { cb.textContent = `🔎 Clarify iffy numbers (${n})`; cb.style.display = n ? '' : 'none'; }
   const all = q('[data-st="all"]');
@@ -5330,11 +5378,12 @@ function sheetSettle(S, minWant) {
     T.rows.forEach(r => { if (r.iffy && shPtsOk(r) && !r.ptsFixed) ['fgm', 'fg3m', 'ftm', 'pts'].forEach(k => delete r.iffy[k]); }); });
 }
 function sheetCrop(S, T, R, key) {
-  const c = S.canvas, box = R.box, cell = R.iffy && R.iffy[key];
+  // (several screenshots: each row from its own; the header strip only when it's on the same one)
+  const c = S.canvases && R.pg != null ? S.canvases[R.pg] : S.canvas, box = R.box, cell = R.iffy && R.iffy[key];
   if (!c || !box) return '';
   const pad = 14, rowY0 = Math.max(0, box.y0 - pad), rowY1 = Math.min(c.height, box.y1 + pad), rowH = rowY1 - rowY0;
   const cx = cell ? (cell.x0 + cell.x1) / 2 : (box.x0 + box.x1) / 2, winW = Math.min(c.width, 1100), wx0 = Math.max(0, Math.min(c.width - winW, cx - winW / 2));
-  const nameW = Math.min(620, Math.max(0, wx0 - box.x0)), hb = T.headBox, headH = hb ? Math.min(90, hb.y1 - hb.y0 + 2 * pad) : 0;
+  const nameW = Math.min(620, Math.max(0, wx0 - box.x0)), hb = (T.headPg == null || T.headPg === R.pg) ? T.headBox : null, headH = hb ? Math.min(90, hb.y1 - hb.y0 + 2 * pad) : 0;
   const o = document.createElement('canvas'); o.width = nameW + (nameW ? 24 : 0) + winW; o.height = headH + rowH;
   const x = o.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
   const ox = nameW ? nameW + 24 : 0;
@@ -5488,20 +5537,27 @@ function sheetEdit(sc) {
   const g = cur(), S = g.sheet && g.sheet[sc]; if (!S) { sheetOpen(sc); return; }
   SHEET = { sc, stage: 'check', a: JSON.parse(JSON.stringify(S.a)), b: JSON.parse(JSON.stringify(S.b)) }; sheetModal();
 }
-async function sheetRead(file) {
-  const g = cur(), S = SHEET; if (!S || !file) return;
+/* One photo of the printout, or several screenshots of the box score page (where there's Wi-Fi: both teams'
+   boxes, scrolled; overlaps are fine): read one after another and put together in order, so a screenshot that
+   starts mid-box (the rest of a team's players, its TM Team and TOTALS) carries on the box before it. */
+async function sheetRead(files) {
+  const g = cur(), S = SHEET; files = Array.from(files || []); if (!S || !files.length) return;
   S.stage = 'reading'; S.prog = 0; S.msg = 'Loading the reader…'; sheetModal();
   try {
-    const rd = new FileReader(); rd.onload = () => { if (SHEET) SHEET.photo = rd.result; }; rd.readAsDataURL(file);
-    const res = await readSheetPhoto(file, p => { if (SHEET && SHEET.stage === 'reading') { SHEET.prog = p; SHEET.msg = `Reading… ${Math.round(100 * p)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * p) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
-    if (!SHEET) return;
-    SHEET.text = res.text; SHEET.canvas = res.canvas;
-    const T = sheetTeams(g, parseSheet(res.lines.length ? res.lines : res.text));
+    S.photos = []; files.forEach((f, i) => { const rd = new FileReader(); rd.onload = () => { if (SHEET && SHEET.photos) SHEET.photos[i] = rd.result; }; rd.readAsDataURL(f); });
+    const n = files.length, lines = [], canvases = [], texts = [];
+    for (let i = 0; i < n; i++) {
+      const res = await readSheetPhoto(files[i], p => { if (SHEET && SHEET.stage === 'reading') { const q = (i + p) / n; SHEET.prog = q; SHEET.msg = `Reading${n > 1 ? ` ${i + 1} of ${n}` : ''}… ${Math.round(100 * q)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * q) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
+      if (!SHEET) return;
+      canvases.push(res.canvas); texts.push(res.text); res.lines.forEach(l => { l.pg = i; lines.push(l); });
+    }
+    SHEET.text = texts.join('\n'); SHEET.canvas = canvases[0]; SHEET.canvases = canvases;
+    const T = sheetTeams(g, parseSheet(lines.length ? lines : SHEET.text));
     if (!T || (!T.a.rows.length && !T.b.rows.length)) { SHEET.stage = 'pick'; sheetModal(); toast('Couldn\'t find a box score in that photo — try again closer and straight on', 'bad'); return; }
     Object.assign(SHEET, T, { stage: 'check' }); sheetSettle(SHEET, SHEET.sc === '1H' ? 100 : 200 + 25 * otCount(g)); sheetModal();
   } catch (err) { if (SHEET) { SHEET.stage = 'pick'; sheetModal(); } toast('Reading failed: ' + err.message, 'bad'); }
 }
-$('#sh-file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) sheetRead(f); });
+$('#sh-file').addEventListener('change', e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) sheetRead(f); });
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('sh-in') && SHEET) { sheetInput(e.target); sheetRefresh(); } });
 document.addEventListener('input', e => { if (e.target.id === 'sh-rowtxt' && SHEET) sheetRowCheck(); });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sh-rowtxt' && SHEET) { e.preventDefault(); const b = document.querySelector('[data-act="sh-row-save"]'); if (b) b.click(); } });
