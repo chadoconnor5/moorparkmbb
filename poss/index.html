@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.500';
+const VERSION = 'v2026.11.03.600';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4746,10 +4746,11 @@ const SH_COLS = [['min', 'MIN'], ['fgm', 'FGM'], ['fga', 'FGA'], ['fg3m', '3PM']
   ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK'], ['tov', 'TO'], ['pf', 'PF'], ['pts', 'PTS']];
 const SH_NUM = SH_COLS.map(c => c[0]);
 const SH_HEAD = { min: 'min', mins: 'min', mp: 'min', oreb: 'oreb', or: 'oreb', orb: 'oreb', off: 'oreb', of: 'oreb', dreb: 'dreb', dr: 'dreb', drb: 'dreb', def: 'dreb', de: 'dreb',
-  reb: 'reb', tot: 'reb', ast: 'ast', a: 'ast', stl: 'stl', st: 'stl', s: 'stl', blk: 'blk', bk: 'blk', b: 'blk', to: 'tov', tov: 'tov', pf: 'pf', pts: 'pts', tp: 'pts' };
+  reb: 'reb', tot: 'reb', ast: 'ast', a: 'ast', stl: 'stl', st: 'stl', s: 'stl', blk: 'blk', bk: 'blk', b: 'blk', to: 'tov', tov: 'tov', pf: 'pf', f: 'pf', r: 'reb', pts: 'pts', tp: 'pts' };
 const SH_DEFAULT = ['oreb', 'dreb', 'reb', 'ast', 'stl', 'blk', 'tov', 'pf', 'pts'];
 const SH_ALT = [SH_DEFAULT, ['oreb', 'dreb', 'reb', 'pf', 'pts', 'ast', 'tov', 'blk', 'stl', 'min'], ['oreb', 'dreb', 'reb', 'pf', 'ast', 'tov', 'blk', 'stl', 'pts'],
-  ['oreb', 'dreb', 'reb', 'ast', 'tov', 'stl', 'blk', 'pf', 'pts']];
+  ['oreb', 'dreb', 'reb', 'ast', 'tov', 'stl', 'blk', 'pf', 'pts'],
+  ['reb', 'oreb', 'dreb', 'ast', 'tov', 'blk', 'stl', 'pf', 'pts']];   // the website's live stats (R OR DR A TO BLK STL F PTS)
 
 // OCR slips in numbers: O→0, l/I/|→1, S→5, B→8, Z→2, a→4 (a 4 often comes out as "a").
 const shDigits = t => t.replace(/[Oo]/g, '0').replace(/[Il|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/a/g, '4');
@@ -4764,7 +4765,9 @@ function shTokens(line) {
     if (p && ((/\d$/.test(p.t) && /^[-:]\d*$/.test(w.t)) || (/\d[-:]$/.test(p.t) && /^\d/.test(w.t)) || (/^\d+$/.test(p.t) && /^[-:]\d/.test(w.t)))) {
       p.t += w.t; p.conf = Math.min(p.conf, w.conf); if (p.bbox && w.bbox) p.bbox = { x0: Math.min(p.bbox.x0, w.bbox.x0), y0: Math.min(p.bbox.y0, w.bbox.y0), x1: Math.max(p.bbox.x1, w.bbox.x1), y1: Math.max(p.bbox.y1, w.bbox.y1) };
     } else M.push(Object.assign({}, w)); });
-  return M.map(w => { const c = w.t.replace(/[,;]+$/, '').replace(/[|]/g, '');
+  return M.map(w => { let c = w.t.replace(/[,;]+$/, '').replace(/[|]/g, '');
+    // a spaced "1 - 6" on a highlighted row read "1=E": the = is the dash (E a 6, g a 9 there)
+    if (/^[0-9IlOo]{1,2}=[0-9IlOoEgS]{1,2}$/.test(c)) c = c.replace('=', '-').replace(/E/g, '6').replace(/g/g, '9');
     // A tall, thin "11" (Poppins and similar) comes out as letters: "n", "mn", "ll", "Il", "u", "H".
     if (/^(n|mn|nn|rn|ll|Il|lI|II|ii|u|N|H|M)$/.test(c)) return { v: '11', conf: Math.min(w.conf, 60), bbox: w.bbox, fixed: true, raw: w.t };
     if (shNumish(c)) { const v = shDigits(c).replace(/[:.]/g, '-'); return { v, conf: w.conf, bbox: w.bbox, fixed: v !== c, raw: w.t }; }
@@ -4885,9 +4888,14 @@ function parseSheet(src) {
     }
     // A team's title: "Antelope Valley 55 • 0-0" (the name, then score and record), or the name alone. Not the
     // game's heading ("Antelope Valley vs. Moorpark (11/2/2026 at ...)"), the time or "about:blank".
-    if (V.length <= 3 && !/:|\bvs\b|\bat\b|\//i.test(line) && line.length < 50) {
+    // (the website's menu, share and cookie banner aren't team names)
+    if (V.length <= 3 && !/:|\bvs\b|\bat\b|\/|%|\.com\b/i.test(line) && line.length < 50 && !/^(SCHEDULES?|ROSTERS?|STANDINGS|STATISTICS|BOARD|3C2A|CHAMPIONSHIP|HALL|OF|FAME|MORE|SHARE|I ACCEPT|ACCEPT|PLAYER|STARTERS|RESERVES|BENCH)\b/i.test(line.trim())) {
       const m = line.match(/^\s*([A-Za-z][A-Za-z .'&\-]*?[A-Za-z])\s*(?:\d|[•*«=·]|$)/);
-      if (m && /[A-Za-z]{3,}/.test(m[1])) lastTitle = m[1].trim(); }
+      if (m && /[A-Za-z]{3,}/.test(m[1])) { lastTitle = m[1].trim();
+        // a team's heading in big type after a table's players (the website's live stats: no TOTALS line to end the
+        // table) ends that table; the players after it are the named team's
+        const hs = cur && !cur.closed && L.bbox ? cur.rows.filter(r => r.box).map(r => r.box.y1 - r.box.y0).sort((a, b) => a - b) : [];
+        if (hs.length >= 3 && L.bbox.y1 - L.bbox.y0 > 1.3 * hs[hs.length >> 1]) cur.closed = true; } }
   });
   // Screenshots of one box score (scrolled, overlapping): a team's box shown again is one section, and a row
   // shown twice counts once.
@@ -4942,7 +4950,15 @@ function sheetTeams(g, secs) {
   const ib = secs.length > 1 ? (ia === 0 ? 1 : 0) : -1;
   const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, headPg: s ? s.headPg : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null, pg: r.pg }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
     totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null, pg: s.totals.pg }) : null, teamReb: s ? s.teamReb : null });
-  return { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
+  const out = { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
+  // Jersey numbers from the game's rosters, matched by name (same last name and first initial): a misread number
+  // ("11" read "1") is put right, and the report ties each row to the right player.
+  const key = n => String(n || '').toLowerCase().replace(/[^a-z ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  ['a', 'b'].forEach(t => { let ros = []; try { ros = t === 'a' ? roster() : (g.oppRoster || []); } catch (e) { ros = []; }
+    out[t].rows.forEach(r => { const k = key(r.name); if (k.length < 2) return;
+      const hit = ros.filter(p => { const q = key(p.name); return q.length >= 2 && q[q.length - 1] === k[k.length - 1] && q[0][0] === k[0][0]; });
+      if (hit.length === 1 && hit[0].num != null && String(hit[0].num) !== '') r.num = String(hit[0].num); }); });
+  return out;
 }
 
 /* ---------- reading the photo ---------- */
@@ -4957,9 +4973,24 @@ function shPrep(file) {
     img.onload = () => { const sc = Math.min(3, 2600 / img.width), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
-      for (let i = 0; i < p.length; i += 4) { const v = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = v; }
-      x.putImageData(d, 0, 0); URL.revokeObjectURL(url); res(shUnrule(shDewarp(shDeskew(shFlatten(c))))); };
+      let pure = 0; for (let i = 0; i < p.length; i += 4) { if (p[i] >= 250 && p[i] === p[i + 1] && p[i] === p[i + 2]) pure++; const v = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = v; }
+      // A screenshot (a quarter of it pure white, which a camera never gives): flat, level and evenly lit already, so
+      // it isn't deskewed, straightened or evened out (the website's row boxes would pass for a bend, its big bold
+      // team name for dark background).
+      const shot = pure > 0.25 * p.length / 4;   // (only a screenshot's header bars are flipped: shadowed paper is dark too)
+      if (shot) shUnbar(c.width, c.height, p); x.putImageData(d, 0, 0); URL.revokeObjectURL(url); if (shot) { c.shot = true; res(shUnrule(c)); } else res(shUnrule(shDewarp(shDeskew(shFlatten(c))))); };
     img.onerror = () => rej(new Error('That photo could not be opened')); img.src = url; });
+}
+/* A table header in light text on a dark bar (the website's live stats): a pixel row dark over more than half
+   the page (64px windows) that has light text in it is turned light-on-dark → dark-on-light over its dark span,
+   so the header reads like the printout's. A photo's dark surroundings stay (under half a row, or no text). */
+function shUnbar(W, H, p) {
+  const win = 64, dark = new Uint8Array(W);
+  for (let y = 0; y < H; y++) { let s = 0, n = 0, bright = 0;
+    for (let i = 0; i < W; i++) { const v = p[(y * W + i) * 4]; s += v; if (i >= win) s -= p[(y * W + i - win) * 4]; dark[i] = 0; if (i >= win - 1 && s / win < 130) { for (let k = i - win + 1; k <= i; k++) dark[k] = 1; } }
+    for (let i = 0; i < W; i++) { if (dark[i]) n++; if (dark[i] && p[(y * W + i) * 4] > 200) bright++; }
+    if (n < 0.5 * W || bright < 3) continue;
+    for (let i = 0; i < W; i++) if (dark[i]) { const q = (y * W + i) * 4, v = 255 - p[q]; p[q] = p[q + 1] = p[q + 2] = v; } }
 }
 /* Even out the light: a phone photo of a printout is brighter in one corner than another (and shadowed
    by the hand or the phone). The paper's brightness is measured on a coarse grid (the brightest pixel of
@@ -5091,7 +5122,12 @@ async function readSheetPhoto(file, onProg) {
   const c = await shPrep(file);
   const { data } = await TESS.recognize(c);
   let lines = (data.lines || []).map(l => ({ bbox: l.bbox, words: l.words.map(w => ({ text: w.text, conf: w.confidence, bbox: w.bbox })) }));
-  try { lines = await shGrid(c, lines); } catch (e) { console.warn('column pass', e); }
+  // A photo: the column pass's rows. A screenshot usually reads cleanly whole (the column pass can pull a spaced
+  // "6 - 7" apart), so both are tried and the one with more rows that add up (points, rebounds) is kept.
+  try { const gl = await shGrid(c, lines);
+    if (!c.shot) lines = gl;
+    else { const ok = L => { try { return parseSheet(L).reduce((t, x) => t + x.rows.filter(r => shPtsOk(r) && !r.ptsFixed && shRebOk(r)).length, 0); } catch (e) { return -1; } };
+      if (ok(gl) > ok(lines)) lines = gl; } } catch (e) { console.warn('column pass', e); }
   SH_PH.cb = null;
   return { text: data.text, canvas: c, lines };
 }
@@ -5133,6 +5169,9 @@ async function shGrid(c, lines) {
     for (let i = 0; i < runs.length; i++) { const [a, b] = runs[i], inr = hx.filter(x => x >= a && x <= b); if (inr.length < 2) continue;
       let mx = -1, mv = Infinity; for (let x = Math.round(inr[0]); x <= inr[1]; x++) if (ink[x] < mv) { mv = ink[x]; mx = x; }
       if (mx > a && mx < b) { runs.splice(i, 1, [a, mx - 1], [mx + 1, b]); i++; } }
+    // percentage columns (the website's FG% / 3PT% / FT%) aren't read: the first pass's "33.3%" words mark them
+    const pcx = [].concat(...lines.map(l => l.words)).filter(w => /\d%$/.test(w.text) && yc(w.bbox) > top && yc(w.bbox) < bot).map(w => (w.bbox.x0 + w.bbox.x1) / 2);
+    for (let i = runs.length - 1; i >= 0; i--) { const [a, b] = runs[i]; if (pcx.filter(x => x >= a - 0.3 * hm && x <= b + 0.3 * hm).length >= 3) runs.splice(i, 1); }
     if (runs.length >= 8 && runs.length <= 20) tables.push({ top, bot, x0, runs });
   });
   if (!tables.length) return lines;
@@ -5286,7 +5325,7 @@ function sheetRefresh() {
       const d = q(`td[data-tot="${t}:${k}"]`); if (d) { d.classList.toggle('sh-bad', !!(tot && tot[k] != null && !shTotOk(T, k, tot[k], sum[k]))); d.classList.toggle('sh-iffy', !!(tot && tot.iffy && k in tot.iffy)); } });
     const mism = tot ? SH_NUM.filter(k => k !== 'min' && tot[k] != null && !shTotOk(T, k, tot[k], sum[k])) : [];
     const st = q(`[data-st="${t}"]`);
-    if (st) st.innerHTML = `${sum.min && !shMinOk(sum.min, minWant) ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line found' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
+    if (st) st.innerHTML = `${sum.min && !shMinOk(sum.min, minWant) ? `<span class="small neg">minutes add up to ${sum.min}, not ${minWant}</span> · ` : ''}<span class="small ${mism.length ? 'neg' : 'pos'}">${!tot ? 'no totals line (the players\' sum is used)' : mism.length ? 'players don\'t add up to the totals: ' + mism.map(k => SH_COLS.find(c => c[0] === k)[1]).join(', ') : '✓ adds up to the totals'}</span>`; });
   const n = sheetQueue().length, cb = q('.sh-clar');
   if (cb) { cb.textContent = `🔎 Clarify iffy numbers (${n})`; cb.style.display = n ? '' : 'none'; }
   const all = q('[data-st="all"]');

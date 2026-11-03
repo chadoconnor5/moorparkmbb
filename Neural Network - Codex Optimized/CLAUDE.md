@@ -151,6 +151,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   they're read in order and put together (sheetRead: a screenshot starting mid-box carries on the box before it; a
   team's box shown again is merged, a row shown twice counts once; Clarify crops each row from its own screenshot).
   Tested on a 11/2 iPad screenshot: Moorpark's 12 players and TOTALS all right, also split in two overlapping shots.
+  The website's live stats view works too (# PLAYER MIN FG FG% 3PT 3PT% FT FT% R OR DR A TO BLK STL F PTS, "2 - 6"
+  spaced, header in light text on a dark bar, team name in big type above each table, no TOTALS): a screenshot (a
+  quarter pure white) skips deskew / straightening / evening out, gets its dark header bars flipped (shUnbar; never on a
+  photo: shadowed paper is dark too), and keeps the whole-page read or the column pass, whichever has more rows that add
+  up; the % columns are skipped; a big-type heading after a table's players starts the next team; jersey numbers come
+  from the game's rosters by name ("11" read "1"). The site's menu / cookie banner aren't team names. Tested on the
+  11/2 Antelope Valley-San Diego Miramar halftime screenshots: 0 of 286 cells wrong.
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
   conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
