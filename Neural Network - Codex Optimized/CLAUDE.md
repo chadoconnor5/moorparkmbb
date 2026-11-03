@@ -127,6 +127,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current
   net rating of the conference's three best teams, whichever they are) and Avg Net (every member's current net),
   each with its rank among the conferences.
+- Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
+  the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker technicals (techModal): on a player (his foul + team foul), the team / bench (team foul only,
   e.bench) or the coach (no foul); 2, 1 (Class B) or no free throws; Double technical logs one on each team, linked
   by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
