@@ -158,7 +158,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   up; the % columns are skipped; a big-type heading after a table's players starts the next team; jersey numbers come
   from the game's rosters by name ("11" read "1"). A row on the other team's roster and not its own table's team's moves there
   (sheetTeams; two teams read as one table: 11/3 San Bernardino Valley's players all landed in Moorpark's). Names
-  match by last name (5+ letters may be one letter off) and first initial. The site's menu / cookie banner aren't team names. Tested on the
+  match by last name (5+ letters may be one letter off) and first initial.
+  Buttons: "📷 Printout photo (both teams)", "📱 Moorpark screenshots", "📱 <opponent> screenshots" (pick screen), and
+  "📱 Add / Replace with screenshots" on each team on the check screen: a team's button makes every table read that
+  team's (sheetRead(files, team) / sheetTeams(g, secs, only)), keeping the other team's numbers; Clarify crops each
+  team's rows from its own screenshots (T.canvases). The site's menu / cookie banner aren't team names. Tested on the
   11/2 Antelope Valley-San Diego Miramar halftime screenshots: 0 of 286 cells wrong.
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team

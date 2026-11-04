@@ -1341,7 +1341,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.700';
+const VERSION = 'v2026.11.03.800';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4262,7 +4262,8 @@ document.addEventListener('click', ev => {
     case 'of-sel': OF.sel = b.dataset.g; scoutTabs(); break;
     case 'sc-mode': OF.mode = b.dataset.m; scoutTabs(); if (OF.mode === 'pdf' && SC.doc) layoutScout(); break;
     case 'sh-edit': sheetEdit(b.dataset.s || SHEET.sc); break;
-    case 'sh-photo': $('#sh-file').click(); break;
+    case 'sh-photo': SHEET.upT = null; $('#sh-file').click(); break;
+    case 'sh-shot': SHEET.upT = b.dataset.t; $('#sh-file').click(); break;
     case 'sh-sc': SHEET.sc = b.dataset.s; sheetModal(); break;
     case 'sh-close': SHEET = null; closeModal(); break;
     case 'sh-swap': { const x = SHEET.a; SHEET.a = SHEET.b; SHEET.b = x; sheetModal(); break; }
@@ -4942,15 +4943,20 @@ function parseSheet(src) {
   });
 }
 /* Which section is Moorpark: the one whose title says so; else by home / away (home is listed second). */
-function sheetTeams(g, secs) {
+function sheetTeams(g, secs, only) {
   if (!secs.length) return null;
+  // Screenshots loaded for one team (Moorpark's or the opponent's button): every table read is that team's, as one.
+  if (only) { const c = { title: (secs.find(x => x.title) || {}).title || '', rows: [], totals: null, teamReb: null, headBox: secs[0].headBox, headPg: secs[0].headPg };
+    secs.forEach(x => { x.rows.forEach(r => { if (!c.rows.some(y => y.num === r.num && y.name === r.name)) c.rows.push(r); });
+      if (!c.totals && x.totals) c.totals = x.totals; if (!c.teamReb && x.teamReb) c.teamReb = x.teamReb; });
+    secs = [c]; }
   let ia = secs.findIndex(s => /moor/i.test(s.title));
   if (ia < 0) { const ob = secs.findIndex(s => g.opp && s.title && s.title.toLowerCase().includes(String(g.opp).split(' ')[0].toLowerCase())); ia = ob >= 0 ? (ob === 0 ? 1 : 0) : (g.loc === 'A' ? 0 : 1); }
   if (ia >= secs.length) ia = 0;
   const ib = secs.length > 1 ? (ia === 0 ? 1 : 0) : -1;
   const pack = s => ({ title: s ? s.title : '', headBox: s ? s.headBox : null, headPg: s ? s.headPg : null, rows: s ? s.rows.map(r => { const o = { num: r.num, name: r.name, starter: !!r.starter, iffy: r.iffy || {}, box: r.box || null, pg: r.pg }; SH_NUM.forEach(k => { o[k] = r[k] != null ? r[k] : null; }); if (r.ptsFixed) { o.ptsFixed = true; o.ptsRead = r.ptsRead; } if (r.rebOff) o.rebOff = true; return o; }) : [],
     totals: s && s.totals ? Object.assign(Object.fromEntries(SH_NUM.filter(k => k !== 'min').map(k => [k, s.totals[k] != null ? s.totals[k] : null])), { iffy: s.totals.iffy || {}, box: s.totals.box || null, pg: s.totals.pg }) : null, teamReb: s ? s.teamReb : null });
-  const out = { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
+  const out = only ? { [only]: pack(secs[0]), [only === 'a' ? 'b' : 'a']: pack(null) } : { a: pack(secs[ia]), b: pack(ib >= 0 ? secs[ib] : null) };
   // The game's rosters, matched by name (same last name and first initial).
   const key = n => String(n || '').toLowerCase().replace(/[^a-z ]/g, ' ').trim().split(/\s+/).filter(Boolean);
   const ros = {}; try { ros.a = roster(); } catch (e) { ros.a = []; } ros.b = g.oppRoster || [];
@@ -4961,7 +4967,7 @@ function sheetTeams(g, secs) {
     return ros[t].filter(p => { const q = key(p.name); return q.length >= 2 && near(q[q.length - 1], k[k.length - 1]) && q[0][0] === k[0][0]; }); };
   // A player on the other team's roster and not this one's is the other team's: two teams' players read as one
   // table (screenshots where the second team's start wasn't seen) are sorted out.
-  ['a', 'b'].forEach(t => { const o = t === 'a' ? 'b' : 'a';
+  if (!only) ['a', 'b'].forEach(t => { const o = t === 'a' ? 'b' : 'a';
     out[t].rows = out[t].rows.filter(r => { if (find(o, r).length && !find(t, r).length) { out[o].rows.push(r); return false; } return true; }); });
   // Jersey numbers from the rosters: a misread number ("11" read "1") is put right, and the report ties each row to
   // the right player.
@@ -5295,10 +5301,11 @@ function sheetModal() {
   if (S.stage === 'pick' || S.stage === 'reading') {
     modal(`<h2>${S.auto ? 'Halftime — stat sheet' : 'Read the stat sheet'}</h2>
       ${S.auto ? '<p style="margin-bottom:8px">Got the halftime printout? Add a photo of it for the full individual and team advanced numbers. No printout? Skip straight to the halftime report.</p>' : ''}
-      <p class="muted" style="margin-bottom:10px">Take a photo of the box score printout with both teams in view (flat, straight on, good light), or pick one from Photos. With Wi-Fi you can screenshot the box score page instead and pick all the screenshots at once (both teams, scrolled — overlaps are fine). It's read on the iPad. You'll check the numbers before anything is saved.</p>
+      <p class="muted" style="margin-bottom:10px">Take a photo of the box score printout with both teams in view (flat, straight on, good light), or pick one from Photos. With Wi-Fi, screenshot the website's box score or live stats instead: load each team's screenshots with its own button (pick them all at once — scrolled, overlaps are fine). It's read on the iPad. You'll check the numbers before anything is saved.</p>
       ${S.auto ? '' : scBtns}
       <div style="margin:14px 0">${S.stage === 'reading' ? `<div class="sh-prog"><div style="width:${Math.round(100 * (S.prog || 0))}%"></div></div><div class="small muted" style="margin-top:6px">${S.msg || 'Reading…'}</div>`
-        : '<button class="btn btn-good btn-lg" data-act="sh-photo" style="width:100%">📷 Take or choose photo / screenshots</button>'}</div>
+        : `<button class="btn btn-good btn-lg" data-act="sh-photo" style="width:100%">📷 Printout photo (both teams)</button>
+          <div class="row" style="gap:8px;margin-top:8px"><button class="btn btn-lg" data-act="sh-shot" data-t="a" style="flex:1">📱 ${esc(teamName(g, 'a'))} screenshots</button><button class="btn btn-lg" data-act="sh-shot" data-t="b" style="flex:1">📱 ${esc(teamName(g, 'b'))} screenshots</button></div>`}</div>
       ${g.sheet && g.sheet[sc] ? `<div class="small muted">A ${sc === '1H' ? 'halftime' : 'final'} sheet is already saved — <button class="btn btn-sm" data-act="sh-edit">Edit it</button></div>` : ''}
       <div class="modal-foot"><button class="btn btn-lg" data-act="sh-close">${S.auto ? 'Skip → halftime report' : 'Cancel'}</button></div>`, 'sheet-modal');
     return;
@@ -5308,7 +5315,7 @@ function sheetModal() {
     const rows = T.rows.map((r, i) => `<tr data-row="${t}:${i}"><td><input class="sh-in num" data-t="${t}" data-i="${i}" data-k="num" value="${esc(r.num)}"></td><td class="l"><input class="sh-in nm" data-t="${t}" data-i="${i}" data-k="name" value="${esc(r.name)}"></td>
         ${SH_NUM.map(k => cell(i, k, r[k])).join('')}<td style="white-space:nowrap"><button class="btn btn-sm" data-act="sh-row" data-t="${t}" data-i="${i}" title="Retype the whole row">✎</button> <button class="btn btn-sm btn-bad" data-act="sh-del" data-t="${t}" data-i="${i}">✕</button></td></tr>`).join('');
     const totRow = tot ? `<tr class="sh-tot"><td></td><td class="l">Sheet totals</td><td></td>${SH_NUM.filter(k => k !== 'min').map(k => `<td data-tot="${t}:${k}"><input class="sh-in" inputmode="numeric" data-t="${t}" data-i="tot" data-k="${k}" value="${tot[k] == null ? '' : tot[k]}"></td>`).join('')}<td><button class="btn btn-sm" data-act="sh-row" data-t="${t}" data-i="tot" title="Retype the whole row">✎</button></td></tr>` : '';
-    return `<div class="sh-team"><div class="sh-th"><b style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</b> <span class="muted small">read as "${esc(T.title || '—')}"</span><span class="sh-st" data-st="${t}"></span></div>
+    return `<div class="sh-team"><div class="sh-th"><b style="color:${t === 'a' ? 'var(--us)' : 'var(--them-text)'}">${esc(teamName(g, t))}</b> <span class="muted small">read as "${esc(T.title || '—')}"</span> <button class="btn btn-sm" data-act="sh-shot" data-t="${t}">📱 ${T.rows.length ? 'Replace with' : 'Add'} screenshots</button><span class="sh-st" data-st="${t}"></span></div>
       <div class="tbl-wrap"><table class="tbl sh-tbl"><thead><tr><th>#</th><th class="l">Player</th>${SH_COLS.map(c => `<th>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>${rows}
         <tr class="sh-sum"><td></td><td class="l">Players add up to</td>${SH_NUM.map(k => `<td data-sum="${t}:${k}">${sum[k]}</td>`).join('')}<td></td></tr>${totRow}</tbody></table></div>
       <button class="btn btn-sm" data-act="sh-add" data-t="${t}">+ Add player</button></div>`; };
@@ -5388,7 +5395,7 @@ function sheetSettle(S, minWant) {
 }
 function sheetCrop(S, T, R, key) {
   // (several screenshots: each row from its own; the header strip only when it's on the same one)
-  const c = S.canvases && R.pg != null ? S.canvases[R.pg] : S.canvas, box = R.box, cell = R.iffy && R.iffy[key];
+  const cs = T.canvases || S.canvases, c = cs && R.pg != null ? cs[R.pg] : (T.canvases ? T.canvases[0] : S.canvas), box = R.box, cell = R.iffy && R.iffy[key];
   if (!c || !box) return '';
   const pad = 14, rowY0 = Math.max(0, box.y0 - pad), rowY1 = Math.min(c.height, box.y1 + pad), rowH = rowY1 - rowY0;
   const cx = cell ? (cell.x0 + cell.x1) / 2 : (box.x0 + box.x1) / 2, winW = Math.min(c.width, 1100), wx0 = Math.max(0, Math.min(c.width - winW, cx - winW / 2));
@@ -5549,24 +5556,29 @@ function sheetEdit(sc) {
 /* One photo of the printout, or several screenshots of the box score page (where there's Wi-Fi: both teams'
    boxes, scrolled; overlaps are fine): read one after another and put together in order, so a screenshot that
    starts mid-box (the rest of a team's players, its TM Team and TOTALS) carries on the box before it. */
-async function sheetRead(files) {
+// team: 'a' / 'b' when the screenshots were loaded with a team's own button (they're that team's, whatever they
+// show; the other team's numbers are kept); none for a printout or screenshots of both teams.
+async function sheetRead(files, team) {
   const g = cur(), S = SHEET; files = Array.from(files || []); if (!S || !files.length) return;
+  const back = S.stage === 'check' ? 'check' : 'pick';
   S.stage = 'reading'; S.prog = 0; S.msg = 'Loading the reader…'; sheetModal();
   try {
-    S.photos = []; files.forEach((f, i) => { const rd = new FileReader(); rd.onload = () => { if (SHEET && SHEET.photos) SHEET.photos[i] = rd.result; }; rd.readAsDataURL(f); });
+    const p0 = team ? (S.photos || []).length : 0; if (!team || !S.photos) S.photos = [];
+    files.forEach((f, i) => { const rd = new FileReader(); rd.onload = () => { if (SHEET && SHEET.photos) SHEET.photos[p0 + i] = rd.result; }; rd.readAsDataURL(f); });
     const n = files.length, lines = [], canvases = [], texts = [];
     for (let i = 0; i < n; i++) {
       const res = await readSheetPhoto(files[i], p => { if (SHEET && SHEET.stage === 'reading') { const q = (i + p) / n; SHEET.prog = q; SHEET.msg = `Reading${n > 1 ? ` ${i + 1} of ${n}` : ''}… ${Math.round(100 * q)}%`; const bar = document.querySelector('.sh-prog > div'); if (bar) bar.style.width = Math.round(100 * q) + '%'; const m = bar && bar.parentNode.nextElementSibling; if (m) m.textContent = SHEET.msg; } });
       if (!SHEET) return;
       canvases.push(res.canvas); texts.push(res.text); res.lines.forEach(l => { l.pg = i; lines.push(l); });
     }
-    SHEET.text = texts.join('\n'); SHEET.canvas = canvases[0]; SHEET.canvases = canvases;
-    const T = sheetTeams(g, parseSheet(lines.length ? lines : SHEET.text));
-    if (!T || (!T.a.rows.length && !T.b.rows.length)) { SHEET.stage = 'pick'; sheetModal(); toast('Couldn\'t find a box score in that photo — try again closer and straight on', 'bad'); return; }
-    Object.assign(SHEET, T, { stage: 'check' }); sheetSettle(SHEET, SHEET.sc === '1H' ? 100 : 200 + 25 * otCount(g)); sheetModal();
-  } catch (err) { if (SHEET) { SHEET.stage = 'pick'; sheetModal(); } toast('Reading failed: ' + err.message, 'bad'); }
+    const T = sheetTeams(g, parseSheet(lines.length ? lines : texts.join('\n')), team);
+    if (!T || (!T.a.rows.length && !T.b.rows.length)) { SHEET.stage = back; sheetModal(); toast('Couldn\'t find a box score in that ' + (n > 1 ? 'screenshot set' : 'photo') + ' — try again closer and straight on', 'bad'); return; }
+    if (team) { T[team].canvases = canvases; SHEET[team] = T[team]; SHEET.text = (SHEET.text ? SHEET.text + '\n' : '') + texts.join('\n'); }
+    else { SHEET.text = texts.join('\n'); SHEET.canvas = canvases[0]; SHEET.canvases = canvases; Object.assign(SHEET, T); }
+    SHEET.stage = 'check'; sheetSettle(SHEET, SHEET.sc === '1H' ? 100 : 200 + 25 * otCount(g)); sheetModal();
+  } catch (err) { if (SHEET) { SHEET.stage = back; sheetModal(); } toast('Reading failed: ' + err.message, 'bad'); }
 }
-$('#sh-file').addEventListener('change', e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) sheetRead(f); });
+$('#sh-file').addEventListener('change', e => { const f = Array.from(e.target.files || []); e.target.value = ''; if (f.length) sheetRead(f, SHEET && SHEET.upT); });
 document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('sh-in') && SHEET) { sheetInput(e.target); sheetRefresh(); } });
 document.addEventListener('input', e => { if (e.target.id === 'sh-rowtxt' && SHEET) sheetRowCheck(); });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sh-rowtxt' && SHEET) { e.preventDefault(); const b = document.querySelector('[data-act="sh-row-save"]'); if (b) b.click(); } });
