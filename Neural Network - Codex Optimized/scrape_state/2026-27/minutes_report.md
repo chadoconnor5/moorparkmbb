@@ -1,26 +1,28 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-02T22:07:57
+Updated 2026-11-03T22:40:12
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
 | Team | Real | Placeholder | Wrong total | None |
 |---|---|---|---|---|
-| Antelope Valley | 1 | 0 | 0 | 0 |
+| Antelope Valley | 2 | 0 | 0 | 0 |
 | Bakersfield | 1 | 0 | 0 | 0 |
 | Barstow | 0 | 2 | 0 | 0 |
 | Butte | 0 | 2 | 0 | 0 |
 | Canyons | 2 | 0 | 0 | 0 |
 | Cerritos | 1 | 0 | 0 | 0 |
 | Cerro Coso | 0 | 0 | 1 | 0 |
-| Chaffey | 1 | 0 | 0 | 0 |
-| Citrus | 1 | 0 | 0 | 0 |
+| Chaffey | 2 | 0 | 0 | 0 |
+| Citrus | 2 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
 | Compton | 1 | 0 | 0 | 0 |
-| Copper Mountain | 0 | 1 | 0 | 0 |
+| Copper Mountain | 1 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 0 | 0 | 0 |
 | Cuesta | 0 | 1 | 0 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
+| Cypress | 1 | 0 | 0 | 0 |
+| De Anza | 0 | 1 | 0 | 0 |
 | Desert | 2 | 0 | 0 | 0 |
 | Diablo Valley | 0 | 1 | 0 | 0 |
 | East Los Angeles | 1 | 0 | 0 | 0 |
@@ -32,39 +34,41 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Irvine Valley | 1 | 0 | 0 | 0 |
 | LA Southwest | 2 | 0 | 0 | 0 |
 | LA Trade Tech | 2 | 0 | 0 | 0 |
-| Long Beach | 1 | 0 | 0 | 0 |
+| Long Beach | 2 | 0 | 0 | 0 |
 | Los Angeles City | 2 | 0 | 0 | 0 |
 | Mendocino | 1 | 0 | 0 | 0 |
-| Moorpark | 1 | 0 | 0 | 0 |
+| Moorpark | 2 | 0 | 0 | 0 |
 | Mt. San Antonio | 1 | 0 | 0 | 0 |
 | Mt. San Jacinto | 2 | 0 | 0 | 0 |
+| Napa Valley | 1 | 0 | 0 | 0 |
 | Ohlone | 0 | 1 | 0 | 0 |
+| Orange Coast | 1 | 0 | 0 | 0 |
 | Oxnard | 2 | 0 | 0 | 0 |
 | Palo Verde | 2 | 0 | 0 | 0 |
 | Palomar | 2 | 0 | 0 | 0 |
 | Pasadena City | 1 | 0 | 0 | 0 |
 | Reedley | 0 | 1 | 0 | 0 |
-| Rio Hondo | 2 | 0 | 0 | 0 |
+| Rio Hondo | 3 | 0 | 0 | 0 |
 | Riverside | 2 | 0 | 0 | 0 |
 | Sacramento City | 0 | 1 | 0 | 0 |
-| Saddleback | 2 | 0 | 0 | 0 |
-| San Bernardino Valley | 1 | 0 | 0 | 0 |
+| Saddleback | 3 | 0 | 0 | 0 |
+| San Bernardino Valley | 2 | 0 | 0 | 0 |
 | San Diego City | 1 | 0 | 0 | 0 |
 | San Diego Mesa | 1 | 0 | 0 | 0 |
-| San Diego Miramar | 1 | 0 | 0 | 0 |
-| Santa Ana | 2 | 0 | 0 | 0 |
+| San Diego Miramar | 2 | 0 | 0 | 0 |
+| Santa Ana | 3 | 0 | 0 | 0 |
 | Santa Barbara | 1 | 0 | 0 | 0 |
 | Santa Monica | 0 | 1 | 0 | 0 |
 | Santiago Canyon | 1 | 0 | 0 | 0 |
 | Sequoias | 1 | 0 | 0 | 0 |
 | Solano | 1 | 0 | 0 | 0 |
-| Southwestern | 2 | 0 | 0 | 0 |
+| Southwestern | 3 | 0 | 0 | 0 |
 | Ventura | 1 | 0 | 1 | 0 |
 | Victor Valley | 0 | 1 | 0 | 0 |
 | West LA | 2 | 0 | 0 | 0 |
-| West Valley | 1 | 0 | 0 | 0 |
+| West Valley | 2 | 0 | 0 | 0 |
 
-## Games without real minutes (13)
+## Games without real minutes (14)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -81,3 +85,4 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-10-31 | Cuesta vs Sequoias | Cuesta: PLACEHOLDER (7 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_b00x.xml |
 | 2026-10-31 | Ohlone vs Orange Coast | Ohlone: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_avzx.xml |
 | 2026-10-31 | Santa Monica vs Victor Valley | Santa Monica: PLACEHOLDER (5 min), Victor Valley: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261031_12c9.xml |
+| 2026-11-03 | De Anza vs Solano | De Anza: PLACEHOLDER (16 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_hg2z.xml |
