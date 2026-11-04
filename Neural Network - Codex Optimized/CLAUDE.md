@@ -129,6 +129,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   each with its rank among the conferences.
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
+- Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just
+  put on from the bench are yellow with "↑ COMING IN" (.sub-p.in.new), so after adding two (seven on) it's clear who
+  is new and which of the original five are still on.
 - Possession tracker technicals (techModal): on a player (his foul + team foul), the team / bench (team foul only,
   e.bench) or the coach (no foul); 2, 1 (Class B) or no free throws; Double technical logs one on each team, linked
   by e.dbl, no free throws (the Moorpark player required, the opponent's optional).
@@ -274,7 +277,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - WAB from 2026-27 on (calculate_wab.py / compute_wab_sim.py, ADJUSTED_FROM): every game is graded against the
   opponent's current leaderboard rating (update_advanced_analytics: opponent-adjusted, last season fading out), the
   bubble is the 48th (split: 24th) team on those ratings, and a team is listed from its first game - sensible from
-  night one. Earlier seasons keep the raw per-game method (published WAB unchanged). Scouting reports read the
+  night one. Home court in a game's odds matches the ratings (3.0 per 100 in all, a quarter on each side's ORtg
+  and DRtg; calculate_wab.wab_hca); earlier seasons keep the old 2.2 on each of the four (8.8 in all) so their published
+  WAB holds. WAB is recomputed from scratch every night, so every game is re-graded as the ratings move off last season. Earlier seasons keep the raw per-game method (published WAB unchanged). Scouting reports read the
   season's own wab_results_<season>.json.
 - SOS / NCSOS (2026-27 on): KenPom's - the plain average of the opponents' current net ratings over the games played
   (NCSOS: non-conference games). Last season enters only through the opponents' own ratings (their prior); a team

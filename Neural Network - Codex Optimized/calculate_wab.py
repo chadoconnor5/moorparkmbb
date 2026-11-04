@@ -141,6 +141,13 @@ def log5(prob_a: float, prob_b: float) -> float:
 # from a game or two aren't. Earlier seasons keep the raw method so their published WAB doesn't change.
 ADJUSTED_FROM = "2026-27"
 
+# Home court in a game's win probability, on each side's ORtg and DRtg (points per 100 possessions). From 2026-27 on it
+# matches the ratings (update_advanced_analytics.HOME_ADVANTAGE = 3.0 per 100 in all between home and road): a quarter
+# of it on each of the four, so the home side's edge over the visitor comes to 3.0. The old 2.2 on each of the four
+# came to 8.8 (home court counted on both teams, twice over); earlier seasons keep it so their published WAB holds.
+def wab_hca(season: str) -> float:
+    return 3.0 / 4 if season >= ADJUSTED_FROM else 2.2
+
 
 def load_ratings(season: str, teams: Dict[str, Dict]):
     """(ratings, bubble_min_games, list_min_games) for a season: the adjusted ratings from 2026-27 on (every team
@@ -180,12 +187,13 @@ def determine_bubble_rating(ratings: Dict[str, Dict], min_games: int = 10) -> Di
     
     print(f"Bubble NET rating (48th percentile): {bubble_net:.2f}")
     print(f"Bubble ORTG: {bubble_ortg:.1f}, DRTG: {bubble_drtg:.1f}")
-    print(f"Based on {len(qualified)} teams with 10+ games")
+    print(f"Based on {len(qualified)} teams" + (f" with {min_games}+ games" if min_games else ""))
     
     return {'net': bubble_net, 'ortg': bubble_ortg, 'drtg': bubble_drtg}
 
 
-def calculate_wab_for_team(team_name: str, team_data: Dict, team_ratings: Dict[str, Dict], bubble: Dict[str, float]) -> float:
+def calculate_wab_for_team(team_name: str, team_data: Dict, team_ratings: Dict[str, Dict], bubble: Dict[str, float],
+                           hca: float = 2.2) -> float:
     """Calculate WAB for a single team."""
     if team_name not in team_ratings:
         return 0.0
@@ -196,7 +204,7 @@ def calculate_wab_for_team(team_name: str, team_data: Dict, team_ratings: Dict[s
     bubble_drtg = bubble['drtg']
     
     total_wab = 0.0
-    hca_adjustment = 2.2  # Points per 100 possessions
+    hca_adjustment = hca  # points per 100 possessions on each side's ORtg and DRtg (wab_hca)
     
     for game in games:
         opponent = game.get('opponent', '')
@@ -280,7 +288,7 @@ def main():
     
     for team_name, team_data in current_teams.items():
         if team_name in current_ratings and current_ratings[team_name]['games'] >= list_min:
-            wab = calculate_wab_for_team(team_name, team_data, current_ratings, bubble)
+            wab = calculate_wab_for_team(team_name, team_data, current_ratings, bubble, wab_hca(season))
             
             team_rating = current_ratings[team_name]
             wab_results.append({
