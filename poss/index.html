@@ -351,6 +351,10 @@ table{border-collapse:collapse}
 .sub-p.pending{border-color:var(--warn);background:rgba(220,176,90,.1)}
 .sub-p.in{border:2px solid #22c55e;background:rgba(34,197,94,.22);color:#fff}
 .sub-p.in .tiny{color:#bbf7d0}
+/* just put on from the bench (not in the five when the sub screen opened): yellow, so the original five still on stay green */
+.sub-p.in.new{border:2px solid var(--warn);background:rgba(220,176,90,.22)}
+.sub-p.in.new .tiny{color:#fde68a}
+.sub-p .new-tag{color:var(--warn);font-weight:800;letter-spacing:.03em}
 .sub-p:disabled{opacity:.3}
 .sub-p.dq{border-color:#ef4444;background:rgba(239,68,68,.16);color:#fca5a5}
 .sub-p.dq .tiny{color:#ef4444;font-weight:700}
@@ -1341,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.03.800';
+const VERSION = 'v2026.11.04.100';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3529,8 +3533,8 @@ function subSide(g, t) { const ps = teamPlayers(g, t), n = SUB[t].size, P = (SUB
     return `<div><div class="sub-team ${t}">${esc(teamName(g, t))}</div>
       ${ps.length ? (() => { const btn = p => { const o = isOut(g, t, p.id), on = SUB[t].has(p.id);
           const al = on && atLine(g, t, p.id);
-        const tl = !on && !o ? troubleLvl(g, t, p.id) : '';
-        return `<button class="sub-p ${on ? 'in' : ''} ${o ? 'dq' : ''} ${al ? 'atline' : ''} ${tl ? 'tr-' + tl : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${al ? '<span class="tiny atline-tag">AT THE LINE</span>' : ''}${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${o ? '<span class="tiny">FOULED OUT</span>' : subTrouble(g, D, t, p.id, was.has(p.id))}</button>`; };
+        const tl = !on && !o ? troubleLvl(g, t, p.id) : '', nw = on && !was.has(p.id);   // nw: just put on (yellow)
+        return `<button class="sub-p ${on ? 'in' : ''} ${nw ? 'new' : ''} ${o ? 'dq' : ''} ${al ? 'atline' : ''} ${tl ? 'tr-' + tl : ''}" data-act="sub-p" data-t="${t}" data-p="${esc(p.id)}" ${o && !on && canReplace(g, t) ? 'disabled' : ''}>${al ? '<span class="tiny atline-tag">AT THE LINE</span>' : ''}${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}${nw ? '<span class="tiny new-tag">↑ COMING IN</span>' : ''}${o ? '<span class="tiny">FOULED OUT</span>' : subTrouble(g, D, t, p.id, was.has(p.id))}</button>`; };
         /* Pending players have their own group: GOING IN now, or HOLD (e.g. the man he'd replace is shooting
            free throws and stays in) — a held player stays pending for the next dead ball. */
         const pbtn = p => { const go = SUB[t].has(p.id);
