@@ -274,7 +274,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - WAB from 2026-27 on (calculate_wab.py / compute_wab_sim.py, ADJUSTED_FROM): every game is graded against the
   opponent's current leaderboard rating (update_advanced_analytics: opponent-adjusted, last season fading out), the
   bubble is the 48th (split: 24th) team on those ratings, and a team is listed from its first game - sensible from
-  night one. Earlier seasons keep the raw per-game method (published WAB unchanged). Scouting reports read the
+  night one. Home court in a game's odds matches the ratings (3.0 per 100 in all, a quarter on each side's ORtg
+  and DRtg; calculate_wab.wab_hca); earlier seasons keep the old 2.2 on each of the four (8.8 in all) so their published
+  WAB holds. WAB is recomputed from scratch every night, so every game is re-graded as the ratings move off last season. Earlier seasons keep the raw per-game method (published WAB unchanged). Scouting reports read the
   season's own wab_results_<season>.json.
 - SOS / NCSOS (2026-27 on): KenPom's - the plain average of the opponents' current net ratings over the games played
   (NCSOS: non-conference games). Last season enters only through the opponents' own ratings (their prior); a team
