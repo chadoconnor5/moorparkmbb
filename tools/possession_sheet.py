@@ -32,7 +32,7 @@ M = 28.8                      # 0.4in margins — as wide as a laser printer rel
 INK, GLYPH, RULE = 0, 0.42, 0.62   # black structure, mid-grey options to circle, light rules
 ROW = 20                      # tall enough to write a number in at speed
 
-ROSTER = ['Josh Castaniero', 'Matthew Wilson', 'Alex Bello', 'SoulJah Niles',
+ROSTER = ['Josh Castaniero', 'Mathew Wilson', 'Alex Bello', 'SoulJah Niles',
           'Mikey Duran-Morales', 'Eric Kubel', 'Quian Khawaja', 'Brenden Banks-Speed',
           'George Hees', 'Emmitt Claiborne', 'Sean Castro', 'CJ Temme', 'Axel Ostergard',
           'Jaylen Smith', 'Finn Ortiz', 'Jack Johnson', 'Ashton Carraway', 'Reese Widerburg']

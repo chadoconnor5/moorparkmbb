@@ -51,7 +51,7 @@ from pathlib import Path
 
 os.chdir(Path(__file__).resolve().parent)  # all pipeline scripts run from the project root
 
-from ccc_config import CONFERENCES, DEFAULT_SEASON, get_conference, schedule_dir, season_base_url  # noqa: E402
+from ccc_config import CONFERENCES, DEFAULT_SEASON, fix_player_name, get_conference, schedule_dir, season_base_url  # noqa: E402
 from generate_team_stats import TEAM_ALIASES  # noqa: E402
 from scrape_team import ScheduleParser, parse_boxscore  # noqa: E402
 
@@ -697,8 +697,9 @@ _NICK = re.compile(r"\s*\([^)]*\)")
 
 def drop_nicknames(box: dict, plays: dict = None):
     """Player names without a nickname in parentheses ("#2 Roderick (Quick) Johnson" -> "#2 Roderick Johnson",
-    "JOHNSON,RODERICK (QUICK)" -> "JOHNSON,RODERICK"): in the box score, its period box scores and its plays."""
-    nick = lambda n: _NICK.sub("", n).strip() if isinstance(n, str) else n
+    "JOHNSON,RODERICK (QUICK)" -> "JOHNSON,RODERICK"): in the box score, its period box scores and its plays.
+    Names the site spells wrong are fixed here too (ccc_config.PLAYER_NAME_FIXES)."""
+    nick = lambda n: fix_player_name(_NICK.sub("", n).strip()) if isinstance(n, str) else n
     for ps in list((box.get("teams") or {}).values()) + [p for per in ((plays or {}).get("periods") or {}).values()
                                                           for p in per.values()]:
         for p in ps or []:
