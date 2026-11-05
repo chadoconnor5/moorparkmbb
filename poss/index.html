@@ -1345,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.240';
+const VERSION = 'v2026.11.05.250';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -8570,8 +8570,8 @@ function baselineLine() {
 /* ---------- Coaches' PDF: the Post-game report, as a PDF ----------
    Made on the iPad (no signal needed: html2canvas + jsPDF in vendor/pdf, saved for offline by sw.js). It is the
    Report tab's Post-game report itself (the full game, same look), laid out in a hidden frame with the app's own
-   styles, the buttons and pickers left off. Pages break between cards, so a card is never cut in two unless it is
-   taller than a page by itself, and there is never an empty page. It downloads like the game file:
+   styles, the buttons and pickers left off. Every page is filled: a page ends between cards when that fills most of it, else
+   between a card's rows (never through a row of text), and there is never an empty page. It downloads like the game file:
    Moorpark_vs_<Opponent>_<date>_postgame.pdf, in Files → Downloads, ready to text. Automatic at Final; the
    Post-game report's button makes it again (say, once the stat sheet is in). */
 const CR_LIB = 'vendor/pdf/';
@@ -8605,16 +8605,20 @@ async function coachReportPdf(g, quiet) {
     const sc = 2, cv = await window.html2canvas(root, { scale: sc, backgroundColor: bg, windowWidth: W, logging: false });
     // Page height in report pixels (Letter's shape at the report's width), and where each card starts and ends.
     const pageH = Math.floor(W * 792 / 612), top0 = root.getBoundingClientRect().top;
-    const blocks = [...root.children].filter(el => el.offsetHeight > 0 && getComputedStyle(el).display !== 'none')
-      .map(el => { const r = el.getBoundingClientRect(); return { t: r.top - top0, b: r.bottom - top0 }; });
+    const vis = el => el.offsetHeight > 0 && getComputedStyle(el).display !== 'none', y = v => v - top0;
+    // Where a page may end: between cards (best), else between a card's rows / parts (a table row, a heading, a block).
+    const cardB = [...root.children].filter(vis).map(el => y(el.getBoundingClientRect().top));
+    const rowB = [...root.querySelectorAll('tbody tr, .card > *:not(h3)')].filter(el => vis(el) && el.previousElementSibling).map(el => y(el.getBoundingClientRect().bottom));   // never right under a heading
+    const end = root.scrollHeight, last = (L, lo, hi) => L.filter(v => v > lo && v <= hi).reduce((m, v) => Math.max(m, v), -1);
     const pages = []; let start = 0;
-    blocks.forEach(k => {
-      // A card that would cross the bottom of the page starts the next one (unless it's the first thing on the page).
-      if (k.b - start > pageH && k.t > start + 1) { pages.push([start, k.t]); start = k.t; }
-      while (k.b - start > pageH) { pages.push([start, start + pageH]); start += pageH; }   // taller than a page by itself
-    });
-    const end = root.scrollHeight;
-    if (end - start > 4) pages.push([start, end]);
+    while (end - start > 4) {
+      const lim = start + pageH;
+      if (end <= lim) { pages.push([start, end]); break; }
+      // Fill the page: end it between cards if that uses most of it, else at the last row that fits, never mid-row.
+      const c = last(cardB, start + 1, lim), r = last(rowB, start + 1, lim);
+      const cut = c > 0 && c - start >= 0.8 * pageH ? c : r > 0 && r - start >= 0.3 * pageH ? r : c > 0 ? c : lim;
+      pages.push([start, cut]); start = cut;
+    }
     const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' }), PW = 612, PH = 792, k = PW / W;
     const rgb = (bg.match(/\d+/g) || [13, 16, 22]).slice(0, 3).map(Number);
     pages.forEach(([y0, y1], i) => {
