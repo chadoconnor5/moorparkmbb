@@ -586,6 +586,10 @@ for a minute. Each game is sliced on its own count, then the games in the Games 
 sorted by possessions on the floor; darker = higher.
 - **On court**: % of the slice's possessions he was on the floor (scale to 80%).
 - **On court for shots**: % of our shot attempts in the slice taken with him on the floor (to 80%).
+- **Efficiency**: three team rows on top, our **ORtg**, **DRtg** and **Net** per 100 in each slice, coloured against
+  our average on the map (green = better, white = about average, red = worse, full colour 30 per 100 off; faded = under 6 possessions), with
+  the On court rows below so a dip lines up with who was out there. Tap a team box for its points, possessions and
+  who was on the floor most (50%+). Use 2–4 slices per box for a steadier read.
 (There's no "shots taken" map: live tracking logs our shots to TEAM, so almost none name a shooter.)
 Tap a box for the numbers behind it; **Slices per box** 1 / 2 / 4 / 5 widens the boxes. Overtime isn't drawn.
 
