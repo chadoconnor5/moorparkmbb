@@ -1345,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.100';
+const VERSION = 'v2026.11.05.200';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1395,7 +1395,9 @@ function roster() {
 // Jersey order: 0, 00, 1, 2 … (no number last). parseInt('0') is 0, so it can't be an "|| 999" fallback.
 const numKey = n => { const s = String(n == null ? '' : n).trim(); return /^\d+$/.test(s) ? parseInt(s, 10) + (s.length > 1 && /^0+$/.test(s) ? 0.5 : 0) : 999; };
 const byNum = (a, b) => numKey(a.num) - numKey(b.num) || String(a.name).localeCompare(b.name);
-const lastName = n => String(n).split(' ').slice(-1)[0];
+// A player's short name: his last name, with a suffix kept on it ("Eric Shepard Jr." -> "Shepard Jr.", not "Jr.").
+const lastName = n => { const w = String(n).trim().split(/\s+/), sfx = /^(jr|sr|ii|iii|iv|v)\.?$/i;
+  return w.length > 2 && sfx.test(w[w.length - 1]) ? w.slice(-2).join(' ') : w[w.length - 1]; };
 // Players are keyed by name for Moorpark and by 'o:<num>' for the opponent.
 function teamPlayers(g, t) {
   return t === 'a' ? roster().filter(r => !g || !g.dressed || g.dressed.includes(r.name)).slice().sort(byNum).map(r => ({ id: r.name, num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))
