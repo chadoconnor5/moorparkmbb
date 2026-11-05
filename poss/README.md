@@ -936,6 +936,9 @@ five has 25+ offensive possessions).
 - **Sheet:** every possession in order for both teams, with how it ended, offensive rebounds,
   points, kills and the running score. Subs and technicals are shown where they happened.
   - Tap a row to change the stat or team, delete the play, or insert a missed play before it.
+  - **➕ Add a play after this** (same box): any stat, Off / Def reb included, for either team (player for fouls and
+    free throws), right after that play, without the Live screen, so a Final game needn't be reopened. The box then
+    opens on the new play, so plays chain: a miss → Off reb → 2PT make.
   - Summary by period. Print / PDF.
 - **Four factors:** worked out from the tracked plays, so nothing needs typing at halftime.
   - Sources: makes and misses, FTs (technical FTs included), the rebound taps, turnovers, steals,
