@@ -156,7 +156,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Tested on a 11/2 iPad screenshot: Moorpark's 12 players and TOTALS all right, also split in two overlapping shots.
   The website's live stats view works too (# PLAYER MIN FG FG% 3PT 3PT% FT FT% R OR DR A TO BLK STL F PTS, "2 - 6"
   spaced, header in light text on a dark bar, team name in big type above each table, no TOTALS): a screenshot (a
-  quarter pure white) skips deskew / straightening / evening out, gets its dark header bars flipped (shUnbar; never on a
+  quarter pure white and its other colours mostly flat: a photo under bright lights is pure white too, but grainy) skips deskew / straightening / evening out, gets its dark header bars flipped (shUnbar; never on a
   photo: shadowed paper is dark too), and keeps the whole-page read or the column pass, whichever has more rows that add
   up; the % columns are skipped; a big-type heading after a table's players starts the next team; jersey numbers come
   from the game's rosters by name ("11" read "1"). A row on the other team's roster and not its own table's team's moves there

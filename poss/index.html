@@ -1345,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.04.100';
+const VERSION = 'v2026.11.05.100';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4992,11 +4992,19 @@ function shPrep(file) {
     img.onload = () => { const sc = Math.min(3, 2600 / img.width), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
-      let pure = 0; for (let i = 0; i < p.length; i += 4) { if (p[i] >= 250 && p[i] === p[i + 1] && p[i] === p[i + 2]) pure++; const v = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = v; }
-      // A screenshot (a quarter of it pure white, which a camera never gives): flat, level and evenly lit already, so
+      let pure = 0, nonw = 0, flat = 0; const rw = c.width * 4;
+      for (let i = 0; i < p.length; i += 4) { if (p[i] >= 250 && p[i] === p[i + 1] && p[i] === p[i + 2]) pure++;
+        const v = Math.round(0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]);
+        if (v < 250) { nonw++; if (i % rw && v === p[i - 4]) flat++; }   // the pixel to its left (already grey)
+        p[i] = p[i + 1] = p[i + 2] = v; }
+      // A screenshot: a quarter of it pure white AND its other colours mostly flat (half or more of the non-white
+      // pixels the same as the one beside them). Pure white alone isn't enough: a photo of the sheet under bright gym
+      // lights blows the paper out to pure white too (11/4: read as a screenshot, nothing came out), but a camera's
+      // grain keeps its non-white pixels varied (photos 14-23% flat, screenshots 67-88%, PNG or JPEG). A screenshot is
+      // flat, level and evenly lit already, so
       // it isn't deskewed, straightened or evened out (the website's row boxes would pass for a bend, its big bold
       // team name for dark background).
-      const shot = pure > 0.25 * p.length / 4;   // (only a screenshot's header bars are flipped: shadowed paper is dark too)
+      const shot = pure > 0.25 * p.length / 4 && flat > 0.5 * nonw;   // (only a screenshot's header bars are flipped: shadowed paper is dark too)
       if (shot) shUnbar(c.width, c.height, p); x.putImageData(d, 0, 0); URL.revokeObjectURL(url); if (shot) { c.shot = true; res(shUnrule(c)); } else res(shUnrule(shDewarp(shDeskew(shFlatten(c))))); };
     img.onerror = () => rej(new Error('That photo could not be opened')); img.src = url; });
 }
