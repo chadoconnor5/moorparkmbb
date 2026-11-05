@@ -1075,6 +1075,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rot-hd .rot-g div{font-size:11px;font-weight:800;color:var(--muted);text-align:center;border-bottom:1px solid var(--border);padding-bottom:2px;margin-bottom:2px}
 .rot-leg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin:10px 0 4px 116px}
 .rot-bar{width:200px;height:10px;border-radius:3px;background:linear-gradient(90deg,rgb(253,236,200),rgb(139,21,21))}
+.rot-bar.eff{background:linear-gradient(90deg,rgb(220,38,38),rgb(58,62,70),rgb(22,163,74))}
+.rot-eff .rot-n{color:var(--us)}.rot-eff:nth-child(4){margin-bottom:6px}
 .rot-det{font-size:13px;margin-top:6px}
 /* Player on/off cards: the practice tracker's Player On-Court Impact layout (2 x 2 on the iPad). */
 .oo-imp-bar{margin:4px 0 12px}.oo-imp-note{color:var(--muted);font-size:12px}
@@ -1345,7 +1347,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.290';
+const VERSION = 'v2026.11.05.300';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7544,11 +7546,14 @@ function splitPicker() {
    Two maps, one row per player (sorted by possessions on the floor):
      ON COURT        % of the slice's possessions he was on the floor
      ON COURT, SHOTS % of our shot attempts in the slice taken with him on the floor
+     EFFICIENCY      three team rows on top (ORtg, DRtg, Net per 100 in the slice, coloured against the map's own
+                     average: green better, red worse; faded under ROT_EFF_MIN possessions), then the On court rows
+                     below, so a dip lines up with who was out there. Tapping a team box lists who was on the most.
    (No "shots taken" map: live tracking logs our shots to TEAM, so almost none name a shooter.)
    Overtime isn't drawn. Tap a cell for the numbers behind it; "slices per box" widens the boxes like their slider. */
-const ROT_SLICES = 20;
+const ROT_SLICES = 20, ROT_EFF_MIN = 6, ROT_EFF_SPAN = 30;   // efficiency: faded under 6 possessions; full colour 30 per 100 off the average
 function rotData(list) {
-  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, games: new Set(), ranges: {} }));
+  const P = {}, T = Array.from({ length: 2 * ROT_SLICES }, () => ({ poss: 0, fga: 0, op: 0, of: 0, dp: 0, df: 0, games: new Set(), ranges: {} }));
   const pl = id => P[id] = P[id] || { on: Array(2 * ROT_SLICES).fill(0), shotOn: Array(2 * ROT_SLICES).fill(0), total: 0 };
   list.forEach(g => { const D = derive(g);
     ['1H', '2H'].forEach((per, h) => { const H = D.poss.filter(p => p.per === per), n = H.length; if (!n) return;
@@ -7557,19 +7562,30 @@ function rotData(list) {
         // Which possessions of the half (1 = the half's first, both teams) this box holds in this game.
         const r = t.ranges[g.id] = t.ranges[g.id] || { from: i + 1, to: i + 1, n: 0 }; r.to = i + 1; r.n++;
         five.forEach(id => { const x = pl(id); x.on[b]++; x.total++; });
+        if (p.team === 'a') { t.op++; t.of += p.pts || 0; } else { t.dp++; t.df += p.pts || 0; }
         if (p.team !== 'a') return;
         p.plays.forEach(e => { if (!/^[23][mx]$/.test(e.k) || e.team !== 'a') return;
           t.fga++; five.forEach(id => { pl(id).shotOn[b]++; }); }); }); }); });
   return { P, T };
 }
 function rotView(g) {
-  const list = UI.luScope === 'season' ? splitGames() : [g], R = rotData(list), mode = UI.rotMode === 'shotOn' ? 'shotOn' : 'on', w = UI.rotW || 1;
+  const list = UI.luScope === 'season' ? splitGames() : [g], R = rotData(list), mode = ['shotOn', 'eff'].includes(UI.rotMode) ? UI.rotMode : 'on', w = UI.rotW || 1;
   const cols = 2 * ROT_SLICES / w, nm = id => pShort(g, 'a', id);
   const ids = Object.keys(R.P).filter(id => teamPlayers(g, 'a').some(p => p.id === id) || R.P[id].total).sort((a, b) => R.P[b].total - R.P[a].total);
   // One box = w slices: sums across them.
   const sum = (arr, c) => arr.slice(c * w, c * w + w).reduce((s, v) => s + v, 0);
   const val = (id, c) => { const x = R.P[id], tp = T => sum(R.T.map(t => t[T]), c);
-    return mode === 'on' ? { n: sum(x.on, c), d: tp('poss') } : { n: sum(x.shotOn, c), d: tp('fga') }; };
+    return mode !== 'shotOn' ? { n: sum(x.on, c), d: tp('poss') } : { n: sum(x.shotOn, c), d: tp('fga') }; };
+  // Efficiency: our ORtg / DRtg / Net in a box, and the map's own averages to colour against.
+  const tsum = (k, c) => sum(R.T.map(t => t[k]), c), per100 = (p, n) => n ? 100 * p / n : null;
+  const eff = c => { const op = tsum('op', c), dp = tsum('dp', c), o = per100(tsum('of', c), op), d = per100(tsum('df', c), dp);
+    return { op, dp, of: tsum('of', c), df: tsum('df', c), o, d, net: o != null && d != null ? o - d : null }; };
+  const all = k => R.T.reduce((s, t) => s + t[k], 0), avgO = per100(all('of'), all('op')), avgD = per100(all('df'), all('dp'));
+  const effCol = (v, base, sign, n) => { if (v == null) return 'transparent';
+    const t = Math.max(-1, Math.min(1, sign * (v - base) / ROT_EFF_SPAN)), mid = [58, 62, 70], end = t >= 0 ? [22, 163, 74] : [220, 38, 38], a = Math.abs(t);
+    const c = mid.map((m, i) => Math.round(m + (end[i] - m) * a)); return `rgba(${c.join(',')},${n >= ROT_EFF_MIN ? 1 : 0.35})`; };
+  const ROWS_EFF = [['__o', 'ORtg', c => { const e = eff(c); return effCol(e.o, avgO, 1, e.op); }], ['__d', 'DRtg', c => { const e = eff(c); return effCol(e.d, avgD, -1, e.dp); }],
+    ['__n', 'Net', c => { const e = eff(c); return effCol(e.net, avgO - avgD, 1, Math.min(e.op, e.dp)); }]];
   const max = 80;   // the colour scale's top, like theirs: 80%
   const col = r => { if (r == null) return 'transparent'; const t = Math.min(1, r / max), a = [253, 236, 200], z = [139, 21, 21];
     return `rgb(${a.map((v, i) => Math.round(v + (z[i] - v) * t)).join(',')})`; };
@@ -7577,8 +7593,16 @@ function rotView(g) {
   const cells = id => Array.from({ length: cols }, (_, c) => { const v = val(id, c), r = v.d ? 100 * v.n / v.d : null, on = sel && sel.id === id && sel.c === c;
     return `<div class="rot-c ${on ? 'sel' : ''} ${c === cols / 2 ? 'h2' : ''}" style="background:${r == null || !v.n ? (r == null ? 'transparent' : 'rgba(255,255,255,.04)') : col(r)}" data-act="rot-cell" data-id="${esc(id)}" data-c="${c}"></div>`; }).join('');
   const head = `<div class="rot-row rot-hd"><div class="rot-n"></div><div class="rot-g" style="--cols:${cols}"><div style="grid-column:1 / span ${cols / 2}">1st half</div><div style="grid-column:${cols / 2 + 1} / span ${cols / 2}">2nd half</div></div></div>`;
-  const rows = ids.map(id => `<div class="rot-row"><div class="rot-n">${esc(nm(id))}</div><div class="rot-g" style="--cols:${cols}">${cells(id)}</div></div>`).join('');
-  const detail = sel && R.P[sel.id] ? (() => { const v = val(sel.id, sel.c), h = sel.c < cols / 2 ? '1st half' : '2nd half', s = (sel.c % (cols / 2)) * w;
+  const effRows = mode !== 'eff' ? '' : ROWS_EFF.map(([id, l, f]) => `<div class="rot-row rot-eff"><div class="rot-n">${l}</div><div class="rot-g" style="--cols:${cols}">${Array.from({ length: cols }, (_, c) => `<div class="rot-c ${sel && sel.id === id && sel.c === c ? 'sel' : ''} ${c === cols / 2 ? 'h2' : ''}" style="background:${f(c)}" data-act="rot-cell" data-id="${id}" data-c="${c}"></div>`).join('')}</div></div>`).join('')
+    + '<div class="rot-row"><div class="rot-n small muted">On court</div><div></div></div>';
+  const rows = effRows + ids.map(id => `<div class="rot-row"><div class="rot-n">${esc(nm(id))}</div><div class="rot-g" style="--cols:${cols}">${cells(id)}</div></div>`).join('');
+  const f0 = v => v == null ? '—' : v.toFixed(0), sg0 = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(0);
+  const detail = sel && sel.id.startsWith('__') ? (() => { const e = eff(sel.c), h = sel.c < cols / 2 ? '1st half' : '2nd half', s = (sel.c % (cols / 2)) * w;
+      const who = ids.map(id => { const v = val(id, sel.c); return { id, r: v.d ? v.n / v.d : 0 }; }).filter(x => x.r >= 0.5).sort((a, b) => b.r - a.r);
+      return `<div class="rot-det"><b>${h}, "minute" ${s + 1}${w > 1 ? `–${s + w}` : ''}</b>: ORtg <b>${f0(e.o)}</b> (${e.of} pts on ${e.op} poss) · DRtg <b>${f0(e.d)}</b> (${e.df} on ${e.dp}) · Net <b>${sg0(e.net)}</b>
+        <span class="muted">· map average ${f0(avgO)} / ${f0(avgD)}</span>${Math.min(e.op, e.dp) < ROT_EFF_MIN ? ' <span class="muted">· few possessions: widen the boxes (slices per box) for a steadier read</span>' : ''}
+        <div class="small" style="margin-top:3px">On the floor most: ${who.length ? who.map(x => `${esc(nm(x.id))} ${Math.round(100 * x.r)}%`).join(' · ') : '—'}</div></div>`; })()
+    : sel && R.P[sel.id] ? (() => { const v = val(sel.id, sel.c), h = sel.c < cols / 2 ? '1st half' : '2nd half', s = (sel.c % (cols / 2)) * w;
     const what = mode === 'on' ? `on the floor for ${v.n} of ${v.d} possessions` : `on the floor for ${v.n} of our ${v.d} shots`;
     // Which possessions the box holds: exact for one game; per game for a season.
     const rg = []; for (let k = sel.c * w; k < sel.c * w + w; k++) Object.entries(R.T[k].ranges).forEach(([gid, r]) => { const x = rg.find(y => y.gid === gid); if (x) { x.to = r.to; x.n += r.n; } else rg.push({ gid, from: r.from, to: r.to, n: r.n }); });
@@ -7589,10 +7613,12 @@ function rotView(g) {
       : sameAll ? `${lbl(rg[0])} of the half in every game (${rg.reduce((t, r) => t + r.n, 0)} over ${rg.length} games)`
       : `${counts.join(' or ')} possession${counts.length === 1 && counts[0] === 1 ? '' : 's'} per game, around possession ${Math.min(...rg.map(r => r.from))}–${Math.max(...rg.map(r => r.to))} of the half (${rg.reduce((t, r) => t + r.n, 0)} over ${rg.length} games)`;
     return `<div class="rot-det"><b>${esc(nm(sel.id))}</b> · ${h}, "minute" ${s + 1}${w > 1 ? `–${s + w}` : ''}: ${what}${v.d ? ` (<b>${Math.round(100 * v.n / v.d)}%</b>)` : ''}<div class="small muted">${which}.</div></div>`; })() : '<div class="rot-det muted">Tap a box for the numbers behind it.</div>';
-  const legend = `<div class="rot-leg"><span>0%</span><span class="rot-bar"></span><span>${max}%+</span></div>`;
-  const tabs = [['on', 'On court'], ['shotOn', 'On court for shots']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="rot-mode" data-s="${k}">${l}</button>`).join('');
+  const legend = (mode === 'eff' ? `<div class="rot-leg"><span>Worse</span><span class="rot-bar eff"></span><span>Better than the map's average (ORtg ${f0(avgO)}, DRtg ${f0(avgD)}) · faded = under ${ROT_EFF_MIN} possessions</span></div>` : '')
+    + `<div class="rot-leg"><span>0%</span><span class="rot-bar"></span><span>${max}%+</span>${mode === 'eff' ? '<span>on court</span>' : ''}</div>`;
+  const tabs = [['on', 'On court'], ['shotOn', 'On court for shots'], ['eff', 'Efficiency']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="rot-mode" data-s="${k}">${l}</button>`).join('');
   const widths = [1, 2, 4, 5].map(k => `<button class="${w === k ? 'on' : ''}" data-act="rot-w" data-s="${k}">${k}</button>`).join('');
-  const sub = { on: '% of each slice\'s possessions he was on the floor', shotOn: '% of our shot attempts taken with him on the floor' }[mode];
+  const sub = { on: '% of each slice\'s possessions he was on the floor', shotOn: '% of our shot attempts taken with him on the floor',
+    eff: 'Our ORtg, DRtg and Net per 100 in each slice (green = better than our average on this map, red = worse), with who was on the floor below' }[mode];
   if (!ids.length) return '<div class="muted small">No possessions with a full five yet.</div>';
   return `<div class="rot-top"><div class="lu-seg rot-tabs">${tabs}</div><div class="rot-w"><span class="small muted">Slices per box</span><div class="lu-seg">${widths}</div></div></div>
     <div class="small muted" style="margin:6px 0 8px">${esc(sub)}. Each half is cut into ${ROT_SLICES} slices of its possessions, each a whole number of possessions (about 2, so about a minute each); tap a box to see which possessions it holds. Players sorted by possessions on the floor.</div>
