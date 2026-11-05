@@ -1345,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.270';
+const VERSION = 'v2026.11.05.280';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3857,10 +3857,11 @@ function editModal(id) {
 }
 /* ➕ ADD A PLAY AFTER THIS (Fix this play): any stat, rebounds included, right after the play, without going back to the
    Live screen (so a Final game needn't be reopened). Pick the stat, the team, then the player for fouls / free throws
-   (or Team). It goes in with the play's half; then this box opens on the new play, so plays chain: a miss → Off reb →
+   (or Team), or a timeout (full / 30s; its clock can be set next). It goes in with the play's half; then this box opens on the new play, so plays chain: a miss → Off reb →
    2PT make. */
 let ADD = null;   // { after: id, k, team }
-const ADD_STATS = STATS.filter(s => !['ast', 'blk', 'tech'].includes(s[0]));
+const ADD_STATS = STATS.filter(s => !['ast', 'blk', 'tech'].includes(s[0])).concat([['to:full', 'Full Timeout', 'foul'], ['to:s30', '30s Timeout', 'foul']]);
+const ADD_LABEL = Object.fromEntries(ADD_STATS.map(s => [s[0], s[1]]));
 function addModal() {
   const g = cur(), e = ADD && g.ev.find(x => x.id === ADD.after); if (!e) { ADD = null; closeModal(); return; }
   const k = ADD.k, needP = k && (PLAYER_STATS.has(k) || FT_K.has(k));
@@ -3870,7 +3871,7 @@ function addModal() {
     ${k ? `<div class="field"><label>Team</label><div class="row" style="gap:6px">${['a', 'b'].map(t => `<button class="btn btn-lg ${ADD.team === t ? 'btn-primary' : ''}" style="flex:1" data-act="add-t" data-t="${t}">${esc(teamName(g, t))}</button>`).join('')}</div></div>` : ''}
     ${needP && ADD.team ? `<div class="field"><label>Player</label><div class="sub-grid">${teamPlayers(g, ADD.team).map(p => `<button class="sub-p" data-act="add-p" data-p="${esc(p.id)}">${p.num ? `<span class="pnum">#${esc(p.num)}</span>` : ''}${esc(p.name ? lastName(p.name) : '')}</button>`).join('')}<button class="sub-p" data-act="add-p" data-p="TEAM">Team</button></div></div>` : ''}
     <div class="modal-foot" style="justify-content:space-between"><button class="btn btn-lg" data-act="add-back">Back</button>
-      ${k && ADD.team && !needP ? `<button class="btn btn-good btn-lg" data-act="add-p" data-p="TEAM">Add ${esc(teamAbbr(g, ADD.team))} ${esc(STAT_LABEL[k].toLowerCase())}</button>` : `<span class="small muted">${!k ? 'Pick the stat' : !ADD.team ? 'Pick the team' : 'Pick the player'}</span>`}</div>`);
+      ${k && ADD.team && !needP ? `<button class="btn btn-good btn-lg" data-act="add-p" data-p="TEAM">Add ${esc(teamAbbr(g, ADD.team))} ${esc(ADD_LABEL[k].toLowerCase())}</button>` : `<span class="small muted">${!k ? 'Pick the stat' : !ADD.team ? 'Pick the team' : 'Pick the player'}</span>`}</div>`);
 }
 
 /* FIX A SUB (tap a sub in the feed): who was really on the floor after it, for both teams. Lit = on the floor; tap to
@@ -4426,9 +4427,9 @@ document.addEventListener('click', ev => {
     case 'add-back': { const id = ADD && ADD.after; ADD = null; if (id) editModal(id); else closeModal(); break; }
     case 'add-p': { const i = g.ev.findIndex(x => x.id === ADD.after); if (i < 0 || !ADD.k || !ADD.team) break;
       const P = b.dataset.p, pl = P === 'TEAM' ? (ADD.k === 'foul' ? null : 'TEAM') : P;
-      const ne = ADD.k === 'foul' ? { t: 'foul', team: ADD.team, player: pl } : { t: 'play', team: ADD.team, player: pl, k: ADD.k };
+      const ne = ADD.k.startsWith('to:') ? { t: 'to', team: ADD.team, kind: ADD.k.slice(3) } : ADD.k === 'foul' ? { t: 'foul', team: ADD.team, player: pl } : { t: 'play', team: ADD.team, player: pl, k: ADD.k };
       ne.id = uid(); ne.per = g.ev[i].per; g.ev.splice(i + 1, 0, ne); UI.redo = []; ADD = null;
-      save(); render(); editModal(ne.id); toast(`Added: ${teamAbbr(g, ne.team)} ${(STAT_LABEL[ne.k] || 'Foul').toLowerCase()}`, 'good'); break; }
+      save(); render(); editModal(ne.id); toast(`Added: ${teamAbbr(g, ne.team)} ${ne.t === 'to' ? (ne.kind === 'full' ? 'full timeout (set its clock here, or Cancel)' : '30s timeout (set its clock here, or Cancel)') : (STAT_LABEL[ne.k] || 'Foul').toLowerCase()}`, 'good'); break; }
     case 'ed-p': { const e = g.ev.find(x => x.id === b.dataset.id); e.player = b.dataset.p === 'TEAM' && e.t === 'foul' ? null : b.dataset.p; save(); editModal(e.id); render(); break; }
     case 'ed-del': if (isLocked(g, g.ev.find(x => x.id === b.dataset.id))) { toast('A starting five can\'t be deleted — change it with ⇄ Sub', 'bad'); return; }
       if (confirm('Delete this play?')) { g.ev = g.ev.filter(x => x.id !== b.dataset.id); save(); closeModal(); render(); } break;
