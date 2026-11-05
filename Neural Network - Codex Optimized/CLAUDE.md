@@ -167,6 +167,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   team's (sheetRead(files, team) / sheetTeams(g, secs, only)), keeping the other team's numbers; Clarify crops each
   team's rows from its own screenshots (T.canvases). The site's menu / cookie banner aren't team names. Tested on the
   11/2 Antelope Valley-San Diego Miramar halftime screenshots: 0 of 286 cells wrong.
+  A sheet photographed on a wood floor (11/4 Palomar halftime: 246 of 271 cells wrong -> 3): the grain beside the sheet
+  reads as junk before the jersey number ("pe 3 3 Eric Kubel"), so a line that doesn't start "number Name" starts at the
+  number before its first capitalised name word (parseSheet and shGrid); a rebuilt row takes one name chain plus any
+  scraps; a title may start with a stray mark ("~ Moorpark 43 + 0-2").
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
   conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
   conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half

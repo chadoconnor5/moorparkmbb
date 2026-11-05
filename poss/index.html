@@ -4872,7 +4872,14 @@ function parseSheet(src) {
     if (shIsHeader(line)) { group = null; const o = shHeaderOrder(line); if (o.post.length >= 5) lay = o; if (!cur || cur.rows.length || cur.totals) start(); cur.lay = lay; cur.headBox = L.bbox; cur.headPg = L.pg; return; }
     // the FG% / 3P% / FT% lines under a table ("TOTAL FG% 1st Half: 23-42 54.8%")
     if (/%/.test(line) && (/FG%|Half|Game|Throw|3-?Pt/i.test(line) || !/[A-Za-z]{3}/.test(line.replace(/%/g, '')))) return;
-    const T = shTokens(L.words || line), words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
+    let T = shTokens(L.words || line);
+    // Junk before the jersey number (a wood floor or table beside the sheet, read as letters and digits: "pe 3 3 Eric
+    // Kubel", 11/4): a line that doesn't start "number Name" starts at the number right before its first capitalised
+    // name word, if that's among its first few.
+    if (!(T[0] && T[0].v != null && /^\d{1,2}$/.test(T[0].v) && T[1] && T[1].w)) {
+      const k = T.findIndex((x, i) => i >= 1 && i <= 5 && x.w && /^[A-Z][A-Za-z'’.-]/.test(x.w) && T[i - 1].v != null && /^\d{1,2}$/.test(T[i - 1].v));
+      if (k > 0 && T.slice(k).filter(x => x.v != null).length >= 8) T = T.slice(k - 1); }
+    const words = T.filter(x => x.w).map(x => x.w).join(' '), V = T.filter(x => x.v != null);
     if (/^(STARTERS|RESERVES|BENCH)\b/i.test(words) && V.length === 0) { group = /^START/i.test(words) ? 'S' : 'R'; return; }
     // the TOTALS line ("Tolale" too; not "Score by periods 1st Total" further down: a totals line has the whole row of numbers)
     // (or a whole row of numbers with no name, after a table's players: "Totals" misread beyond recognition)
@@ -4895,7 +4902,7 @@ function parseSheet(src) {
     // game's heading ("Antelope Valley vs. Moorpark (11/2/2026 at ...)"), the time or "about:blank".
     // (the website's menu, share and cookie banner aren't team names)
     if (V.length <= 3 && !/:|\bvs\b|\bat\b|\/|%|\.com\b/i.test(line) && line.length < 50 && !/^(SCHEDULES?|ROSTERS?|STANDINGS|STATISTICS|BOARD|3C2A|CHAMPIONSHIP|HALL|OF|FAME|MORE|SHARE|I ACCEPT|ACCEPT|PLAYER|STARTERS|RESERVES|BENCH)\b/i.test(line.trim())) {
-      const m = line.match(/^\s*([A-Za-z][A-Za-z .'&\-]*?[A-Za-z])\s*(?:\d|[•*«=·]|$)/);
+      const m = line.match(/^[^A-Za-z0-9]{0,3}\s*([A-Za-z][A-Za-z .'&\-]*?[A-Za-z])\s*(?:\d|[•*«=·+]|$)/);   // ("~ Moorpark 43 + 0-2": a stray mark first)
       if (m && /[A-Za-z]{3,}/.test(m[1])) { lastTitle = m[1].trim();
         // a team's heading in big type after a table's players (the website's live stats: no TOTALS line to end the
         // table) ends that table; the players after it are the named team's
@@ -5179,7 +5186,10 @@ async function shGrid(c, lines) {
     const bot = Math.round(Math.min(nextH, pw.length ? Math.min(...pw) - 0.45 * hm : nextH));
     // where the numbers start: the first number after the name on the player lines
     // (and on the totals line: its minutes, 3 digits, reach further left than a player's)
-    const xs = [], xt = []; lines.forEach(l => { if (yc(l.bbox) < top || yc(l.bbox) > bot) return; const ws = l.words;
+    const xs = [], xt = []; lines.forEach(l => { if (yc(l.bbox) < top || yc(l.bbox) > bot) return; let ws = l.words;
+      // (junk before the jersey number: start at the number before the first capitalised name word, as parseSheet does)
+      if (!(ws[0] && /^\d{1,2}$/.test(ws[0].text) && ws[1] && /[A-Za-z]/.test(ws[1].text))) {
+        const j = ws.findIndex((w, i) => i >= 1 && i <= 5 && /^[A-Z][A-Za-z'’.-]/.test(w.text) && /^\d{1,2}$/.test(ws[i - 1].text)); if (j > 0) ws = ws.slice(j - 1); }
       const tl = ws.findIndex(w => /^T[O0o][TtlI][AaGo4][LlIie1][Ss5e]?$/.test(w.text));
       if (tl >= 0 && ws[tl + 1] && /^\d/.test(ws[tl + 1].text)) { xt.push(ws[tl + 1].bbox.x0); return; }
       if (!(ws[0] && /^\d{1,2}$/.test(ws[0].text) && ws[1] && /[A-Za-z]/.test(ws[1].text))) return;
@@ -5294,7 +5304,11 @@ async function shGrid(c, lines) {
     let sh = 0, bn = -1;
     for (let d = -Math.round(1.2 * hm); d <= 1.2 * hm; d++) { const n = C.filter(ch => R.some(r => Math.abs(r.y - yc(end(ch).bbox) - d) < 0.3 * hm)).length; if (n > bn || (n === bn && Math.abs(d) < Math.abs(sh))) { bn = n; sh = d; } }
     const pairs = []; C.forEach(ch => R.forEach(r => { const d = Math.abs(r.y - yc(end(ch).bbox) - sh); if (d < 0.5 * hm) pairs.push([d, ch, r]); }));
-    pairs.sort((a, b) => a[0] - b[0]).forEach(([, ch, r]) => { if (used.has(ch) || r.pre) return; r.pre = ch; used.add(ch); }); });
+    // A row takes one name ("3 Eric Kubel") and any scraps beside it (the wood floor read as "pe 3": parseSheet drops
+    // what comes before the jersey number), so a scrap that's a hair closer can't push the real name off its row.
+    const isName = ch => ch.some((w, i) => i > 0 && /^[A-Z][A-Za-z'’.-]/.test(w.text) && /^\d{1,2}$/.test(ch[i - 1].text));
+    pairs.sort((a, b) => a[0] - b[0]).forEach(([, ch, r]) => { if (used.has(ch) || (r.named && isName(ch))) return;
+      r.pre = (r.pre || []).concat(ch); if (isName(ch)) r.named = true; used.add(ch); }); });
   chains.forEach(ch => { if (!used.has(ch)) loose.push(...ch); });
   const group = ws => { const g = []; ws.sort((a, b) => yc(a.bbox) - yc(b.bbox)).forEach(w => { const l = g.find(l => Math.abs(l.y - yc(w.bbox)) < 0.5 * hm); if (l) l.w.push(w); else g.push({ y: yc(w.bbox), w: [w] }); }); return g; };
   const box = ws => ({ x0: Math.min(...ws.map(w => w.bbox.x0)), y0: Math.min(...ws.map(w => w.bbox.y0)), x1: Math.max(...ws.map(w => w.bbox.x1)), y1: Math.max(...ws.map(w => w.bbox.y1)) });
