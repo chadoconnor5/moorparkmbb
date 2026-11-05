@@ -1345,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.280';
+const VERSION = 'v2026.11.05.290';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3857,10 +3857,10 @@ function editModal(id) {
 }
 /* ➕ ADD A PLAY AFTER THIS (Fix this play): any stat, rebounds included, right after the play, without going back to the
    Live screen (so a Final game needn't be reopened). Pick the stat, the team, then the player for fouls / free throws
-   (or Team), or a timeout (full / 30s; its clock can be set next). It goes in with the play's half; then this box opens on the new play, so plays chain: a miss → Off reb →
+   (or Team), a technical (the Technical foul box), or a timeout (full / 30s; its clock can be set next). It goes in with the play's half; then this box opens on the new play, so plays chain: a miss → Off reb →
    2PT make. */
 let ADD = null;   // { after: id, k, team }
-const ADD_STATS = STATS.filter(s => !['ast', 'blk', 'tech'].includes(s[0])).concat([['to:full', 'Full Timeout', 'foul'], ['to:s30', '30s Timeout', 'foul']]);
+const ADD_STATS = STATS.filter(s => !['ast', 'blk'].includes(s[0])).concat([['to:full', 'Full Timeout', 'foul'], ['to:s30', '30s Timeout', 'foul']]);
 const ADD_LABEL = Object.fromEntries(ADD_STATS.map(s => [s[0], s[1]]));
 function addModal() {
   const g = cur(), e = ADD && g.ev.find(x => x.id === ADD.after); if (!e) { ADD = null; closeModal(); return; }
@@ -3964,7 +3964,8 @@ function fillRebounds(g) {
   return n;
 }
 function push(g, e) {
-  e.id = e.id || uid(); e.per = e.per || g.per;
+  const at = UI.ins ? g.ev.find(x => x.id === UI.ins) : null;   // inserting: the play it goes before sets its half
+  e.id = e.id || uid(); e.per = e.per || (at && at.per) || g.per;
   if (e.t === 'play' && !UI.ins && !e.auto) { const r = impliedReb(g.ev, g.ev.length, e); if (r) { r.id = uid(); r.with = e.id; g.ev.push(r); UI.autoReb = r; } }
   if (UI.ins) { const i = g.ev.findIndex(x => x.id === UI.ins); if (i >= 0) { g.ev.splice(i, 0, e); UI.ins = null; UI.redo = []; return; } UI.ins = null; }
   g.ev.push(e); UI.redo = [];
@@ -4385,12 +4386,12 @@ document.addEventListener('click', ev => {
     case 'tech-dbl': TECH.dbl = b.dataset.v === '1'; techModal(); break;
     case 'tech-p2': { const k = b.dataset.t === 'a' ? 'pa' : 'pb'; TECH[k] = TECH[k] === b.dataset.p ? null : b.dataset.p; techModal(); break; }
     case 'tech-ft': TECH.fta = +b.dataset.n; if (TECH.fta === 2) delete TECH.fta; techModal(); break;
-    case 'tech-cancel': TECH = null; closeModal(); break;
+    case 'tech-cancel': TECH = null; UI.ins = null; closeModal(); break;
     case 'tech-ok': {
       if (TECH.dbl) {   // double technical: one on each side, linked (dbl), no free throws; each his foul + team foul
         if (!TECH.pa) { toast('Pick the Moorpark player', 'bad'); return; }
-        const link = uid(), ea = { t: 'tech', team: 'a', coach: false, player: TECH.pa, ftm: 0, fta: 0, ftLater: true, dbl: link },
-          eb = { t: 'tech', team: 'b', coach: false, player: TECH.pb || null, ftm: 0, fta: 0, ftLater: true, dbl: link };
+        const link = uid(), pr = TECH.per ? { per: TECH.per } : {}, ea = Object.assign({ t: 'tech', team: 'a', coach: false, player: TECH.pa, ftm: 0, fta: 0, ftLater: true, dbl: link }, pr),
+          eb = Object.assign({ t: 'tech', team: 'b', coach: false, player: TECH.pb || null, ftm: 0, fta: 0, ftLater: true, dbl: link }, pr);
         const ins = UI.ins; push(g, ea); if (ins) UI.ins = ins; push(g, eb); TECH = null; save(); closeModal(); render();   // inserting: both go in before the picked play
         const outA = playerTechs(g, 'a', ea.player) >= 2 || playerFouls(g, 'a', ea.player) >= 5;
         toast(techText(g, ea) + (outA ? ' — OUT OF THE GAME' : ''), outA ? 'bad' : ''); break; }
@@ -4422,7 +4423,11 @@ document.addEventListener('click', ev => {
       if (secs == null) delete e.clock; else e.clock = secs; EDC = null; save(); closeModal(); render(); break; }
     case 'ed-k': { const e = g.ev.find(x => x.id === b.dataset.id); e.k = b.dataset.k; save(); editModal(e.id); render(); break; }
     case 'add-open': ADD = { after: b.dataset.id, k: null, team: null }; addModal(); break;
-    case 'add-k': ADD.k = b.dataset.k; addModal(); break;
+    case 'add-k': ADD.k = b.dataset.k;
+      if (ADD.k === 'tech') {   // the Technical foul box, as live; it goes in after the play (before the next one)
+        const i = g.ev.findIndex(x => x.id === ADD.after), nx = g.ev[i + 1];
+        UI.ins = nx ? nx.id : null; TECH = { team: 'b', coach: false, player: null, ftm: 2, per: g.ev[i].per }; ADD = null; techModal(); break; }
+      addModal(); break;
     case 'add-t': ADD.team = b.dataset.t; addModal(); break;
     case 'add-back': { const id = ADD && ADD.after; ADD = null; if (id) editModal(id); else closeModal(); break; }
     case 'add-p': { const i = g.ev.findIndex(x => x.id === ADD.after); if (i < 0 || !ADD.k || !ADD.team) break;
