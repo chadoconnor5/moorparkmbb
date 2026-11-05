@@ -962,10 +962,9 @@ five has 25+ offensive possessions).
   website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
   Clear History and Website Data. The home-screen app and a Safari tab keep separate data: always open it the same way.
 - **Post-game report PDF** (for the staff, ready to text): at **Final** it downloads next to the game file as
-  `Moorpark_vs_<Opponent>_<date>_postgame.pdf` (Files → Downloads). Dark, Letter size. Page 1: the score, by half,
-  key numbers (PPP, eFG%, 3P%, TO%, OREB%, FT rate), what decided it (written out from the numbers), runs, lineups
-  (most used, best, worst). Page 2: team stats. With the final stat sheet read in, the counts come from the box score,
-  the top performers join what decided it, and both teams' box scores follow (+/- from the tracker, game score).
+  `Moorpark_vs_<Opponent>_<date>_postgame.pdf` (Files → Downloads). It is the Report tab's **Post-game report itself**
+  (the full game, same look and cards), with the buttons and pickers left off, on Letter pages. Pages break between
+  cards, so a card is only split when it's taller than a page by itself, and there's never an empty page.
   **📄 Coaches' PDF** on the Post-game report makes it again (say, once the stat sheet is in). Made on the iPad with no
   signal needed (html2canvas + jsPDF in `vendor/pdf`, MIT, saved for offline).
 - **Rosters from the stats.** Every opponent with a stats file on the iPad (our schedule and tournament fields, once
