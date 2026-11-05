@@ -211,6 +211,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Usage and the counting stats stay plain, and so do short stints (9 minutes or fewer when minutes are tracked).
 - Player nicknames in parentheses ("#2 Roderick (Quick) Johnson", "JOHNSON,RODERICK (QUICK)") are dropped when a
   box score is saved (scrape.drop_nicknames: the box, its period boxes and its plays).
+- Names the stats site spells wrong are fixed at the same step: ccc_config.PLAYER_NAME_FIXES (Matthew Wilson ->
+  Mathew Wilson, WILSON,MATTHEW -> WILSON,MATHEW). Add a pair there for any other; the possession tracker has its own
+  NAME_FIX (poss/index.html) that renames its stored games, roster and incoming files. The practice tracker and game
+  tracker keep their own spelling (their data on the iPad is keyed by name).
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
   from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
   the score margin dotted on the right axis, a dot per play (shots, free throws, turnovers) in the team's color

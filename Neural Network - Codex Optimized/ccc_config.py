@@ -74,3 +74,17 @@ def get_conference(team_name: str) -> str:
         if any(team.lower() == normalized for team in teams):
             return conference
     return "Other"
+
+
+# Player names the stats site spells wrong, as they should read: box scores ("#15 Matthew Wilson") and play-by-play
+# ("WILSON,MATTHEW"). scrape.drop_nicknames applies them as each game is saved, so every file built from the box
+# scores (team stats, ratings, the leaderboard, the tracker's files) reads the right name.
+PLAYER_NAME_FIXES = [("Matthew Wilson", "Mathew Wilson"), ("WILSON,MATTHEW", "WILSON,MATHEW")]
+
+
+def fix_player_name(name):
+    if not isinstance(name, str):
+        return name
+    for bad, good in PLAYER_NAME_FIXES:
+        name = name.replace(bad, good)
+    return name
