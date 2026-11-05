@@ -1345,7 +1345,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.210';
+const VERSION = 'v2026.11.05.220';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6667,7 +6667,7 @@ function editDist(a, b) {
     prev = cur; }
   return prev[b.length];
 }
-const SH3 = { K: 25, LG: 32.4, HI: 35, LO: 30 };
+const SH3 = { K: 25, LG: 32.4, HI: 35, LO: 30, MIN_A: 15, FULL_G: 28 };
 function autoLabels(g, t, id) {
   let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
   const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
@@ -6704,12 +6704,13 @@ function autoLabels(g, t, id) {
   /* THE SHOOTING CALL: every player who plays gets exactly one, from his own threes, never a state rank. What a three
      from him is worth against an average trip (the state's rotation players shoot 32.4% = 0.97 points a shot):
        Shooter (close out) est 35%+ = 1.05+ points a three · Avg 3PT (guard him straight) 30-35% ·
-       Poor 3PT (let him shoot) under 30% = under 0.90 · Non-shooter (sag off) he barely takes them: under 10% of his shots (10+ FGA), or under 0.5 a game
-     over 3+ games. A short sample is not a reason: the est. already pulls a few threes toward 32.4%.
+       Poor 3PT (let him shoot) under 30% = under 0.90 · Non-shooter (sag off) he barely takes them: under 15 threes scaled to his games (15 by game 28,
+     about 1.6 by game 3), or under 10% of his shots (10+ FGA). The est. already pulls a short sample toward 32.4%.
      est = his 3P% as if he'd also taken SH3.K threes at the state's 32.4%, so one hot or cold night doesn't flip the call. */
   const m3 = R ? R.tpm || 0 : q ? q.m3 || 0 : 0, est3 = 100 * (m3 + SH3.K * SH3.LG / 100) / (tpa + SH3.K);
   const gpN = R ? R.gp || 0 : q ? q.gp || 0 : 0;
-  const nonShooter = (fga >= 10 && rate != null && rate < 10) || (gpN >= 3 && pg != null && pg < 0.5);
+  const minA = SH3.MIN_A * Math.min(gpN, SH3.FULL_G) / SH3.FULL_G;   // 15 threes by game 28, scaled to the games he's played
+  const nonShooter = tpa < minA || (fga >= 10 && rate != null && rate < 10);
   const call = nonShooter ? 'Non-shooter' : est3 >= SH3.HI ? 'Shooter' : est3 >= SH3.LO ? 'Avg 3PT' : 'Poor 3PT';
   const shooter = call === 'Shooter';
   const shootWhy3 = `${tpa ? `3P ${(100 * m3 / tpa).toFixed(1)}% (${m3}-${tpa})` : 'no threes'}${!nonShooter ? ` · est ${est3.toFixed(1)}% = ${(3 * est3 / 100).toFixed(2)} pts a three` : ''}${pg != null ? ` · ${pg.toFixed(1)} 3PA/g` : ''}`;
@@ -6840,7 +6841,7 @@ const LABEL_GUIDE = [
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
     ['Draws fouls', 'Fouls drawn per 40 and FT rate together in the top 20%.'],
     ['Struggles inside', '3+ 2PA a game; 2P% (plus Synergy at the rim) in the bottom 20%.'],
-    ['Non-shooter', 'Sag off him: he barely takes threes (under 10% of his shots, or under 0.5 a game over 3+ games).'],
+    ['Non-shooter', 'Sag off him: he barely takes threes (under 15 by game 28, scaled to his games; or under 10% of his shots).'],
     ['3PT heavy', '55%+ of his shots are threes, on 2.0+ a game: his shot diet, whether or not they go in.'],
     ['Poor 3PT', 'Let him shoot: 15+ threes, est. 3P% under 30% (under 0.90 points a three).']]],
   ['Glass', [

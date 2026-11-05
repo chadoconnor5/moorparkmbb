@@ -575,7 +575,7 @@ def leaderboard_tables(teams=()):
 # its own copy of the rules remains for older files and for players it knows only from our tracked games.
 AUTO_CUT = {"top": 0.20, "topTight": 0.15, "shooter": 0.35, "draws": 0.25, "bottom": 0.20, "aaTs": 0.35, "aaFtr": 0.50,
             "aaRateLo": 25, "aaRateHi": 55}
-SH3 = {"K": 25, "LG": 32.4, "HI": 35, "LO": 30}
+SH3 = {"K": 25, "LG": 32.4, "HI": 35, "LO": 30, "MIN_A": 15, "FULL_G": 28}
 ORTG_BANDS = ["Go-to Guys", "Major Contributors", "Significant Contributors", "Role Players", "Limited Roles", "Nearly Invisible"]
 
 
@@ -626,8 +626,9 @@ def auto_labels(R, table):
     pg = tpa / R["gp"] if R.get("gp") else None
     m3 = R.get("tpm") or 0
     est3 = 100 * (m3 + SH3["K"] * SH3["LG"] / 100) / (tpa + SH3["K"])
-    # Non-shooter = he barely takes threes, not a short sample (est3 already pulls a few threes toward 32.4%).
-    nonShooter = (fga >= 10 and rate is not None and rate < 10) or ((R.get("gp") or 0) >= 3 and pg is not None and pg < 0.5)
+    # Non-shooter = he barely takes threes: under 15 by game 28, scaled to his games; never just a short season.
+    minA = SH3["MIN_A"] * min(R.get("gp") or 0, SH3["FULL_G"]) / SH3["FULL_G"]
+    nonShooter = tpa < minA or (fga >= 10 and rate is not None and rate < 10)
     call = "Non-shooter" if nonShooter else "Shooter" if est3 >= SH3["HI"] else "Avg 3PT" if est3 >= SH3["LO"] else "Poor 3PT"
     shooter = call == "Shooter"
     shootWhy3 = ((f"3P {_fx(100 * m3 / tpa, 1)}% ({m3}-{tpa})" if tpa else "no threes")
