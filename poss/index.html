@@ -1075,7 +1075,7 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .rot-hd .rot-g div{font-size:11px;font-weight:800;color:var(--muted);text-align:center;border-bottom:1px solid var(--border);padding-bottom:2px;margin-bottom:2px}
 .rot-leg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin:10px 0 4px 116px}
 .rot-bar{width:200px;height:10px;border-radius:3px;background:linear-gradient(90deg,rgb(253,236,200),rgb(139,21,21))}
-.rot-bar.eff{background:linear-gradient(90deg,rgb(220,38,38),rgb(58,62,70),rgb(22,163,74))}
+.rot-bar.eff{background:linear-gradient(90deg,rgb(176,52,52),rgb(104,108,116),rgb(46,125,82))}
 .rot-eff .rot-n{color:var(--us)}.rot-eff:nth-child(4){margin-bottom:6px}
 .rot-det{font-size:13px;margin-top:6px}
 /* Player on/off cards: the practice tracker's Player On-Court Impact layout (2 x 2 on the iPad). */
@@ -1347,7 +1347,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.300';
+const VERSION = 'v2026.11.05.310';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7582,7 +7582,7 @@ function rotView(g) {
     return { op, dp, of: tsum('of', c), df: tsum('df', c), o, d, net: o != null && d != null ? o - d : null }; };
   const all = k => R.T.reduce((s, t) => s + t[k], 0), avgO = per100(all('of'), all('op')), avgD = per100(all('df'), all('dp'));
   const effCol = (v, base, sign, n) => { if (v == null) return 'transparent';
-    const t = Math.max(-1, Math.min(1, sign * (v - base) / ROT_EFF_SPAN)), mid = [58, 62, 70], end = t >= 0 ? [22, 163, 74] : [220, 38, 38], a = Math.abs(t);
+    const t = Math.max(-1, Math.min(1, sign * (v - base) / ROT_EFF_SPAN)), mid = [104, 108, 116], end = t >= 0 ? [46, 125, 82] : [176, 52, 52], a = Math.abs(t);
     const c = mid.map((m, i) => Math.round(m + (end[i] - m) * a)); return `rgba(${c.join(',')},${n >= ROT_EFF_MIN ? 1 : 0.35})`; };
   const ROWS_EFF = [['__o', 'ORtg', c => { const e = eff(c); return effCol(e.o, avgO, 1, e.op); }], ['__d', 'DRtg', c => { const e = eff(c); return effCol(e.d, avgD, -1, e.dp); }],
     ['__n', 'Net', c => { const e = eff(c); return effCol(e.net, avgO - avgD, 1, Math.min(e.op, e.dp)); }]];
