@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-04T23:16:51
+Updated 2026-11-05T22:43:48
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
@@ -10,14 +10,14 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Bakersfield | 1 | 0 | 0 | 0 |
 | Barstow | 1 | 2 | 0 | 0 |
 | Butte | 0 | 2 | 0 | 0 |
-| Canyons | 2 | 0 | 0 | 0 |
-| Cerritos | 1 | 0 | 0 | 0 |
+| Canyons | 3 | 0 | 0 | 0 |
+| Cerritos | 2 | 0 | 0 | 0 |
 | Cerro Coso | 1 | 0 | 1 | 0 |
 | Chaffey | 2 | 0 | 0 | 0 |
 | Citrus | 2 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
 | Compton | 1 | 0 | 0 | 0 |
-| Copper Mountain | 1 | 1 | 0 | 0 |
+| Copper Mountain | 2 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 0 | 0 | 0 |
 | Cuesta | 0 | 1 | 1 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
@@ -30,9 +30,9 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Feather River | 0 | 1 | 0 | 0 |
 | Fullerton | 1 | 0 | 0 | 0 |
 | Gavilan | 1 | 0 | 0 | 0 |
-| Glendale | 2 | 0 | 0 | 0 |
-| Grossmont | 1 | 0 | 0 | 0 |
-| Irvine Valley | 1 | 0 | 0 | 0 |
+| Glendale | 3 | 0 | 0 | 0 |
+| Grossmont | 2 | 0 | 0 | 0 |
+| Irvine Valley | 2 | 0 | 0 | 0 |
 | LA Southwest | 2 | 0 | 0 | 0 |
 | LA Trade Tech | 2 | 0 | 0 | 0 |
 | LA Valley | 1 | 0 | 0 | 0 |
@@ -41,7 +41,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Mendocino | 1 | 0 | 0 | 0 |
 | MiraCosta | 1 | 0 | 0 | 0 |
 | Moorpark | 3 | 0 | 0 | 0 |
-| Mt. San Antonio | 1 | 0 | 0 | 0 |
+| Mt. San Antonio | 2 | 0 | 0 | 0 |
 | Mt. San Jacinto | 3 | 0 | 0 | 0 |
 | Napa Valley | 1 | 0 | 0 | 0 |
 | Ohlone | 0 | 1 | 0 | 0 |
@@ -68,7 +68,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Skyline | 0 | 1 | 0 | 0 |
 | Solano | 1 | 0 | 0 | 0 |
 | Southwestern | 3 | 0 | 0 | 0 |
-| Ventura | 1 | 0 | 1 | 0 |
+| Ventura | 2 | 0 | 1 | 0 |
 | Victor Valley | 1 | 1 | 0 | 0 |
 | West LA | 2 | 0 | 0 | 0 |
 | West Valley | 2 | 0 | 0 | 0 |
@@ -93,6 +93,6 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-03 | Cuesta vs Monterey Peninsula | Cuesta: WRONG_TOTAL (172 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_p5bi.xml |
 | 2026-11-03 | De Anza vs Solano | De Anza: PLACEHOLDER (16 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_hg2z.xml |
 | 2026-11-03 | Feather River vs Folsom Lake | Feather River: PLACEHOLDER (15 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_8blf.xml |
-| 2026-11-03 | Santa Rosa vs Skyline | Skyline: PLACEHOLDER (11 min), Santa Rosa: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_j5q0.xml |
+| 2026-11-03 | Santa Rosa vs Skyline | Santa Rosa: PLACEHOLDER (11 min), Skyline: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_j5q0.xml |
 | 2026-11-04 | Bakersfield vs Reedley | Reedley: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261104_zoyc.xml |
 | 2026-11-04 | Barstow vs Los Angeles City | Los Angeles City: WRONG_TOTAL (161 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261104_g7b8.xml |
