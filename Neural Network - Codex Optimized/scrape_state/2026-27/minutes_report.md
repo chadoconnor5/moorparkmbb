@@ -1,29 +1,30 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-05T22:43:48
+Updated 2026-11-07T10:16:01
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
 | Team | Real | Placeholder | Wrong total | None |
 |---|---|---|---|---|
+| Allan Hancock | 1 | 0 | 0 | 0 |
 | Antelope Valley | 2 | 0 | 0 | 0 |
-| Bakersfield | 1 | 0 | 0 | 0 |
+| Bakersfield | 2 | 0 | 0 | 0 |
 | Barstow | 1 | 2 | 0 | 0 |
 | Butte | 0 | 2 | 0 | 0 |
-| Canyons | 3 | 0 | 0 | 0 |
-| Cerritos | 2 | 0 | 0 | 0 |
+| Canyons | 4 | 0 | 0 | 0 |
+| Cerritos | 3 | 0 | 0 | 0 |
 | Cerro Coso | 1 | 0 | 1 | 0 |
-| Chaffey | 2 | 0 | 0 | 0 |
-| Citrus | 2 | 0 | 0 | 0 |
+| Chaffey | 3 | 0 | 0 | 0 |
+| Citrus | 3 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
-| Compton | 1 | 0 | 0 | 0 |
+| Compton | 3 | 0 | 0 | 0 |
 | Copper Mountain | 2 | 1 | 0 | 0 |
-| Cosumnes River | 1 | 0 | 0 | 0 |
+| Cosumnes River | 1 | 1 | 0 | 0 |
 | Cuesta | 0 | 1 | 1 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
 | Cypress | 1 | 0 | 0 | 0 |
-| De Anza | 0 | 1 | 0 | 0 |
-| Desert | 3 | 0 | 0 | 0 |
+| De Anza | 0 | 2 | 0 | 0 |
+| Desert | 4 | 0 | 0 | 0 |
 | Diablo Valley | 0 | 1 | 0 | 0 |
 | East Los Angeles | 2 | 0 | 0 | 0 |
 | El Camino | 2 | 0 | 0 | 0 |
@@ -32,48 +33,51 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Gavilan | 1 | 0 | 0 | 0 |
 | Glendale | 3 | 0 | 0 | 0 |
 | Grossmont | 2 | 0 | 0 | 0 |
-| Irvine Valley | 2 | 0 | 0 | 0 |
-| LA Southwest | 2 | 0 | 0 | 0 |
-| LA Trade Tech | 2 | 0 | 0 | 0 |
-| LA Valley | 1 | 0 | 0 | 0 |
-| Long Beach | 2 | 0 | 0 | 0 |
-| Los Angeles City | 2 | 0 | 1 | 0 |
+| Irvine Valley | 3 | 0 | 0 | 0 |
+| LA Southwest | 2 | 1 | 0 | 0 |
+| LA Trade Tech | 2 | 1 | 0 | 0 |
+| LA Valley | 2 | 0 | 0 | 0 |
+| Long Beach | 3 | 0 | 0 | 0 |
+| Los Angeles City | 3 | 0 | 1 | 0 |
 | Mendocino | 1 | 0 | 0 | 0 |
-| MiraCosta | 1 | 0 | 0 | 0 |
+| Merced | 0 | 2 | 0 | 0 |
+| MiraCosta | 2 | 0 | 0 | 0 |
 | Moorpark | 3 | 0 | 0 | 0 |
 | Mt. San Antonio | 2 | 0 | 0 | 0 |
-| Mt. San Jacinto | 3 | 0 | 0 | 0 |
+| Mt. San Jacinto | 4 | 0 | 0 | 0 |
 | Napa Valley | 1 | 0 | 0 | 0 |
-| Ohlone | 0 | 1 | 0 | 0 |
+| Ohlone | 0 | 2 | 0 | 0 |
 | Orange Coast | 1 | 0 | 0 | 0 |
 | Oxnard | 3 | 0 | 0 | 0 |
 | Palo Verde | 2 | 0 | 0 | 0 |
-| Palomar | 3 | 0 | 0 | 0 |
-| Pasadena City | 1 | 0 | 0 | 0 |
+| Palomar | 4 | 0 | 0 | 0 |
+| Pasadena City | 2 | 0 | 0 | 0 |
+| Porterville | 1 | 0 | 0 | 0 |
 | Reedley | 0 | 2 | 0 | 0 |
 | Rio Hondo | 3 | 0 | 0 | 0 |
 | Riverside | 3 | 0 | 0 | 0 |
 | Sacramento City | 0 | 1 | 0 | 0 |
-| Saddleback | 3 | 0 | 0 | 0 |
-| San Bernardino Valley | 2 | 0 | 0 | 0 |
+| Saddleback | 4 | 0 | 0 | 0 |
+| San Bernardino Valley | 3 | 0 | 0 | 0 |
 | San Diego City | 2 | 0 | 0 | 0 |
 | San Diego Mesa | 2 | 0 | 0 | 0 |
 | San Diego Miramar | 2 | 0 | 0 | 0 |
-| Santa Ana | 3 | 0 | 0 | 0 |
-| Santa Barbara | 2 | 0 | 0 | 0 |
+| San Jose | 1 | 0 | 0 | 0 |
+| Santa Ana | 4 | 0 | 0 | 0 |
+| Santa Barbara | 3 | 0 | 0 | 0 |
 | Santa Monica | 0 | 1 | 0 | 0 |
-| Santa Rosa | 0 | 1 | 0 | 0 |
-| Santiago Canyon | 2 | 0 | 0 | 0 |
+| Santa Rosa | 0 | 2 | 0 | 0 |
+| Santiago Canyon | 3 | 0 | 0 | 0 |
 | Sequoias | 1 | 0 | 0 | 0 |
 | Skyline | 0 | 1 | 0 | 0 |
 | Solano | 1 | 0 | 0 | 0 |
 | Southwestern | 3 | 0 | 0 | 0 |
-| Ventura | 2 | 0 | 1 | 0 |
-| Victor Valley | 1 | 1 | 0 | 0 |
+| Ventura | 3 | 0 | 1 | 0 |
+| Victor Valley | 2 | 1 | 0 | 0 |
 | West LA | 2 | 0 | 0 | 0 |
 | West Valley | 2 | 0 | 0 | 0 |
 
-## Games without real minutes (19)
+## Games without real minutes (27)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -96,3 +100,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-03 | Santa Rosa vs Skyline | Santa Rosa: PLACEHOLDER (11 min), Skyline: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261103_j5q0.xml |
 | 2026-11-04 | Bakersfield vs Reedley | Reedley: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261104_zoyc.xml |
 | 2026-11-04 | Barstow vs Los Angeles City | Los Angeles City: WRONG_TOTAL (161 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261104_g7b8.xml |
+| 2026-11-05 | Butte vs Merced | Merced: PLACEHOLDER (15 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261105_lilo.xml |
+| 2026-11-05 | Columbia vs Cosumnes River | Cosumnes River: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261105_g5lj.xml |
+| 2026-11-05 | LA Trade Tech vs Lassen | LA Trade Tech: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261105_xqil.xml |
+| 2026-11-06 | De Anza vs Lassen | De Anza: PLACEHOLDER (16 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_e1jr.xml |
+| 2026-11-06 | Foothill vs Santa Rosa | Santa Rosa: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_pef2.xml |
+| 2026-11-06 | LA Southwest vs Rio Hondo | LA Southwest: PLACEHOLDER (6 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_gr5s.xml |
+| 2026-11-06 | Merced vs Las Positas | Merced: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_sqbg.xml |
+| 2026-11-06 | Ohlone vs Solano | Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_ssyn.xml |
