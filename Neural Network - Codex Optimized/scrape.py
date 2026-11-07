@@ -195,7 +195,7 @@ class Fetcher:
             raise Throttled(f"browser {resp.status}")
         if resp is not None and resp.status >= 400:
             raise urllib.error.HTTPError(url, resp.status, "browser", None, None)
-        html = self._page.content()
+        html = self._content()
         self.last.update(bytes=len(html))
         if re.search(r"just a moment|checking your browser|access denied|unusual traffic|captcha", html[:20000], re.I):
             raise Throttled("the site showed a bot check")
@@ -207,7 +207,26 @@ class Fetcher:
         if not self.browser or self._page is None:
             return None
         self._page.wait_for_timeout(wait_ms)
-        return self._page.content()
+        return self._content()
+
+    def _content(self) -> str:
+        """The open page's HTML. The page can still be changing when it's read (a script reloading it, a late redirect):
+        Chrome then refuses ("the page is navigating"). Wait for it to settle and read the same page again, up to 3
+        times: no new request to the site. Still changing: stop the run as throttled (a page that keeps reloading
+        is often a bot check), so nothing more is fetched tonight."""
+        for _ in range(3):
+            try:
+                return self._page.content()
+            except Exception as e:
+                if "navigating" not in str(e) and "changing the content" not in str(e):
+                    raise
+                print("    page still loading when read — waiting, then reading it again (no new request)")
+                try:
+                    self._page.wait_for_load_state("load", timeout=15000)
+                except Exception:
+                    pass
+                self._page.wait_for_timeout(2500)
+        raise Throttled("the page kept changing (navigating) after it loaded")
 
     def close(self):
         if self._page is not None:
