@@ -752,6 +752,11 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
 # The published leaderboard: the site root (GitHub Pages serves ../index.html, with season_data/ and team_logos/ beside it)
 OUTPUT = Path("../index.html")
 _CACHE_DIR = Path("internal_data/cache/leaderboard")
+# Past seasons' datasets are cached (scrape.py builds with --cache). Bump this whenever a loader adds or changes a field
+# the build reads, so every PC rebuilds its cache once instead of reusing files without it. v2: past-season player
+# files cached before the qualified flag ("q") and positions ("pos") existed kept every past season out of Similar
+# Players (only 2026-27 players matched, even on the 2024-25 pages).
+_CACHE_V = 2
 STATS_DIR = Path("2026-27 Team Statistics")
 STATS_DIR_2025 = Path("2025-26 Team Statistics")
 STATS_DIR_2024 = Path("2024-25 Team Statistics")
@@ -1049,7 +1054,7 @@ def load_height_data(teams: list[dict]) -> dict:
 def _cached_json(name: str, builder, refresh: bool = False):
     """Load a generated dataset from cache or rebuild it."""
     _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = _CACHE_DIR / f"{name}.json"
+    path = _CACHE_DIR / f"{name}.v{_CACHE_V}.json"
     if path.exists() and not refresh:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
