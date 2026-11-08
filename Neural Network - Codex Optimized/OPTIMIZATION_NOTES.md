@@ -46,6 +46,9 @@ This copy keeps the original project intact and starts consolidating the working
   minimums no longer stick; qualification minimums follow the selected metrics.
 - Player caches store the new fields, so run `--cache --refresh-cache` after
   changing load_players/load_conf_players.
+  The cache file names carry `_CACHE_V` (generate_leaderboard.py): bump it with such a change and every PC rebuilds
+  its cache once on its own (v2, Nov 2026: stale past-season player files had kept every past season out of
+  Similar Players).
 - Per-game box scores (Torvik-style "Advanced Stats Box Score" modal): built by
   `build_game_boxes()` from the season schedules folders, advanced stats reuse
   STAT_DEFINITIONS from update_advanced_analytics.py (single source of truth).
@@ -119,7 +122,8 @@ This copy keeps the original project intact and starts consolidating the working
   only on demand (`scrape.py missing`, Oct 27 2026: nightly touches only that
   night's games, no automatic re-checks or team-page refreshes).
   Every box score is also marked per side REAL / PLACEHOLDER (all 1-minute lines) /
-  WRONG_TOTAL / NONE minutes (`minutes_quality` in the box file and ledger,
+  WRONG_TOTAL / NONE / BENCH_ZERO (adds up, but a player with stats at 0) / PBP (rebuilt from the play-by-play by
+  box_minutes.py, counted as real; the scorekeeper's number kept as the player's "min_box") minutes (`minutes_quality` in the box file and ledger,
   `minutes_report.md`); 2025-26: 3,229 real, 2,426 placeholder, 44 wrong, 53 none. Small player-points vs score
   mismatches (~4% of last season's boxes) are kept as a ledger note, not
   re-checked. Box labels are matched to schedule names with

@@ -215,6 +215,14 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Mathew Wilson, WILSON,MATTHEW -> WILSON,MATHEW). Add a pair there for any other; the possession tracker has its own
   NAME_FIX (poss/index.html) that renames its stored games, roster and incoming files. The practice tracker and game
   tracker keep their own spelling (their data on the iPad is keyed by name).
+- Starters-at-40 / bench-at-0 box scores (the minutes add up to 200 but bench players with stats show 0: 11/6 Santa Ana
+  at Los Angeles City): box_minutes.py rebuilds the minutes from the game's play-by-play (compute_pbp_lineups.game_units'
+  stints, each player's share of the 40 minutes, whole minutes adding up to 200 / +25 an OT). scrape.save_box runs it
+  as each box score is saved; the box keeps the scorekeeper's number as "min_box" and minutes_quality says PBP
+  (counted as real). Only when the play-by-play places 75%+ of the game and every player with a stat was on the floor;
+  otherwise the side stays BENCH_ZERO (minutes_report: wrong total). Saved box scores: python3 box_minutes.py
+  [--dry-run], then python3 scrape.py rebuild (no site requests). 2026-27 through 11/7: 6 such sides, 5 fixed (10/31
+  Bakersfield has no play-by-play).
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
   from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
   the score margin dotted on the right axis, a dot per play (shots, free throws, turnovers) in the team's color
