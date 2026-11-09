@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-07T22:14:46
+Updated 2026-11-08T22:08:21
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
@@ -10,17 +10,18 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Antelope Valley | 2 | 0 | 0 | 0 |
 | Bakersfield | 2 | 0 | 0 | 0 |
 | Barstow | 2 | 2 | 0 | 0 |
-| Butte | 0 | 2 | 0 | 0 |
+| Butte | 0 | 3 | 0 | 0 |
 | Canyons | 4 | 0 | 0 | 0 |
 | Cerritos | 3 | 0 | 0 | 0 |
 | Cerro Coso | 2 | 0 | 1 | 0 |
+| Chabot | 0 | 1 | 0 | 0 |
 | Chaffey | 3 | 0 | 0 | 0 |
 | Citrus | 3 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
 | Compton | 3 | 0 | 0 | 0 |
-| Copper Mountain | 2 | 1 | 0 | 0 |
+| Copper Mountain | 3 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 2 | 0 | 0 |
-| Cuesta | 0 | 2 | 1 | 0 |
+| Cuesta | 1 | 1 | 1 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
 | Cypress | 2 | 0 | 0 | 0 |
 | De Anza | 0 | 2 | 0 | 0 |
@@ -28,13 +29,15 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Diablo Valley | 0 | 2 | 0 | 0 |
 | East Los Angeles | 2 | 0 | 0 | 0 |
 | El Camino | 2 | 1 | 0 | 0 |
-| Feather River | 0 | 1 | 0 | 0 |
+| Feather River | 0 | 2 | 0 | 0 |
+| Folsom Lake | 1 | 0 | 0 | 0 |
 | Fullerton | 2 | 0 | 0 | 0 |
 | Gavilan | 1 | 0 | 0 | 0 |
 | Glendale | 4 | 0 | 0 | 0 |
-| Grossmont | 2 | 0 | 0 | 0 |
+| Grossmont | 3 | 0 | 0 | 0 |
 | Irvine Valley | 3 | 0 | 0 | 0 |
 | LA Harbor | 1 | 0 | 0 | 0 |
+| LA Pierce | 0 | 1 | 0 | 0 |
 | LA Southwest | 2 | 1 | 0 | 0 |
 | LA Trade Tech | 2 | 3 | 0 | 0 |
 | LA Valley | 2 | 0 | 0 | 0 |
@@ -67,10 +70,10 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Santa Ana | 4 | 0 | 0 | 0 |
 | Santa Barbara | 3 | 0 | 0 | 0 |
 | Santa Monica | 1 | 1 | 0 | 0 |
-| Santa Rosa | 0 | 2 | 0 | 0 |
+| Santa Rosa | 0 | 3 | 0 | 0 |
 | Santiago Canyon | 3 | 0 | 0 | 0 |
 | Sequoias | 2 | 0 | 0 | 0 |
-| Skyline | 0 | 1 | 0 | 0 |
+| Skyline | 0 | 2 | 0 | 0 |
 | Solano | 1 | 0 | 0 | 0 |
 | Southwestern | 4 | 0 | 0 | 0 |
 | Ventura | 3 | 0 | 1 | 0 |
@@ -78,7 +81,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | West LA | 2 | 0 | 0 | 0 |
 | West Valley | 2 | 0 | 0 | 0 |
 
-## Games without real minutes (32)
+## Games without real minutes (38)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -112,5 +115,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-06 | LA Trade Tech vs West Valley | LA Trade Tech: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_oi4y.xml |
 | 2026-11-06 | Merced vs Las Positas | Merced: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_sqbg.xml |
 | 2026-11-06 | Ohlone vs Solano | Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261106_ssyn.xml |
-| 2026-11-07 | Cuesta vs Diablo Valley | Diablo Valley: PLACEHOLDER (9 min), Cuesta: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_1ewx.xml |
+| 2026-11-07 | Butte vs Cosumnes River | Butte: PLACEHOLDER (7 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_ws4d.xml |
+| 2026-11-07 | Chabot vs Fresno | Chabot: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_apbt.xml |
+| 2026-11-07 | Compton vs Feather River | Feather River: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_cnyw.xml |
+| 2026-11-07 | Cuesta vs Diablo Valley | Diablo Valley: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_1ewx.xml |
+| 2026-11-07 | Lemoore vs LA Pierce | LA Pierce: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_6qzi.xml |
 | 2026-11-07 | LA Trade Tech vs San Jose | LA Trade Tech: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_tqgh.xml |
+| 2026-11-07 | Merritt vs Skyline | Skyline: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_d4yv.xml |
+| 2026-11-07 | Santa Rosa vs San Francisco | Santa Rosa: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_p3zx.xml |
