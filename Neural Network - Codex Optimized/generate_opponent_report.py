@@ -982,8 +982,8 @@ def syn_sentences(c, p):
     if not sa: return []
     st, out = sa.get('shot_types') or {}, []
     if st.get('at_rim_pct_fga') is not None:
-        out.append(f'Synergy shot data: {st["at_rim_pct_fga"]:.1f}% of his attempts come at the rim ({st.get("at_rim_fg_pct", 0):.1f}% FG, '
-                   f'{ordn(st.get("at_rim_pps_rank", 0))} pctile — {st.get("at_rim_pps_rating", "")})'
+        rk = (f', {ordn(st["at_rim_pps_rank"])} pctile — {st.get("at_rim_pps_rating", "")}' if st.get('at_rim_pps_rank') is not None else '')   # Synergy ranks only on enough shots
+        out.append(f'Synergy shot data: {st["at_rim_pct_fga"]:.1f}% of his attempts come at the rim ({st.get("at_rim_fg_pct", 0):.1f}% FG{rk})'
                    + (f'; {st["jump_shot_pct_fga"]:.1f}% are jumpers, {st.get("catch_shoot_pct_of_js", 0):.1f}% of them catch-and-shoot' if st.get('jump_shot_pct_fga') is not None else '') + '.')
     graded = [(st.get(f'{k}_pps_rank'), lab, st.get(f'{k}_fg_pct'), st.get(f'{k}_pps_rating')) for k, lab in SHOTS if st.get(f'{k}_pps_rank') is not None]
     if len(graded) >= 2:
