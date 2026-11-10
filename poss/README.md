@@ -964,6 +964,8 @@ five has 25+ offensive possessions).
     opponent's page on the Rosters tab.
 - **Scouting PDF:** the scouting PDF. It shares the game tracker's stored PDFs, and the opponent's
   opens first.
+  **⬇ Download PDF** (Scouting bar) saves the report showing like the post-game PDF: Files → Downloads as
+  `<Team>_scouting_report_<date>.pdf` (a PDF added by hand keeps its own name), ready to text.
 - **Games:** new game, open, export / import, delete, the Moorpark roster.
 - **Your data and updates.** Updating the tracker replaces its code, never your games: they live in the iPad's
   website storage, apart from the app's offline files. What *can* wipe them: deleting the home-screen icon, or Safari →
