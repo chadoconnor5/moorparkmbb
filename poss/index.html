@@ -1336,6 +1336,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="scout" class="hidden">
   <div class="sc-head"><b>Scouting</b><span id="sc-tabs"></span><select id="sc-sel"></select>
     <button class="btn btn-sm" data-act="sc-add">Add PDF…</button>
+    <button class="btn btn-sm btn-good" data-act="sc-dl">⬇ Download PDF</button>
     <button class="btn btn-sm" data-act="sc-zoom" data-z="-1">−</button><button class="btn btn-sm" data-act="sc-zoom" data-z="0">Fit</button><button class="btn btn-sm" data-act="sc-zoom" data-z="1">+</button>
     <button class="btn btn-good" data-act="sc-close">◀ Back to game</button></div>
   <div id="sc-pages"></div>
@@ -1347,7 +1348,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.05.330';
+const VERSION = 'v2026.11.10.110';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3422,7 +3423,7 @@ function teamStatsTable(name, mode) {
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
-  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${A('ind_ortg')}</td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
   const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rankrow"><td class="ts-l ts-ranklabel">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
   let zi = 0;   // alternating colours per player; his State Rank line shares his colour
   const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-hasrank' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rankrow">', `<tr class="ts-rankrow${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}"><span class="ts-band-l">${l}</span></td></tr>`;
@@ -4387,6 +4388,7 @@ document.addEventListener('click', ev => {
     case 'export-off': exportLeaderboard(g, 'off'); break;
     case 'sc-close': $('#scout').classList.add('hidden'); break;
     case 'sc-add': $('#sc-file').click(); break;
+    case 'sc-dl': scoutDownload(); break;
     case 'sc-zoom': { const z = +b.dataset.z; SC.zoom = z === 0 ? 1 : Math.min(3, Math.max(0.5, SC.zoom * (z > 0 ? 1.25 : 0.8))); layoutScout(); break; }
 
     case 'tech-team': TECH.team = b.dataset.t; TECH.player = null; techModal(); break;
@@ -4654,6 +4656,20 @@ async function drawPage(holder, n, scale, token) {
   c.width = Math.floor(vp.width); c.height = Math.floor(vp.height); c.style.width = holder.style.width; c.style.height = holder.style.height;
   holder.innerHTML = ''; holder.appendChild(c);
   try { await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; } catch (e) {}
+}
+/* ⬇ Download PDF: the scouting report showing, saved like the post-game report PDF (Files → Downloads, ready to
+   text): <Team>_scouting_report_<date>.pdf for a report from the site, the file's own name for one added here. */
+async function scoutDownload() {
+  const rec = SC.key ? await idbGet(SC.key).catch(() => null) : null;
+  const bytes = rec && (rec.data || (rec.blob && await rec.blob.arrayBuffer()));
+  if (!bytes) { toast('Pick a scouting report first'); return; }
+  const clean = t => String(t || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const name = rec.team ? `${clean(rec.team)}_scouting_report_${String(rec.gen || rec.added || '').slice(0, 10) || today()}.pdf`
+    : /\.pdf$/i.test(rec.name || '') ? rec.name : (clean(rec.name) || 'scouting_report') + '.pdf';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast(`Scouting report PDF downloaded: Files → Downloads (${name}), ready to text`, 'good');
 }
 $('#sc-sel').addEventListener('change', e => { const g = cur(); if (g) { g.scoutKey = e.target.value || null; save(); } showScout(e.target.value); });
 $('#sc-file').addEventListener('change', async e => {

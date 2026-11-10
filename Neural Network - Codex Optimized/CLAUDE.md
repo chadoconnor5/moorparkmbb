@@ -215,6 +215,22 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Mathew Wilson, WILSON,MATTHEW -> WILSON,MATHEW). Add a pair there for any other; the possession tracker has its own
   NAME_FIX (poss/index.html) that renames its stored games, roster and incoming files. The practice tracker and game
   tracker keep their own spelling (their data on the iPad is keyed by name).
+- Starters-at-40 / bench-at-0 box scores (the minutes add up to 200 but bench players with stats show 0: 11/6 Santa Ana
+  at Los Angeles City): box_minutes.py rebuilds the minutes from the game's play-by-play (compute_pbp_lineups.game_units'
+  stints, each player's share of the 40 minutes, whole minutes adding up to 200 / +25 an OT). scrape.save_box runs it
+  as each box score is saved; the box keeps the scorekeeper's number as "min_box" and minutes_quality says PBP
+  (counted as real). Only when the play-by-play places 75%+ of the game and every player with a stat was on the floor;
+  otherwise the side stays BENCH_ZERO (minutes_report: wrong total). Saved box scores: python3 box_minutes.py
+  [--dry-run], then python3 scrape.py rebuild (no site requests). 2026-27 through 11/7: 6 such sides, 5 fixed (10/31
+  Bakersfield has no play-by-play).
+- ORtg (est) for teams without reliable minutes (placeholder / no minutes in their box scores): minutes enter Dean
+  Oliver's individual ORtg only through qAST, so update_advanced_analytics writes ind_ortg_est / pprod_est / scposs_est
+  for every player with his minutes estimated as his share of the team's activity (FGA, .44 FTA, TO, AST, OREB, DREB,
+  PF, STL, BLK) of the team's player-minutes. 2025-26 real-minutes teams (254 players, 100+ FGA): 0.1 ORtg points off
+  on average, 0.3 for 90%, 1.1 at most. Shown marked "est" where the real ORtg isn't (adv 0 teams): the leaderboard's
+  Team Stats (ortg_est on roster rows, a note above the table) and player pages, the tracker's Team Stats table,
+  the scouting report's player cards (BOX_ONLY). Usage, rebound / assist / steal / block %, per-40 and PRPG! stay blank
+  (they really are per-minute). Not in the individual ORtg leaderboard (it ranks within %Poss bands).
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
   from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
   the score margin dotted on the right axis, a dot per play (shots, free throws, turnovers) in the team's color

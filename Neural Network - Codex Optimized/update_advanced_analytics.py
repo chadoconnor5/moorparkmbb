@@ -1079,11 +1079,26 @@ def update_team(team_name: str, prior: dict = None):
 
     # Second pass: compute per-player analytics with context
     player_analytics = []
+    # Estimated ORtg / PProd / ScPoss for teams without real minutes (placeholder or missing in their box scores).
+    # Minutes enter Dean Oliver's ORtg only through qAST (the share of a player's makes that were assisted), so each
+    # player's minutes are estimated as his share of the team's activity (FGA, .44 FTA, TO, AST, OREB, DREB, PF, STL,
+    # BLK) of the team's player-minutes. Tested on 2025-26's real-minutes teams (254 players with 100+ FGA): 0.1 ORtg
+    # points off on average, 0.3 for 90% of them, 1.1 at most. Written for every player as *_est; the leaderboard,
+    # player pages, tracker files and scouting reports show them (marked est.) only where the real ones can't be.
+    _act = lambda t: (t.get("FGA", 0) + 0.44 * t.get("FTA", 0) + t.get("TO", 0) + t.get("AST", 0) + t.get("OREB", 0)
+                      + t.get("DREB", 0) + t.get("PF", 0) + t.get("STL", 0) + t.get("BLK", 0))
+    act_total = sum(_act(p["totals"]) for p in stats["players"])
     for p in stats["players"]:
         name = p["name"]
         totals = p["totals"]
         entry = {"name": name}
         entry.update(compute_player_analytics(totals, ctx))
+        est = None
+        if act_total > 0 and ctx["team_min"]:
+            est = _offense_components(dict(totals, MIN=5 * ctx["team_min"] * _act(totals) / act_total), ctx)
+        entry["ind_ortg_est"] = round(100 * est[0] / est[2], 1) if est and est[2] > 0 else None
+        entry["pprod_est"] = round(est[0], 2) if est else None
+        entry["scposs_est"] = round(est[1], 2) if est else None
         player_analytics.append(entry)
 
     # Compute team-level analytics (shared with players)

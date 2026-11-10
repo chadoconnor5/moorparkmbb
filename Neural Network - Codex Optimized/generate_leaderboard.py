@@ -1512,6 +1512,9 @@ def load_players(stats_dir=None):
                     "cls": class_map.get((team, _height_player_key(clean_name)), ""),
                     "fm": 0 if adv_eligible else 1,  # 1 = unreliable ("false") minutes team
                     "ind_ortg": _adv.get("ind_ortg"),
+                    # teams without reliable minutes: ORtg from estimated minutes (update_advanced_analytics: minutes
+                    # only enter it through qAST), shown marked est.; None where the real one is shown
+                    "ortg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("ind_ortg_est"),
                     "ind_drtg": _adv.get("ind_drtg"),
                     "efg_pct": _efg,
                     "ts_pct": _ts,
@@ -1729,6 +1732,7 @@ def load_full_rosters(stats_dir=None):
                     "ftm": t["FTM"], "fta": t["FTA"],
                     "ftp": round(t["FTM"] / t["FTA"] * 100, 1) if t["FTA"] else 0.0,
                     "ind_ortg": _adv.get("ind_ortg"), "usage_pct": _adv.get("usage_pct"),
+                    "ortg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("ind_ortg_est"),
                     "shot_pct": _adv.get("shot_pct"), "efg_pct": _efg,
                     "ts_pct": _ts, "oreb_pct": _adv.get("oreb_pct"),
                     "dreb_pct": _adv.get("dreb_pct"), "ast_rate": _adv.get("ast_rate"),
@@ -2186,6 +2190,9 @@ def load_conf_players(stats_dir=None):
                     "cls": class_map.get((team, _height_player_key(clean_name)), ""),
                     "fm": 0 if adv_eligible else 1,  # 1 = unreliable ("false") minutes team
                     "ind_ortg": _adv.get("ind_ortg"),
+                    # teams without reliable minutes: ORtg from estimated minutes (update_advanced_analytics: minutes
+                    # only enter it through qAST), shown marked est.; None where the real one is shown
+                    "ortg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("ind_ortg_est"),
                     "ind_drtg": _adv.get("ind_drtg"),
                     "efg_pct": _efg,
                     "ts_pct": _ts,
@@ -11585,7 +11592,7 @@ function __tsAdvTable(rows, advOk, teamName, ranks) {{
     const adv = k => advOk ? __tsF(r[k]) : '—';
     return '<td class="ts-l">' + playerLink(r.name, teamStatsReturnTeam) + '</td><td>' + (r.ht || '—') + '</td><td>' + r.gp + '</td>'
       + '<td>' + (advOk ? __tsF(r.min_pct) : '—') + '</td>'
-      + '<td><b>' + adv('ind_ortg') + '</b></td><td>' + adv('usage_pct') + '</td><td>' + adv('shot_pct') + '</td>'
+      + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span>' : '—') + '</b></td><td>' + adv('usage_pct') + '</td><td>' + adv('shot_pct') + '</td>'
       + '<td>' + adv('efg_pct') + '</td><td>' + adv('ts_pct') + '</td>'
       + '<td>' + adv('oreb_pct') + '</td><td>' + adv('dreb_pct') + '</td>'
       + '<td>' + adv('ast_rate') + '</td><td>' + adv('tov_pct') + '</td>'
@@ -11641,7 +11648,9 @@ function renderTeamStats(teamName) {{
     .forEach((d, i) => {{ netRtgRanks[d.team] = i + 1; }});
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
-    ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.</div>'
+    ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist).</div>' : '')
+      + '</div>'
     : '';
 
   document.getElementById('teamstats-content').innerHTML = `<style>
@@ -13025,6 +13034,7 @@ function renderPlayerProfile() {{
   const hl = [];
   hl.push('<b>' + __ppF(rRow.ppg) + '</b> PPG');
   if (advOk && rRow.ind_ortg != null) hl.push('<b>' + __ppF(rRow.ind_ortg) + '</b> ORtg');
+  else if (!advOk && rRow && rRow.ortg_est != null) hl.push('<b>' + __ppF(rRow.ortg_est) + '</b> ORtg <span style="font-size:0.75em;color:#888">(est)</span>');
   if (dRow && dRow.porp != null) hl.push('<b>' + __ppF(dRow.porp, 2) + '</b> PRPG!');
   if (dRow && dRow.bpm != null) hl.push('<b>' + __ppF(dRow.bpm, 2) + '</b> BPM');
 

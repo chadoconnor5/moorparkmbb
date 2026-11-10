@@ -51,6 +51,7 @@ from pathlib import Path
 
 os.chdir(Path(__file__).resolve().parent)  # all pipeline scripts run from the project root
 
+import box_minutes  # noqa: E402
 from ccc_config import CONFERENCES, DEFAULT_SEASON, fix_player_name, get_conference, schedule_dir, season_base_url  # noqa: E402
 from generate_team_stats import TEAM_ALIASES  # noqa: E402
 from scrape_team import ScheduleParser, parse_boxscore  # noqa: E402
@@ -594,7 +595,9 @@ def patch_schedules(state: State, g: dict, bs: dict, have_box: bool):
 # ---------------------------------------------------------------------------
 # Minutes on a team's box: REAL = real minutes (team total 190-275: 200 a game, +25 an overtime); PLACEHOLDER =
 # every player listed at 1 minute (or 0), i.e. not tracked; WRONG_TOTAL = real-looking minutes that don't add up
-# (a typo, a missing player, an 122-minute line); NONE = no minutes column.
+# (a typo, a missing player, an 122-minute line); NONE = no minutes column; BENCH_ZERO = adds up, but a player with
+# stats is at 0 (starters listed at 40, the bench at 0): box_minutes.repair replaces those with the play-by-play's
+# minutes when the game has one (then PBP, counted as real).
 REAL_MIN_RANGE = (190, 275)
 
 
@@ -614,6 +617,8 @@ def minutes_quality(players: list) -> dict:
     if max(mins) <= 1:
         return {"minutes": "PLACEHOLDER", "total": total}
     lo, hi = REAL_MIN_RANGE
+    if lo <= total <= hi and box_minutes.bench_zero(players):
+        return {"minutes": "BENCH_ZERO", "total": total}
     return {"minutes": "REAL" if lo <= total <= hi else "WRONG_TOTAL", "total": total}
 
 
@@ -734,6 +739,11 @@ def save_box(state: State, g: dict, bs: dict) -> list:
     plays = bs.pop("_plays", None)
     box = bs
     drop_nicknames(box, plays)
+    try:   # starters at 40 / bench at 0: real minutes from this game's play-by-play
+        for t in box_minutes.repair(box, plays):
+            print(f"    {t}: box score minutes had the bench at 0 — minutes taken from the play-by-play")
+    except Exception as err:
+        print(f"    minutes not repaired ({err})")
     if plays:
         d = date.fromisoformat(g["date"])
         pdir = Path(f"{state.season} Play by Play")
@@ -1335,7 +1345,7 @@ def minutes_rows(state: State, keys: list) -> list:
     for k in keys:
         e = state.ledger.get(k, {})
         mq = e.get("minutes") or {}
-        bad = {t: q for t, q in mq.items() if q.get("minutes") != "REAL"}
+        bad = {t: q for t, q in mq.items() if q.get("minutes") not in ("REAL", "PBP")}
         if bad:
             g = state.games[k]
             rows.append({"date": g["date"], "game": " vs ".join(g["names"]),
@@ -1350,10 +1360,12 @@ def write_minutes_report(state: State):
     for k, e in state.ledger.items():
         for t, q in (e.get("minutes") or {}).items():
             c = per.setdefault(t, {"REAL": 0, "PLACEHOLDER": 0, "WRONG_TOTAL": 0, "NONE": 0})
+            q = dict(q, minutes="REAL" if q.get("minutes") == "PBP" else "WRONG_TOTAL" if q.get("minutes") == "BENCH_ZERO" else q.get("minutes"))
             c[q.get("minutes", "NONE")] = c.get(q.get("minutes", "NONE"), 0) + 1
     lines = [f"# Box score minutes — {state.season}", "", f"Updated {now_iso()}", "",
              "REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · "
-             "WRONG_TOTAL = minutes that don't add up · NONE = no minutes", "",
+             "WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · "
+             "NONE = no minutes · minutes rebuilt from the play-by-play count as real", "",
              "| Team | Real | Placeholder | Wrong total | None |", "|---|---|---|---|---|"]
     for t, c in sorted(per.items()):
         lines.append(f"| {t} | {c['REAL']} | {c['PLACEHOLDER']} | {c['WRONG_TOTAL']} | {c['NONE']} |")
