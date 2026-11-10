@@ -982,14 +982,23 @@ def syn_sentences(c, p):
     if not sa: return []
     st, out = sa.get('shot_types') or {}, []
     if st.get('at_rim_pct_fga') is not None:
-        out.append(f'Synergy shot data: {st["at_rim_pct_fga"]:.1f}% of his attempts come at the rim ({st.get("at_rim_fg_pct", 0):.1f}% FG, '
-                   f'{ordn(st.get("at_rim_pps_rank", 0))} pctile — {st.get("at_rim_pps_rating", "")})'
+        rk = (f', {ordn(st["at_rim_pps_rank"])} pctile — {st.get("at_rim_pps_rating", "")}' if st.get('at_rim_pps_rank') is not None else '')   # Synergy ranks only on enough shots
+        out.append(f'Synergy shot data: {st["at_rim_pct_fga"]:.1f}% of his attempts come at the rim ({st.get("at_rim_fg_pct", 0):.1f}% FG{rk})'
                    + (f'; {st["jump_shot_pct_fga"]:.1f}% are jumpers, {st.get("catch_shoot_pct_of_js", 0):.1f}% of them catch-and-shoot' if st.get('jump_shot_pct_fga') is not None else '') + '.')
     graded = [(st.get(f'{k}_pps_rank'), lab, st.get(f'{k}_fg_pct'), st.get(f'{k}_pps_rating')) for k, lab in SHOTS if st.get(f'{k}_pps_rank') is not None]
     if len(graded) >= 2:
         hi, lo = max(graded, key=lambda x: x[0]), min(graded, key=lambda x: x[0])
         out.append(f'His best-graded shot is {hi[1]} ({hi[2]:.1f}% FG, {ordn(hi[0])} pctile — {hi[3]}); his lowest is {lo[1]} '
                    f'({lo[2]:.1f}% FG, {ordn(lo[0])} pctile — {lo[3]}).')
+    dfn = sa.get('defense')   # Synergy's player Defense tab, when sent: what his man scores on him
+    if dfn and dfn.get('poss'):
+        top = sorted(dfn.get('play_types') or [], key=lambda x: -x['poss'])[:3]
+        out.append(f'Synergy defense: he allows {dfn["ppp"]:.3f} PPP on {dfn["poss"]} possessions'
+                   + (f' ({ordn(dfn["ppp_rank"])} pctile — {dfn.get("ppp_rating", "")})' if dfn.get('ppp_rank') is not None else '')
+                   + (', most often against ' + ', '.join(f'{x_(x["name"])} ({x["poss"]}, {x["ppp"]:.3f} PPP)' for x in top) if top else '') + '.'
+                   + (lambda d: f' Shots his man takes: {d["fga"]} FGA, {d["fg_made"]} made; {d["jump_shot_pct_fga"]:.0f}% jumpers'
+                      + (f' (catch-and-shoot {d["catch_shoot_fg"]}, off the dribble {d["dribble_jumper_fg"]})' if d.get('catch_shoot_fg') else '')
+                      + (f', from three {d["three_pt_fg"]}' if d.get('three_pt_fg') else '') + '.' if d.get('fga') else '')(dfn.get('shot_types') or {}))
     pts = _parse_playtypes(sa.get('scoring_summary'))
     if pts:
         names = {'spotup': 'Spot Up', 'pnr_bh': 'P&amp;R ball handler', 'postup': 'Post-Up', 'iso': 'Isolation', 'transition': 'Transition',
@@ -1035,9 +1044,9 @@ def syn_rows(c, p):
         TEAL, TEAL_DK, TEAL_BD = colors.HexColor('#b2dfdb'), colors.HexColor('#001a18'), colors.HexColor('#26a69a')
         labs = [f'AT RIM ({st["at_rim_att"]} att)' if st.get('at_rim_att') else 'AT RIM', 'CATCH & SHOOT', 'DRIB. JUMPER',
                 f'3-PT ({st["three_pt_att"]} att)' if st.get('three_pt_att') else '3-PT']
-        vals = [(st.get(f'{k}_fg_pct', 0) or 0, st.get(f'{k}_pps_rating', '')) for k, _ in SHOTS]
+        vals = [(st.get(f'{k}_fg_pct'), st.get(f'{k}_pps_rating', '')) for k, _ in SHOTS]   # None: no attempts of that kind ("—")
         inner = Table([[Paragraph(l, S(6.5, True, TEAL, TA_CENTER)) for l in labs],
-                       [Paragraph(f'<b>{v:.1f}%</b>  <font color="#b2dfdb">{r_}</font>', S(8.5, False, WHITE, TA_CENTER)) for v, r_ in vals]], colWidths=[1.875 * inch] * 4)
+                       [Paragraph((f'<b>{v:.1f}%</b>  <font color="#b2dfdb">{r_}</font>' if v is not None else '<b>—</b>'), S(8.5, False, WHITE, TA_CENTER)) for v, r_ in vals]], colWidths=[1.875 * inch] * 4)
         inner.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), TEAL_DK), ('INNERGRID', (0, 0), (-1, -1), 0.3, TEAL_BD), ('BOX', (0, 0), (-1, -1), 0.5, TEAL_BD),
                                    ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 4),
                                    ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
