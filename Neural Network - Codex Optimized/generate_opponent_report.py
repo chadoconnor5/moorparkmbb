@@ -500,7 +500,8 @@ def last(n): return n.split()[-1]
 def rot_by(c, f, rev=True): return sorted(c.rotation, key=f, reverse=rev)
 def A(p): return p['averages']
 def mins(c, p, pre=' in '): return f'{pre}{A(p).get("MIN", 0):.1f} MPG' if c.min_ok else ''
-BOX_ONLY = ('efg_pct', 'ts_pct', 'ft_rate')   # the advanced numbers that don't need minutes
+BOX_ONLY = ('efg_pct', 'ts_pct', 'ft_rate', 'ind_ortg_est')   # the advanced numbers that don't need minutes (ORtg from
+# estimated minutes: update_advanced_analytics; within ~0.1 of the real one where minutes exist)
 def ADV(c, p):
     a = c.plyr_adv.get(p['name'], {})
     return a if c.min_ok else {k: a[k] for k in BOX_ONLY if k in a}
@@ -1138,7 +1139,8 @@ def player_card(c, p):
                   Paragraph(f'{role_s}<font color="#aab8d0">{pos_code}{ht_s}'
                             f'{pos_tail}</font>{poss_s}', S(8, False, GOLD, TA_CENTER)),
                   Paragraph(f'<font color="#aab8d0">{gp} GP · ' + (f'{mpg:.1f} MPG' if c.min_ok else 'minutes not kept') + '</font>' + (f'<br/><font color="#aab8d0">ORtg</font> <b>{io:.1f}</b>  '
-                            f'<font color="#aab8d0">DRtg</font> <b>{idr:.1f}</b>  <font color="{net_c}"><b>Net {inet:+.1f}</b></font>' if io > 0 else ''),
+                            f'<font color="#aab8d0">DRtg</font> <b>{idr:.1f}</b>  <font color="{net_c}"><b>Net {inet:+.1f}</b></font>' if io > 0
+                            else f'<br/><font color="#aab8d0">ORtg (est)</font> <b>{adv["ind_ortg_est"]:.1f}</b>' if not c.min_ok and adv.get('ind_ortg_est') else ''),
                             S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.8 * inch, 2.5 * inch, 2.2 * inch])
     hdr.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), DARK), ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
