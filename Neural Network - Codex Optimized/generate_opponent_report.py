@@ -990,6 +990,15 @@ def syn_sentences(c, p):
         hi, lo = max(graded, key=lambda x: x[0]), min(graded, key=lambda x: x[0])
         out.append(f'His best-graded shot is {hi[1]} ({hi[2]:.1f}% FG, {ordn(hi[0])} pctile — {hi[3]}); his lowest is {lo[1]} '
                    f'({lo[2]:.1f}% FG, {ordn(lo[0])} pctile — {lo[3]}).')
+    dfn = sa.get('defense')   # Synergy's player Defense tab, when sent: what his man scores on him
+    if dfn and dfn.get('poss'):
+        top = sorted(dfn.get('play_types') or [], key=lambda x: -x['poss'])[:3]
+        out.append(f'Synergy defense: he allows {dfn["ppp"]:.3f} PPP on {dfn["poss"]} possessions'
+                   + (f' ({ordn(dfn["ppp_rank"])} pctile — {dfn.get("ppp_rating", "")})' if dfn.get('ppp_rank') is not None else '')
+                   + (', most often against ' + ', '.join(f'{x_(x["name"])} ({x["poss"]}, {x["ppp"]:.3f} PPP)' for x in top) if top else '') + '.'
+                   + (lambda d: f' Shots his man takes: {d["fga"]} FGA, {d["fg_made"]} made; {d["jump_shot_pct_fga"]:.0f}% jumpers'
+                      + (f' (catch-and-shoot {d["catch_shoot_fg"]}, off the dribble {d["dribble_jumper_fg"]})' if d.get('catch_shoot_fg') else '')
+                      + (f', from three {d["three_pt_fg"]}' if d.get('three_pt_fg') else '') + '.' if d.get('fga') else '')(dfn.get('shot_types') or {}))
     pts = _parse_playtypes(sa.get('scoring_summary'))
     if pts:
         names = {'spotup': 'Spot Up', 'pnr_bh': 'P&amp;R ball handler', 'postup': 'Post-Up', 'iso': 'Isolation', 'transition': 'Transition',
