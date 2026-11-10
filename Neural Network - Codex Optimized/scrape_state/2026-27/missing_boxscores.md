@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-08T22:08:21
+Updated 2026-11-09T22:51:27
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -67,4 +67,4 @@ Updated 2026-11-08T22:08:21
 | 2026-11-07 | Merritt vs Skyline | PARTIAL | only Skyline posted stats; missing Merritt | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_d4yv.xml | 2 | 2026-11-08T22:05 |
 | 2026-11-07 | Monterey Peninsula vs Yuba | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-08T22:08 |
 | 2026-11-07 | Santa Rosa vs San Francisco | PARTIAL | only Santa Rosa posted stats; missing San Francisco | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_p3zx.xml | 1 | 2026-11-08T22:05 |
-| 2026-11-08 | American River vs Cabrillo | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-08T22:08 |
+| 2026-11-08 | American River vs Cabrillo | PARTIAL | only Cabrillo posted stats; missing American River | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml | 2 | 2026-11-09T22:49 |

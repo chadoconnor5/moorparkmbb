@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-08T22:08:21
+Updated 2026-11-09T22:51:27
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
 
@@ -11,6 +11,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Bakersfield | 2 | 0 | 0 | 0 |
 | Barstow | 2 | 2 | 0 | 0 |
 | Butte | 0 | 3 | 0 | 0 |
+| Cabrillo | 0 | 1 | 0 | 0 |
 | Canyons | 4 | 0 | 0 | 0 |
 | Cerritos | 3 | 0 | 0 | 0 |
 | Cerro Coso | 2 | 0 | 1 | 0 |
@@ -21,7 +22,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Compton | 3 | 0 | 0 | 0 |
 | Copper Mountain | 3 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 2 | 0 | 0 |
-| Cuesta | 1 | 1 | 1 | 0 |
+| Cuesta | 2 | 1 | 1 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
 | Cypress | 2 | 0 | 0 | 0 |
 | De Anza | 0 | 2 | 0 | 0 |
@@ -57,6 +58,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Palomar | 4 | 0 | 0 | 0 |
 | Pasadena City | 2 | 0 | 0 | 0 |
 | Porterville | 1 | 0 | 0 | 0 |
+| Redwoods | 0 | 1 | 0 | 0 |
 | Reedley | 1 | 2 | 0 | 0 |
 | Rio Hondo | 3 | 0 | 0 | 0 |
 | Riverside | 3 | 0 | 0 | 0 |
@@ -64,12 +66,12 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Saddleback | 5 | 0 | 0 | 0 |
 | San Bernardino Valley | 3 | 0 | 0 | 0 |
 | San Diego City | 2 | 0 | 0 | 0 |
-| San Diego Mesa | 2 | 0 | 0 | 0 |
+| San Diego Mesa | 3 | 0 | 0 | 0 |
 | San Diego Miramar | 2 | 0 | 0 | 0 |
 | San Jose | 1 | 0 | 0 | 0 |
 | Santa Ana | 4 | 0 | 0 | 0 |
 | Santa Barbara | 3 | 0 | 0 | 0 |
-| Santa Monica | 1 | 1 | 0 | 0 |
+| Santa Monica | 2 | 1 | 0 | 0 |
 | Santa Rosa | 0 | 3 | 0 | 0 |
 | Santiago Canyon | 3 | 0 | 0 | 0 |
 | Sequoias | 2 | 0 | 0 | 0 |
@@ -81,7 +83,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | West LA | 2 | 0 | 0 | 0 |
 | West Valley | 2 | 0 | 0 | 0 |
 
-## Games without real minutes (38)
+## Games without real minutes (40)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -123,3 +125,5 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-07 | LA Trade Tech vs San Jose | LA Trade Tech: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_tqgh.xml |
 | 2026-11-07 | Merritt vs Skyline | Skyline: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_d4yv.xml |
 | 2026-11-07 | Santa Rosa vs San Francisco | Santa Rosa: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_p3zx.xml |
+| 2026-11-08 | American River vs Cabrillo | Cabrillo: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml |
+| 2026-11-09 | Cuesta vs Redwoods | Redwoods: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261109_11hs.xml |
