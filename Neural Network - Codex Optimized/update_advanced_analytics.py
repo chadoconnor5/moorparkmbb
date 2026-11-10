@@ -1110,15 +1110,18 @@ def update_team(team_name: str, prior: dict = None):
         # Minutes (and so usage) estimated from the box score for the PRPG! estimate and a three-tier role, for teams
         # without reliable minutes: his share of the team's possessions in his games (Oliver possessions used, which
         # need no minutes), over a %Min fitted on 2022-23 to 2025-26's real-minutes players (MIN_EST_W). Tested on each
-        # season with a fit that left it out: %Min 4.6 points off on average, PRPG! 0.16, the role tier right 76% of the
-        # time (Primary >24% usage / Rotation 16-24 / Limited <16; the six KenPom bands only 52%, so they aren't shown).
+        # season with a fit that left it out: %Min 4.6 points off on average. %Min is of the team's whole season (KenPom /
+        # Torvik), so usage is his season share of the team's possessions over it (not the share in his games: that
+        # inflated anyone who missed games). On 2022-23 to 2025-26 real-minutes players: usage 1.7 off, PRPG! 0.07, the top
+        # 24 by PRPG! 23-24 of 24 the same, the role tier right 79-83% of the time (Primary >24% usage / Rotation 16-24 /
+        # Limited <16; the six KenPom bands don't hold up, so they aren't shown).
         g, G = totals.get("games") or 0, team_games
         if est and est[2] > 0 and g and G and ctx["team_poss"]:
             share = 100 * est[2] / (ctx["team_poss"] * g / G)
             f = [1, (totals.get("GS") or totals.get("gs") or 0) / g, share] + [totals.get(k, 0) / g for k in
                  ("PF", "OREB", "DREB", "AST", "STL", "BLK", "TO", "FGA", "FTA")] + [100 * _act(totals) / act_total, G / g]
             min_est = max(15.0, min(100.0, sum(w * x for w, x in zip(MIN_EST_W, f))))
-            usage_est = 100 * share / min_est
+            usage_est = 100 * share * g / G / min_est
             entry["poss_share_est"] = round(share, 1)
             entry["min_pct_est"] = round(min_est, 1)
             entry["usage_est"] = round(usage_est, 1)

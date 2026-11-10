@@ -3116,8 +3116,8 @@ def attach_porpagatu(players, teams):
         p["porp"] = round((adjoe + (104.9 - avg_eff) - 88.0) * (minp / 100.0) * 69.4 / 500.0, 2)
     # PRPG! (est.) for players on teams without reliable minutes: the same formula on ORtg (est.) and the box-score usage /
     # %Min estimate (update_advanced_analytics). PRPG! leans on usage x %Min, their product being the share of the team's
-    # possessions he used, which needs no minutes: on 2022-23 to 2025-26's real-minutes players 0.16 off on average and
-    # 22 of the top 24 the same. Kept apart from porp (porp_est) so the real-minutes leaderboards stay as they are.
+    # possessions he used, which needs no minutes: on 2022-23 to 2025-26's real-minutes players 0.07 off on average and
+    # 23-24 of the top 24 the same each season. Kept apart from porp (porp_est) so the real-minutes leaderboards stay as they are.
     for p in players:
         ortg, usg, minp = p.get("ortg_est"), p.pop("_u_est", None), p.pop("_m_est", None)
         p["porp_est"] = None
@@ -11685,7 +11685,7 @@ function renderTeamStats(teamName) {{
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
     ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
-      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss shows a role (est): Primary (over 24% usage), Rotation (16-24%) or Limited (under 16%), from his share of the team’s possessions and his box score (the right tier about 3 times in 4 where real minutes exist).</div>' : '')
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss shows a role (est): Primary (over 24% usage), Rotation (16-24%) or Limited (under 16%), from his share of the team’s possessions and his box score (the right tier about 4 times in 5 where real minutes exist).</div>' : '')
       + '</div>'
     : '';
 

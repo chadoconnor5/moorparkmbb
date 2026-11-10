@@ -236,9 +236,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   shown for estimates) and PRPG! (est) (porp_est). The role and PRPG! use a minutes estimate inside the sums only,
   never shown: update_advanced_analytics.MIN_EST_W, a regression of %Min on starts a game (generate_team_stats now
   counts GS), possession share (TotPoss / team possessions in his games, exactly minute-free), per-game box stats
-  and activity share, fitted on 2022-23 to 2025-26 real-minutes players (%Min 4.6 off; the right tier 76%). usage_est
-  = share / %Min est. attach_porpagatu runs the real formula on ORtg (est), usage_est and min_pct_est for players
-  without a real PRPG!: 0.16 off on 2025-26, 22 of the top 24 the same. All-State / All-Conference use porp_est for
+  and activity share, fitted on 2022-23 to 2025-26 real-minutes players (%Min 4.6 off; the right tier 79-83%). usage_est
+  = season possession share / %Min est (%Min is of the whole season: the share in his games alone inflated anyone who
+  missed games). attach_porpagatu runs the real formula on ORtg (est), usage_est and min_pct_est for players
+  without a real PRPG!: 0.07 off on 2022-23 to 2025-26, 23-24 of the top 24 the same each season. All-State / All-Conference use porp_est for
   fake-minutes players (the Game Score stand-in stays for seasons without it). Shown on the leaderboard's Team Stats
   and player pages, the tracker's Team Stats table and the scouting report's player cards (role and TO% est).
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
