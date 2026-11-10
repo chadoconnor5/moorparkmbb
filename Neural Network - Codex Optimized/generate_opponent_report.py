@@ -1003,6 +1003,8 @@ def syn_sentences(c, p):
                    + (f' ({pr["reject_note"]})' if pr.get('reject_note') else '') if pr.get('reject') else '') + '. '
                    + '; '.join(f'{x_(w).capitalize()} P&amp;R: {n} possession{"s" if n != 1 else ""}, {pts} point{"s" if pts != 1 else ""} ({x_(note)})'
                                for w, n, pts, note in pr.get('parts') or []) + '.')
+    for nm, n, ppp, note in sa.get('breakdowns') or []:   # a play type's Synergy detail, when sent (Transition, Spot Up...)
+        out.append(f'Synergy {x_(nm)}: {n} possession{"s" if n != 1 else ""}, {ppp:.3f} PPP ({x_(note)}).')
     dfn = sa.get('defense')   # Synergy's player Defense tab, when sent: what his man scores on him
     if dfn and dfn.get('poss'):
         top = sorted(dfn.get('play_types') or [], key=lambda x: -x['poss'])[:3]
