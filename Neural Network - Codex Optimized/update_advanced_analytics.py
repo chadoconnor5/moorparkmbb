@@ -339,6 +339,13 @@ def _offense_components(t: dict, ctx: dict):
     return PProd, ScPoss, TotPoss
 
 
+# %Min from the box score, for players on teams without real minutes (least squares on 2022-23 to 2025-26's qualified
+# real-minutes players): [1, starts / games, possession share, then per game PF, OREB, DREB, AST, STL, BLK, TO, FGA, FTA,
+# share of the team's activity %, team games / his games]
+MIN_EST_W = [28.54649, 12.89182, -1.90799, -1.50431, -2.45778, -0.67656, 1.0751, -0.90034, -2.37697, -0.75669,
+             1.15321, 0.16321, 4.16526, -5.6467]
+
+
 def _compute_ind_ortg(t: dict, ctx: dict) -> float:
     """Individual Offensive Rating: 100 * PProd / TotPoss (Dean Oliver)."""
     comp = _offense_components(t, ctx)
@@ -1088,6 +1095,7 @@ def update_team(team_name: str, prior: dict = None):
     _act = lambda t: (t.get("FGA", 0) + 0.44 * t.get("FTA", 0) + t.get("TO", 0) + t.get("AST", 0) + t.get("OREB", 0)
                       + t.get("DREB", 0) + t.get("PF", 0) + t.get("STL", 0) + t.get("BLK", 0))
     act_total = sum(_act(p["totals"]) for p in stats["players"])
+    team_games = (summary.get("totals") or {}).get("games") or summary.get("games_played") or 0
     for p in stats["players"]:
         name = p["name"]
         totals = p["totals"]
@@ -1099,6 +1107,24 @@ def update_team(team_name: str, prior: dict = None):
         entry["ind_ortg_est"] = round(100 * est[0] / est[2], 1) if est and est[2] > 0 else None
         entry["pprod_est"] = round(est[0], 2) if est else None
         entry["scposs_est"] = round(est[1], 2) if est else None
+        # Minutes (and so usage) estimated from the box score for the PRPG! estimate and a three-tier role, for teams
+        # without reliable minutes: his share of the team's possessions in his games (Oliver possessions used, which
+        # need no minutes), over a %Min fitted on 2022-23 to 2025-26's real-minutes players (MIN_EST_W). Tested on each
+        # season with a fit that left it out: %Min 4.6 points off on average, PRPG! 0.16, the role tier right 76% of the
+        # time (Primary >24% usage / Rotation 16-24 / Limited <16; the six KenPom bands only 52%, so they aren't shown).
+        g, G = totals.get("games") or 0, team_games
+        if est and est[2] > 0 and g and G and ctx["team_poss"]:
+            share = 100 * est[2] / (ctx["team_poss"] * g / G)
+            f = [1, (totals.get("GS") or totals.get("gs") or 0) / g, share] + [totals.get(k, 0) / g for k in
+                 ("PF", "OREB", "DREB", "AST", "STL", "BLK", "TO", "FGA", "FTA")] + [100 * _act(totals) / act_total, G / g]
+            min_est = max(15.0, min(100.0, sum(w * x for w, x in zip(MIN_EST_W, f))))
+            usage_est = 100 * share / min_est
+            entry["poss_share_est"] = round(share, 1)
+            entry["min_pct_est"] = round(min_est, 1)
+            entry["usage_est"] = round(usage_est, 1)
+            entry["role_est"] = "Primary" if usage_est > 24 else "Rotation" if usage_est >= 16 else "Limited"
+        else:
+            entry["poss_share_est"] = entry["min_pct_est"] = entry["usage_est"] = entry["role_est"] = None
         player_analytics.append(entry)
 
     # Compute team-level analytics (shared with players)

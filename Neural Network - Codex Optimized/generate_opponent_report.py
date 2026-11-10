@@ -1152,7 +1152,9 @@ def player_card(c, p):
     name, gp, mpg = p['name'], avg.get('games', 0), avg.get('MIN', 0)
     pos_code = c.pos.get(name, '—'); pos_name = POS_FULL.get(pos_code, '')
     usage = adv.get('usage_pct', 0); role_lbl, role_hex = kenpom_player_role(usage, mpg)
-    role_s = f'<font color="{role_hex}"><b>{role_lbl}</b></font>  ' if c.min_ok else ''
+    est = c.plyr_adv.get(name, {}) if not c.min_ok else {}   # minute-free estimates (update_advanced_analytics)
+    role_s = (f'<font color="{role_hex}"><b>{role_lbl}</b></font>  ' if c.min_ok
+              else f'<font color="#aab8d0"><b>{est["role_est"]}</b> (est)</font>  ' if est.get('role_est') else '')
     poss_s = f'  <font color="#ffd700">{usage:.1f}% poss</font>' if c.min_ok else ''
     io, idr = adv.get('ind_ortg', 0), adv.get('ind_drtg', 0); inet = io - idr
     net_c = '#34a853' if inet > 5 else '#e74c3c' if inet < -5 else '#aab8d0'
@@ -1164,7 +1166,7 @@ def player_card(c, p):
                             f'{pos_tail}</font>{poss_s}', S(8, False, GOLD, TA_CENTER)),
                   Paragraph(f'<font color="#aab8d0">{gp} GP · ' + (f'{mpg:.1f} MPG' if c.min_ok else 'minutes not kept') + '</font>' + (f'<br/><font color="#aab8d0">ORtg</font> <b>{io:.1f}</b>  '
                             f'<font color="#aab8d0">DRtg</font> <b>{idr:.1f}</b>  <font color="{net_c}"><b>Net {inet:+.1f}</b></font>' if io > 0
-                            else f'<br/><font color="#aab8d0">ORtg (est)</font> <b>{adv["ind_ortg_est"]:.1f}</b>' if not c.min_ok and adv.get('ind_ortg_est') else ''),
+                            else f'<br/><font color="#aab8d0">ORtg (est)</font> <b>{adv["ind_ortg_est"]:.1f}</b>' + (f'  <font color="#aab8d0">TO% (est)</font> <b>{est["tov_pct"]:.1f}</b>' if est.get('tov_pct') is not None else '') if not c.min_ok and adv.get('ind_ortg_est') else ''),
                             S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.8 * inch, 2.5 * inch, 2.2 * inch])
     hdr.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), DARK), ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))

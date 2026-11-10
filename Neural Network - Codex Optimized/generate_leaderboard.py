@@ -1515,6 +1515,11 @@ def load_players(stats_dir=None):
                     # teams without reliable minutes: ORtg from estimated minutes (update_advanced_analytics: minutes
                     # only enter it through qAST), shown marked est.; None where the real one is shown
                     "ortg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("ind_ortg_est"),
+                    # and TO% (needs no minutes), a three-tier role and PRPG! (est.) from the box-score minutes estimate
+                    "tov_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("tov_pct"),
+                    "role_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("role_est"),
+                    "_u_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
+                    "_m_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("min_pct_est"),
                     "ind_drtg": _adv.get("ind_drtg"),
                     "efg_pct": _efg,
                     "ts_pct": _ts,
@@ -1733,6 +1738,9 @@ def load_full_rosters(stats_dir=None):
                     "ftp": round(t["FTM"] / t["FTA"] * 100, 1) if t["FTA"] else 0.0,
                     "ind_ortg": _adv.get("ind_ortg"), "usage_pct": _adv.get("usage_pct"),
                     "ortg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("ind_ortg_est"),
+                    # and TO% (needs no minutes), a three-tier role and PRPG! (est.) from the box-score minutes estimate
+                    "tov_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("tov_pct"),
+                    "role_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("role_est"),
                     "shot_pct": _adv.get("shot_pct"), "efg_pct": _efg,
                     "ts_pct": _ts, "oreb_pct": _adv.get("oreb_pct"),
                     "dreb_pct": _adv.get("dreb_pct"), "ast_rate": _adv.get("ast_rate"),
@@ -2193,6 +2201,11 @@ def load_conf_players(stats_dir=None):
                     # teams without reliable minutes: ORtg from estimated minutes (update_advanced_analytics: minutes
                     # only enter it through qAST), shown marked est.; None where the real one is shown
                     "ortg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("ind_ortg_est"),
+                    # and TO% (needs no minutes), a three-tier role and PRPG! (est.) from the box-score minutes estimate
+                    "tov_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("tov_pct"),
+                    "role_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("role_est"),
+                    "_u_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
+                    "_m_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("min_pct_est"),
                     "ind_drtg": _adv.get("ind_drtg"),
                     "efg_pct": _efg,
                     "ts_pct": _ts,
@@ -3074,6 +3087,9 @@ def attach_porpagatu(players, teams):
     """
     valid = [t for t in (teams or []) if (t.get("ortg") or 0) > 0 and (t.get("drtg") or 0) > 0]
     if not valid or not players:
+        for p in players or []:
+            p.pop("_u_est", None); p.pop("_m_est", None)
+            p["porp_est"] = None
         return
     avg_eff = sum(t["ortg"] for t in valid) / len(valid)
     drtg_by_team = {t["team"]: t["drtg"] for t in valid}
@@ -3098,6 +3114,21 @@ def attach_porpagatu(players, teams):
         slope = 1.25 if usg > 20 else 1.5
         adjoe = (x_ortg + (usg - 20) * slope) * sos.get(p["school"], 1.0)
         p["porp"] = round((adjoe + (104.9 - avg_eff) - 88.0) * (minp / 100.0) * 69.4 / 500.0, 2)
+    # PRPG! (est.) for players on teams without reliable minutes: the same formula on ORtg (est.) and the box-score usage /
+    # %Min estimate (update_advanced_analytics). PRPG! leans on usage x %Min, their product being the share of the team's
+    # possessions he used, which needs no minutes: on 2022-23 to 2025-26's real-minutes players 0.16 off on average and
+    # 22 of the top 24 the same. Kept apart from porp (porp_est) so the real-minutes leaderboards stay as they are.
+    for p in players:
+        ortg, usg, minp = p.get("ortg_est"), p.pop("_u_est", None), p.pop("_m_est", None)
+        p["porp_est"] = None
+        if p.get("porp") is not None or not ortg or not usg or not minp:
+            continue
+        ufactor = usg * -0.144 + 13.023
+        if ufactor <= 0:
+            continue
+        x_ortg = avg_eff + (ortg - avg_eff) / ufactor * 10.143
+        adjoe = (x_ortg + (usg - 20) * (1.25 if usg > 20 else 1.5)) * sos.get(p["school"], 1.0)
+        p["porp_est"] = round((adjoe + (104.9 - avg_eff) - 88.0) * (min(minp, 100.0) / 100.0) * 69.4 / 500.0, 2)
 
 
 def attach_win_shares_per(players, teams):
@@ -3612,7 +3643,9 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
     real_porp = sorted(p["porp"] for p in real if p.get("porp") is not None)
     fm_gs = sorted(gs(p) for p in fmq)
     def est_porp(p):
-        if not real_porp or not fm_gs:
+        if p.get("porp_est") is not None:   # the real PRPG! formula on ORtg (est.) and the box-score minutes estimate
+            return p["porp_est"]
+        if not real_porp or not fm_gs:   # seasons without it (past seasons keep the Game Score stand-in)
             return None
         frac = bisect.bisect_right(fm_gs, gs(p)) / len(fm_gs)
         return real_porp[min(len(real_porp) - 1, max(0, int(frac * len(real_porp)) - 1))]
@@ -3663,6 +3696,8 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
         def cporp(p):
             if not p.get("fm"):
                 return p.get("porp")
+            if p.get("porp_est") is not None:
+                return p["porp_est"]
             if not c_porp or not c_fm:
                 return None
             fr = bisect.bisect_right(c_fm, gs(p)) / len(c_fm)
@@ -11588,14 +11623,15 @@ function __tsAdvTable(rows, advOk, teamName, ranks) {{
     + '<th>Blk%</th><th>Stl%</th><th>FC/40</th><th>FD/40</th><th>FTRate</th>'
     + '<th>FTM-A</th><th>Pct</th><th>2PM-A</th><th>Pct</th><th>3PM-A</th><th>Pct</th></tr>';
   const NCOLS = 24;
+  const EST = '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span>';
   const cells = r => {{
     const adv = k => advOk ? __tsF(r[k]) : '—';
     return '<td class="ts-l">' + playerLink(r.name, teamStatsReturnTeam) + '</td><td>' + (r.ht || '—') + '</td><td>' + r.gp + '</td>'
       + '<td>' + (advOk ? __tsF(r.min_pct) : '—') + '</td>'
-      + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span>' : '—') + '</b></td><td>' + adv('usage_pct') + '</td><td>' + adv('shot_pct') + '</td>'
+      + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + EST : '—') + '</b></td><td>' + (advOk ? __tsF(r.usage_pct) : r.role_est ? r.role_est + EST : '—') + '</td><td>' + adv('shot_pct') + '</td>'
       + '<td>' + adv('efg_pct') + '</td><td>' + adv('ts_pct') + '</td>'
       + '<td>' + adv('oreb_pct') + '</td><td>' + adv('dreb_pct') + '</td>'
-      + '<td>' + adv('ast_rate') + '</td><td>' + adv('tov_pct') + '</td>'
+      + '<td>' + adv('ast_rate') + '</td><td>' + (advOk ? __tsF(r.tov_pct) : r.tov_est != null ? __tsF(r.tov_est) + EST : '—') + '</td>'
       + '<td>' + adv('blk_pct') + '</td><td>' + adv('stl_pct') + '</td>'
       + '<td>' + adv('fc_per_40') + '</td><td>' + adv('fd_per_40') + '</td><td>' + adv('ft_rate') + '</td>'
       + '<td>' + r.ftm + '-' + r.fta + '</td><td>' + __tsF(r.ftp) + '</td>'
@@ -11649,7 +11685,7 @@ function renderTeamStats(teamName) {{
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
     ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
-      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist).</div>' : '')
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss shows a role (est): Primary (over 24% usage), Rotation (16-24%) or Limited (under 16%), from his share of the team’s possessions and his box score (the right tier about 3 times in 4 where real minutes exist).</div>' : '')
       + '</div>'
     : '';
 
@@ -13036,6 +13072,8 @@ function renderPlayerProfile() {{
   if (advOk && rRow.ind_ortg != null) hl.push('<b>' + __ppF(rRow.ind_ortg) + '</b> ORtg');
   else if (!advOk && rRow && rRow.ortg_est != null) hl.push('<b>' + __ppF(rRow.ortg_est) + '</b> ORtg <span style="font-size:0.75em;color:#888">(est)</span>');
   if (dRow && dRow.porp != null) hl.push('<b>' + __ppF(dRow.porp, 2) + '</b> PRPG!');
+  else if (dRow && dRow.porp_est != null) hl.push('<b>' + __ppF(dRow.porp_est, 2) + '</b> PRPG! <span style="font-size:0.75em;color:#888">(est)</span>');
+  if (!advOk && rRow && rRow.role_est) hl.push('<b>' + rRow.role_est + '</b> role <span style="font-size:0.75em;color:#888">(est)</span>');
   if (dRow && dRow.bpm != null) hl.push('<b>' + __ppF(dRow.bpm, 2) + '</b> BPM');
 
   document.getElementById('player-content').innerHTML = `<style>
