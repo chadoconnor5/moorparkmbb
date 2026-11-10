@@ -1035,9 +1035,9 @@ def syn_rows(c, p):
         TEAL, TEAL_DK, TEAL_BD = colors.HexColor('#b2dfdb'), colors.HexColor('#001a18'), colors.HexColor('#26a69a')
         labs = [f'AT RIM ({st["at_rim_att"]} att)' if st.get('at_rim_att') else 'AT RIM', 'CATCH & SHOOT', 'DRIB. JUMPER',
                 f'3-PT ({st["three_pt_att"]} att)' if st.get('three_pt_att') else '3-PT']
-        vals = [(st.get(f'{k}_fg_pct', 0) or 0, st.get(f'{k}_pps_rating', '')) for k, _ in SHOTS]
+        vals = [(st.get(f'{k}_fg_pct'), st.get(f'{k}_pps_rating', '')) for k, _ in SHOTS]   # None: no attempts of that kind ("—")
         inner = Table([[Paragraph(l, S(6.5, True, TEAL, TA_CENTER)) for l in labs],
-                       [Paragraph(f'<b>{v:.1f}%</b>  <font color="#b2dfdb">{r_}</font>', S(8.5, False, WHITE, TA_CENTER)) for v, r_ in vals]], colWidths=[1.875 * inch] * 4)
+                       [Paragraph((f'<b>{v:.1f}%</b>  <font color="#b2dfdb">{r_}</font>' if v is not None else '<b>—</b>'), S(8.5, False, WHITE, TA_CENTER)) for v, r_ in vals]], colWidths=[1.875 * inch] * 4)
         inner.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), TEAL_DK), ('INNERGRID', (0, 0), (-1, -1), 0.3, TEAL_BD), ('BOX', (0, 0), (-1, -1), 0.5, TEAL_BD),
                                    ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 4),
                                    ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
