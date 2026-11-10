@@ -11649,7 +11649,7 @@ function renderTeamStats(teamName) {{
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
     ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
-      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player\'s makes that were assisted, so each player\'s minutes are estimated from his share of the team\'s activity (about 0.1 points off where real minutes exist).</div>' : '')
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist).</div>' : '')
       + '</div>'
     : '';
 
