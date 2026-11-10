@@ -996,6 +996,15 @@ def syn_sentences(c, p):
         hi, lo = max(graded, key=lambda x: x[0]), min(graded, key=lambda x: x[0])
         out.append(f'His best-graded shot is {hi[1]} ({hi[2]:.1f}% FG, {ordn(hi[0])} pctile — {hi[3]}); his lowest is {lo[1]} '
                    f'({lo[2]:.1f}% FG, {ordn(lo[0])} pctile — {lo[3]}).')
+    pr = sa.get('pnr')   # Synergy's P&R Ball Handler breakdown, when sent: off the screen or not, by side of the floor
+    if pr and pr.get('poss'):
+        out.append(f'Synergy pick-and-roll: {pr["poss"]} possessions as the ball handler, {pr["ppp"]:.3f} PPP; he came off the screen on '
+                   f'{pr.get("off_pick", 0)} of {pr["poss"]}' + (f' and went away from it {pr["reject"]} time{"s" if pr["reject"] != 1 else ""}'
+                   + (f' ({pr["reject_note"]})' if pr.get('reject_note') else '') if pr.get('reject') else '') + '. '
+                   + '; '.join(f'{x_(w).capitalize()} P&amp;R: {n} possession{"s" if n != 1 else ""}, {pts} point{"s" if pts != 1 else ""} ({x_(note)})'
+                               for w, n, pts, note in pr.get('parts') or []) + '.')
+    for nm, n, ppp, note in sa.get('breakdowns') or []:   # a play type's Synergy detail, when sent (Transition, Spot Up...)
+        out.append(f'Synergy {x_(nm)}: {n} possession{"s" if n != 1 else ""}, {ppp:.3f} PPP ({x_(note)}).')
     dfn = sa.get('defense')   # Synergy's player Defense tab, when sent: what his man scores on him
     if dfn and dfn.get('poss'):
         top = sorted(dfn.get('play_types') or [], key=lambda x: -x['poss'])[:3]
