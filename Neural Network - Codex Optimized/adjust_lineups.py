@@ -154,6 +154,15 @@ def load_players(season, ratings, team="Moorpark"):
             for scope in ("all", "quality") if quality else ("all",):
                 for k, v in line.items():
                     x[scope][k] = x[scope].get(k, 0) + v
+    # The team's typed-in roster (season_rosters) has the number he actually wears: box scores pad some ("#00" for 0)
+    try:
+        import season_rosters
+        typed = {r["name"]: r["num"] for r in season_rosters.load(season).get(team, [])}
+        for name, x in out.items():
+            if name in typed:
+                x["num"] = typed[name]
+    except Exception:
+        pass
     return out
 
 

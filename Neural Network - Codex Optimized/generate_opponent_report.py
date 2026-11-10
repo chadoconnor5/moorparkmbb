@@ -210,6 +210,12 @@ def load(team, season):
                 m = re.match(r'^(?:[A-Za-z]{1,2}\s+)?#?(\d+)\s+(.*)$', (r.get('name') or '').strip())
                 if m and m.group(2).strip() in names and m.group(2).strip() not in c.num_logs:
                     c.num[m.group(2).strip()] = _jersey(m.group(1))
+    try:   # the typed-in roster's number wins (box scores pad some: "#00" for a player who wears 0)
+        import season_rosters
+        for r in season_rosters.load(c.season).get(c.team, []):
+            if r['name'] in names: c.num[r['name']] = r['num']
+    except Exception:
+        pass
     dates = sorted(md(g['date']) for g in c.game_log)
     cut = dates[-GONE_GAMES] if logs_ok and len(dates) >= GONE_GAMES else None
     # Minutes are reliable when the box scores add up to most of a game's 200 player-minutes; on teams whose stat crews don't
