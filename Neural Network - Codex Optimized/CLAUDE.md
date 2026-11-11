@@ -154,6 +154,18 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current
   net rating of the conference's three best teams, whichever they are) and Avg Net (every member's current net),
   each with its rank among the conferences.
+- Opponent schedules in the possession tracker (Rosters -> Schedule): export_ratings.team_schedule puts each team file's
+  "schedule": every game on the typed-in schedule (date, opponent, H/A/N, time, event, conference), played ones with the
+  result and both box scores from the saved box score files (compact rows: #, name, MIN, FGM, FGA, 3PM, 3PA, FTM, FTA,
+  OREB, DREB, AST, STL, BLK, TO, PF, PTS, starter), plus played TBA games; mq marks a side without real minutes (shown
+  "—"). The tracker lists them (schedTable; the next game highlighted) and opens a box score on a tap (schedBox).
+- Team Stats (leaderboard and tracker) for teams without reliable minutes: eFG%, TS%, TO rate and FT rate need no
+  minutes, so they show exact (no "est"); FT rate from FTA / FGA when the analytics have none.
+- FT rate leaderboard: 4+ shots a game (FTR_FGA_PG_MIN) and the season's games minimum, on both qualifying paths (1
+  FGA and 7 FTA made a 700 leader).
+- Moorpark roster changes that reach every device: game tracker REMOVED / JERSEY (lockRoster adds a locked player a
+  device lacks); possession tracker OFF_ROSTER / ADD_ROSTER (rosterFix). 11/11/2026: Jack Johnson off (redshirt),
+  Jeremiah White on (6'0" G, number to come: set it in JERSEY and ADD_ROSTER).
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just

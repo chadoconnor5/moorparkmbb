@@ -1138,6 +1138,11 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ts-table tbody tr.ts-hasrank td{border-bottom:none;padding-bottom:1px}
 .ts-table tbody tr.ts-rankrow td{color:#c62828;font-size:.64rem;font-weight:700;padding:0 7px 4px;border-bottom:1px solid #ddd}
 .ts-table td.ts-ranklabel{font-weight:700;font-style:italic}
+.card[data-mode="sched"] .rs-roster,.card[data-mode="sched"] [data-act="r-save"],.card[data-mode="sched"] [data-act="rr-add"],.card[data-mode="sched"] [data-act="r-fill-lb"],.card[data-mode="sched"] .rs-roster-note,
+.sch-tbl{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}.sch-tbl td{padding:6px 6px;border-bottom:1px solid #e3e7ee;color:#111;background:#fff}.sch-tbl td .muted,.sch-tbl td.muted{color:#667}.sch-tbl td .btn{color:#fff}.sch-tbl td .btn .sch-l{color:#ff8a80}.sch-tbl td .btn .sch-w{color:#7ee2a8}
+.sch-tbl tr.sch-next td{background:#fff6d6}.sch-w{color:#1e8e3e;font-weight:700}.sch-l{color:#c62828;font-weight:700}
+.bx-t{width:100%;border-collapse:collapse;font-size:.78rem;white-space:nowrap;font-variant-numeric:tabular-nums}.bx-t th{background:#1a1a2e;color:#fff;padding:4px 5px;font-size:.7rem}
+.bx-t td{padding:3px 5px;border-bottom:1px solid #e3e7ee;text-align:center;color:#111;background:#fff}.bx-t td.small{color:#555}.bx-t td.l,.bx-t th.l{text-align:left}.bx-t tr.bx-tot td{font-weight:700;background:#eef1f6}.bx-t tr.bx-sep td{border-top:2px solid #1a1a2e}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
 /* On/off: the Shooting checkbox (its panel is the 5th: left column, under Core and Offense). */
@@ -1348,7 +1353,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.117';
+const VERSION = 'v2026.11.11.119';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3355,8 +3360,8 @@ function rostersView() {
       <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : (teamPalette(sel) || {}).text || 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         ${teamLine(sel)}
-        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<button class="btn btn-sm" data-act="lg-open">Labels guide</button><span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
-        <div class="rs-stats">${(UI.rsMode || 'roster') !== 'roster' ? teamStatsTable(sel, UI.rsMode) : ''}</div>
+        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced'], ['sched', 'Schedule']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<button class="btn btn-sm" data-act="lg-open">Labels guide</button><span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
+        <div class="rs-stats">${rsStats(sel, UI.rsMode || 'roster')}</div>
         <div class="tbl-wrap rs-roster"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
         <div class="small muted rs-roster-note" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
     </div>`;
@@ -3419,6 +3424,41 @@ const TS_BASIC = [['name', 'Player'], ['gp', 'G'], ['mpg', 'MPG'], ['ppg', 'PPG'
   ['fgm', 'FGM-A'], ['fgp', 'FG%'], ['twom', '2PM-A'], ['twop', '2P%'], ['tpm', '3PM-A'], ['tpp', '3P%'], ['efg_pct', 'eFG%'], ['ftm', 'FTM-A'], ['ftp', 'FT%'], ['ts_pct', 'TS%']];
 const TS_ADV = ['ind_ortg', 'usage_pct', 'shot_pct', 'efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'];
 const tsF = v => v == null || v === '' ? '—' : (+v).toFixed(1);
+const rsStats = (name, mode) => mode === 'roster' ? '' : mode === 'sched' ? schedTable(name) : teamStatsTable(name, mode);
+/* SCHEDULE (Rosters -> Schedule): the team's season from its leaderboard file (export_ratings.py team_schedule): every
+   game on its schedule, results for the ones played; tap a played game for both box scores. */
+function schedTable(name) {
+  const F = teamFile(name), S = F && F.schedule;
+  if (!S) return `<div class="small muted" style="padding:8px 0 12px">${F ? 'This team\'s file has no schedule yet (the next leaderboard build adds it).' : 'No leaderboard file for this team on the iPad: it downloads when the team is on the schedule or under Teams to have ready, and the tracker is online.'}</div>`;
+  const played = S.filter(x => x.r || (x.s && x.s[0] != null)), w = played.filter(x => x.r === 'W').length;
+  const next = S.findIndex(x => !x.r && !(x.s && x.s[0] != null));
+  const site = x => x.ha === 'H' ? 'vs' : x.ha === 'A' ? 'at' : 'vs';
+  return `<div class="small muted" style="margin:0 0 6px">${w}-${played.length - w} in games played · tap a result for the box score</div>
+    <div class="ts-wrap"><table class="sch-tbl"><tbody>${S.map((x, i) => `<tr class="${i === next ? 'sch-next' : ''}">
+      <td style="width:46px">${esc(x.d)}</td>
+      <td>${site(x)} <b>${esc(x.o)}</b>${x.ha === 'N' ? ' <span class="small muted">(N)</span>' : ''}${x.c ? ' <span class="small muted">conf</span>' : ''}${x.ev ? `<div class="tiny muted">${esc(x.ev)}</div>` : ''}</td>
+      <td style="text-align:right;white-space:nowrap">${x.s && x.s[0] != null ? `<button class="btn btn-sm" data-act="sch-box" data-team="${esc(name)}" data-i="${i}"><span class="${x.r === 'W' ? 'sch-w' : 'sch-l'}">${x.r || ''}</span> ${x.s[0]}–${x.s[1]}</button>` : `<span class="small muted">${esc(x.t || '')}</span>`}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function schedBox(name, i) {
+  const F = teamFile(name), x = F && F.schedule && F.schedule[i]; if (!x) return;
+  const side = (rows, team, noMin) => {
+    if (!rows || !rows.length) return `<div class="small muted" style="padding:8px 0">${esc(team)} hasn't posted its box score for this game.</div>`;
+    const T = rows.reduce((a, r) => a.map((v, k) => k < 2 || k === 17 ? v : v + r[k]), rows[0].map((v, k) => k < 2 || k === 17 ? '' : 0));
+    const pct = (m, a) => a ? (100 * m / a).toFixed(0) : '–';
+    const line = (r, cls) => `<tr class="${cls || ''}"><td>${esc(r[0])}</td><td class="l">${esc(r[1])}</td><td>${noMin ? '—' : r[2]}</td><td>${r[3]}-${r[4]}</td><td>${r[5]}-${r[6]}</td><td>${r[7]}-${r[8]}</td>
+      <td>${r[9]}</td><td>${r[10]}</td><td>${r[9] + r[10]}</td><td>${r[11]}</td><td>${r[12]}</td><td>${r[13]}</td><td>${r[14]}</td><td>${r[15]}</td><td><b>${r[16]}</b></td></tr>`;
+    const sorted = rows.slice().sort((a, b) => b[17] - a[17]), firstBench = sorted.findIndex(r => !r[17]);
+    return `<div class="ts-wrap" style="margin-bottom:10px"><table class="bx-t"><thead><tr><th colspan="15" class="l">${esc(team)}</th></tr>
+      <tr><th>#</th><th class="l">Player</th><th>Min</th><th>FG</th><th>3PT</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th><th>A</th><th>S</th><th>B</th><th>TO</th><th>PF</th><th>PTS</th></tr></thead>
+      <tbody>${sorted.map((r, k) => line(r, k === firstBench && k > 0 ? 'bx-sep' : '')).join('')}${line(['', 'Totals', ...T.slice(2)], 'bx-tot')}
+      <tr><td></td><td class="l small muted" colspan="14">FG ${pct(T[3], T[4])}% · 3PT ${pct(T[5], T[6])}% · FT ${pct(T[7], T[8])}%</td></tr></tbody></table></div>`;
+  };
+  const us = name, them = x.o, b = x.b || [[], []], mq = x.mq || [false, false];
+  modal(`<h2>${esc(us)} ${x.s[0]}, ${esc(them)} ${x.s[1]}</h2>
+    <p class="small muted" style="margin:-4px 0 10px">${esc(x.d)} · ${x.ha === 'H' ? 'Home' : x.ha === 'A' ? 'Away' : 'Neutral'}${x.ev ? ' · ' + esc(x.ev) : ''}${mq[0] || mq[1] ? ' · minutes not kept for ' + [mq[0] ? us : '', mq[1] ? them : ''].filter(Boolean).map(esc).join(' or ') : ''}</p>
+    ${side(b[0], us, mq[0])}${side(b[1], them, mq[1])}
+    <div class="modal-foot"><button class="btn btn-lg" data-act="close">Close</button></div>`, 'sheet-modal wide');
+}
 function teamStatsTable(name, mode) {
   if (name === 'MPK') name = 'Moorpark';
   const F = teamFile(name), T = F && F.table;
@@ -3432,7 +3472,7 @@ function teamStatsTable(name, mode) {
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
-  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.usg_est != null ? `${tsF(r.usg_est)}<span class="small muted"> est</span>` : !adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? `${tsF(r.tov_est)}<span class="small muted"> est</span>` : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.usg_est != null ? `${tsF(r.usg_est)}<span class="small muted"> est</span>` : !adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? tsF(r.tov_est) : !adv && (c === 'efg_pct' || c === 'ts_pct') && r[c] != null ? tsF(r[c]) : !adv && c === 'ft_rate' && (r.twoa + r.tpa) > 0 ? tsF(r.ft_rate != null ? r.ft_rate : 100 * r.fta / (r.twoa + r.tpa)) : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
   const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rankrow"><td class="ts-l ts-ranklabel">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
   let zi = 0;   // alternating colours per player; his State Rank line shares his colour
   const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-hasrank' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rankrow">', `<tr class="ts-rankrow${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}"><span class="ts-band-l">${l}</span></td></tr>`;
@@ -4518,7 +4558,8 @@ document.addEventListener('click', ev => {
     case 'rd-add': { collectSched(); const i = b.parentElement.querySelector('.rd-in'); readyAdd(i && i.value, b.dataset.ev); render(); break; }
     case 'rd-del': { collectSched(); const L = readyGet(b.dataset.ev).slice(); L.splice(+b.dataset.i, 1); readySet(b.dataset.ev, L); render(); break; }
     case 'oo-shoot': UI.ooShoot = !UI.ooShoot; lsSet('pt2_oo_shoot', UI.ooShoot); render(); break;
-    case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = UI.rsMode === 'roster' ? '' : teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
+    case 'sch-box': schedBox(b.dataset.team, +b.dataset.i); break;
+    case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = rsStats(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
     case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) { const w = c.querySelector('.ts-wrap'), x = w ? w.scrollLeft : 0;   // keep the sideways scroll where it was
       c.innerHTML = teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), 'basic'); const w2 = c.querySelector('.ts-wrap'); if (w2) w2.scrollLeft = x; } break; }
     case 'r-fill-lb': fillFromLeaderboard(UI.rosterSel || (g ? g.opp : '')); break;

@@ -909,6 +909,75 @@ def _ordinal(n):
     return f"{n}{'th' if 11 <= n % 100 <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
+def _box_rows(rows):
+    """A box score side as compact rows for the tracker: [#, name, MIN, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB, AST,
+    STL, BLK, TO, PF, PTS, starter 0/1]."""
+    out = []
+    for p in rows or []:
+        st = p.get("stats") or {}
+        nm = str(p.get("name") or "")
+        if nm.upper().startswith(("TM", "TEAM")):
+            continue
+        m = re.match(r"^(?:[A-Z]\s+)?#?(\d+)\s+(.*)$", nm)
+        num, name = (m.group(1), m.group(2)) if m else ("", nm)
+        pair = lambda k: [int(x) if x.strip().isdigit() else 0 for x in (str(st.get(k) or "0-0").split("-") + ["0"])[:2]]
+        num_ = lambda k: int(str(st.get(k) or "0").split(":")[0] or 0) if str(st.get(k) or "0").split(":")[0].strip().isdigit() else 0
+        out.append([num, name, num_("MIN"), *pair("FGM-A"), *pair("3PM-A"), *pair("FTM-A"), num_("OREB"), num_("DREB"),
+                    num_("AST"), num_("STL"), num_("BLK"), num_("TO"), num_("PF"), num_("PTS"), 1 if p.get("is_starter") else 0])
+    return out
+
+
+def team_schedule(season, team):
+    """The team's season for the tracker (its Rosters screen, Schedule): every game on its typed-in schedule, played ones
+    with the result and both box scores from the saved box score files, plus any played game the schedule doesn't list
+    (a TBA tournament game). [{d: "M/D", o: opponent, ha: H/A/N, t: time, ev: event, r: W/L, s: [us, them],
+    b: [our rows, their rows] (_box_rows), mq: minutes not real}], by date."""
+    import generate_leaderboard as gl
+    norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
+    games = {}
+    for f in sorted(Path(__file__).resolve().parent.glob(f"{season} Teams Schedules/*/{team}/*/*.json")):
+        try:
+            box = json.load(open(f))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(box, dict) or len(box.get("teams") or {}) != 2:
+            continue
+        labels = list(box["teams"])
+        opp_slug = norm(f.parent.name.split("_", 1)[-1])
+        ours = next((l for l in labels if norm(l) == norm(team)), None) or next(
+            (l for l in labels if norm(team) in norm(l) or norm(l) in norm(team)), None) or next(
+            (l for l in labels if norm(l) != opp_slug and opp_slug not in norm(l)), labels[0])
+        theirs = next(l for l in labels if l != ours)
+        sc = box.get("score") or {}
+        try:
+            us, them = int(sc.get(ours)), int(sc.get(theirs))
+        except (TypeError, ValueError):
+            us = them = None
+        mo, dy, _ = (str(box.get("date") or "").split("/") + ["", "", ""])[:3]
+        key = f"{int(mo)}/{int(dy)}" if mo.isdigit() and dy.isdigit() else f.parent.name[4:8]
+        mq = box.get("minutes_quality") or {}
+        games[(key, norm(theirs))] = {
+            "d": key, "o": theirs, "ha": "H" if box.get("home") == ours else "A",
+            "r": None if us is None or us == them else "W" if us > them else "L", "s": [us, them],
+            "b": [_box_rows(box["teams"][ours]), _box_rows(box["teams"][theirs])],
+            "mq": [(mq.get(ours) or {}).get("minutes") not in (None, "REAL", "PBP"), (mq.get(theirs) or {}).get("minutes") not in (None, "REAL", "PBP")]}
+    out = []
+    used = set()
+    for d, opp, canon_opp, ha, conf, tm, notes, host, ev in (gl.load_season_schedules(season).get(team) or []):
+        key = "/".join(d.split("/")[:2])
+        hit = next((k for k in games if k[0] == key and k not in used and (norm(canon_opp or opp) in k[1] or k[1] in norm(canon_opp or opp)
+                                                                           or opp.upper() == "TBA")), None)
+        if hit:
+            used.add(hit)
+            g = dict(games[hit], ha={"Home": "H", "Away": "A"}.get(ha, "N"), t=tm, ev=ev, c=conf)
+        else:
+            g = {"d": key, "o": opp, "ha": {"Home": "H", "Away": "A"}.get(ha, "N"), "t": tm, "ev": ev, "c": conf, "r": None}
+        out.append(g)
+    out += [g for k, g in games.items() if k not in used]
+    yr = lambda d: (int(d.split("/")[0]) < 7, int(d.split("/")[0]), int(d.split("/")[1]))
+    return sorted(out, key=lambda g: yr(g["d"]))
+
+
 def team_file(season, ratings, team):
     """One team's season stats and every player's lines, for the tracker."""
     d = uaa.find_team_stats(team)
@@ -932,6 +1001,10 @@ def team_file(season, ratings, team):
                 row["labels"] = auto_labels(row, body["table"])
     except Exception as ex:   # the table is extra: never lose the rest of the file over it
         print(f"export_ratings: no Team Stats table for {team}: {ex}")
+    try:
+        body["schedule"] = team_schedule(season, team)
+    except Exception as ex:   # extra too
+        print(f"export_ratings: no schedule for {team}: {ex}")
     return body
 
 

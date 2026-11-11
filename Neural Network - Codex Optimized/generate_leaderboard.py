@@ -10025,6 +10025,7 @@ const ADV_CAT_ATTEMPT_MIN = {{
 }};
 const ADV_RATE_GP_MIN = 20;   // pro-rated in 2026-27: seasonGpMin
 const ADV_RATE_ATTEMPTS_PER_GAME_MIN = 2.5;
+const FTR_FGA_PG_MIN = 4;   // FT rate: 4+ shots a game
 const ADV_RELAXED_CAT_KEYS = new Set(['efg_pct', 'ts_pct', 'ft_rate', 'twop', 'tpp', 'ftp']);
 const ADV_MAKE_ATTEMPT_CAT_KEYS = new Set(['efg_pct', 'ts_pct', 'twop', 'tpp', 'ftp']);
 const ADV_RELAXED_SCHOOL_CAT_CACHE = {{}};
@@ -10118,6 +10119,8 @@ function advCatStandardQualifies(p, catKey) {{
   if ((p.min_pct || 0) < minPct) return false;
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
   if (attemptKey && (attemptsPerGame(p, attemptKey) < ADV_RATE_ATTEMPTS_PER_GAME_MIN || (p.gp || 0) < seasonGpMin(p))) return false;
+  // FT rate is free throws per shot: a player who barely shoots isn't a free-throw-rate leader (1 FGA, 7 FTA = 700)
+  if (catKey === 'ft_rate' && (attemptsPerGame(p, 'fga') < FTR_FGA_PG_MIN || (p.gp || 0) < seasonGpMin(p))) return false;
   return true;
 }}
 
@@ -10130,7 +10133,7 @@ function advCatRelaxedQualifies(p, catKey) {{
     return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN;
   }}
   if (catKey === 'ft_rate') {{
-    return (p.gp || 0) >= seasonGpMin(p);
+    return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') >= FTR_FGA_PG_MIN;
   }}
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
   if (attemptKey) {{
@@ -11725,14 +11728,17 @@ function __tsAdvTable(rows, advOk, teamName, ranks) {{
   const EST = '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span>';
   const cells = r => {{
     const adv = k => advOk ? __tsF(r[k]) : '—';
+    // eFG%, TS%, FT rate and TO% need no minutes: shown for every team, exact (no "est")
+    const exact = k => r[k] != null ? __tsF(r[k]) : '—';
+    const ftr = r.ft_rate != null ? r.ft_rate : (r.twoa + r.tpa) > 0 ? 100 * r.fta / (r.twoa + r.tpa) : null;
     return '<td class="ts-l">' + playerLink(r.name, teamStatsReturnTeam) + '</td><td>' + (r.ht || '—') + '</td><td>' + r.gp + '</td>'
       + '<td>' + (advOk ? __tsF(r.min_pct) : '—') + '</td>'
       + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + EST : '—') + '</b></td><td>' + (advOk ? __tsF(r.usage_pct) : r.usg_est != null ? '<span title="' + (r.role_est || '') + ' (est)">' + __tsF(r.usg_est) + EST + '</span>' : r.role_est ? r.role_est + EST : '—') + '</td><td>' + adv('shot_pct') + '</td>'
-      + '<td>' + adv('efg_pct') + '</td><td>' + adv('ts_pct') + '</td>'
+      + '<td>' + exact('efg_pct') + '</td><td>' + exact('ts_pct') + '</td>'
       + '<td>' + adv('oreb_pct') + '</td><td>' + adv('dreb_pct') + '</td>'
-      + '<td>' + adv('ast_rate') + '</td><td>' + (advOk ? __tsF(r.tov_pct) : r.tov_est != null ? __tsF(r.tov_est) + EST : '—') + '</td>'
+      + '<td>' + adv('ast_rate') + '</td><td>' + (advOk ? __tsF(r.tov_pct) : r.tov_est != null ? __tsF(r.tov_est) : '—') + '</td>'
       + '<td>' + adv('blk_pct') + '</td><td>' + adv('stl_pct') + '</td>'
-      + '<td>' + adv('fc_per_40') + '</td><td>' + adv('fd_per_40') + '</td><td>' + adv('ft_rate') + '</td>'
+      + '<td>' + adv('fc_per_40') + '</td><td>' + adv('fd_per_40') + '</td><td>' + (ftr != null ? __tsF(ftr) : '—') + '</td>'
       + '<td>' + r.ftm + '-' + r.fta + '</td><td>' + __tsF(r.ftp) + '</td>'
       + '<td>' + r.twom + '-' + r.twoa + '</td><td>' + __tsF(r.twop) + '</td>'
       + '<td>' + r.tpm + '-' + r.tpa + '</td><td>' + __tsF(r.tpp) + '</td>';
@@ -11784,7 +11790,7 @@ function renderTeamStats(teamName) {{
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
     ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
-      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss (est) is his share of the team’s possessions over an estimate of his share of its minutes, from the box score (about 1.7 points off where real minutes exist; its tier, Primary over 24% / Rotation 16-24% / Limited under 16%, right about 4 times in 5).</div>' : '')
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). eFG%, TS%, TORate and FTRate need no minutes, so they are exact. %Poss (est) is his share of the team’s possessions over an estimate of his share of its minutes, from the box score (about 1.7 points off where real minutes exist; its tier, Primary over 24% / Rotation 16-24% / Limited under 16%, right about 4 times in 5).</div>' : '')
       + '</div>'
     : '';
 
