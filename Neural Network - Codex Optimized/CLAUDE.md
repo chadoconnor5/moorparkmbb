@@ -179,6 +179,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   rebounds 3+ a game over half the team's games, on any team (11/11: Saddleback's Dylan Gomez, 6.4 pts/g, 50% from three
   at 29.0% of the minutes, had none). Go-to (usage over 28%) still needs 30%+ of the minutes where minutes are reliable: a
   bench stint's usage isn't go-to.
+- Three-point calls (both label copies, SH3): Shooter / Avg 3PT / Poor 3PT read his 3P% pulled toward the state's 32.4% by
+  25 attempts, and need 10+ threes (MIN_CALL): on fewer the estimate is mostly the state's average (11/11: Jaison Joyce,
+  1 of 5, read Avg 3PT; 83 calls on under 10 attempts dropped). Non-shooter is unchanged.
 - Star label (export_ratings.tiers, both label copies): the top 20 by PORPAGATU!; a fake-minutes player is placed by
   his PORPAGATU! (est) (porp_est, rank pest / eqr; Game Score a game only without an estimate).
 - A team with no opponent box score yet (only its own side posted) has no opponent defensive rebounds: its offensive

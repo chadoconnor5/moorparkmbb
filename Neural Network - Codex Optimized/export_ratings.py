@@ -697,7 +697,7 @@ def leaderboard_tables(teams=()):
 # its own copy of the rules remains for older files and for players it knows only from our tracked games.
 AUTO_CUT = {"top": 0.20, "topTight": 0.15, "shooter": 0.35, "draws": 0.25, "bottom": 0.20, "aaTs": 0.35, "aaFtr": 0.50,
             "aaRateLo": 25, "aaRateHi": 55}
-SH3 = {"K": 25, "LG": 32.4, "HI": 35, "LO": 30, "MIN_A": 15, "FULL_G": 28}
+SH3 = {"K": 25, "LG": 32.4, "HI": 35, "LO": 30, "MIN_A": 15, "FULL_G": 28, "MIN_CALL": 10}
 ORTG_BANDS = ["Go-to Guys", "Major Contributors", "Significant Contributors", "Role Players", "Limited Roles", "Nearly Invisible"]
 
 
@@ -754,7 +754,10 @@ def auto_labels(R, table):
     # Non-shooter = he barely takes threes: under 15 by game 28, scaled to his games; never just a short season.
     minA = SH3["MIN_A"] * min(R.get("gp") or 0, SH3["FULL_G"]) / SH3["FULL_G"]
     nonShooter = tpa < minA or (fga >= 10 and rate is not None and rate < 10)
-    call = "Non-shooter" if nonShooter else "Shooter" if est3 >= SH3["HI"] else "Avg 3PT" if est3 >= SH3["LO"] else "Poor 3PT"
+    # Shooter / Avg 3PT / Poor 3PT need 10+ threes: on fewer the estimate is mostly the state's average (11/11 San
+    # Bernardino Valley's Jaison Joyce, 1 of 5, read Avg 3PT)
+    call = ("Non-shooter" if nonShooter else None if tpa < SH3["MIN_CALL"] else "Shooter" if est3 >= SH3["HI"]
+            else "Avg 3PT" if est3 >= SH3["LO"] else "Poor 3PT")
     shooter = call == "Shooter"
     shootWhy3 = ((f"3P {_fx(100 * m3 / tpa, 1)}% ({m3}-{tpa})" if tpa else "no threes")
                  + (f" · est {_fx(est3, 1)}% = {_fx(3 * est3 / 100, 2)} pts a three" if not nonShooter else "")
