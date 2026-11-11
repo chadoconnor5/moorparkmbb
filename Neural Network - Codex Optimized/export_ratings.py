@@ -740,7 +740,10 @@ def auto_labels(R, table):
     games = max([r.get("gp") or 0 for r in rows] or [0])
     minG = min(10, max(3, math.ceil(games / 2)))
     adv = table.get("adv") == 1
-    plays = (R.get("min_pct") or 0) >= 30 if adv else (R.get("gp") or 0) >= minG and ((R.get("ppg") or 0) >= 4 or (R.get("rpg") or 0) >= 3)
+    # Plays: 30%+ of the minutes (reliable minutes), or 4+ points / 3+ rebounds a game over half the team's games (any
+    # team: 11/11 Saddleback's Dylan Gomez, 6.4 pts/g at 29.0% of the minutes, shot 50% from three and had no labels)
+    produces = (R.get("gp") or 0) >= minG and ((R.get("ppg") or 0) >= 4 or (R.get("rpg") or 0) >= 3)
+    plays = produces or (adv and (R.get("min_pct") or 0) >= 30)
     if not plays:
         return out
     tpa, fga = R.get("tpa") or 0, R.get("fga") or 0
@@ -773,7 +776,7 @@ def auto_labels(R, table):
     scorer = not star and cut("scorer")
     if scorer:
         add("Scorer", f"{f1(R.get('ppg'))} pts/g" + (f" · {f1(usg)}% of possessions" if usg is not None else "") + br("shots100", "SHOTS/100"))
-    if not star and not scorer and usg is not None and usg > 28:
+    if not star and not scorer and usg is not None and usg > 28 and (not adv or (R.get("min_pct") or 0) >= 30):   # a bench stint's usage isn't go-to
         add("Go-to", f"{f1(usg)}% of possessions" + (" · " + ortgWhy.split(",")[0] if ortgWhy else ""))
     if "Sixth man" in roles:
         add("Sixth man", f"{f1(R.get('ppg'))} pts/g off the bench")
