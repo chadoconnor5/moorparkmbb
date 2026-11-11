@@ -1174,7 +1174,7 @@ def player_card(c, p):
     hdr = Table([[Paragraph(f'<b>{name_h}</b>' + (f'<br/><font size="7.5">{lab_line}</font>' if lab_line else ''), S(11, True, WHITE, leading=13)),
                   Paragraph(f'{role_s}<font color="#aab8d0">{pos_code}{ht_s}'
                             f'{pos_tail}</font>{poss_s}', S(8, False, GOLD, TA_CENTER)),
-                  Paragraph(f'<font color="#aab8d0">{gp} GP · ' + (f'{mpg:.1f} MPG' if c.min_ok else 'minutes not kept') + '</font>' + (f'<br/><font color="#aab8d0">ORtg</font> <b>{io:.1f}</b>  '
+                  Paragraph(f'<font color="#aab8d0">{gp} GP · ' + (f'{tot.get("GS", 0)} GS · ' if any('GS' in (q.get('totals') or {}) for q in c.rotation) else '') + (f'{mpg:.1f} MPG' if c.min_ok else 'minutes not kept') + '</font>' + (f'<br/><font color="#aab8d0">ORtg</font> <b>{io:.1f}</b>  '
                             f'<font color="#aab8d0">DRtg</font> <b>{idr:.1f}</b>  <font color="{net_c}"><b>Net {inet:+.1f}</b></font>' if io > 0
                             else f'<br/><font color="#aab8d0">ORtg (est)</font> <b>{adv["ind_ortg_est"]:.1f}</b>' + (f'  <font color="#aab8d0">TO% (est)</font> <b>{est["tov_pct"]:.1f}</b>' if est.get('tov_pct') is not None else '') if not c.min_ok and adv.get('ind_ortg_est') else ''),
                             S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.9 * inch, 2.5 * inch, 2.1 * inch])
