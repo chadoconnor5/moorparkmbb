@@ -126,6 +126,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   <season>/<situation>.json (internal only; counts as season totals, rates as they are; team names mapped to ours,
   Synergy's name kept as "Synergy Team"; player names through fix_player_name; the newest export of a situation
   replaces the last). Labels lean on Synergy (very accurate) over the play-by-play, whatever its age.
+  Moorpark Synergy.bat (double-click on the PC): loads every Downloads\Leaderboards*.xlsx (--delete removes each one
+  once loaded; one it can't read stays and is listed), then commits and pushes internal_data/synergy_leaderboards.
+  SYNERGY CHECKLIST.txt: what to grab each scout.
 - Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
   player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's
   pool; 58.0% on 11/11). Otherwise the play-by-play (export_ratings.rim_shots: layups, dunks, tip-ins of his FGA, 40%+:

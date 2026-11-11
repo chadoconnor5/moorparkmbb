@@ -58,6 +58,7 @@ def map_team(syn, ours):
 def situation(path):
     """('long_3_point_jump_shots__player_offensive', 'Long 3 point jump shots - Player Offensive', '2026-27')"""
     stem = re.sub(r"^[0-9a-f]{8}-", "", Path(path).stem)
+    stem = re.sub(r"\s*\(\d+\)$", "", stem).replace(" ", "_")   # a browser's "(1)" on a second download; spaces as the chat sends them
     parts = stem.split("_-_")
     m = re.search(r"(\d{4})-(\d{2})(\d{2})", stem)
     season = f"{m.group(1)}-{m.group(3)}" if m else "unknown"
@@ -98,25 +99,41 @@ def load(path, as_of, ours):
         if not rec["Team"]:
             unmatched.add(str(d["Team"]))
         out.append(rec)
-    return key, {"situation": title, "season": season, "as_of": as_of, "source": Path(path).name.split("-", 1)[-1],
+    return key, {"situation": title, "season": season, "as_of": as_of, "source": re.sub(r"^[0-9a-f]{8}-", "", Path(path).name),
                  "per_player": "Player" in head, "rows": out}, unmatched
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("files", nargs="+")
+    ap.add_argument("--delete", action="store_true", help="delete each export once it is loaded (Moorpark Synergy.bat)")
     ap.add_argument("--as-of", default=dt.date.today().isoformat(), help="the day the export was taken (default today)")
     a = ap.parse_args()
     ours = our_teams()
     import glob
     files = [g for f in a.files for g in (sorted(glob.glob(f)) or [f])]   # Windows' Command Prompt doesn't expand *.xlsx
+    if not files or files == a.files and not any(Path(f).exists() for f in files):
+        print("No Synergy exports found.")
+        return
+    done = failed = 0
     for f in files:
-        key, data, unmatched = load(f, a.as_of, ours)
-        d = OUT / data["season"].replace("-", "_")
-        d.mkdir(parents=True, exist_ok=True)
-        (d / f"{key}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False))
+        try:
+            key, data, unmatched = load(f, a.as_of, ours)
+            if not data["rows"] or data["season"] == "unknown":
+                raise ValueError("not a Synergy leaderboard export (no rows, or no season in the file name)")
+            d = OUT / data["season"].replace("-", "_")
+            d.mkdir(parents=True, exist_ok=True)
+            (d / f"{key}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+        except Exception as ex:   # one bad file never stops the rest, and is never deleted
+            failed += 1
+            print(f"NOT LOADED (kept): {Path(f).name}: {ex}")
+            continue
+        done += 1
         print(f"{data['situation']} ({data['season']}, as of {data['as_of']}): {len(data['rows'])} rows -> {d.name}/{key}.json"
               + (f"; teams not matched (left out of labels): {', '.join(sorted(unmatched))}" if unmatched else ""))
+        if a.delete:
+            Path(f).unlink()
+    print(f"\n{done} loaded" + (" and deleted" if a.delete and done else "") + (f", {failed} NOT loaded (left where they were)" if failed else ""))
 
 
 if __name__ == "__main__":
