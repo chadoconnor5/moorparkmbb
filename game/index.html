@@ -666,15 +666,19 @@ const SEED_SCHEDULE = [
 const JERSEY = {
   'Josh Castaniero': '1', 'Quian Khawaja': '2', 'Eric Kubel': '3', 'Axel Ostergard': '4', 'Ashton Carraway': '5',
   'Brenden Banks-Speed': '10', 'SoulJah Niles': '12', 'Emmitt Claiborne': '14', 'Matthew Wilson': '15', 'Alex Bello': '20',
-  'George Hees': '21', 'Jaylen Smith': '22', 'Sean Castro': '31', 'Finn Ortiz': '32', 'Jack Johnson': '30',
+  'George Hees': '21', 'Jaylen Smith': '22', 'Sean Castro': '31', 'Finn Ortiz': '32',
+  'Jeremiah White': '',   // 6'0" guard, number to come (11/11/2026): set it here when it's known
 };
 /* Off the roster for good: dropped on every open, even when the practice tracker still lists them. */
-const REMOVED = new Set(['Mikey Duran-Morales', 'Reese Widerburg', 'Jonathan Galloway', 'CJ Temme', "Evan O'Daniel", 'KaLeke Singletary-Jinks']);
+const REMOVED = new Set(['Mikey Duran-Morales', 'Reese Widerburg', 'Jonathan Galloway', 'CJ Temme', "Evan O'Daniel", 'KaLeke Singletary-Jinks',
+  'Jack Johnson']);   // redshirting 2026-27 (11/11/2026)
 const SEED_ROSTER = Object.keys(JERSEY).map(n => ({ name: n, num: JERSEY[n], hidden: false }));
 /* Apply the lock: drop removed players, set locked numbers. Returns true if anything changed. */
 function lockRoster() {
   const before = JSON.stringify(App.roster);
   App.roster = App.roster.filter(r => !REMOVED.has(r.name));
+  // A player added to the lock (JERSEY) joins every device's roster, even before the practice tracker lists him.
+  for (const n of Object.keys(JERSEY)) if (!App.roster.some(r => r.name === n)) App.roster.push({ name: n, num: JERSEY[n], hidden: false });
   for (const r of App.roster) if (JERSEY[r.name]) r.num = JERSEY[r.name];
   return JSON.stringify(App.roster) !== before;
 }

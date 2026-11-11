@@ -1348,7 +1348,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.116';
+const VERSION = 'v2026.11.11.117';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1396,12 +1396,21 @@ const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') ||
 // else the roster built in (the same locked list as the game tracker's), so it is never empty on a new iPad.
 const SEED_ROSTER = [['Josh Castaniero', '1'], ['Quian Khawaja', '2'], ['Eric Kubel', '3'], ['Axel Ostergard', '4'], ['Ashton Carraway', '5'],
   ['Brenden Banks-Speed', '10'], ['SoulJah Niles', '12'], ['Emmitt Claiborne', '14'], ['Mathew Wilson', '15'], ['Alex Bello', '20'],
-  ['George Hees', '21'], ['Jaylen Smith', '22'], ['Sean Castro', '31'], ['Finn Ortiz', '32'], ['Jack Johnson', '30']].map(([name, num]) => ({ num, name, note: '' }));
+  ['George Hees', '21'], ['Jaylen Smith', '22'], ['Sean Castro', '31'], ['Finn Ortiz', '32'], ['Jeremiah White', '']].map(([name, num]) => ({ num, name, note: '' }));
+/* Roster changes that reach every iPad, whatever list it saved: OFF_ROSTER leaves (his past games keep him), ADD_ROSTER
+   joins (number blank until it's known; the game tracker's lock in game/index.html sets it there too). */
+const OFF_ROSTER = new Set(['Jack Johnson']);   // redshirting 2026-27 (11/11/2026)
+const ADD_ROSTER = [{ num: '', name: 'Jeremiah White', note: '', pos: 'G' }];   // 6'0" guard, number to come
+function rosterFix(list) {
+  const out = list.filter(r => !OFF_ROSTER.has(r.name));
+  for (const a of ADD_ROSTER) if (!out.some(r => r.name === a.name)) out.push(Object.assign({}, a));
+  return out;
+}
 function roster() {
   const own = lsGet(LS_ROSTER, null);
-  if (Array.isArray(own) && own.length) return own;
+  if (Array.isArray(own) && own.length) return rosterFix(own);
   const gt = (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: nameFix(r.name), note: '' }));
-  return gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r));
+  return rosterFix(gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r)));
 }
 // Jersey order: 0, 00, 1, 2 … (no number last). parseInt('0') is 0, so it can't be an "|| 999" fallback.
 const numKey = n => { const s = String(n == null ? '' : n).trim(); return /^\d+$/.test(s) ? parseInt(s, 10) + (s.length > 1 && /^0+$/.test(s) ? 0.5 : 0) : 999; };
