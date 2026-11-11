@@ -553,9 +553,9 @@ STAR_TOP = 20
 
 def tiers(pool, ranks, totals):
     """Star: the state's top 20, North and South together, in one list. Analytics players are ranked by PORPAGATU!
-    (rank["porp"]); a player on a low-info team (no reliable minutes, so no PORPAGATU!) gets the rank his Game Score per
-    game would have among the analytics players (rank["eqr"]). At the same rank the analytics player goes first (his
-    number is the better-measured one), then Game Score. rank["tier"] = "Star", rank["srank"] = place on the list."""
+    (rank["porp"]); a player on a low-info team (no reliable minutes, so no PORPAGATU!) gets the rank his PORPAGATU! (est)
+    would have among the analytics players (rank["eqr"], rank["pest"]; Game Score per game when he has no estimate). At the
+    same rank the analytics player goes first (his number is the better-measured one). rank["tier"] = "Star", rank["srank"] = place on the list."""
     import bisect
     team_gp = {}
     for x in pool:
@@ -563,17 +563,22 @@ def tiers(pool, ranks, totals):
             team_gp[x["school"]] = max(team_gp.get(x["school"], 0), x["gp"])
     played = [x for x in pool if x.get("gp") and x["gp"] >= 0.5 * team_gp[x["school"]]]
     ana = sorted(-game_score_pg(x) for x in played if ranks.get((x["name"], x["school"]), {}).get("porp"))
+    anp = sorted(-x["porp"] for x in played if ranks.get((x["name"], x["school"]), {}).get("porp") and x.get("porp") is not None)
     eq, gsc = {}, {}
     for x in played:
         key, rk = (x["name"], x["school"]), ranks.get((x["name"], x["school"]), {})
         gsc[key] = game_score_pg(x)
         if rk.get("porp"):
             eq[key] = rk["porp"]
+        elif x.get("fm") and x.get("porp_est") is not None and anp:
+            eq[key] = bisect.bisect_left(anp, -x["porp_est"]) + 1
+            ranks.setdefault(key, {})["eqr"] = eq[key]
+            ranks[key]["pest"] = round(x["porp_est"], 1)
         elif x.get("fm"):
             eq[key] = bisect.bisect_left(ana, -gsc[key]) + 1
             ranks.setdefault(key, {})["eqr"] = eq[key]
             ranks[key]["gsc"] = round(gsc[key], 1)
-    order = sorted(eq, key=lambda k: (eq[k], 0 if ranks.get(k, {}).get("porp") else 1, -gsc.get(k, 0)))
+    order = sorted(eq, key=lambda k: (eq[k], 0 if ranks.get(k, {}).get("porp") else 1, -ranks.get(k, {}).get("pest", gsc.get(k, 0))))
     for i, key in enumerate(order[:STAR_TOP]):
         ranks.setdefault(key, {})["tier"] = "Star"
         ranks[key]["srank"] = i + 1
@@ -762,7 +767,8 @@ def auto_labels(R, table):
     star = rk.get("tier") == "Star" if tot.get("starTop") else top("porp", 0.05)
     if star:
         add("Star", f"#{rk.get('srank') or '—'} in the state · "
-                    + (f"PORPAGATU! {f1(R['porp'])}" if R.get("porp") is not None else f"Game Score {f1(rk.get('gsc'))} a game")
+                    + (f"PORPAGATU! {f1(R['porp'])}" if R.get("porp") is not None else f"PORPAGATU! (est) {f1(rk['pest'])}"
+                       if rk.get("pest") is not None else f"Game Score {f1(rk.get('gsc'))} a game")
                     + (f" · {f1(usg)}% of possessions" if usg is not None else ""))
     scorer = not star and cut("scorer")
     if scorer:

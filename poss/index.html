@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.121';
+const VERSION = 'v2026.11.11.122';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3383,6 +3383,7 @@ function rostersView() {
   // The one being set up (a new game's opponent with no roster yet) is listed too.
   const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : [], sel !== 'MPK' ? [sel] : []).filter(Boolean))].sort();
   const isM = sel === 'MPK';
+  if (!isM && !((oppFind(sel) || {}).players || []).length) { try { pubRosters([sel]); } catch (e) {} }   // a team only in a field / the picker: its published roster now
   const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppFind(sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
   const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Labels', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting labels', 0]];
   const team = isM ? 'MPK' : sel, gS = isM ? null : { opp: sel, oppRoster: players };
@@ -3850,21 +3851,34 @@ function teamStatsTable(name, mode) {
     ${adv ? `<div class="tiny muted" style="margin-top:6px">State Rank: among qualified players in the state, by the leaderboard's own rules (30% of minutes; shooting stats by their leaderboard qualifications). ORtg is ranked within the player's %Poss band: a role player's efficiency is compared with other role players, not go-to guys.</div>` : '<div class="tiny muted" style="margin-top:6px">No advanced numbers for this team: its box scores don\'t have reliable minutes (same as the leaderboard).</div>'}`;
 }
 function fillFromLeaderboard(sel) {
-  const F = teamFile(sel); if (!F) { toast('No leaderboard stats for ' + sel + ' on this iPad yet', 'bad'); return; }
-  const tb = $('#rbody'), have = new Set([...tb.querySelectorAll('input[data-k="num"]')].map(i => i.value.trim()).filter(Boolean));
-  const best = {}; Object.entries(F.players || {}).forEach(([n, v]) => { const k = String(v.num || ''); if (!k || (v.all || {}).games < 1) return; if (!best[k] || (v.all.MIN || 0) > (best[k][1].all.MIN || 0)) best[k] = [n, v]; });
-  const add = Object.entries(best).filter(([k]) => !have.has(k)).sort((a, b) => (b[1][1].all.MIN || 0) - (a[1][1].all.MIN || 0));
-  add.forEach(([k, [n]]) => { document.querySelector('[data-act="rr-add"]').click(); const r = [...tb.querySelectorAll('tr.rrow')].pop(); r.querySelector('input[data-k="num"]').value = k; r.querySelector('input[data-k="name"]').value = n; });
-  toast(add.length ? `${add.length} players added from the leaderboard: check them, then Save` : 'Everyone on the leaderboard is already on this roster', add.length ? 'good' : '');
+  // The published roster (number, name, position, height, year) first, then anyone in the box scores it lacks; kept with
+  // what's typed here (a blank filled, nothing overwritten), saved at once so the labels from stats show.
+  const P = lsGet(LS_PUB_ROSTERS, null), T = P && P.teams ? resolveTeam(sel, P) : null, pub = (T && P.teams[T]) || [], F = teamFile(sel);
+  if (!pub.length && !F) { toast('No leaderboard roster or stats for ' + sel + ' on this iPad yet', 'bad'); return; }
+  if (saveRosterEdit(true) === false) return;
+  const jn = x => { const t = String(x == null ? '' : x).trim(); return /^0+$/.test(t) ? t : t.replace(/^0+(?=\d)/, ''); };
+  const store = oppStore(); let o = oppFind(sel, store);
+  if (!o) { o = { id: 'opp_' + uid(), name: sel, players: [] }; store.push(o); }
+  o.players = o.players || []; let n = 0;
+  const put = (num, v) => { const k = jn(num); if (!k) return; const q = o.players.find(x => jn(x.num) === k);
+    if (!q) { o.players.push(Object.assign({ num: k, name: '', pos: '', ht: '', yr: '', note: '' }, v)); n++; return; }
+    Object.keys(v).forEach(f => { if (v[f] && !q[f]) { q[f] = v[f]; n++; } }); };
+  pub.forEach(p => put(p.num, { name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '' }));
+  const best = {}; Object.entries((F && F.players) || {}).forEach(([nm, v]) => { const k = jn(v.num); if (!k || ((v.all || {}).games || 0) < 1) return; if (!best[k] || ((v.all || {}).MIN || 0) > ((best[k][1].all || {}).MIN || 0)) best[k] = [nm, v]; });
+  Object.entries(best).forEach(([k, [nm]]) => put(k, { name: nm }));
+  o.updatedAt = new Date().toISOString(); lsSet('gt_opp_rosters', store); PL_MEMO = null;
+  games.filter(x => x.opp === sel).forEach(x => { x.oppRoster = o.players.filter(p => p.num).map(p => ({ num: String(p.num), name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })); });
+  save(); render();
+  toast(n ? `${sel}: roster filled from the leaderboard and saved` : 'Everyone on the leaderboard is already on this roster', n ? 'good' : '');
 }
-function saveRosterEdit() {
+function saveRosterEdit(quiet) {
   const sel = UI.rosterSel || (cur() ? cur().opp : 'MPK');
   // A label typed but not added yet still counts.
   document.querySelectorAll('#rbody .ned').forEach(c => { const a = c.querySelector('.ned-add'); if (a && a.value.trim()) { nedAdd(c, a.value); a.value = ''; } });
   const rows = [...document.querySelectorAll('#rbody tr.rrow')].map(tr => Object.fromEntries([...tr.querySelectorAll('input[data-k]')].map(i => [i.dataset.k, i.value.trim()])))
     .map(r => Object.assign(r, { num: String(r.num || '').replace(/\D/g, '').slice(0, 2) })).filter(r => r.num || r.name);
   const nums = rows.map(r => r.num).filter(Boolean), dupe = nums.find((n, i) => nums.indexOf(n) !== i);
-  if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
+  if (dupe) { toast('Two players wear #' + dupe, 'bad'); return false; }
   if (sel === 'MPK') { lsSet(LS_ROSTER, rows.map(r => ({ num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))); toast('Moorpark roster saved', 'good'); return; }
   const store = oppStore(); let o = oppFind(sel, store);
   if (!o) { o = { id: 'opp_' + uid(), name: sel, players: [] }; store.push(o); }
@@ -3873,7 +3887,8 @@ function saveRosterEdit() {
   o.updatedAt = new Date().toISOString();
   lsSet('gt_opp_rosters', store);
   games.filter(x => x.opp === sel).forEach(x => { x.oppRoster = o.players.filter(p => p.num).map(p => ({ num: String(p.num), name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })); });
-  save(); toast(sel + ' roster saved', 'good');
+  save(); if (!quiet) toast(sel + ' roster saved', 'good');
+  return true;
 }
 
 /* ---------- games ---------- */
@@ -7206,7 +7221,7 @@ function autoLabels(g, t, id) {
   /* Star: the state's top 20, North and South together (export_ratings.py tiers): PORPAGATU! on analytics teams, Game
      Score per game placed on the same list on low-info teams. Older files without the list: PORPAGATU! top 5%. */
   const usg = R && R.usage_pct != null ? R.usage_pct : null, star = tot.starTop ? rk.tier === 'Star' : top('porp', 0.05);
-  if (star) add('Star', `#${rk.srank || '—'} in the state · ${R.porp != null ? `PORPAGATU! ${f1(R.porp)}` : `Game Score ${f1(rk.gsc)} a game`}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
+  if (star) add('Star', `#${rk.srank || '—'} in the state · ${R.porp != null ? `PORPAGATU! ${f1(R.porp)}` : rk.pest != null ? `PORPAGATU! (est) ${f1(rk.pest)}` : `Game Score ${f1(rk.gsc)} a game`}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
   // Scorer: top 10% on points produced a game, points a game and usage together. Star already says it; Scorer says
   // more than Go-to, so it takes Go-to's place.
   const scorer = !star && cut('scorer');
@@ -7631,11 +7646,11 @@ function pubRosters(extra) {
   names.forEach(nm => { const T = resolveTeam(nm, P); if (!T || T === 'Moorpark' || !(P.teams[T] || []).length) return;
     const sig = JSON.stringify(P.teams[T]);
     let o = st.find(x => normOpp(x.name) === normOpp(nm));
-    if (o && done[normOpp(o.name)] === sig) return;
+    if (o && done[normOpp(o.name)] === sig && (o.players || []).length) return;
     if (!o) { o = { id: 'opp_' + uid(), name: nm, players: [] }; st.push(o); }
     const prev = o.players || [];
     o.players = P.teams[T].map(p => { const k = jn(p.num), q = prev.find(x => jn(x.num) === k) || {};
-      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: q.pos || '', note: q.note || '' }); });
+      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: q.pos || p.pos || '', note: q.note || '' }); });
     o.updatedAt = new Date().toISOString(); done[normOpp(o.name)] = sig; n++; });
   if (n) { lsSet('gt_opp_rosters', st); lsSet(LS_PUB_APPLIED, done); PL_MEMO = null; }
   return n;

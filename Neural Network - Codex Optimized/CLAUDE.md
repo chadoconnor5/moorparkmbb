@@ -172,6 +172,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Possession tracker saved opponent rosters are found under any of a team's names (oppFind: exact name first, else
   the same leaderboard team): the Rosters picker shows the leaderboard's name ("East Los Angeles") while a tournament
   field saves the roster under its short one ("East LA"); 11/11 ELAC showed an empty roster on the iPad.
+  A team picked with no saved players gets its published roster then (pubRosters also re-applies to an empty one).
+  Fill from leaderboard takes the published roster (number, name, position, height, year) plus anyone in the box scores
+  it lacks, fills blanks only (typed labels kept) and saves at once, so the labels from stats show.
+- Star label (export_ratings.tiers, both label copies): the top 20 by PORPAGATU!; a fake-minutes player is placed by
+  his PORPAGATU! (est) (porp_est, rank pest / eqr; Game Score a game only without an estimate).
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just
