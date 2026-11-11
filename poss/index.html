@@ -1348,7 +1348,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.115';
+const VERSION = 'v2026.11.11.116';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3423,7 +3423,7 @@ function teamStatsTable(name, mode) {
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
-  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? `${tsF(r.tov_est)}<span class="small muted"> est</span>` : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.usg_est != null ? `${tsF(r.usg_est)}<span class="small muted"> est</span>` : !adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? `${tsF(r.tov_est)}<span class="small muted"> est</span>` : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
   const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rankrow"><td class="ts-l ts-ranklabel">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
   let zi = 0;   // alternating colours per player; his State Rank line shares his colour
   const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-hasrank' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rankrow">', `<tr class="ts-rankrow${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}"><span class="ts-band-l">${l}</span></td></tr>`;

@@ -1168,6 +1168,8 @@ def player_card(c, p):
     role_s = (f'<font color="{role_hex}"><b>{role_lbl}</b></font>  ' if c.min_ok
               else f'<font color="#aab8d0"><b>{est["role_est"]}</b> (est)</font>  ' if est.get('role_est') else '')
     poss_s = f'  <font color="#ffd700">{usage:.1f}% poss</font>' if c.min_ok else ''
+    if not c.min_ok and est.get('usage_est') is not None:
+        poss_s = f'  <font color="#ffd700">{est["usage_est"]:.1f}% poss</font> <font color="#aab8d0">(est)</font>'
     io, idr = adv.get('ind_ortg', 0), adv.get('ind_drtg', 0); inet = io - idr
     net_c = '#34a853' if inet > 5 else '#e74c3c' if inet < -5 else '#aab8d0'
     ht = c.height.get(name, 0); ht_s = f' · {_fmt_height(ht)}' if ht else ''

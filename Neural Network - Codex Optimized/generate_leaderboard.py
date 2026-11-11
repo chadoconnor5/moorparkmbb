@@ -1518,6 +1518,7 @@ def load_players(stats_dir=None):
                     # and TO% (needs no minutes), a three-tier role and PRPG! (est.) from the box-score minutes estimate
                     "tov_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("tov_pct"),
                     "role_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("role_est"),
+                    "usg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
                     "_u_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
                     "_m_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("min_pct_est"),
                     "ind_drtg": _adv.get("ind_drtg"),
@@ -1741,6 +1742,7 @@ def load_full_rosters(stats_dir=None):
                     # and TO% (needs no minutes), a three-tier role and PRPG! (est.) from the box-score minutes estimate
                     "tov_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("tov_pct"),
                     "role_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("role_est"),
+                    "usg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
                     "shot_pct": _adv.get("shot_pct"), "efg_pct": _efg,
                     "ts_pct": _ts, "oreb_pct": _adv.get("oreb_pct"),
                     "dreb_pct": _adv.get("dreb_pct"), "ast_rate": _adv.get("ast_rate"),
@@ -2204,6 +2206,7 @@ def load_conf_players(stats_dir=None):
                     # and TO% (needs no minutes), a three-tier role and PRPG! (est.) from the box-score minutes estimate
                     "tov_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("tov_pct"),
                     "role_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("role_est"),
+                    "usg_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
                     "_u_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("usage_est"),
                     "_m_est": None if adv_eligible else (adv_map.get(clean_name) or {}).get("min_pct_est"),
                     "ind_drtg": _adv.get("ind_drtg"),
@@ -9990,6 +9993,17 @@ let bpm2SortDir = 'desc';
 let wsSortCol = 'ws';
 let wsSortDir = 'desc';
 let ortgView = 'kenpom';   // the ORtg leaderboard: 'kenpom' (six %Poss bands) or 'tiers' (three, every team, est marked)
+let porpView = 'real';     // the PRPG! leaderboard: 'real' (real minutes only) or 'all' (PRPG! (est) for the other teams too)
+// A player on a team without reliable minutes, in the all-teams views: half his team's games and 4+ points or 3+
+// rebounds a game (the badges' rule)
+function __estQual(p, data, field) {{
+  if (p[field] == null) return false;
+  const g = Math.max(0, ...data.filter(q => q.school === p.school).map(q => q.gp || 0));
+  return (p.gp || 0) >= 0.5 * g && ((p.ppg || 0) >= 4 || (p.rpg || 0) >= 3);
+}}
+const __EST = '<span style="font-size:9px;color:#888;font-weight:600">est</span>';
+const __viewBtns = (cur, setter, opts) => opts.map(([k, lab]) => `<button onclick="${{setter}}='${{k}}';refreshIndividual()" style="padding:4px 12px;margin:0 3px;border-radius:5px;cursor:pointer;font-size:0.8rem;font-weight:${{cur === k ? 700 : 500}};border:1px solid #1a1f2e;background:${{cur === k ? '#1a1f2e' : '#fff'}};color:${{cur === k ? '#fff' : '#1a1f2e'}}">${{lab}}</button>`).join('');
+//   // the ORtg leaderboard: 'kenpom' (six %Poss bands) or 'tiers' (three, every team, est marked)
 const POSS_BUCKETS = [
   {{min: 28, max: null, label: '28%+ %Poss'}},
   {{min: 24, max: 28,   label: '24\u201328% %Poss'}},
@@ -10293,8 +10307,7 @@ function renderAdv(data, catKey) {{
     const teamGp = {{}};
     data.forEach(p => {{ teamGp[p.school] = Math.max(teamGp[p.school] || 0, p.gp || 0); }});
     // placeholder-minute players: half the team's games and 4+ points or 3+ rebounds a game (the badges' rule)
-    const estQual = p => p.ind_ortg == null && p.ortg_est != null && p.role_est && (p.gp || 0) >= 0.5 * (teamGp[p.school] || 0)
-      && ((p.ppg || 0) >= 4 || (p.rpg || 0) >= 3);
+    const estQual = p => p.ind_ortg == null && p.role_est && __estQual(p, data, 'ortg_est');
     const tierOf = p => p.ind_ortg != null && p.usage_pct != null ? (p.usage_pct > 24 ? 'Primary' : p.usage_pct >= 16 ? 'Rotation' : 'Limited') : p.role_est;
     const rows = qualified.filter(p => p.ind_ortg != null && p.usage_pct != null && p.usage_pct <= 40)
       .concat(data.filter(estQual));
@@ -10310,7 +10323,7 @@ function renderAdv(data, catKey) {{
         const tr = tb.insertRow();
         const schoolDisplay = p.school === 'La Pierce' ? 'LA Pierce' : p.school;
         const est = p.ind_ortg == null;
-        const tail = est ? ' <span style="font-size:9px;color:#888;font-weight:600">est</span>' : ` (${{p.usage_pct.toFixed(1)}})`;
+        const tail = est ? (p.usg_est != null ? ` (${{p.usg_est.toFixed(1)}} ` + __EST + ')' : ' ' + __EST) : ` (${{p.usage_pct.toFixed(1)}})`;
         tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td><td>${{val(p).toFixed(1)}}${{tail}}</td>`;
         if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
       }});
@@ -10319,7 +10332,7 @@ function renderAdv(data, catKey) {{
     nc.colSpan = showMakeAttempt ? 6 : 5;
     nc.style.cssText = 'font-size:0.75rem;color:#666;padding:8px;background:#fff;white-space:normal';
     nc.innerHTML = '<div style="width:0;min-width:100%"></div>';   // the note wraps to the table's width, never widens it
-    nc.firstChild.textContent = 'Real minutes: ORtg (usage). est: the team\u2019s box scores have no reliable minutes, so ORtg and the tier are estimated from the box score (the tier is right about 4 times in 5 where real minutes exist); those players qualify with half their team\u2019s games and 4+ points or 3+ rebounds a game.';
+    nc.firstChild.textContent = 'Real minutes: ORtg (usage). est: the team\u2019s box scores have no reliable minutes, so ORtg, usage (about 1.7 points off where real minutes exist) and the tier are estimated from the box score (the tier is right about 4 times in 5 where real minutes exist); those players qualify with half their team\u2019s games and 4+ points or 3+ rebounds a game.';
     return;
   }}
   if (cat.poss_buckets) {{
@@ -10344,6 +10357,23 @@ function renderAdv(data, catKey) {{
         tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td>${{maCell}}<td>${{statVal}}${{poss}}</td>`;
         if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
       }});
+    }});
+  }} else if (catKey === 'porp') {{
+    // Two views: real minutes only, or every team: PRPG! (est) (the PRPG! formula on ORtg (est) and the box-score usage /
+    // %Min estimate; 0.07 off on 2022-23 to 2025-26 real-minutes players) for teams without reliable minutes, marked est.
+    const vt = tb.insertRow(), vc = vt.insertCell();
+    vc.colSpan = 5;
+    vc.style.cssText = 'text-align:center;padding:8px 4px;background:#fff';
+    vc.innerHTML = __viewBtns(porpView, 'porpView', [['real', 'Real minutes'], ['all', 'All teams (est)']]);
+    const val = p => p.porp != null ? p.porp : p.porp_est;
+    const pool = qualified.filter(p => p.porp != null)
+      .concat(porpView === 'all' ? data.filter(p => p.porp == null && __estQual(p, data, 'porp_est')) : [])
+      .sort((a, b) => val(b) - val(a)).slice(0, 100);
+    pool.forEach((p, i) => {{
+      const tr = tb.insertRow();
+      const schoolDisplay = p.school === 'La Pierce' ? 'LA Pierce' : p.school;
+      tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td><td>${{val(p).toFixed(1)}}${{p.porp == null ? ' ' + __EST : ''}}</td>`;
+      if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
     }});
   }} else {{
     const pool = qualified
@@ -11697,7 +11727,7 @@ function __tsAdvTable(rows, advOk, teamName, ranks) {{
     const adv = k => advOk ? __tsF(r[k]) : '—';
     return '<td class="ts-l">' + playerLink(r.name, teamStatsReturnTeam) + '</td><td>' + (r.ht || '—') + '</td><td>' + r.gp + '</td>'
       + '<td>' + (advOk ? __tsF(r.min_pct) : '—') + '</td>'
-      + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + EST : '—') + '</b></td><td>' + (advOk ? __tsF(r.usage_pct) : r.role_est ? r.role_est + EST : '—') + '</td><td>' + adv('shot_pct') + '</td>'
+      + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + EST : '—') + '</b></td><td>' + (advOk ? __tsF(r.usage_pct) : r.usg_est != null ? '<span title="' + (r.role_est || '') + ' (est)">' + __tsF(r.usg_est) + EST + '</span>' : r.role_est ? r.role_est + EST : '—') + '</td><td>' + adv('shot_pct') + '</td>'
       + '<td>' + adv('efg_pct') + '</td><td>' + adv('ts_pct') + '</td>'
       + '<td>' + adv('oreb_pct') + '</td><td>' + adv('dreb_pct') + '</td>'
       + '<td>' + adv('ast_rate') + '</td><td>' + (advOk ? __tsF(r.tov_pct) : r.tov_est != null ? __tsF(r.tov_est) + EST : '—') + '</td>'
@@ -11754,7 +11784,7 @@ function renderTeamStats(teamName) {{
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
     ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
-      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss shows a role (est): Primary (over 24% usage), Rotation (16-24%) or Limited (under 16%), from his share of the team’s possessions and his box score (the right tier about 4 times in 5 where real minutes exist).</div>' : '')
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss (est) is his share of the team’s possessions over an estimate of his share of its minutes, from the box score (about 1.7 points off where real minutes exist; its tier, Primary over 24% / Rotation 16-24% / Limited under 16%, right about 4 times in 5).</div>' : '')
       + '</div>'
     : '';
 
@@ -13142,7 +13172,8 @@ function renderPlayerProfile() {{
   else if (!advOk && rRow && rRow.ortg_est != null) hl.push('<b>' + __ppF(rRow.ortg_est) + '</b> ORtg <span style="font-size:0.75em;color:#888">(est)</span>');
   if (dRow && dRow.porp != null) hl.push('<b>' + __ppF(dRow.porp, 2) + '</b> PRPG!');
   else if (dRow && dRow.porp_est != null) hl.push('<b>' + __ppF(dRow.porp_est, 2) + '</b> PRPG! <span style="font-size:0.75em;color:#888">(est)</span>');
-  if (!advOk && rRow && rRow.role_est) hl.push('<b>' + rRow.role_est + '</b> role <span style="font-size:0.75em;color:#888">(est)</span>');
+  if (!advOk && rRow && rRow.usg_est != null) hl.push('<b>' + __ppF(rRow.usg_est) + '%</b> poss · ' + (rRow.role_est || '') + ' <span style="font-size:0.75em;color:#888">(est)</span>');
+  else if (!advOk && rRow && rRow.role_est) hl.push('<b>' + rRow.role_est + '</b> role <span style="font-size:0.75em;color:#888">(est)</span>');
   if (dRow && dRow.bpm != null) hl.push('<b>' + __ppF(dRow.bpm, 2) + '</b> BPM');
 
   document.getElementById('player-content').innerHTML = `<style>
