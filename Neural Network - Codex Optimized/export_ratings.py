@@ -265,6 +265,55 @@ def load_synergy(season):
     return out
 
 
+def _words(n):
+    return frozenset(re.sub(r"[^A-Z ]+", " ", str(n).upper().replace(",", " ")).split())
+
+
+def rim_shots(season):
+    """Each player's shots at the rim, for Finisher: {(team, name words): {"src", "m", "a", "share", ...}}.
+    Synergy first (they're very accurate; any age, the newest export wins): the At Rim leaderboard
+    (internal_data/synergy_leaderboards/<season>/at_rim_player_offensive.json, 10+ attempts), else a player page's
+    shot types (synergy_players_*). Otherwise the play-by-play: layups, dunks and tip-ins of his field goal attempts
+    (scorekeepers log some layups as jump shots, so Finisher asks less of it). Players in neither are left to the box
+    score rule."""
+    import import_synergy_leaderboard as isl
+    tag = (season or "").replace("-", "_")
+    out, d = {}, Path(__file__).resolve().parent / "internal_data"
+    lb = _load(d / "synergy_leaderboards" / tag / "at_rim_player_offensive.json") or {}
+    rows = lb.get("rows") or []
+    att = sum(r.get("FG Att") or 0 for r in rows)
+    lg = round(100 * sum(r.get("FG Made") or 0 for r in rows) / att, 1) if att else 58.0   # the state's at-rim FG%
+    for r in rows:
+        if r.get("Team") and r.get("Player") and r.get("FG Att"):
+            out[(r["Team"], _words(r["Player"]))] = {"src": "syn", "m": r["FG Made"], "a": r["FG Att"],
+                                                     "share": round(100 * (r.get("%Time") or 0), 1), "lg": lg, "asof": lb.get("as_of")}
+    for f in d.glob(f"synergy_players_*_{tag}.json"):
+        team = next((t for t in isl.our_teams() if SLUG(t) == f.name[len("synergy_players_"):-len(f"_{tag}.json")]), None)
+        for p in (_load(f) if isinstance(_load(f), list) else []):
+            st, k = p.get("shot_types") or {}, (team, _words(p.get("name")))
+            if team and k not in out and st.get("at_rim_att") and st.get("at_rim_fg_pct") is not None:
+                out[k] = {"src": "syn", "m": round(st["at_rim_att"] * st["at_rim_fg_pct"] / 100), "a": st["at_rim_att"],
+                          "share": st.get("at_rim_pct_fga"), "lg": lg, "asof": None}
+    import play_by_play
+    ours, pbp = isl.our_teams(), {}
+    for f in sorted((Path(__file__).resolve().parent / f"{season} Play by Play").glob("*.json")):
+        g = play_by_play.fix_plays(_load(f) or {})
+        sides = [n if n in ours else isl.map_team(str(n), ours) for n in (g.get("visitor"), g.get("home"))]
+        for pl in g.get("plays") or []:
+            act = pl[4] or ""
+            if not act.startswith(("made ", "missed ")) or "free throw" in act or pl[2] not in (0, 1) or not sides[pl[2]]:
+                continue
+            c = pbp.setdefault((sides[pl[2]], _words(pl[3])), {"m": 0, "a": 0, "fga": 0})
+            c["fga"] += 1
+            if any(w in act for w in ("layup", "dunk", "tip-in")):
+                c["a"] += 1
+                c["m"] += act.startswith("made")
+    for k, c in pbp.items():
+        if k not in out and c["fga"]:
+            out[k] = {"src": "pbp", "m": c["m"], "a": c["a"], "share": round(100 * c["a"] / c["fga"], 1)}
+    return out
+
+
 def syn_summary(p):
     """The compact Synergy line a team file carries for the why text: shares and FG% (no ranks)."""
     st = p.get("shot_types") or {}
@@ -557,6 +606,7 @@ def leaderboard_tables(teams=()):
         tiers(pool, ranks, totals)
         box_pct(pool, ranks)
         porp = {(p["name"], p["school"]): p for p in pool}
+        rim = rim_shots(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
         for team, r in rosters.items():
             for row in r["players"]:
                 q = porp.get((row["name"], team)) or {}
@@ -565,6 +615,7 @@ def leaderboard_tables(teams=()):
                 sp = syn.get((row["name"], SLUG(team)))
                 if sp:
                     row["syn"] = syn_summary(sp)
+                row["rim"] = rim.get((team, _words(row["name"])))   # Finisher's shots at the rim (rim_shots)
         _TABLES = (rosters, ranks, totals)
     return _TABLES
 
@@ -684,8 +735,22 @@ def auto_labels(R, table):
     slasher = not shooter and not allAround and not interior and draws and (hasC or nonShooter)
     if slasher:
         add("Slasher", drawWhy + (f", {_fx(twoA, 1)} 2PA/g" if twoA else "") + synW("rim"))
-    if not interior and not slasher and fga >= 40 and rate is not None and rate < 20 and (R.get("ts_pct") or 0) >= 58:
-        add("Finisher", f"TS {f1(R.get('ts_pct'))}% · {_fx(100 - rate, 0)}% of his shots inside")
+    # Finisher: scores at the rim. Synergy decides when it has 10+ of his shots there (half his shots at the rim, made at
+    # the state's at-rim rate or better); otherwise the play-by-play (40%+ of his shots layups / dunks / tip-ins: some
+    # layups are logged as jumpers) with threes under 20% and TS 58%+; with neither, the box score (threes under 20%,
+    # TS 58%+). Shots: 10+, 40 by game 28.
+    rim, minF = R.get("rim") or {}, max(10, 40 * min(R.get("gp") or 0, SH3["FULL_G"]) / SH3["FULL_G"])
+    if not interior and not slasher:
+        if rim.get("src") == "syn" and (rim.get("a") or 0) >= 10:
+            if (rim.get("share") or 0) >= 50 and 100 * rim["m"] / rim["a"] >= rim["lg"]:
+                add("Finisher", f"Synergy at rim {rim['m']}-{rim['a']} ({_fx(100 * rim['m'] / rim['a'], 1)}%, state {_fx(rim['lg'], 1)}%), "
+                                f"{_fx(rim['share'], 0)}% of his shots" + (f" · as of {_mdy(rim['asof'])}" if rim.get("asof") else ""))
+        elif fga >= minF and rate is not None and rate < 20 and (R.get("ts_pct") or 0) >= 58:
+            if rim.get("src") == "pbp" and rim.get("a") is not None:
+                if (rim.get("share") or 0) >= 40:
+                    add("Finisher", f"TS {f1(R.get('ts_pct'))}% · at rim {rim['m']}-{rim['a']}, {_fx(rim['share'], 0)}% of his shots (play-by-play)")
+            else:
+                add("Finisher", f"TS {f1(R.get('ts_pct'))}% · {_fx(100 - rate, 0)}% of his shots twos")
     if call == "Non-shooter":
         add("Non-shooter", shootWhy3 + (f" · {_fx(rate, 0)}% of his shots are threes" if rate is not None else ""))
     if call in ("Avg 3PT", "Poor 3PT"):
@@ -746,6 +811,13 @@ def auto_labels(R, table):
     if rk.get("fc_per_40") is not None and bot("fc_per_40", AUTO_CUT["bottom"]):
         add("Foul-prone", f"{f1(R.get('fc_per_40'))} fouls / 40")
     return out
+
+
+def _mdy(iso):   # "2026-11-11" -> "11/11"
+    try:
+        return f"{int(iso[5:7])}/{int(iso[8:10])}"
+    except (TypeError, ValueError):
+        return str(iso)
 
 
 def _ordinal(n):

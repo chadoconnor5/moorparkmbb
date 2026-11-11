@@ -266,7 +266,9 @@ def aggregate_player_stats(team_name: str, boxscores: list[dict]) -> dict:
         if not team_key:
             continue
 
-        for player in bs["teams"][team_key]:
+        rows = bs["teams"][team_key]
+        flagged = any("is_starter" in r for r in rows)   # the box's starter flags; else the first five listed started
+        for idx, player in enumerate(rows):
             name = normalize_player_name(player["name"])
             if name.startswith("TM "):
                 continue
@@ -277,6 +279,8 @@ def aggregate_player_stats(team_name: str, boxscores: list[dict]) -> dict:
             key = _player_merge_key(name)
             p = players[key]
             p["games"] += 1
+            if (player.get("is_starter") if flagged else idx < 5):
+                p["GS"] = p.get("GS", 0) + 1   # games started (update_advanced_analytics' minutes estimate)
 
             # Parse minutes
             try:

@@ -88,7 +88,11 @@ This copy keeps the original project intact and starts consolidating the working
   with CCC league averages, so values land on the T-Rank scale. Field `porp`
   on player rows (full + conference, all seasons), surfaced as the PRPG!
   advanced leaderboard category and a chart metric. Null without reliable
-  minutes/usage (false-minutes teams).
+  minutes/usage (false-minutes teams). Those players get `porp_est` instead (every player row
+  carries the key, null when not set, so the columnar packing stays uniform):
+  the same formula on ORtg (est) and the box-score usage / %Min estimate
+  (rows' transient `_u_est` / `_m_est`, popped in attach_porpagatu, never
+  embedded). Player rows also carry `tov_est` and `role_est` (roster rows too).
 
 - Player Profile pages: click any player name (leaderboards, Team Stats,
   box scores). Header + last-5/10 form bar + KenPom-style split table

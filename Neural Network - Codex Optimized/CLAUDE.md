@@ -120,6 +120,21 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the
   scouting report's player profiles list them ("Labels: Scorer, Elite shooter; weak spots: Foul-prone"). Change a
   label rule in both places.
+- Synergy leaderboard exports (any situation: At Rim, Long 3, Catch and Shoot, All Poss + Assists, Overall Player
+  Defensive, Transition Team Defensive...): Synergy needs a login, so they come in by hand when we scout.
+  python3 import_synergy_leaderboard.py <file.xlsx> [...] [--as-of YYYY-MM-DD] -> internal_data/synergy_leaderboards/
+  <season>/<situation>.json (internal only; counts as season totals, rates as they are; team names mapped to ours,
+  Synergy's name kept as "Synergy Team"; player names through fix_player_name; the newest export of a situation
+  replaces the last). Labels lean on Synergy (very accurate) over the play-by-play, whatever its age.
+  Moorpark Synergy.bat (double-click on the PC): loads every Downloads\Leaderboards*.xlsx (--delete removes each one
+  once loaded; one it can't read stays and is listed), then commits and pushes internal_data/synergy_leaderboards.
+  SYNERGY CHECKLIST.txt: what to grab each scout.
+- Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
+  player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's
+  pool; 58.0% on 11/11). Otherwise the play-by-play (export_ratings.rim_shots: layups, dunks, tip-ins of his FGA, 40%+:
+  scorekeepers log some layups as jump shots, 11/11: Elijah Wade 88% at the rim by Synergy, 42% by the play-by-play)
+  with threes under 20% and TS 58%+; with neither, the box score (threes under 20%, TS 58%+). Shots: 10+, 40 by game
+  28 (scaled like Non-shooter's threes). Rows carry rim {src syn/pbp, m, a, share, lg, asof}.
 - A box score side whose players all have 0 in every stat (minutes aside) didn't post: the game stays PARTIAL / NO_BOX
   and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
@@ -229,8 +244,19 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   PF, STL, BLK) of the team's player-minutes. 2025-26 real-minutes teams (254 players, 100+ FGA): 0.1 ORtg points off
   on average, 0.3 for 90%, 1.1 at most. Shown marked "est" where the real ORtg isn't (adv 0 teams): the leaderboard's
   Team Stats (ortg_est on roster rows, a note above the table) and player pages, the tracker's Team Stats table,
-  the scouting report's player cards (BOX_ONLY). Usage, rebound / assist / steal / block %, per-40 and PRPG! stay blank
+  the scouting report's player cards (BOX_ONLY). Usage, rebound / assist / steal / block % and per-40 stay blank
   (they really are per-minute). Not in the individual ORtg leaderboard (it ranks within %Poss bands).
+  Alongside it for the same players: TORate (est) (the TO% itself, needs no minutes: tov_est), a 3-tier role (est)
+  in place of %Poss (role_est: Primary over 24% usage, Rotation 16-24, Limited under 16; KenPom's 6 bands are not
+  shown for estimates) and PRPG! (est) (porp_est). The role and PRPG! use a minutes estimate inside the sums only,
+  never shown: update_advanced_analytics.MIN_EST_W, a regression of %Min on starts a game (generate_team_stats now
+  counts GS), possession share (TotPoss / team possessions in his games, exactly minute-free), per-game box stats
+  and activity share, fitted on 2022-23 to 2025-26 real-minutes players (%Min 4.6 off; the right tier 79-83%). usage_est
+  = season possession share / %Min est (%Min is of the whole season: the share in his games alone inflated anyone who
+  missed games). attach_porpagatu runs the real formula on ORtg (est), usage_est and min_pct_est for players
+  without a real PRPG!: 0.07 off on 2022-23 to 2025-26, 23-24 of the top 24 the same each season. All-State / All-Conference use porp_est for
+  fake-minutes players (the Game Score stand-in stays for seasons without it). Shown on the leaderboard's Team Stats
+  and player pages, the tracker's Team Stats table and the scouting report's player cards (role and TO% est).
 - Box score win-probability chart (2026-27 games with play-by-play, Final view), Torvik-style: the winner's chance
   from the lead, time left and the pregame expected margin (the game's FanMatch row: pregame nets + 3 home court),
   the score margin dotted on the right axis, a dot per play (shots, free throws, turnovers) in the team's color

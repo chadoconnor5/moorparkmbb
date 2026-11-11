@@ -1348,7 +1348,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.10.110';
+const VERSION = 'v2026.11.11.114';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3423,7 +3423,7 @@ function teamStatsTable(name, mode) {
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
-  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? `${tsF(r.tov_est)}<span class="small muted"> est</span>` : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
   const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rankrow"><td class="ts-l ts-ranklabel">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
   let zi = 0;   // alternating colours per player; his State Rank line shares his colour
   const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-hasrank' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rankrow">', `<tr class="ts-rankrow${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}"><span class="ts-band-l">${l}</span></td></tr>`;
@@ -6833,9 +6833,22 @@ function autoLabels(g, t, id) {
   // Slasher: the composite gates on threes under 25% of his shots; the old rule wants a non-shooter who draws fouls.
   const slasher = !shooter && !allAround && !interior && draws && (hasC || nonShooter);
   if (slasher) add('Slasher', drawWhy + (twoA ? `, ${twoA.toFixed(1)} 2PA/g` : '') + synW('rim'));
-  // Finisher: scores efficiently near the basket without the Interior scorer's or Slasher's volume: threes under 20% of his
-  // shots (40+ shots), TS 58%+.
-  if (!interior && !slasher && R && (R.fga || 0) >= 40 && rate != null && rate < 20 && (R.ts_pct || 0) >= 58) add('Finisher', `TS ${f1(R.ts_pct)}% · ${(100 - rate).toFixed(0)}% of his shots inside`);
+  // Finisher: scores at the rim. Synergy decides when it has 10+ of his shots there (R.rim from export_ratings.rim_shots:
+  // half his shots at the rim, made at the state's at-rim rate or better); otherwise the play-by-play (40%+ of his shots
+  // layups / dunks / tip-ins: some layups are logged as jumpers) with threes under 20% and TS 58%+; with neither, the box
+  // score (threes under 20%, TS 58%+). Shots: 10+, 40 by game 28. Kept the same as export_ratings.auto_labels.
+  const rim = (R && R.rim) || {}, minF = Math.max(10, 40 * Math.min((R && R.gp) || 0, SH3.FULL_G) / SH3.FULL_G);
+  const mdy = iso => iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '';
+  if (!interior && !slasher && R) {
+    if (rim.src === 'syn' && (rim.a || 0) >= 10) {
+      if ((rim.share || 0) >= 50 && 100 * rim.m / rim.a >= rim.lg)
+        add('Finisher', `Synergy at rim ${rim.m}-${rim.a} (${(100 * rim.m / rim.a).toFixed(1)}%, state ${(+rim.lg).toFixed(1)}%), ${(+rim.share).toFixed(0)}% of his shots` + (rim.asof ? ` · as of ${mdy(rim.asof)}` : ''));
+    } else if ((R.fga || 0) >= minF && rate != null && rate < 20 && (R.ts_pct || 0) >= 58) {
+      if (rim.src === 'pbp' && rim.a != null) {
+        if ((rim.share || 0) >= 40) add('Finisher', `TS ${f1(R.ts_pct)}% · at rim ${rim.m}-${rim.a}, ${(+rim.share).toFixed(0)}% of his shots (play-by-play)`);
+      } else add('Finisher', `TS ${f1(R.ts_pct)}% · ${(100 - rate).toFixed(0)}% of his shots twos`);
+    }
+  }
   if (call === 'Non-shooter') add('Non-shooter', `${shootWhy3}${rate != null ? ` · ${rate.toFixed(0)}% of his shots are threes` : ''}`);
   if (call === 'Avg 3PT' || call === 'Poor 3PT') add(call, shootWhy3 + synW('cs', 'pull'));
   // Shot diet: 55%+ of his shots are threes on 2.0+ a game (about the top 20%), whether or not they go in.
@@ -6900,7 +6913,7 @@ const LABEL_GUIDE = [
     ['Inefficient volume', 'Uses 24%+ of possessions; bottom 30% on a blend of TS%, TSAdd/100, band ORtg and turnovers.']]],
   ['How he scores', [
     ['Interior scorer', 'Threes under 25% of his shots, 3+ 2PA a game; top 20% on 2P%, share of shots inside, FT rate, 2PA a game and OR% (plus Synergy finishing at the rim).'],
-    ['Finisher', 'Scores efficiently near the basket: threes under 20% of his shots, TS 58%+ (not already an Interior scorer or Slasher).'],
+    ['Finisher', 'Scores at the rim: with Synergy (10+ shots there), half his shots at the rim made at the state rate or better; otherwise the play-by-play (40%+ of his shots layups, dunks, tip-ins), threes under 20% and TS 58%+ (not already an Interior scorer or Slasher).'],
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS% (with TSAdd/100), FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
     ['Balanced', 'Scores inside and out without All-Around\'s efficiency: 30-55% of his shots are threes, FT rate in the top half, 20%+ of possessions.'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
