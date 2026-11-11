@@ -269,6 +269,43 @@ def _words(n):
     return frozenset(re.sub(r"[^A-Z ]+", " ", str(n).upper().replace(",", " ")).split())
 
 
+_BOARDS = {}
+SYN_MIN = {"at_rim_player_offensive": 10, "long_3_point_jump_shots_player_offensive": 10,
+           "catch_and_shoot_player_offensive": 10, "all_jump_shots_off_the_dribble_player_offensive": 10,
+           "all_poss_assists_player_offensive": 20, "overall_player_defensive": 15}
+
+
+def syn_boards(season):
+    """The Synergy leaderboards (import_synergy_leaderboard.py) this season has: {situation: {"asof", "by": {(team,
+    name words): row with "pct" (0-100, higher better, among the board's players with SYN_MIN of it)}}}. Synergy is very
+    accurate, so the labels lean on it whatever its age (the newest export of a situation wins)."""
+    tag = (season or "").replace("-", "_")
+    if tag in _BOARDS:
+        return _BOARDS[tag]
+    import bisect
+    out = {}
+    for key, need in SYN_MIN.items():
+        b = _load(Path(__file__).resolve().parent / "internal_data" / "synergy_leaderboards" / tag / f"{key}.json") or {}
+        size = (lambda r: r.get("Poss+Ast") or 0) if key.startswith("all_poss") else \
+               (lambda r: r.get("Poss") or 0) if key.startswith("overall_player_def") else (lambda r: r.get("FG Att") or 0)
+        rows = [r for r in b.get("rows") or [] if r.get("Team") and r.get("Player") and size(r) >= need]
+        stat = "%Ast" if key.startswith("all_poss") else "PPP"
+        lo = key.startswith("overall_player_def")   # on defense fewer points allowed is better
+        vals = sorted(r.get(stat) or 0 for r in rows)
+        by = {}
+        for r in rows:
+            v = r.get(stat) or 0
+            better = (len(vals) - bisect.bisect_right(vals, v)) if lo else bisect.bisect_left(vals, v)
+            r = dict(r, pct=round(100 * better / max(1, len(vals) - 1)), n=size(r))
+            if key.startswith("all_poss"):   # Ast/TO percentile for Floor general's ball security
+                at = sorted(x.get("Ast/TO") or 0 for x in rows)
+                r["atp"] = round(100 * bisect.bisect_left(at, r.get("Ast/TO") or 0) / max(1, len(at) - 1))
+            by[(r["Team"], _words(r["Player"]))] = r
+        out[key] = {"asof": b.get("as_of"), "by": by}
+    _BOARDS[tag] = out
+    return out
+
+
 def rim_shots(season):
     """Each player's shots at the rim, for Finisher: {(team, name words): {"src", "m", "a", "share", ...}}.
     Synergy first (they're very accurate; any age, the newest export wins): the At Rim leaderboard
@@ -326,8 +363,13 @@ def syn_summary(p):
         "plays": [[n.strip(), int(s)] for n, s, _, _ in pt[:3]] or None}.items() if v is not None}
 
 
-def composites(pool, ranks, totals, syn):
+SYN_BOARD_KEYS = {"syn_rim": "at_rim_player_offensive", "syn_three": "long_3_point_jump_shots_player_offensive",
+                  "syn_cs": "catch_and_shoot_player_offensive", "syn_pull": "all_jump_shots_off_the_dribble_player_offensive"}
+
+
+def composites(pool, ranks, totals, syn, boards=None):
     """Adds {"comp": {name: score}} to ranks and {"compCut": {name: cut}} to totals (see COMPOSITES)."""
+    boards = boards or {}
     qual = [p for p in pool if (p.get("min_pct") or 0) >= MIN_PCT_QUAL and p.get("gp")]
 
     def pct_of(vals):   # value -> 0-100 percentile (share of the pool at or below it)
@@ -375,6 +417,11 @@ def composites(pool, ranks, totals, syn):
         for k, sk in SYN_KEYS.items():
             if s.get(sk) is not None:
                 f[k] = float(s[sk])
+        bk = (p["school"], _words(p["name"]))
+        for k, board in SYN_BOARD_KEYS.items():   # Synergy leaderboards: his PPP percentile there
+            r = (boards.get(board) or {}).get("by", {}).get(bk)
+            if f.get(k) is None and r:
+                f[k] = float(r["pct"])
         return f
 
     def blend(f, w, need=0.6):   # weighted mean over the factors he has; None under 60% of the weight (50% low-info)
@@ -598,7 +645,7 @@ def leaderboard_tables(teams=()):
         for i, p in enumerate(q):
             ranks.setdefault((p["name"], p["school"]), {})["porp"] = i + 1
         syn = load_synergy(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
-        composites(pool, ranks, totals, syn)
+        composites(pool, ranks, totals, syn, syn_boards(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), "")))
         sixth_men(pool, ranks, {x["school"] for x in pool})
         glue_guys(pool, ranks)
         help_off(pool, ranks)
@@ -607,6 +654,7 @@ def leaderboard_tables(teams=()):
         box_pct(pool, ranks)
         porp = {(p["name"], p["school"]): p for p in pool}
         rim = rim_shots(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
+        boards = syn_boards(gl._STATS_DIR_TO_SEASON.get(str(gl.STATS_DIR), ""))
         for team, r in rosters.items():
             for row in r["players"]:
                 q = porp.get((row["name"], team)) or {}
@@ -616,6 +664,24 @@ def leaderboard_tables(teams=()):
                 if sp:
                     row["syn"] = syn_summary(sp)
                 row["rim"] = rim.get((team, _words(row["name"])))   # Finisher's shots at the rim (rim_shots)
+                bk = (team, _words(row["name"]))
+                g = lambda key: boards.get(key, {}).get("by", {}).get(bk)
+                if not sp:   # no player page: the why lines' Synergy shooting from the leaderboards
+                    sm = {k: v for k, v in {
+                        "rim": [round(100 * (g("at_rim_player_offensive") or {}).get("%Time", 0), 1), round(100 * g("at_rim_player_offensive")["FG%"], 1)] if g("at_rim_player_offensive") else None,
+                        "cs": [round(100 * g("catch_and_shoot_player_offensive")["%Time"], 1), round(100 * g("catch_and_shoot_player_offensive")["FG%"], 1)] if g("catch_and_shoot_player_offensive") else None,
+                        "pull": round(100 * g("all_jump_shots_off_the_dribble_player_offensive")["FG%"], 1) if g("all_jump_shots_off_the_dribble_player_offensive") else None}.items() if v is not None}
+                    if sm:
+                        row["syn"] = sm
+                d, a = g("overall_player_defensive"), g("all_poss_assists_player_offensive")
+                if not d and sp and (sp.get("defense") or {}).get("ppp_rank") is not None and (sp["defense"].get("poss") or 0) >= 15:
+                    d = {"n": sp["defense"]["poss"], "PPP": sp["defense"]["ppp"], "pct": sp["defense"]["ppp_rank"]}
+                row["sd"] = {"n": d["n"], "ppp": round(d["PPP"], 3), "pct": d["pct"],
+                             "asof": boards.get("overall_player_defensive", {}).get("asof") if "Team" in d else None} if d else None
+                row["sa"] = {"n": a["n"], "ast": round(100 * (a.get("%Ast") or 0), 1), "pct": a["pct"], "at": round(a.get("Ast/TO") or 0, 2),
+                             "atp": a["atp"], "asof": boards["all_poss_assists_player_offensive"]["asof"]} if a else None
+                dv = (sp or {}).get("drive_direction") or {}
+                row["drv"] = [dv.get("drives_left_poss") or 0, dv.get("drives_right_poss") or 0] if dv else None
         _TABLES = (rosters, ranks, totals)
     return _TABLES
 
@@ -778,14 +844,21 @@ def auto_labels(R, table):
             add("Rebounder", glW(False, True))
         if orr:
             add("Off. rebounder", glW(True, False))
-    if (cut("floor_gen") and top("ast_rate", AUTO_CUT["top"])) if hasC else (top("ast_rate", 0.10) and not bot("tov_pct", 0.30)):
-        add("Floor general", f"ARate {f1(R.get('ast_rate'))} · TORate {f1(R.get('tov_pct'))} · {f1(usg)}% of possessions")
+    # Synergy All Poss + Assists (R.sa, 20+ possessions + assists): its Ast/TO is Floor general's ball security (not bottom
+    # 30%) and its numbers go in the why line. Its assist share (assists of his own possessions + assists) is a style, not
+    # a passing level: a low-usage player with a few assists tops it, so the assist rate (per minute) still decides.
+    SA = R.get("sa")
+    saW = (f" · Synergy: assists {f1(SA['ast'])}% of his possessions + assists ({_ordinal(SA['pct'])} pctile), Ast/TO {_fx(SA['at'], 2)}"
+           + (f" · as of {_mdy(SA['asof'])}" if SA.get("asof") else "")) if SA else ""
+    secure = (SA["atp"] > 30) if SA else None
+    if (cut("floor_gen") and top("ast_rate", AUTO_CUT["top"]) and secure is not False) if hasC else (top("ast_rate", 0.10) and (secure if SA else not bot("tov_pct", 0.30))):
+        add("Floor general", f"ARate {f1(R.get('ast_rate'))} · TORate {f1(R.get('tov_pct'))} · {f1(usg)}% of possessions" + saW)
     elif top("ast_rate", AUTO_CUT["top"]):
-        add("Passer", f"ARate {f1(R.get('ast_rate'))}")
-    elif rk.get("ast_rate") is None and bTop("apg", 0.10) and not bTop("tor", 0.30):
-        add("Floor general", f"{f1(R.get('apg'))} apg · {f1(R.get('topg'))} TO/g")
+        add("Passer", f"ARate {f1(R.get('ast_rate'))}" + saW)
+    elif rk.get("ast_rate") is None and bTop("apg", 0.10) and (secure if SA else not bTop("tor", 0.30)):
+        add("Floor general", f"{f1(R.get('apg'))} apg · {f1(R.get('topg'))} TO/g" + saW)
     elif rk.get("ast_rate") is None and bTop("apg", AUTO_CUT["top"]):
-        add("Passer", f"{f1(R.get('apg'))} apg")
+        add("Passer", f"{f1(R.get('apg'))} apg" + saW)
     hawk = (cut("ball_hawk") if hasC and C.get("ball_hawk") is not None else top("stl_pct", AUTO_CUT["top"])
             if rk.get("stl_pct") is not None else bTop("spg", AUTO_CUT["top"]))
     if hawk:
@@ -805,11 +878,23 @@ def auto_labels(R, table):
     if (ftv is not None or rk.get("ftp") is not None) and ftBad:
         add("Bad FT", f"FT {f1(R.get('ftp'))}% ({R.get('ftm')}-{R.get('fta')})")
     if bot("ast_rate", 0.10) if rk.get("ast_rate") is not None else bBot("astr", 0.10):
-        add("Non-passer", f"ARate {f1(R.get('ast_rate'))}" if rk.get("ast_rate") is not None else f"{f1(R.get('apg'))} apg")
+        add("Non-passer", (f"ARate {f1(R.get('ast_rate'))}" if rk.get("ast_rate") is not None else f"{f1(R.get('apg'))} apg") + saW)
     if bot("tov_pct", AUTO_CUT["bottom"]) if rk.get("tov_pct") is not None else bTop("tor", AUTO_CUT["bottom"]):
         add("TO-prone", f"TORate {f1(R.get('tov_pct'))}" if rk.get("tov_pct") is not None else f"{f1(R.get('topg'))} TO/g")
     if rk.get("fc_per_40") is not None and bot("fc_per_40", AUTO_CUT["bottom"]):
         add("Foul-prone", f"{f1(R.get('fc_per_40'))} fouls / 40")
+    # Synergy defense (Overall Player Defensive leaderboard, else his player page's Defense tab): 15+ possessions defended,
+    # points allowed per possession in the state's bottom 25% = Attackable, top 25% = Lockdown.
+    SD = R.get("sd")
+    if SD and SD["n"] >= 15 and (SD["pct"] <= 25 or SD["pct"] >= 75):
+        add("Lockdown" if SD["pct"] >= 75 else "Attackable",
+            f"Synergy: {_fx(SD['ppp'], 3)} PPP allowed on {_fx(SD['n'], 0)} possessions ({_ordinal(SD['pct'])} pctile)"
+            + (f" · as of {_mdy(SD['asof'])}" if SD.get("asof") else ""))
+    # Hand: Synergy's drive direction (player pages), 10+ drives left or right (straight ones left out) with 65%+ one way.
+    DV = R.get("drv")
+    if DV and DV[0] + DV[1] >= 10 and max(DV) >= 0.65 * (DV[0] + DV[1]):
+        side = "left" if DV[0] > DV[1] else "right"
+        add(f"Drives {side}", f"Synergy: drives {side} {max(DV)} of {DV[0] + DV[1]} ({_fx(100 * max(DV) / (DV[0] + DV[1]), 0)}%)")
     return out
 
 
