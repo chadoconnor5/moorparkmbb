@@ -1348,7 +1348,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.112';
+const VERSION = 'v2026.11.11.113';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6834,8 +6834,8 @@ function autoLabels(g, t, id) {
   const slasher = !shooter && !allAround && !interior && draws && (hasC || nonShooter);
   if (slasher) add('Slasher', drawWhy + (twoA ? `, ${twoA.toFixed(1)} 2PA/g` : '') + synW('rim'));
   // Finisher: scores efficiently near the basket without the Interior scorer's or Slasher's volume: threes under 20% of his
-  // shots (40+ shots by game 28, scaled to his games like Non-shooter's threes), TS 58%+.
-  if (!interior && !slasher && R && (R.fga || 0) >= 40 * Math.min(R.gp || 0, SH3.FULL_G) / SH3.FULL_G && rate != null && rate < 20 && (R.ts_pct || 0) >= 58) add('Finisher', `TS ${f1(R.ts_pct)}% · ${(100 - rate).toFixed(0)}% of his shots inside`);
+  // shots (40+ shots by game 28, scaled to his games like Non-shooter's threes, never under 10), TS 58%+.
+  if (!interior && !slasher && R && (R.fga || 0) >= Math.max(10, 40 * Math.min(R.gp || 0, SH3.FULL_G) / SH3.FULL_G) && rate != null && rate < 20 && (R.ts_pct || 0) >= 58) add('Finisher', `TS ${f1(R.ts_pct)}% · ${(100 - rate).toFixed(0)}% of his shots inside`);
   if (call === 'Non-shooter') add('Non-shooter', `${shootWhy3}${rate != null ? ` · ${rate.toFixed(0)}% of his shots are threes` : ''}`);
   if (call === 'Avg 3PT' || call === 'Poor 3PT') add(call, shootWhy3 + synW('cs', 'pull'));
   // Shot diet: 55%+ of his shots are threes on 2.0+ a game (about the top 20%), whether or not they go in.
