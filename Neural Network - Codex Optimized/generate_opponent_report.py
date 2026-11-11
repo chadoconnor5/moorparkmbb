@@ -799,7 +799,19 @@ def load_team_syn(team, season):
 # The possession tracker's player labels (export_ratings.auto_labels, decided once for the tracker and these reports),
 # for the profiles. The tracker's season only (the labels read the leaderboard's current State Ranks).
 WEAK_LABELS = {'Non-shooter', 'Poor 3PT', 'Inefficient volume', 'Struggles inside', 'Bad FT', 'Non-passer', 'TO-prone',
-               'Foul-prone', 'Help off'}
+               'Foul-prone', 'Help off', 'Attackable'}
+
+
+def header_labels(c, name):
+    """The player card header's label line: up to 3 strengths (green; Lockdown always among them), then up to 2 weak
+    spots (red, Attackable first).
+    The full list stays in the profile text."""
+    lab = c.labels.get(name) or []
+    good = [l for l in lab if l not in WEAK_LABELS]
+    good = good[:3] if 'Lockdown' in good[:3] or 'Lockdown' not in good else good[:2] + ['Lockdown']   # Lockdown always shows
+    weak = sorted([l for l in lab if l in WEAK_LABELS], key=lambda l: l != 'Attackable')[:2]
+    return ' · '.join([f'<font color="#7ee2a8"><b>{x_(l)}</b></font>' for l in good]
+                      + [f'<font color="#ff8a80"><b>{x_(l)}</b></font>' for l in weak])
 
 
 def load_labels(c, team, season):
@@ -1161,19 +1173,21 @@ def player_card(c, p):
     ht = c.height.get(name, 0); ht_s = f' · {_fmt_height(ht)}' if ht else ''
     pos_tail = ' · ' + pos_name if pos_name else ''
     num = c.num.get(name); name_h = f'#{num} {name}' if num else name
-    hdr = Table([[Paragraph(f'<b>{name_h}</b>', S(11, True, WHITE)),
+    lab_line = header_labels(c, name)
+    hdr = Table([[Paragraph(f'<b>{name_h}</b>' + (f'<br/><font size="7.5">{lab_line}</font>' if lab_line else ''), S(11, True, WHITE, leading=13)),
                   Paragraph(f'{role_s}<font color="#aab8d0">{pos_code}{ht_s}'
                             f'{pos_tail}</font>{poss_s}', S(8, False, GOLD, TA_CENTER)),
                   Paragraph(f'<font color="#aab8d0">{gp} GP · ' + (f'{mpg:.1f} MPG' if c.min_ok else 'minutes not kept') + '</font>' + (f'<br/><font color="#aab8d0">ORtg</font> <b>{io:.1f}</b>  '
                             f'<font color="#aab8d0">DRtg</font> <b>{idr:.1f}</b>  <font color="{net_c}"><b>Net {inet:+.1f}</b></font>' if io > 0
                             else f'<br/><font color="#aab8d0">ORtg (est)</font> <b>{adv["ind_ortg_est"]:.1f}</b>' + (f'  <font color="#aab8d0">TO% (est)</font> <b>{est["tov_pct"]:.1f}</b>' if est.get('tov_pct') is not None else '') if not c.min_ok and adv.get('ind_ortg_est') else ''),
-                            S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.8 * inch, 2.5 * inch, 2.2 * inch])
+                            S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.9 * inch, 2.5 * inch, 2.1 * inch])
     hdr.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), DARK), ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
     items = [hdr] + syn_rows(c, p)
     txt = narrative(c, p, 0)
     top100 = get_top100(c, avg, adv, tot, mpg)
     if top100: txt += ' Ranks top 100 statewide in ' + ', '.join(f'<b>{l} {v:.1f}{u}</b> (#{r}/{n})' for l, v, u, r, n in top100) + '.'
+    items.append(Spacer(1, 4))   # a little air between the shot strip and the profile text
     items.append(P(txt, S(8.5, space_after=3), 'player:' + name))
     if mpg >= 12 and io > 0:
         twoa = tot.get('FGA', 0) - tot.get('3PA', 0); twop = round((tot.get('FGM', 0) - tot.get('3PM', 0)) / twoa * 100, 1) if twoa > 0 else 0.0

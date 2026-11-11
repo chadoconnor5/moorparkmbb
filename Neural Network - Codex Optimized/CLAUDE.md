@@ -120,6 +120,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the
   scouting report's player profiles list them ("Labels: Scorer, Elite shooter; weak spots: Foul-prone"). Change a
   label rule in both places.
+  The report's player card header shows a label line under the name (generate_opponent_report.header_labels): up to 3
+  strengths in green (Lockdown always among them) and up to 2 weak spots in red (Attackable first; WEAK_LABELS).
 - Synergy leaderboard exports (any situation: At Rim, Long 3, Catch and Shoot, All Poss + Assists, Overall Player
   Defensive, Transition Team Defensive...): Synergy needs a login, so they come in by hand when we scout.
   python3 import_synergy_leaderboard.py <file.xlsx> [...] [--as-of YYYY-MM-DD] -> internal_data/synergy_leaderboards/
