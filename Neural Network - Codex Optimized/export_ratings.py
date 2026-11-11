@@ -684,7 +684,7 @@ def auto_labels(R, table):
     slasher = not shooter and not allAround and not interior and draws and (hasC or nonShooter)
     if slasher:
         add("Slasher", drawWhy + (f", {_fx(twoA, 1)} 2PA/g" if twoA else "") + synW("rim"))
-    if not interior and not slasher and fga >= 40 and rate is not None and rate < 20 and (R.get("ts_pct") or 0) >= 58:
+    if not interior and not slasher and fga >= 40 * min(R.get("gp") or 0, SH3["FULL_G"]) / SH3["FULL_G"] and rate is not None and rate < 20 and (R.get("ts_pct") or 0) >= 58:
         add("Finisher", f"TS {f1(R.get('ts_pct'))}% · {_fx(100 - rate, 0)}% of his shots inside")
     if call == "Non-shooter":
         add("Non-shooter", shootWhy3 + (f" · {_fx(rate, 0)}% of his shots are threes" if rate is not None else ""))
