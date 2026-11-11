@@ -231,7 +231,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   win shares. Skills: Volume
   Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
   Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
-  Protector (Blk%). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
+  Protector (Blk%), Green Light (%Shots: his share of the team's shots while on the floor; fake-minutes
+  stand-in FGA a game). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
   alone without a BPM; a fake-minutes player's Game Score placed on PRPG!): All-State in the CCCMBCA's shape (2025-26:
   24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
   14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference

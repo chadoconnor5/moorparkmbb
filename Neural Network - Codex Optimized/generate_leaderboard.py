@@ -3377,7 +3377,7 @@ _SIM_TARGET_MIN_PCT = 10
 # box-score stand-ins placed on the real stat's scale by percentile (qmap): Game Score a game for PRPG!, its offensive
 # / defensive parts for OBPM / DBPM, share of the team's Game Score for share of win shares, per-game rebounds /
 # steals / blocks and assists per possession used for the rates. Those badges carry a third element 1 ("est."). p["bdg"] = [[code, 2 gold / 1 silver], ...].
-BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot")
+BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot", "greenlight")
 
 
 HOF_MIN_GP = 20   # a Hall of Fame season needs this many games: a solid sample that won't swing
@@ -3426,6 +3426,7 @@ def _badge_values(players):
         "glass": lambda p: None if zo(p) is None or zd(p) is None else (zo(p) + zd(p)) / 2,
         "pickpocket": lambda p: p.get("stl_pct"),
         "rimprot": lambda p: p.get("blk_pct"),
+        "greenlight": lambda p: p.get("shot_pct"),   # %Shots: his share of the team's shots while he's on the floor
         "allstate": rating,
         "engine": lambda p: p.get("obpm"),
         "anchor": lambda p: p.get("dbpm"),
@@ -3577,9 +3578,11 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
     gl_real = lambda p: None if zo(p) is None or zd(p) is None else (zo(p) + zd(p)) / 2
     fg_box = lambda p: None if zas(p) is None or ztr(p) is None else zas(p) - 0.5 * ztr(p)
     gl_box = lambda p: None if zor(p) is None or zdr(p) is None else (zor(p) + zdr(p)) / 2
+    fga_pg = lambda p: (p.get("fga") or 0) / p["gp"] if p.get("gp") else None   # Green Light's stand-in: shots a game
     stand = {"floorgen": qmap(mins, fg_box, fg_real), "glass": qmap(mins, gl_box, gl_real),
-             "pickpocket": qmap(mins, key("spg"), key("stl_pct")), "rimprot": qmap(mins, key("bpg"), key("blk_pct"))}
-    box_in = {"floorgen": fg_box, "glass": gl_box, "pickpocket": key("spg"), "rimprot": key("bpg")}
+             "pickpocket": qmap(mins, key("spg"), key("stl_pct")), "rimprot": qmap(mins, key("bpg"), key("blk_pct")),
+             "greenlight": qmap(mins, fga_pg, key("shot_pct"))}
+    box_in = {"floorgen": fg_box, "glass": gl_box, "pickpocket": key("spg"), "rimprot": key("bpg"), "greenlight": fga_pg}
     estd = set()   # (player, badge) given on a stand-in
 
     def rate(code, real_val):
@@ -3596,6 +3599,7 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
         "glass": (q, rate("glass", gl_real)),
         "pickpocket": (q, rate("pickpocket", key("stl_pct"))),
         "rimprot": (q, rate("rimprot", key("blk_pct"))),
+        "greenlight": (q, rate("greenlight", key("shot_pct"))),
     }
     out = {id(p): [] for p in players}
     bars = _hof_bars(list(history) + [players])
@@ -8504,6 +8508,7 @@ var BADGES = {{
   glass: ['🧽', 'Glass Cleaner', 'rebounding: OR% and DR% together', 'skill', 'rebounding'],
   pickpocket: ['🥷', 'Pickpocket', 'steal rate (Stl%)', 'skill', 'steal rate'],
   rimprot: ['✋', 'Rim Protector', 'block rate (Blk%)', 'skill', 'block rate'],
+  greenlight: ['🚦', 'Green Light', 'shot volume: his share of the team\u2019s shots while he\u2019s on the floor (%Shots)', 'skill', 'share of his team\u2019s shots'],
   indisp: ['🔑', 'Indispensable', 'The biggest shares of their team\u2019s win shares in the state', 'role', 'share of his team\u2019s win shares'],
   glue: ['🧩', 'Glue Guy', 'Does the dirty work: under 17% usage and top 30% in the state in 3+ of OR%, DR%, Stl%, Blk% and assist rate (the Glue guy label)', 'role', 'dirty work (OR%, DR%, Stl%, Blk% and assist rate together)'],
 }};
