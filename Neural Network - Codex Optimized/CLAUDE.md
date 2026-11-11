@@ -180,6 +180,15 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - A team with no opponent box score yet (only its own side posted) has no opponent defensive rebounds: its offensive
   rebound rate read 100%, so no missed shot ended a possession (11/11 De Anza ORtg (est) 179-373, four De Anza Stars).
   update_advanced_analytics assumes ASSUMED_ORB = 30% for the players' possessions then (De Anza, Hartnell on 11/11).
+- Synergy Archetype (scouting reports' player cards, synergy edition; synergy_roles.role, used by generate_opponent_report,
+  generate_moorpark_scouting_report and generate_scouting_report): one role per player from his player page's play-type
+  mix, modeled on a published NBA role framework: guards / wings Primary Ball Handler, Secondary Ball Handler, Shot
+  Creator, Slasher, Athletic Finisher, Off Screen Shooter, Movement Shooter, Stationary Shooter; bigs Versatile Big, Post
+  Scorer, Stretch Big, Roll & Cut Big. Each role is a typical mix (PROFILES) plus hard gates (Primary: P&R 22%+ and assist
+  rate 18+, and it beats Secondary; Shot Creator: isolation over P&R; Post Scorer: post-ups his top half-court play;
+  Versatile Big needs some spot-ups...); the closest allowed mix wins. Big or not: box-score position, else the roster's
+  listed one, else the mix. It replaced the old Synergy Archetype rules (11/11: guards called Secondary Ball Handler for
+  being combo guards). The bball-index Archetype line stays as it was (bball_index_archetype, its own rules) under it.
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just

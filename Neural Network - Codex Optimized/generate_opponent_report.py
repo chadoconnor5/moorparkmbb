@@ -889,28 +889,12 @@ def bball_index_archetype(pos, adv, tot, sa):
     if cs >= 48 and js >= 45: return 'Off-Ball Shooter'
     return 'Connector / Role'
 
-def synergy_archetype(pos, sa, tot, apg):
-    if not sa: return None
-    pt = _parse_playtypes(sa.get('scoring_summary'))
-    fga = tot.get('FGA', 0) or 0
-    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
-    ftar = (tot.get('FTA', 0) / fga * 100) if fga else 0
-    spot = pt.get('spotup', 0); move = pt.get('offscreen', 0) + pt.get('handoff', 0)
-    rim = (sa.get('shot_types') or {}).get('at_rim_pct_fga', 0) or 0
-    if pos in _BIG_POS:
-        if apg >= 2.0: return 'Playmaking Big'
-        if ftar >= 40 and tpar <= 12: return 'Post-up Big'
-        if tpar >= 18: return 'Stretch Big'
-        return 'Rim-finishing'
-    if pos in _GUARD_POS:
-        if apg >= 3.5: return 'Playmaking Ball Handler'
-        if tpar >= 45 or spot >= 30: return 'Secondary Ball Handler'
-        return 'Scoring Ball Handler'
-    if apg >= 2.5: return 'Playmaking Wing'
-    if rim >= 45 or (ftar >= 28 and tpar <= 30): return 'Slashing Wing'
-    if tpar >= 55 or spot >= 45: return 'Spot-up Wing'
-    if tpar >= 22 or move >= 10: return 'Dynamic Wing'
-    return 'Slashing Wing'
+def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None):
+    """The player's Synergy role (synergy_roles.role: 8 guard / wing and 4 big roles from his play-type mix, with each
+    role's hard gates); None without a play-type mix."""
+    import synergy_roles
+    return synergy_roles.role((sa or {}).get('scoring_summary'), pos, roster_pos or (sa or {}).get('pos'),
+                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'))
 
 RATING_COLORS = {'Excellent': (GREEN_BG, GREEN_TXT), 'Very Good': (colors.HexColor('#c8e6c9'), GREEN_TXT),
                  'Good': (YELLOW_BG, colors.HexColor('#5c4200')), 'Average': (colors.HexColor('#f5f5f5'), MID),
@@ -1034,6 +1018,13 @@ def syn_sentences(c, p):
         out.append('Most-used play types: ' + ', '.join(f'{names[k]} {v}%' for k, v in top) + ' of his possessions.')
     return out
 
+def _roster_pos(c):
+    """{name: listed position} from the team's typed-in roster (once per report), for players without a box-score one."""
+    if not hasattr(c, '_rpos'):
+        import synergy_roles
+        c._rpos = synergy_roles.roster_positions(c.team, c.season)
+    return c._rpos
+
 def syn_rows(c, p):
     """The Moorpark report's Synergy rows under a player's header: archetypes and play-type mix, the left-hand driver flag,
     the shot profile strip, and the written scouting notes from the export."""
@@ -1042,7 +1033,7 @@ def syn_rows(c, p):
     avg, tot, adv = A(p), p['totals'], ADV(c, p)
     pos = c.pos.get(p['name']) or sa.get('pos') or ''
     out = []
-    cells = [Paragraph(f'<b>Synergy Archetype:</b>  {synergy_archetype(pos, sa, tot, avg.get("AST", 0))}', S(8.5, False, GOLD))]
+    cells = [Paragraph(f'<b>Synergy Archetype:</b>  {synergy_archetype(pos, sa, tot, avg.get("AST", 0), adv, _roster_pos(c).get(p['name'])) or '—'}', S(8.5, False, GOLD))]
     bi = bball_index_archetype(pos, adv, tot, sa)
     if bi: cells.append(Paragraph(f'<b>bball-index Archetype:</b>  {bi}', S(8.5, False, colors.HexColor('#6fa8ff'))))
     if sa.get('scoring_summary'): cells.append(P(x_(sa['scoring_summary']), S(7.5, False, colors.HexColor('#aab8d0')), 'note'))

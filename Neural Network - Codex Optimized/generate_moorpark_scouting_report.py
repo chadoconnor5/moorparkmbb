@@ -416,31 +416,12 @@ def bball_index_archetype(pos, adv, tot, sa):
 # internal_compute_archetypes.py, but driven by actual Synergy play-types here.
 # Returns None without Synergy data — never invents a label.
 _GUARD_POS = {'PG', 's-PG', 'CG'}
-def synergy_archetype(pos, sa, tot, apg):
-    if not sa:
-        return None
-    pt = _parse_playtypes(sa.get('scoring_summary'))
-    fga = tot.get('FGA', 0) or 0
-    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
-    ftar = (tot.get('FTA', 0) / fga * 100) if fga else 0
-    spot = pt.get('spotup', 0)
-    move = pt.get('offscreen', 0) + pt.get('handoff', 0)
-    rim = (sa.get('shot_types') or {}).get('at_rim_pct_fga', 0) or 0
-    if pos in _BIG_POS:
-        if apg >= 2.0: return 'Playmaking Big'
-        if ftar >= 40 and tpar <= 12: return 'Post-up Big'
-        if tpar >= 18: return 'Stretch Big'
-        return 'Rim-finishing'
-    if pos in _GUARD_POS:
-        if apg >= 3.5: return 'Playmaking Ball Handler'
-        if tpar >= 45 or spot >= 30: return 'Secondary Ball Handler'
-        return 'Scoring Ball Handler'
-    # wing tier
-    if apg >= 2.5: return 'Playmaking Wing'
-    if rim >= 45 or (ftar >= 28 and tpar <= 30): return 'Slashing Wing'
-    if tpar >= 55 or spot >= 45: return 'Spot-up Wing'
-    if tpar >= 22 or move >= 10: return 'Dynamic Wing'
-    return 'Slashing Wing'
+def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None):
+    """The player's Synergy role (synergy_roles.role: 8 guard / wing and 4 big roles from his play-type mix, with each
+    role's hard gates); None without a play-type mix."""
+    import synergy_roles
+    return synergy_roles.role((sa or {}).get('scoring_summary'), pos, roster_pos or (sa or {}).get('pos'),
+                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'))
 
 # Merge player map
 player_map = {}
@@ -1844,7 +1825,7 @@ def page_player_profiles():
         # without Synergy data show their box-score position only (in the header above).
         arch = synergy_arch.get(name)
         if arch:
-            syn_label = synergy_archetype(pos, arch, tot, player_map[name]['avg'].get('AST', 0))
+            syn_label = synergy_archetype(pos, arch, tot, player_map[name]['avg'].get('AST', 0), adv) or '—'
             arch_cells = [Paragraph(f'<b>Synergy Archetype:</b>  {syn_label}', S(8.5, False, GOLD))]
             bi = bball_index_archetype(pos, adv, tot, arch)
             if bi:
