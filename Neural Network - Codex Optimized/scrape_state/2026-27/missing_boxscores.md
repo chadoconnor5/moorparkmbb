@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-09T22:51:27
+Updated 2026-11-10T22:34:54
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -68,3 +68,8 @@ Updated 2026-11-09T22:51:27
 | 2026-11-07 | Monterey Peninsula vs Yuba | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-08T22:08 |
 | 2026-11-07 | Santa Rosa vs San Francisco | PARTIAL | only Santa Rosa posted stats; missing San Francisco | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_p3zx.xml | 1 | 2026-11-08T22:05 |
 | 2026-11-08 | American River vs Cabrillo | PARTIAL | only Cabrillo posted stats; missing American River | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml | 2 | 2026-11-09T22:49 |
+| 2026-11-10 | Coalinga vs Diablo Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-10T22:34 |
+| 2026-11-10 | Desert vs Imperial Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-10T22:34 |
+| 2026-11-10 | Monterey Peninsula vs Ohlone | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-10T22:34 |
+| 2026-11-10 | Saddleback vs San Diego Miramar | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-10T22:34 |
+| 2026-11-10 | Solano vs West Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-10T22:34 |

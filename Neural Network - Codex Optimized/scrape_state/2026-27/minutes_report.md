@@ -1,8 +1,8 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-09T22:51:27
+Updated 2026-11-10T22:34:54
 
-REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up · NONE = no minutes
+REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
 | Team | Real | Placeholder | Wrong total | None |
 |---|---|---|---|---|
@@ -17,14 +17,14 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Cerro Coso | 2 | 0 | 1 | 0 |
 | Chabot | 0 | 1 | 0 | 0 |
 | Chaffey | 3 | 0 | 0 | 0 |
-| Citrus | 3 | 0 | 0 | 0 |
+| Citrus | 4 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
 | Compton | 3 | 0 | 0 | 0 |
 | Copper Mountain | 3 | 1 | 0 | 0 |
 | Cosumnes River | 1 | 2 | 0 | 0 |
 | Cuesta | 2 | 1 | 1 | 0 |
 | Cuyamaca | 2 | 0 | 0 | 0 |
-| Cypress | 2 | 0 | 0 | 0 |
+| Cypress | 3 | 0 | 0 | 0 |
 | De Anza | 0 | 2 | 0 | 0 |
 | Desert | 4 | 0 | 0 | 0 |
 | Diablo Valley | 0 | 2 | 0 | 0 |
@@ -43,10 +43,10 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | LA Trade Tech | 2 | 3 | 0 | 0 |
 | LA Valley | 2 | 0 | 0 | 0 |
 | Long Beach | 3 | 0 | 0 | 0 |
-| Los Angeles City | 3 | 0 | 1 | 0 |
+| Los Angeles City | 4 | 0 | 1 | 0 |
 | Mendocino | 1 | 0 | 0 | 0 |
 | Merced | 0 | 2 | 0 | 0 |
-| MiraCosta | 2 | 0 | 0 | 0 |
+| MiraCosta | 3 | 0 | 0 | 0 |
 | Moorpark | 3 | 0 | 0 | 0 |
 | Mt. San Antonio | 3 | 0 | 0 | 0 |
 | Mt. San Jacinto | 4 | 0 | 0 | 0 |
@@ -58,10 +58,10 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Palomar | 4 | 0 | 0 | 0 |
 | Pasadena City | 2 | 0 | 0 | 0 |
 | Porterville | 1 | 0 | 0 | 0 |
-| Redwoods | 0 | 1 | 0 | 0 |
+| Redwoods | 1 | 1 | 0 | 0 |
 | Reedley | 1 | 2 | 0 | 0 |
 | Rio Hondo | 3 | 0 | 0 | 0 |
-| Riverside | 3 | 0 | 0 | 0 |
+| Riverside | 4 | 0 | 0 | 0 |
 | Sacramento City | 0 | 1 | 0 | 0 |
 | Saddleback | 5 | 0 | 0 | 0 |
 | San Bernardino Valley | 3 | 0 | 0 | 0 |
@@ -74,11 +74,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Santa Monica | 2 | 1 | 0 | 0 |
 | Santa Rosa | 0 | 3 | 0 | 0 |
 | Santiago Canyon | 3 | 0 | 0 | 0 |
-| Sequoias | 2 | 0 | 0 | 0 |
+| Sequoias | 3 | 0 | 0 | 0 |
 | Skyline | 0 | 2 | 0 | 0 |
 | Solano | 1 | 0 | 0 | 0 |
 | Southwestern | 4 | 0 | 0 | 0 |
-| Ventura | 3 | 0 | 1 | 0 |
+| Ventura | 4 | 0 | 1 | 0 |
 | Victor Valley | 2 | 1 | 0 | 0 |
 | West LA | 2 | 0 | 0 | 0 |
 | West Valley | 2 | 0 | 0 | 0 |
