@@ -187,8 +187,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Scorer, Stretch Big, Roll & Cut Big. Each role is a typical mix (PROFILES) plus hard gates (Primary: P&R 22%+ and assist
   rate 18+, and it beats Secondary; Shot Creator: isolation over P&R; Post Scorer: post-ups his top half-court play;
   Versatile Big needs some spot-ups...); the closest allowed mix wins. Big or not: box-score position, else the roster's
-  listed one, else the mix. Replaced the old two lines (Synergy / bball-index archetypes): 11/11, Jerimiyah Smith (3%
-  post-ups) was a Post-Up Big on usage alone and West LA's bigs (no positions yet) got wing roles.
+  listed one, else the mix. It replaced the old Synergy Archetype rules (11/11: guards called Secondary Ball Handler for
+  being combo guards). The bball-index Archetype line stays as it was (bball_index_archetype, its own rules) under it.
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just

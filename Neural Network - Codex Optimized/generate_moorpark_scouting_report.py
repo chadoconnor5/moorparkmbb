@@ -374,8 +374,42 @@ def _parse_playtypes(summary):
     return out
 
 def bball_index_archetype(pos, adv, tot, sa):
-    """Folded into synergy_archetype (one role per player, synergy_roles): no second line."""
-    return None
+    """Basketball-Index-adapted offensive archetype from Synergy play-types +
+    shot profile. Returns None without Synergy data."""
+    if not sa:
+        return None
+    st = sa.get('shot_types') or {}; pt = _parse_playtypes(sa.get('scoring_summary'))
+    usg = adv.get('usage_pct', 0) or 0; ast = adv.get('ast_rate', 0) or 0
+    fga = tot.get('FGA', 0) or 0
+    ftr = (tot.get('FTA', 0) / fga * 100) if fga else 0
+    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
+    rim = st.get('at_rim_pct_fga', 0) or 0; js = st.get('jump_shot_pct_fga', 0) or 0
+    cs = st.get('catch_shoot_pct_of_js', 0) or 0; pullup = 100 - cs
+    move = pt.get('offscreen', 0) + pt.get('handoff', 0)
+    if pos in _BIG_POS:
+        if tpar >= 20: return 'Stretch Big'
+        if pt.get('postup', 0) >= 15 or usg >= 24: return 'Post-Up Big'
+        if rim >= 45 or pt.get('cut', 0) + pt.get('roll', 0) + pt.get('putback', 0) >= 18:
+            return 'Roll + Cut Big'
+        return 'Versatile Big'
+    creator = pt.get('pnr_bh', 0) + pt.get('iso', 0)
+    if ast >= 22 and (creator >= 6 or usg >= 18):
+        return 'Primary Ball Handler' if usg >= 22 else 'Secondary Ball Handler'
+    if rim >= 45:                                   # rim-dominant: attacks the basket, not a pull-up creator
+        return 'Slasher' if (ftr >= 20 or pt.get('iso', 0) >= 6) else 'Athletic Finisher'
+    if (usg >= 23 and (creator >= 14 or pullup >= 45)) or creator >= 22:
+        return 'Primary Ball Handler' if ast >= 18 else 'Shot Creator'
+    has_shots = bool(st)
+    # jump-shot dominant + catch-and-shoot heavy = a shooter (true slashers were caught by rim>=45 above)
+    if (has_shots and js >= 50 and cs >= 50) or (not has_shots and pt.get('spotup', 0) >= 28):
+        if move >= 10: return 'Movement Shooter'      # off-screen / hand-off heavy
+        if pt.get('spotup', 0) >= 30: return 'Stationary Shooter'
+        return 'Off-Ball Shooter'
+    if rim >= 30 or ftr >= 28 or pt.get('iso', 0) >= 10:
+        return 'Slasher' if (ftr >= 25 or pt.get('iso', 0) >= 8) else 'Athletic Finisher'
+    if ast >= 15 and creator >= 8: return 'Secondary Ball Handler'
+    if cs >= 48 and js >= 45: return 'Off-Ball Shooter'
+    return 'Connector / Role'
 
 # ── Synergy offensive archetype (11-category taxonomy) computed from the REAL ──
 # Synergy play-type mix + position tier + box rate signals. Same taxonomy as
