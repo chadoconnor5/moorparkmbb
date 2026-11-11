@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.122';
+const VERSION = 'v2026.11.11.123';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3408,12 +3408,12 @@ function rostersView() {
 /* Which roster: every team we might see, not just the next one: Moorpark, our schedule (date order), each tournament
    field, then any other roster saved on this iPad. ✓ = a roster is saved. Names as the schedule uses them. */
 function rosterPicker(sel, opps) {
-  const R = ratingsData(), nm = n => (R && R.teams && resolveTeam(n, R)) || n, saved = new Set(oppStore().filter(o => (o.players || []).length).map(o => o.name)), seen = new Set(['MPK']);
+  const R = ratingsData(), nm = n => (R && R.teams && resolveTeam(n, R)) || n, seen = new Set(['MPK']), savedMemo = {}, saved = { has: n => n in savedMemo ? savedMemo[n] : (savedMemo[n] = !!((oppFind(n) || {}).players || []).length) };
   const opt = n => { if (seen.has(n)) return ''; seen.add(n); return `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}${saved.has(n) ? ' ✓' : ''}</option>`; };
   const sch = schedule().filter(r => r.opp && !isTBD(r.opp)).map(r => nm(r.opp));
   const grp = (l, L) => { const h = L.map(opt).join(''); return h ? `<optgroup label="${esc(l)}">${h}</optgroup>` : ''; };
   const sg = grp('Our schedule', sch), ev = Object.keys(fieldsAll()).map(e => grp(e, readyGet(e).map(nm).sort((a, b) => a.localeCompare(b)))).join('');
-  return `<select class="r-pick" data-act="r-pick"><option value="MPK" ${sel === 'MPK' ? 'selected' : ''}>Moorpark</option>${sg}${ev}${grp('Other teams', readyOther().map(nm))}${grp('Other saved rosters', opps.slice().sort((a, b) => a.localeCompare(b)))}</select>`;
+  return `<select class="r-pick" data-act="r-pick"><option value="MPK" ${sel === 'MPK' ? 'selected' : ''}>Moorpark</option>${sg}${ev}${grp('Other teams', readyOther().map(nm))}${grp('Other saved rosters', opps.filter(n => n === sel || !seen.has(nm(n))).sort((a, b) => a.localeCompare(b)))}</select>`;
 }
 // The roster editor's label cell: chips (✕ removes), a box + Add, and quick picks from labels already used.
 const nedChips = L => L.map((x, i) => `<span class="nt">${esc(x)}<button class="nt-x" data-act="ned-del" data-i="${i}" aria-label="Remove ${esc(x)}">✕</button></span>`).join('');
