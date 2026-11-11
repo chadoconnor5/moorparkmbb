@@ -189,6 +189,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Versatile Big needs some spot-ups...); the closest allowed mix wins. Big or not: box-score position, else the roster's
   listed one, else the mix. It replaced the old Synergy Archetype rules (11/11: guards called Secondary Ball Handler for
   being combo guards). The bball-index Archetype line stays as it was (bball_index_archetype, its own rules) under it.
+  Shoot or drive (Slasher vs shooters, synergy_roles.page_inputs): 3PA rate (box score, 10+ FGA), drive rate (player
+  page drives / its total possessions; 2026-27 pages) and the spot-up split (player page "spot_up": {"drive_pct": share
+  of his spot-ups that are drives}; record it when a player page comes in). 3PA rate 25% or less with 45%+ of shots at
+  the rim or 30%+ drives, or spot-ups 50%+ drives, make him a Slasher candidate and rule out the three shooter roles;
+  the shooter roles also need a 3PA rate of 30%+ when known.
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just
