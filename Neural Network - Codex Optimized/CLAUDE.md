@@ -177,6 +177,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   it lacks, fills blanks only (typed labels kept) and saves at once, so the labels from stats show.
 - Star label (export_ratings.tiers, both label copies): the top 20 by PORPAGATU!; a fake-minutes player is placed by
   his PORPAGATU! (est) (porp_est, rank pest / eqr; Game Score a game only without an estimate).
+- A team with no opponent box score yet (only its own side posted) has no opponent defensive rebounds: its offensive
+  rebound rate read 100%, so no missed shot ended a possession (11/11 De Anza ORtg (est) 179-373, four De Anza Stars).
+  update_advanced_analytics assumes ASSUMED_ORB = 30% for the players' possessions then (De Anza, Hartnell on 11/11).
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just
