@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.123';
+const VERSION = 'v2026.11.11.124';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7192,7 +7192,8 @@ function autoLabels(g, t, id) {
   // Only players who play get the rest: 30%+ of the minutes where minutes are reliable (the State Ranks' bar); elsewhere (no reliable
   // minutes) 4+ points or 3+ rebounds a game over half the team's games. End-of-bench samples are noise.
   if (R) { const rows = F.table.rows, games = Math.max(...rows.map(r => r.gp || 0)), minG = Math.min(10, Math.max(3, Math.ceil(games / 2)));
-    const plays = F.table.adv === 1 ? (R.min_pct || 0) >= 30 : (R.gp || 0) >= minG && ((R.ppg || 0) >= 4 || (R.rpg || 0) >= 3);
+    // either test, on any team (11/11 Saddleback's Dylan Gomez: 6.4 pts/g at 29.0% of the minutes had no labels)
+    const plays = ((R.gp || 0) >= minG && ((R.ppg || 0) >= 4 || (R.rpg || 0) >= 3)) || (F.table.adv === 1 && (R.min_pct || 0) >= 30);
     if (!plays) return out; }
   // Shooting: his season threes (the leaderboard's box scores; else our tracked games).
   const tpa = R ? R.tpa || 0 : q.a3, fga = R ? R.fga || 0 : null, rate = fga ? 100 * tpa / fga : q && q.rate, pg = R && R.gp ? tpa / R.gp : q && q.pg3;
@@ -7226,7 +7227,7 @@ function autoLabels(g, t, id) {
   // more than Go-to, so it takes Go-to's place.
   const scorer = !star && cut('scorer');
   if (scorer) add('Scorer', `${f1(R.ppg)} pts/g${usg != null ? ` · ${f1(usg)}% of possessions` : ''}${br('shots100', 'SHOTS/100')}`);
-  if (!star && !scorer && usg != null && usg > 28) add('Go-to', `${f1(usg)}% of possessions${ortgWhy ? ' · ' + ortgWhy.split(',')[0] : ''}`);
+  if (!star && !scorer && usg != null && usg > 28 && !(F && F.table && F.table.adv === 1 && (R.min_pct || 0) < 30)) add('Go-to', `${f1(usg)}% of possessions${ortgWhy ? ' · ' + ortgWhy.split(',')[0] : ''}`);
   // Sixth man: his team's best bench player (export_ratings.py sixth_men: starts 35% or fewer of his games and 3 or fewer
   // of the last 10, 15+ minutes, the best of the bench on minutes, usage and points produced). When he checks in, he produces.
   if ((rk.roles || []).includes('Sixth man')) add('Sixth man', `${f1(R.ppg)} pts/g off the bench`);

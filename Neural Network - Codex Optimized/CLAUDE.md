@@ -175,6 +175,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   A team picked with no saved players gets its published roster then (pubRosters also re-applies to an empty one).
   Fill from leaderboard takes the published roster (number, name, position, height, year) plus anyone in the box scores
   it lacks, fills blanks only (typed labels kept) and saves at once, so the labels from stats show.
+- Who gets stat labels (both label copies): a player who plays 30%+ of the minutes (reliable minutes) or scores 4+ /
+  rebounds 3+ a game over half the team's games, on any team (11/11: Saddleback's Dylan Gomez, 6.4 pts/g, 50% from three
+  at 29.0% of the minutes, had none). Go-to (usage over 28%) still needs 30%+ of the minutes where minutes are reliable: a
+  bench stint's usage isn't go-to.
 - Star label (export_ratings.tiers, both label copies): the top 20 by PORPAGATU!; a fake-minutes player is placed by
   his PORPAGATU! (est) (porp_est, rank pest / eqr; Game Score a game only without an estimate).
 - A team with no opponent box score yet (only its own side posted) has no opponent defensive rebounds: its offensive
