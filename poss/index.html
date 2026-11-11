@@ -1348,7 +1348,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.114';
+const VERSION = 'v2026.11.11.115';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -6865,10 +6865,14 @@ function autoLabels(g, t, id) {
   if (dr && or) add('Glass cleaner', glW(true, true));
   else { if (dr) add('Rebounder', glW(false, true)); if (or) add('Off. rebounder', glW(true, false)); }
   // BALL: Floor general = assist rate top 10% without turning it over (TORate not bottom 30%); Passer = top 20%.
-  if (hasC ? cut('floor_gen') && top('ast_rate', AUTO_CUT.top) : top('ast_rate', 0.10) && !bot('tov_pct', 0.30)) add('Floor general', `ARate ${f1(R.ast_rate)} · TORate ${f1(R.tov_pct)} · ${f1(usg)}% of possessions`);
-  else if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}`);
-  else if (rk.ast_rate == null && bTop('apg', 0.10) && !bTop('tor', 0.30)) add('Floor general', `${f1(R.apg)} apg · ${f1(R.topg)} TO/g`);
-  else if (rk.ast_rate == null && bTop('apg', AUTO_CUT.top)) add('Passer', `${f1(R.apg)} apg`);
+  // Synergy All Poss + Assists (R.sa, 20+): its Ast/TO is Floor general's ball security (not bottom 30%) and its numbers go
+  // in the why line; the assist rate (per minute) still decides (export_ratings: the assist share is a style, not a level).
+  const SA = R.sa, secure = SA ? SA.atp > 30 : null;
+  const saW = SA ? ` · Synergy: assists ${f1(SA.ast)}% of his possessions + assists (${ordinal(SA.pct)} pctile), Ast/TO ${(+SA.at).toFixed(2)}` + (SA.asof ? ` · as of ${mdy(SA.asof)}` : '') : '';
+  if (hasC ? cut('floor_gen') && top('ast_rate', AUTO_CUT.top) && secure !== false : top('ast_rate', 0.10) && (SA ? secure : !bot('tov_pct', 0.30))) add('Floor general', `ARate ${f1(R.ast_rate)} · TORate ${f1(R.tov_pct)} · ${f1(usg)}% of possessions` + saW);
+  else if (top('ast_rate', AUTO_CUT.top)) add('Passer', `ARate ${f1(R.ast_rate)}` + saW);
+  else if (rk.ast_rate == null && bTop('apg', 0.10) && (SA ? secure : !bTop('tor', 0.30))) add('Floor general', `${f1(R.apg)} apg · ${f1(R.topg)} TO/g` + saW);
+  else if (rk.ast_rate == null && bTop('apg', AUTO_CUT.top)) add('Passer', `${f1(R.apg)} apg` + saW);
   // DEFENSE.
   // Ball hawk: Stl% with STL/100 (the ball_hawk composite) when the file has it; else Stl% alone.
   if (hasC && C.ball_hawk != null ? cut('ball_hawk') : rk.stl_pct != null ? top('stl_pct', AUTO_CUT.top) : bx ? bTop('spg', AUTO_CUT.top) : basic && q && q.stl != null && q.stl >= FL.HAWK) add('Ball hawk', rk.stl_pct != null ? `Stl% ${f1(R.stl_pct)}${br('stl100', 'STL/100')}` : bx ? `${f1(R.spg)} stl/g` : `${f1(q.stl)} stl/40`);
@@ -6884,9 +6888,17 @@ function autoLabels(g, t, id) {
   if (ftTop) add('FT shooter', `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})`);
   if (ftv != null || rk.ftp != null ? ftBad : basic && q && q.ft != null && q.ft < FL.FT_LO && (q.fta || 0) >= 20) add('Bad FT', R && R.ftp != null ? `FT ${f1(R.ftp)}% (${R.ftm}-${R.fta})` : `${q.ft.toFixed(0)}% FT (${q.fta})`);
   // WEAKNESSES.
-  if (rk.ast_rate != null ? bot('ast_rate', 0.10) : bBot('astr', 0.10)) add('Non-passer', rk.ast_rate != null ? `ARate ${f1(R.ast_rate)}` : `${f1(R.apg)} apg`);
+  if (rk.ast_rate != null ? bot('ast_rate', 0.10) : bBot('astr', 0.10)) add('Non-passer', (rk.ast_rate != null ? `ARate ${f1(R.ast_rate)}` : `${f1(R.apg)} apg`) + saW);
   if (rk.tov_pct != null ? bot('tov_pct', AUTO_CUT.bottom) : bx ? bTop('tor', AUTO_CUT.bottom) : basic && q && q.to != null && q.to >= FL.TO) add('TO-prone', rk.tov_pct != null ? `TORate ${f1(R.tov_pct)}` : bx ? `${f1(R.topg)} TO/g` : `${f1(q.to)} TO/40`);
   if (rk.fc_per_40 != null ? bot('fc_per_40', AUTO_CUT.bottom) : basic && q && q.pf != null && q.pf >= FL.PF) add('Foul-prone', rk.fc_per_40 != null ? `${f1(R.fc_per_40)} fouls / 40` : `${f1(q.pf)} PF/40`);
+  // Synergy defense (R.sd: Overall Player Defensive leaderboard, else his Defense tab): 15+ possessions, points allowed per
+  // possession in the bottom 25% = Attackable, top 25% = Lockdown. Hand (R.drv, player pages): 10+ drives left or right (straight
+  // ones left out), 65%+ one way.
+  const SD = R.sd;
+  if (SD && SD.n >= 15 && (SD.pct <= 25 || SD.pct >= 75)) add(SD.pct >= 75 ? 'Lockdown' : 'Attackable', `Synergy: ${(+SD.ppp).toFixed(3)} PPP allowed on ${(+SD.n).toFixed(0)} possessions (${ordinal(SD.pct)} pctile)` + (SD.asof ? ` · as of ${mdy(SD.asof)}` : ''));
+  const DV = R.drv;
+  if (DV && DV[0] + DV[1] >= 10 && Math.max(...DV) >= 0.65 * (DV[0] + DV[1])) { const side = DV[0] > DV[1] ? 'left' : 'right';
+    add(`Drives ${side}`, `Synergy: drives ${side} ${Math.max(...DV)} of ${DV[0] + DV[1]} (${(100 * Math.max(...DV) / (DV[0] + DV[1])).toFixed(0)}%)`); }
   return out;
 }
 // The labels a card shows from stats: minus the ones typed already and the ones vetoed for him.
@@ -6930,14 +6942,18 @@ const LABEL_GUIDE = [
     ['Rebounder', 'Defensive rebound % top 20%.'],
     ['Off. rebounder', 'Offensive rebound % top 20%.']]],
   ['Ball', [
-    ['Floor general', 'Top 10% on assist rate, ball security and usage together (and a top-20% assist rate).'],
+    ['Floor general', 'Top 10% on assist rate, ball security and usage together (and a top-20% assist rate). With Synergy, ball security is its Ast/TO (not bottom 30%).'],
     ['Passer', 'Assist rate top 20%.'],
     ['Non-passer', 'Assist rate bottom 10%.'],
     ['TO-prone', 'Turnover rate bottom 20%.']]],
   ['Defense', [
     ['Ball hawk', 'Top 20% on steal % and steals per 100 possessions (STL/100).'],
     ['Rim protector', 'Top 15% on block %, blocks per 100 possessions (BLK/100) and defensive rebound %.'],
-    ['Foul-prone', 'Fouls per 40 bottom 20%.']]],
+    ['Foul-prone', 'Fouls per 40 bottom 20%.'],
+    ['Attackable', 'Synergy defense: points allowed per possession bottom 25% statewide (15+ possessions).'],
+    ['Lockdown', 'Synergy defense: points allowed per possession top 25% statewide (15+ possessions).'],
+    ['Drives left', 'Synergy drive direction: 10+ drives left or right (straight ones not counted), 65%+ to his left.'],
+    ['Drives right', 'Synergy drive direction: 10+ drives left or right (straight ones not counted), 65%+ to his right.']]],
   ['Free throws', [
     ['FT shooter', '75%+ from the line (two shots are worth ~1.5 points: fouling him gains nothing), and gets there (2+ a game; 2 attempts per team game, up to 40). Don\'t foul him late.'],
     ['Bad FT', 'Under 65% from the line, and gets there (2+ a game; 2 attempts per team game, up to 40). Foul him late.']]]];

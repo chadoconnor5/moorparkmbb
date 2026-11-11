@@ -135,6 +135,16 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   scorekeepers log some layups as jump shots, 11/11: Elijah Wade 88% at the rim by Synergy, 42% by the play-by-play)
   with threes under 20% and TS 58%+; with neither, the box score (threes under 20%, TS 58%+). Shots: 10+, 40 by game
   28 (scaled like Non-shooter's threes). Rows carry rim {src syn/pbp, m, a, share, lg, asof}.
+- More Synergy in the labels (both copies; export_ratings.syn_boards loads every leaderboard once, each player's
+  percentile among the board's qualified players, SYN_MIN):
+  Attackable / Lockdown: Overall Player Defensive (else his Defense tab's ppp_rank), 15+ possessions, points allowed
+  per possession bottom / top 25% (row sd). Drives left / Drives right: player pages' drive direction, 10+ drives left
+  or right (straight ones not counted), 65%+ one way (row drv). The composites' Synergy factors (syn_rim / syn_three /
+  syn_cs / syn_pull) come from the At Rim / Long 3 / Catch and Shoot / Dribble Jumpers leaderboards' PPP percentiles
+  when a player page has none, and the why lines' "Synergy:" shooting from them (row syn). All Poss + Assists (row
+  sa, 20+): its Ast/TO is Floor general's ball security (not bottom 30%) and its numbers go in the why line; the assist
+  rate still decides Passer / Floor general (Synergy's assist share of his own possessions + assists rewards
+  low-usage players: 11/11 a 3.3 ARate player topped it).
 - A box score side whose players all have 0 in every stat (minutes aside) didn't post: the game stays PARTIAL / NO_BOX
   and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
