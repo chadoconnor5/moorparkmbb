@@ -4013,6 +4013,24 @@ _BOX_STATS = {"efg": "efg_pct", "ts": "ts_pct", "top": "tov_pct",
               "stp": "stl_pct", "blp": "blk_pct"}
 
 
+def _box_ortg_est(rows, ctx, game_min):
+    """ORtg (est) for one game's side whose minutes are placeholders (all 1s, or none): minutes enter Dean Oliver's ORtg
+    only through qAST, so each player's are estimated as his share of the side's activity (FGA, .44 FTA, TO, AST, OREB,
+    DREB, PF, STL, BLK) of the game's player-minutes, as update_advanced_analytics does for the season. Never shown."""
+    act = lambda r: (r["FGA"] + 0.44 * r["FTA"] + r["TO"] + r["AST"] + r["OREB"] + r["DREB"] + r["PF"] + r["STL"] + r["BLK"])
+    total = sum(act(r) for r in rows)
+    out = []
+    for r in rows:
+        v = None
+        if total > 0 and act(r) > 0 and (r["FGA"] or r["FTA"] or r["TO"]):
+            try:
+                v = STAT_DEFINITIONS["ind_ortg"]["compute"](dict(r, MIN=5 * game_min * act(r) / total), dict(ctx, team_min=game_min))
+            except Exception:
+                v = None
+        out.append(v if v else None)
+    return out
+
+
 def _load_bpm_priors(stats_dir) -> dict:
     """Season BPM context per (team, normalized player name).
 
@@ -4305,8 +4323,9 @@ def build_game_boxes(stats_dir) -> dict:
                    "opp_fga": opp_tot["FGA"], "opp_fgm": opp_tot["FGM"], "opp_fta": opp_tot["FTA"], "opp_ftm": opp_tot["FTM"],
                    "opp_oreb": opp_tot["OREB"], "opp_to": opp_tot["TO"], "opp_pts": opp_tot["PTS"], "opp_3pa": opp_tot["3PA"]}
             out_rows = []
-            for r in rows:
-                row = {"n": r["name"], "j": r["JER"], "st": r["ST"], "min": r["MIN"], "fgm": r["FGM"], "fga": r["FGA"],
+            est = _box_ortg_est(rows, ctx, mins) if not min_ok and to_ok else [None] * len(rows)
+            for r, oe in zip(rows, est):
+                row = {"n": r["name"], "j": r["JER"], "st": r["ST"], "min": r["MIN"], "ortg_e": oe, "fgm": r["FGM"], "fga": r["FGA"],
                        "tpm": r["3PM"], "tpa": r["3PA"], "ftm": r["FTM"], "fta": r["FTA"], "or": r["OREB"], "dr": r["DREB"],
                        "ast": r["AST"], "stl": r["STL"], "blk": r["BLK"], "to": r["TO"], "pf": r["PF"], "pts": r["PTS"],
                        "bpm": None, "obpm": None, "dbpm": None}
@@ -4471,9 +4490,13 @@ def build_game_boxes(stats_dir) -> dict:
             }
             out_rows = []
             min_dep = {"usg", "ortg", "drtg", "stp", "orp", "drp", "ap", "blp"}
-            for r in sides[tn]["rows"]:
+            # game length for the estimate: the other side's real minutes (an overtime shows there), else 40
+            game_min = opp_tot["MIN"] / 5.0 if 150 <= opp_tot["MIN"] <= 290 else 40.0
+            est = (_box_ortg_est(sides[tn]["rows"], ctx, game_min) if not min_ok and to_ok
+                   else [None] * len(sides[tn]["rows"]))
+            for r, oe in zip(sides[tn]["rows"], est):
                 row = {
-                    "n": r["name"], "j": r["JER"], "st": r["ST"], "min": r["MIN"],
+                    "n": r["name"], "j": r["JER"], "st": r["ST"], "min": r["MIN"], "ortg_e": oe,
                     "fgm": r["FGM"], "fga": r["FGA"], "tpm": r["3PM"], "tpa": r["3PA"],
                     "ftm": r["FTM"], "fta": r["FTA"], "or": r["OREB"], "dr": r["DREB"],
                     "ast": r["AST"], "stl": r["STL"], "blk": r["BLK"], "to": r["TO"],
@@ -8104,7 +8127,8 @@ function __bxTeamTable(name, rows, oppRows) {{
   const cells = r => {{
     const plain = minutesReal && r.min <= 9, c = (v, k) => __bxTd(v, k, pSc, plain);
     return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name, null, null, true) + '</td><td>' + r.min + '</td>'
-      + c(r.ortg, 'ortg') + '<td>' + __bxF(r.usg) + '</td>'
+      + (r.ortg == null && r.ortg_e != null ? c(r.ortg_e, 'ortg').replace('</td>', '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span></td>') : c(r.ortg, 'ortg'))
+      + '<td>' + __bxF(r.usg) + '</td>'
       + c(r.efg, 'efg') + c(r.ts, 'ts')
       + c(r.orp, 'orp') + c(r.drp, 'drp')
       + c(r.ap, 'ap') + c(r.top, 'top')
@@ -8356,7 +8380,8 @@ function renderBoxScore(g, keepPeriod) {{
     [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
       `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
   document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
-    __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || []);
+    __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || [])
+    + ([w, l].some(n => (T[n] || []).some(r => r.ortg_e != null)) ? '<div style="text-align:center;font-size:0.75rem;color:#666;margin:4px 12px 0">ORtg est: this side\u2019s box score has no real minutes, so each player\u2019s are estimated from his share of its activity (shots, free throws, turnovers, assists, rebounds, fouls, steals, blocks); minutes enter ORtg only through the share of his makes that were assisted.</div>' : '');
   const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
   const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
   document.getElementById('bx-poss').textContent = pP != null ? pP + ' possessions' + (per ? ' (' + pName(__bxPer) + ')' : '') : '';
