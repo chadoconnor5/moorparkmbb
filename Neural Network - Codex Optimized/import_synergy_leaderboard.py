@@ -10,6 +10,7 @@ Synergy's sheets are per game; counts (Poss, Pts, FG Att...) are stored as seaso
 Team names are mapped to ours ("Citrus CC" -> Citrus, "West Los Angeles College" -> West LA); unmatched ones are listed.
 
     python3 import_synergy_leaderboard.py <file.xlsx> [more.xlsx ...] [--as-of 2026-11-11]
+    python import_synergy_leaderboard.py "%USERPROFILE%\Downloads\Leaderboards_*.xlsx"   (every export in Downloads)
 """
 import argparse
 import datetime as dt
@@ -107,7 +108,9 @@ def main():
     ap.add_argument("--as-of", default=dt.date.today().isoformat(), help="the day the export was taken (default today)")
     a = ap.parse_args()
     ours = our_teams()
-    for f in a.files:
+    import glob
+    files = [g for f in a.files for g in (sorted(glob.glob(f)) or [f])]   # Windows' Command Prompt doesn't expand *.xlsx
+    for f in files:
         key, data, unmatched = load(f, a.as_of, ours)
         d = OUT / data["season"].replace("-", "_")
         d.mkdir(parents=True, exist_ok=True)
