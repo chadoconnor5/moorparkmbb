@@ -1154,6 +1154,57 @@ def narrative(c, p, idx):
     if gp < 0.8 * c.n_games: s.append(f'Played in {gp} of {c.n_games} team games.')
     return ' '.join(s)
 
+# The Synergy leaderboards (internal_data/synergy_leaderboards/<season>/, statewide exports): each player card lists
+# the boards he's on, with possessions, PPP, FG% and his rank by PPP on that board (defense: fewest points allowed).
+SYN_BOARD_SHOW = [("at_rim_player_offensive", "At Rim"), ("around_basket_player_offensive", "Around Basket"),
+                  ("post_ups_player_offensive", "Post Ups"), ("short_17_player_offensive", "Short (<17 ft)"),
+                  ("medium_17_to_3_point_line_player_offensive", "Mid (17 ft to 3PT)"),
+                  ("long_3_point_jump_shots_player_offensive", "Long 3"), ("catch_and_shoot_player_offensive", "Catch & Shoot"),
+                  ("all_jump_shots_off_the_dribble_player_offensive", "Off-Dribble Jumpers"),
+                  ("overall_player_defensive", "Defense (PPP allowed)")]
+_SYN_BOARDS = {}
+def syn_boards(season):
+    if season not in _SYN_BOARDS:
+        d = os.path.join(HERE, 'internal_data', 'synergy_leaderboards', season.replace('-', '_'))
+        out = {}
+        for key, label in SYN_BOARD_SHOW:
+            p = os.path.join(d, key + '.json')
+            if os.path.exists(p):
+                b = jload(p)
+                rows = [r for r in b.get('rows') or [] if r.get('PPP') is not None and r.get('Poss')]
+                out[key] = (label, b.get('as_of'), rows)
+        _SYN_BOARDS[season] = out
+    return _SYN_BOARDS[season]
+
+SYN_PROSE = {"at_rim_player_offensive": "at the rim", "around_basket_player_offensive": "around the basket",
+             "post_ups_player_offensive": "post-ups", "short_17_player_offensive": "short jumpers (inside 17 feet)",
+             "medium_17_to_3_point_line_player_offensive": "mid-range jumpers (17 feet to the arc)",
+             "long_3_point_jump_shots_player_offensive": "long threes", "catch_and_shoot_player_offensive": "catch-and-shoot jumpers",
+             "all_jump_shots_off_the_dribble_player_offensive": "jumpers off the dribble"}
+
+def syn_board_sentence(c, name):
+    """One sentence on what he does most by Synergy's leaderboards: his two offensive boards with the most possessions
+    (Around Basket left out when At Rim is one of them), each with possessions, PPP and rank on the board; '' if none."""
+    B = syn_boards(c.season)
+    want = set(re.sub(r'[^a-z ]', ' ', name.lower()).split())
+    mine, asof = [], None
+    for key, (label, ao, rows) in B.items():
+        if key not in SYN_PROSE: continue
+        me = next((r for r in rows if r.get('Team') == c.team and set(re.sub(r'[^a-z ]', ' ', str(r.get('Player', '')).lower()).split()) == want), None)
+        if me:
+            mine.append((me['Poss'], key, me, 1 + sum(1 for r in rows if r['PPP'] > me['PPP']), len(rows)))
+            asof = asof or ao
+    mine.sort(key=lambda x: -x[0])
+    if any(k == 'at_rim_player_offensive' for _, k, *_ in mine[:2]):
+        mine = [m for m in mine if m[1] != 'around_basket_player_offensive']
+    top = mine[:2]
+    if not top: return ''
+    part = lambda m: f'{SYN_PROSE[m[1]]} ({m[0]} possessions, {m[2]["PPP"]:.2f} PPP, #{m[3]} of {m[4]} statewide)'
+    when = f' (as of {int(asof[5:7])}/{int(asof[8:10])})' if asof and len(asof) >= 10 else ''
+    if len(top) == 1:
+        return f'On Synergy’s leaderboards{when}, his most-used shot type is {part(top[0])}.'
+    return f'On Synergy’s leaderboards{when}, his most-used shot types are {part(top[0])} and {part(top[1])}.'
+
 def player_card(c, p):
     avg, tot, adv = A(p), p['totals'], ADV(c, p)
     name, gp, mpg = p['name'], avg.get('games', 0), avg.get('MIN', 0)
@@ -1182,6 +1233,8 @@ def player_card(c, p):
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
     items = [hdr] + syn_rows(c, p)
     txt = narrative(c, p, 0)
+    sb = syn_board_sentence(c, name)
+    if sb: txt += ' ' + sb
     top100 = get_top100(c, avg, adv, tot, mpg)
     if top100: txt += ' Ranks top 100 statewide in ' + ', '.join(f'<b>{l} {v:.1f}{u}</b> (#{r}/{n})' for l, v, u, r, n in top100) + '.'
     items.append(Spacer(1, 4))   # a little air between the shot strip and the profile text
