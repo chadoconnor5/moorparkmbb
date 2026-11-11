@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.120';
+const VERSION = 'v2026.11.11.121';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3369,13 +3369,21 @@ function schSave(quiet) {
    shows in both. Moorpark's roster is the game tracker's; notes and edits made here are kept in this
    tracker's own copy (pl_roster). */
 function oppStore() { return lsGet('gt_opp_rosters', []) || []; }
+/* A team's saved roster under any of its names: the roster picker shows the leaderboard's name ("East Los Angeles"),
+   a tournament field or schedule may have saved it under a short one ("East LA"). The exact name first, unless empty. */
+function oppFind(name, st) {
+  st = st || oppStore(); const n = normOpp(name); if (!n) return null;
+  const ex = st.find(x => normOpp(x.name) === n); if (ex && (ex.players || []).length) return ex;
+  const R = ratingsData(), T = R && R.teams ? resolveTeam(name, R) : null;
+  return (T && st.find(x => x !== ex && (x.players || []).length && resolveTeam(x.name, R) === T)) || ex || null;
+}
 function rostersView() {
   const g = cur();
   const sel = UI.rosterSel || (g ? g.opp : 'MPK');
   // The one being set up (a new game's opponent with no roster yet) is listed too.
   const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : [], sel !== 'MPK' ? [sel] : []).filter(Boolean))].sort();
   const isM = sel === 'MPK';
-  const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppStore().find(x => x.name === sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
+  const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppFind(sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
   const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Labels', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting labels', 0]];
   const team = isM ? 'MPK' : sel, gS = isM ? null : { opp: sel, oppRoster: players };
   // Labels from his numbers: shown under the typed ones; ✕ turns one off for him, + brings it back.
@@ -3858,7 +3866,7 @@ function saveRosterEdit() {
   const nums = rows.map(r => r.num).filter(Boolean), dupe = nums.find((n, i) => nums.indexOf(n) !== i);
   if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
   if (sel === 'MPK') { lsSet(LS_ROSTER, rows.map(r => ({ num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))); toast('Moorpark roster saved', 'good'); return; }
-  const store = oppStore(); let o = store.find(x => x.name === sel);
+  const store = oppStore(); let o = oppFind(sel, store);
   if (!o) { o = { id: 'opp_' + uid(), name: sel, players: [] }; store.push(o); }
   // Keep each player's other game-tracker fields; replace what is edited here.
   o.players = rows.map(r => Object.assign({ num: '', name: '', pos: '', ht: '', yr: '', note: '' }, (o.players || []).find(p => String(p.num) === r.num) || {}, r));
@@ -4473,7 +4481,7 @@ function exportLeaderboard(g, side) {
    file carries every roster. Importing one keeps, team by team, the most recently SAVED roster (each Save stamps it):
    a newer one replaces this iPad's whole roster for that team (players added or taken away), an older one is ignored.
    Rosters from before the stamp (none on either side) are merged: missing players added, blank fields filled. */
-const rosterOf = name => { const o = oppStore().find(x => normOpp(x.name) === normOpp(name)); return o && (o.players || []).length ? o : null; };
+const rosterOf = name => { const o = oppFind(name); return o && (o.players || []).length ? o : null; };
 function mergeRosters(list) {
   if (!Array.isArray(list)) return 0;
   const st = oppStore(); let n = 0;
@@ -6536,7 +6544,7 @@ function oppFileHtml(name) {
       <div><div class="ff-who-h" style="color:var(--them-text)">Best against us</div>${best.map(u => five(u, SG(u.net), u.net > 0 ? 'neg' : 'pos')).join('') || '<div class="muted small">No five with 5+ possessions.</div>'}</div></div></div>`
     : `<div class="card"><h3>Their lineups</h3><div class="muted small">Their fives weren't tracked (no roster for them in those games).</div></div>`;
   // Their players.
-  const PL = ofPlayers(gs), store = (oppStore().find(o => normOpp(o.name) === normOpp(name)) || {}).players || [];
+  const PL = ofPlayers(gs), store = (oppFind(name) || {}).players || [];
   const note = num => { const p = store.find(x => String(x.num) === String(num)); return p && p.note ? esc(p.note) : ''; };
   const players = PL ? `<div class="card"><h3>Their players <span class="muted">· from the stat sheet${gs.length > 1 ? 's, all games' : ''}</span></h3><div class="tbl-wrap"><table class="tbl zebra sh-out"><thead><tr><th class="l">Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3P</th><th>FT</th><th>REB</th><th>TO</th><th>USG%</th><th>TS%</th><th class="l">Note</th></tr></thead><tbody>
       ${PL.map(({ r, x }) => `<tr><td class="l">${r.num ? `<span class="pnum">#${esc(r.num)}</span> ` : ''}${esc(r.name || '')}</td><td>${r.min || '—'}</td><td><b>${r.pts}</b></td><td>${r.fgm}-${r.fga}</td><td>${r.fg3m}-${r.fg3a}</td><td>${r.ftm}-${r.fta}</td><td>${r.oreb + r.dreb}</td><td>${r.tov}</td><td>${P(x.usg)}</td><td>${P(x.ts)}</td><td class="l small">${note(r.num)}</td></tr>`).join('')}</tbody></table></div>

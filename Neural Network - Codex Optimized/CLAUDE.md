@@ -169,6 +169,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Moorpark roster changes that reach every device: game tracker REMOVED / JERSEY (lockRoster adds a locked player a
   device lacks); possession tracker OFF_ROSTER / ADD_ROSTER (rosterFix). 11/11/2026: Jack Johnson off (redshirt),
   Jeremiah White on (6'0" G, number to come: set it in JERSEY and ADD_ROSTER).
+- Possession tracker saved opponent rosters are found under any of a team's names (oppFind: exact name first, else
+  the same leaderboard team): the Rosters picker shows the leaderboard's name ("East Los Angeles") while a tournament
+  field saves the roster under its short one ("East LA"); 11/11 ELAC showed an empty roster on the iPad.
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just
