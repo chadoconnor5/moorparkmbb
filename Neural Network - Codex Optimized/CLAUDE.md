@@ -156,9 +156,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   each with its rank among the conferences.
 - Opponent schedules in the possession tracker (Rosters -> Schedule): export_ratings.team_schedule puts each team file's
   "schedule": every game on the typed-in schedule (date, opponent, H/A/N, time, event, conference), played ones with the
-  result and both box scores from the saved box score files (compact rows: #, name, MIN, FGM, FGA, 3PM, 3PA, FTM, FTA,
-  OREB, DREB, AST, STL, BLK, TO, PF, PTS, starter), plus played TBA games; mq marks a side without real minutes (shown
-  "—"). The tracker lists them (schedTable; the next game highlighted) and opens a box score on a tap (schedBox).
+  result, plus played TBA games. Each played game carries the leaderboard's own box score record (build_game_boxes:
+  rows packed in BX_COLS order, halves, win-probability data) and its FanMatch line; ratings.json "box" has the color
+  scales (box_ctx: the page's __bxScales, set by generate_leaderboard before export) and school colors. The tracker lists
+  the games (schedTable; the next one highlighted) and a tap opens the leaderboard's box score itself: its CSS, popup and
+  JS (__bxTeamTable, __bxWpChart, renderBoxScore...) copied from the built page, only the data hooks pointed at the
+  tracker (BX_CTX). Change the box score's design in generate_leaderboard.py, then copy the block again.
 - Team Stats (leaderboard and tracker) for teams without reliable minutes: eFG%, TS%, TO rate and FT rate need no
   minutes, so they show exact (no "est"); FT rate from FTA / FGA when the analytics have none.
 - FT rate leaderboard: 4+ shots a game (FTR_FGA_PG_MIN) and the season's games minimum, on both qualifying paths (1

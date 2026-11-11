@@ -927,6 +927,60 @@ def _box_rows(rows):
     return out
 
 
+BOX_CTX = {}   # set by generate_leaderboard before export(): the box score's color scales, school colors, FanMatch lines
+BX_COLS = ["n", "j", "st", "min", "ortg_e", "fgm", "fga", "tpm", "tpa", "ftm", "fta", "or", "dr", "ast", "stl", "blk", "to",
+           "pf", "pts", "bpm", "obpm", "dbpm", "efg", "ts", "top", "ortg", "drtg", "usg", "orp", "drp", "ap", "stp", "blp"]
+_BOXES = {}
+
+
+def box_ctx(players, teams, storylines=None):
+    """The leaderboard box score's context for the tracker's copy: color scales as its __bxScales makes them (qualified
+    players, teams with games; mean and population sd of each rate, 10+ values), school colors, FanMatch lines."""
+    import generate_leaderboard as gl
+
+    def scale(pool, fields):
+        out = {}
+        for k, f in fields.items():
+            v = [float(x[f]) for x in pool if isinstance(x.get(f), (int, float)) and x.get(f) != 0]
+            if len(v) >= 10:
+                m = sum(v) / len(v)
+                sd = (sum((x - m) ** 2 for x in v) / len(v)) ** 0.5
+                if sd > 0:
+                    out[k] = {"m": round(m, 3), "sd": round(sd, 3)}
+        return out
+    return {"scales": {"p": scale([x for x in players if x.get("q") or (x.get("mpg") or 0) >= 10],
+                                  {"ortg": "ind_ortg", "efg": "efg_pct", "ts": "ts_pct", "orp": "oreb_pct", "drp": "dreb_pct",
+                                   "ap": "ast_rate", "top": "tov_pct", "stp": "stl_pct", "blp": "blk_pct", "bpm": "bpm",
+                                   "obpm": "obpm", "dbpm": "dbpm"}),
+                       "t": scale([x for x in teams if (x.get("gp") or 0) > 0],
+                                  {"ortg": "ortg", "efg": "efg_pct", "ts": "ts_pct", "orp": "oreb_pct", "drp": "dreb_pct",
+                                   "ap": "ast_pct", "top": "tov_pct", "stp": "stl_pct", "blp": "blk_pct"})},
+            "pc": gl.SCHOOL_COLORS, "sc": gl.SCHOOL_SECONDARY_COLORS,
+            "fanmatch": [r for r in ((storylines or {}).get("fanmatch_games") or []) if not r.get("upcoming")]}
+
+
+def _season_boxes(season):
+    """The leaderboard's box score records for the season (generate_leaderboard.build_game_boxes), once per export."""
+    if season not in _BOXES:
+        import generate_leaderboard as gl
+        # the relative folder, as the leaderboard passes it (it looks the season up by that name; the win-probability
+        # chart needs it). Scripts run from the project folder.
+        _BOXES[season] = gl.build_game_boxes(Path(f"{season} Team Statistics"))
+    return _BOXES[season]
+
+
+def _pack_box(rec):
+    """A box score record for the tracker: the leaderboard's own (its renderBoxScore draws it there too), rows as arrays
+    in BX_COLS order."""
+    r1 = lambda v: round(v, 1) if isinstance(v, float) else v
+    pack = lambda T: {t: [[r1(row.get(c)) for c in BX_COLS] for row in rows] for t, rows in (T or {}).items()}
+    out = {k: rec[k] for k in ("d", "h", "v", "sc", "p", "wp", "miss") if k in rec}
+    out["t"] = pack(rec.get("t"))
+    if rec.get("hv"):
+        out["hv"] = {per: pack(T) for per, T in rec["hv"].items()}
+    return out
+
+
 def team_schedule(season, team):
     """The team's season for the tracker (its Rosters screen, Schedule): every game on its typed-in schedule, played ones
     with the result and both box scores from the saved box score files, plus any played game the schedule doesn't list
@@ -956,10 +1010,17 @@ def team_schedule(season, team):
         mo, dy, _ = (str(box.get("date") or "").split("/") + ["", "", ""])[:3]
         key = f"{int(mo)}/{int(dy)}" if mo.isdigit() and dy.isdigit() else f.parent.name[4:8]
         mq = box.get("minutes_quality") or {}
+        import generate_leaderboard as gl
+        bkey = f"{box.get('date')}|" + "|".join(sorted(gl._box_norm(x) for x in labels))
+        rec = _season_boxes(season).get(bkey)
+        fm = next((r for r in BOX_CTX.get("fanmatch") or [] if r.get("date") == box.get("date")
+                   and sorted(gl._box_norm(x) for x in (r.get("winner"), r.get("loser"))) == sorted(gl._box_norm(x) for x in labels)), None)
         games[(key, norm(theirs))] = {
+            "bx": _pack_box(rec) if rec else None,
+            "fm": {k: fm.get(k) for k in ("date", "winner", "loser", "pregame_margin_w", "pregame_winner_net", "pregame_loser_net",
+                                          "home_team")} if fm else None,
             "d": key, "o": theirs, "ha": "H" if box.get("home") == ours else "A",
             "r": None if us is None or us == them else "W" if us > them else "L", "s": [us, them],
-            "b": [_box_rows(box["teams"][ours]), _box_rows(box["teams"][theirs])],
             "mq": [(mq.get(ours) or {}).get("minutes") not in (None, "REAL", "PBP"), (mq.get(theirs) or {}).get("minutes") not in (None, "REAL", "PBP")]}
     out = []
     used = set()
@@ -1068,6 +1129,12 @@ def export(season=None, out=OUT):
         print(f"export_ratings: no {season} ratings yet: wrote an empty {out.name} and cleared the team files (the tracker shows {season} only)")
         return res
     factors = al.load_factors(season)
+    if not BOX_CTX:   # run on its own (not from the leaderboard build): the box score context from the saved data
+        try:
+            import generate_leaderboard as gl
+            BOX_CTX.update(box_ctx(gl.load_players(), gl.load_teams(), gl.load_storylines()))
+        except Exception as ex:
+            print(f"export_ratings: box score colors / FanMatch lines skipped: {ex}")
     teams = {}
     for team in uaa.all_stat_teams():
         p = uaa.find_team_stats(team) / "advanced_analytics.json"
@@ -1093,6 +1160,8 @@ def export(season=None, out=OUT):
         "playerSeason": al.load_players(season, ratings),
         "scheduled": sched,
         "teamFiles": export_teams(season, ratings, out.parent / "teams", generated, ["Moorpark"] + sched + [t for t in extra if t not in sched]),
+        # the opponent box scores' color scales and school colors (the leaderboard's box score, Rosters -> Schedule)
+        "box": {"cols": BX_COLS, "scales": BOX_CTX.get("scales") or {}, "pc": BOX_CTX.get("pc") or {}, "sc": BOX_CTX.get("sc") or {}},
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     json.dump(res, open(out, "w"), separators=(",", ":"))

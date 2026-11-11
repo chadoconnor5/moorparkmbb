@@ -16316,6 +16316,9 @@ def main():
     # The possession tracker re-adjusts every tracked game against these ratings (poss/ratings.json).
     try:
         import export_ratings
+        # Its opponent box scores are this page's (export_ratings.team_schedule): the color scales (the page's __bxScales:
+        # qualified players, teams with games), school colors and FanMatch pregame lines go with them.
+        export_ratings.BOX_CTX = export_ratings.box_ctx(players, teams, storylines_current)
         export_ratings.export()
     except Exception as err:  # never fail the leaderboard build over it
         print(f"  export_ratings skipped: {err}")
