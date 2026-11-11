@@ -1176,26 +1176,41 @@ def syn_boards(season):
         _SYN_BOARDS[season] = out
     return _SYN_BOARDS[season]
 
-def syn_board_line(c, name):
-    """'Synergy leaderboards (as of 11/11): At Rim 12 poss, 1.25 PPP, 66.7% FG (#40/255) · ...', or ''."""
+def syn_board_strip(c, name):
+    """The Synergy leaderboards he's on, as the Synergy edition's shot strip (teal tiles): one tile per board, its
+    possessions in the label, PPP and his rank on the board below; None when he's on none."""
     B = syn_boards(c.season)
-    if not B: return ''
-    parts, asof = [], None
     want = set(re.sub(r'[^a-z ]', ' ', name.lower()).split())
+    tiles, asof = [], None
     for key, (label, ao, rows) in B.items():
         me = next((r for r in rows if r.get('Team') == c.team and set(re.sub(r'[^a-z ]', ' ', str(r.get('Player', '')).lower()).split()) == want), None)
         if not me: continue
         dfn = key == 'overall_player_defensive'
         rank = 1 + sum(1 for r in rows if (r['PPP'] < me['PPP'] if dfn else r['PPP'] > me['PPP']))
-        fg = f', {100 * me["FG%"]:.1f}% FG' if me.get('FG%') is not None and not dfn else ''
-        parts.append(f'{label} {me["Poss"]} poss, {me["PPP"]:.2f} PPP{fg} (#{rank}/{len(rows)})')
+        tiles.append((f'{SYN_TILE[key]} ({me["Poss"]} poss)', f'<b>{me["PPP"]:.2f}</b> PPP{" allowed" if dfn else ""}  <font color="#b2dfdb">#{rank} of {len(rows)}</font>'))
         asof = asof or ao
-    if not parts: return ''
-    when = ''
-    if asof:
-        try: when = f' (as of {int(asof[5:7])}/{int(asof[8:10])})'
-        except ValueError: pass
-    return f'Synergy leaderboards{when}: ' + ' · '.join(parts)
+    if not tiles: return None
+    TEAL, TEAL_DK, TEAL_BD = colors.HexColor('#b2dfdb'), colors.HexColor('#001a18'), colors.HexColor('#26a69a')
+    when = f' · AS OF {int(asof[5:7])}/{int(asof[8:10])}' if asof and len(asof) >= 10 else ''
+    rows_ = [tiles[k:k + 5] for k in range(0, len(tiles), 5)]
+    out = [Table([[Paragraph(f'SYNERGY LEADERBOARDS{when}', S(6.5, True, TEAL))]], colWidths=[7.5 * inch])]
+    out[0].setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), TEAL_DK), ('BOX', (0, 0), (-1, -1), 0.5, TEAL_BD),
+                                ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 2), ('LEFTPADDING', (0, 0), (-1, -1), 6)]))
+    for row in rows_:
+        w = 7.5 / len(row)
+        t = Table([[Paragraph(l, S(6.5, True, TEAL, TA_CENTER)) for l, _ in row],
+                   [Paragraph(v, S(8.5, False, WHITE, TA_CENTER)) for _, v in row]], colWidths=[w * inch] * len(row))
+        t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), TEAL_DK), ('INNERGRID', (0, 0), (-1, -1), 0.3, TEAL_BD), ('BOX', (0, 0), (-1, -1), 0.5, TEAL_BD),
+                               ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                               ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
+        out.append(t)
+    return out
+
+SYN_TILE = {"at_rim_player_offensive": "AT RIM", "around_basket_player_offensive": "AROUND BASKET",
+            "post_ups_player_offensive": "POST UPS", "short_17_player_offensive": "SHORT <17 FT",
+            "medium_17_to_3_point_line_player_offensive": "MID 17 FT-3PT", "long_3_point_jump_shots_player_offensive": "LONG 3",
+            "catch_and_shoot_player_offensive": "CATCH & SHOOT", "all_jump_shots_off_the_dribble_player_offensive": "OFF-DRIBBLE JUMPERS",
+            "overall_player_defensive": "DEFENSE"}
 
 def player_card(c, p):
     avg, tot, adv = A(p), p['totals'], ADV(c, p)
@@ -1223,14 +1238,12 @@ def player_card(c, p):
                             S(8, False, WHITE, TA_RIGHT))]], colWidths=[2.9 * inch, 2.5 * inch, 2.1 * inch])
     hdr.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), DARK), ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
-    items = [hdr] + syn_rows(c, p)
+    items = [hdr] + syn_rows(c, p) + (syn_board_strip(c, name) or [])
     txt = narrative(c, p, 0)
     top100 = get_top100(c, avg, adv, tot, mpg)
     if top100: txt += ' Ranks top 100 statewide in ' + ', '.join(f'<b>{l} {v:.1f}{u}</b> (#{r}/{n})' for l, v, u, r, n in top100) + '.'
     items.append(Spacer(1, 4))   # a little air between the shot strip and the profile text
     items.append(P(txt, S(8.5, space_after=3), 'player:' + name))
-    sb = syn_board_line(c, name)
-    if sb: items.append(Paragraph(x_(sb), S(7.5, color=colors.HexColor('#1a3a6b'), space_after=3)))
     if mpg >= 12 and io > 0:
         twoa = tot.get('FGA', 0) - tot.get('3PA', 0); twop = round((tot.get('FGM', 0) - tot.get('3PM', 0)) / twoa * 100, 1) if twoa > 0 else 0.0
         ar = lambda k, v, hb=True: (lambda r, n: f'#{r}/{n}' if v > 0 and n else '—')(*pool_rank(c.adv_players, k, v, hb))
