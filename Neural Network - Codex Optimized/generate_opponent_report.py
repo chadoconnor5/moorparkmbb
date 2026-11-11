@@ -889,12 +889,13 @@ def bball_index_archetype(pos, adv, tot, sa):
     if cs >= 48 and js >= 45: return 'Off-Ball Shooter'
     return 'Connector / Role'
 
-def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None):
+def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None, pbp=None):
     """The player's Synergy role (synergy_roles.role: 8 guard / wing and 4 big roles from his play-type mix, with each
     role's hard gates); None without a play-type mix."""
     import synergy_roles
     return synergy_roles.role((sa or {}).get('scoring_summary'), pos, roster_pos or (sa or {}).get('pos'),
-                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'))
+                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'),
+                              *synergy_roles.page_inputs(sa, tot), pbp=pbp)
 
 RATING_COLORS = {'Excellent': (GREEN_BG, GREEN_TXT), 'Very Good': (colors.HexColor('#c8e6c9'), GREEN_TXT),
                  'Good': (YELLOW_BG, colors.HexColor('#5c4200')), 'Average': (colors.HexColor('#f5f5f5'), MID),
@@ -1032,11 +1033,14 @@ def syn_rows(c, p):
     if not sa: return []
     avg, tot, adv = A(p), p['totals'], ADV(c, p)
     pos = c.pos.get(p['name']) or sa.get('pos') or ''
+    import pbp_creation, synergy_roles
+    cre = pbp_creation.player(c.season, c.team, p['name'])   # who creates his shots (play-by-play, 2026-27 on)
     out = []
-    cells = [Paragraph(f'<b>Synergy Archetype:</b>  {synergy_archetype(pos, sa, tot, avg.get("AST", 0), adv, _roster_pos(c).get(p['name'])) or '—'}', S(8.5, False, GOLD))]
+    cells = [Paragraph(f'<b>Synergy Archetype:</b>  {synergy_archetype(pos, sa, tot, avg.get("AST", 0), adv, _roster_pos(c).get(p['name']), cre) or '—'}', S(8.5, False, GOLD))]
     bi = bball_index_archetype(pos, adv, tot, sa)
     if bi: cells.append(Paragraph(f'<b>bball-index Archetype:</b>  {bi}', S(8.5, False, colors.HexColor('#6fa8ff'))))
     if sa.get('scoring_summary'): cells.append(P(x_(sa['scoring_summary']), S(7.5, False, colors.HexColor('#aab8d0')), 'note'))
+    if synergy_roles.creation_line(cre): cells.append(P(x_(synergy_roles.creation_line(cre)), S(7.5, False, colors.HexColor('#aab8d0')), 'note'))
     t = Table([[x] for x in cells], colWidths=[7.5 * inch])
     t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0d1a2e')), ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                            ('LEFTPADDING', (0, 0), (-1, -1), 10), ('RIGHTPADDING', (0, 0), (-1, -1), 10), ('BOX', (0, 0), (-1, -1), 0.5, BLUE)]))
