@@ -894,7 +894,8 @@ def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None):
     role's hard gates); None without a play-type mix."""
     import synergy_roles
     return synergy_roles.role((sa or {}).get('scoring_summary'), pos, roster_pos or (sa or {}).get('pos'),
-                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'))
+                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'),
+                              *synergy_roles.page_inputs(sa, tot))
 
 RATING_COLORS = {'Excellent': (GREEN_BG, GREEN_TXT), 'Very Good': (colors.HexColor('#c8e6c9'), GREEN_TXT),
                  'Good': (YELLOW_BG, colors.HexColor('#5c4200')), 'Average': (colors.HexColor('#f5f5f5'), MID),

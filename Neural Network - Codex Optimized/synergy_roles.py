@@ -82,9 +82,15 @@ def is_big(pos=None, roster_pos=None, pt=None):
     return g("postup") + g("roll") + g("putback") > g("pnr_bh") + g("iso") + g("offscreen") + g("handoff") + 0.5 * g("spotup")
 
 
-def _gates(pt, big, ast_rate=None, rim=None):
-    """The roles his mix allows (hard disqualifiers)."""
+def _gates(pt, big, ast_rate=None, rim=None, three_par=None, drive_rate=None, spot_drive=None):
+    """The roles his mix allows (hard disqualifiers). three_par: 3PA / FGA (%, box score); drive_rate: drives / his
+    possessions (%, player page); spot_drive: share of his spot-ups that are drives, not shots (%, player page)."""
     g = lambda k: pt.get(k, 0)
+    # Shoot or drive: a low 3PA rate with a real rim share or drive rate, or spot-ups that are mostly drives, is a slasher's
+    # profile; his spot-ups are attacks off the catch, not shots, so he is no shooter.
+    driver = (three_par is not None and three_par <= 25 and ((rim or 0) >= 45 or (drive_rate or 0) >= 30)) \
+        or (spot_drive is not None and spot_drive >= 50)
+    shooter_ok = not driver and (three_par is None or three_par >= 30)
     half = {k: g(k) for k in KEYS if k != "transition"}   # half-court play types
     top = max(half, key=half.get) if half else None
     ok = set()
@@ -105,15 +111,16 @@ def _gates(pt, big, ast_rate=None, rim=None):
         ok.add("Secondary Ball Handler")   # a primary's initiation (P&R 22%+, assist rate 18+) decides it over secondary
     if g("iso") >= 15 and g("iso") >= 0.75 * g("pnr_bh") and create >= 25:
         ok.add("Shot Creator")
-    if g("transition") + g("cut") + g("iso") >= 35 and g("spotup") < 30 and (rim is None or rim >= 35):
+    if (g("transition") + g("cut") + g("iso") >= 35 and g("spotup") < 30 and (rim is None or rim >= 35)
+            and (three_par is None or three_par < 45 or (spot_drive or 0) >= 50)) or driver:
         ok.add("Slasher")
     if g("cut") + g("putback") + g("roll") >= 25 and create < 15:
         ok.add("Athletic Finisher")
-    if g("offscreen") >= 15:
+    if g("offscreen") >= 15 and shooter_ok:
         ok.add("Off Screen Shooter")
-    if g("spotup") >= 20 and g("offscreen") + g("handoff") + g("cut") >= 15 and create < 25:
+    if g("spotup") >= 20 and g("offscreen") + g("handoff") + g("cut") >= 15 and create < 25 and shooter_ok:
         ok.add("Movement Shooter")
-    if g("spotup") >= 30 and g("offscreen") + g("handoff") < 15 and create < 20:
+    if g("spotup") >= 30 and g("offscreen") + g("handoff") < 15 and create < 20 and shooter_ok:
         ok.add("Stationary Shooter")
     return ok
 
@@ -122,15 +129,16 @@ def _dist(pt, prof):
     return sum(abs(pt.get(k, 0) - prof.get(k, 0)) for k in KEYS)
 
 
-def role(summary, pos=None, roster_pos=None, ast_rate=None, rim=None):
+def role(summary, pos=None, roster_pos=None, ast_rate=None, rim=None, three_par=None, drive_rate=None, spot_drive=None):
     """The player's role from his scoring summary, or None without a play-type mix. ast_rate (assist rate) is the
-    initiation check for a Primary Ball Handler; rim (share of his shots at the rim) the Slasher's."""
+    initiation check for a Primary Ball Handler; rim (share of his shots at the rim), three_par, drive_rate and
+    spot_drive tell a Slasher from a shooter (see _gates)."""
     pt = play_types(summary)
     if sum(pt.values()) < 20:
         return None
     big = is_big(pos, roster_pos, pt)
     group = BIG if big else GUARD
-    allowed = _gates(pt, big, ast_rate, rim) or set(group)
+    allowed = _gates(pt, big, ast_rate, rim, three_par, drive_rate, spot_drive) or set(group)
     return min(allowed, key=lambda r: _dist(pt, group[r]))
 
 
@@ -151,3 +159,15 @@ def roster_positions(team, season):
             if nm:
                 out[nm] = p.get("site_position") or p.get("pos") or ""
     return out
+
+
+def page_inputs(sa, tot=None):
+    """(three_par, drive_rate, spot_drive) from a player page (sa) and his box-score totals."""
+    tot = tot or {}
+    fga = tot.get("FGA") or 0
+    three_par = 100.0 * (tot.get("3PA") or 0) / fga if fga >= 10 else None
+    dd, ov = (sa or {}).get("drive_direction") or {}, (sa or {}).get("overall") or {}
+    drives = dd.get("drives_poss") or sum((dd.get(k) or 0) for k in ("drives_left_poss", "drives_right_poss", "drives_straight_poss"))
+    drive_rate = 100.0 * drives / ov["poss"] if drives and ov.get("poss") else None
+    su = (sa or {}).get("spot_up") or {}
+    return three_par, drive_rate, su.get("drive_pct")
