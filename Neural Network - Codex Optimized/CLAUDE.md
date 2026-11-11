@@ -120,6 +120,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the
   scouting report's player profiles list them ("Labels: Scorer, Elite shooter; weak spots: Foul-prone"). Change a
   label rule in both places.
+  The report's player card header shows a label line under the name (generate_opponent_report.header_labels): up to 3
+  strengths in green (Lockdown always among them) and up to 2 weak spots in red (Attackable first; WEAK_LABELS).
 - Synergy leaderboard exports (any situation: At Rim, Long 3, Catch and Shoot, All Poss + Assists, Overall Player
   Defensive, Transition Team Defensive...): Synergy needs a login, so they come in by hand when we scout.
   python3 import_synergy_leaderboard.py <file.xlsx> [...] [--as-of YYYY-MM-DD] -> internal_data/synergy_leaderboards/
@@ -255,7 +257,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   on average, 0.3 for 90%, 1.1 at most. Shown marked "est" where the real ORtg isn't (adv 0 teams): the leaderboard's
   Team Stats (ortg_est on roster rows, a note above the table) and player pages, the tracker's Team Stats table,
   the scouting report's player cards (BOX_ONLY). Usage, rebound / assist / steal / block % and per-40 stay blank
-  (they really are per-minute). Not in the individual ORtg leaderboard (it ranks within %Poss bands).
+  (they really are per-minute). Not in the individual ORtg leaderboard's KenPom view (it ranks within %Poss bands);
+  its "3 tiers (all teams)" toggle (ortgView) ranks everyone in Primary / Rotation / Limited (over 24 / 16-24 / under
+  16% usage): real-minutes players by ORtg and usage, the others by ORtg (est) and role (est), marked est, qualifying
+  with half their team's games and 4+ ppg or 3+ rpg.
   Box scores too (build_game_boxes, _box_ortg_est): a side with placeholder minutes and its turnovers recorded gets
   ORtg (est) per game (row ortg_e, shown marked "est", a note under the box): the same activity share of the game's
   player-minutes (the other side's real minutes, so an overtime counts, else 40); halves as well. TO% needs no minutes

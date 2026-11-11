@@ -9989,6 +9989,7 @@ let bpm2SortCol = 'bpm';
 let bpm2SortDir = 'desc';
 let wsSortCol = 'ws';
 let wsSortDir = 'desc';
+let ortgView = 'kenpom';   // the ORtg leaderboard: 'kenpom' (six %Poss bands) or 'tiers' (three, every team, est marked)
 const POSS_BUCKETS = [
   {{min: 28, max: null, label: '28%+ %Poss'}},
   {{min: 24, max: 28,   label: '24\u201328% %Poss'}},
@@ -10278,6 +10279,48 @@ function renderAdv(data, catKey) {{
     return;
   }}
   const qualified = data.filter(p => advCatQualifies(p, catKey));
+  if (cat.poss_buckets) {{
+    // Two views: KenPom's six %Poss bands (real minutes only), or three tiers with every team in them: Primary (over 24%
+    // usage), Rotation (16-24%), Limited (under 16%); players on teams without reliable minutes by ORtg (est) and role
+    // (est) (update_advanced_analytics: the right tier about 4 times in 5 where real minutes exist), marked est.
+    const vt = tb.insertRow(), vc = vt.insertCell();
+    vc.colSpan = showMakeAttempt ? 6 : 5;
+    vc.style.cssText = 'text-align:center;padding:8px 4px;background:#fff';
+    const vb = (k, lab) => `<button onclick="ortgView='${{k}}';refreshIndividual()" style="padding:4px 12px;margin:0 3px;border-radius:5px;cursor:pointer;font-size:0.8rem;font-weight:${{ortgView === k ? 700 : 500}};border:1px solid #1a1f2e;background:${{ortgView === k ? '#1a1f2e' : '#fff'}};color:${{ortgView === k ? '#fff' : '#1a1f2e'}}">${{lab}}</button>`;
+    vc.innerHTML = vb('kenpom', 'KenPom bands') + vb('tiers', '3 tiers (all teams)');
+  }}
+  if (cat.poss_buckets && ortgView === 'tiers') {{
+    const teamGp = {{}};
+    data.forEach(p => {{ teamGp[p.school] = Math.max(teamGp[p.school] || 0, p.gp || 0); }});
+    // placeholder-minute players: half the team's games and 4+ points or 3+ rebounds a game (the badges' rule)
+    const estQual = p => p.ind_ortg == null && p.ortg_est != null && p.role_est && (p.gp || 0) >= 0.5 * (teamGp[p.school] || 0)
+      && ((p.ppg || 0) >= 4 || (p.rpg || 0) >= 3);
+    const tierOf = p => p.ind_ortg != null && p.usage_pct != null ? (p.usage_pct > 24 ? 'Primary' : p.usage_pct >= 16 ? 'Rotation' : 'Limited') : p.role_est;
+    const rows = qualified.filter(p => p.ind_ortg != null && p.usage_pct != null && p.usage_pct <= 40)
+      .concat(data.filter(estQual));
+    const val = p => p.ind_ortg != null ? p.ind_ortg : p.ortg_est;
+    [['Primary', 'Primary (over 24% of possessions used)'], ['Rotation', 'Rotation (16\u201324%)'], ['Limited', 'Limited (under 16%)']].forEach(([t, label]) => {{
+      const pool = rows.filter(p => tierOf(p) === t).sort((a, b) => val(b) - val(a)).slice(0, 100);
+      if (!pool.length) return;
+      const htr = tb.insertRow(), htd = htr.insertCell();
+      htd.colSpan = showMakeAttempt ? 6 : 5;
+      htd.className = 'adv-section-hdr';
+      htd.textContent = label;
+      pool.forEach((p, i) => {{
+        const tr = tb.insertRow();
+        const schoolDisplay = p.school === 'La Pierce' ? 'LA Pierce' : p.school;
+        const est = p.ind_ortg == null;
+        const tail = est ? ' <span style="font-size:9px;color:#888;font-weight:600">est</span>' : ` (${{p.usage_pct.toFixed(1)}})`;
+        tr.innerHTML = `<td>${{i+1}}</td><td>${{playerLink(p.name, p.school, null, p.pos)}}</td><td>${{teamPageLink(p.school,'color:inherit;text-decoration:none',schoolDisplay)}}</td><td>${{p.gp}}</td><td>${{val(p).toFixed(1)}}${{tail}}</td>`;
+        if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
+      }});
+    }});
+    const nr = tb.insertRow(), nc = nr.insertCell();
+    nc.colSpan = showMakeAttempt ? 6 : 5;
+    nc.style.cssText = 'font-size:0.75rem;color:#666;padding:8px;background:#fff;white-space:normal';
+    nc.textContent = 'Real minutes: ORtg (usage). est: the team\u2019s box scores have no reliable minutes, so ORtg and the tier are estimated from the box score (the tier is right about 4 times in 5 where real minutes exist); those players qualify with half their team\u2019s games and 4+ points or 3+ rebounds a game.';
+    return;
+  }}
   if (cat.poss_buckets) {{
     POSS_BUCKETS.forEach(bucket => {{
       const pool = qualified
