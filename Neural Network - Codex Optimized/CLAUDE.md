@@ -256,6 +256,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Team Stats (ortg_est on roster rows, a note above the table) and player pages, the tracker's Team Stats table,
   the scouting report's player cards (BOX_ONLY). Usage, rebound / assist / steal / block % and per-40 stay blank
   (they really are per-minute). Not in the individual ORtg leaderboard (it ranks within %Poss bands).
+  Box scores too (build_game_boxes, _box_ortg_est): a side with placeholder minutes and its turnovers recorded gets
+  ORtg (est) per game (row ortg_e, shown marked "est", a note under the box): the same activity share of the game's
+  player-minutes (the other side's real minutes, so an overtime counts, else 40); halves as well. TO% needs no minutes
+  and always shows. A side whose box has no turnovers (0 for everyone) shows no ORtg / usage / TO%, real or est.
+- Box score fixes typed in by hand keep where they came from in the box ("to_source"): 11/9 Redwoods at Cuesta,
+  Cuesta's turnovers (the site posted 0) from Synergy's player box. Rebuild the two teams after such a fix:
+  python3 generate_team_stats.py --season 2026-27 --teams A B, then update_advanced_analytics.py --teams A B.
   Alongside it for the same players: TORate (est) (the TO% itself, needs no minutes: tov_est), a 3-tier role (est)
   in place of %Poss (role_est: Primary over 24% usage, Rotation 16-24, Limited under 16; KenPom's 6 bands are not
   shown for estimates) and PRPG! (est) (porp_est). The role and PRPG! use a minutes estimate inside the sums only,
