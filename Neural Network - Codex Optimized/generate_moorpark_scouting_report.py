@@ -416,13 +416,13 @@ def bball_index_archetype(pos, adv, tot, sa):
 # internal_compute_archetypes.py, but driven by actual Synergy play-types here.
 # Returns None without Synergy data — never invents a label.
 _GUARD_POS = {'PG', 's-PG', 'CG'}
-def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None):
+def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None, pbp=None):
     """The player's Synergy role (synergy_roles.role: 8 guard / wing and 4 big roles from his play-type mix, with each
     role's hard gates); None without a play-type mix."""
     import synergy_roles
     return synergy_roles.role((sa or {}).get('scoring_summary'), pos, roster_pos or (sa or {}).get('pos'),
                               (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'),
-                              *synergy_roles.page_inputs(sa, tot))
+                              *synergy_roles.page_inputs(sa, tot), pbp=pbp)
 
 # Merge player map
 player_map = {}

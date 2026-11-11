@@ -82,7 +82,19 @@ def is_big(pos=None, roster_pos=None, pt=None):
     return g("postup") + g("roll") + g("putback") > g("pnr_bh") + g("iso") + g("offscreen") + g("handoff") + 0.5 * g("spotup")
 
 
-def _gates(pt, big, ast_rate=None, rim=None, three_par=None, drive_rate=None, spot_drive=None):
+def _creation(c):
+    """From the play-by-play counts (pbp_creation): (share of his makes unassisted, share of made threes assisted,
+    share of rim makes assisted, putback share of his shots), each None below its sample (10 makes, 5 threes, 5 rim)."""
+    if not c:
+        return None, None, None, None
+    ua = 100.0 * c["unast_m"] / c["fgm"] if c.get("fgm", 0) >= 10 else None
+    a3 = 100.0 * c["three_ast"] / c["three_m"] if c.get("three_m", 0) >= 5 else None
+    arim = 100.0 * c["rim_ast"] / c["rim_m"] if c.get("rim_m", 0) >= 5 else None
+    pb = 100.0 * c["putback_a"] / c["fga"] if c.get("fga", 0) >= 15 else None
+    return ua, a3, arim, pb
+
+
+def _gates(pt, big, ast_rate=None, rim=None, three_par=None, drive_rate=None, spot_drive=None, pbp=None):
     """The roles his mix allows (hard disqualifiers). three_par: 3PA / FGA (%, box score); drive_rate: drives / his
     possessions (%, player page); spot_drive: share of his spot-ups that are drives, not shots (%, player page)."""
     g = lambda k: pt.get(k, 0)
@@ -91,6 +103,13 @@ def _gates(pt, big, ast_rate=None, rim=None, three_par=None, drive_rate=None, sp
     driver = (three_par is not None and three_par <= 25 and ((rim or 0) >= 45 or (drive_rate or 0) >= 30)) \
         or (spot_drive is not None and spot_drive >= 50)
     shooter_ok = not driver and (three_par is None or three_par >= 30)
+    # Who creates the shot (play-by-play): creators make shots on their own (the state: 51% of makes unassisted),
+    # shooters are set up (83% of made threes assisted). Not used for finishers: their putbacks are unassisted rim makes
+    # and the play-by-play misses most putbacks (4% of the state's shots; 11/11 Michael Baba, 27% putbacks by Synergy,
+    # 1 by the play-by-play).
+    ua, a3, arim, pb = _creation(pbp)
+    creator_ok = ua is None or ua >= 55
+    shooter_ok = shooter_ok and (a3 is None or a3 >= 70)
     half = {k: g(k) for k in KEYS if k != "transition"}   # half-court play types
     top = max(half, key=half.get) if half else None
     ok = set()
@@ -99,17 +118,18 @@ def _gates(pt, big, ast_rate=None, rim=None, three_par=None, drive_rate=None, sp
             ok.add("Versatile Big")
         if top == "postup" and g("postup") >= 15:
             ok.add("Post Scorer")
-        if top == "spotup" and g("spotup") >= 25:
+        if top == "spotup" and g("spotup") >= 25 and (a3 is None or a3 >= 70):
             ok.add("Stretch Big")
-        if g("roll") + g("cut") + g("putback") >= 30 and g("spotup") < 15 and g("roll") + g("cut") + g("putback") > g("postup"):
+        if (g("roll") + g("cut") + g("putback") >= 30 and g("spotup") < 15 and g("roll") + g("cut") + g("putback") > g("postup")
+                ):
             ok.add("Roll & Cut Big")
         return ok
     create = g("pnr_bh") + g("iso")
-    if g("pnr_bh") >= 22 and g("pnr_bh") >= g("iso") and (ast_rate is None or ast_rate >= 18):
+    if g("pnr_bh") >= 22 and g("pnr_bh") >= g("iso") and (ast_rate is None or ast_rate >= 18) and creator_ok:
         ok.add("Primary Ball Handler")
     if g("pnr_bh") >= 10 and g("pnr_bh") >= g("iso") * 0.75 and "Primary Ball Handler" not in ok:
         ok.add("Secondary Ball Handler")   # a primary's initiation (P&R 22%+, assist rate 18+) decides it over secondary
-    if g("iso") >= 15 and g("iso") >= 0.75 * g("pnr_bh") and create >= 25:
+    if g("iso") >= 15 and g("iso") >= 0.75 * g("pnr_bh") and create >= 25 and creator_ok:
         ok.add("Shot Creator")
     if (g("transition") + g("cut") + g("iso") >= 35 and g("spotup") < 30 and (rim is None or rim >= 35)
             and (three_par is None or three_par < 45 or (spot_drive or 0) >= 50)) or driver:
@@ -125,20 +145,37 @@ def _gates(pt, big, ast_rate=None, rim=None, three_par=None, drive_rate=None, sp
     return ok
 
 
+def _vetoed(three_par, pbp, rim=None, drive_rate=None, spot_drive=None):
+    """Roles his shooting rules out even when no role's gate passes: no shooter without the threes (or with them
+    unassisted), no creator whose makes are set up for him."""
+    ua, a3, _, _ = _creation(pbp)
+    out = set()
+    driver = (three_par is not None and three_par <= 25 and ((rim or 0) >= 45 or (drive_rate or 0) >= 30)) or (spot_drive or 0) >= 50
+    if driver or (three_par is not None and three_par < 30) or (a3 is not None and a3 < 70):
+        out |= {"Off Screen Shooter", "Movement Shooter", "Stationary Shooter"}
+    if a3 is not None and a3 < 70:
+        out.add("Stretch Big")
+    if ua is not None and ua < 55:
+        out |= {"Primary Ball Handler", "Shot Creator"}
+    return out
+
+
 def _dist(pt, prof):
     return sum(abs(pt.get(k, 0) - prof.get(k, 0)) for k in KEYS)
 
 
-def role(summary, pos=None, roster_pos=None, ast_rate=None, rim=None, three_par=None, drive_rate=None, spot_drive=None):
+def role(summary, pos=None, roster_pos=None, ast_rate=None, rim=None, three_par=None, drive_rate=None, spot_drive=None,
+         pbp=None):
     """The player's role from his scoring summary, or None without a play-type mix. ast_rate (assist rate) is the
     initiation check for a Primary Ball Handler; rim (share of his shots at the rim), three_par, drive_rate and
-    spot_drive tell a Slasher from a shooter (see _gates)."""
+    spot_drive tell a Slasher from a shooter; pbp (pbp_creation counts) who creates his shots (see _gates)."""
     pt = play_types(summary)
     if sum(pt.values()) < 20:
         return None
     big = is_big(pos, roster_pos, pt)
     group = BIG if big else GUARD
-    allowed = _gates(pt, big, ast_rate, rim, three_par, drive_rate, spot_drive) or set(group)
+    allowed = _gates(pt, big, ast_rate, rim, three_par, drive_rate, spot_drive, pbp) or (set(group) - _vetoed(three_par, pbp, rim, drive_rate, spot_drive))
+    allowed = allowed or set(group)
     return min(allowed, key=lambda r: _dist(pt, group[r]))
 
 
@@ -171,3 +208,20 @@ def page_inputs(sa, tot=None):
     drive_rate = 100.0 * drives / ov["poss"] if drives and ov.get("poss") else None
     su = (sa or {}).get("spot_up") or {}
     return three_par, drive_rate, su.get("drive_pct")
+
+
+def creation_line(c):
+    """The report's play-by-play line: "Play-by-play (9 makes): 67% of makes unassisted · 3 of 4 threes assisted · ..."."""
+    if not c or not c.get("fga"):
+        return ""
+    parts = []
+    if c["fgm"]:
+        parts.append(f'{round(100 * c["unast_m"] / c["fgm"])}% of makes unassisted')
+    if c["rim_m"]:
+        parts.append(f'{c["rim_ast"]} of {c["rim_m"]} rim makes assisted')
+    if c["three_m"]:
+        parts.append(f'{c["three_ast"]} of {c["three_m"]} made threes assisted')
+    parts.append(f'{round(100 * c["trans_a"] / c["fga"])}% of shots in transition')
+    if c["putback_a"]:
+        parts.append(f'{c["putback_a"]} putback{"s" if c["putback_a"] != 1 else ""}')
+    return f'Play-by-play ({c["games"]} games, {c["fga"]} shots): ' + " · ".join(parts)
