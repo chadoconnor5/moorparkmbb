@@ -1154,6 +1154,49 @@ def narrative(c, p, idx):
     if gp < 0.8 * c.n_games: s.append(f'Played in {gp} of {c.n_games} team games.')
     return ' '.join(s)
 
+# The Synergy leaderboards (internal_data/synergy_leaderboards/<season>/, statewide exports): each player card lists
+# the boards he's on, with possessions, PPP, FG% and his rank by PPP on that board (defense: fewest points allowed).
+SYN_BOARD_SHOW = [("at_rim_player_offensive", "At Rim"), ("around_basket_player_offensive", "Around Basket"),
+                  ("post_ups_player_offensive", "Post Ups"), ("short_17_player_offensive", "Short (<17 ft)"),
+                  ("medium_17_to_3_point_line_player_offensive", "Mid (17 ft to 3PT)"),
+                  ("long_3_point_jump_shots_player_offensive", "Long 3"), ("catch_and_shoot_player_offensive", "Catch & Shoot"),
+                  ("all_jump_shots_off_the_dribble_player_offensive", "Off-Dribble Jumpers"),
+                  ("overall_player_defensive", "Defense (PPP allowed)")]
+_SYN_BOARDS = {}
+def syn_boards(season):
+    if season not in _SYN_BOARDS:
+        d = os.path.join(HERE, 'internal_data', 'synergy_leaderboards', season.replace('-', '_'))
+        out = {}
+        for key, label in SYN_BOARD_SHOW:
+            p = os.path.join(d, key + '.json')
+            if os.path.exists(p):
+                b = jload(p)
+                rows = [r for r in b.get('rows') or [] if r.get('PPP') is not None and r.get('Poss')]
+                out[key] = (label, b.get('as_of'), rows)
+        _SYN_BOARDS[season] = out
+    return _SYN_BOARDS[season]
+
+def syn_board_line(c, name):
+    """'Synergy leaderboards (as of 11/11): At Rim 12 poss, 1.25 PPP, 66.7% FG (#40/255) · ...', or ''."""
+    B = syn_boards(c.season)
+    if not B: return ''
+    parts, asof = [], None
+    want = set(re.sub(r'[^a-z ]', ' ', name.lower()).split())
+    for key, (label, ao, rows) in B.items():
+        me = next((r for r in rows if r.get('Team') == c.team and set(re.sub(r'[^a-z ]', ' ', str(r.get('Player', '')).lower()).split()) == want), None)
+        if not me: continue
+        dfn = key == 'overall_player_defensive'
+        rank = 1 + sum(1 for r in rows if (r['PPP'] < me['PPP'] if dfn else r['PPP'] > me['PPP']))
+        fg = f', {100 * me["FG%"]:.1f}% FG' if me.get('FG%') is not None and not dfn else ''
+        parts.append(f'{label} {me["Poss"]} poss, {me["PPP"]:.2f} PPP{fg} (#{rank}/{len(rows)})')
+        asof = asof or ao
+    if not parts: return ''
+    when = ''
+    if asof:
+        try: when = f' (as of {int(asof[5:7])}/{int(asof[8:10])})'
+        except ValueError: pass
+    return f'Synergy leaderboards{when}: ' + ' · '.join(parts)
+
 def player_card(c, p):
     avg, tot, adv = A(p), p['totals'], ADV(c, p)
     name, gp, mpg = p['name'], avg.get('games', 0), avg.get('MIN', 0)
@@ -1186,6 +1229,8 @@ def player_card(c, p):
     if top100: txt += ' Ranks top 100 statewide in ' + ', '.join(f'<b>{l} {v:.1f}{u}</b> (#{r}/{n})' for l, v, u, r, n in top100) + '.'
     items.append(Spacer(1, 4))   # a little air between the shot strip and the profile text
     items.append(P(txt, S(8.5, space_after=3), 'player:' + name))
+    sb = syn_board_line(c, name)
+    if sb: items.append(Paragraph(x_(sb), S(7.5, color=colors.HexColor('#1a3a6b'), space_after=3)))
     if mpg >= 12 and io > 0:
         twoa = tot.get('FGA', 0) - tot.get('3PA', 0); twop = round((tot.get('FGM', 0) - tot.get('3PM', 0)) / twoa * 100, 1) if twoa > 0 else 0.0
         ar = lambda k, v, hb=True: (lambda r, n: f'#{r}/{n}' if v > 0 and n else '—')(*pool_rank(c.adv_players, k, v, hb))

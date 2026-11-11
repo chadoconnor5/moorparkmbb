@@ -131,6 +131,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Moorpark Synergy.bat (double-click on the PC): loads every Downloads\Leaderboards*.xlsx (--delete removes each one
   once loaded; one it can't read stays and is listed), then commits and pushes internal_data/synergy_leaderboards.
   SYNERGY CHECKLIST.txt: what to grab each scout.
+- Scouting report player cards list the Synergy leaderboards each player is on (generate_opponent_report.syn_board_line,
+  SYN_BOARD_SHOW): At Rim, Around Basket, Post Ups, Short <17, Mid 17-3, Long 3, Catch & Shoot, Off-Dribble Jumpers
+  (possessions, PPP, FG%, rank by PPP on the board) and Overall Player Defensive (PPP allowed, fewest first), with the
+  exports' as-of date. Every edition (pre-Synergy too); a board lists only the players it qualified.
 - Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
   player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's
   pool; 58.0% on 11/11). Otherwise the play-by-play (export_ratings.rim_shots: layups, dunks, tip-ins of his FGA, 40%+:
