@@ -3377,7 +3377,7 @@ _SIM_TARGET_MIN_PCT = 10
 # box-score stand-ins placed on the real stat's scale by percentile (qmap): Game Score a game for PRPG!, its offensive
 # / defensive parts for OBPM / DBPM, share of the team's Game Score for share of win shares, per-game rebounds /
 # steals / blocks and assists per possession used for the rates. Those badges carry a third element 1 ("est."). p["bdg"] = [[code, 2 gold / 1 silver], ...].
-BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot")
+BADGE_SKILLS = ("scorer", "sniper", "finisher", "icewater", "floorgen", "glass", "pickpocket", "rimprot", "greenlight")
 
 
 HOF_MIN_GP = 20   # a Hall of Fame season needs this many games: a solid sample that won't swing
@@ -3426,6 +3426,7 @@ def _badge_values(players):
         "glass": lambda p: None if zo(p) is None or zd(p) is None else (zo(p) + zd(p)) / 2,
         "pickpocket": lambda p: p.get("stl_pct"),
         "rimprot": lambda p: p.get("blk_pct"),
+        "greenlight": lambda p: p.get("shot_pct"),   # %Shots: his share of the team's shots while he's on the floor
         "allstate": rating,
         "engine": lambda p: p.get("obpm"),
         "anchor": lambda p: p.get("dbpm"),
@@ -3577,9 +3578,11 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
     gl_real = lambda p: None if zo(p) is None or zd(p) is None else (zo(p) + zd(p)) / 2
     fg_box = lambda p: None if zas(p) is None or ztr(p) is None else zas(p) - 0.5 * ztr(p)
     gl_box = lambda p: None if zor(p) is None or zdr(p) is None else (zor(p) + zdr(p)) / 2
+    fga_pg = lambda p: (p.get("fga") or 0) / p["gp"] if p.get("gp") else None   # Green Light's stand-in: shots a game
     stand = {"floorgen": qmap(mins, fg_box, fg_real), "glass": qmap(mins, gl_box, gl_real),
-             "pickpocket": qmap(mins, key("spg"), key("stl_pct")), "rimprot": qmap(mins, key("bpg"), key("blk_pct"))}
-    box_in = {"floorgen": fg_box, "glass": gl_box, "pickpocket": key("spg"), "rimprot": key("bpg")}
+             "pickpocket": qmap(mins, key("spg"), key("stl_pct")), "rimprot": qmap(mins, key("bpg"), key("blk_pct")),
+             "greenlight": qmap(mins, fga_pg, key("shot_pct"))}
+    box_in = {"floorgen": fg_box, "glass": gl_box, "pickpocket": key("spg"), "rimprot": key("bpg"), "greenlight": fga_pg}
     estd = set()   # (player, badge) given on a stand-in
 
     def rate(code, real_val):
@@ -3596,6 +3599,7 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
         "glass": (q, rate("glass", gl_real)),
         "pickpocket": (q, rate("pickpocket", key("stl_pct"))),
         "rimprot": (q, rate("rimprot", key("blk_pct"))),
+        "greenlight": (q, rate("greenlight", key("shot_pct"))),
     }
     out = {id(p): [] for p in players}
     bars = _hof_bars(list(history) + [players])
@@ -8504,6 +8508,7 @@ var BADGES = {{
   glass: ['🧽', 'Glass Cleaner', 'rebounding: OR% and DR% together', 'skill', 'rebounding'],
   pickpocket: ['🥷', 'Pickpocket', 'steal rate (Stl%)', 'skill', 'steal rate'],
   rimprot: ['✋', 'Rim Protector', 'block rate (Blk%)', 'skill', 'block rate'],
+  greenlight: ['🚦', 'Green Light', 'shot volume: his share of the team\u2019s shots while he\u2019s on the floor (%Shots)', 'skill', 'share of his team\u2019s shots'],
   indisp: ['🔑', 'Indispensable', 'The biggest shares of their team\u2019s win shares in the state', 'role', 'share of his team\u2019s win shares'],
   glue: ['🧩', 'Glue Guy', 'Does the dirty work: under 17% usage and top 30% in the state in 3+ of OR%, DR%, Stl%, Blk% and assist rate (the Glue guy label)', 'role', 'dirty work (OR%, DR%, Stl%, Blk% and assist rate together)'],
 }};
@@ -10025,6 +10030,7 @@ const ADV_CAT_ATTEMPT_MIN = {{
 }};
 const ADV_RATE_GP_MIN = 20;   // pro-rated in 2026-27: seasonGpMin
 const ADV_RATE_ATTEMPTS_PER_GAME_MIN = 2.5;
+const FTR_FGA_PG_MIN = 4;   // FT rate: 4+ shots a game
 const ADV_RELAXED_CAT_KEYS = new Set(['efg_pct', 'ts_pct', 'ft_rate', 'twop', 'tpp', 'ftp']);
 const ADV_MAKE_ATTEMPT_CAT_KEYS = new Set(['efg_pct', 'ts_pct', 'twop', 'tpp', 'ftp']);
 const ADV_RELAXED_SCHOOL_CAT_CACHE = {{}};
@@ -10118,6 +10124,8 @@ function advCatStandardQualifies(p, catKey) {{
   if ((p.min_pct || 0) < minPct) return false;
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
   if (attemptKey && (attemptsPerGame(p, attemptKey) < ADV_RATE_ATTEMPTS_PER_GAME_MIN || (p.gp || 0) < seasonGpMin(p))) return false;
+  // FT rate is free throws per shot: a player who barely shoots isn't a free-throw-rate leader (1 FGA, 7 FTA = 700)
+  if (catKey === 'ft_rate' && (attemptsPerGame(p, 'fga') < FTR_FGA_PG_MIN || (p.gp || 0) < seasonGpMin(p))) return false;
   return true;
 }}
 
@@ -10130,7 +10138,7 @@ function advCatRelaxedQualifies(p, catKey) {{
     return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') + attemptsPerGame(p, 'fta') >= TS_ATT_PG_MIN;
   }}
   if (catKey === 'ft_rate') {{
-    return (p.gp || 0) >= seasonGpMin(p);
+    return (p.gp || 0) >= seasonGpMin(p) && attemptsPerGame(p, 'fga') >= FTR_FGA_PG_MIN;
   }}
   const attemptKey = ADV_CAT_ATTEMPT_MIN[catKey];
   if (attemptKey) {{
@@ -11725,14 +11733,17 @@ function __tsAdvTable(rows, advOk, teamName, ranks) {{
   const EST = '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span>';
   const cells = r => {{
     const adv = k => advOk ? __tsF(r[k]) : '—';
+    // eFG%, TS%, FT rate and TO% need no minutes: shown for every team, exact (no "est")
+    const exact = k => r[k] != null ? __tsF(r[k]) : '—';
+    const ftr = r.ft_rate != null ? r.ft_rate : (r.twoa + r.tpa) > 0 ? 100 * r.fta / (r.twoa + r.tpa) : null;
     return '<td class="ts-l">' + playerLink(r.name, teamStatsReturnTeam) + '</td><td>' + (r.ht || '—') + '</td><td>' + r.gp + '</td>'
       + '<td>' + (advOk ? __tsF(r.min_pct) : '—') + '</td>'
       + '<td><b>' + (advOk ? __tsF(r.ind_ortg) : r.ortg_est != null ? __tsF(r.ortg_est) + EST : '—') + '</b></td><td>' + (advOk ? __tsF(r.usage_pct) : r.usg_est != null ? '<span title="' + (r.role_est || '') + ' (est)">' + __tsF(r.usg_est) + EST + '</span>' : r.role_est ? r.role_est + EST : '—') + '</td><td>' + adv('shot_pct') + '</td>'
-      + '<td>' + adv('efg_pct') + '</td><td>' + adv('ts_pct') + '</td>'
+      + '<td>' + exact('efg_pct') + '</td><td>' + exact('ts_pct') + '</td>'
       + '<td>' + adv('oreb_pct') + '</td><td>' + adv('dreb_pct') + '</td>'
-      + '<td>' + adv('ast_rate') + '</td><td>' + (advOk ? __tsF(r.tov_pct) : r.tov_est != null ? __tsF(r.tov_est) + EST : '—') + '</td>'
+      + '<td>' + adv('ast_rate') + '</td><td>' + (advOk ? __tsF(r.tov_pct) : r.tov_est != null ? __tsF(r.tov_est) : '—') + '</td>'
       + '<td>' + adv('blk_pct') + '</td><td>' + adv('stl_pct') + '</td>'
-      + '<td>' + adv('fc_per_40') + '</td><td>' + adv('fd_per_40') + '</td><td>' + adv('ft_rate') + '</td>'
+      + '<td>' + adv('fc_per_40') + '</td><td>' + adv('fd_per_40') + '</td><td>' + (ftr != null ? __tsF(ftr) : '—') + '</td>'
       + '<td>' + r.ftm + '-' + r.fta + '</td><td>' + __tsF(r.ftp) + '</td>'
       + '<td>' + r.twom + '-' + r.twoa + '</td><td>' + __tsF(r.twop) + '</td>'
       + '<td>' + r.tpm + '-' + r.tpa + '</td><td>' + __tsF(r.tpp) + '</td>';
@@ -11784,7 +11795,7 @@ function renderTeamStats(teamName) {{
 
   const advNote = (teamStatsMode === 'advanced' && !advOk)
     ? '<div style="text-align:center;font-size:0.8rem;color:#b71c1c;font-weight:600;margin-bottom:8px">Advanced stats unavailable — this team does not have enough games with reliable minutes.'
-      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). TORate (est) needs no minutes. %Poss (est) is his share of the team’s possessions over an estimate of his share of its minutes, from the box score (about 1.7 points off where real minutes exist; its tier, Primary over 24% / Rotation 16-24% / Limited under 16%, right about 4 times in 5).</div>' : '')
+      + (rows.some(r => r.ortg_est != null) ? '<div style="color:#666;font-weight:400;margin-top:2px">ORtg (est) is estimated: minutes enter it only through the share of a player’s makes that were assisted, so each player’s minutes are estimated from his share of the team’s activity (about 0.1 points off where real minutes exist). eFG%, TS%, TORate and FTRate need no minutes, so they are exact. %Poss (est) is his share of the team’s possessions over an estimate of his share of its minutes, from the box score (about 1.7 points off where real minutes exist; its tier, Primary over 24% / Rotation 16-24% / Limited under 16%, right about 4 times in 5).</div>' : '')
       + '</div>'
     : '';
 
@@ -16310,6 +16321,9 @@ def main():
     # The possession tracker re-adjusts every tracked game against these ratings (poss/ratings.json).
     try:
         import export_ratings
+        # Its opponent box scores are this page's (export_ratings.team_schedule): the color scales (the page's __bxScales:
+        # qualified players, teams with games), school colors and FanMatch pregame lines go with them.
+        export_ratings.BOX_CTX = export_ratings.box_ctx(players, teams, storylines_current)
         export_ratings.export()
     except Exception as err:  # never fail the leaderboard build over it
         print(f"  export_ratings skipped: {err}")

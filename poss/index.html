@@ -1138,6 +1138,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ts-table tbody tr.ts-hasrank td{border-bottom:none;padding-bottom:1px}
 .ts-table tbody tr.ts-rankrow td{color:#c62828;font-size:.64rem;font-weight:700;padding:0 7px 4px;border-bottom:1px solid #ddd}
 .ts-table td.ts-ranklabel{font-weight:700;font-style:italic}
+.card[data-mode="sched"] .rs-roster,.card[data-mode="sched"] [data-act="r-save"],.card[data-mode="sched"] [data-act="rr-add"],.card[data-mode="sched"] [data-act="r-fill-lb"],.card[data-mode="sched"] .rs-roster-note,
+.sch-tbl{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}.sch-tbl td{padding:6px 6px;border-bottom:1px solid #e3e7ee;color:#111;background:#fff}.sch-tbl td .muted,.sch-tbl td.muted{color:#667}.sch-tbl td .btn{color:#fff}.sch-tbl td .btn .sch-l{color:#ff8a80}.sch-tbl td .btn .sch-w{color:#7ee2a8}
+.sch-tbl tr.sch-next td{background:#fff6d6}.sch-w{color:#1e8e3e;font-weight:700}.sch-l{color:#c62828;font-weight:700}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
 /* On/off: the Shooting checkbox (its panel is the 5th: left column, under Core and Offense). */
@@ -1345,10 +1348,42 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <input type="file" id="sc-file" accept="application/pdf,.pdf" class="hidden">
 <input type="file" id="sh-file" accept="image/*" multiple class="hidden">
 <div id="modal-root"></div>
+<!-- The leaderboard's box score popup (copied from its page; Rosters -> Schedule) -->
+<div id="boxscore-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2000;overflow-y:auto" onclick="if(event.target===this)closeBoxScore()">
+  <style>
+    .bx-card { max-width:1180px;margin:28px auto;background:#fff;border-radius:8px;padding:16px 20px 20px;box-shadow:0 8px 40px rgba(0,0,0,0.5); }
+    .bx-title { text-align:center;font-size:1.35rem;font-weight:800;color:#1a3e8f;margin:2px 0 0; }
+    .bx-date { text-align:center;font-size:0.95rem;font-weight:700;color:#1a3e8f;margin-bottom:8px; }
+    .bx-label { text-align:center;font-size:0.8rem;font-weight:700;color:#000;margin-bottom:10px; }
+    .bx-table-wrap { overflow-x:auto;margin-bottom:14px; }
+    .bx-table { width:100%;border-collapse:collapse;font-size:0.74rem;white-space:nowrap;color:#000; }
+    .bx-table th { background:#7da7d9;color:#000;padding:4px 6px;text-align:right;border-bottom:1px solid #5588bb;font-size:0.7rem; }
+    .bx-table th.bx-l, .bx-table td.bx-l { text-align:left; }
+    .bx-table td { padding:3px 6px;text-align:right;border-bottom:1px solid #d8e2f0; }
+    /* Neutralize the page-wide odd/even row striping inside the box score */
+    .bx-table tbody tr:nth-child(odd) td, .bx-table tbody tr:nth-child(even) td { background:#fff; }
+    .bx-table tbody tr:nth-child(odd):hover td, .bx-table tbody tr:nth-child(even):hover td { background:#eaf1fb; }
+    .bx-table tbody tr.bx-low td { background:#d6d6d6; color:#666; }
+    .bx-table tr.bx-bench-sep td { border-top:3px solid #1a3e8f; }
+    .bx-table .bx-team-hdr { background:#1a3e8f;color:#fff;text-align:center;font-weight:800;padding:5px;font-size:0.8rem; }
+    .bx-table tfoot td { font-weight:700;border-top:2px solid #5588bb;background:#e6eef8; }
+    .bx-poss { text-align:center;font-size:0.8rem;color:#000;font-weight:600;margin-top:2px; }
+    .bx-close { background:none;border:1px solid #999;border-radius:4px;cursor:pointer;font-size:0.85rem;padding:4px 10px;color:#333; }
+    .bx-close:hover { border-color:#1a3e8f;color:#1a3e8f; }
+  </style>
+  <div class="bx-card">
+    <div style="display:flex;justify-content:flex-end"><button class="bx-close" onclick="closeBoxScore()">&#x2715; Close</button></div>
+    <div class="bx-title" id="bx-title"></div>
+    <div class="bx-date" id="bx-date"></div>
+    <div class="bx-label">Advanced Stats Box Score</div>
+    <div id="bx-content"></div>
+    <div class="bx-poss" id="bx-poss"></div>
+  </div>
+</div>
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.116';
+const VERSION = 'v2026.11.11.123';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -1396,12 +1431,21 @@ const UI = { repMin: (() => { try { return localStorage.getItem('pt2_repmin') ||
 // else the roster built in (the same locked list as the game tracker's), so it is never empty on a new iPad.
 const SEED_ROSTER = [['Josh Castaniero', '1'], ['Quian Khawaja', '2'], ['Eric Kubel', '3'], ['Axel Ostergard', '4'], ['Ashton Carraway', '5'],
   ['Brenden Banks-Speed', '10'], ['SoulJah Niles', '12'], ['Emmitt Claiborne', '14'], ['Mathew Wilson', '15'], ['Alex Bello', '20'],
-  ['George Hees', '21'], ['Jaylen Smith', '22'], ['Sean Castro', '31'], ['Finn Ortiz', '32'], ['Jack Johnson', '30']].map(([name, num]) => ({ num, name, note: '' }));
+  ['George Hees', '21'], ['Jaylen Smith', '22'], ['Sean Castro', '31'], ['Finn Ortiz', '32'], ['Jeremiah White', '']].map(([name, num]) => ({ num, name, note: '' }));
+/* Roster changes that reach every iPad, whatever list it saved: OFF_ROSTER leaves (his past games keep him), ADD_ROSTER
+   joins (number blank until it's known; the game tracker's lock in game/index.html sets it there too). */
+const OFF_ROSTER = new Set(['Jack Johnson']);   // redshirting 2026-27 (11/11/2026)
+const ADD_ROSTER = [{ num: '', name: 'Jeremiah White', note: '', pos: 'G' }];   // 6'0" guard, number to come
+function rosterFix(list) {
+  const out = list.filter(r => !OFF_ROSTER.has(r.name));
+  for (const a of ADD_ROSTER) if (!out.some(r => r.name === a.name)) out.push(Object.assign({}, a));
+  return out;
+}
 function roster() {
   const own = lsGet(LS_ROSTER, null);
-  if (Array.isArray(own) && own.length) return own;
+  if (Array.isArray(own) && own.length) return rosterFix(own);
   const gt = (lsGet('gt_roster', []) || []).filter(r => r && r.name && !r.hidden).map(r => ({ num: String(r.num || ''), name: nameFix(r.name), note: '' }));
-  return gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r));
+  return rosterFix(gt.length ? gt : SEED_ROSTER.map(r => Object.assign({}, r)));
 }
 // Jersey order: 0, 00, 1, 2 … (no number last). parseInt('0') is 0, so it can't be an "|| 999" fallback.
 const numKey = n => { const s = String(n == null ? '' : n).trim(); return /^\d+$/.test(s) ? parseInt(s, 10) + (s.length > 1 && /^0+$/.test(s) ? 0.5 : 0) : 999; };
@@ -3325,13 +3369,22 @@ function schSave(quiet) {
    shows in both. Moorpark's roster is the game tracker's; notes and edits made here are kept in this
    tracker's own copy (pl_roster). */
 function oppStore() { return lsGet('gt_opp_rosters', []) || []; }
+/* A team's saved roster under any of its names: the roster picker shows the leaderboard's name ("East Los Angeles"),
+   a tournament field or schedule may have saved it under a short one ("East LA"). The exact name first, unless empty. */
+function oppFind(name, st) {
+  st = st || oppStore(); const n = normOpp(name); if (!n) return null;
+  const ex = st.find(x => normOpp(x.name) === n); if (ex && (ex.players || []).length) return ex;
+  const R = ratingsData(), T = R && R.teams ? resolveTeam(name, R) : null;
+  return (T && st.find(x => x !== ex && (x.players || []).length && resolveTeam(x.name, R) === T)) || ex || null;
+}
 function rostersView() {
   const g = cur();
   const sel = UI.rosterSel || (g ? g.opp : 'MPK');
   // The one being set up (a new game's opponent with no roster yet) is listed too.
   const opps = [...new Set(oppStore().map(o => o.name).concat(g ? [g.opp] : [], sel !== 'MPK' ? [sel] : []).filter(Boolean))].sort();
   const isM = sel === 'MPK';
-  const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppStore().find(x => x.name === sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
+  if (!isM && !((oppFind(sel) || {}).players || []).length) { try { pubRosters([sel]); } catch (e) {} }   // a team only in a field / the picker: its published roster now
+  const players = isM ? roster().slice().sort(byNum) : (() => { const o = oppFind(sel); return o ? (o.players || []).slice().sort(byNum) : (g && g.opp === sel ? g.oppRoster || [] : []); })();
   const cols = isM ? [['num', '#', 50], ['name', 'Name', 200], ['pos', 'Pos', 60], ['note', 'Labels', 0]] : [['num', '#', 50], ['name', 'Name', 180], ['pos', 'Pos', 54], ['ht', 'Ht', 54], ['yr', 'Yr', 50], ['note', 'Scouting labels', 0]];
   const team = isM ? 'MPK' : sel, gS = isM ? null : { opp: sel, oppRoster: players };
   // Labels from his numbers: shown under the typed ones; ✕ turns one off for him, + brings it back.
@@ -3346,8 +3399,8 @@ function rostersView() {
       <div class="card" data-mode="${UI.rsMode || 'roster'}"><h3 style="display:flex;align-items:center"><span style="color:${isM ? 'var(--us)' : (teamPalette(sel) || {}).text || 'var(--them-text)'}">${esc(isM ? 'Moorpark' : sel)}</span>&nbsp;roster
         <span class="row" style="gap:6px;margin-left:auto">${!isM && ofSummary(sel) ? `<button class="btn btn-sm" data-act="of-open" data-n="${esc(sel)}">📁 Last time</button>` : ''}${isM && lsGet(LS_ROSTER, null) ? '<button class="btn btn-sm" data-act="roster-reset">Use the game tracker\'s</button>' : ''}${!isM && teamFile(sel) ? '<button class="btn btn-sm" data-act="r-fill-lb">⬇ Fill from leaderboard</button>' : ''}<button class="btn btn-sm" data-act="rr-add">+ Player</button><button class="btn btn-sm btn-good" data-act="r-save">Save</button></span></h3>
         ${teamLine(sel)}
-        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<button class="btn btn-sm" data-act="lg-open">Labels guide</button><span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
-        <div class="rs-stats">${(UI.rsMode || 'roster') !== 'roster' ? teamStatsTable(sel, UI.rsMode) : ''}</div>
+        <div class="row rs-seg" style="gap:6px;margin:0 0 10px">${[['roster', 'Roster'], ['basic', 'Basic'], ['adv', 'Advanced'], ['sched', 'Schedule']].map(([k, l]) => `<button class="btn btn-sm ${(UI.rsMode || 'roster') === k ? 'btn-primary' : ''}" data-act="rs-mode" data-m="${k}">${l}</button>`).join('')}<button class="btn btn-sm" data-act="lg-open">Labels guide</button><span class="small muted rs-src">${teamFile(sel) ? `Leaderboard team stats · ${esc(String(teamFile(sel).generatedAt || '').slice(0, 10))}` : ''}</span></div>
+        <div class="rs-stats">${rsStats(sel, UI.rsMode || 'roster')}</div>
         <div class="tbl-wrap rs-roster"><table class="tbl redit"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join('')}<th></th></tr></thead><tbody id="rbody">${players.map(row).join('')}</tbody></table></div>
         <div class="small muted rs-roster-note" style="margin-top:8px">${isM ? 'Labels show on the player cards, in this order (one line; the rest behind +N). Saved in this tracker.' : 'Shared with the game tracker. Pos and the labels show on the player cards on the Live screen, in this order (one line; the rest behind +N).'}</div></div>
     </div>`;
@@ -3355,12 +3408,12 @@ function rostersView() {
 /* Which roster: every team we might see, not just the next one: Moorpark, our schedule (date order), each tournament
    field, then any other roster saved on this iPad. ✓ = a roster is saved. Names as the schedule uses them. */
 function rosterPicker(sel, opps) {
-  const R = ratingsData(), nm = n => (R && R.teams && resolveTeam(n, R)) || n, saved = new Set(oppStore().filter(o => (o.players || []).length).map(o => o.name)), seen = new Set(['MPK']);
+  const R = ratingsData(), nm = n => (R && R.teams && resolveTeam(n, R)) || n, seen = new Set(['MPK']), savedMemo = {}, saved = { has: n => n in savedMemo ? savedMemo[n] : (savedMemo[n] = !!((oppFind(n) || {}).players || []).length) };
   const opt = n => { if (seen.has(n)) return ''; seen.add(n); return `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}${saved.has(n) ? ' ✓' : ''}</option>`; };
   const sch = schedule().filter(r => r.opp && !isTBD(r.opp)).map(r => nm(r.opp));
   const grp = (l, L) => { const h = L.map(opt).join(''); return h ? `<optgroup label="${esc(l)}">${h}</optgroup>` : ''; };
   const sg = grp('Our schedule', sch), ev = Object.keys(fieldsAll()).map(e => grp(e, readyGet(e).map(nm).sort((a, b) => a.localeCompare(b)))).join('');
-  return `<select class="r-pick" data-act="r-pick"><option value="MPK" ${sel === 'MPK' ? 'selected' : ''}>Moorpark</option>${sg}${ev}${grp('Other teams', readyOther().map(nm))}${grp('Other saved rosters', opps.slice().sort((a, b) => a.localeCompare(b)))}</select>`;
+  return `<select class="r-pick" data-act="r-pick"><option value="MPK" ${sel === 'MPK' ? 'selected' : ''}>Moorpark</option>${sg}${ev}${grp('Other teams', readyOther().map(nm))}${grp('Other saved rosters', opps.filter(n => n === sel || !seen.has(nm(n))).sort((a, b) => a.localeCompare(b)))}</select>`;
 }
 // The roster editor's label cell: chips (✕ removes), a box + Add, and quick picks from labels already used.
 const nedChips = L => L.map((x, i) => `<span class="nt">${esc(x)}<button class="nt-x" data-act="ned-del" data-i="${i}" aria-label="Remove ${esc(x)}">✕</button></span>`).join('');
@@ -3410,6 +3463,365 @@ const TS_BASIC = [['name', 'Player'], ['gp', 'G'], ['mpg', 'MPG'], ['ppg', 'PPG'
   ['fgm', 'FGM-A'], ['fgp', 'FG%'], ['twom', '2PM-A'], ['twop', '2P%'], ['tpm', '3PM-A'], ['tpp', '3P%'], ['efg_pct', 'eFG%'], ['ftm', 'FTM-A'], ['ftp', 'FT%'], ['ts_pct', 'TS%']];
 const TS_ADV = ['ind_ortg', 'usage_pct', 'shot_pct', 'efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'];
 const tsF = v => v == null || v === '' ? '—' : (+v).toFixed(1);
+/* ===== The leaderboard's box score, copied as is from its page (generate_leaderboard.py: __bxTeamTable, __bxWpChart,
+   renderBoxScore...); only its data hooks point here: color scales, school colors (ratings.json box), the game's FanMatch
+   line and rows (team file schedule, export_ratings.team_schedule). Change the design there, then copy it again. ===== */
+const BX_CTX = () => (ratingsData() && ratingsData().box) || {};
+function __boxNorm(name) {
+  let n = String(name || '').trim().toLowerCase();
+  if (n.endsWith(' college')) n = n.slice(0, -8);
+  return n.replace(/[^a-z0-9]/g, '');
+}
+function __boxKey(date, a, b) {
+  return date + '|' + [__boxNorm(a), __boxNorm(b)].sort().join('|');
+}
+
+
+function closeBoxScore() {
+  document.getElementById('boxscore-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function __bxF(v, d) {
+  return v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d == null ? 1 : d);
+}
+
+// Box score colors (the rates and analytics, not the counting stats; the text only, not the cell): each value
+// against the season's qualified players (their average in the normal text color; two standard deviations better
+// in full green, worse full red), TO% the other way round. The totals row against the teams. Usage is a role, not
+// good or bad: no color.
+// Short stints (9 minutes or fewer, minutes tracked) stay plain: too few possessions to mean anything.
+const BX_COLOR_P = { ortg: 'ind_ortg', efg: 'efg_pct', ts: 'ts_pct', orp: 'oreb_pct', drp: 'dreb_pct', ap: 'ast_rate',
+  top: 'tov_pct', stp: 'stl_pct', blp: 'blk_pct', bpm: 'bpm', obpm: 'obpm', dbpm: 'dbpm' };
+const BX_COLOR_T = { ortg: 'ortg', efg: 'efg_pct', ts: 'ts_pct', orp: 'oreb_pct', drp: 'dreb_pct', ap: 'ast_pct',
+  top: 'tov_pct', stp: 'stl_pct', blp: 'blk_pct' };
+const __bxScaleCache = new Map();
+function __bxScales(pool, map, keep) {
+  if (__bxScaleCache.has(pool)) return __bxScaleCache.get(pool);
+  const use = (pool || []).filter(keep), out = {};
+  Object.entries(map).forEach(([k, sk]) => {
+    const v = use.map(p => Number(p[sk])).filter(x => p_ok(x));
+    if (v.length < 10) return;
+    const m = v.reduce((a, b) => a + b, 0) / v.length, sd = Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / v.length);
+    if (sd > 0) out[k] = { m, sd };
+  });
+  __bxScaleCache.set(pool, out);
+  return out;
+}
+function p_ok(x) { return x != null && Number.isFinite(x) && x !== 0; }
+function __bxTd(v, k, sc, plain) {
+  const txt = __bxF(v), s = sc[k];
+  if (plain || v == null || Number.isNaN(v) || !s) return '<td>' + txt + '</td>';
+  const z = Math.max(-1, Math.min(1, (k === 'top' ? -1 : 1) * (v - s.m) / (2 * s.sd)));
+  const a = Math.abs(z), base = [26, 31, 46], to = z > 0 ? [0, 150, 60] : [210, 30, 30];
+  const rgb = base.map((x, i) => Math.round(x + (to[i] - x) * a));
+  return '<td style="color:rgb(' + rgb.join(',') + ')' + (a >= 0.5 ? ';font-weight:700' : '') + '">' + txt + '</td>';
+}
+
+function __bxTeamTable(name, rows, oppRows) {
+  if (!rows.length) return '<div class="bx-table-wrap"><table class="bx-table"><thead><tr><th class="bx-team-hdr">' + name.toUpperCase()
+    + '</th></tr></thead><tbody><tr><td style="padding:14px;color:#6b7280">' + name + ' hasn’t posted its box score for this game.</td></tr></tbody></table></div>';
+  const oppOk = oppRows.length > 0;   // the other side's box: the rates that need it stay blank without it
+  const sum = (rs, k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
+  const tFgm = sum(rows, 'fgm'), tFga = sum(rows, 'fga'), tTpm = sum(rows, 'tpm'), tTpa = sum(rows, 'tpa');
+  const tFtm = sum(rows, 'ftm'), tFta = sum(rows, 'fta'), tOr = sum(rows, 'or'), tDr = sum(rows, 'dr');
+  const tAst = sum(rows, 'ast'), tTo = sum(rows, 'to'), tStl = sum(rows, 'stl'), tBlk = sum(rows, 'blk');
+  const tPf = sum(rows, 'pf'), tPts = sum(rows, 'pts'), tMin = sum(rows, 'min');
+  const oFga = sum(oppRows, 'fga'), oTpa = sum(oppRows, 'tpa'), oDr = sum(oppRows, 'dr'), oOr = sum(oppRows, 'or');
+  const oFta = sum(oppRows, 'fta'), oTo = sum(oppRows, 'to');
+  const tPoss = tFga + 0.475 * tFta - tOr + tTo;
+  const oPoss = oFga + 0.475 * oFta - oOr + oTo;
+
+  const minutesReal = tMin >= 150;
+  const pSc = (BX_CTX().scales || {}).p || {};   // tracker: the leaderboard's scales, exported (ratings.json box)
+  const tSc = (BX_CTX().scales || {}).t || {};
+  const cells = r => {
+    const plain = minutesReal && r.min <= 9, c = (v, k) => __bxTd(v, k, pSc, plain);
+    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + esc(r.n) + '</td><td>' + r.min + '</td>'
+      + (r.ortg == null && r.ortg_e != null ? c(r.ortg_e, 'ortg').replace('</td>', '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span></td>') : c(r.ortg, 'ortg'))
+      + '<td>' + __bxF(r.usg) + '</td>'
+      + c(r.efg, 'efg') + c(r.ts, 'ts')
+      + c(r.orp, 'orp') + c(r.drp, 'drp')
+      + c(r.ap, 'ap') + c(r.top, 'top')
+      + c(r.stp, 'stp') + c(r.blp, 'blp')
+      + '<td>' + (r.fgm - r.tpm) + '-' + (r.fga - r.tpa) + '</td>'
+      + '<td>' + r.tpm + '-' + r.tpa + '</td>'
+      + '<td>' + r.ftm + '-' + r.fta + '</td>'
+      + '<td>' + r.ast + '</td><td>' + r.to + '</td><td>' + r.stl + '</td><td>' + r.blk + '</td>'
+      + '<td>' + r.or + '</td><td>' + r.dr + '</td><td>' + r.pf + '</td>'
+      + c(r.bpm, 'bpm') + c(r.obpm, 'obpm') + c(r.dbpm, 'dbpm')
+      + '<td><b>' + r.pts + '</b></td>';
+  };
+
+  // Totals respect the same reliability rules: team TO or opp TO of 0 means
+  // those inputs weren't tracked, so dependent totals show as dashes too.
+  const toOk = tTo > 0, oToOk = oTo > 0;
+  const totOrtg = toOk && tPoss > 0 ? 100 * tPts / tPoss : null;
+  const totEfg = tFga > 0 ? (tFgm + 0.5 * tTpm) / tFga * 100 : null;
+  const totTsDen = 2 * (tFga + 0.475 * tFta);
+  const totTs = totTsDen > 0 ? tPts / totTsDen * 100 : null;
+  const totOrp = oppOk && (tOr + oDr) > 0 ? tOr / (tOr + oDr) * 100 : null;
+  const totDrp = oppOk && (tDr + oOr) > 0 ? tDr / (tDr + oOr) * 100 : null;
+  const totAp = tFgm > 0 ? tAst / tFgm * 100 : null;
+  const totTop = toOk && (tFga + 0.475 * tFta + tTo) > 0 ? tTo / (tFga + 0.475 * tFta + tTo) * 100 : null;
+  const totStp = oppOk && oToOk && oPoss > 0 ? tStl / oPoss * 100 : null;
+  const totBlp = oppOk && (oFga - oTpa) > 0 ? tBlk / (oFga - oTpa) * 100 : null;
+
+  // Grey out short-stint players (9 minutes or fewer) — but only when the
+  // team's minutes are actually tracked; all-1-minute teams stay white (minutesReal, above).
+  const bodyHtml = rows.map((r, i) => {
+    const classes = [];
+    if (r.st === 0 && i > 0 && rows[i - 1].st === 1) classes.push('bx-bench-sep');
+    if (minutesReal && r.min <= 9) classes.push('bx-low');
+    const cls = classes.length ? ' class="' + classes.join(' ') + '"' : '';
+    return '<tr' + cls + '>' + cells(r) + '</tr>';
+  }).join('');
+
+  return '<div class="bx-table-wrap"><table class="bx-table">'
+    + '<thead><tr><th colspan="27" class="bx-team-hdr">' + name.toUpperCase() + '</th></tr>'
+    + '<tr><th>#</th><th class="bx-l">Player</th><th>Min</th><th>ORtg</th><th>Usg</th><th>eFG</th><th>TS%</th>'
+    + '<th>OR%</th><th>DR%</th><th>A%</th><th>TO%</th><th>Stl%</th><th>Blk%</th>'
+    + '<th>2Pt</th><th>3Pt</th><th>FT</th><th>Ast</th><th>TO</th><th>Stl</th><th>Blk</th>'
+    + '<th>OR</th><th>DR</th><th>PF</th><th>BPM</th><th>OBPM</th><th>DBPM</th><th>Pts</th></tr></thead>'
+    + '<tbody>' + bodyHtml + '</tbody>'
+    + '<tfoot><tr><td class="bx-l" colspan="2">Totals</td><td>' + tMin + '</td>'
+    + __bxTd(totOrtg, 'ortg', tSc) + '<td></td>'
+    + __bxTd(totEfg, 'efg', tSc) + __bxTd(totTs, 'ts', tSc)
+    + __bxTd(totOrp, 'orp', tSc) + __bxTd(totDrp, 'drp', tSc)
+    + __bxTd(totAp, 'ap', tSc) + __bxTd(totTop, 'top', tSc)
+    + __bxTd(totStp, 'stp', tSc) + __bxTd(totBlp, 'blp', tSc)
+    + '<td>' + (tFgm - tTpm) + '-' + (tFga - tTpa) + '</td>'
+    + '<td>' + tTpm + '-' + tTpa + '</td><td>' + tFtm + '-' + tFta + '</td>'
+    + '<td>' + tAst + '</td><td>' + tTo + '</td><td>' + tStl + '</td><td>' + tBlk + '</td>'
+    + '<td>' + tOr + '</td><td>' + tDr + '</td><td>' + tPf + '</td>'
+    + '<td></td><td></td><td></td><td><b>' + tPts + '</b></td></tr></tfoot>'
+    + '</table></div>';
+}
+
+// Win probability through the game (g.wp, 2026-27 games with play-by-play), Torvik-style: the winner's chance from
+// the lead, the time left and the pregame expected margin (the FanMatch ratings: pregame nets + 3 home court), which
+// counts for less as the clock runs (spread 11.5 over a full 40:00). Dotted: the score margin (right axis, 0 at 50%).
+// Dots: every play (shots, free throws, turnovers) in the team's color, its time, player and play on hover; the
+// ring: where the winner's chance reached 99% for good.
+const WP_KINDS = ['made layup', 'made jumper', 'made 3', 'made free throw', 'made dunk', 'made tip-in', 'missed layup',
+  'missed jumper', 'missed 3', 'missed free throw', 'missed dunk', 'missed tip-in', 'turnover'];   // _wp_events
+const WP_POINTS = [2, 2, 3, 1, 2, 2, 0, 0, 0, 0, 0, 0, 0];
+function __wpHex(c) { const m = /^#?([0-9a-f]{6})$/i.exec(c || ''); return m ? [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16)) : null; }
+// The two teams' dot colors: school colors, the loser's second color (or gray) when the two are too alike
+function __wpColors(w, l) {
+  const pc = BX_CTX().pc || {}, sc = BX_CTX().sc || {};
+  const near = (a, b) => { const x = __wpHex(a), y = __wpHex(b); return !x || !y || Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 90; };
+  const light = c => { const x = __wpHex(c); return !x || 0.299 * x[0] + 0.587 * x[1] + 0.114 * x[2] > 215; };
+  const cw = light(pc[w]) ? '#1a1f2e' : pc[w];
+  let cl = pc[l];
+  if (light(cl) || near(cl, cw)) cl = !light(sc[l]) && !near(sc[l], cw) ? sc[l] : '#9ca3af';
+  return [cw, cl];
+}
+function __wpErf(x) {
+  const s = x < 0 ? -1 : 1, a = Math.abs(x), t = 1 / (1 + 0.3275911 * a);
+  return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a));
+}
+function __wpProb(lead, left, exp) {
+  if (left <= 0) return lead > 0 ? 1 : lead < 0 ? 0 : 0.5;
+  return 0.5 * (1 + __wpErf((lead + exp * left / 2400) / (11.5 * Math.sqrt(left / 2400)) / Math.SQRT2));
+}
+function __wpEnd(t) { return t <= 2400 ? 2400 : 2400 + 300 * Math.ceil((t - 2400) / 300); }
+function __wpClock(t) {
+  const end = t <= 1200 ? 1200 : __wpEnd(t), left = end - t;
+  const per = t <= 1200 ? '1st' : t <= 2400 ? '2nd' : (end - 2400) / 300 > 1 ? (end - 2400) / 300 + 'OT' : 'OT';
+  return per + ' ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+}
+// The winner's pregame expected margin, from the game's FanMatch row (0 when there isn't one); 2026-27 rows carry
+// it (opponent-adjusted ratings as of the game, _sl_adjusted_pregame), older ones from the nets + 3 home court
+function __wpPregame(g, w, l) {
+  let rows = [];
+  rows = g && g.fm ? [g.fm] : [];   // tracker: the game's FanMatch line, exported with it
+  const nw = __boxNorm(w), nl = __boxNorm(l);
+  const r = rows.find(r => r.date === g.d && !r.upcoming && [__boxNorm(r.winner), __boxNorm(r.loser)].sort().join('|') === [nw, nl].sort().join('|'));
+  if (r && r.pregame_margin_w != null) return (__boxNorm(r.winner) === nw ? 1 : -1) * r.pregame_margin_w;   // 2026-27: the expected margin
+  if (!r || r.pregame_winner_net == null || r.pregame_loser_net == null) return 0;
+  const gap = (__boxNorm(r.winner) === nw ? 1 : -1) * (r.pregame_winner_net - r.pregame_loser_net);
+  const home = r.home_team ? __boxNorm(r.home_team) : '';
+  return gap + (home === nw ? 3 : home === nl ? -3 : 0);
+}
+function __bxWpChart(g, w, l) {
+  if (!g.wp) return '';
+  const [vis, nper, str, vNames, hNames] = g.wp, wIsV = vis === w, l0 = wIsV ? l : w;
+  // plays: [seconds, side 0 visitor / 1 home, player, kind, visitor score, home score]; ev: the score after each
+  const plays = [], ev = [];
+  let t = 0, v = 0, h = 0;
+  const re = /([0-9a-z]+)(?:([A-Z])([0-9a-z])|!([0-9a-z]+)\.([0-9a-z]+)\.)/g;
+  let m;
+  while ((m = re.exec(str))) {
+    t += parseInt(m[1], 36);
+    if (m[2]) {
+      const c = m[2].charCodeAt(0) - 65, side = c >= 13 ? 1 : 0, kind = c % 13, pi = m[3] === 'z' ? -1 : parseInt(m[3], 36);
+      if (side) h += WP_POINTS[kind]; else v += WP_POINTS[kind];
+      const nm = pi < 0 ? 'Team' : ((side ? hNames : vNames) || [])[pi] || '';
+      plays.push([t, side, nm, kind, v, h]);
+    } else { v = parseInt(m[4], 36); h = parseInt(m[5], 36); }
+    ev.push([t, v, h]);
+  }
+  const exp = __wpPregame(g, w, l);
+  const total = 2400 + 300 * Math.max(0, nper - 2);
+  const times = new Set();
+  for (let s = 0; s <= total; s += 10) times.add(s);
+  ev.forEach(e => times.add(e[0]));
+  // [seconds, winner's chance, visitor, home, winner's lead]
+  const pts = [];
+  let i = 0, cv = 0, ch = 0;
+  [...times].sort((a, b) => a - b).forEach(s => {
+    while (i < ev.length && ev[i][0] <= s) { cv = ev[i][1]; ch = ev[i][2]; i++; }
+    const lead = wIsV ? cv - ch : ch - cv;
+    pts.push([s, __wpProb(lead, __wpEnd(s) - s, exp), cv, ch, lead]);
+  });
+  pts[pts.length - 1][1] = 1;
+  // Plays logged at the same second are one moment (a miss, the rebound and the putback at 0:00): every dot of a moment
+  // sits on the curve after all of them, with that moment's final score. [seconds, chance, side, player, kind, v, h]
+  const after = {};
+  plays.forEach(p => { after[p[0]] = [p[4], p[5]]; });
+  const dotsP = plays.map(p => {
+    const [v1, h1] = after[p[0]], lead = wIsV ? v1 - h1 : h1 - v1;
+    const chance = p[0] >= total ? (lead > 0 ? 1 : lead < 0 ? 0 : 0.5) : __wpProb(lead, __wpEnd(p[0]) - p[0], exp);
+    return [p[0], chance, p[1], p[2], p[3], v1, h1];
+  });
+  let lock = pts.length - 1;
+  while (lock > 0 && pts[lock - 1][1] >= 0.99) lock--;
+  const [cw, cl] = __wpColors(w, l);
+  const sideColor = sd => (sd === 0) === wIsV ? cw : cl, sideTeam = sd => sd === 0 ? vis : l0;
+  __bxWpPts = dotsP.length ? dotsP : pts; __bxWpNames = [w, l, wIsV, sideTeam, dotsP.length > 0];
+  // Drawn at the screen's width (the modal's content area) so the text stays its real size on a phone and a desktop
+  const W = Math.max(300, Math.min(1100, (window.innerWidth || 800) - (window.innerWidth < 700 ? 60 : 160)));
+  const small = W < 500;
+  const H = small ? 230 : 300, L = 36, R = 30, T = 10, B = 38;
+  const D = Math.max(15, Math.ceil(Math.max(...pts.map(p => Math.abs(p[4]))) / 5) * 5);   // score axis: +-D
+  __bxWpGeom = { W, H, L, R, T, B, total };
+  const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p), yd = d => y(0.5 + d / (2 * D));
+  const ink = '#6b7280', fs = small ? 10 : 11;
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}" stroke="${p === 0.5 ? '#1a1f2e' : '#e6e8ec'}" stroke-width="1"/>`
+    + `<text x="${L - 5}" y="${y(p) + 4}" text-anchor="end" font-size="${fs}" fill="${ink}">${p === 0 || p === 1 ? p.toFixed(1) : p}</text>`).join('');
+  const step = D > 25 ? 10 : 5, dTicks = [];
+  for (let d = -D + (D % step); d <= D; d += step) if (d !== 0 && Math.abs(d) < D) dTicks.push(d);
+  const right = dTicks.concat([0]).map(d => `<text x="${W - R + 5}" y="${yd(d) + 4}" font-size="${fs}" fill="${ink}">${d}</text>`).join('');
+  const xt = [];
+  for (let s = 0; s <= total; s += (s < 2400 ? 300 : 300)) if (s <= 2400 ? s % 300 === 0 && (!small || s % 600 === 0 || s === 2400) : true) xt.push(s);
+  const xticks = xt.map(s => `<line x1="${x(s)}" x2="${x(s)}" y1="${T}" y2="${H - B}" stroke="#eef0f3" stroke-width="1"/>`
+    + `<text x="${x(s)}" y="${H - B + 15}" text-anchor="middle" font-size="${fs}" fill="${ink}">${s / 60}</text>`).join('');
+  const frame = `<line x1="${L}" x2="${L}" y1="${T}" y2="${H - B}" stroke="#1a1f2e"/><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" stroke="#1a1f2e"/>`;
+  const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
+  let diff = '';   // the score margin as steps
+  pts.forEach((p, k) => { diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); });
+  const r0 = small ? 2.2 : 2.8;
+  const dots = dotsP.map(p => `<circle cx="${x(p[0]).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="${r0}" fill="${WP_POINTS[p[4]] ? sideColor(p[2]) : '#fff'}" stroke="${sideColor(p[2])}" stroke-width="1.2"/>`).join('');
+  const ring = lock < pts.length - 1 ? `<circle cx="${x(pts[lock][0])}" cy="${y(pts[lock][1])}" r="${small ? 5 : 6.5}" fill="none" stroke="#1a1f2e" stroke-width="2.5"/>` : '';
+  const minWp = Math.min(...pts.map(p => p[1]));
+  const [mo, da, yr] = (g.d || '').split('/');
+  const dShort = mo ? mo + '/' + da + '/' + String(yr).slice(-2) : '';
+  const key = (sw, dash) => `<svg width="22" height="8" style="vertical-align:middle"><line x1="0" x2="22" y1="4" y2="4" stroke="${sw}" stroke-width="${dash ? 1.5 : 4}"${dash ? ' stroke-dasharray="2 2"' : ''}/></svg>`;
+  const dot = c => `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c};vertical-align:middle"></span>`;
+  return '<div style="margin:0 0 14px">'
+    + `<div style="text-align:center;font-weight:700;font-size:${small ? '0.8rem' : '0.95rem'};color:#1a1f2e;margin:0 0 6px">Win probability for ${w} over ${l} ${dShort} (Minimum chance: ${(100 * minWp).toFixed(1)}%)</div>`
+    + '<div style="position:relative">'
+    + `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:auto;display:block;margin:0 auto;touch-action:pan-y" onpointermove="__bxWpHover(event, this)" onpointerleave="__bxWpHover(null, this)">`
+    + xticks + grid + frame + right
+    + `<path d="${diff}" fill="none" stroke="#1a1f2e" stroke-width="1.2" stroke-dasharray="2 2"/>`
+    + `<path d="${line}" fill="none" stroke="#5b9bd5" stroke-width="${small ? 3.5 : 5}" stroke-linejoin="round" stroke-linecap="round"/>`
+    + dots + ring
+    + `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle" font-size="${fs}" font-style="italic" fill="${ink}">Minutes elapsed</text>`
+    + `<line class="wp-x" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
+    + `<circle class="wp-dot" r="5" fill="#5b9bd5" stroke="#fff" stroke-width="2" visibility="hidden"/>`
+    + `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/>`
+    + '</svg>'
+    + '<div class="wp-tip" style="position:absolute;top:0;display:none;pointer-events:none;background:#1a1f2e;color:#fff;font-size:0.75rem;padding:4px 8px;border-radius:4px;white-space:nowrap"></div>'
+    + '</div>'
+    + `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:4px 14px;font-size:0.72rem;color:${ink};margin-top:4px">`
+    + `<span>${key('#5b9bd5')} ${w} win probability (left)</span><span>${key('#1a1f2e', 1)} score margin (right)</span>`
+    + `<span>${dot(cw)} ${w} play</span><span>${dot(cl)} ${l} play</span><span>filled: made · open: miss / turnover</span>`
+    + (ring ? '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #1a1f2e;vertical-align:middle"></span> 99% for good</span>' : '')
+    + '</div></div>';
+}
+let __bxWpPts = [], __bxWpNames = [], __bxWpGeom = {};
+function __bxWpHover(e, svg) {
+  const wrap = svg.parentNode, tip = wrap.querySelector('.wp-tip'), xl = svg.querySelector('.wp-x'), dot = svg.querySelector('.wp-dot');
+  if (!e || !__bxWpPts.length) { tip.style.display = 'none'; xl.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); return; }
+  const { W, H, L, R, T, B, total } = __bxWpGeom;
+  const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width;
+  const s = Math.max(0, Math.min(total, (sx - L) / (W - L - R) * total));
+  let best = __bxWpPts[0];
+  for (const p of __bxWpPts) { if (Math.abs(p[0] - s) < Math.abs(best[0] - s)) best = p; }
+  const px = L + (W - L - R) * best[0] / total, py = T + (H - T - B) * (1 - best[1]);
+  xl.setAttribute('x1', px); xl.setAttribute('x2', px); xl.setAttribute('visibility', 'visible');
+  dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
+  const [w, l, wIsV, sideTeam, byPlay] = __bxWpNames;
+  if (byPlay) {
+    // every play of that moment, in order, then the score and chance after them
+    const ws = wIsV ? best[5] : best[6], ls = wIsV ? best[6] : best[5];
+    const who = q => (q[3] && q[3] !== 'Team' ? q[3] + ' (' + sideTeam(q[2]) + ')' : sideTeam(q[2])) + ' ' + WP_KINDS[q[4]];
+    tip.innerHTML = '<b>' + __wpClock(best[0]) + '</b> · ' + __bxWpPts.filter(q => q[0] === best[0]).map(who).join('<br>')
+      + '<br>' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + w + ' ' + (100 * best[1]).toFixed(1) + '%';
+  } else {
+    const ws = wIsV ? best[2] : best[3], ls = wIsV ? best[3] : best[2];
+    tip.textContent = __wpClock(best[0]) + ' · ' + w + ' ' + ws + '–' + ls + ' ' + l + ' · ' + (100 * best[1]).toFixed(1) + '%';
+  }
+  tip.style.display = 'block';
+  const left = px / W * r.width, tw = tip.offsetWidth;
+  tip.style.left = Math.max(0, Math.min(r.width - tw, left - tw / 2)) + 'px';
+  tip.style.top = Math.max(0, py / H * r.height - 50) + 'px';
+}
+
+// Final (the default) or one period's box score: g.hv, period -> team -> rows, when the page had them.
+let __bxGame = null, __bxPer = 'F';
+function bxPeriod(p) { __bxPer = p; renderBoxScore(__bxGame, true); }
+function renderBoxScore(g, keepPeriod) {
+  const names = Object.keys(g.t || {});
+  if (names.length !== 2) return;
+  if (!keepPeriod || __bxGame !== g) __bxPer = 'F';
+  __bxGame = g;
+  const sc = g.sc || {};
+  // Winner listed first, Torvik-style
+  names.sort((a, b) => (sc[b] || 0) - (sc[a] || 0));
+  const [w, l] = names;
+  document.getElementById('bx-title').textContent = w + ' ' + (sc[w] != null ? sc[w] : '') + ', ' + l + ' ' + (sc[l] != null ? sc[l] : '');
+  document.getElementById('bx-date').textContent = g.d || '';
+  const hv = g.hv || null, per = hv && __bxPer !== 'F' && hv[__bxPer] ? hv[__bxPer] : null;
+  const T = per || g.t;
+  const pName = k => k === '1' ? '1st Half' : k === '2' ? '2nd Half' : (+k === 3 ? 'OT' : (+k - 2) + 'OT');
+  const pts = (rows) => (rows || []).reduce((s, r) => s + (r.pts || 0), 0);
+  const tabs = hv ? '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:0 0 10px">' +
+    [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
+      `<button onclick="bxPeriod('${k}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${__bxPer === k ? 700 : 600};border:1px solid #1a1f2e;background:${__bxPer === k ? '#1a1f2e' : '#fff'};color:${__bxPer === k ? '#fff' : '#1a1f2e'}">${lab}${k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${pts(hv[k][w])}–${pts(hv[k][l])}</span>` : ''}</button>`).join('') + '</div>' : '';
+  document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
+    __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || [])
+    + ([w, l].some(n => (T[n] || []).some(r => r.ortg_e != null)) ? '<div style="text-align:center;font-size:0.75rem;color:#666;margin:4px 12px 0">ORtg est: this side’s box score has no real minutes, so each player’s are estimated from his share of its activity (shots, free throws, turnovers, assists, rebounds, fouls, steals, blocks); minutes enter ORtg only through the share of his makes that were assisted.</div>' : '');
+  const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
+  const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
+  document.getElementById('bx-poss').textContent = pP != null ? pP + ' possessions' + (per ? ' (' + pName(__bxPer) + ')' : '') : '';
+  document.getElementById('boxscore-modal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+const rsStats = (name, mode) => mode === 'roster' ? '' : mode === 'sched' ? schedTable(name) : teamStatsTable(name, mode);
+/* SCHEDULE (Rosters -> Schedule): the team's season from its leaderboard file (export_ratings.py team_schedule): every
+   game on its schedule, results for the ones played; tap a played game for both box scores. */
+function schedTable(name) {
+  const F = teamFile(name), S = F && F.schedule;
+  if (!S) return `<div class="small muted" style="padding:8px 0 12px">${F ? 'This team\'s file has no schedule yet (the next leaderboard build adds it).' : 'No leaderboard file for this team on the iPad: it downloads when the team is on the schedule or under Teams to have ready, and the tracker is online.'}</div>`;
+  const played = S.filter(x => x.r || (x.s && x.s[0] != null)), w = played.filter(x => x.r === 'W').length;
+  const next = S.findIndex(x => !x.r && !(x.s && x.s[0] != null));
+  const site = x => x.ha === 'H' ? 'vs' : x.ha === 'A' ? 'at' : 'vs';
+  return `<div class="small muted" style="margin:0 0 6px">${w}-${played.length - w} in games played · tap a result for the box score</div>
+    <div class="ts-wrap"><table class="sch-tbl"><tbody>${S.map((x, i) => `<tr class="${i === next ? 'sch-next' : ''}">
+      <td style="width:46px">${esc(x.d)}</td>
+      <td>${site(x)} <b>${esc(x.o)}</b>${x.ha === 'N' ? ' <span class="small muted">(N)</span>' : ''}${x.c ? ' <span class="small muted">conf</span>' : ''}${x.ev ? `<div class="tiny muted">${esc(x.ev)}</div>` : ''}</td>
+      <td style="text-align:right;white-space:nowrap">${x.s && x.s[0] != null ? `<button class="btn btn-sm" data-act="sch-box" data-team="${esc(name)}" data-i="${i}"><span class="${x.r === 'W' ? 'sch-w' : 'sch-l'}">${x.r || ''}</span> ${x.s[0]}–${x.s[1]}</button>` : `<span class="small muted">${esc(x.t || '')}</span>`}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function schedBox(name, i) {
+  const F = teamFile(name), x = F && F.schedule && F.schedule[i]; if (!x || !x.bx) { toast('No box score for this game yet', 'bad'); return; }
+  const cols = BX_CTX().cols || [], unpack = T => Object.fromEntries(Object.entries(T || {}).map(([t, rows]) => [t, rows.map(a => Object.fromEntries(cols.map((c, k) => [c, a[k]])))]));
+  const g = Object.assign({}, x.bx, { t: unpack(x.bx.t), fm: x.fm || null });
+  if (x.bx.hv) g.hv = Object.fromEntries(Object.entries(x.bx.hv).map(([per, T]) => [per, unpack(T)]));
+  renderBoxScore(g);
+}
 function teamStatsTable(name, mode) {
   if (name === 'MPK') name = 'Moorpark';
   const F = teamFile(name), T = F && F.table;
@@ -3423,7 +3835,7 @@ function teamStatsTable(name, mode) {
   }
   const adv = T.adv === 1, A = c => adv ? tsF(r0[c]) : '—'; let r0;
   const rk = (r, c) => `<td>${(r.rank || {})[c] || ''}</td>`;
-  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.usg_est != null ? `${tsF(r.usg_est)}<span class="small muted"> est</span>` : !adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? `${tsF(r.tov_est)}<span class="small muted"> est</span>` : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
+  const cells = r => { r0 = r; return `<td class="ts-l">${esc(r.name)}</td><td>${esc(r.ht || '—')}</td><td>${r.gp}</td><td>${adv ? tsF(r.min_pct) : '—'}</td><td>${adv ? A('ind_ortg') : r.ortg_est != null ? `${tsF(r.ortg_est)}<span class="small muted"> est</span>` : '—'}</td>${TS_ADV.slice(1).map(c => `<td>${!adv && c === 'usage_pct' && r.usg_est != null ? `${tsF(r.usg_est)}<span class="small muted"> est</span>` : !adv && c === 'usage_pct' && r.role_est ? `${r.role_est}<span class="small muted"> est</span>` : !adv && c === 'tov_pct' && r.tov_est != null ? tsF(r.tov_est) : !adv && (c === 'efg_pct' || c === 'ts_pct') && r[c] != null ? tsF(r[c]) : !adv && c === 'ft_rate' && (r.twoa + r.tpa) > 0 ? tsF(r.ft_rate != null ? r.ft_rate : 100 * r.fta / (r.twoa + r.tpa)) : A(c)}</td>`).join('')}<td>${pm(r.ftm, r.fta)}</td><td>${tsF(r.ftp)}</td><td>${pm(r.twom, r.twoa)}</td><td>${tsF(r.twop)}</td><td>${pm(r.tpm, r.tpa)}</td><td>${tsF(r.tpp)}</td>`; };
   const rankRow = r => !adv || !Object.keys(r.rank || {}).length ? '' : `<tr class="ts-rankrow"><td class="ts-l ts-ranklabel">State Rank</td><td></td><td></td><td></td>${rk(r, 'ind_ortg')}<td></td><td></td>${['efg_pct', 'ts_pct', 'oreb_pct', 'dreb_pct', 'ast_rate', 'tov_pct', 'blk_pct', 'stl_pct', 'fc_per_40', 'fd_per_40', 'ft_rate'].map(c => rk(r, c)).join('')}<td></td>${rk(r, 'ftp')}<td></td>${rk(r, 'twop')}<td></td>${rk(r, 'tpp')}</tr>`;
   let zi = 0;   // alternating colours per player; his State Rank line shares his colour
   const row = r => { const z = zi++ % 2 ? ' z' : ''; return `<tr class="${adv && Object.keys(r.rank || {}).length ? 'ts-hasrank' : ''}${z}">${cells(r)}</tr>${rankRow(r).replace('<tr class="ts-rankrow">', `<tr class="ts-rankrow${z}">`)}`; }, N = 24, band = l => `<tr class="ts-band"><td colspan="${N}"><span class="ts-band-l">${l}</span></td></tr>`;
@@ -3439,30 +3851,44 @@ function teamStatsTable(name, mode) {
     ${adv ? `<div class="tiny muted" style="margin-top:6px">State Rank: among qualified players in the state, by the leaderboard's own rules (30% of minutes; shooting stats by their leaderboard qualifications). ORtg is ranked within the player's %Poss band: a role player's efficiency is compared with other role players, not go-to guys.</div>` : '<div class="tiny muted" style="margin-top:6px">No advanced numbers for this team: its box scores don\'t have reliable minutes (same as the leaderboard).</div>'}`;
 }
 function fillFromLeaderboard(sel) {
-  const F = teamFile(sel); if (!F) { toast('No leaderboard stats for ' + sel + ' on this iPad yet', 'bad'); return; }
-  const tb = $('#rbody'), have = new Set([...tb.querySelectorAll('input[data-k="num"]')].map(i => i.value.trim()).filter(Boolean));
-  const best = {}; Object.entries(F.players || {}).forEach(([n, v]) => { const k = String(v.num || ''); if (!k || (v.all || {}).games < 1) return; if (!best[k] || (v.all.MIN || 0) > (best[k][1].all.MIN || 0)) best[k] = [n, v]; });
-  const add = Object.entries(best).filter(([k]) => !have.has(k)).sort((a, b) => (b[1][1].all.MIN || 0) - (a[1][1].all.MIN || 0));
-  add.forEach(([k, [n]]) => { document.querySelector('[data-act="rr-add"]').click(); const r = [...tb.querySelectorAll('tr.rrow')].pop(); r.querySelector('input[data-k="num"]').value = k; r.querySelector('input[data-k="name"]').value = n; });
-  toast(add.length ? `${add.length} players added from the leaderboard: check them, then Save` : 'Everyone on the leaderboard is already on this roster', add.length ? 'good' : '');
+  // The published roster (number, name, position, height, year) first, then anyone in the box scores it lacks; kept with
+  // what's typed here (a blank filled, nothing overwritten), saved at once so the labels from stats show.
+  const P = lsGet(LS_PUB_ROSTERS, null), T = P && P.teams ? resolveTeam(sel, P) : null, pub = (T && P.teams[T]) || [], F = teamFile(sel);
+  if (!pub.length && !F) { toast('No leaderboard roster or stats for ' + sel + ' on this iPad yet', 'bad'); return; }
+  if (saveRosterEdit(true) === false) return;
+  const jn = x => { const t = String(x == null ? '' : x).trim(); return /^0+$/.test(t) ? t : t.replace(/^0+(?=\d)/, ''); };
+  const store = oppStore(); let o = oppFind(sel, store);
+  if (!o) { o = { id: 'opp_' + uid(), name: sel, players: [] }; store.push(o); }
+  o.players = o.players || []; let n = 0;
+  const put = (num, v) => { const k = jn(num); if (!k) return; const q = o.players.find(x => jn(x.num) === k);
+    if (!q) { o.players.push(Object.assign({ num: k, name: '', pos: '', ht: '', yr: '', note: '' }, v)); n++; return; }
+    Object.keys(v).forEach(f => { if (v[f] && !q[f]) { q[f] = v[f]; n++; } }); };
+  pub.forEach(p => put(p.num, { name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '' }));
+  const best = {}; Object.entries((F && F.players) || {}).forEach(([nm, v]) => { const k = jn(v.num); if (!k || ((v.all || {}).games || 0) < 1) return; if (!best[k] || ((v.all || {}).MIN || 0) > ((best[k][1].all || {}).MIN || 0)) best[k] = [nm, v]; });
+  Object.entries(best).forEach(([k, [nm]]) => put(k, { name: nm }));
+  o.updatedAt = new Date().toISOString(); lsSet('gt_opp_rosters', store); PL_MEMO = null;
+  games.filter(x => x.opp === sel).forEach(x => { x.oppRoster = o.players.filter(p => p.num).map(p => ({ num: String(p.num), name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })); });
+  save(); render();
+  toast(n ? `${sel}: roster filled from the leaderboard and saved` : 'Everyone on the leaderboard is already on this roster', n ? 'good' : '');
 }
-function saveRosterEdit() {
+function saveRosterEdit(quiet) {
   const sel = UI.rosterSel || (cur() ? cur().opp : 'MPK');
   // A label typed but not added yet still counts.
   document.querySelectorAll('#rbody .ned').forEach(c => { const a = c.querySelector('.ned-add'); if (a && a.value.trim()) { nedAdd(c, a.value); a.value = ''; } });
   const rows = [...document.querySelectorAll('#rbody tr.rrow')].map(tr => Object.fromEntries([...tr.querySelectorAll('input[data-k]')].map(i => [i.dataset.k, i.value.trim()])))
     .map(r => Object.assign(r, { num: String(r.num || '').replace(/\D/g, '').slice(0, 2) })).filter(r => r.num || r.name);
   const nums = rows.map(r => r.num).filter(Boolean), dupe = nums.find((n, i) => nums.indexOf(n) !== i);
-  if (dupe) { toast('Two players wear #' + dupe, 'bad'); return; }
+  if (dupe) { toast('Two players wear #' + dupe, 'bad'); return false; }
   if (sel === 'MPK') { lsSet(LS_ROSTER, rows.map(r => ({ num: r.num, name: r.name, pos: r.pos || '', note: r.note || '' }))); toast('Moorpark roster saved', 'good'); return; }
-  const store = oppStore(); let o = store.find(x => x.name === sel);
+  const store = oppStore(); let o = oppFind(sel, store);
   if (!o) { o = { id: 'opp_' + uid(), name: sel, players: [] }; store.push(o); }
   // Keep each player's other game-tracker fields; replace what is edited here.
   o.players = rows.map(r => Object.assign({ num: '', name: '', pos: '', ht: '', yr: '', note: '' }, (o.players || []).find(p => String(p.num) === r.num) || {}, r));
   o.updatedAt = new Date().toISOString();
   lsSet('gt_opp_rosters', store);
   games.filter(x => x.opp === sel).forEach(x => { x.oppRoster = o.players.filter(p => p.num).map(p => ({ num: String(p.num), name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '', note: p.note || '' })); });
-  save(); toast(sel + ' roster saved', 'good');
+  save(); if (!quiet) toast(sel + ' roster saved', 'good');
+  return true;
 }
 
 /* ---------- games ---------- */
@@ -4070,7 +4496,7 @@ function exportLeaderboard(g, side) {
    file carries every roster. Importing one keeps, team by team, the most recently SAVED roster (each Save stamps it):
    a newer one replaces this iPad's whole roster for that team (players added or taken away), an older one is ignored.
    Rosters from before the stamp (none on either side) are merged: missing players added, blank fields filled. */
-const rosterOf = name => { const o = oppStore().find(x => normOpp(x.name) === normOpp(name)); return o && (o.players || []).length ? o : null; };
+const rosterOf = name => { const o = oppFind(name); return o && (o.players || []).length ? o : null; };
 function mergeRosters(list) {
   if (!Array.isArray(list)) return 0;
   const st = oppStore(); let n = 0;
@@ -4509,7 +4935,8 @@ document.addEventListener('click', ev => {
     case 'rd-add': { collectSched(); const i = b.parentElement.querySelector('.rd-in'); readyAdd(i && i.value, b.dataset.ev); render(); break; }
     case 'rd-del': { collectSched(); const L = readyGet(b.dataset.ev).slice(); L.splice(+b.dataset.i, 1); readySet(b.dataset.ev, L); render(); break; }
     case 'oo-shoot': UI.ooShoot = !UI.ooShoot; lsSet('pt2_oo_shoot', UI.ooShoot); render(); break;
-    case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = UI.rsMode === 'roster' ? '' : teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
+    case 'sch-box': schedBox(b.dataset.team, +b.dataset.i); break;
+    case 'rs-mode': UI.rsMode = b.dataset.m; { const c = document.querySelector('.rs-stats'); if (c) { c.innerHTML = rsStats(UI.rosterSel || (g ? g.opp : 'MPK'), UI.rsMode); c.closest('.card').dataset.mode = UI.rsMode; document.querySelectorAll('[data-act="rs-mode"]').forEach(x => x.classList.toggle('btn-primary', x.dataset.m === UI.rsMode)); } else render(); } break;
     case 'ts-sort': { const k = b.dataset.k; UI.tsDir = UI.tsSort === k && UI.tsDir === 'desc' ? 'asc' : 'desc'; if (k === 'name' && UI.tsSort !== k) UI.tsDir = 'asc'; UI.tsSort = k; const c = document.querySelector('.rs-stats'); if (c) { const w = c.querySelector('.ts-wrap'), x = w ? w.scrollLeft : 0;   // keep the sideways scroll where it was
       c.innerHTML = teamStatsTable(UI.rosterSel || (g ? g.opp : 'MPK'), 'basic'); const w2 = c.querySelector('.ts-wrap'); if (w2) w2.scrollLeft = x; } break; }
     case 'r-fill-lb': fillFromLeaderboard(UI.rosterSel || (g ? g.opp : '')); break;
@@ -6132,7 +6559,7 @@ function oppFileHtml(name) {
       <div><div class="ff-who-h" style="color:var(--them-text)">Best against us</div>${best.map(u => five(u, SG(u.net), u.net > 0 ? 'neg' : 'pos')).join('') || '<div class="muted small">No five with 5+ possessions.</div>'}</div></div></div>`
     : `<div class="card"><h3>Their lineups</h3><div class="muted small">Their fives weren't tracked (no roster for them in those games).</div></div>`;
   // Their players.
-  const PL = ofPlayers(gs), store = (oppStore().find(o => normOpp(o.name) === normOpp(name)) || {}).players || [];
+  const PL = ofPlayers(gs), store = (oppFind(name) || {}).players || [];
   const note = num => { const p = store.find(x => String(x.num) === String(num)); return p && p.note ? esc(p.note) : ''; };
   const players = PL ? `<div class="card"><h3>Their players <span class="muted">· from the stat sheet${gs.length > 1 ? 's, all games' : ''}</span></h3><div class="tbl-wrap"><table class="tbl zebra sh-out"><thead><tr><th class="l">Player</th><th>MIN</th><th>PTS</th><th>FG</th><th>3P</th><th>FT</th><th>REB</th><th>TO</th><th>USG%</th><th>TS%</th><th class="l">Note</th></tr></thead><tbody>
       ${PL.map(({ r, x }) => `<tr><td class="l">${r.num ? `<span class="pnum">#${esc(r.num)}</span> ` : ''}${esc(r.name || '')}</td><td>${r.min || '—'}</td><td><b>${r.pts}</b></td><td>${r.fgm}-${r.fga}</td><td>${r.fg3m}-${r.fg3a}</td><td>${r.ftm}-${r.fta}</td><td>${r.oreb + r.dreb}</td><td>${r.tov}</td><td>${P(x.usg)}</td><td>${P(x.ts)}</td><td class="l small">${note(r.num)}</td></tr>`).join('')}</tbody></table></div>
@@ -6794,7 +7221,7 @@ function autoLabels(g, t, id) {
   /* Star: the state's top 20, North and South together (export_ratings.py tiers): PORPAGATU! on analytics teams, Game
      Score per game placed on the same list on low-info teams. Older files without the list: PORPAGATU! top 5%. */
   const usg = R && R.usage_pct != null ? R.usage_pct : null, star = tot.starTop ? rk.tier === 'Star' : top('porp', 0.05);
-  if (star) add('Star', `#${rk.srank || '—'} in the state · ${R.porp != null ? `PORPAGATU! ${f1(R.porp)}` : `Game Score ${f1(rk.gsc)} a game`}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
+  if (star) add('Star', `#${rk.srank || '—'} in the state · ${R.porp != null ? `PORPAGATU! ${f1(R.porp)}` : rk.pest != null ? `PORPAGATU! (est) ${f1(rk.pest)}` : `Game Score ${f1(rk.gsc)} a game`}${usg != null ? ` · ${f1(usg)}% of possessions` : ''}`);
   // Scorer: top 10% on points produced a game, points a game and usage together. Star already says it; Scorer says
   // more than Go-to, so it takes Go-to's place.
   const scorer = !star && cut('scorer');
@@ -7219,11 +7646,11 @@ function pubRosters(extra) {
   names.forEach(nm => { const T = resolveTeam(nm, P); if (!T || T === 'Moorpark' || !(P.teams[T] || []).length) return;
     const sig = JSON.stringify(P.teams[T]);
     let o = st.find(x => normOpp(x.name) === normOpp(nm));
-    if (o && done[normOpp(o.name)] === sig) return;
+    if (o && done[normOpp(o.name)] === sig && (o.players || []).length) return;
     if (!o) { o = { id: 'opp_' + uid(), name: nm, players: [] }; st.push(o); }
     const prev = o.players || [];
     o.players = P.teams[T].map(p => { const k = jn(p.num), q = prev.find(x => jn(x.num) === k) || {};
-      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: q.pos || '', note: q.note || '' }); });
+      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: q.pos || p.pos || '', note: q.note || '' }); });
     o.updatedAt = new Date().toISOString(); done[normOpp(o.name)] = sig; n++; });
   if (n) { lsSet('gt_opp_rosters', st); lsSet(LS_PUB_APPLIED, done); PL_MEMO = null; }
   return n;

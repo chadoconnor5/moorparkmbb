@@ -22,6 +22,8 @@ from pathlib import Path
 
 from ccc_config import DEFAULT_SEASON
 
+ASSUMED_ORB = 0.30   # offensive rebound rate used for players' possessions when no opponent box score has posted
+
 
 def _court(g):
     """(team, opponent) points on the court: a forfeit's game log keeps them in court_score (its score is 2-0)."""
@@ -1083,6 +1085,11 @@ def update_team(team_name: str, prior: dict = None):
         "opp_dreb": opp_totals.get("DREB", 0),
         "opp_pf":   opp_totals.get("PF", 0),
     }
+    # No opponent box score yet (only this side posted: 11/3 De Anza vs Solano): with no opponent defensive rebounds the
+    # team's offensive rebound rate reads 100%, so no missed shot ends a possession and the players' ORtg (est) ran to
+    # 179-373 (Camden Wright 0 of 3). Players' possessions then assume a typical 30% offensive rebound rate.
+    if ctx["opp_dreb"] <= 0 and ctx["team_oreb"] > 0:
+        ctx["opp_dreb"] = ctx["team_oreb"] * (1 - ASSUMED_ORB) / ASSUMED_ORB
 
     # Second pass: compute per-player analytics with context
     player_analytics = []

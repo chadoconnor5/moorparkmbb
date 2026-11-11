@@ -154,6 +154,32 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current
   net rating of the conference's three best teams, whichever they are) and Avg Net (every member's current net),
   each with its rank among the conferences.
+- Opponent schedules in the possession tracker (Rosters -> Schedule): export_ratings.team_schedule puts each team file's
+  "schedule": every game on the typed-in schedule (date, opponent, H/A/N, time, event, conference), played ones with the
+  result, plus played TBA games. Each played game carries the leaderboard's own box score record (build_game_boxes:
+  rows packed in BX_COLS order, halves, win-probability data) and its FanMatch line; ratings.json "box" has the color
+  scales (box_ctx: the page's __bxScales, set by generate_leaderboard before export) and school colors. The tracker lists
+  the games (schedTable; the next one highlighted) and a tap opens the leaderboard's box score itself: its CSS, popup and
+  JS (__bxTeamTable, __bxWpChart, renderBoxScore...) copied from the built page, only the data hooks pointed at the
+  tracker (BX_CTX). Change the box score's design in generate_leaderboard.py, then copy the block again.
+- Team Stats (leaderboard and tracker) for teams without reliable minutes: eFG%, TS%, TO rate and FT rate need no
+  minutes, so they show exact (no "est"); FT rate from FTA / FGA when the analytics have none.
+- FT rate leaderboard: 4+ shots a game (FTR_FGA_PG_MIN) and the season's games minimum, on both qualifying paths (1
+  FGA and 7 FTA made a 700 leader).
+- Moorpark roster changes that reach every device: game tracker REMOVED / JERSEY (lockRoster adds a locked player a
+  device lacks); possession tracker OFF_ROSTER / ADD_ROSTER (rosterFix). 11/11/2026: Jack Johnson off (redshirt),
+  Jeremiah White on (6'0" G, number to come: set it in JERSEY and ADD_ROSTER).
+- Possession tracker saved opponent rosters are found under any of a team's names (oppFind: exact name first, else
+  the same leaderboard team): the Rosters picker shows the leaderboard's name ("East Los Angeles") while a tournament
+  field saves the roster under its short one ("East LA"); 11/11 ELAC showed an empty roster on the iPad.
+  A team picked with no saved players gets its published roster then (pubRosters also re-applies to an empty one).
+  Fill from leaderboard takes the published roster (number, name, position, height, year) plus anyone in the box scores
+  it lacks, fills blanks only (typed labels kept) and saves at once, so the labels from stats show.
+- Star label (export_ratings.tiers, both label copies): the top 20 by PORPAGATU!; a fake-minutes player is placed by
+  his PORPAGATU! (est) (porp_est, rank pest / eqr; Game Score a game only without an estimate).
+- A team with no opponent box score yet (only its own side posted) has no opponent defensive rebounds: its offensive
+  rebound rate read 100%, so no missed shot ended a possession (11/11 De Anza ORtg (est) 179-373, four De Anza Stars).
+  update_advanced_analytics assumes ASSUMED_ORB = 30% for the players' possessions then (De Anza, Hartnell on 11/11).
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just
@@ -216,7 +242,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   win shares. Skills: Volume
   Scorer (PPG), Sniper (3P%, 2+ 3PA/g, pulled toward the state 3P% by 25 attempts), Finisher (2P%, 3+ 2PA/g, 25), Ice
   Water (FT%, 2+ FTA/g, 20), Floor General (z ARate - half z TO%), Glass Cleaner (OR% and DR%), Pickpocket (Stl%), Rim
-  Protector (Blk%). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
+  Protector (Blk%), Green Light (%Shots: his share of the team's shots while on the floor; fake-minutes
+  stand-in FGA a game). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
   alone without a BPM; a fake-minutes player's Game Score placed on PRPG!): All-State in the CCCMBCA's shape (2025-26:
   24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
   14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference
