@@ -244,64 +244,16 @@ def _parse_playtypes(summary):
             out[k] = int(m.group(1))
     return out
 
-def synergy_archetype(pos, sa, tot, apg):
-    if not sa: return None
-    pt = _parse_playtypes(sa.get('scoring_summary'))
-    fga = tot.get('FGA', 0) or 0
-    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
-    ftar = (tot.get('FTA', 0) / fga * 100) if fga else 0
-    spot = pt.get('spotup', 0); move = pt.get('offscreen', 0) + pt.get('handoff', 0)
-    rim = (sa.get('shot_types') or {}).get('at_rim_pct_fga', 0) or 0
-    if pos in _BIG_POS:
-        if apg >= 2.0: return 'Playmaking Big'
-        if ftar >= 40 and tpar <= 12: return 'Post-up Big'
-        if tpar >= 18: return 'Stretch Big'
-        return 'Rim-finishing'
-    if pos in _GUARD_POS:
-        if apg >= 3.5: return 'Playmaking Ball Handler'
-        if tpar >= 45 or spot >= 30: return 'Secondary Ball Handler'
-        return 'Scoring Ball Handler'
-    if apg >= 2.5: return 'Playmaking Wing'
-    if rim >= 45 or (ftar >= 28 and tpar <= 30): return 'Slashing Wing'
-    if tpar >= 55 or spot >= 45: return 'Spot-up Wing'
-    if tpar >= 22 or move >= 10: return 'Dynamic Wing'
-    return 'Slashing Wing'
+def synergy_archetype(pos, sa, tot=None, apg=None, adv=None, roster_pos=None):
+    """The player's Synergy role (synergy_roles.role: 8 guard / wing and 4 big roles from his play-type mix, with each
+    role's hard gates); None without a play-type mix."""
+    import synergy_roles
+    return synergy_roles.role((sa or {}).get('scoring_summary'), pos, roster_pos or (sa or {}).get('pos'),
+                              (adv or {}).get('ast_rate'), ((sa or {}).get('shot_types') or {}).get('at_rim_pct_fga'))
 
 def bball_index_archetype(pos, adv, tot, sa):
-    if not sa: return None
-    st = sa.get('shot_types') or {}; pt = _parse_playtypes(sa.get('scoring_summary'))
-    usg = adv.get('usage_pct', 0) or 0; ast = adv.get('ast_rate', 0) or 0
-    fga = tot.get('FGA', 0) or 0
-    ftr = (tot.get('FTA', 0) / fga * 100) if fga else 0
-    tpar = (tot.get('3PA', 0) / fga * 100) if fga else 0
-    rim = st.get('at_rim_pct_fga', 0) or 0; js = st.get('jump_shot_pct_fga', 0) or 0
-    cs = st.get('catch_shoot_pct_of_js', 0) or 0; pullup = 100 - cs
-    move = pt.get('offscreen', 0) + pt.get('handoff', 0)
-    if pos in _BIG_POS:
-        if tpar >= 20: return 'Stretch Big'
-        if pt.get('postup', 0) >= 15 or usg >= 24: return 'Post-Up Big'
-        if rim >= 45 or pt.get('cut', 0) + pt.get('roll', 0) + pt.get('putback', 0) >= 18:
-            return 'Roll + Cut Big'
-        return 'Versatile Big'
-    creator = pt.get('pnr_bh', 0) + pt.get('iso', 0)
-    # Rim-finishers go to the slasher/finisher branch first: a player taking 45%+
-    # of his shots at the rim is not a ball handler even if his AST% nicks the gate.
-    if rim >= 45:
-        return 'Slasher' if (ftr >= 20 or pt.get('iso', 0) >= 6) else 'Athletic Finisher'
-    if ast >= 22 and (creator >= 6 or usg >= 18):
-        return 'Primary Ball Handler' if usg >= 22 else 'Secondary Ball Handler'
-    if (usg >= 23 and (creator >= 14 or pullup >= 45)) or creator >= 22:
-        return 'Primary Ball Handler' if ast >= 18 else 'Shot Creator'
-    has_shots = bool(st)
-    if (has_shots and js >= 50 and cs >= 50) or (not has_shots and pt.get('spotup', 0) >= 28):
-        if move >= 10: return 'Movement Shooter'
-        if pt.get('spotup', 0) >= 30: return 'Stationary Shooter'
-        return 'Off-Ball Shooter'
-    if rim >= 30 or ftr >= 28 or pt.get('iso', 0) >= 10:
-        return 'Slasher' if (ftr >= 25 or pt.get('iso', 0) >= 8) else 'Athletic Finisher'
-    if ast >= 15 and creator >= 8: return 'Secondary Ball Handler'
-    if cs >= 48 and js >= 45: return 'Off-Ball Shooter'
-    return 'Connector / Role'
+    """Folded into synergy_archetype (one role per player, synergy_roles): no second line."""
+    return None
 
 # Synergy player exports for this team, keyed by name (gated: empty if none)
 SYNERGY_PLAYERS = {}
@@ -1095,7 +1047,7 @@ def page_personnel():
         sa = SYNERGY_PLAYERS.get(nm)
         if sa:
             spos = sa.get('pos') or pos
-            syn = synergy_archetype(spos, sa, tot, avg.get('AST', 0))
+            syn = synergy_archetype(spos, sa, tot, avg.get('AST', 0), adv)
             bi = bball_index_archetype(spos, adv, tot, sa)
             arch_cells = []
             if syn: arch_cells.append(Paragraph(f'<b>Synergy Archetype:</b>  {syn}', S(8.5, False, GOLD)))
