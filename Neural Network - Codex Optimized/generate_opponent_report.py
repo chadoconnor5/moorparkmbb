@@ -919,7 +919,7 @@ def page_synergy(c):
         cols = [('Play Type', None, 2.1), ('Poss', lambda x: str(x['poss']), 0.6),
                 ('%Time', lambda x: f'{x["pct_time"]:.1f}%' if x.get('pct_time') is not None else '—', 0.65)]
         if any(x.get('time_rank') is not None for x in rows): cols.append(('T-Rank', lambda x: str(x['time_rank']) if x.get('time_rank') is not None else '—', 0.6))
-        cols += [('PPP', lambda x: f'{x["ppp"]:.3f}', 0.6), ('Pctile', lambda x: str(x['pctile']) if x.get('pctile') is not None else '—', 0.6), ('Rating', None, 1.1)]
+        cols += [('PPP', lambda x: f'{x["ppp"]:.3f}' if x.get('ppp') is not None else '—', 0.6), ('Pctile', lambda x: str(x['pctile']) if x.get('pctile') is not None else '—', 0.6), ('Rating', None, 1.1)]
         if any(x.get('two_fg_pct') is not None for x in rows): cols.append(('2FG%', lambda x: f'{x["two_fg_pct"]:.1f}%' if x.get('two_fg_pct') is not None else '—', 0.65))
         elif any(x.get('efg') is not None for x in rows): cols.append(('eFG%', lambda x: f'{x["efg"]:.1f}%' if x.get('efg') is not None else '—', 0.65))
         if any(x.get('to_pct') is not None for x in rows): cols.append(('TO%', lambda x: f'{x["to_pct"]:.1f}%' if x.get('to_pct') is not None else '—', 0.55))

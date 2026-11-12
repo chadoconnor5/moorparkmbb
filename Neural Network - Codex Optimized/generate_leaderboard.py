@@ -885,14 +885,15 @@ def _height_player_key(name: str) -> str:
     return " ".join(parts)
 
 
-def _load_position_groups() -> dict[tuple[str, str], str]:
-    """Return {(team, player): guard|forward} from the 2025-26 position CSV."""
+def _load_position_groups(season: str = "") -> dict[tuple[str, str], str]:
+    """Return {(team, player): guard|forward} from the season's box-score position CSV (2025-26 when none given)."""
     groups = {}
-    if not _POSITIONS_CSV.exists():
+    path = Path(f"internal_data/player_positions_{season.replace('-', '_')}.csv") if season else _POSITIONS_CSV
+    if not path.exists():
         return groups
     guard_labels = {"PG", "s-PG", "CG", "WG"}
     forward_labels = {"WF", "S-PF", "PF/C", "C"}
-    with open(_POSITIONS_CSV, newline="", encoding="utf-8") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             pos = (row.get("pos_class") or "").strip()
             if pos in guard_labels:
@@ -949,7 +950,23 @@ def load_height_data(teams: list[dict]) -> dict:
     """Load 2025-26 roster heights and rank teams by average inches."""
     canonical = {t["team"]: t for t in teams}
     canonical_by_key = {_height_team_key(name): name for name in canonical}
-    position_groups = _load_position_groups()
+    # Scoring by position: the season's box-score positions, then (players without one yet) the typed-in roster's
+    # listed position; 11/12 the 2025-26 positions alone left new players out (Chabot 0% / 0%).
+    season = _STATS_DIR_TO_SEASON.get(str(STATS_DIR), "")
+    position_groups = _load_position_groups(season) if season and season != "2025-26" else _load_position_groups()
+    if season and season != "2025-26":   # returning players: last season's box-score position before the roster's label
+        prev = f"{int(season[:4]) - 1}-{season[2:4]}"
+        for k, g in _load_position_groups(prev).items():
+            position_groups.setdefault(k, g)
+    for team_name, rows in (_season_rosters.load() or {}).items():
+        for r in rows:
+            inches = _parse_height_to_inches(r.get("ht", "")) or 0
+            # no position listed (Allan Hancock's, Riverside's roster pages): by height, as a wing is (6'4" and under guard)
+            g = _roster_group(r.get("pos", ""), inches) or (("guard" if inches <= 76 else "forward") if inches else None)
+            from ccc_config import fix_player_name   # the roster's spelling -> the stats' (Matthew -> Mathew Wilson)
+            k = (team_name, _height_player_key(fix_player_name(r.get("name", ""))))
+            if g and k not in position_groups:
+                position_groups[k] = g
     position_scoring = _load_position_scoring(teams, position_groups)
     manual_team_map = {
         "2025": "Irvine Valley",
@@ -1010,8 +1027,10 @@ def load_height_data(teams: list[dict]) -> dict:
         total_pts = scoring.get("total", 0) or 0
         guard_pts = scoring.get("guard", 0) or 0
         forward_pts = scoring.get("forward", 0) or 0
-        guard_scoring_pct = guard_pts / total_pts * 100 if total_pts else None
-        forward_scoring_pct = forward_pts / total_pts * 100 if total_pts else None
+        # Shares of the points scored by players with a position, so guard + forward = 100 (a player with none is left out)
+        known = guard_pts + forward_pts
+        guard_scoring_pct = guard_pts / known * 100 if known else None
+        forward_scoring_pct = forward_pts / known * 100 if known else None
         ranked.append({
             "team": team_name,
             "conference": team.get("conference", ""),
