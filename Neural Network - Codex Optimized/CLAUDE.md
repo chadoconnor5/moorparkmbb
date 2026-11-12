@@ -143,7 +143,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP and his weakest defensive play
   type: the most points per possession allowed, 2+ possessions). Numbers only; ratings marked
   green (Excellent / Very Good) or red (Below Average / Poor). Needs the team export's overall situations and shot types.
-- Matchup Suggestions (generate_opponent_report.page_matchups, a page right before the player profiles, every edition):
+- Matchup Suggestions (generate_opponent_report.page_matchups): ON HOLD (11/12) until more games and Moorpark's Synergy
+  defense pages; not in the report. Rebuild with hard size / position eligibility and box-score archetypes before using.
+  Design so far:
   Moorpark's rotation defenders against their top 9 by minutes. What each player runs: his Synergy play types (spot-up /
   off screen / handoff = spot; P&R handler / iso = pnr; post-up = post; cut / roll / putback = rim), else his labels.
   Each defender's PPP allowed on those actions from the Synergy player-defense boards (Spot Up, P&R Ball Handler, Post-Up,
