@@ -143,6 +143,15 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP and his weakest defensive play
   type: the most points per possession allowed, 2+ possessions). Numbers only; ratings marked
   green (Excellent / Very Good) or red (Below Average / Poor). Needs the team export's overall situations and shot types.
+- Matchup Suggestions (generate_opponent_report.page_matchups, a page right before the player profiles, every edition):
+  Moorpark's rotation defenders against their top 9 by minutes. What each player runs: his Synergy play types (spot-up /
+  off screen / handoff = spot; P&R handler / iso = pnr; post-up = post; cut / roll / putback = rim), else his labels.
+  Each defender's PPP allowed on those actions from the Synergy player-defense boards (Spot Up, P&R Ball Handler, Post-Up,
+  else Overall), blended toward the board's average by MATCH_K = 10 possessions; size: +0.06 per inch beyond 2 he gives up,
+  weighted by post / rim share (small guards off post scorers), small penalty for a much bigger defender on a perimeter
+  player. One assignment per player, each defender used at most twice (_assign: exact lowest total, a second use costs
+  0.05); next best = the best other defender. Suggestions by design (Keys-like); defenders without Synergy defense get
+  the state average (listed under the table). Send Moorpark players' Synergy defense pages to sharpen it.
 - Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
   player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's
   pool; 58.0% on 11/11). Otherwise the play-by-play (export_ratings.rim_shots: layups, dunks, tip-ins of his FGA, 40%+:
