@@ -1791,7 +1791,8 @@ def build(team, season, out=None, out_dir=None, replace=False):
     TEXT.clear(); SECTIONS.clear()
     if team == 'Moorpark': sys.exit('Moorpark is the home team: scout an opponent.')
     c = load(team, season)
-    story = page_cover(c) + page_analytics(c) + page_synergy(c) + page_players(c)   # page_matchups(c): on hold until more defensive data (11/12) + page_situations(c) + page_scouting_guide(c)
+    story = page_cover(c) + page_analytics(c) + page_synergy(c) + page_players(c) + page_situations(c) + page_scouting_guide(c)
+    # page_matchups(c) (Matchup Suggestions, before page_players): on hold until more defensive data (11/12)
     probs = check_report(c)
     if probs:
         print(f'{team}: not written — below the report standard:\n  ' + '\n  '.join(probs)); return None
