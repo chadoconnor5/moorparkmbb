@@ -140,7 +140,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   for the team's offense (most-used play type, best / worst rated, little P&R, three-point %, share of jumpers that are
   threes, at-rim / catch-and-shoot / off-dribble PPS, turnovers, after timeouts), defense (half court, transition and
   press-to-transition, after timeouts, at-rim allowed, best / worst defended) and each player with a Synergy page
-  (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP). Numbers only; ratings marked
+  (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP and his weakest defensive play
+  type: the most points per possession allowed, 2+ possessions). Numbers only; ratings marked
   green (Excellent / Very Good) or red (Below Average / Poor). Needs the team export's overall situations and shot types.
 - Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
   player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's
