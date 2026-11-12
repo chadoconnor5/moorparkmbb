@@ -136,6 +136,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Basket, Post Ups, Short, Mid, Long 3, Catch & Shoot, Off-Dribble Jumpers; Around Basket dropped when At Rim is one),
   each with possessions, PPP and rank on the board, as of the exports' date. Every edition; a board lists only the
   players it qualified, so a player on none gets no sentence.
+- Synergy edition's key numbers (generate_opponent_report.syn_key_numbers, top of the Synergy page): highlighted boxes
+  for the team's offense (most-used play type, best / worst rated, little P&R, three-point %, share of jumpers that are
+  threes, at-rim / catch-and-shoot / off-dribble PPS, turnovers, after timeouts), defense (half court, transition and
+  press-to-transition, after timeouts, at-rim allowed, best / worst defended) and each player with a Synergy page
+  (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP). Numbers only; ratings marked
+  green (Excellent / Very Good) or red (Below Average / Poor). Needs the team export's overall situations and shot types.
 - Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
   player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's
   pool; 58.0% on 11/11). Otherwise the play-by-play (export_ratings.rim_shots: layups, dunks, tip-ins of his FGA, 40%+:

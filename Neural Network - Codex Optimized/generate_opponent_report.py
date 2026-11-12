@@ -906,6 +906,100 @@ def pt_line(x, defense=False):
     return (f'{x["name"]} ({pct}{x["ppp"]:.3f} PPP' + (f', {ordn(x["pctile"])} pctile' if x.get('pctile') is not None else '')
             + (f' — {x["rating"]}' if x.get('rating') else '') + ')')
 
+GOOD_R, BAD_R = {'Excellent', 'Very Good'}, {'Below Average', 'Poor'}
+
+def syn_key_numbers(c):
+    """The Synergy page's highlighted key numbers, by rule from the team export (offense / defense: play types, shot types,
+    situations) and the player pages: numbers only, a green mark for Excellent / Very Good, red for Below Average / Poor."""
+    raw = jload(syn_path('team', c.team, c.season)) if os.path.exists(syn_path('team', c.team, c.season)) else {}
+    T = c.team
+    mark = lambda r: (' <font color="#1e7b34"><b>(' + r + ')</b></font>' if r in GOOD_R else
+                      ' <font color="#b3261e"><b>(' + r + ')</b></font>' if r in BAD_R else (f' ({r})' if r else ''))
+    sit = lambda side, name: next((x for x in (raw.get(side) or {}).get('overall') or [] if x.get('situation') == name), {})
+    def pts(side):
+        return [x for x in (raw.get(side) or {}).get('play_types') or [] if x.get('ppp') is not None and 'Miscellaneous' not in (x.get('play_type') or '')]
+    nm = lambda x: (x.get('play_type') or '').replace('Offensive Rebounds (Put Backs)', 'Putbacks')
+    pt = lambda x, allowed=False: f'{nm(x)} {x["pct_time"]:.0f}% of possessions, {x["ppp"]:.3f} PPP{" allowed" if allowed else ""}' + mark(x.get('ppp_rating') or '')
+    off_b, def_b = [], []
+    po = sorted(pts('offense'), key=lambda x: -(x.get('poss') or 0))
+    if po:
+        off_b.append('Most-used play type: ' + pt(po[0]) + '.')
+        g = [x for x in po if (x.get('pct_time') or 0) >= 5 and x.get('ppp_rating') in GOOD_R]
+        b = [x for x in po[1:] if (x.get('pct_time') or 0) >= 5 and x.get('ppp_rating') in BAD_R]
+        if g: off_b.append('Best: ' + '; '.join(pt(x) for x in g) + '.')
+        if b: off_b.append('Worst: ' + '; '.join(pt(x) for x in b) + '.')
+        pr = next((x for x in (raw.get('offense') or {}).get('play_types') or [] if x.get('play_type') == 'P&R Ball Handler'), None)
+        if pr is not None and (pr.get('pct_time') or 0) < 8:
+            off_b.append(f'P&amp;R ball handler: only {pr.get("pct_time") or 0:.0f}% of possessions.')
+    sh = (raw.get('offense') or {}).get('shot_types') or {}
+    allp = sit('offense', 'All Possessions')
+    parts = []
+    if allp.get('three_fg_pct') is not None: parts.append(f'{allp["three_fg_pct"]:.1f}% from three ({allp.get("three_fg_made")}-{allp.get("three_fg_att")})')
+    l3 = (sh.get('shot_distances') or {}).get('long_3') or {}
+    if l3.get('pct_time') is not None: parts.append(f'{l3["pct_time"]:.0f}% of their jumpers are threes')
+    for k, lab in (('at_rim', 'at the rim'), ('catch_and_shoot', 'catch-and-shoot'), ('dribble_jumper', 'off-the-dribble jumpers')):
+        v = sh.get(k) or {}
+        if v.get('pps') is not None: parts.append(f'{lab} {v["pps"]:.2f} PPS' + mark(v.get('pps_rating') or ''))
+    if parts: off_b.append('Shooting: ' + '; '.join(parts) + '.')
+    ato = sit('offense', 'After Time Outs')
+    if allp.get('to_pct') is not None or ato.get('ppp') is not None:
+        off_b.append('Turnovers: ' + (f'{allp["to_pct"]:.1f}% of possessions' if allp.get('to_pct') is not None else '—')
+                     + (f'. After timeouts: {ato["ppp"]:.3f} PPP' + mark(ato.get('ppp_rating') or '') if ato.get('ppp') is not None else '') + '.')
+    hc, tr, dall = sit('defense', 'Overall Half Court'), sit('defense', 'Transition'), sit('defense', 'All Possessions')
+    if hc.get('ppp') is not None:
+        def_b.append(f'Half court: {hc["ppp"]:.3f} PPP allowed' + mark(hc.get('ppp_rating') or '')
+                     + (f'; opponents {dall["three_fg_pct"]:.1f}% from three' if dall.get('three_fg_pct') is not None else '') + '.')
+    if tr.get('ppp') is not None:
+        tt = sit('defense', 'To Transition')
+        def_b.append(f'Transition: {tr["pct_time"]:.0f}% of the possessions they defend, {tr["ppp"]:.3f} PPP allowed' + mark(tr.get('ppp_rating') or '')
+                     + (f'; when their press gives up transition, {tt["ppp"]:.3f} PPP' + mark(tt.get('ppp_rating') or '') if tt.get('ppp') is not None and (tt.get('poss') or 0) >= 5 else '') + '.')
+    dato = sit('defense', 'After Time Outs')
+    if dato.get('ppp') is not None: def_b.append(f'After timeouts: {dato["ppp"]:.3f} PPP allowed' + mark(dato.get('ppp_rating') or '') + '.')
+    dsh = (raw.get('defense') or {}).get('shot_types') or {}
+    if (dsh.get('at_rim') or {}).get('pps') is not None:
+        def_b.append(f'At the rim: {dsh["at_rim"]["pps"]:.2f} PPS allowed' + mark(dsh['at_rim'].get('pps_rating') or '') + '.')
+    pd = [x for x in pts('defense') if (x.get('poss') or 0) >= 5]
+    g = [x for x in pd if x.get('ppp_rating') in GOOD_R]; b = [x for x in pd if x.get('ppp_rating') in BAD_R]
+    if g: def_b.append('Best-defended: ' + '; '.join(pt(x, True) for x in g) + '.')
+    if b: def_b.append('Worst-defended: ' + '; '.join(pt(x, True) for x in b) + '.')
+    # players with a Synergy page, in rotation order
+    pl_b = []
+    for p in c.rotation:
+        sa = SYNP(c, p)
+        if not sa: continue
+        avg, tot, adv = A(p), p['totals'], ADV(c, p)
+        arch = synergy_archetype(c.pos.get(p['name']) or '', sa, tot, avg.get('AST', 0), adv, _roster_pos(c).get(p['name']),
+                                 __import__('pbp_creation').player(c.season, c.team, p['name']))
+        ptp = _parse_playtypes(sa.get('scoring_summary'))
+        top = max(ptp, key=ptp.get) if ptp else None
+        ov, bits = sa.get('overall') or {}, []
+        names = {'spotup': 'spot-ups', 'pnr_bh': 'P&amp;R ball handler', 'postup': 'post-ups', 'iso': 'isolation', 'transition': 'transition',
+                 'offscreen': 'off screens', 'handoff': 'handoffs', 'cut': 'cuts', 'roll': 'P&amp;R roll', 'putback': 'putbacks'}
+        if top: bits.append(f'{ptp[top]:.0f}% {names.get(top, top)}')
+        if ov.get('ppp') is not None: bits.append(f'{ov["ppp"]:.3f} PPP overall' + mark(ov.get('ppp_rating') or ''))
+        if ov.get('three_fg'): bits.append(f'{ov["three_fg"]} from three')
+        su = sa.get('spot_up') or {}
+        if su.get('drive_pct') is not None and su.get('poss', 0) >= 5: bits.append(f'drives on {su["drive_pct"]:.0f}% of spot-ups')
+        st = sa.get('shot_types') or {}
+        if st.get('at_rim_att'): bits.append(f'{round(st["at_rim_att"] * (st.get("at_rim_fg_pct") or 0) / 100)}-{st["at_rim_att"]} at the rim')
+        d = sa.get('defense') or {}
+        dtx = (f'Defense: {d["ppp"]:.3f} PPP allowed' + mark(d.get('ppp_rating') or '')) if d.get('ppp') is not None else ''
+        num = c.num.get(p['name']) or sa.get('number')
+        pl_b.append(f'<b>{x_(p["name"])}' + (f' (#{num})' if num else '') + '</b>' + (f' — {arch}' if arch else '') + ': ' + ', '.join(bits)
+                    + ('. ' + dtx if dtx else '') + '.')
+    out = []
+    for title, rows, bg in ((f'{T.upper()} OFFENSE', off_b, colors.HexColor('#eef4fb')), (f'{T.upper()} DEFENSE', def_b, colors.HexColor('#fdf3e7')),
+                            ('PLAYERS (SYNERGY PAGES)', pl_b, colors.HexColor('#f1f7ee'))):
+        if not rows: continue
+        cells = [[Paragraph(title, S(9, True, BLUE))]] + [[P('• ' + r, S(8.5), 'note')] for r in rows]
+        t = Table(cells, colWidths=[7.5 * inch])
+        t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), bg), ('BOX', (0, 0), (-1, -1), 1.2, GOLD), ('TOPPADDING', (0, 0), (-1, -1), 3),
+                               ('BOTTOMPADDING', (0, 0), (-1, -1), 3), ('LEFTPADDING', (0, 0), (-1, -1), 10), ('RIGHTPADDING', (0, 0), (-1, -1), 10)]))
+        out += [t, Spacer(1, 6)]
+    if out:
+        out = [Paragraph('SYNERGY KEY NUMBERS', S(11, True, BLUE)), HR(GOLD, 1.5, 2, 4)] + out
+    return out
+
 def page_synergy(c):
     if not c.syn_team: return []   # the pre-Synergy edition has no Synergy section
     T = c.team
@@ -941,6 +1035,7 @@ def page_synergy(c):
             ('BOX', (0, 0), (-1, -1), 0.5, TH_BG), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')] + dyn))
         return t
+    e += [Spacer(1, 6)] + syn_key_numbers(c)
     st = c.syn_team
     e += [Spacer(1, 8), Paragraph(f'OFFENSE — How {T} Creates', S(10, True, BLUE)), Spacer(1, 4), table(st['off'], False)]
     e += [Spacer(1, 10), Paragraph(f'DEFENSE — How Opponents Score Against {T}', S(10, True, BLUE)),
