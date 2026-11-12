@@ -150,7 +150,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   else Overall), blended toward the board's average by MATCH_K = 10 possessions; size: +0.06 per inch beyond 2 he gives up,
   weighted by post / rim share (small guards off post scorers), small penalty for a much bigger defender on a perimeter
   player. One assignment per player, each defender used at most twice (_assign: exact lowest total, a second use costs
-  0.05); next best = the best other defender. Suggestions by design (Keys-like); defenders without Synergy defense get
+  0.05); three options each (the assigned one, then the next two), each with + why / − why not in numbers: PPP
+  allowed on his actions vs the state, sample size, missing data, size gap, fouls per 40, steal rate. Suggestions by design (Keys-like); defenders without Synergy defense get
   the state average (listed under the table). Send Moorpark players' Synergy defense pages to sharpen it.
 - Finisher (both label copies): Synergy decides when it has 10+ of his shots at the rim (At Rim leaderboard, else a
   player page's shot types): half his shots at the rim, made at the state's at-rim FG% or better (the leaderboard's

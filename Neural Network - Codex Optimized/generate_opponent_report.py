@@ -1281,25 +1281,61 @@ def page_matchups(c):
     names = [d['name'] for d in D]
     cost = [[next(sc for sc, d, _ in sc_ if d['name'] == n) for n in names] for _, _, _, _, sc_ in plan]
     pick = _assign(cost, names)
+    LAB = {'spot': 'spot-up', 'pnr': 'P&amp;R / iso', 'post': 'post-up', 'rim': 'cuts / rim', 'all': 'overall'}
+    def reasons(p, w, oh, d, dh):
+        """(why, why not) for this defender on this player: numbers only."""
+        pro, con, seen = [], [], set()
+        tot = sum(w.values()) or 1
+        for k, wt in sorted(w.items(), key=lambda x: -x[1]):
+            if wt / tot < 0.15: continue
+            bk = 'all' if k == 'rim' else k
+            lg, b = boards[bk]
+            r = b.get(words(d['name']))
+            if r is None and bk != 'all':
+                r0 = boards['all'][1].get(words(d['name']))
+                if r0 and 'all' not in seen:
+                    seen.add('all')
+                    (pro if r0['PPP'] <= boards['all'][0] else con).append(
+                        f'overall {r0["PPP"]:.2f} PPP allowed on {r0["Poss"]} (state {boards["all"][0]:.2f}; no {LAB[k]} data)')
+                continue
+            if r is None or bk in seen: continue
+            seen.add(bk)
+            txt = f'{LAB[k] if bk != "all" else "overall"} {r["PPP"]:.2f} PPP allowed on {r["Poss"]} (state {lg:.2f})'
+            (pro if r['PPP'] <= lg else con).append(txt)
+            if r['Poss'] < 10: con.append(f'small sample on {LAB[k] if bk != "all" else "overall"} ({r["Poss"]} poss)')
+        if not any(boards[k][1].get(words(d['name'])) for k in boards):
+            con.append('no Synergy defense yet (state average used)')
+        if oh and dh:
+            gap = oh - dh
+            if gap > 2: con.append(f'gives up {gap} in ({_fmt_height(dh)} vs {_fmt_height(oh)})')
+            elif gap < -4 and (w.get('spot', 0) + w.get('pnr', 0)) / tot >= 0.5: con.append(f'{-gap} in bigger against a perimeter player')
+            elif abs(gap) <= 2 and (w.get('post', 0) + w.get('rim', 0)) / tot >= 0.25: pro.append(f'size match ({_fmt_height(dh)} vs {_fmt_height(oh)})')
+            elif gap < 0 and (w.get('post', 0) + w.get('rim', 0)) / tot >= 0.25: pro.append(f'{-gap} in taller')
+        fc = d.get('fc_per_40')
+        if fc is not None and fc >= 5: con.append(f'{fc:.1f} fouls per 40')
+        stl = d.get('stl_pct')
+        if stl is not None and stl >= 3 and (w.get('pnr', 0) + w.get('spot', 0)) / tot >= 0.4: pro.append(f'steal rate {stl:.1f}%')
+        return pro, con
+    def cell(rank, p, w, oh, x):
+        sc, d, dh = x
+        pro, con = reasons(p, w, oh, d, dh)
+        h = f'<b>{rank}. {x_(d["name"])}</b>' + (f' · {_fmt_height(dh)}' if dh else '')
+        h += ''.join(f'<br/><font size="7" color="#1e7b34">+ {t}</font>' for t in pro[:3])
+        h += ''.join(f'<br/><font size="7" color="#b3261e">− {t}</font>' for t in con[:3])
+        return Paragraph(h, S(8))
     for i, (p, w, src, oh, scored) in enumerate(plan):
-        def why(d, dh):
-            bits = []
-            for k, lab in (('spot', 'spot-up'), ('pnr', 'P&amp;R'), ('post', 'post-up'), ('all', 'overall')):
-                r = boards[k][1].get(words(d['name']))
-                if r and (k == 'all' or w.get(k)): bits.append(f'{lab} {r["PPP"]:.2f} PPP on {r["Poss"]}')
-            return (_fmt_height(dh) + ' · ' if dh else '') + ('; '.join(bits) if bits else 'no Synergy defense yet')
         best = next((x for x in scored if x[1]['name'] == pick.get(i)), scored[0])
-        alt = next((x for x in scored if x is not best), None)
+        others = [x for x in scored if x is not best][:2]
         num = c.num.get(p['name'])
         rows_out.append([Paragraph(f'<b>{"#" + str(num) + " " if num else ""}{x_(p["name"])}</b>'
-                                   + (f' · {_fmt_height(oh)}' if oh else '') + f'<br/><font size="7" color="#555555">{x_(src)}</font>', S(8)),
-                         Paragraph(f'<b>{x_(best[1]["name"])}</b><br/><font size="7" color="#555555">{why(best[1], best[2])}</font>', S(8)),
-                         Paragraph((f'{x_(alt[1]["name"])}<br/><font size="7" color="#555555">{why(alt[1], alt[2])}</font>') if alt else '—', S(8))])
+                                   + (f' · {_fmt_height(oh)}' if oh else '') + f'<br/><font size="7" color="#555555">{x_(src)}</font>', S(8))]
+                        + [cell(k + 1, p, w, oh, x) for k, x in enumerate([best] + others)] + [''] * (2 - len(others)))
     e = section('Matchup Suggestions', 'Moorpark defenders ranked against each rotation player: the points per possession each defender '
                 'allows on the actions that player runs most (Synergy player-defense leaderboards: Spot Up, P&R Ball Handler, Post-Up; '
-                'else overall), pulled toward the state average on small samples, with a size adjustment for post and rim players.')
-    t = Table([[Paragraph(h, S(8, True, WHITE)) for h in (f'{c.abbr} PLAYER · WHAT HE RUNS', 'SUGGESTED DEFENDER', 'NEXT BEST')]] + rows_out,
-              colWidths=[2.6 * inch, 2.45 * inch, 2.45 * inch], repeatRows=1)
+                'else overall), pulled toward the state average on small samples, with a size adjustment for post and rim players. '
+                'Three options each: + why (green), \u2212 why not (red).')
+    t = Table([[Paragraph(h, S(8, True, WHITE)) for h in (f'{c.abbr} PLAYER · WHAT HE RUNS', '1. SUGGESTED', '2. OPTION', '3. OPTION')]] + rows_out,
+              colWidths=[1.8 * inch, 1.9 * inch, 1.9 * inch, 1.9 * inch], repeatRows=1)
     t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), TH_BG), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, ALT]),
         ('INNERGRID', (0, 0), (-1, -1), 0.3, MGRAY), ('BOX', (0, 0), (-1, -1), 0.5, TH_BG), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 5)]))
