@@ -984,6 +984,11 @@ def syn_key_numbers(c):
         if st.get('at_rim_att'): bits.append(f'{round(st["at_rim_att"] * (st.get("at_rim_fg_pct") or 0) / 100)}-{st["at_rim_att"]} at the rim')
         d = sa.get('defense') or {}
         dtx = (f'Defense: {d["ppp"]:.3f} PPP allowed' + mark(d.get('ppp_rating') or '')) if d.get('ppp') is not None else ''
+        # his weakest defensive action: the play type he allows the most points per possession on (2+ possessions)
+        dpt = [x for x in d.get('play_types') or [] if (x.get('poss') or 0) >= 2 and x.get('ppp') is not None]
+        if dpt:
+            w = max(dpt, key=lambda x: (x['ppp'], x['poss']))
+            dtx += f'; weakest: {x_(w["name"])} ({w["poss"]} poss, {w["ppp"]:.3f} PPP)'
         num = c.num.get(p['name']) or sa.get('number')
         pl_b.append(f'<b>{x_(p["name"])}' + (f' (#{num})' if num else '') + '</b>' + (f' — {arch}' if arch else '') + ': ' + ', '.join(bits)
                     + ('. ' + dtx if dtx else '') + '.')
