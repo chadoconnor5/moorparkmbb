@@ -1035,7 +1035,6 @@ def page_synergy(c):
             ('BOX', (0, 0), (-1, -1), 0.5, TH_BG), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')] + dyn))
         return t
-    e += [Spacer(1, 6)] + syn_key_numbers(c)
     st = c.syn_team
     e += [Spacer(1, 8), Paragraph(f'OFFENSE — How {T} Creates', S(10, True, BLUE)), Spacer(1, 4), table(st['off'], False)]
     e += [Spacer(1, 10), Paragraph(f'DEFENSE — How Opponents Score Against {T}', S(10, True, BLUE)),
@@ -1070,6 +1069,8 @@ def page_synergy(c):
                                ('BOTTOMPADDING', (0, 0), (-1, -1), 6), ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8)]))
         e += [t, Spacer(1, 4)]
     e.append(PageBreak())
+    kn = syn_key_numbers(c)   # its own page, right before the player profiles
+    if kn: e += kn + [PageBreak()]
     return e
 
 SHOTS = [('at_rim', 'at the rim'), ('catch_shoot', 'catch-and-shoot'), ('dribble_jumper', 'off the dribble'), ('three_pt', 'from three')]
