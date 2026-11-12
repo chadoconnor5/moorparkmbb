@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-11T20:44:28
+Updated 2026-11-11T21:52:39
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
@@ -17,36 +17,36 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Cerritos | 3 | 0 | 0 | 0 |
 | Cerro Coso | 2 | 0 | 1 | 0 |
 | Chabot | 0 | 2 | 0 | 0 |
-| Chaffey | 3 | 0 | 0 | 0 |
+| Chaffey | 4 | 0 | 0 | 0 |
 | Citrus | 4 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
 | Columbia | 0 | 3 | 0 | 0 |
 | Compton | 3 | 0 | 0 | 0 |
 | Contra Costa | 0 | 1 | 0 | 0 |
-| Copper Mountain | 3 | 2 | 0 | 0 |
+| Copper Mountain | 4 | 2 | 0 | 0 |
 | Cosumnes River | 1 | 2 | 0 | 0 |
 | Cuesta | 3 | 1 | 1 | 0 |
-| Cuyamaca | 2 | 2 | 0 | 0 |
+| Cuyamaca | 3 | 2 | 0 | 0 |
 | Cypress | 3 | 0 | 0 | 0 |
 | De Anza | 0 | 2 | 0 | 0 |
 | Desert | 4 | 0 | 0 | 0 |
 | Diablo Valley | 2 | 1 | 0 | 0 |
 | East Los Angeles | 2 | 0 | 0 | 0 |
-| El Camino | 2 | 1 | 0 | 0 |
+| El Camino | 3 | 1 | 0 | 0 |
 | Feather River | 0 | 6 | 0 | 0 |
 | Folsom Lake | 3 | 0 | 0 | 0 |
 | Foothill | 0 | 3 | 0 | 0 |
 | Fullerton | 3 | 0 | 0 | 0 |
 | Gavilan | 1 | 3 | 0 | 0 |
 | Glendale | 4 | 0 | 0 | 0 |
-| Grossmont | 3 | 0 | 0 | 0 |
-| Hartnell | 0 | 2 | 0 | 0 |
+| Grossmont | 4 | 0 | 0 | 0 |
+| Hartnell | 1 | 2 | 0 | 0 |
 | Imperial Valley | 0 | 2 | 0 | 0 |
 | Irvine Valley | 3 | 0 | 0 | 0 |
-| LA Harbor | 1 | 0 | 0 | 0 |
-| LA Pierce | 0 | 2 | 0 | 0 |
+| LA Harbor | 2 | 0 | 0 | 0 |
+| LA Pierce | 1 | 2 | 0 | 0 |
 | LA Southwest | 2 | 1 | 0 | 0 |
-| LA Trade Tech | 2 | 3 | 0 | 0 |
+| LA Trade Tech | 3 | 3 | 0 | 0 |
 | LA Valley | 2 | 0 | 0 | 0 |
 | Las Positas | 3 | 0 | 0 | 0 |
 | Lassen | 0 | 2 | 0 | 0 |
@@ -60,18 +60,18 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Monterey Peninsula | 0 | 2 | 0 | 0 |
 | Moorpark | 3 | 0 | 0 | 0 |
 | Mt. San Antonio | 3 | 0 | 0 | 0 |
-| Mt. San Jacinto | 4 | 0 | 0 | 0 |
+| Mt. San Jacinto | 5 | 0 | 0 | 0 |
 | Napa Valley | 3 | 0 | 0 | 0 |
 | Ohlone | 0 | 4 | 0 | 0 |
-| Orange Coast | 1 | 2 | 0 | 0 |
+| Orange Coast | 2 | 2 | 0 | 0 |
 | Oxnard | 4 | 0 | 0 | 0 |
 | Palo Verde | 3 | 0 | 0 | 0 |
-| Palomar | 4 | 0 | 0 | 0 |
+| Palomar | 5 | 0 | 0 | 0 |
 | Pasadena City | 2 | 0 | 0 | 0 |
-| Porterville | 1 | 0 | 0 | 0 |
+| Porterville | 2 | 0 | 0 | 0 |
 | Redwoods | 3 | 1 | 0 | 0 |
 | Reedley | 1 | 3 | 0 | 0 |
-| Rio Hondo | 4 | 0 | 0 | 0 |
+| Rio Hondo | 5 | 0 | 0 | 0 |
 | Riverside | 4 | 0 | 0 | 0 |
 | Sacramento City | 3 | 0 | 0 | 0 |
 | Saddleback | 5 | 0 | 0 | 0 |
@@ -175,7 +175,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-07 | Mendocino vs Redwoods | Mendocino: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_glfn.xml |
 | 2026-11-07 | Siskiyous vs Merced | Merced: PLACEHOLDER (15 min), Siskiyous: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_bil6.xml |
 | 2026-11-07 | Merritt vs Skyline | Skyline: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_d4yv.xml |
-| 2026-11-07 | Santa Rosa vs San Francisco | Santa Rosa: PLACEHOLDER (12 min), San Francisco: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_p3zx.xml |
+| 2026-11-07 | Santa Rosa vs San Francisco | San Francisco: PLACEHOLDER (13 min), Santa Rosa: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_p3zx.xml |
 | 2026-11-08 | American River vs Cabrillo | Cabrillo: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml |
 | 2026-11-09 | Cuesta vs Redwoods | Redwoods: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261109_11hs.xml |
 | 2026-11-10 | Monterey Peninsula vs Ohlone | Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_lvps.xml |

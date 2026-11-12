@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-11T20:44:28
+Updated 2026-11-11T21:52:39
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -25,8 +25,13 @@ Updated 2026-11-11T20:44:28
 | 2026-11-07 | Merritt vs Skyline | PARTIAL | only Skyline posted stats; missing Merritt | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261107_d4yv.xml | 3 | 2026-11-11T20:42 |
 | 2026-11-07 | Monterey Peninsula vs Yuba | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-11T20:42 |
 | 2026-11-08 | American River vs Cabrillo | PARTIAL | only Cabrillo posted stats; missing American River | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml | 3 | 2026-11-11T20:43 |
-| 2026-11-10 | Coalinga vs Diablo Valley | PARTIAL | only Diablo Valley posted stats; missing Coalinga | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_7e0x.xml | 3 | 2026-11-11T20:44 |
-| 2026-11-10 | Desert vs Imperial Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-11T20:44 |
-| 2026-11-10 | Monterey Peninsula vs Ohlone | PARTIAL | only Ohlone posted stats; missing Monterey Peninsula | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_lvps.xml | 3 | 2026-11-11T20:44 |
-| 2026-11-10 | Saddleback vs San Diego Miramar | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-11T20:44 |
-| 2026-11-10 | Solano vs West Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-11T20:44 |
+| 2026-11-10 | Coalinga vs Diablo Valley | PARTIAL | only Diablo Valley posted stats; missing Coalinga | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_7e0x.xml | 4 | 2026-11-11T21:51 |
+| 2026-11-10 | Desert vs Imperial Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-11T21:51 |
+| 2026-11-10 | Monterey Peninsula vs Ohlone | PARTIAL | only Ohlone posted stats; missing Monterey Peninsula | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_lvps.xml | 4 | 2026-11-11T21:52 |
+| 2026-11-10 | Saddleback vs San Diego Miramar | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-11T21:52 |
+| 2026-11-10 | Solano vs West Valley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-11T21:52 |
+| 2026-11-11 | Canada vs Merritt | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-11T21:52 |
+| 2026-11-11 | Marin vs San Jose | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-11T21:52 |
+| 2026-11-11 | Merced vs Redwoods | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-11T21:52 |
+| 2026-11-11 | Modesto vs Reedley | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-11T21:52 |
+| 2026-11-11 | San Diego Mesa vs Santa Ana | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-11T21:52 |
