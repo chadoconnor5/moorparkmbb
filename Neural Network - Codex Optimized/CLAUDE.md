@@ -347,6 +347,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   ORtg (est) per game (row ortg_e, shown marked "est", a note under the box): the same activity share of the game's
   player-minutes (the other side's real minutes, so an overtime counts, else 40); halves as well. TO% needs no minutes
   and always shows. A side whose box has no turnovers (0 for everyone) shows no ORtg / usage / TO%, real or est.
+- A side filled in from Synergy's box score while the site's is missing: box["provisional"] = {team: note}. The stats use
+  it, but classify_box still counts that side missing (the game stays PARTIAL and is re-checked), and save_box keeps the
+  Synergy rows while the site's side is empty, replacing them once the site posts (scrape.keep_provisional). 11/13:
+  11/7 Feather River at Compton, Compton's side.
 - Box score fixes typed in by hand keep where they came from in the box ("to_source"): 11/9 Redwoods at Cuesta,
   Cuesta's turnovers (the site posted 0) from Synergy's player box. Rebuild the two teams after such a fix:
   python3 generate_team_stats.py --season 2026-27 --teams A B, then update_advanced_analytics.py --teams A B.
