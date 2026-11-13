@@ -653,8 +653,12 @@ def classify_box(bs: dict, g: dict):
     teams = bs.get("teams", {})
     score = bs.get("score", {})
     present, missing, notes = [], [], []
+    prov = bs.get("provisional") or {}   # sides filled in from Synergy until the site posts them: still missing
     for name in (bs.get("visitor"), bs.get("home")):
         players = teams.get(name) or []
+        if name in prov:
+            missing.append(name)
+            continue
         pts = 0
         for p in players:
             try:
@@ -732,6 +736,23 @@ def drop_nicknames(box: dict, plays: dict = None):
         p[3] = nick(p[3])
 
 
+def keep_provisional(p, box):
+    """A side saved from Synergy's box (box["provisional"][team]) stays until the site posts that side: a new box whose
+    side is still empty keeps the Synergy rows; one with real stats replaces them."""
+    try:
+        old = json.load(open(p))
+    except (OSError, ValueError):
+        return
+    for team, src in (old.get("provisional") or {}).items():
+        rows = (box.get("teams") or {}).get(team) or []
+        blank = all(str(v).strip() in ("", "0", "0-0", "-", "--") for r in rows for k, v in (r.get("stats") or {}).items() if k != "MIN")
+        if not rows or blank:
+            box.setdefault("teams", {})[team] = old["teams"][team]
+            box.setdefault("provisional", {})[team] = src
+        else:
+            print(f"    {team}: the site's box score replaces the Synergy box")
+
+
 def save_box(state: State, g: dict, bs: dict) -> list:
     """The box score in each member team's folder; its play-by-play (once per game) in "<season> Play by Play/"
     (its own folder: the box score readers take every .json in the team folders)."""
@@ -755,6 +776,7 @@ def save_box(state: State, g: dict, bs: dict) -> list:
             continue
         p = box_path(state, team, g)
         p.parent.mkdir(parents=True, exist_ok=True)
+        keep_provisional(p, box)
         with open(p, "w") as f:
             json.dump(box, f, indent=2)
         saved.append(team)

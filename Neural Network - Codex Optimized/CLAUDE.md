@@ -143,6 +143,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP and his weakest defensive play
   type: the most points per possession allowed, 2+ possessions). Numbers only; ratings marked
   green (Excellent / Very Good) or red (Below Average / Poor). Needs the team export's overall situations and shot types.
+- All-players profiles (generate_opponent_report.build_full, written by --latest beside each team's report): just the
+  player profile cards for every player who has played this season, whatever his minutes (the main report, for the
+  coaches, profiles the rotation only), sorted by minutes (else points). ../poss/reports/<slug>_all_players.pdf, listed
+  as "full" in index.json; the tracker's fetchReports keeps it on the iPad as "<team> all players" in Scout's list.
 - Matchup Suggestions (generate_opponent_report.page_matchups): ON HOLD (11/12) until more games and Moorpark's Synergy
   defense pages; not in the report. Rebuild with hard size / position eligibility and box-score archetypes before using.
   Design so far:
@@ -343,6 +347,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   ORtg (est) per game (row ortg_e, shown marked "est", a note under the box): the same activity share of the game's
   player-minutes (the other side's real minutes, so an overtime counts, else 40); halves as well. TO% needs no minutes
   and always shows. A side whose box has no turnovers (0 for everyone) shows no ORtg / usage / TO%, real or est.
+- A side filled in from Synergy's box score while the site's is missing: box["provisional"] = {team: note}. The stats use
+  it, but classify_box still counts that side missing (the game stays PARTIAL and is re-checked), and save_box keeps the
+  Synergy rows while the site's side is empty, replacing them once the site posts (scrape.keep_provisional). 11/13:
+  11/7 Feather River at Compton, Compton's side.
 - Box score fixes typed in by hand keep where they came from in the box ("to_source"): 11/9 Redwoods at Cuesta,
   Cuesta's turnovers (the site posted 0) from Synergy's player box. Rebuild the two teams after such a fix:
   python3 generate_team_stats.py --season 2026-27 --teams A B, then update_advanced_analytics.py --teams A B.
