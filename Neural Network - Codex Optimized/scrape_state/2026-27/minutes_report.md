@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-12T23:06:46
+Updated 2026-11-12T23:49:37
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
@@ -180,6 +180,6 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-08 | American River vs Cabrillo | Cabrillo: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml |
 | 2026-11-09 | Cuesta vs Redwoods | Redwoods: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261109_11hs.xml |
 | 2026-11-10 | Monterey Peninsula vs Ohlone | Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_lvps.xml |
-| 2026-11-11 | Canada vs Merritt | Merritt: PLACEHOLDER (7 min), Canada: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_1ppy.xml |
+| 2026-11-11 | Canada vs Merritt | Canada: PLACEHOLDER (10 min), Merritt: PLACEHOLDER (7 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_1ppy.xml |
 | 2026-11-11 | Merced vs Redwoods | Merced: PLACEHOLDER (15 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_ykzx.xml |
-| 2026-11-11 | Modesto vs Reedley | Reedley: PLACEHOLDER (13 min), Modesto: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_a4y5.xml |
+| 2026-11-11 | Modesto vs Reedley | Modesto: PLACEHOLDER (11 min), Reedley: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_a4y5.xml |
