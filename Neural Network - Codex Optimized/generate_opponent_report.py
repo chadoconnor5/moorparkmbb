@@ -1777,8 +1777,16 @@ def build_latest(teams, season):
             os.replace(tmp, p); ed = 'synergy' if LAST_ED[0] == 'synergy' else 'pre_synergy'
             index[t] = {'file': f, 'edition': ed, 'generatedAt': datetime.now().astimezone().isoformat(timespec='seconds'), 'season': season}
             done.append(t)
+            # the all-players profiles beside it (every player, any minutes): <slug>_all_players.pdf
+            ff = f'{slug(t)}_all_players.pdf'; fp = os.path.join(LATEST_DIR, ff)
+            try:
+                if build_full(t, season, fp + '.new'):
+                    os.replace(fp + '.new', fp); index[t]['full'] = ff
+            except Exception as err:
+                print(f'  note: {t}: all-players report not written ({err})')
+            if os.path.exists(fp + '.new'): os.remove(fp + '.new')
         elif os.path.exists(tmp): os.remove(tmp)
-    keep = {e['file'] for e in index.values()}
+    keep = {e['file'] for e in index.values()} | {e['full'] for e in index.values() if e.get('full')}
     for f in os.listdir(LATEST_DIR):
         if f.endswith('.pdf') and f not in keep: os.remove(os.path.join(LATEST_DIR, f))
     json.dump(index, open(ip, 'w'), indent=1, sort_keys=True)
@@ -1816,6 +1824,32 @@ def build(team, season, out=None, out_dir=None, replace=False):
                             title=f'{team} Scouting Report {season}', author='Moorpark Raiders Analytics')
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     print(f'Saved: {path} ({round(os.path.getsize(path) / 1024)} KB, {len(c.rotation)} rotation players, {ed.replace("_", "-")} edition)')
+    return path
+
+def build_full(team, season, path):
+    """The all-players report (internal, for Moorpark's staff): just the player profiles, every player who has played
+    this season, whatever his minutes (the main report profiles the rotation only), sorted by games then points."""
+    TEXT.clear(); SECTIONS.clear()
+    c = load(team, season)
+    allp = [p for p in c.players_raw if (A(p).get('games', 0) or 0) >= 1]
+    if not allp: return None
+    c.rotation = sorted(allp, key=lambda p: (-(A(p).get('MIN', 0) or 0) if c.min_ok else -(A(p).get('PTS', 0) or 0), -A(p).get('games', 0)))
+    e = section(f'All Player Profiles \u2014 {team}',
+                f'Every {team} player who has played in {season.replace("-", "\u2013")} ({len(allp)}), whatever his minutes: strengths, '
+                'weak spots and numbers for each. Small samples are marked by games and minutes on each card.')
+    story = e + [player_card(c, p) for p in c.rotation]
+    def on_page(canvas, doc):
+        canvas.saveState(); canvas.setFillColor(c.OPP); canvas.rect(0.5 * inch, 10.32 * inch, 7.5 * inch, 0.28 * inch, fill=1, stroke=0)
+        canvas.setFillColor(c.OPP_TXT); canvas.setFont('Helvetica-Bold', 7.5)
+        canvas.drawString(0.62 * inch, 10.39 * inch, f'MOORPARK RAIDERS  |  ALL PLAYER PROFILES  |  {team.upper()}  |  ' + season.replace('-', '\u2013'))
+        canvas.setFont('Helvetica', 7.5); canvas.drawRightString(7.9 * inch, 10.39 * inch, f'Page {doc.page}')
+        canvas.setFillColor(MID); canvas.setFont('Helvetica', 6.5)
+        canvas.drawCentredString(4.25 * inch, 0.35 * inch, 'Internal Use Only  |  Moorpark Raiders Analytics  |  ' + date.today().strftime('%B ') + str(date.today().day) + date.today().strftime(', %Y'))
+        canvas.restoreState()
+    doc = SimpleDocTemplate(path, pagesize=letter, leftMargin=0.5 * inch, rightMargin=0.5 * inch, topMargin=0.72 * inch, bottomMargin=0.55 * inch,
+                            title=f'{team} All Player Profiles {season}', author='Moorpark Raiders Analytics')
+    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
+    print(f'Saved: {path} ({round(os.path.getsize(path) / 1024)} KB, {len(allp)} players, all-players profiles)')
     return path
 
 if __name__ == '__main__':

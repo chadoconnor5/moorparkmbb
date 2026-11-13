@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.11.125';
+const VERSION = 'v2026.11.13.126';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7590,14 +7590,16 @@ async function fetchReports() {
   let I; try { I = await fetch('reports/index.json?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null); } catch (e) { return; }
   if (!I || typeof I !== 'object') return;
   // Reports no longer listed (another season, or a team off the schedule) leave the iPad too.
-  try { const want = new Set(Object.values(I).map(e => 'rep_' + e.file.replace(/\.pdf$/, ''))); for (const k of await idbKeys()) if (k.startsWith('rep_') && !want.has(k)) await idbDel(k); } catch (e) {}
-  for (const [team, e] of Object.entries(I)) {
+  // Each team: the scouting report (file) and the all-players profiles beside it (full: every player, any minutes).
+  const files = Object.entries(I).flatMap(([team, e]) => [[team, e, e.file, false]].concat(e.full ? [[team, e, e.full, true]] : []));
+  try { const want = new Set(files.map(x => 'rep_' + x[2].replace(/\.pdf$/, ''))); for (const k of await idbKeys()) if (k.startsWith('rep_') && !want.has(k)) await idbDel(k); } catch (e) {}
+  for (const [team, e, file, full] of files) {
     try {
-      const key = 'rep_' + e.file.replace(/\.pdf$/, ''), have = await idbGet(key);
+      const key = 'rep_' + file.replace(/\.pdf$/, ''), have = await idbGet(key);
       if (have && have.gen === e.generatedAt) continue;
-      const r = await fetch('reports/' + e.file + '?v=' + encodeURIComponent(e.generatedAt), { cache: 'no-store' }); if (!r.ok) continue;
+      const r = await fetch('reports/' + file + '?v=' + encodeURIComponent(e.generatedAt), { cache: 'no-store' }); if (!r.ok) continue;
       const day = fmtDay(String(e.generatedAt).slice(0, 10));
-      await idbPut(key, { name: `${team} scouting report · ${day} · ${e.edition === 'synergy' ? 'Synergy' : 'pre-Synergy'}`, data: await r.arrayBuffer(), added: new Date().toISOString(), gen: e.generatedAt, team });
+      await idbPut(key, { name: full ? `${team} all players · ${day}` : `${team} scouting report · ${day} · ${e.edition === 'synergy' ? 'Synergy' : 'pre-Synergy'}`, data: await r.arrayBuffer(), added: new Date().toISOString(), gen: e.generatedAt, team });
     } catch (err) {}
   }
 }

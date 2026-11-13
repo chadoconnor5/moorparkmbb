@@ -143,6 +143,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (archetype, top play type, overall PPP, threes, spot-up drives, at-rim, defense PPP and his weakest defensive play
   type: the most points per possession allowed, 2+ possessions). Numbers only; ratings marked
   green (Excellent / Very Good) or red (Below Average / Poor). Needs the team export's overall situations and shot types.
+- All-players profiles (generate_opponent_report.build_full, written by --latest beside each team's report): just the
+  player profile cards for every player who has played this season, whatever his minutes (the main report, for the
+  coaches, profiles the rotation only), sorted by minutes (else points). ../poss/reports/<slug>_all_players.pdf, listed
+  as "full" in index.json; the tracker's fetchReports keeps it on the iPad as "<team> all players" in Scout's list.
 - Matchup Suggestions (generate_opponent_report.page_matchups): ON HOLD (11/12) until more games and Moorpark's Synergy
   defense pages; not in the report. Rebuild with hard size / position eligibility and box-score archetypes before using.
   Design so far:
