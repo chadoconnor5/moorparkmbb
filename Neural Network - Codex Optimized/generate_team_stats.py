@@ -543,6 +543,33 @@ def generate_stats(team_name: str, conference: str = None):
     team_totals = compute_team_totals(player_stats, boxscores)
     team_averages = compute_averages(team_totals)
 
+    # Minute-based rates (assist rate, usage, rebound %...) only over games where this team's minutes were kept: a
+    # side with no minutes (a Synergy box, a scorer who left minutes blank) added his assists and makes but no minutes
+    # (11/13: Compton's Markus Sykes, 1.3 assists a game, read a 40% assist rate). Written only when such a game exists
+    # and real-minutes games remain: min_totals per player, and the team's / opponents' over the same games.
+    def _side_has_min(bs):
+        tkey = _find_team_key(team_name, bs)
+        rows = (bs.get("teams") or {}).get(tkey) or [] if tkey else []
+        tot = 0
+        for r in rows:
+            try:
+                tot += int((r.get("stats") or {}).get("MIN") or 0)
+            except ValueError:
+                pass
+        return tot >= 150
+    min_boxes = [bs for bs in boxscores if _side_has_min(bs)]
+    if min_boxes and len(min_boxes) < len(boxscores):
+        mps = aggregate_player_stats(team_name, min_boxes)
+        for entry in player_list:
+            mt = mps.get(_player_merge_key(entry["name"]))
+            if mt is not None or entry["totals"].get("MIN"):
+                entry["min_totals"] = mt or {k: 0 for k in entry["totals"]}
+        min_team_totals = compute_team_totals(mps, min_boxes)
+        min_opp_totals = aggregate_opponent_stats(team_name, min_boxes)
+        min_opp_totals["MIN"] = min_team_totals["MIN"]
+    else:
+        min_team_totals = min_opp_totals = None
+
     # Opponent totals and averages
     opp_totals = aggregate_opponent_stats(team_name, boxscores)
     # Opponent MIN = same game-clock minutes (both teams play the same game)
@@ -629,6 +656,8 @@ def generate_stats(team_name: str, conference: str = None):
         "opponent_totals": opp_totals,
         "opponent_averages": opp_averages,
     }
+    if min_team_totals:
+        summary["min_totals"], summary["min_opponent_totals"] = min_team_totals, min_opp_totals
     with open(team_stats_dir / "team_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 

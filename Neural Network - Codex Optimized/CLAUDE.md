@@ -351,6 +351,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   it, but classify_box still counts that side missing (the game stays PARTIAL and is re-checked), and save_box keeps the
   Synergy rows while the site's side is empty, replacing them once the site posts (scrape.keep_provisional). 11/13:
   11/7 Feather River at Compton, Compton's side.
+- Minute-based rates (assist rate, usage, shot %, rebound / steal / block %, fouls per 40, ORtg / DRtg) use only the
+  games where the team's minutes were kept (the side's player-minutes 150+): generate_team_stats writes min_totals per
+  player and the team / opponent totals over those games (team_summary min_totals / min_opponent_totals) when a game
+  lacks minutes; update_advanced_analytics recomputes those keys from them. Counting stats, shooting % and per-game
+  numbers keep every game. 11/13: Compton's Synergy box (no minutes) gave Markus Sykes a 40% assist rate on 1.3 a game;
+  24 teams had such games (usage up to 714%).
 - Box score fixes typed in by hand keep where they came from in the box ("to_source"): 11/9 Redwoods at Cuesta,
   Cuesta's turnovers (the site posted 0) from Synergy's player box. Rebuild the two teams after such a fix:
   python3 generate_team_stats.py --season 2026-27 --teams A B, then update_advanced_analytics.py --teams A B.

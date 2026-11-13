@@ -1091,6 +1091,26 @@ def update_team(team_name: str, prior: dict = None):
     if ctx["opp_dreb"] <= 0 and ctx["team_oreb"] > 0:
         ctx["opp_dreb"] = ctx["team_oreb"] * (1 - ASSUMED_ORB) / ASSUMED_ORB
 
+    # Minute-based rates over the games with kept minutes only (generate_team_stats min_totals), when the team has a
+    # game without them: the per-minute keys are recomputed from those games' totals and context.
+    MIN_KEYS = ("oreb_pct", "dreb_pct", "usage_pct", "shot_pct", "ast_rate", "blk_pct", "stl_pct", "fc_per_40", "fd_per_40",
+                "ind_ortg", "ind_drtg", "pprod", "scposs")
+    ctx_min = None
+    if summary.get("min_totals"):
+        mt, mo = summary["min_totals"], summary.get("min_opponent_totals") or {}
+        tt = {k: 0 for k in team_totals}
+        for p in stats["players"]:
+            for k in tt:
+                tt[k] += (p.get("min_totals") or {}).get(k, 0)
+        ctx_min = dict(ctx, team_min=mt.get("MIN", 0), **{f"team_{k.lower()}": tt[v] for k, v in
+                       (("FGM", "FGM"), ("FGA", "FGA"), ("FTA", "FTA"), ("FTM", "FTM"), ("TO", "TO"), ("OREB", "OREB"),
+                        ("DREB", "DREB"), ("AST", "AST"), ("PTS", "PTS"), ("3PM", "3PM"), ("BLK", "BLK"), ("STL", "STL"), ("PF", "PF"))})
+        ctx_min["team_poss"] = tt["FGA"] - tt["OREB"] + tt["TO"] + 0.475 * tt["FTA"]
+        for k in ("FGA", "FGM", "3PA", "FTA", "FTM", "TO", "PTS", "OREB", "DREB", "PF"):
+            ctx_min[f"opp_{k.lower()}"] = mo.get(k, 0)
+        if ctx_min["opp_dreb"] <= 0 and ctx_min["team_oreb"] > 0:
+            ctx_min["opp_dreb"] = ctx_min["team_oreb"] * (1 - ASSUMED_ORB) / ASSUMED_ORB
+
     # Second pass: compute per-player analytics with context
     player_analytics = []
     # Estimated ORtg / PProd / ScPoss for teams without real minutes (placeholder or missing in their box scores).
@@ -1108,6 +1128,11 @@ def update_team(team_name: str, prior: dict = None):
         totals = p["totals"]
         entry = {"name": name}
         entry.update(compute_player_analytics(totals, ctx))
+        if ctx_min is not None:
+            mtot = p.get("min_totals")
+            mvals = compute_player_analytics(mtot, ctx_min) if mtot and mtot.get("MIN") else {}
+            for k in MIN_KEYS:
+                entry[k] = mvals.get(k, 0.0) if mvals else 0.0
         est = None
         if act_total > 0 and ctx["team_min"]:
             est = _offense_components(dict(totals, MIN=5 * ctx["team_min"] * _act(totals) / act_total), ctx)
