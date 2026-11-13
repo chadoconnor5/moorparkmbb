@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-11T21:52:39
+Updated 2026-11-12T23:06:46
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
@@ -9,11 +9,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Allan Hancock | 3 | 0 | 0 | 0 |
 | Antelope Valley | 2 | 0 | 0 | 0 |
 | Bakersfield | 2 | 1 | 0 | 0 |
-| Barstow | 2 | 2 | 0 | 0 |
+| Barstow | 3 | 2 | 0 | 0 |
 | Butte | 0 | 5 | 0 | 0 |
 | Cabrillo | 0 | 3 | 0 | 0 |
-| Canada | 0 | 2 | 0 | 0 |
-| Canyons | 4 | 0 | 0 | 0 |
+| Canada | 0 | 3 | 0 | 0 |
+| Canyons | 5 | 0 | 0 | 0 |
 | Cerritos | 3 | 0 | 0 | 0 |
 | Cerro Coso | 2 | 0 | 1 | 0 |
 | Chabot | 0 | 2 | 0 | 0 |
@@ -27,7 +27,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Cosumnes River | 1 | 2 | 0 | 0 |
 | Cuesta | 3 | 1 | 1 | 0 |
 | Cuyamaca | 3 | 2 | 0 | 0 |
-| Cypress | 3 | 0 | 0 | 0 |
+| Cypress | 4 | 0 | 0 | 0 |
 | De Anza | 0 | 2 | 0 | 0 |
 | Desert | 4 | 0 | 0 | 0 |
 | Diablo Valley | 2 | 1 | 0 | 0 |
@@ -38,7 +38,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Foothill | 0 | 3 | 0 | 0 |
 | Fullerton | 3 | 0 | 0 | 0 |
 | Gavilan | 1 | 3 | 0 | 0 |
-| Glendale | 4 | 0 | 0 | 0 |
+| Glendale | 5 | 0 | 0 | 0 |
 | Grossmont | 4 | 0 | 0 | 0 |
 | Hartnell | 1 | 2 | 0 | 0 |
 | Imperial Valley | 0 | 2 | 0 | 0 |
@@ -47,19 +47,20 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | LA Pierce | 1 | 2 | 0 | 0 |
 | LA Southwest | 2 | 1 | 0 | 0 |
 | LA Trade Tech | 3 | 3 | 0 | 0 |
-| LA Valley | 2 | 0 | 0 | 0 |
+| LA Valley | 3 | 0 | 0 | 0 |
 | Las Positas | 3 | 0 | 0 | 0 |
 | Lassen | 0 | 2 | 0 | 0 |
 | Long Beach | 3 | 0 | 0 | 0 |
 | Los Angeles City | 4 | 0 | 1 | 0 |
-| Marin | 2 | 0 | 0 | 0 |
+| Marin | 3 | 0 | 0 | 0 |
 | Mendocino | 1 | 2 | 0 | 0 |
-| Merced | 0 | 4 | 0 | 0 |
+| Merced | 0 | 5 | 0 | 0 |
+| Merritt | 0 | 1 | 0 | 0 |
 | MiraCosta | 3 | 0 | 0 | 0 |
-| Modesto | 0 | 1 | 0 | 0 |
+| Modesto | 0 | 2 | 0 | 0 |
 | Monterey Peninsula | 0 | 2 | 0 | 0 |
 | Moorpark | 3 | 0 | 0 | 0 |
-| Mt. San Antonio | 3 | 0 | 0 | 0 |
+| Mt. San Antonio | 4 | 0 | 0 | 0 |
 | Mt. San Jacinto | 5 | 0 | 0 | 0 |
 | Napa Valley | 3 | 0 | 0 | 0 |
 | Ohlone | 0 | 4 | 0 | 0 |
@@ -70,7 +71,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Pasadena City | 2 | 0 | 0 | 0 |
 | Porterville | 2 | 0 | 0 | 0 |
 | Redwoods | 3 | 1 | 0 | 0 |
-| Reedley | 1 | 3 | 0 | 0 |
+| Reedley | 1 | 4 | 0 | 0 |
 | Rio Hondo | 5 | 0 | 0 | 0 |
 | Riverside | 4 | 0 | 0 | 0 |
 | Sacramento City | 3 | 0 | 0 | 0 |
@@ -101,7 +102,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | West Valley | 2 | 1 | 0 | 0 |
 | Yuba | 0 | 2 | 0 | 0 |
 
-## Games without real minutes (74)
+## Games without real minutes (77)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -179,3 +180,6 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-08 | American River vs Cabrillo | Cabrillo: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261108_ug5v.xml |
 | 2026-11-09 | Cuesta vs Redwoods | Redwoods: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261109_11hs.xml |
 | 2026-11-10 | Monterey Peninsula vs Ohlone | Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_lvps.xml |
+| 2026-11-11 | Canada vs Merritt | Merritt: PLACEHOLDER (7 min), Canada: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_1ppy.xml |
+| 2026-11-11 | Merced vs Redwoods | Merced: PLACEHOLDER (15 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_ykzx.xml |
+| 2026-11-11 | Modesto vs Reedley | Reedley: PLACEHOLDER (13 min), Modesto: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_a4y5.xml |
