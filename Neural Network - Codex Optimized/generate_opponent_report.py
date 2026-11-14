@@ -1762,13 +1762,14 @@ def tracker_teams(season):
         return []
     return [t for t in (R.get('teamFiles') or {}) if t != 'Moorpark'] if R.get('season') == season else []
 
-def build_latest(teams, season):
+def build_latest(teams, season, prune=False):
     os.makedirs(LATEST_DIR, exist_ok=True)
     ip = os.path.join(LATEST_DIR, 'index.json')
     try: index = json.load(open(ip))
     except (OSError, ValueError): index = {}
-    # Only this season's reports stay (the tracker shows one season): others leave the index and the folder.
-    index = {t: e for t, e in index.items() if e.get('season') == season}
+    # Only this season's reports stay (the tracker shows one season): others leave the index and the folder. A full run
+    # (no --only) also drops teams the tracker no longer has files for (off the schedule and tracker_teams.txt).
+    index = {t: e for t, e in index.items() if e.get('season') == season and (not prune or t in teams)}
     done = []
     for t in teams:
         f = f'{slug(t)}.pdf'; p = os.path.join(LATEST_DIR, f)
@@ -1867,7 +1868,7 @@ if __name__ == '__main__':
             from ccc_config import TRACKER_SEASON; a.season = TRACKER_SEASON
         T = tracker_teams(a.season)
         if a.only: T = [t for t in T if t in set(a.only)]
-        build_latest(T, a.season); sys.exit(0)
+        build_latest(T, a.season, prune=not a.only); sys.exit(0)
     if a.all:
         root = stats_root(a.season)
         teams = sorted(t for cf in os.listdir(root) if os.path.isdir(os.path.join(root, cf)) for t in os.listdir(os.path.join(root, cf))
