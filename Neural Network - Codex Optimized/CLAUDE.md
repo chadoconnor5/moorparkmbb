@@ -235,6 +235,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   assisted (5+); the state: 48.5% of makes assisted, 83% of threes, 39% at the rim. Not used for finishers (their
   putbacks are unassisted rim makes and the play-by-play misses most putbacks: 4% of shots). A role a check rules out
   stays out even when no gate passes (_vetoed). The report's Synergy box shows the counts (creation_line).
+- Tournament TBD games in the tracker: export_ratings.team_schedule fills a TBA row with the bracket's resolved opponent
+  and tip time (brackets.json + the played FanMatch results; row "bk" = the round, e.g. Semifinal), and the tracker's
+  bracketPicks fills a TBD row on its own schedule (gt_schedule) on the same date from Moorpark's team file (a row picked
+  by hand is left alone). 11/14: the leaderboard showed Moorpark vs San Bernardino Valley, the tracker still TBD.
 - Possession tracker VERSION (poss/index.html): raise it with every tracker change. The iPad offers Update only when
   the site's VERSION is newer than its own (checkUpdate).
 - Possession tracker Sub screen (subSide): on the floor, the five who were on when it opened stay green; players just

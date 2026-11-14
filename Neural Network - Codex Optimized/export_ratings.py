@@ -1047,6 +1047,23 @@ def team_schedule(season, team):
             g = {"d": key, "o": opp, "ha": {"Home": "H", "Away": "A"}.get(ha, "N"), "t": tm, "ev": ev, "c": conf, "r": None}
         out.append(g)
     out += [g for k, g in games.items() if k not in used]
+    # A tournament TBA game the bracket (brackets.json) has decided by now: its opponent and tip time, as FanMatch shows them
+    try:
+        import brackets
+        res = {(r["date"], frozenset((r["winner"], r["loser"]))): r["winner"] for r in BOX_CTX.get("fanmatch") or []
+               if r.get("winner") and r.get("loser") and not r.get("upcoming")}
+        for t in brackets.load(season).values():
+            sides, _, _ = brackets._resolve(t, res)
+            for gm in t["games"]:
+                a_, b_ = sides[gm["id"]]
+                if team not in (a_, b_) or not a_ or not b_:
+                    continue
+                key = "/".join(gm["date"].split("/")[:2])
+                row = next((g for g in out if g["d"] == key and str(g.get("o", "")).upper() in ("TBA", "TBD") and g.get("r") is None), None)
+                if row:
+                    row.update(o=b_ if a_ == team else a_, t=row.get("t") or gm["time"], bk=gm.get("label", ""))
+    except Exception as ex:
+        print(f"  note: bracket opponents not filled ({ex})")
     yr = lambda d: (int(d.split("/")[0]) < 7, int(d.split("/")[0]), int(d.split("/")[1]))
     return sorted(out, key=lambda g: yr(g["d"]))
 
