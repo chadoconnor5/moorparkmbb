@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.14.127';
+const VERSION = 'v2026.11.14.128';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7613,6 +7613,20 @@ function teamFile(name) {
   const R = ratingsData(); if (!R || !R.teams || !name) return null;
   const t = resolveTeam(name, R); return t ? teamFiles()[t] || null : null;
 }
+/* Tournament TBD games filled from Moorpark's published schedule (teams/moorpark.json "schedule": the bracket's later
+   rounds resolved by export_ratings, e.g. 11/14 San Bernardino Valley, Semifinal): a TBD row on the same date takes the
+   opponent (and the tip time when it has none). A row already picked by hand is left as it is. */
+function bracketPicks() {
+  const F = teamFiles()['Moorpark'], S = (F && F.schedule) || [], s = lsGet('gt_schedule', null);
+  if (!S.length || !Array.isArray(s) || !s.length) return 0;
+  let n = 0;
+  S.forEach(g => { if (!g.o || /^tb[ad]$/i.test(g.o) || !g.d) return;
+    const [m, d] = g.d.split('/').map(Number), y = m >= 7 ? 2026 : 2027, iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const r = s.find(x => x.date === iso && isTBD(x.opp)); if (!r) return;
+    r.opp = g.o; r.picked = true; if (!r.time && g.t) r.time = g.t; n++; });
+  if (n) { lsSet('gt_schedule', s); SCH.rows = null; }
+  return n;
+}
 function fetchTeamFiles(R) {
   if (!R || !R.teamFiles || !window.fetch) return;
   // One season only: files from another season (or no longer published) leave the iPad.
@@ -7625,7 +7639,7 @@ function fetchTeamFiles(R) {
     .then(L => { const cur = teamFiles(); let n = 0; L.forEach(d => { if (d && d.kind === 'team-file' && d.name) { cur[d.name] = d; n++; } });
       // Only teams we play (or keep a roster for) are kept, so the iPad's storage stays small.
       Object.keys(cur).forEach(t => { if (!want.has(t)) delete cur[t]; });
-      if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; autoRosters(); if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
+      if (n && lsSet(LS_TEAM_FILES, cur)) { PL_MEMO = null; autoRosters(); try { bracketPicks(); } catch (e) {} if (UI.tab !== 'sched') render(); else { const c = document.querySelector('.rd-list'); if (c) c.closest('.card').outerHTML = readyCard(); } } });
 }
 /* Published rosters (poss/rosters.json, export_ratings.py: the rosters typed in off the teams' sites) are the teams'
    season rosters. Every team on our schedule, in a tournament field, in the roster list or typed in as an opponent gets
@@ -9188,7 +9202,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) naviga
 try { upgradeAll(); } catch (e) {}
 try { seedRosters(); gameRosters(); pubRosters(); } catch (e) {}
 try { seedBoxes(); } catch (e) {}
-try { seedPicks(); fieldsAll(); autoRosters(); } catch (e) {}
+try { seedPicks(); fieldsAll(); autoRosters(); bracketPicks(); } catch (e) {}
 try { backfillSits(); } catch (e) {}
 // What's on the iPad now is the starting point for edit stamps (the seeding above isn't an edit).
 try { games.forEach(g => { GSIG[g.id] = gsig(g); }); } catch (e) {}
