@@ -1139,8 +1139,8 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ts-table tbody tr.ts-rankrow td{color:#c62828;font-size:.64rem;font-weight:700;padding:0 7px 4px;border-bottom:1px solid #ddd}
 .ts-table td.ts-ranklabel{font-weight:700;font-style:italic}
 .card[data-mode="sched"] .rs-roster,.card[data-mode="sched"] [data-act="r-save"],.card[data-mode="sched"] [data-act="rr-add"],.card[data-mode="sched"] [data-act="r-fill-lb"],.card[data-mode="sched"] .rs-roster-note,
-.sch-tbl{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}.sch-tbl td{padding:6px 6px;border-bottom:1px solid #e3e7ee;color:#111;background:#fff}.sch-tbl td .muted,.sch-tbl td.muted{color:#667}.sch-tbl td .btn{color:#fff}.sch-tbl td .btn .sch-l{color:#ff8a80}.sch-tbl td .btn .sch-w{color:#7ee2a8}
-.sch-tbl tr.sch-next td{background:#fff6d6}.sch-w{color:#1e8e3e;font-weight:700}.sch-l{color:#c62828;font-weight:700}
+.osch-tbl{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}.osch-tbl td{padding:6px 6px;border-bottom:1px solid #e3e7ee;color:#111;background:#fff}.osch-tbl td .muted,.osch-tbl td.muted{color:#667}.osch-tbl td .btn{color:#fff}.osch-tbl td .btn .osch-l{color:#ff8a80}.osch-tbl td .btn .osch-w{color:#7ee2a8}
+.osch-tbl tr.osch-next td{background:#fff6d6}.osch-w{color:#1e8e3e;font-weight:700}.osch-l{color:#c62828;font-weight:700}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
 /* On/off: the Shooting checkbox (its panel is the 5th: left column, under Core and Offense). */
@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.13.126';
+const VERSION = 'v2026.11.14.127';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3810,10 +3810,10 @@ function schedTable(name) {
   const next = S.findIndex(x => !x.r && !(x.s && x.s[0] != null));
   const site = x => x.ha === 'H' ? 'vs' : x.ha === 'A' ? 'at' : 'vs';
   return `<div class="small muted" style="margin:0 0 6px">${w}-${played.length - w} in games played · tap a result for the box score</div>
-    <div class="ts-wrap"><table class="sch-tbl"><tbody>${S.map((x, i) => `<tr class="${i === next ? 'sch-next' : ''}">
+    <div class="ts-wrap"><table class="osch-tbl"><tbody>${S.map((x, i) => `<tr class="${i === next ? 'osch-next' : ''}">
       <td style="width:46px">${esc(x.d)}</td>
       <td>${site(x)} <b>${esc(x.o)}</b>${x.ha === 'N' ? ' <span class="small muted">(N)</span>' : ''}${x.c ? ' <span class="small muted">conf</span>' : ''}${x.ev ? `<div class="tiny muted">${esc(x.ev)}</div>` : ''}</td>
-      <td style="text-align:right;white-space:nowrap">${x.s && x.s[0] != null ? `<button class="btn btn-sm" data-act="sch-box" data-team="${esc(name)}" data-i="${i}"><span class="${x.r === 'W' ? 'sch-w' : 'sch-l'}">${x.r || ''}</span> ${x.s[0]}–${x.s[1]}</button>` : `<span class="small muted">${esc(x.t || '')}</span>`}</td></tr>`).join('')}</tbody></table></div>`;
+      <td style="text-align:right;white-space:nowrap">${x.s && x.s[0] != null ? `<button class="btn btn-sm" data-act="sch-box" data-team="${esc(name)}" data-i="${i}"><span class="${x.r === 'W' ? 'osch-w' : 'osch-l'}">${x.r || ''}</span> ${x.s[0]}–${x.s[1]}</button>` : `<span class="small muted">${esc(x.t || '')}</span>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function schedBox(name, i) {
   const F = teamFile(name), x = F && F.schedule && F.schedule[i]; if (!x || !x.bx) { toast('No box score for this game yet', 'bad'); return; }
