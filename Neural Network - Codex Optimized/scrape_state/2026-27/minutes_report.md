@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-14T22:12:11
+Updated 2026-11-15T21:53:37
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
@@ -17,11 +17,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Cerritos | 4 | 0 | 0 | 0 |
 | Cerro Coso | 4 | 0 | 1 | 0 |
 | Chabot | 0 | 2 | 0 | 0 |
-| Chaffey | 6 | 0 | 0 | 0 |
+| Chaffey | 7 | 0 | 0 | 0 |
 | Citrus | 4 | 0 | 0 | 0 |
 | College of Marin | 1 | 0 | 0 | 0 |
 | Columbia | 0 | 3 | 0 | 0 |
-| Compton | 5 | 0 | 0 | 0 |
+| Compton | 6 | 0 | 0 | 0 |
 | Contra Costa | 0 | 1 | 0 | 0 |
 | Copper Mountain | 4 | 2 | 0 | 0 |
 | Cosumnes River | 2 | 2 | 0 | 0 |
@@ -31,11 +31,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | De Anza | 0 | 2 | 0 | 0 |
 | Desert | 5 | 0 | 0 | 0 |
 | Diablo Valley | 3 | 1 | 0 | 0 |
-| East Los Angeles | 4 | 0 | 0 | 0 |
+| East Los Angeles | 5 | 0 | 0 | 0 |
 | El Camino | 4 | 1 | 0 | 0 |
-| Feather River | 0 | 7 | 0 | 0 |
+| Feather River | 0 | 8 | 0 | 0 |
 | Folsom Lake | 3 | 0 | 0 | 0 |
-| Foothill | 0 | 3 | 0 | 0 |
+| Foothill | 0 | 4 | 0 | 0 |
 | Fullerton | 4 | 0 | 0 | 0 |
 | Gavilan | 1 | 3 | 0 | 0 |
 | Glendale | 6 | 0 | 0 | 0 |
@@ -48,8 +48,8 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | LA Southwest | 2 | 1 | 0 | 0 |
 | LA Trade Tech | 3 | 3 | 0 | 0 |
 | LA Valley | 4 | 0 | 0 | 0 |
-| Las Positas | 3 | 0 | 0 | 0 |
-| Lassen | 0 | 2 | 0 | 0 |
+| Las Positas | 4 | 0 | 0 | 0 |
+| Lassen | 0 | 3 | 0 | 0 |
 | Long Beach | 3 | 0 | 0 | 0 |
 | Los Angeles City | 4 | 0 | 1 | 0 |
 | Los Medanos | 0 | 1 | 0 | 0 |
@@ -60,7 +60,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | MiraCosta | 4 | 0 | 0 | 0 |
 | Modesto | 1 | 2 | 0 | 0 |
 | Monterey Peninsula | 0 | 2 | 0 | 0 |
-| Moorpark | 5 | 0 | 0 | 0 |
+| Moorpark | 6 | 0 | 0 | 0 |
 | Mt. San Antonio | 4 | 0 | 0 | 0 |
 | Mt. San Jacinto | 5 | 0 | 0 | 0 |
 | Napa Valley | 3 | 0 | 0 | 0 |
@@ -73,22 +73,22 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Porterville | 3 | 0 | 0 | 0 |
 | Redwoods | 3 | 1 | 0 | 0 |
 | Reedley | 1 | 4 | 0 | 0 |
-| Rio Hondo | 5 | 0 | 0 | 0 |
-| Riverside | 6 | 0 | 0 | 0 |
+| Rio Hondo | 6 | 0 | 0 | 0 |
+| Riverside | 7 | 0 | 0 | 0 |
 | Sacramento City | 3 | 1 | 0 | 0 |
 | Saddleback | 6 | 0 | 0 | 0 |
-| San Bernardino Valley | 5 | 0 | 0 | 0 |
+| San Bernardino Valley | 6 | 0 | 0 | 0 |
 | San Diego City | 3 | 0 | 0 | 0 |
 | San Diego Mesa | 4 | 0 | 0 | 0 |
 | San Diego Miramar | 2 | 0 | 0 | 0 |
-| San Francisco | 2 | 2 | 0 | 0 |
+| San Francisco | 3 | 2 | 0 | 0 |
 | San Joaquin Delta | 2 | 0 | 0 | 0 |
 | San Jose | 1 | 2 | 0 | 0 |
 | San Mateo | 0 | 2 | 0 | 0 |
 | Santa Ana | 4 | 0 | 0 | 0 |
 | Santa Barbara | 4 | 0 | 0 | 0 |
 | Santa Monica | 3 | 1 | 0 | 0 |
-| Santa Rosa | 0 | 3 | 0 | 0 |
+| Santa Rosa | 0 | 4 | 0 | 0 |
 | Santiago Canyon | 5 | 0 | 0 | 0 |
 | Sequoias | 4 | 0 | 0 | 0 |
 | Shasta | 0 | 4 | 0 | 0 |
@@ -99,11 +99,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Southwestern | 4 | 0 | 0 | 0 |
 | Ventura | 4 | 0 | 1 | 0 |
 | Victor Valley | 3 | 1 | 0 | 0 |
-| West LA | 4 | 0 | 0 | 0 |
+| West LA | 5 | 0 | 0 | 0 |
 | West Valley | 3 | 1 | 0 | 0 |
 | Yuba | 0 | 2 | 0 | 0 |
 
-## Games without real minutes (83)
+## Games without real minutes (87)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -189,4 +189,8 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-13 | Cuesta vs Feather River | Feather River: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261113_jrzj.xml |
 | 2026-11-13 | Orange Coast vs San Diego Miramar | Orange Coast: PLACEHOLDER (14 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261113_smis.xml |
 | 2026-11-13 | Sacramento City vs Solano | Sacramento City: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261113_nhff.xml |
+| 2026-11-14 | Cabrillo vs Feather River | Feather River: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_mnx2.xml |
+| 2026-11-14 | Foothill vs San Joaquin Delta | Foothill: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_lsue.xml |
 | 2026-11-14 | Hartnell vs Skyline | Skyline: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_10sn.xml |
+| 2026-11-14 | Las Positas vs Lassen | Lassen: PLACEHOLDER (5 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_7vsh.xml |
+| 2026-11-14 | Napa Valley vs Santa Rosa | Santa Rosa: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_gahf.xml |

@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-14T22:12:11
+Updated 2026-11-15T21:53:37
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -50,15 +50,18 @@ Updated 2026-11-14T22:12:11
 | 2026-11-13 | Imperial Valley vs Palo Verde | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-14T22:12 |
 | 2026-11-13 | Orange Coast vs San Diego Miramar | PARTIAL | only Orange Coast posted stats; missing San Diego Miramar | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261113_smis.xml | 2 | 2026-11-14T22:04 |
 | 2026-11-13 | Sacramento City vs Solano | PARTIAL | only Sacramento City posted stats; missing Solano | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261113_nhff.xml | 2 | 2026-11-14T22:03 |
-| 2026-11-14 | American River vs Chabot | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Butte vs Columbia | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Cabrillo vs Feather River | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Coalinga vs De Anza | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Cuesta vs Shasta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Folsom Lake vs Gavilan | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Hartnell vs Skyline | PARTIAL | only Skyline posted stats; missing Hartnell | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_10sn.xml | 1 | 2026-11-14T22:05 |
-| 2026-11-14 | Las Positas vs Lassen | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Mendocino vs San Mateo | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Merced vs San Jose | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Napa Valley vs Santa Rosa | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
-| 2026-11-14 | Rio Hondo vs San Diego Miramar | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-14T22:12 |
+| 2026-11-14 | American River vs Chabot | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:52 |
+| 2026-11-14 | Butte vs Columbia | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:52 |
+| 2026-11-14 | Cabrillo vs Feather River | PARTIAL | only Feather River posted stats; missing Cabrillo | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_mnx2.xml | 2 | 2026-11-15T21:49 |
+| 2026-11-14 | Coalinga vs De Anza | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:52 |
+| 2026-11-14 | Cuesta vs Shasta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:52 |
+| 2026-11-14 | Folsom Lake vs Gavilan | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:52 |
+| 2026-11-14 | Foothill vs San Joaquin Delta | PARTIAL | only Foothill posted stats; missing San Joaquin Delta | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_lsue.xml | 1 | 2026-11-15T21:49 |
+| 2026-11-14 | Hartnell vs Skyline | PARTIAL | only Skyline posted stats; missing Hartnell | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_10sn.xml | 2 | 2026-11-15T21:53 |
+| 2026-11-14 | Las Positas vs Lassen | PARTIAL | only Las Positas posted stats; missing Lassen | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_7vsh.xml | 2 | 2026-11-15T21:48 |
+| 2026-11-14 | Mendocino vs San Mateo | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:53 |
+| 2026-11-14 | Merced vs San Jose | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-15T21:53 |
+| 2026-11-14 | Napa Valley vs Santa Rosa | PARTIAL | only Santa Rosa posted stats; missing Napa Valley | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_gahf.xml | 2 | 2026-11-15T21:48 |
+| 2026-11-14 | Rio Hondo vs San Diego Miramar | PARTIAL | only Rio Hondo posted stats; missing San Diego Miramar | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_7150.xml | 2 | 2026-11-15T21:47 |
+| 2026-11-15 | Butte vs Merced | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-15T21:53 |
+| 2026-11-15 | Columbia vs San Jose | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-15T21:53 |
