@@ -1383,7 +1383,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.14.128';
+const VERSION = 'v2026.11.16.129';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3862,7 +3862,7 @@ function fillFromLeaderboard(sel) {
   o.players = o.players || []; let n = 0;
   const put = (num, v) => { const k = jn(num); if (!k) return; const q = o.players.find(x => jn(x.num) === k);
     if (!q) { o.players.push(Object.assign({ num: k, name: '', pos: '', ht: '', yr: '', note: '' }, v)); n++; return; }
-    Object.keys(v).forEach(f => { if (v[f] && !q[f]) { q[f] = v[f]; n++; } }); };
+    Object.keys(v).forEach(f => { if (f === 'pos' ? q.pos !== v.pos : v[f] && !q[f]) { q[f] = v[f]; n++; } }); };
   pub.forEach(p => put(p.num, { name: p.name || '', pos: p.pos || '', ht: p.ht || '', yr: p.yr || '' }));
   const best = {}; Object.entries((F && F.players) || {}).forEach(([nm, v]) => { const k = jn(v.num); if (!k || ((v.all || {}).games || 0) < 1) return; if (!best[k] || ((v.all || {}).MIN || 0) > ((best[k][1].all || {}).MIN || 0)) best[k] = [nm, v]; });
   Object.entries(best).forEach(([k, [nm]]) => put(k, { name: nm }));
@@ -7668,7 +7668,7 @@ function pubRosters(extra) {
     if (!o) { o = { id: 'opp_' + uid(), name: nm, players: [] }; st.push(o); }
     const prev = o.players || [];
     o.players = P.teams[T].map(p => { const k = jn(p.num), q = prev.find(x => jn(x.num) === k) || {};
-      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: q.pos || p.pos || '', note: q.note || '' }); });
+      return Object.assign({}, q, { num: k, name: p.name, ht: p.ht || q.ht || '', yr: p.yr || q.yr || '', pos: p.pos || '', note: q.note || '' }); });
     o.updatedAt = new Date().toISOString(); done[normOpp(o.name)] = sig; n++; });
   if (n) { lsSet('gt_opp_rosters', st); lsSet(LS_PUB_APPLIED, done); PL_MEMO = null; }
   return n;

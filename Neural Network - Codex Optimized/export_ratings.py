@@ -30,6 +30,7 @@ generate_leaderboard.py runs it at the end of every build.
     python3 export_ratings.py --season 2026-27 --out ../poss/ratings.json
 """
 import argparse
+import csv
 import hashlib
 import json
 import math
@@ -1124,6 +1125,17 @@ def export_rosters(season, out):
     """../poss/rosters.json: the typed-in rosters (season_rosters.py), so the tracker has every opponent's numbers and
     names before any box score. Rewritten only when a roster changed (its "version" is the content's hash)."""
     teams = season_rosters.load(season)
+    # Position: our box-score position (compute_positions_from_boxscore: PG, s-PG, CG, WG, WF, S-PF, PF/C, C) once a
+    # player has one (5+ games); blank until then. The roster pages' own positions aren't used.
+    pos = {}
+    try:
+        from ccc_config import fix_player_name
+        for r in csv.DictReader(open(Path(__file__).resolve().parent / "internal_data" / f"player_positions_{season.replace('-', '_')}.csv")):
+            pos[(r["team"].strip(), _words(r["name"]))] = (r.get("pos_class") or "").strip()
+    except (OSError, ValueError):
+        pass
+    from ccc_config import fix_player_name
+    teams = {t: [dict(p, pos=pos.get((t, _words(fix_player_name(p.get("name", "")))), "")) for p in rows] for t, rows in teams.items()}
     version = hashlib.sha1(json.dumps(teams, sort_keys=True).encode()).hexdigest()[:12]
     try:
         if json.load(open(out)).get("version") == version:
