@@ -83,13 +83,17 @@ def height_to_label(height_in):
 # (these are more appropriate for CCCAA than the D1 high-major values)
 # [mean_inches, std_inches] for [PG, SG, SF, PF, C]
 # ---------------------------------------------------------------------------
-HEIGHT_PARAMS = [
+# D1's lower-half big men run taller than CCC bigs: PF and C means 1" lower (11/16; our 2026-27 box-score-only
+# S-PF / PF/C / C average 6'5"-6'7"), spreads kept. Before, 6'4" players who play inside were moved to wing and
+# 6'8" wings pulled to PF/C. Guards and SF unchanged: lowering them moved 6'1"-6'3" combo guards to wing.
+JUCO_SHIFT = [0.0, 0.0, 0.0, -1.0, -1.0]
+HEIGHT_PARAMS = [[mu + d, sd] for (mu, sd), d in zip([
     [73.27044011081104, 2.597472107779799],    # PG
     [74.94432639101244, 2.572595243009809],    # SG
     [77.43267870969393, 2.2707678341558846],   # SF
     [78.80495520162182, 2.0639141194386132],   # PF
     [79.85597676319935, 2.016183337568703],    # C
-]
+], JUCO_SHIFT)]
 
 
 # ---------------------------------------------------------------------------
