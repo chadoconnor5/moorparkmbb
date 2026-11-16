@@ -1384,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.16.131';
+const VERSION = 'v2026.11.16.132';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -4922,7 +4922,7 @@ document.addEventListener('click', ev => {
     case 'r-new': { const n = (prompt('Opponent name') || '').trim(); if (!n) return; const st = oppStore(); if (!st.some(o => o.name === n)) { st.push({ id: 'opp_' + uid(), name: n, players: [], updatedAt: new Date().toISOString() }); lsSet('gt_opp_rosters', st); } UI.rosterSel = n; render(); break; }
     case 'rr-add': { const tb = $('#rbody'), tr = tb.querySelector('tr.rrow'); const html = rostersView().match(/<tr class="rrow">[\s\S]*?<\/tr>/); const tmp = document.createElement('tbody');
       tmp.innerHTML = (html ? html[0] : '').replace(/value="[^"]*"/g, 'value=""'); if (!tmp.firstElementChild) { const cols = document.querySelectorAll('.redit thead th').length - 1; tmp.innerHTML = '<tr class="rrow">' + Array.from({ length: cols }, (_, i) => { const k = (cols === 4 ? ['num', 'name', 'pos', 'note'] : ['num', 'name', 'pos', 'ht', 'yr', 'note'])[i] || 'note'; return `<td>${k === 'note' ? noteCell('') : `<input data-k="${k}" style="width:100%">`}</td>`; }).join('') + '<td><button class="btn btn-sm btn-bad" data-act="rr-del">✕</button></td></tr>'; }
-      tmp.querySelectorAll('.ned-chips, .ned-q').forEach(x => { x.innerHTML = ''; });
+      tmp.querySelectorAll('.ned-chips, .ned-q').forEach(x => { x.innerHTML = ''; }); tmp.querySelectorAll('.ned-auto').forEach(x => x.remove());   // the first player's stat labels (and their ✕, keyed to him) don't come along
       tb.appendChild(tmp.firstElementChild); tb.lastElementChild.querySelector('input').focus(); break; }
     case 'ned-add': { const c = b.closest('.ned'), a = c.querySelector('.ned-add'); nedAdd(c, a.value); a.value = ''; a.focus(); break; }
     case 'ned-pick': nedAdd(b.closest('.ned'), b.dataset.l); break;
