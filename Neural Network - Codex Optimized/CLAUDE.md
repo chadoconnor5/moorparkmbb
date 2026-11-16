@@ -93,7 +93,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   period, clock, team, player LAST,FIRST, action, score after; points by half). Kept out of the team folders (the box
   score readers take every .json there). Games from screenshots have no play-by-play.
 - Positions (compute_positions_from_boxscore.py, the hoop-explorer LDA trained on 2025-26 heights): every season
-  in SEASONS, or --season S. The rebuild (scrape.py) runs it for the current season every night before the
+  in SEASONS, or --season S. The height touch-up uses the article's lower-half D1 heights with PF and C 1" lower
+  (JUCO_SHIFT, 11/16: CCC bigs are shorter; 22 2026-27 players moved, e.g. 6'4" Elliot Conley WG -> PF/C). The rebuild (scrape.py) runs it for the current season every night before the
   leaderboard, so a player gets his position once he has MIN_GAMES (5) games and MIN_FGA (5) shots; 2026-27 heights
   for the touch-up come from the typed-in rosters (generate_leaderboard._load_player_heights). Needs scikit-learn
   (the rebuild carries on without it).
