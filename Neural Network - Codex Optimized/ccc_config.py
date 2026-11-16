@@ -79,7 +79,8 @@ def get_conference(team_name: str) -> str:
 # Player names the stats site spells wrong, as they should read: box scores ("#15 Matthew Wilson") and play-by-play
 # ("WILSON,MATTHEW"). scrape.drop_nicknames applies them as each game is saved, so every file built from the box
 # scores (team stats, ratings, the leaderboard, the tracker's files) reads the right name.
-PLAYER_NAME_FIXES = [("Matthew Wilson", "Mathew Wilson"), ("WILSON,MATTHEW", "WILSON,MATHEW")]
+PLAYER_NAME_FIXES = [("Matthew Wilson", "Mathew Wilson"), ("WILSON,MATTHEW", "WILSON,MATHEW"),
+                     ("Luka Pupavac", "Luka Pupovac"), ("PUPAVAC,LUKA", "PUPOVAC,LUKA")]   # Chaffey #33: 6 of 8 boxes spell it Pupovac
 
 
 def fix_player_name(name):
