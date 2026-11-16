@@ -210,6 +210,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Three-point calls (both label copies, SH3): Shooter / Avg 3PT / Poor 3PT read his 3P% pulled toward the state's 32.4% by
   25 attempts, and need 10+ threes (MIN_CALL): on fewer the estimate is mostly the state's average (11/11: Jaison Joyce,
   1 of 5, read Avg 3PT; 83 calls on under 10 attempts dropped). Non-shooter is unchanged.
+- Tracker roster positions: rosters.json "pos" is our box-score position (player_positions_<season>.csv pos_class, once
+  a player has 5+ games), blank until then; the roster pages' positions aren't published (season_rosters keeps them for
+  the leaderboard's height groups). The tracker's pubRosters and Fill from leaderboard always take the published pos.
 - Star label (export_ratings.tiers, both label copies): the top 20 by PORPAGATU!; a fake-minutes player is placed by
   his PORPAGATU! (est) (porp_est, rank pest / eqr; Game Score a game only without an estimate).
 - A team with no opponent box score yet (only its own side posted) has no opponent defensive rebounds: its offensive
