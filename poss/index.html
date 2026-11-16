@@ -1138,9 +1138,10 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 .ts-table tbody tr.ts-hasrank td{border-bottom:none;padding-bottom:1px}
 .ts-table tbody tr.ts-rankrow td{color:#c62828;font-size:.64rem;font-weight:700;padding:0 7px 4px;border-bottom:1px solid #ddd}
 .ts-table td.ts-ranklabel{font-weight:700;font-style:italic}
-.card[data-mode="sched"] .rs-roster,.card[data-mode="sched"] [data-act="r-save"],.card[data-mode="sched"] [data-act="rr-add"],.card[data-mode="sched"] [data-act="r-fill-lb"],.card[data-mode="sched"] .rs-roster-note,
-.osch-tbl{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}.osch-tbl td{padding:6px 6px;border-bottom:1px solid #e3e7ee;color:#111;background:#fff}.osch-tbl td .muted,.osch-tbl td.muted{color:#667}.osch-tbl td .btn{color:#fff}.osch-tbl td .btn .osch-l{color:#ff8a80}.osch-tbl td .btn .osch-w{color:#7ee2a8}
-.osch-tbl tr.osch-next td{background:#fff6d6}.osch-w{color:#1e8e3e;font-weight:700}.osch-l{color:#c62828;font-weight:700}
+.card[data-mode="sched"] .rs-roster,.card[data-mode="sched"] [data-act="r-save"],.card[data-mode="sched"] [data-act="rr-add"],.card[data-mode="sched"] [data-act="r-fill-lb"],.card[data-mode="sched"] .rs-roster-note{display:none}
+.osch{background:#fff;border-radius:8px;padding:12px;border:1px solid #ccc;overflow-x:auto;color:#000}.osch-title{font-size:1rem;font-weight:700;text-align:center;margin-bottom:10px;color:#000;border-bottom:2px solid #333;padding-bottom:6px}
+.osch table{width:100%;border-collapse:collapse;font-size:.82rem}.osch th{background:#242f3c;color:#e7ecf2;padding:6px 8px;text-align:center;font-size:.74rem;font-weight:650;border-bottom:1px solid #1d2733}.osch td{padding:5px 6px;border-bottom:1px solid #eee;font-size:.8rem;white-space:nowrap;color:#000}
+.osch tr.osch-w td{background:#cfe8d0}.osch tr.osch-l td{background:#f4cfcf}.osch tr.osch-u0 td{background:#f5f5f5}.osch tr.osch-u1 td{background:#e8e8e8}.osch a.box-link{cursor:pointer;color:#0d47a1;font-weight:700;text-decoration:none}.osch-foot{font-size:.75rem;color:#888;margin-top:8px}
 .card[data-mode="basic"] .rs-roster,.card[data-mode="adv"] .rs-roster,.card[data-mode="basic"] [data-act="r-save"],.card[data-mode="adv"] [data-act="r-save"],.card[data-mode="basic"] [data-act="rr-add"],.card[data-mode="adv"] [data-act="rr-add"],.card[data-mode="basic"] [data-act="r-fill-lb"],.card[data-mode="adv"] [data-act="r-fill-lb"]{display:none}
 .rost>.card,.rost>*{min-width:0}.card[data-mode="basic"] .rs-roster-note,.card[data-mode="adv"] .rs-roster-note{display:none}
 /* On/off: the Shooting checkbox (its panel is the 5th: left column, under Core and Offense). */
@@ -1383,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.16.130';
+const VERSION = 'v2026.11.16.131';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -3806,14 +3807,19 @@ const rsStats = (name, mode) => mode === 'roster' ? '' : mode === 'sched' ? sche
 function schedTable(name) {
   const F = teamFile(name), S = F && F.schedule;
   if (!S) return `<div class="small muted" style="padding:8px 0 12px">${F ? 'This team\'s file has no schedule yet (the next leaderboard build adds it).' : 'No leaderboard file for this team on the iPad: it downloads when the team is on the schedule or under Teams to have ready, and the tracker is online.'}</div>`;
-  const played = S.filter(x => x.r || (x.s && x.s[0] != null)), w = played.filter(x => x.r === 'W').length;
-  const next = S.findIndex(x => !x.r && !(x.s && x.s[0] != null));
-  const site = x => x.ha === 'H' ? 'vs' : x.ha === 'A' ? 'at' : 'vs';
-  return `<div class="small muted" style="margin:0 0 6px">${w}-${played.length - w} in games played · tap a result for the box score</div>
-    <div class="ts-wrap"><table class="osch-tbl"><tbody>${S.map((x, i) => `<tr class="${i === next ? 'osch-next' : ''}">
-      <td style="width:46px">${esc(x.d)}</td>
-      <td>${site(x)} <b>${esc(x.o)}</b>${x.ha === 'N' ? ' <span class="small muted">(N)</span>' : ''}${x.c ? ' <span class="small muted">conf</span>' : ''}${x.ev ? `<div class="tiny muted">${esc(x.ev)}</div>` : ''}</td>
-      <td style="text-align:right;white-space:nowrap">${x.s && x.s[0] != null ? `<button class="btn btn-sm" data-act="sch-box" data-team="${esc(name)}" data-i="${i}"><span class="${x.r === 'W' ? 'osch-w' : 'osch-l'}">${x.r || ''}</span> ${x.s[0]}–${x.s[1]}</button>` : `<span class="small muted">${esc(x.t || '')}</span>`}</td></tr>`).join('')}</tbody></table></div>`;
+  let w = 0, l = 0, cw = 0, cl = 0, u = 0;
+  const loc = x => x.ha === 'H' ? 'Home' : x.ha === 'A' ? 'Away' : x.ha === 'N' ? 'Neutral' : '';
+  const rows = S.map((x, i) => {
+    const pl = x.r === 'W' || x.r === 'L', sc = x.s && x.s[0] != null;
+    if (x.r === 'W') { w++; if (x.c) cw++; } else if (x.r === 'L') { l++; if (x.c) cl++; }
+    const cls = x.r === 'W' ? 'osch-w' : x.r === 'L' ? 'osch-l' : 'osch-u' + (u++ % 2);
+    const res = pl ? `${x.r}, ${x.s[0]}-${x.s[1]}` : sc ? `${x.s[0]}-${x.s[1]}` : esc(x.t || '');
+    return `<tr class="${cls}"><td style="text-align:left">${esc(x.d)}</td><td style="text-align:left"><span style="font-weight:600">${esc(x.o)}</span>${x.c ? ' *' : ''}${x.ev ? `<div class="tiny" style="color:#666">${esc(x.ev)}</div>` : ''}</td>
+      <td style="text-align:center">${sc && x.bx ? `<a class="box-link" data-act="sch-box" data-team="${esc(name)}" data-i="${i}">Box</a>` : ''}</td><td style="text-align:left;font-weight:600">${res}</td>
+      <td style="text-align:center">${loc(x)}</td><td style="text-align:center">${pl ? `${w}-${l}` : ''}</td><td style="text-align:center">${pl && (x.c || cw + cl) ? `${cw}-${cl}` : ''}</td></tr>`;
+  }).join('');
+  return `<div class="osch"><div class="osch-title">${esc(name)} Schedule</div><table><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">Opponent</th><th>Box</th><th style="text-align:left">Result</th><th>Loc</th><th>Record</th><th>Conf</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="osch-foot">* = Conference game</div></div>`;
 }
 function schedBox(name, i) {
   const F = teamFile(name), x = F && F.schedule && F.schedule[i]; if (!x || !x.bx) { toast('No box score for this game yet', 'bad'); return; }
