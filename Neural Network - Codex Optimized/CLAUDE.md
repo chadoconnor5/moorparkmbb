@@ -211,7 +211,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   rate still decides Passer / Floor general (Synergy's assist share of his own possessions + assists rewards
   low-usage players: 11/11 a 3.3 ARate player topped it).
 - A box score side whose players all have 0 in every stat (minutes aside) didn't post: the game stays PARTIAL / NO_BOX
-  and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
+  and on the missing list (scrape.classify_box). So does a side whose players' points add up to under half its score line (a
+  stuck live-stats feed: 11/6 Monterey Peninsula, 6 player points against 73, put its offense at 7.7 per 100 and its net
+  at -16.2; blanked, the game falls back to the final score). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
   DR%, Stl%, Blk%) blank (build_game_boxes "miss").
 - Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current

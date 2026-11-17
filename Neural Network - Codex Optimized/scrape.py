@@ -668,7 +668,9 @@ def classify_box(bs: dict, g: dict):
         # A side with every stat 0 for every player (minutes aside) didn't post its stats, whatever the score line says
         blank = all(str(v).strip() in ("", "0", "0-0", "-", "--") for p in players
                     for k, v in (p.get("stats") or {}).items() if k != "MIN")
-        if not players or blank or (pts == 0 and (score.get(name) or 0) > 0):
+        # or whose players' points come to under half its score line: a stuck live-stats feed (11/6 Monterey Peninsula:
+        # 13 players, one with 6 points on "2-0" shooting, against its 73) didn't post either
+        if not players or blank or (pts == 0 and (score.get(name) or 0) > 0) or pts < (score.get(name) or 0) / 2:
             missing.append(name)
         else:
             present.append(name)
