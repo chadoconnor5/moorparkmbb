@@ -445,8 +445,9 @@ def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
 
 
-def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
-    """Find the best individual performance (Hollinger game score) per date."""
+def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None, lotn2: dict = None) -> dict:
+    """Find the best individual performance (Hollinger game score) per date. mvps, if given, is filled with each
+    game's best per team: {(date, frozenset of the two _box_norm names)): {_box_norm(team): rec}} (FanMatch's MVP)."""
     import re
     lotn: dict = {}
     if not sched_dir.exists():
@@ -481,6 +482,7 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
                         date_str = data.get('date', '')
                         if not date_str or date_str not in game_dates:
                             continue
+                        gk = (date_str, frozenset(_box_norm(t) for t in data.get('teams', {})))
                         for team_name, players in data.get('teams', {}).items():
                             for p in players:
                                 name_raw = p.get('name', '')
@@ -523,6 +525,16 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set) -> dict:
                                 }
                                 if date_str not in lotn or gs > lotn[date_str]['game_score']:
                                     lotn[date_str] = rec
+                                if lotn2 is not None:   # the night's top lines, one per player (box copies repeat him)
+                                    day = lotn2.setdefault(date_str, {})
+                                    pk = (name_clean, team_name)
+                                    if pk not in day or gs > day[pk]['game_score']:
+                                        day[pk] = rec
+                                if mvps is not None:
+                                    best = mvps.setdefault(gk, {})
+                                    tk = _box_norm(team_name)
+                                    if tk not in best or gs > best[tk]['game_score']:
+                                        best[tk] = rec
                     except Exception:
                         pass
     return lotn
@@ -723,7 +735,22 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
     pbp_rows = [r for r in ranked if "excitement" in r]
     game_dates = {r["date"] for r in rows}
     sched_dir = Path(str(stats_dir).replace(" Team Statistics", " Teams Schedules"))
-    lines_of_night = _sl_load_line_of_night(sched_dir, game_dates)
+    mvps: dict = {}
+    by_day: dict = {}
+    lines_of_night = _sl_load_line_of_night(sched_dir, game_dates, mvps, by_day)
+    # KenPom's #2 Line o' the Night: the night's second-best game score (another player)
+    lines_of_night_2 = {}
+    for d, day in by_day.items():
+        best = sorted(day.values(), key=lambda x: -x["game_score"])
+        if len(best) > 1:
+            lines_of_night_2[d] = best[1]
+    # FanMatch's game MVP (KenPom's): the best Hollinger game score on the winning team (any player if the winner's
+    # box isn't found); none for a forfeit
+    for r in rows:
+        best = mvps.get((r["date"], frozenset(_box_norm(x) for x in (r["winner"], r["loser"]))))
+        if best and not r.get("forfeit"):
+            m = best.get(_box_norm(r["winner"])) or max(best.values(), key=lambda x: x["game_score"])
+            r["mvp"] = {k: m[k] for k in ("name", "team", "pts", "reb", "ast", "stl", "blk", "game_score")}
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "stats_dir": str(stats_dir),
@@ -745,7 +772,23 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
                                                 _sl_time_key(r.get("time")), bool(r.get("tba")))),
         "lines_of_night": lines_of_night,
+        "lines_of_night_2": lines_of_night_2,
+        "pbp_ranks":      _sl_pbp_ranks(pbp_rows),
     }
+
+
+def _sl_pbp_ranks(pbp_rows: list) -> dict:
+    """Every play-by-play game's KenPom attributes with its rank among the season's games, for the box score's
+    win-probability chart: {_box_game_key: [min_wp, rank, excitement, rank, dominance, rank, tension, rank]} (Min WP
+    lowest = #1, the others highest = #1). The count is len(pbp_rows) (pbp_games)."""
+    out: dict = {}
+    for key, asc in (("min_wp", True), ("excitement", False), ("dominance_pbp", False), ("tension", False)):
+        order = sorted((r for r in pbp_rows if r.get(key) is not None), key=lambda r: r[key], reverse=not asc)
+        for i, r in enumerate(order, 1):
+            k = _box_game_key(r["date"], r["winner"], r["loser"])
+            out.setdefault(k, {})[key] = (r[key], i)
+    return {k: [x for key in ("min_wp", "excitement", "dominance_pbp", "tension") for x in v.get(key, (None, None))]
+            for k, v in out.items()}
 
 # ---------------------------------------------------------------------------
 
@@ -4813,6 +4856,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     rpi_data_1819_json = _embed(rpi_data_1819)
     rpi_data_1718_json = _embed(rpi_data_1718)
     height_data_json = _embed(height_data)
+    try:   # Misc -> Kills: kill shots (10-0 runs) and kills (3 stops in a row), current season's play-by-play
+        import pbp_runs
+        runs_data_json = _embed(pbp_runs.season_runs())
+    except Exception as e:
+        print(f"  kills table skipped: {e}")
+        runs_data_json = _embed({})
     champion_data_json = _embed(champion_data)
     conf_ff_json = _embed(conf_ff or {})
     moorpark_lineups_json = _embed(moorpark_lineups or {})
@@ -7634,6 +7683,24 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Lead / Deficit</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-window"></tbody></table></div></div>
     </div>
+    <div id="sl-tab-runs" class="sl-tab-content" style="display:none">
+      <div style="padding:6px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Kill shot = a 10-0 run (one per run). Kill = three straight defensive stops (opponent possessions without a point; counting restarts after each kill and each half). Games with play-by-play only (G). Stop% = share of opponent possessions held scoreless.</div>
+      <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('rank')">#</th>
+        <th style="cursor:pointer" onclick="slSortRuns('team')">Team</th>
+        <th style="cursor:pointer" onclick="slSortRuns('conference')">Conference</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('g')">G</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('ks')">Kill Shots</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('ks_pg')">KS/G</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('ks_a')">KS Allowed</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('ks_a_pg')">KSA/G</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('kills')">Kills</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('kills_pg')">Kills/G</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('kills_a')">Kills Allowed</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('kills_a_pg')">KA/G</th>
+        <th class="sl-th-r" style="cursor:pointer" onclick="slSortRuns('stop_pct')">Stop%</th>
+      </tr></thead><tbody id="sl-body-runs"></tbody></table></div></div>
+    </div>
     <div id="sl-tab-height" class="sl-tab-content" style="display:none">
       <div style="padding:6px 10px 10px;color:#aaa;font-size:0.75rem;text-align:center">Average roster height from stored 2025-26 roster-height data. Ranked by average inches.</div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table" id="height-table"><thead><tr>
@@ -8133,7 +8200,7 @@ function __bxTd(v, k, sc, plain) {{
   return '<td style="color:rgb(' + rgb.join(',') + ')' + (a >= 0.5 ? ';font-weight:700' : '') + '">' + txt + '</td>';
 }}
 
-function __bxTeamTable(name, rows, oppRows) {{
+function __bxTeamTable(name, rows, oppRows, mvp) {{
   if (!rows.length) return '<div class="bx-table-wrap"><table class="bx-table"><thead><tr><th class="bx-team-hdr">' + name.toUpperCase()
     + '</th></tr></thead><tbody><tr><td style="padding:14px;color:#6b7280">' + name + ' hasn\u2019t posted its box score for this game.</td></tr></tbody></table></div>';
   const oppOk = oppRows.length > 0;   // the other side's box: the rates that need it stay blank without it
@@ -8152,7 +8219,8 @@ function __bxTeamTable(name, rows, oppRows) {{
   const tSc = __bxScales(activeTeamData, BX_COLOR_T, t => (t.gp || 0) > 0);
   const cells = r => {{
     const plain = minutesReal && r.min <= 9, c = (v, k) => __bxTd(v, k, pSc, plain);
-    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name, null, null, true) + '</td><td>' + r.min + '</td>'
+    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name, null, null, true)
+      + (mvp && r.n === mvp ? '<span style="color:#c8960c;font-style:italic;font-size:9px;font-weight:700;margin-left:4px">MVP</span>' : '') + '</td><td>' + r.min + '</td>'
       + (r.ortg == null && r.ortg_e != null ? c(r.ortg_e, 'ortg').replace('</td>', '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span></td>') : c(r.ortg, 'ortg'))
       + '<td>' + __bxF(r.usg) + '</td>'
       + c(r.efg, 'efg') + c(r.ts, 'ts')
@@ -8326,10 +8394,43 @@ function __bxWpChart(g, w, l) {{
   const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
   let diff = '';   // the score margin as steps
   pts.forEach((p, k) => {{ diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); }});
+  // Runs (KenPom's "17-3 run"): a team scores 10+ while the other scores at most a quarter as many (10-0, 12-3,
+  // 17-4); it starts and ends on the team's own baskets and breaks once the other team has scored more than 4. The
+  // biggest ones that don't overlap are drawn: the winner's above the 50% line, the loser's below, in team colors.
+  const sc = [];
+  {{ let pv = 0, ph = 0; ev.forEach(e => {{ if (e[1] > pv) sc.push([e[0], 0, e[1] - pv]); if (e[2] > ph) sc.push([e[0], 1, e[2] - ph]); pv = e[1]; ph = e[2]; }}); }}
+  const cand = [];
+  sc.forEach((a0, i) => {{
+    let a = 0, o = 0, best = null;
+    for (let j = i; j < sc.length; j++) {{
+      if (sc[j][1] === a0[1]) a += sc[j][2]; else o += sc[j][2];
+      if (o > 4) break;
+      if (sc[j][1] === a0[1] && a >= 10 && o <= a / 4) best = [i, j, a, o, a0[1]];
+    }}
+    if (best) cand.push(best);
+  }});
+  const runs = [];
+  cand.sort((p, q) => (q[2] - q[3]) - (p[2] - p[3]) || q[2] - p[2]).forEach(c => {{ if (!runs.some(r => c[0] <= r[1] && r[0] <= c[1])) runs.push(c); }});
+  const runSvg = runs.map(([i, j, a, o, sd]) => {{
+    const up = (sd === 0) === wIsV, yy = y(up ? 0.57 : 0.43), x1 = x(sc[i][0]), x2 = Math.max(x(sc[j][0]), x1 + 4), c = sideColor(sd);
+    return `<line x1="${{x1.toFixed(1)}}" x2="${{x2.toFixed(1)}}" y1="${{yy}}" y2="${{yy}}" stroke="${{c}}" stroke-width="2"/>`
+      + `<text x="${{((x1 + x2) / 2).toFixed(1)}}" y="${{up ? yy - 4 : yy + fs + 1}}" text-anchor="middle" font-size="${{fs - 1}}" font-weight="700" fill="${{c}}">${{a}}-${{o}} run</text>`;
+  }}).join('');
   const r0 = small ? 2.2 : 2.8;
   const dots = dotsP.map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{WP_POINTS[p[4]] ? sideColor(p[2]) : '#fff'}}" stroke="${{sideColor(p[2])}}" stroke-width="1.2"/>`).join('');
   const ring = lock < pts.length - 1 ? `<circle cx="${{x(pts[lock][0])}}" cy="${{y(pts[lock][1])}}" r="${{small ? 5 : 6.5}}" fill="none" stroke="#1a1f2e" stroke-width="2.5"/>` : '';
   const minWp = Math.min(...pts.map(p => p[1]));
+  // KenPom's game attributes under the chart, each with its rank among the season's play-by-play games
+  let attrs = '';
+  try {{
+    const SL = typeof activeStorylines === 'function' ? activeStorylines() : null, A = SL && SL.pbp_ranks && SL.pbp_ranks[__boxKey(g.d, w, l)];
+    if (A) {{
+      const n = SL.pbp_games || 0, it = (lab, v, r, f) => v == null ? '' : `<span><b style="color:#1a1f2e">${{lab}}:</b> ${{f(v)}} <span style="color:#93a0ad">(#${{r}} of ${{n}})</span></span>`;
+      attrs = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 18px;max-width:640px;margin:8px auto 0;font-size:0.8rem;color:#374151">`
+        + it('Minimum win probability (teams even)', A[0], A[1], v => v + '%') + it('Excitement', A[2], A[3], v => v)
+        + it('Dominance', A[4], A[5], v => v) + it('Tension', A[6], A[7], v => v) + '</div>';
+    }}
+  }} catch (e) {{}}
   const [mo, da, yr] = (g.d || '').split('/');
   const dShort = mo ? mo + '/' + da + '/' + String(yr).slice(-2) : '';
   const key = (sw, dash) => `<svg width="22" height="8" style="vertical-align:middle"><line x1="0" x2="22" y1="4" y2="4" stroke="${{sw}}" stroke-width="${{dash ? 1.5 : 4}}"${{dash ? ' stroke-dasharray="2 2"' : ''}}/></svg>`;
@@ -8341,7 +8442,7 @@ function __bxWpChart(g, w, l) {{
     + xticks + grid + frame + right
     + `<path d="${{diff}}" fill="none" stroke="#1a1f2e" stroke-width="1.2" stroke-dasharray="2 2"/>`
     + `<path d="${{line}}" fill="none" stroke="#5b9bd5" stroke-width="${{small ? 3.5 : 5}}" stroke-linejoin="round" stroke-linecap="round"/>`
-    + dots + ring
+    + runSvg + dots + ring
     + `<text x="${{(L + W - R) / 2}}" y="${{H - 4}}" text-anchor="middle" font-size="${{fs}}" font-style="italic" fill="${{ink}}">Minutes elapsed</text>`
     + `<line class="wp-x" x1="0" x2="0" y1="${{T}}" y2="${{H - B}}" stroke="#1a1f2e" stroke-width="1" visibility="hidden"/>`
     + `<circle class="wp-dot" r="5" fill="#5b9bd5" stroke="#fff" stroke-width="2" visibility="hidden"/>`
@@ -8353,7 +8454,8 @@ function __bxWpChart(g, w, l) {{
     + `<span>${{key('#5b9bd5')}} ${{w}} win probability (left)</span><span>${{key('#1a1f2e', 1)}} score margin (right)</span>`
     + `<span>${{dot(cw)}} ${{w}} play</span><span>${{dot(cl)}} ${{l}} play</span><span>filled: made · open: miss / turnover</span>`
     + (ring ? '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #1a1f2e;vertical-align:middle"></span> 99% for good</span>' : '')
-    + '</div></div>';
+    + (runs.length ? '<span>runs: 10+ points with the other team held to a quarter as many</span>' : '')
+    + '</div>' + attrs + '</div>';
 }}
 let __bxWpPts = [], __bxWpNames = [], __bxWpGeom = {{}};
 function __bxWpHover(e, svg) {{
@@ -8387,6 +8489,16 @@ function __bxWpHover(e, svg) {{
 // Final (the default) or one period's box score: g.hv, period -> team -> rows, when the page had them.
 let __bxGame = null, __bxPer = 'F';
 function bxPeriod(p) {{ __bxPer = p; renderBoxScore(__bxGame, true); }}
+// The game's MVP (FanMatch's, KenPom's): the best Hollinger game score on the winning team, whole game
+function __bxMvp(rows) {{
+  let best = null, bs = -1e9;
+  (rows || []).forEach(r => {{
+    const gs = (r.pts || 0) + 0.4 * (r.fgm || 0) - 0.7 * (r.fga || 0) - 0.4 * ((r.fta || 0) - (r.ftm || 0)) + 0.7 * (r.or || 0)
+      + 0.3 * (r.dr || 0) + (r.stl || 0) + 0.7 * (r.ast || 0) + 0.7 * (r.blk || 0) - 0.4 * (r.pf || 0) - (r.to || 0);
+    if (gs > bs) {{ bs = gs; best = r.n; }}
+  }});
+  return best;
+}}
 function renderBoxScore(g, keepPeriod) {{
   const names = Object.keys(g.t || {{}});
   if (names.length !== 2) return;
@@ -8406,7 +8518,7 @@ function renderBoxScore(g, keepPeriod) {{
     [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
       `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
   document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
-    __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || [])
+    __bxTeamTable(w, T[w] || [], T[l] || [], __bxMvp(g.t[w])) + __bxTeamTable(l, T[l] || [], T[w] || [])
     + ([w, l].some(n => (T[n] || []).some(r => r.ortg_e != null)) ? '<div style="text-align:center;font-size:0.75rem;color:#666;margin:4px 12px 0">ORtg est: this side\u2019s box score has no real minutes, so each player\u2019s are estimated from his share of its activity (shots, free throws, turnovers, assists, rebounds, fouls, steals, blocks); minutes enter ORtg only through the share of his makes that were assisted.</div>' : '');
   const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
   const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
@@ -8433,6 +8545,7 @@ const TIMESTAMP = '{timestamp}';
 const EFG_FGA_PG_MIN = {EFG_FGA_PER_GAME_MIN};
 const TS_ATT_PG_MIN = {TS_ATT_PER_GAME_MIN};
 const HEIGHT_DATA = __unpack({height_data_json});
+const RUNS_DATA = __unpack({runs_data_json});
 const TEAM_PRIMARY_COLORS = __unpack({school_colors_json});
 const TEAM_SECONDARY_COLORS = __unpack({school_secondary_colors_json});
 const TEAM_LOGOS = __unpack({team_logos_json});
@@ -14279,6 +14392,7 @@ const SL_TABS = [
   {{ id: 'minwp',     label: 'Min WP', pbp: true }},
   {{ id: 'maxdef',    label: 'Max Deficit', pbp: true }},
   {{ id: 'window',    label: 'Window', pbp: true }},
+  {{ id: 'runs',      label: 'Kills', pbp: true }},
   {{ id: 'height',    label: 'Height' }},
   {{ id: 'wab',       label: 'WAB' }},
   {{ id: 'rate',      label: 'Rate' }},
@@ -14351,6 +14465,7 @@ function slInitOnce() {{
     slInitFanmatch();
   }}
   slRenderHeight();
+  slRenderRuns();
   slRenderWab(slWabRegion || 'North');
   slRenderRate(activeSeason);
   slRenderTiers('All');
@@ -14377,6 +14492,10 @@ function slSwitchTab(tab, label) {{
       const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = yr + ' Relative Ratings (O-Rate / D-Rate / Rel-Rtg)';
       if (countEl) countEl.style.display = 'none';
+    }} else if (tab === 'runs') {{
+      title.textContent = '2026-27 Kill Shots and Kills';
+      if (countEl) countEl.style.display = 'none';
+      slRenderRuns();
     }} else if (tab === 'height') {{
       title.textContent = '2025-26 Average Roster Height';
       if (countEl) countEl.style.display = 'none';
@@ -14434,6 +14553,38 @@ function _parseRec(s) {{
   const m = s.match(/^(\\d+)-(\\d+)$/);
   if (!m) return {{ w: 0, l: 0, gp: 0 }};
   return {{ w: parseInt(m[1]), l: parseInt(m[2]), gp: parseInt(m[1]) + parseInt(m[2]) }};
+}}
+
+// Misc -> Kills (pbp_runs.py): per team, games with play-by-play only.
+let slRunsSortKey = 'ks_pg', slRunsSortAsc = false;
+function slSortRuns(key) {{
+  if (slRunsSortKey === key) slRunsSortAsc = !slRunsSortAsc;
+  else {{ slRunsSortKey = key; slRunsSortAsc = (key === 'team' || key === 'conference' || key === 'ks_a' || key === 'ks_a_pg' || key === 'kills_a' || key === 'kills_a_pg'); }}
+  slRenderRuns();
+}}
+function slRenderRuns() {{
+  const body = document.getElementById('sl-body-runs');
+  if (!body) return;
+  const conf = {{}}; (TEAM_DATA || []).forEach(t => {{ conf[t.team] = t.conference || ''; }});
+  const rows = Object.entries(RUNS_DATA || {{}}).filter(([, o]) => o.g > 0).map(([team, o]) => ({{
+    team, conference: conf[team] || '', g: o.g, ks: o.ks, ks_a: o.ks_a, kills: o.kills, kills_a: o.kills_a,
+    ks_pg: o.ks / o.g, ks_a_pg: o.ks_a / o.g, kills_pg: o.kills / o.g, kills_a_pg: o.kills_a / o.g,
+    stop_pct: o.poss_d ? 100 * o.stops / o.poss_d : null }}));
+  if (!rows.length) {{ body.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#555;padding:24px">No play-by-play yet</td></tr>'; return; }}
+  const k = slRunsSortKey === 'rank' ? 'ks_pg' : slRunsSortKey;
+  rows.sort((a, b) => {{
+    const av = a[k], bv = b[k];
+    const c = typeof av === 'string' ? av.localeCompare(bv) : (av == null ? -1e9 : av) - (bv == null ? -1e9 : bv);
+    return (slRunsSortAsc ? c : -c) || a.team.localeCompare(b.team);
+  }});
+  const f1 = v => v.toFixed(1), td = (v, x) => `<td class="sl-th-r" style="${{x || ''}}">${{v}}</td>`;
+  body.innerHTML = rows.map((r, i) => {{
+    const bg = r.team === 'Moorpark' ? 'background:#ffe599;' : '';
+    return `<tr>${{td(i + 1, bg + 'color:#888;font-size:0.8rem')}}<td style="${{bg}}">${{teamPageLink(r.team, 'color:#000;text-decoration:none;font-weight:600')}}</td><td style="${{bg}}color:#555;font-size:0.82rem">${{r.conference}}</td>`
+      + td(r.g, bg) + td(r.ks, bg) + td(f1(r.ks_pg), bg + 'font-weight:700') + td(r.ks_a, bg) + td(f1(r.ks_a_pg), bg)
+      + td(r.kills, bg) + td(f1(r.kills_pg), bg + 'font-weight:700') + td(r.kills_a, bg) + td(f1(r.kills_a_pg), bg)
+      + td(r.stop_pct == null ? '—' : r.stop_pct.toFixed(1) + '%', bg) + '</tr>';
+  }}).join('');
 }}
 
 let slHeightSortKey = 'avg_height';
@@ -15503,7 +15654,7 @@ function __slRenderTrendsNow() {{
 
 // ─── End Trends Tab ───────────────────────────────────────────────
 
-function slGameCell(g) {{
+function slGameCell(g, mvp) {{
   if (g.upcoming && !g.projected) {{
     const lk = n => (n === 'TBA' || /^(Winner|Loser) /.test(n)) ? '<span style="color:var(--ink-3);white-space:nowrap">' + n + '</span>' : teamPageLink(n);
     // bracket slots ("Loser A/B vs Loser C/D") wrap inside the column, the round name on its own line above
@@ -15542,8 +15693,15 @@ function slGameCell(g) {{
     '<span class="sl-game-loser">' + lLink + '</span>' +
     '<span class="sl-score-loser"> ' + lScore + '</span>' +
     (lNet ? '<span class="sl-net">\u2009' + lNet + '</span>' : '') +
-    otStr +
+    otStr + (mvp ? slMvpLine(g) : '') +
     '</td>';
+}}
+// KenPom's MVP line under a played game: best game score on the winning team, "13p/1r/3b/1s" (points always, the
+// rest when not 0; rebounds, assists, blocks, steals)
+function slMvpLine(g) {{
+  const m = g.mvp; if (!m) return '';
+  const st = [m.pts + 'p'].concat([[m.reb, 'r'], [m.ast, 'a'], [m.blk, 'b'], [m.stl, 's']].filter(x => x[0] > 0).map(x => x[0] + x[1])).join('/');
+  return '<div style="font-size:0.72rem;color:var(--ink-3);font-weight:400;margin-top:1px">MVP: <span style="color:var(--ink-2,#333)">' + m.name + '</span> (' + st + ')</div>';
 }}
 
 function slGameRow(g, idx, cols) {{
@@ -15609,7 +15767,7 @@ function slGameRow(g, idx, cols) {{
     : '';
   return `<tr${{gameGoldCls}}><td class="sl-rank">${{idx + 1}}</td>` +
          `<td class="sl-date-cell">${{g.upcoming && g.time ? g.time : g.date}}</td>` +
-         slGameCell(g) +
+         slGameCell(g, cols === 'fanmatch') +
          boxTd +
          `<td class="sl-loc-cell">${{site}}</td>` +
          detail + value + '</tr>';
@@ -15706,9 +15864,10 @@ function slRenderFanmatch(dateStr) {{
   // Line o' the Night
   const lotnEl = document.getElementById('sl-lotn');
   if (lotnEl) {{
-    const lotn = (activeStorylines().lines_of_night || {{}});
+    const lotn = (activeStorylines().lines_of_night || {{}}), lotn2 = (activeStorylines().lines_of_night_2 || {{}});
     const l = lotn[dateStr];
-    if (l) {{
+    // KenPom's #1 and #2 lines of the night
+    const lineHtml = (l, n) => {{
       const shotLine = l.twom + '-' + l.twoa + ' 2\\'s, ' + l.tpm + '-' + l.tpa + ' 3\\'s, ' + l.ftm + '-' + l.fta + ' FT\\'s';
       const extras = [];
       if (l.reb  > 0) extras.push(l.reb  + ' Reb'    + (l.reb  !== 1 ? 's' : ''));
@@ -15716,11 +15875,14 @@ function slRenderFanmatch(dateStr) {{
       if (l.stl  > 0) extras.push(l.stl  + ' Stl'    + (l.stl  !== 1 ? 's' : ''));
       if (l.blk  > 0) extras.push(l.blk  + ' Blk'    + (l.blk  !== 1 ? 's' : ''));
       const extStr = extras.length ? ' \u2022 ' + extras.join(' \u2022 ') : '';
-      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
-        + '1. <span class="lotn-player">' + l.name + ', ' + l.team + '</span>'
+      return n + '. <span class="lotn-player">' + l.name + ', ' + l.team + '</span>'
         + ' \u2022 <span class="lotn-pts">' + l.pts + ' pts</span> (' + shotLine + ')'
-        + extStr
-        + ' \u2022 GS: ' + l.game_score
+        + extStr + ' \u2022 GS: ' + l.game_score;
+    }};
+    if (l) {{
+      const l2 = lotn2[dateStr];
+      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
+        + lineHtml(l, 1) + (l2 ? '<br><span class="lotn-label" style="visibility:hidden">Line o\\' the Night:</span>' + lineHtml(l2, 2) : '')
         + '</div>';
     }} else {{
       lotnEl.innerHTML = '';
