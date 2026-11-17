@@ -312,6 +312,28 @@ def _sl_adjusted_pregame(games: list, teams: set, prior: dict) -> list:
     return out
 
 
+def adj_tempo_now(stats_dir=None, prior_dir=None) -> dict:
+    """Each team's opponent-adjusted tempo (KenPom's AdjT) from every game played: the same adjustment as FanMatch's
+    pregame ratings (_adj_solve). {team: tempo}; {} if it can't be built. FanMatch's Ratings archive saves it daily."""
+    try:
+        stats_dir = stats_dir or STATS_DIR
+        prior_dir = prior_dir or STATS_DIR_2025
+        by_team, team_names = _sl_load_games(stats_dir)
+        games = _sl_dedupe(by_team, team_names, True)
+        if not games:
+            return {}
+        lg_o, lg_t = _adj_league(games)
+        rows = {}
+        for _, a, b, la, lb in _adj_rows(games):
+            rows.setdefault(a, []).append(la)
+            rows.setdefault(b, []).append(lb)
+        rat = _adj_solve(rows, team_names, _adj_prior(prior_dir), lg_o, lg_t)
+        return {t: round(v[2], 1) for t, v in rat.items()}
+    except Exception as e:
+        print(f"  adjusted tempo skipped: {e}")
+        return {}
+
+
 def _sl_enrich(games: list, teams: set, hca: float, wps: float, priors: dict = None, adjusted: list = None) -> list:
     """adjusted (_sl_adjusted_pregame, 2026-27 on): the pregame nets, expected margin and win probability come from
     it instead of the running ratings."""
@@ -5254,7 +5276,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     _asof_ratings = {}
     daily_ranks = _rank_history.update("2026-27", teams or [],
                                        compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True,
-                                                           ratings_out=_asof_ratings), ratings=_asof_ratings)
+                                                           ratings_out=_asof_ratings), ratings=_asof_ratings,
+                                       tempo=adj_tempo_now())
     daily_ranks_json = _embed(daily_ranks)
     ratings_archive_json = _embed(_rank_history.archive("2026-27"))   # FanMatch -> Ratings archive
 
@@ -15902,9 +15925,9 @@ function slRenderArchive() {{
     + `<div style="text-align:center;color:#888;font-size:0.75rem;margin:0 0 10px">${{morning === 'preseason' ? 'Preseason ratings (before any game)' : 'Saved after the games of ' + morning}}; a saved day changes only when an earlier game's stats come in late</div>`
     + '<div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>'
     + '<th colspan="7" style="text-align:center">Ratings on ' + dateStr + '</th><th colspan="5" style="text-align:center;border-left:2px solid #ccc">Current ratings</th><th colspan="3" style="text-align:center;border-left:2px solid #ccc">Change</th></tr><tr>'
-    + '<th class="sl-th-r">Rk</th><th>Team</th><th>Conf</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">Tempo</th>'
-    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">Tempo</th>'
-    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">Net</th><th class="sl-th-r">Tempo</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+    + '<th class="sl-th-r">Rk</th><th>Team</th><th>Conf</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">AdjT</th>'
+    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">AdjT</th>'
+    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">Net</th><th class="sl-th-r">AdjT</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }}
 function slRenderFanmatch(dateStr) {{
   const fm = (activeStorylines().fanmatch_games || []).filter(g => g.date === dateStr);

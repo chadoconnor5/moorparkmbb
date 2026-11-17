@@ -127,8 +127,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   The log has no clock, so it feeds only this table (not the win-probability chart, ranks or lineups). 11/17: 10/31
   Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
-  the date (the latest daily_ranks save before it: rank, net, ORtg, DRtg, tempo with ranks) next to the current ones, and
-  the change in rank, net and tempo. rank_history keeps each day's save; a saved day changes only when a game dated
+  the date (the latest daily_ranks save before it: rank, net, ORtg, DRtg, AdjT with ranks; AdjT = opponent-adjusted tempo,
+  adj_tempo_now, FanMatch's pregame adjustment) next to the current ones, and
+  the change in rank, net and AdjT. rank_history keeps each day's save; a saved day changes only when a game dated
   on/before it comes in late: its ORtg / DRtg / net move by the change in that day's as-of-date rating (compute_daily_ranks'
   ratings_out, kept per day as "ro" / "rd") and it is re-ranked by net. Days saved before 11/17/2026 have rank and net only.
   RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a day).

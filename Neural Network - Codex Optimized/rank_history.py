@@ -1,6 +1,7 @@
 """Saved daily ranks for the current season: daily_ranks/<season>.json, one entry per update date
 {"M/D/YYYY": {"saved": iso time, "ranks": {team: rank}, "net": {team: net}, "o" / "d" / "t": {team: ORtg / DRtg /
-tempo}, "gp": {team: games dated on/before it}}}. FanMatch's Ratings archive (KenPom's) shows a date's morning: the
+adjusted tempo (KenPom's AdjT, generate_leaderboard.adj_tempo_now; raw tempo if it can't be built)}, "gp": {team: games
+dated on/before it}}}. FanMatch's Ratings archive (KenPom's) shows a date's morning: the
 latest save before it, next to the current ratings.
 
 Each leaderboard build saves today's ranks (the leaderboard's net-rating order) under today's date (Pacific; a run
@@ -46,7 +47,7 @@ def _as_of(reconstructed, day):
     return reconstructed.get(best) if best else reconstructed.get("preseason", {})
 
 
-def update(season, teams, reconstructed, ratings=None):
+def update(season, teams, reconstructed, ratings=None, tempo=None):
     """Save today's ranks, recompute any saved day a late game changed, and return the ranks for the page:
     {"_strict": 1, "preseason": {...}, date: {team: rank}} (the page reads a game's rank from the save before it).
     ratings: the as-of-date {date: {team: [ORtg, DRtg]}} the reconstructed ranks come from. Each day keeps that day's
@@ -97,7 +98,7 @@ def update(season, teams, reconstructed, ratings=None):
                    "net": {t["team"]: round(t.get("net_rtg", 0), 1) for t in order},
                    "o": {t["team"]: round(t.get("ortg", 0), 1) for t in order},
                    "d": {t["team"]: round(t.get("drtg", 0), 1) for t in order},
-                   "t": {t["team"]: round(t.get("tempo") or 0, 1) for t in order},
+                   "t": {t["team"]: (tempo or {}).get(t["team"]) or round(t.get("tempo") or 0, 1) for t in order},   # adjusted
                    **({"ro": {t: v[0] for t, v in _as_of(ratings, today).items()},
                        "rd": {t: v[1] for t, v in _as_of(ratings, today).items()}} if ratings and _as_of(ratings, today) else {}),
                    "gp": _gp_through(teams, today)}
