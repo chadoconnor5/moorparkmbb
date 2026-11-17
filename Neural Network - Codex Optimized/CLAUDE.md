@@ -509,7 +509,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   empty until a team has played 5 / 10 games that season: never fewer games, never last season's.
 - FanMatch's played games (2026-27 on): the pregame nets, expected margin and win probability come from
   opponent-adjusted ratings as of each game's date (_sl_adjusted_pregame: KenPom-style, last season's final ratings
-  regressed 30% as 3 games), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
+  regressed 30%, weighted like the leaderboard's prior: 8 games at the start fading as 8 x e^(-games/10), 11/17; it was
+  a fixed 3 games, and the fade backtested no worse: 2025-26 79.4% vs 78.9%, 2024-25 78.5% vs 78.1%), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
   winners, 9.7-9.8 pts off the margin vs 76-78% / 10.8-11.3; Torvik-style recency / blowout weighting didn't help.
   Feeds Upsets, Busts and the box score chart's pregame odds.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games

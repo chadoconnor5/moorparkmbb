@@ -232,6 +232,18 @@ def _sl_dedupe(by_team: dict, system_teams: set, exclude_zero: bool) -> list:
 # 78-79% of winners and 9.7-9.8 points off the margin, against 76-78% and 10.8-11.3 for the running ratings
 # (_RunningRating) the older seasons keep. Recency weighting and discounting blowouts (Torvik's) didn't help.
 ADJ_HCA, ADJ_SIGMA, ADJ_PRIOR_GAMES, ADJ_REGRESS = 0.014, 11.0, 3.0, 0.30
+# 11/17/2026: one fade for last season, the leaderboard's (update_advanced_analytics.prior_weight: worth 8 games at the
+# start, 8 x e^(-games/10) after; KenPom's own ratings and FanMatch share one formula). It replaced a fixed 3 games and
+# backtested no worse: 2025-26 79.4% of winners / 9.73 off (fixed 3: 78.9% / 9.72), 2024-25 78.5% / 9.79 (78.1% / 9.77).
+
+
+def _adj_prior_weight(n_games: int) -> float:
+    """Last season's weight in games after n of this season's: the leaderboard's prior_weight."""
+    try:
+        from update_advanced_analytics import prior_weight
+        return prior_weight(n_games)
+    except Exception:
+        return 8.0 * math.exp(-n_games / 10.0)
 
 
 def _adj_solve(rows: dict, teams, prior: dict, lg_o: float, lg_t: float, iters: int = 25):
@@ -243,7 +255,8 @@ def _adj_solve(rows: dict, teams, prior: dict, lg_o: float, lg_t: float, iters: 
         nO, nD, nT = {}, {}, {}
         for t in teams:
             po, pd, pt = prior.get(t, (lg_o, lg_o, lg_t))
-            so, sd, st, n = ADJ_PRIOR_GAMES * po, ADJ_PRIOR_GAMES * pd, ADJ_PRIOR_GAMES * pt, ADJ_PRIOR_GAMES
+            w = _adj_prior_weight(len(rows.get(t, ())))   # last season fades out as the leaderboard's does
+            so, sd, st, n = w * po, w * pd, w * pt, w
             for o, ortg, drtg, poss in rows.get(t, ()):
                 so += ortg * lg_o / D[o]
                 sd += drtg * lg_o / O[o]
