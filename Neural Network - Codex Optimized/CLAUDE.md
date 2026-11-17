@@ -126,6 +126,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   placed by the game's box score: word prefixes, else last name + first initial, else the side whose box is empty).
   The log has no clock, so it feeds only this table (not the win-probability chart, ranks or lineups). 11/17: 10/31
   Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
+- FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
+  the date (the latest daily_ranks save before it: rank, net, ORtg, DRtg, tempo with ranks) next to the current ones, and
+  the change in rank, net and tempo. rank_history keeps each day's save; a saved day changes only when a game dated
+  on/before it comes in late: its ORtg / DRtg / net move by the change in that day's as-of-date rating (compute_daily_ranks'
+  ratings_out, kept per day as "ro" / "rd") and it is re-ranked by net. Days saved before 11/17/2026 have rank and net only.
+  RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a day).
 - FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
   (storylines lines_of_night / lines_of_night_2).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
