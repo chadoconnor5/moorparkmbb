@@ -127,6 +127,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Box score win-probability chart runs (KenPom's, __bxWpChart; copied into the tracker): a team scores 10+ while the
   other scores at most a quarter as many and no more than 4 (10-0, 12-3, 17-4), from its first to its last basket of
   the run; the biggest non-overlapping ones drawn as a line labelled "17-3 run", the winner's above the 50% line.
+  Under the chart, KenPom's game attributes with each one's rank among the season's play-by-play games ("#21 of 115"):
+  Minimum win probability (teams even, as the Min WP tab; lowest #1), Excitement, Dominance, Tension (highest #1);
+  storylines "pbp_ranks" (_sl_pbp_ranks, keyed like the box scores). Leaderboard only (the tracker has no storylines).
 - Player labels (export_ratings.auto_labels, a port of the tracker's autoLabels, checked label-for-label and why-line
   for-line against it on every 2026-27 player): written into each team file's Team Stats rows (row["labels"]); the
   tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the

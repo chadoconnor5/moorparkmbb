@@ -760,7 +760,22 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
                                                 _sl_time_key(r.get("time")), bool(r.get("tba")))),
         "lines_of_night": lines_of_night,
+        "pbp_ranks":      _sl_pbp_ranks(pbp_rows),
     }
+
+
+def _sl_pbp_ranks(pbp_rows: list) -> dict:
+    """Every play-by-play game's KenPom attributes with its rank among the season's games, for the box score's
+    win-probability chart: {_box_game_key: [min_wp, rank, excitement, rank, dominance, rank, tension, rank]} (Min WP
+    lowest = #1, the others highest = #1). The count is len(pbp_rows) (pbp_games)."""
+    out: dict = {}
+    for key, asc in (("min_wp", True), ("excitement", False), ("dominance_pbp", False), ("tension", False)):
+        order = sorted((r for r in pbp_rows if r.get(key) is not None), key=lambda r: r[key], reverse=not asc)
+        for i, r in enumerate(order, 1):
+            k = _box_game_key(r["date"], r["winner"], r["loser"])
+            out.setdefault(k, {})[key] = (r[key], i)
+    return {k: [x for key in ("min_wp", "excitement", "dominance_pbp", "tension") for x in v.get(key, (None, None))]
+            for k, v in out.items()}
 
 # ---------------------------------------------------------------------------
 
@@ -8392,6 +8407,17 @@ function __bxWpChart(g, w, l) {{
   const dots = dotsP.map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{WP_POINTS[p[4]] ? sideColor(p[2]) : '#fff'}}" stroke="${{sideColor(p[2])}}" stroke-width="1.2"/>`).join('');
   const ring = lock < pts.length - 1 ? `<circle cx="${{x(pts[lock][0])}}" cy="${{y(pts[lock][1])}}" r="${{small ? 5 : 6.5}}" fill="none" stroke="#1a1f2e" stroke-width="2.5"/>` : '';
   const minWp = Math.min(...pts.map(p => p[1]));
+  // KenPom's game attributes under the chart, each with its rank among the season's play-by-play games
+  let attrs = '';
+  try {{
+    const SL = typeof activeStorylines === 'function' ? activeStorylines() : null, A = SL && SL.pbp_ranks && SL.pbp_ranks[__boxKey(g.d, w, l)];
+    if (A) {{
+      const n = SL.pbp_games || 0, it = (lab, v, r, f) => v == null ? '' : `<span><b style="color:#1a1f2e">${{lab}}:</b> ${{f(v)}} <span style="color:#93a0ad">(#${{r}} of ${{n}})</span></span>`;
+      attrs = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 18px;max-width:640px;margin:8px auto 0;font-size:0.8rem;color:#374151">`
+        + it('Minimum win probability (teams even)', A[0], A[1], v => v + '%') + it('Excitement', A[2], A[3], v => v)
+        + it('Dominance', A[4], A[5], v => v) + it('Tension', A[6], A[7], v => v) + '</div>';
+    }}
+  }} catch (e) {{}}
   const [mo, da, yr] = (g.d || '').split('/');
   const dShort = mo ? mo + '/' + da + '/' + String(yr).slice(-2) : '';
   const key = (sw, dash) => `<svg width="22" height="8" style="vertical-align:middle"><line x1="0" x2="22" y1="4" y2="4" stroke="${{sw}}" stroke-width="${{dash ? 1.5 : 4}}"${{dash ? ' stroke-dasharray="2 2"' : ''}}/></svg>`;
@@ -8416,7 +8442,7 @@ function __bxWpChart(g, w, l) {{
     + `<span>${{dot(cw)}} ${{w}} play</span><span>${{dot(cl)}} ${{l}} play</span><span>filled: made · open: miss / turnover</span>`
     + (ring ? '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid #1a1f2e;vertical-align:middle"></span> 99% for good</span>' : '')
     + (runs.length ? '<span>runs: 10+ points with the other team held to a quarter as many</span>' : '')
-    + '</div></div>';
+    + '</div>' + attrs + '</div>';
 }}
 let __bxWpPts = [], __bxWpNames = [], __bxWpGeom = {{}};
 function __bxWpHover(e, svg) {{
