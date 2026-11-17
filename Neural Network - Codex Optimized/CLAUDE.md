@@ -128,8 +128,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   score marks him with a gold "MVP" after his name (__bxMvp, same game score, whole game; tracker copy too).
 - Box score win-probability chart runs (KenPom's, __bxWpChart; copied into the tracker): a team scores 10+ while the
   other scores at most a quarter as many and no more than 4 (10-0, 12-3, 17-4), from its first to its last basket of
-  the run; the biggest non-overlapping ones drawn as a line labelled "17-3 run" in a strip under the minutes axis (clear
-  of the curve), in the team's color darkened to read on white (__wpDark: Moorpark's light blue).
+  the run; the biggest non-overlapping ones drawn as a line labelled "17-3 run" close to the 50% line (the winner's just
+  above, the loser's just below; label above its line, white outline), all in dark blue.
   Under the chart, KenPom's game attributes with each one's rank among the season's play-by-play games ("#21 of 115"):
   Minimum win probability (teams even, as the Min WP tab; lowest #1), Excitement, Dominance, Tension (highest #1);
   storylines "pbp_ranks" (_sl_pbp_ranks, keyed like the box scores). The tracker gets only each game's 8 numbers:

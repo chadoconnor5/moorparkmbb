@@ -8386,7 +8386,7 @@ function __bxWpChart(g, w, l) {{
   __bxWpPts = dotsP.length ? dotsP : pts; __bxWpNames = [w, l, wIsV, sideTeam, dotsP.length > 0];
   // Runs (KenPom's "17-3 run"): a team scores 10+ while the other scores at most a quarter as many (10-0, 12-3,
   // 17-4); it starts and ends on the team's own baskets and breaks once the other team has scored more than 4. The
-  // biggest ones that don't overlap are drawn in their own strip under the minutes axis, in team colors (darkened).
+  // biggest ones that don't overlap are drawn close to the 50% line (the winner's just above, the loser's just below), in dark blue.
   const sc = [];
   {{ let pv = 0, ph = 0; ev.forEach(e => {{ if (e[1] > pv) sc.push([e[0], 0, e[1] - pv]); if (e[2] > ph) sc.push([e[0], 1, e[2] - ph]); pv = e[1]; ph = e[2]; }}); }}
   const cand = [];
@@ -8404,7 +8404,7 @@ function __bxWpChart(g, w, l) {{
   // Drawn at the screen's width (the modal's content area) so the text stays its real size on a phone and a desktop
   const W = Math.max(300, Math.min(1100, (window.innerWidth || 800) - (window.innerWidth < 700 ? 60 : 160)));
   const small = W < 500;
-  const lane = runs.length ? 24 : 0, H = (small ? 230 : 300) + lane, L = 36, R = 30, T = 10, B = 38 + lane;
+  const H = small ? 230 : 300, L = 36, R = 30, T = 10, B = 38;
   const D = Math.max(15, Math.ceil(Math.max(...pts.map(p => Math.abs(p[4]))) / 5) * 5);   // score axis: +-D
   __bxWpGeom = {{ W, H, L, R, T, B, total }};
   const x = s => L + (W - L - R) * s / total, y = p => T + (H - T - B) * (1 - p), yd = d => y(0.5 + d / (2 * D));
@@ -8423,7 +8423,7 @@ function __bxWpChart(g, w, l) {{
   let diff = '';   // the score margin as steps
   pts.forEach((p, k) => {{ diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); }});
   const runSvg = runs.map(([i, j, a, o, sd]) => {{
-    const yy = H - B + 32, x1 = x(sc[i][0]), x2 = Math.max(x(sc[j][0]), x1 + 4), c = __wpDark(sideColor(sd));
+    const up = (sd === 0) === wIsV, yy = y(up ? 0.535 : 0.465), x1 = x(sc[i][0]), x2 = Math.max(x(sc[j][0]), x1 + 4), c = '#1f3a93';   // runs all dark blue (KenPom's)
     return `<line x1="${{x1.toFixed(1)}}" x2="${{x2.toFixed(1)}}" y1="${{yy}}" y2="${{yy}}" stroke="${{c}}" stroke-width="2"/>`
       + `<text x="${{((x1 + x2) / 2).toFixed(1)}}" y="${{yy - 4}}" text-anchor="middle" font-size="${{fs - 1}}" font-weight="700" fill="${{c}}" stroke="#fff" stroke-width="3" paint-order="stroke">${{a}}-${{o}} run</text>`;
   }}).join('');
