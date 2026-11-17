@@ -120,6 +120,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   kill shots (10-0 runs, one per run, across halftime) for / allowed and kills (three straight defensive stops: opponent
   possessions without a point; restarts after each kill and each half) for / allowed, per game, and Stop%. A possession
   is a stretch of the same team's shots / free throws / turnovers / offensive rebounds. python3 pbp_runs.py prints it.
+- FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
+  (storylines lines_of_night / lines_of_night_2).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
   (_sl_load_line_of_night fills it per game; any player if the winner's box isn't found; none for a forfeit),
   "MVP: Name (13p/1r/3b/1s)": points, then rebounds / assists / blocks / steals when not 0. FanMatch only; the box

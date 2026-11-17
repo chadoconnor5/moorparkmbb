@@ -445,7 +445,7 @@ def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
 
 
-def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None) -> dict:
+def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None, lotn2: dict = None) -> dict:
     """Find the best individual performance (Hollinger game score) per date. mvps, if given, is filled with each
     game's best per team: {(date, frozenset of the two _box_norm names)): {_box_norm(team): rec}} (FanMatch's MVP)."""
     import re
@@ -525,6 +525,11 @@ def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None) 
                                 }
                                 if date_str not in lotn or gs > lotn[date_str]['game_score']:
                                     lotn[date_str] = rec
+                                if lotn2 is not None:   # the night's top lines, one per player (box copies repeat him)
+                                    day = lotn2.setdefault(date_str, {})
+                                    pk = (name_clean, team_name)
+                                    if pk not in day or gs > day[pk]['game_score']:
+                                        day[pk] = rec
                                 if mvps is not None:
                                     best = mvps.setdefault(gk, {})
                                     tk = _box_norm(team_name)
@@ -731,7 +736,14 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
     game_dates = {r["date"] for r in rows}
     sched_dir = Path(str(stats_dir).replace(" Team Statistics", " Teams Schedules"))
     mvps: dict = {}
-    lines_of_night = _sl_load_line_of_night(sched_dir, game_dates, mvps)
+    by_day: dict = {}
+    lines_of_night = _sl_load_line_of_night(sched_dir, game_dates, mvps, by_day)
+    # KenPom's #2 Line o' the Night: the night's second-best game score (another player)
+    lines_of_night_2 = {}
+    for d, day in by_day.items():
+        best = sorted(day.values(), key=lambda x: -x["game_score"])
+        if len(best) > 1:
+            lines_of_night_2[d] = best[1]
     # FanMatch's game MVP (KenPom's): the best Hollinger game score on the winning team (any player if the winner's
     # box isn't found); none for a forfeit
     for r in rows:
@@ -760,6 +772,7 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
                                  key=lambda r: (_sl_date_sort_key(r["date"]), -(r["fanmatch_score"] if r["fanmatch_score"] is not None else -1),
                                                 _sl_time_key(r.get("time")), bool(r.get("tba")))),
         "lines_of_night": lines_of_night,
+        "lines_of_night_2": lines_of_night_2,
         "pbp_ranks":      _sl_pbp_ranks(pbp_rows),
     }
 
@@ -15851,9 +15864,10 @@ function slRenderFanmatch(dateStr) {{
   // Line o' the Night
   const lotnEl = document.getElementById('sl-lotn');
   if (lotnEl) {{
-    const lotn = (activeStorylines().lines_of_night || {{}});
+    const lotn = (activeStorylines().lines_of_night || {{}}), lotn2 = (activeStorylines().lines_of_night_2 || {{}});
     const l = lotn[dateStr];
-    if (l) {{
+    // KenPom's #1 and #2 lines of the night
+    const lineHtml = (l, n) => {{
       const shotLine = l.twom + '-' + l.twoa + ' 2\\'s, ' + l.tpm + '-' + l.tpa + ' 3\\'s, ' + l.ftm + '-' + l.fta + ' FT\\'s';
       const extras = [];
       if (l.reb  > 0) extras.push(l.reb  + ' Reb'    + (l.reb  !== 1 ? 's' : ''));
@@ -15861,11 +15875,14 @@ function slRenderFanmatch(dateStr) {{
       if (l.stl  > 0) extras.push(l.stl  + ' Stl'    + (l.stl  !== 1 ? 's' : ''));
       if (l.blk  > 0) extras.push(l.blk  + ' Blk'    + (l.blk  !== 1 ? 's' : ''));
       const extStr = extras.length ? ' \u2022 ' + extras.join(' \u2022 ') : '';
-      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
-        + '1. <span class="lotn-player">' + l.name + ', ' + l.team + '</span>'
+      return n + '. <span class="lotn-player">' + l.name + ', ' + l.team + '</span>'
         + ' \u2022 <span class="lotn-pts">' + l.pts + ' pts</span> (' + shotLine + ')'
-        + extStr
-        + ' \u2022 GS: ' + l.game_score
+        + extStr + ' \u2022 GS: ' + l.game_score;
+    }};
+    if (l) {{
+      const l2 = lotn2[dateStr];
+      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
+        + lineHtml(l, 1) + (l2 ? '<br><span class="lotn-label" style="visibility:hidden">Line o\\' the Night:</span>' + lineHtml(l2, 2) : '')
         + '</div>';
     }} else {{
       lotnEl.innerHTML = '';
