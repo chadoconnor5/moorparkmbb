@@ -116,6 +116,16 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
   play-by-play aren't in those lists. Upsets count from game one (both teams rated from last season). Past seasons
   keep their tabs and formulas as they were (no new tabs).
+- Misc -> Kills (2026-27, pbp_runs.py, RUNS_DATA in the page, slRenderRuns): per team over its games with play-by-play,
+  kill shots (10-0 runs, one per run, across halftime) for / allowed and kills (three straight defensive stops: opponent
+  possessions without a point; restarts after each kill and each half) for / allowed, per game, and Stop%. A possession
+  is a stretch of the same team's shots / free throws / turnovers / offensive rebounds. python3 pbp_runs.py prints it.
+- FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
+  (_sl_load_line_of_night fills it per game; any player if the winner's box isn't found; none for a forfeit),
+  "MVP: Name (13p/1r/3b/1s)": points, then rebounds / assists / blocks / steals when not 0. FanMatch only.
+- Box score win-probability chart runs (KenPom's, __bxWpChart; copied into the tracker): a team scores 10+ while the
+  other scores at most a quarter as many and no more than 4 (10-0, 12-3, 17-4), from its first to its last basket of
+  the run; the biggest non-overlapping ones drawn as a line labelled "17-3 run", the winner's above the 50% line.
 - Player labels (export_ratings.auto_labels, a port of the tracker's autoLabels, checked label-for-label and why-line
   for-line against it on every 2026-27 player): written into each team file's Team Stats rows (row["labels"]); the
   tracker shows them (its own JS rules stay for older files and players known only from our tracked games), and the
