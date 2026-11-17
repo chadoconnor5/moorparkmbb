@@ -128,7 +128,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
-  AdjT. generate_leaderboard.ratings_archive rebuilds every FanMatch date's morning each build from the games before it
+  AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). generate_leaderboard.ratings_archive rebuilds every FanMatch date's morning each build from the games before it
   with FanMatch's as-of-date adjustment (_adj_solve: opponent-adjusted ORtg / DRtg / tempo), so a day changes only when
   a game before it comes in late; put on the leaderboard's scale (morning = current leaderboard ORtg / DRtg minus the
   adjustment's change since that date; the current column is the leaderboard). AdjT = the adjustment's opponent-adjusted

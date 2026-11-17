@@ -15909,7 +15909,9 @@ function slCalJump() {{
 
 // FanMatch -> Ratings archive (KenPom's): the ratings the morning of the date (ratings_archive: rebuilt from the games
 // before it, so it changes only when an earlier game's stats come in late) next to the current ones, with the changes.
-let slArchOpen = false;
+let slArchOpen = false, slArchSort = ['mr', true];
+// lower is better for the ranks and DRtg: those start ascending; the rest start highest first
+function slArchSortBy(k) {{ slArchSort = slArchSort[0] === k ? [k, !slArchSort[1]] : [k, ['mr', 'cr', 'md', 'cd', 'team', 'conf'].includes(k)]; slRenderArchive(); }}
 function slArchToggle() {{ slArchOpen = !slArchOpen; slRenderArchive(); }}
 function slRenderArchive() {{
   const box = document.getElementById('sl-archive'), tbl = document.getElementById('sl-fm-table'), lnk = document.getElementById('sl-arch-link');
@@ -15931,7 +15933,15 @@ function slRenderArchive() {{
   const [mm, dd, yy] = dateStr.split('/').map(Number), when = new Date(yy, mm - 1, dd).toLocaleDateString('en-US', {{ weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }});
   const f1 = v => v ? v.toFixed(1) : '—', sg = v => (v > 0 ? '+' : '') + v.toFixed(1), small = r => r ? `<span style="color:#888;font-size:0.72rem">${{r}}</span>` : '';
   const chg = (v, dp) => !v ? '' : `<span style="color:${{v > 0 ? '#2e7d32' : '#c62828'}};font-weight:600">${{v > 0 ? '+' : ''}}${{dp ? v.toFixed(dp) : v}}</span>`;
-  const rows = teams.map((t, k) => [t, k]).filter(([, k]) => M[k]).sort((a, b) => M[a[1]][0] - M[b[1]][0]).map(([t, k]) => {{
+  // sortable: every column (slArchSort: [key, ascending]); default the morning rank
+  const val = (t, k) => {{ const m = M[k], c = C[k] || m; return {{ team: t, conf: conf[t] || '', mr: m[0], mn: m[1], mo: m[2], md: m[3], mt: m[4], cr: c[0], cn: c[1], co: c[2], cd: c[3], ct: c[4],
+    xr: m[0] - c[0], xn: c[1] - m[1], xt: m[4] && c[4] ? c[4] - m[4] : -999 }}; }};
+  const [sk, sa] = slArchSort;
+  const rows = teams.map((t, k) => [t, k]).filter(([, k]) => M[k]).sort((a, b) => {{
+    const va = val(a[0], a[1])[sk], vb = val(b[0], b[1])[sk];
+    const c = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return (sa ? c : -c) || M[a[1]][0] - M[b[1]][0];
+  }}).map(([t, k]) => {{
     const m = M[k], c = C[k] || m, bg = t === 'Moorpark' ? 'background:#ffe599;' : '', td = (v, x) => `<td class="sl-th-r" style="${{bg}}${{x || ''}}">${{v}}</td>`;
     return '<tr>' + td(m[0], 'color:#888') + `<td style="${{bg}}">${{teamPageLink(t, 'color:#000;text-decoration:none;font-weight:600')}}</td><td style="${{bg}}color:#555;font-size:0.8rem">${{conf[t] || ''}}</td>`
       + td(sg(m[1]), 'font-weight:700') + td(f1(m[2]) + ' ' + small(mo[k])) + td(f1(m[3]) + ' ' + small(md[k])) + td(f1(m[4]) + ' ' + small(mt[k]))
@@ -15942,9 +15952,10 @@ function slRenderArchive() {{
     + `<div style="text-align:center;color:#888;font-size:0.75rem;margin:0 0 10px">From the games before ${{dateStr}}; a day changes only when an earlier game's stats come in late</div>`
     + '<div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>'
     + '<th colspan="7" style="text-align:center">Ratings on ' + dateStr + '</th><th colspan="5" style="text-align:center;border-left:2px solid #ccc">Current ratings</th><th colspan="3" style="text-align:center;border-left:2px solid #ccc">Change</th></tr><tr>'
-    + '<th class="sl-th-r">Rk</th><th>Team</th><th>Conf</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">AdjT</th>'
-    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">AdjT</th>'
-    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">Net</th><th class="sl-th-r">AdjT</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+    + [['mr', 'Rk', 1], ['team', 'Team', 0], ['conf', 'Conf', 0], ['mn', 'NetRtg', 1], ['mo', 'ORtg', 1], ['md', 'DRtg', 1], ['mt', 'AdjT', 1],
+       ['cr', 'Rk', 1, 1], ['cn', 'NetRtg', 1], ['co', 'ORtg', 1], ['cd', 'DRtg', 1], ['ct', 'AdjT', 1],
+       ['xr', 'Rk', 1, 1], ['xn', 'Net', 1], ['xt', 'AdjT', 1]].map(([k, l, r, bl]) => `<th class="${{r ? 'sl-th-r' : ''}}" style="cursor:pointer${{bl ? ';border-left:2px solid #ccc' : ''}}" onclick="slArchSortBy('${{k}}')">${{l}}${{sk === k ? (sa ? ' ▴' : ' ▾') : ''}}</th>`).join('')
+    + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }}
 function slRenderFanmatch(dateStr) {{
   const fm = (activeStorylines().fanmatch_games || []).filter(g => g.date === dateStr);
