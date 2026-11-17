@@ -8423,9 +8423,10 @@ function __bxWpChart(g, w, l) {{
   // KenPom's game attributes under the chart, each with its rank among the season's play-by-play games
   let attrs = '';
   try {{
-    const SL = typeof activeStorylines === 'function' ? activeStorylines() : null, A = SL && SL.pbp_ranks && SL.pbp_ranks[__boxKey(g.d, w, l)];
+    // g.at / g.an: the tracker's copy (its team files carry this game's numbers); the page reads its storylines
+    const SL = g.at ? null : typeof activeStorylines === 'function' ? activeStorylines() : null, A = g.at || (SL && SL.pbp_ranks && SL.pbp_ranks[__boxKey(g.d, w, l)]);
     if (A) {{
-      const n = SL.pbp_games || 0, it = (lab, v, r, f) => v == null ? '' : `<span><b style="color:#1a1f2e">${{lab}}:</b> ${{f(v)}} <span style="color:#93a0ad">(#${{r}} of ${{n}})</span></span>`;
+      const n = g.at ? g.an || 0 : SL.pbp_games || 0, it = (lab, v, r, f) => v == null ? '' : `<span><b style="color:#1a1f2e">${{lab}}:</b> ${{f(v)}} <span style="color:#93a0ad">(#${{r}} of ${{n}})</span></span>`;
       attrs = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 18px;max-width:640px;margin:8px auto 0;font-size:0.8rem;color:#374151">`
         + it('Minimum win probability (teams even)', A[0], A[1], v => v + '%') + it('Excitement', A[2], A[3], v => v)
         + it('Dominance', A[4], A[5], v => v) + it('Tension', A[6], A[7], v => v) + '</div>';
