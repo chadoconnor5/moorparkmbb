@@ -232,22 +232,25 @@ def _sl_dedupe(by_team: dict, system_teams: set, exclude_zero: bool) -> list:
 # 78-79% of winners and 9.7-9.8 points off the margin, against 76-78% and 10.8-11.3 for the running ratings
 # (_RunningRating) the older seasons keep. Recency weighting and discounting blowouts (Torvik's) didn't help.
 ADJ_HCA, ADJ_SIGMA, ADJ_PRIOR_GAMES, ADJ_REGRESS = 0.014, 11.0, 3.0, 0.30
-# 11/17/2026: one fade for last season, the leaderboard's (update_advanced_analytics.prior_weight: worth 8 games at the
-# start, 8 x e^(-games/10) after; KenPom's own ratings and FanMatch share one formula). It replaced a fixed 3 games and
-# backtested no worse: 2025-26 79.4% of winners / 9.73 off (fixed 3: 78.9% / 9.72), 2024-25 78.5% / 9.79 (78.1% / 9.77).
+# 11/17/2026: one fade for last season, the leaderboard's (update_advanced_analytics.prior_weight; KenPom's ratings and
+# FanMatch share one formula): 2026-27 KenPom's calendar schedule (5 games, fading daily from the Monday after opening
+# week to zero on January 23), earlier seasons' backtests the games-played decay. It replaced a fixed 3 games.
 
 
-def _adj_prior_weight(n_games: int) -> float:
-    """Last season's weight in games after n of this season's: the leaderboard's prior_weight."""
+def _adj_prior_weight(n_games: int, day=None, season=None) -> float:
+    """Last season's weight in games: the leaderboard's prior_weight (KenPom's calendar schedule for 2026-27 when a
+    season is given, else after n of this season's games)."""
     try:
         from update_advanced_analytics import prior_weight
-        return prior_weight(n_games)
+        return prior_weight(n_games, day, season or "")
     except Exception:
         return 8.0 * math.exp(-n_games / 10.0)
 
 
-def _adj_solve(rows: dict, teams, prior: dict, lg_o: float, lg_t: float, iters: int = 25):
-    """rows: team -> [(opponent, ortg, drtg, possessions)] home-neutralized. -> ({team: (O, D, T)})."""
+def _adj_solve(rows: dict, teams, prior: dict, lg_o: float, lg_t: float, iters: int = 25, day=None, season=None):
+    """rows: team -> [(opponent, ortg, drtg, possessions)] home-neutralized. -> ({team: (O, D, T)}).
+    day / season: the morning the ratings are for, so last season weighs what update_advanced_analytics.prior_weight
+    gives (KenPom's calendar schedule for 2026-27; without a season, the games-played decay)."""
     O = {t: prior.get(t, (lg_o, lg_o, lg_t))[0] for t in teams}
     D = {t: prior.get(t, (lg_o, lg_o, lg_t))[1] for t in teams}
     T = {t: prior.get(t, (lg_o, lg_o, lg_t))[2] for t in teams}
@@ -255,7 +258,7 @@ def _adj_solve(rows: dict, teams, prior: dict, lg_o: float, lg_t: float, iters: 
         nO, nD, nT = {}, {}, {}
         for t in teams:
             po, pd, pt = prior.get(t, (lg_o, lg_o, lg_t))
-            w = _adj_prior_weight(len(rows.get(t, ())))   # last season fades out as the leaderboard's does
+            w = _adj_prior_weight(len(rows.get(t, ())), day, season)   # last season fades out as the leaderboard's does
             so, sd, st, n = w * po, w * pd, w * pt, w
             for o, ortg, drtg, poss in rows.get(t, ()):
                 so += ortg * lg_o / D[o]
@@ -316,7 +319,7 @@ def _sl_adjusted_pregame(games: list, teams: set, prior: dict) -> list:
                 rows.setdefault(a, []).append(la)
                 rows.setdefault(b, []).append(lb)
                 i += 1
-            rat, cur = _adj_solve(rows, teams, prior, lg_o, lg_t), d
+            rat, cur = _adj_solve(rows, teams, prior, lg_o, lg_t, day=d, season="2026-27"), d
         a, b, home = g["team"], g["opponent"], g.get("home_team")
         ha = 1 + ADJ_HCA if home == a else 1 - ADJ_HCA if home == b else 1
         (oa, da, ta), (ob, db, tb) = rat[a], rat[b]
@@ -353,7 +356,7 @@ def ratings_archive(teams: list, dates: list, stats_dir=None, prior_dir=None) ->
                 if day is None or d < day:
                     rows.setdefault(a, []).append(la)
                     rows.setdefault(b, []).append(lb_)
-            return _adj_solve(rows, everyone, prior, lg_o, lg_t)
+            return _adj_solve(rows, everyone, prior, lg_o, lg_t, day=day, season="2026-27")
         now = solve(None)
         path = _rh.DIR / "2026-27.json"
         hist = json.loads(path.read_text()) if path.exists() else {}
@@ -5293,7 +5296,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                         n_eff = min(swo, swd)
                         pr = prior_rating.get(t)
                         if pr:   # last season's rating as virtual games, fading as in update_advanced_analytics
-                            pw = _prior_weight(len(evs))
+                            pw = _prior_weight(len(evs), d_str, "2026-27" if fade_prior else "")
                             reg_o = (n_eff * go + pw * pr["ortg"]) / (n_eff + pw)
                             reg_d = (n_eff * gd + pw * pr["drtg"]) / (n_eff + pw)
                         else:

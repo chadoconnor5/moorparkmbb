@@ -497,6 +497,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - SOS / NCSOS (2026-27 on): KenPom's - the plain average of the opponents' current net ratings over the games played
   (NCSOS: non-conference games). Last season enters only through the opponents' own ratings (their prior); a team
   with no games is 0.0 (SOS, NCSOS, Opp ORtg / DRtg build up as games are played). Earlier seasons keep WIN50 (compute_sos kenpom=False).
+- Last season's weight (2026-27 on, KenPom's schedule from his blog; update_advanced_analytics.prior_weight /
+  KENPOM_FADE): the preseason rating (last season's) counts as 5 games until the Monday after opening week (11/9/2026),
+  then drops a little each day to zero on the morning of January 23 (1/23/2027): by date, the same for every team, and
+  the same formula for the leaderboard, FanMatch's pregame ratings, the daily ranks and the Ratings archive (each as of
+  its own morning). Earlier seasons keep the games-played decay (8 x e^(-games/10)) their published ratings used.
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
   re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
   the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.
@@ -509,8 +514,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   empty until a team has played 5 / 10 games that season: never fewer games, never last season's.
 - FanMatch's played games (2026-27 on): the pregame nets, expected margin and win probability come from
   opponent-adjusted ratings as of each game's date (_sl_adjusted_pregame: KenPom-style, last season's final ratings
-  regressed 30%, weighted like the leaderboard's prior: 8 games at the start fading as 8 x e^(-games/10), 11/17; it was
-  a fixed 3 games, and the fade backtested no worse: 2025-26 79.4% vs 78.9%, 2024-25 78.5% vs 78.1%), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
+  regressed 30%, weighted exactly as the leaderboard's prior, update_advanced_analytics.prior_weight; it was a fixed 3
+  games), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
   winners, 9.7-9.8 pts off the margin vs 76-78% / 10.8-11.3; Torvik-style recency / blowout weighting didn't help.
   Feeds Upsets, Busts and the box score chart's pregame odds.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
