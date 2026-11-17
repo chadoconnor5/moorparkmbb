@@ -8172,7 +8172,7 @@ function __bxTd(v, k, sc, plain) {{
   return '<td style="color:rgb(' + rgb.join(',') + ')' + (a >= 0.5 ? ';font-weight:700' : '') + '">' + txt + '</td>';
 }}
 
-function __bxTeamTable(name, rows, oppRows) {{
+function __bxTeamTable(name, rows, oppRows, mvp) {{
   if (!rows.length) return '<div class="bx-table-wrap"><table class="bx-table"><thead><tr><th class="bx-team-hdr">' + name.toUpperCase()
     + '</th></tr></thead><tbody><tr><td style="padding:14px;color:#6b7280">' + name + ' hasn\u2019t posted its box score for this game.</td></tr></tbody></table></div>';
   const oppOk = oppRows.length > 0;   // the other side's box: the rates that need it stay blank without it
@@ -8191,7 +8191,8 @@ function __bxTeamTable(name, rows, oppRows) {{
   const tSc = __bxScales(activeTeamData, BX_COLOR_T, t => (t.gp || 0) > 0);
   const cells = r => {{
     const plain = minutesReal && r.min <= 9, c = (v, k) => __bxTd(v, k, pSc, plain);
-    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name, null, null, true) + '</td><td>' + r.min + '</td>'
+    return '<td>' + (r.j || '') + '</td><td class="bx-l">' + playerLink(r.n, name, null, null, true)
+      + (mvp && r.n === mvp ? '<span style="color:#c8960c;font-style:italic;font-size:9px;font-weight:700;margin-left:4px">MVP</span>' : '') + '</td><td>' + r.min + '</td>'
       + (r.ortg == null && r.ortg_e != null ? c(r.ortg_e, 'ortg').replace('</td>', '<span style="font-size:9px;color:#888;font-weight:600;margin-left:2px">est</span></td>') : c(r.ortg, 'ortg'))
       + '<td>' + __bxF(r.usg) + '</td>'
       + c(r.efg, 'efg') + c(r.ts, 'ts')
@@ -8449,6 +8450,16 @@ function __bxWpHover(e, svg) {{
 // Final (the default) or one period's box score: g.hv, period -> team -> rows, when the page had them.
 let __bxGame = null, __bxPer = 'F';
 function bxPeriod(p) {{ __bxPer = p; renderBoxScore(__bxGame, true); }}
+// The game's MVP (FanMatch's, KenPom's): the best Hollinger game score on the winning team, whole game
+function __bxMvp(rows) {{
+  let best = null, bs = -1e9;
+  (rows || []).forEach(r => {{
+    const gs = (r.pts || 0) + 0.4 * (r.fgm || 0) - 0.7 * (r.fga || 0) - 0.4 * ((r.fta || 0) - (r.ftm || 0)) + 0.7 * (r.or || 0)
+      + 0.3 * (r.dr || 0) + (r.stl || 0) + 0.7 * (r.ast || 0) + 0.7 * (r.blk || 0) - 0.4 * (r.pf || 0) - (r.to || 0);
+    if (gs > bs) {{ bs = gs; best = r.n; }}
+  }});
+  return best;
+}}
 function renderBoxScore(g, keepPeriod) {{
   const names = Object.keys(g.t || {{}});
   if (names.length !== 2) return;
@@ -8468,7 +8479,7 @@ function renderBoxScore(g, keepPeriod) {{
     [['F', 'Final']].concat(Object.keys(hv).sort((a, b) => +a - +b).map(k => [k, pName(k)])).map(([k, lab]) =>
       `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
   document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
-    __bxTeamTable(w, T[w] || [], T[l] || []) + __bxTeamTable(l, T[l] || [], T[w] || [])
+    __bxTeamTable(w, T[w] || [], T[l] || [], __bxMvp(g.t[w])) + __bxTeamTable(l, T[l] || [], T[w] || [])
     + ([w, l].some(n => (T[n] || []).some(r => r.ortg_e != null)) ? '<div style="text-align:center;font-size:0.75rem;color:#666;margin:4px 12px 0">ORtg est: this side\u2019s box score has no real minutes, so each player\u2019s are estimated from his share of its activity (shots, free throws, turnovers, assists, rebounds, fouls, steals, blocks); minutes enter ORtg only through the share of his makes that were assisted.</div>' : '');
   const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
   const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;

@@ -122,7 +122,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   is a stretch of the same team's shots / free throws / turnovers / offensive rebounds. python3 pbp_runs.py prints it.
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
   (_sl_load_line_of_night fills it per game; any player if the winner's box isn't found; none for a forfeit),
-  "MVP: Name (13p/1r/3b/1s)": points, then rebounds / assists / blocks / steals when not 0. FanMatch only.
+  "MVP: Name (13p/1r/3b/1s)": points, then rebounds / assists / blocks / steals when not 0. FanMatch only; the box
+  score marks him with a gold "MVP" after his name (__bxMvp, same game score, whole game; tracker copy too).
 - Box score win-probability chart runs (KenPom's, __bxWpChart; copied into the tracker): a team scores 10+ while the
   other scores at most a quarter as many and no more than 4 (10-0, 12-3, 17-4), from its first to its last basket of
   the run; the biggest non-overlapping ones drawn as a line labelled "17-3 run", the winner's above the 50% line.
