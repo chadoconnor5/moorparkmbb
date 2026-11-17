@@ -312,25 +312,46 @@ def _sl_adjusted_pregame(games: list, teams: set, prior: dict) -> list:
     return out
 
 
-def adj_tempo_now(stats_dir=None, prior_dir=None) -> dict:
-    """Each team's opponent-adjusted tempo (KenPom's AdjT) from every game played: the same adjustment as FanMatch's
-    pregame ratings (_adj_solve). {team: tempo}; {} if it can't be built. FanMatch's Ratings archive saves it daily."""
+def ratings_archive(teams: list, dates: list, stats_dir=None, prior_dir=None) -> dict:
+    """FanMatch's Ratings archive (KenPom's): each date's morning ratings next to the current ones.
+    The morning of D is rebuilt every build from the games before D with FanMatch's as-of-date adjustment (_adj_solve:
+    opponent-adjusted ORtg / DRtg / tempo, last season's ratings regressed as a prior), so a day changes only when a game
+    before it arrives late. It is put on the leaderboard's scale: a team's morning ORtg / DRtg = its current leaderboard
+    ORtg / DRtg minus how far the adjustment moved it since D (the current column is the leaderboard itself); AdjT is the
+    adjustment's own (opponent-adjusted tempo).
+    -> {"teams": [...], "cur": [[ORtg, DRtg, AdjT]], "days": {date: [[ORtg, DRtg, AdjT]]}} (per team, null if unrated)."""
     try:
         stats_dir = stats_dir or STATS_DIR
-        prior_dir = prior_dir or STATS_DIR_2025
-        by_team, team_names = _sl_load_games(stats_dir)
-        games = _sl_dedupe(by_team, team_names, True)
-        if not games:
+        prior = _adj_prior(prior_dir or STATS_DIR_2025)
+        by_team, names = _sl_load_games(stats_dir)
+        games = _sl_dedupe(by_team, names, True)
+        lb = {t["team"]: t for t in teams if t.get("team") and (t.get("ortg") or 0) > 0}
+        order = sorted(lb)
+        if not games or not order:
             return {}
         lg_o, lg_t = _adj_league(games)
-        rows = {}
-        for _, a, b, la, lb in _adj_rows(games):
-            rows.setdefault(a, []).append(la)
-            rows.setdefault(b, []).append(lb)
-        rat = _adj_solve(rows, team_names, _adj_prior(prior_dir), lg_o, lg_t)
-        return {t: round(v[2], 1) for t, v in rat.items()}
+        lines = _adj_rows(games)
+        everyone = set(names) | set(order)
+        def solve(day):   # as of the morning of day: the games before it
+            rows = {}
+            for d, a, b, la, lb_ in lines:
+                if day is None or d < day:
+                    rows.setdefault(a, []).append(la)
+                    rows.setdefault(b, []).append(lb_)
+            return _adj_solve(rows, everyone, prior, lg_o, lg_t)
+        now = solve(None)
+        cur = [[round(lb[t]["ortg"], 1), round(lb[t]["drtg"], 1), round(now[t][2], 1) if t in now else 0] for t in order]
+        days = {}
+        for ds in sorted(set(dates), key=_sl_date_sort_key):
+            day = _sl_parse_date(ds)
+            if not day:
+                continue
+            r = solve(day)
+            days[ds] = [[round(lb[t]["ortg"] - (now[t][0] - r[t][0]), 1), round(lb[t]["drtg"] - (now[t][1] - r[t][1]), 1),
+                         round(r[t][2], 1)] if t in r and t in now else None for t in order]
+        return {"teams": order, "cur": cur, "days": days}
     except Exception as e:
-        print(f"  adjusted tempo skipped: {e}")
+        print(f"  ratings archive skipped: {e}")
         return {}
 
 
@@ -5082,7 +5103,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     _DR_IMP_MARGIN = 0.05
     _DR_IMP_OPP = 0.03
     _DR_IMP_SCALE = 25.0
-    def compute_daily_ranks(team_list, prior_teams=None, fade_prior=False, ratings_out=None):
+    def compute_daily_ranks(team_list, prior_teams=None, fade_prior=False):
         def parse_date(d):
             for fmt in ("%m/%d/%Y", "%m/%d/%y"):
                 try:
@@ -5266,20 +5287,16 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
             team_nets = [(t, current[t]["ortg"] - current[t]["drtg"]) for t in team_names]
             team_nets.sort(key=lambda x: -x[1])
             ranks[d_str] = {tname: i + 1 for i, (tname, _) in enumerate(team_nets)}
-            if ratings_out is not None:   # the as-of-date ORtg / DRtg (rank_history: a late game's recomputed day)
-                ratings_out[d_str] = {t: [round(current[t]["ortg"], 1), round(current[t]["drtg"], 1)] for t in team_names}
 
         return ranks
 
     # Compute current-season daily rankings with iterative as-of-date logic
     # the current season shows saved ranks (rank_history.py): each game's rank is the one it carried into tip-off
-    _asof_ratings = {}
     daily_ranks = _rank_history.update("2026-27", teams or [],
-                                       compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True,
-                                                           ratings_out=_asof_ratings), ratings=_asof_ratings,
-                                       tempo=adj_tempo_now())
+                                       compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True))
     daily_ranks_json = _embed(daily_ranks)
-    ratings_archive_json = _embed(_rank_history.archive("2026-27"))   # FanMatch -> Ratings archive
+    # FanMatch -> Ratings archive: every FanMatch date's morning, rebuilt from the games each build
+    ratings_archive_json = _embed(ratings_archive(teams or [], [r["date"] for r in (storylines or {}).get("fanmatch_games") or []]))
 
     daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
     daily_ranks_2025_json = _embed(daily_ranks_2025)
@@ -15890,9 +15907,11 @@ function slCalJump() {{
   slRenderFanmatch(slFanmatchDates[slFanmatchIdx]);
 }}
 
-// FanMatch -> Ratings archive (KenPom's): the ratings the morning of the date (rank_history: the latest save before
-// it, recomputed only when an earlier game's stats come in late) next to the current ones, with the changes.
-let slArchOpen = false;
+// FanMatch -> Ratings archive (KenPom's): the ratings the morning of the date (ratings_archive: rebuilt from the games
+// before it, so it changes only when an earlier game's stats come in late) next to the current ones, with the changes.
+let slArchOpen = false, slArchSort = ['mr', true];
+// lower is better for the ranks and DRtg: those start ascending; the rest start highest first
+function slArchSortBy(k) {{ slArchSort = slArchSort[0] === k ? [k, !slArchSort[1]] : [k, ['mr', 'cr', 'md', 'cd', 'team', 'conf'].includes(k)]; slRenderArchive(); }}
 function slArchToggle() {{ slArchOpen = !slArchOpen; slRenderArchive(); }}
 function slRenderArchive() {{
   const box = document.getElementById('sl-archive'), tbl = document.getElementById('sl-fm-table'), lnk = document.getElementById('sl-arch-link');
@@ -15902,19 +15921,27 @@ function slRenderArchive() {{
   box.style.display = slArchOpen ? 'block' : 'none'; if (tbl) tbl.style.display = slArchOpen ? 'none' : ''; if (lotn) lotn.style.display = slArchOpen ? 'none' : '';
   if (!slArchOpen) return;
   const A = RATINGS_ARCHIVE || {{}}, days = A.days || {{}}, teams = A.teams || [];
-  const dk = s => {{ const [m, d, y] = String(s).split('/').map(Number); return y * 10000 + m * 100 + d; }};
   const dateStr = slFanmatchDates[slFanmatchIdx] || '';
-  const keys = Object.keys(days).filter(k => k !== 'preseason').sort((a, b) => dk(a) - dk(b));
-  const morning = keys.filter(k => dk(k) < dk(dateStr)).pop() || (days.preseason ? 'preseason' : null), cur = keys[keys.length - 1];
-  if (!morning || !cur) {{ box.innerHTML = '<div style="text-align:center;color:#555;padding:24px">No saved ratings for this date</div>'; return; }}
-  const M = days[morning], C = days[cur];
+  const raw = days[dateStr], curRaw = A.cur;
+  if (!raw || !curRaw) {{ box.innerHTML = '<div style="text-align:center;color:#555;padding:24px">No ratings for this date</div>'; return; }}
+  // [rank, net, ORtg, DRtg, AdjT] per team, ranked by net
+  const withRank = R => {{ const rows = R.map(r => r ? [0, r[0] - r[1], r[0], r[1], r[2]] : null); rows.map((r, k) => r ? [k, r[1]] : null).filter(Boolean).sort((a, b) => b[1] - a[1]).forEach(([k], j) => {{ rows[k][0] = j + 1; }}); return rows; }};
+  const M = withRank(raw), C = withRank(curRaw);
   const rk = (rows, i, desc) => {{ const v = rows.map((r, k) => r && r[i] ? [k, r[i]] : null).filter(Boolean).sort((a, b) => desc ? b[1] - a[1] : a[1] - b[1]); const o = {{}}; v.forEach(([k], j) => o[k] = j + 1); return o; }};
   const mo = rk(M, 2, 1), md = rk(M, 3, 0), mt = rk(M, 4, 1), co = rk(C, 2, 1), cd = rk(C, 3, 0), ct = rk(C, 4, 1);
   const conf = {{}}; (TEAM_DATA || []).forEach(t => {{ conf[t.team] = t.conference || ''; }});
   const [mm, dd, yy] = dateStr.split('/').map(Number), when = new Date(yy, mm - 1, dd).toLocaleDateString('en-US', {{ weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }});
   const f1 = v => v ? v.toFixed(1) : '—', sg = v => (v > 0 ? '+' : '') + v.toFixed(1), small = r => r ? `<span style="color:#888;font-size:0.72rem">${{r}}</span>` : '';
   const chg = (v, dp) => !v ? '' : `<span style="color:${{v > 0 ? '#2e7d32' : '#c62828'}};font-weight:600">${{v > 0 ? '+' : ''}}${{dp ? v.toFixed(dp) : v}}</span>`;
-  const rows = teams.map((t, k) => [t, k]).filter(([, k]) => M[k]).sort((a, b) => M[a[1]][0] - M[b[1]][0]).map(([t, k]) => {{
+  // sortable: every column (slArchSort: [key, ascending]); default the morning rank
+  const val = (t, k) => {{ const m = M[k], c = C[k] || m; return {{ team: t, conf: conf[t] || '', mr: m[0], mn: m[1], mo: m[2], md: m[3], mt: m[4], cr: c[0], cn: c[1], co: c[2], cd: c[3], ct: c[4],
+    xr: m[0] - c[0], xn: c[1] - m[1], xt: m[4] && c[4] ? c[4] - m[4] : -999 }}; }};
+  const [sk, sa] = slArchSort;
+  const rows = teams.map((t, k) => [t, k]).filter(([, k]) => M[k]).sort((a, b) => {{
+    const va = val(a[0], a[1])[sk], vb = val(b[0], b[1])[sk];
+    const c = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return (sa ? c : -c) || M[a[1]][0] - M[b[1]][0];
+  }}).map(([t, k]) => {{
     const m = M[k], c = C[k] || m, bg = t === 'Moorpark' ? 'background:#ffe599;' : '', td = (v, x) => `<td class="sl-th-r" style="${{bg}}${{x || ''}}">${{v}}</td>`;
     return '<tr>' + td(m[0], 'color:#888') + `<td style="${{bg}}">${{teamPageLink(t, 'color:#000;text-decoration:none;font-weight:600')}}</td><td style="${{bg}}color:#555;font-size:0.8rem">${{conf[t] || ''}}</td>`
       + td(sg(m[1]), 'font-weight:700') + td(f1(m[2]) + ' ' + small(mo[k])) + td(f1(m[3]) + ' ' + small(md[k])) + td(f1(m[4]) + ' ' + small(mt[k]))
@@ -15922,12 +15949,13 @@ function slRenderArchive() {{
       + td(chg(m[0] - c[0]), 'border-left:2px solid #ccc') + td(chg(+(c[1] - m[1]).toFixed(1), 1)) + td(m[4] && c[4] ? chg(+(c[4] - m[4]).toFixed(1), 1) : '') + '</tr>';
   }}).join('');
   box.innerHTML = `<div style="text-align:center;font-weight:700;margin:0 0 4px">Ratings the morning of ${{when}}</div>`
-    + `<div style="text-align:center;color:#888;font-size:0.75rem;margin:0 0 10px">${{morning === 'preseason' ? 'Preseason ratings (before any game)' : 'Saved after the games of ' + morning}}; a saved day changes only when an earlier game's stats come in late</div>`
+    + `<div style="text-align:center;color:#888;font-size:0.75rem;margin:0 0 10px">From the games before ${{dateStr}}; a day changes only when an earlier game's stats come in late</div>`
     + '<div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>'
     + '<th colspan="7" style="text-align:center">Ratings on ' + dateStr + '</th><th colspan="5" style="text-align:center;border-left:2px solid #ccc">Current ratings</th><th colspan="3" style="text-align:center;border-left:2px solid #ccc">Change</th></tr><tr>'
-    + '<th class="sl-th-r">Rk</th><th>Team</th><th>Conf</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">AdjT</th>'
-    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">NetRtg</th><th class="sl-th-r">ORtg</th><th class="sl-th-r">DRtg</th><th class="sl-th-r">AdjT</th>'
-    + '<th class="sl-th-r" style="border-left:2px solid #ccc">Rk</th><th class="sl-th-r">Net</th><th class="sl-th-r">AdjT</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+    + [['mr', 'Rk', 1], ['team', 'Team', 0], ['conf', 'Conf', 0], ['mn', 'NetRtg', 1], ['mo', 'ORtg', 1], ['md', 'DRtg', 1], ['mt', 'AdjT', 1],
+       ['cr', 'Rk', 1, 1], ['cn', 'NetRtg', 1], ['co', 'ORtg', 1], ['cd', 'DRtg', 1], ['ct', 'AdjT', 1],
+       ['xr', 'Rk', 1, 1], ['xn', 'Net', 1], ['xt', 'AdjT', 1]].map(([k, l, r, bl]) => `<th class="${{r ? 'sl-th-r' : ''}}" style="cursor:pointer${{bl ? ';border-left:2px solid #ccc' : ''}}" onclick="slArchSortBy('${{k}}')">${{l}}${{sk === k ? (sa ? ' ▴' : ' ▾') : ''}}</th>`).join('')
+    + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }}
 function slRenderFanmatch(dateStr) {{
   const fm = (activeStorylines().fanmatch_games || []).filter(g => g.date === dateStr);
