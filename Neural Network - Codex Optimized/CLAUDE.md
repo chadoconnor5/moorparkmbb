@@ -377,6 +377,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   it, but classify_box still counts that side missing (the game stays PARTIAL and is re-checked), and save_box keeps the
   Synergy rows while the site's side is empty, replacing them once the site posts (scrape.keep_provisional). 11/13:
   11/7 Feather River at Compton, Compton's side.
+  Also from a pasted Synergy play log when Synergy's box is blank (10/31 Santa Monica vs Victor Valley, Santa Monica's
+  side): counting stats per player from each play's header player (the detail lines sometimes name the wrong player),
+  checked against the other side's posted box (the log matched Victor Valley's shooting within a few shots); no minutes;
+  Synergy's unidentified #2 kept as "#2 Unknown Player"; 99 points against the official 98 (one point not found).
 - Minute-based rates (assist rate, usage, shot %, rebound / steal / block %, fouls per 40, ORtg / DRtg) use only the
   games where the team's minutes were kept (the side's player-minutes 150+): generate_team_stats writes min_totals per
   player and the team / opponent totals over those games (team_summary min_totals / min_opponent_totals) when a game
