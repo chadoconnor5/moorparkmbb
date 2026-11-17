@@ -49,8 +49,33 @@ PRIOR_W0 = 8.0     # starting virtual-game weight of the prior (n = 0)
 PRIOR_TAU = 10.0   # decay time-constant in games
 
 
-def prior_weight(n_games: int) -> float:
-    """Virtual-game weight of the prior after n current-season games."""
+# KenPom's schedule (2026-27 on; his blog): the preseason rating holds the weight of about 5 games, and from the Monday
+# after opening week its influence drops a little each day until it reaches zero on the morning of January 23. By date,
+# not by games played, so every team carries the same preseason weight on a given day. Earlier seasons keep the
+# games-played decay above (their published ratings).
+KENPOM_FADE = {"2026-27": ("11/9/2026", "1/23/2027")}   # decay starts (Monday after opening week), reaches zero
+KENPOM_W0 = 5.0
+PRIOR_SEASON = None   # the season being rated (main sets it); KENPOM_FADE seasons use the calendar schedule
+
+
+def _md(s):
+    from datetime import datetime as _dt
+    return _dt.strptime(s, "%m/%d/%Y")
+
+
+def prior_weight(n_games: int, day=None, season=None) -> float:
+    """Virtual-game weight of the prior: KenPom's calendar schedule for KENPOM_FADE seasons (day = the morning the
+    rating is for, a datetime or "M/D/YYYY"; today when not given), else after n current-season games."""
+    season = season or PRIOR_SEASON
+    if season in KENPOM_FADE:
+        from datetime import datetime as _dt
+        start, end = (_md(x) for x in KENPOM_FADE[season])
+        d = _md(day) if isinstance(day, str) else (day or _dt.now())
+        if d <= start:
+            return KENPOM_W0
+        if d >= end:
+            return 0.0
+        return KENPOM_W0 * (end - d).total_seconds() / (end - start).total_seconds()
     return PRIOR_W0 * math.exp(-n_games / PRIOR_TAU)
 
 
@@ -1698,6 +1723,8 @@ def main():
                              "Pass 'none' to disable prior blending.")
     args = parser.parse_args()
 
+    global PRIOR_SEASON
+    PRIOR_SEASON = args.season   # KENPOM_FADE seasons: the prior fades by date
     # Auto-derive the prior season from the chain unless explicitly given.
     # 'none' disables blending; an explicit season overrides the chain.
     if args.prior_season is None:

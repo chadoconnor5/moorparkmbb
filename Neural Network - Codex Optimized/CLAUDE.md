@@ -128,11 +128,14 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
-  AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). generate_leaderboard.ratings_archive rebuilds every FanMatch date's morning each build from the games before it
-  with FanMatch's as-of-date adjustment (_adj_solve: opponent-adjusted ORtg / DRtg / tempo), so a day changes only when
-  a game before it comes in late; put on the leaderboard's scale (morning = current leaderboard ORtg / DRtg minus the
-  adjustment's change since that date; the current column is the leaderboard). AdjT = the adjustment's opponent-adjusted
-  tempo. RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a date). The saved tip-off ranks (daily_ranks) are separate.
+  AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard
+  showed then (generate_leaderboard.ratings_archive): the latest daily_ranks save before D (net; ORtg / DRtg / AdjT saved
+  from 11/17/2026 on: rank_history "o" / "d" / "t"); older days' ORtg / DRtg are estimated (FanMatch's as-of-date
+  adjustment, _adj_solve, measured back from today's leaderboard, shifted to add up to the saved net), AdjT is the
+  adjustment's opponent-adjusted tempo as of D. A team whose game came in after a save (rank_history "recomputed") takes
+  the as-of-date rating for those mornings, so a day changes only when a game before it comes in late. Ranks by net.
+  The current column is the leaderboard. RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a date). 11/17: the first
+  version rebuilt every morning from the adjustment alone and its ranks ran up to 9 places off what the leaderboard showed.
 - FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
   (storylines lines_of_night / lines_of_night_2).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
@@ -208,7 +211,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   rate still decides Passer / Floor general (Synergy's assist share of his own possessions + assists rewards
   low-usage players: 11/11 a 3.3 ARate player topped it).
 - A box score side whose players all have 0 in every stat (minutes aside) didn't post: the game stays PARTIAL / NO_BOX
-  and on the missing list (scrape.classify_box). A game with one side posted still shows its box score on the
+  and on the missing list (scrape.classify_box). So does a side whose players' points add up to under half its score line (a
+  stuck live-stats feed: 11/6 Monterey Peninsula, 6 player points against 73, put its offense at 7.7 per 100 and its net
+  at -16.2; blanked, the game falls back to the final score). A game with one side posted still shows its box score on the
   leaderboard: that side's table, "hasn't posted" for the other, and the rates that need the other side (DRtg, OR%,
   DR%, Stl%, Blk%) blank (build_game_boxes "miss").
 - Conference table (Misc -> Conferences, slRenderConf): besides the scope's combined Net, Top 3 (the average current
@@ -494,6 +499,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - SOS / NCSOS (2026-27 on): KenPom's - the plain average of the opponents' current net ratings over the games played
   (NCSOS: non-conference games). Last season enters only through the opponents' own ratings (their prior); a team
   with no games is 0.0 (SOS, NCSOS, Opp ORtg / DRtg build up as games are played). Earlier seasons keep WIN50 (compute_sos kenpom=False).
+- Last season's weight (2026-27 on, KenPom's schedule from his blog; update_advanced_analytics.prior_weight /
+  KENPOM_FADE): the preseason rating (last season's) counts as 5 games until the Monday after opening week (11/9/2026),
+  then drops a little each day to zero on the morning of January 23 (1/23/2027): by date, the same for every team, and
+  the same formula for the leaderboard, FanMatch's pregame ratings, the daily ranks and the Ratings archive (each as of
+  its own morning). Earlier seasons keep the games-played decay (8 x e^(-games/10)) their published ratings used.
 - Nightly opponent adjustment: scrape.py runs update_advanced_analytics.py --all, so every team's past games are
   re-graded against each opponent's current rating (ORtg/DRtg/net, adjusted four factors, SOS, Opp/Pace Adjust);
   the current season regresses to last season's rating with prior_weight(games) (fades out), past seasons unchanged.
@@ -506,7 +516,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   empty until a team has played 5 / 10 games that season: never fewer games, never last season's.
 - FanMatch's played games (2026-27 on): the pregame nets, expected margin and win probability come from
   opponent-adjusted ratings as of each game's date (_sl_adjusted_pregame: KenPom-style, last season's final ratings
-  regressed 30% as 3 games), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
+  regressed 30%, weighted exactly as the leaderboard's prior, update_advanced_analytics.prior_weight; it was a fixed 3
+  games), not the running ratings the older seasons keep. Backtest (2024-25, 2025-26): 78-79% of
   winners, 9.7-9.8 pts off the margin vs 76-78% / 10.8-11.3; Torvik-style recency / blowout weighting didn't help.
   Feeds Upsets, Busts and the box score chart's pregame odds.
 - FanMatch lists every scheduled game; it projects one only when both teams have played MIN_PROJ_GAMES (5) games
