@@ -6525,6 +6525,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-date-cell {{ white-space: nowrap; color: #555 !important; font-size: 0.78rem; min-width: 70px; }}
   .sl-loc-cell {{ white-space: nowrap; font-size: 0.78rem; color: #555 !important; max-width: 150px; overflow: hidden; text-overflow: ellipsis; text-align: left; }}
   .sl-game-cell {{ min-width: 200px; max-width: 380px; white-space: nowrap; }}
+  /* FanMatch: KenPom-tight rows, the MVP line right under the game */
+  #sl-body-fanmatch td {{ padding: 3px 8px; line-height: 1.25; vertical-align: middle; }}
+  #sl-body-fanmatch .sl-mvp {{ font-size: 0.68rem; line-height: 1.1; margin: 0; color: var(--ink-3); }}
   .sl-game-winner {{ font-weight: 700; color: #000 !important; }}
   .sl-game-loser {{ color: #555 !important; }}
   .sl-score {{ font-weight: 700; color: #000 !important; }}
@@ -8327,6 +8330,14 @@ function __wpPregame(g, w, l) {{
   const home = r.home_team ? __boxNorm(r.home_team) : '';
   return gap + (home === nw ? 3 : home === nl ? -3 : 0);
 }}
+// A team color dark enough to read as text on white (light ones, e.g. Moorpark's light blue, darkened)
+function __wpDark(c) {{
+  const m = /^#?([0-9a-f]{{2}})([0-9a-f]{{2}})([0-9a-f]{{2}})$/i.exec(String(c || '').trim());
+  if (!m) return '#1a1f2e';
+  let [r, g, b] = m.slice(1).map(h => parseInt(h, 16));
+  for (let k = 0; k < 12 && (0.299 * r + 0.587 * g + 0.114 * b) > 110; k++) {{ r *= 0.85; g *= 0.85; b *= 0.85; }}
+  return 'rgb(' + [r, g, b].map(v => Math.round(v)).join(',') + ')';
+}}
 function __bxWpChart(g, w, l) {{
   if (!g.wp) return '';
   const [vis, nper, str, vNames, hNames] = g.wp, wIsV = vis === w, l0 = wIsV ? l : w;
@@ -8373,6 +8384,23 @@ function __bxWpChart(g, w, l) {{
   const [cw, cl] = __wpColors(w, l);
   const sideColor = sd => (sd === 0) === wIsV ? cw : cl, sideTeam = sd => sd === 0 ? vis : l0;
   __bxWpPts = dotsP.length ? dotsP : pts; __bxWpNames = [w, l, wIsV, sideTeam, dotsP.length > 0];
+  // Runs (KenPom's "17-3 run"): a team scores 10+ while the other scores at most a quarter as many (10-0, 12-3,
+  // 17-4); it starts and ends on the team's own baskets and breaks once the other team has scored more than 4. The
+  // biggest ones that don't overlap are drawn close to the 50% line (the winner's just above, the loser's just below), in dark blue.
+  const sc = [];
+  {{ let pv = 0, ph = 0; ev.forEach(e => {{ if (e[1] > pv) sc.push([e[0], 0, e[1] - pv]); if (e[2] > ph) sc.push([e[0], 1, e[2] - ph]); pv = e[1]; ph = e[2]; }}); }}
+  const cand = [];
+  sc.forEach((a0, i) => {{
+    let a = 0, o = 0, best = null;
+    for (let j = i; j < sc.length; j++) {{
+      if (sc[j][1] === a0[1]) a += sc[j][2]; else o += sc[j][2];
+      if (o > 4) break;
+      if (sc[j][1] === a0[1] && a >= 10 && o <= a / 4) best = [i, j, a, o, a0[1]];
+    }}
+    if (best) cand.push(best);
+  }});
+  const runs = [];
+  cand.sort((p, q) => (q[2] - q[3]) - (p[2] - p[3]) || q[2] - p[2]).forEach(c => {{ if (!runs.some(r => c[0] <= r[1] && r[0] <= c[1])) runs.push(c); }});
   // Drawn at the screen's width (the modal's content area) so the text stays its real size on a phone and a desktop
   const W = Math.max(300, Math.min(1100, (window.innerWidth || 800) - (window.innerWidth < 700 ? 60 : 160)));
   const small = W < 500;
@@ -8394,27 +8422,10 @@ function __bxWpChart(g, w, l) {{
   const line = pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join('');
   let diff = '';   // the score margin as steps
   pts.forEach((p, k) => {{ diff += k ? 'H' + x(p[0]).toFixed(1) + 'V' + yd(p[4]).toFixed(1) : 'M' + x(p[0]).toFixed(1) + ' ' + yd(p[4]).toFixed(1); }});
-  // Runs (KenPom's "17-3 run"): a team scores 10+ while the other scores at most a quarter as many (10-0, 12-3,
-  // 17-4); it starts and ends on the team's own baskets and breaks once the other team has scored more than 4. The
-  // biggest ones that don't overlap are drawn: the winner's above the 50% line, the loser's below, in team colors.
-  const sc = [];
-  {{ let pv = 0, ph = 0; ev.forEach(e => {{ if (e[1] > pv) sc.push([e[0], 0, e[1] - pv]); if (e[2] > ph) sc.push([e[0], 1, e[2] - ph]); pv = e[1]; ph = e[2]; }}); }}
-  const cand = [];
-  sc.forEach((a0, i) => {{
-    let a = 0, o = 0, best = null;
-    for (let j = i; j < sc.length; j++) {{
-      if (sc[j][1] === a0[1]) a += sc[j][2]; else o += sc[j][2];
-      if (o > 4) break;
-      if (sc[j][1] === a0[1] && a >= 10 && o <= a / 4) best = [i, j, a, o, a0[1]];
-    }}
-    if (best) cand.push(best);
-  }});
-  const runs = [];
-  cand.sort((p, q) => (q[2] - q[3]) - (p[2] - p[3]) || q[2] - p[2]).forEach(c => {{ if (!runs.some(r => c[0] <= r[1] && r[0] <= c[1])) runs.push(c); }});
   const runSvg = runs.map(([i, j, a, o, sd]) => {{
-    const up = (sd === 0) === wIsV, yy = y(up ? 0.57 : 0.43), x1 = x(sc[i][0]), x2 = Math.max(x(sc[j][0]), x1 + 4), c = sideColor(sd);
+    const up = (sd === 0) === wIsV, yy = y(up ? 0.535 : 0.465), x1 = x(sc[i][0]), x2 = Math.max(x(sc[j][0]), x1 + 4), c = '#1f3a93';   // runs all dark blue (KenPom's)
     return `<line x1="${{x1.toFixed(1)}}" x2="${{x2.toFixed(1)}}" y1="${{yy}}" y2="${{yy}}" stroke="${{c}}" stroke-width="2"/>`
-      + `<text x="${{((x1 + x2) / 2).toFixed(1)}}" y="${{up ? yy - 4 : yy + fs + 1}}" text-anchor="middle" font-size="${{fs - 1}}" font-weight="700" fill="${{c}}">${{a}}-${{o}} run</text>`;
+      + `<text x="${{((x1 + x2) / 2).toFixed(1)}}" y="${{yy - 4}}" text-anchor="middle" font-size="${{fs - 1}}" font-weight="700" fill="${{c}}" stroke="#fff" stroke-width="3" paint-order="stroke">${{a}}-${{o}} run</text>`;
   }}).join('');
   const r0 = small ? 2.2 : 2.8;
   const dots = dotsP.map(p => `<circle cx="${{x(p[0]).toFixed(1)}}" cy="${{y(p[1]).toFixed(1)}}" r="${{r0}}" fill="${{WP_POINTS[p[4]] ? sideColor(p[2]) : '#fff'}}" stroke="${{sideColor(p[2])}}" stroke-width="1.2"/>`).join('');
@@ -8423,9 +8434,10 @@ function __bxWpChart(g, w, l) {{
   // KenPom's game attributes under the chart, each with its rank among the season's play-by-play games
   let attrs = '';
   try {{
-    const SL = typeof activeStorylines === 'function' ? activeStorylines() : null, A = SL && SL.pbp_ranks && SL.pbp_ranks[__boxKey(g.d, w, l)];
+    // g.at / g.an: the tracker's copy (its team files carry this game's numbers); the page reads its storylines
+    const SL = g.at ? null : typeof activeStorylines === 'function' ? activeStorylines() : null, A = g.at || (SL && SL.pbp_ranks && SL.pbp_ranks[__boxKey(g.d, w, l)]);
     if (A) {{
-      const n = SL.pbp_games || 0, it = (lab, v, r, f) => v == null ? '' : `<span><b style="color:#1a1f2e">${{lab}}:</b> ${{f(v)}} <span style="color:#93a0ad">(#${{r}} of ${{n}})</span></span>`;
+      const n = g.at ? g.an || 0 : SL.pbp_games || 0, it = (lab, v, r, f) => v == null ? '' : `<span><b style="color:#1a1f2e">${{lab}}:</b> ${{f(v)}} <span style="color:#93a0ad">(#${{r}} of ${{n}})</span></span>`;
       attrs = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:4px 18px;max-width:640px;margin:8px auto 0;font-size:0.8rem;color:#374151">`
         + it('Minimum win probability (teams even)', A[0], A[1], v => v + '%') + it('Excitement', A[2], A[3], v => v)
         + it('Dominance', A[4], A[5], v => v) + it('Tension', A[6], A[7], v => v) + '</div>';
@@ -15701,7 +15713,7 @@ function slGameCell(g, mvp) {{
 function slMvpLine(g) {{
   const m = g.mvp; if (!m) return '';
   const st = [m.pts + 'p'].concat([[m.reb, 'r'], [m.ast, 'a'], [m.blk, 'b'], [m.stl, 's']].filter(x => x[0] > 0).map(x => x[0] + x[1])).join('/');
-  return '<div style="font-size:0.72rem;color:var(--ink-3);font-weight:400;margin-top:1px">MVP: <span style="color:var(--ink-2,#333)">' + m.name + '</span> (' + st + ')</div>';
+  return '<div class="sl-mvp" style="font-weight:400">MVP: <span style="color:var(--ink-2,#333)">' + m.name + '</span> (' + st + ')</div>';
 }}
 
 function slGameRow(g, idx, cols) {{

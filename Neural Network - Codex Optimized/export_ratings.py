@@ -969,7 +969,9 @@ def box_ctx(players, teams, storylines=None):
                                   {"ortg": "ortg", "efg": "efg_pct", "ts": "ts_pct", "orp": "oreb_pct", "drp": "dreb_pct",
                                    "ap": "ast_pct", "top": "tov_pct", "stp": "stl_pct", "blp": "blk_pct"})},
             "pc": gl.SCHOOL_COLORS, "sc": gl.SCHOOL_SECONDARY_COLORS,
-            "fanmatch": [r for r in ((storylines or {}).get("fanmatch_games") or []) if not r.get("upcoming")]}
+            "fanmatch": [r for r in ((storylines or {}).get("fanmatch_games") or []) if not r.get("upcoming")],
+            # each play-by-play game's KenPom attributes and ranks (generate_leaderboard._sl_pbp_ranks), out of pbp_games
+            "pbp_ranks": (storylines or {}).get("pbp_ranks") or {}, "pbp_games": (storylines or {}).get("pbp_games") or 0}
 
 
 def _season_boxes(season):
@@ -1032,6 +1034,9 @@ def team_schedule(season, team):
             "bx": _pack_box(rec) if rec else None,
             "fm": {k: fm.get(k) for k in ("date", "winner", "loser", "pregame_margin_w", "pregame_winner_net", "pregame_loser_net",
                                           "home_team")} if fm else None,
+            # the box score chart's attributes with their ranks ([min WP, rank, excitement, rank, dominance, rank,
+            # tension, rank]) of "an" games: only this game's numbers, not the season's
+            "at": (BOX_CTX.get("pbp_ranks") or {}).get(bkey), "an": BOX_CTX.get("pbp_games") or None,
             "d": key, "o": theirs, "ha": "H" if box.get("home") == ours else "A",
             "r": None if us is None or us == them else "W" if us > them else "L", "s": [us, them],
             "mq": [(mq.get(ours) or {}).get("minutes") not in (None, "REAL", "PBP"), (mq.get(theirs) or {}).get("minutes") not in (None, "REAL", "PBP")]}
