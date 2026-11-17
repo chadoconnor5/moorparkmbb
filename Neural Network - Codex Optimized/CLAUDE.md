@@ -380,7 +380,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Also from a pasted Synergy play log when Synergy's box is blank (10/31 Santa Monica vs Victor Valley, Santa Monica's
   side): counting stats per player from each play's header player (the detail lines sometimes name the wrong player),
   checked against the other side's posted box (the log matched Victor Valley's shooting within a few shots); no minutes;
-  Synergy's unidentified #2 was Mekhi Polk (#3, merged); 99 points against the official 98 (one point not found).
+  Synergy's unidentified #2 was Mekhi Polk (#3, merged); 99 points against the official 98: checked on film, the
+  scoreboard was wrong (Polk's 2nd-half layup counted 1, Victor Valley got 2 phantom points), so the 99 stays.
 - Minute-based rates (assist rate, usage, shot %, rebound / steal / block %, fouls per 40, ORtg / DRtg) use only the
   games where the team's minutes were kept (the side's player-minutes 150+): generate_team_stats writes min_totals per
   player and the team / opponent totals over those games (team_summary min_totals / min_opponent_totals) when a game
