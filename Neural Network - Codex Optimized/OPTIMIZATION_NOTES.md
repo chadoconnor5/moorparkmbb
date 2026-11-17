@@ -27,8 +27,8 @@ This copy keeps the original project intact and starts consolidating the working
     season is ~1.7 MB fetched on demand. Works over both `file://` (script-tag
     injection, no fetch) and HTTP. Keep `season_data/` next to the HTML when
     moving or publishing it.
-  - The main page also carries `RATINGS_ARCHIVE` (FanMatch's Ratings archive, a lazy JSON tag: every saved day's
-    ratings, ~3 KB a day, ~400 KB by season's end; rank_history.archive).
+  - The main page also carries `RATINGS_ARCHIVE` (FanMatch's Ratings archive, a lazy JSON tag: every FanMatch date's
+    morning ratings, ~3 KB a date, ~400 KB by season's end; generate_leaderboard.ratings_archive).
   - The main page also carries `RUNS_DATA` (Misc -> Kills, current season only, ~5 KB; pbp_runs.season_runs).
   - `--fast` builds do not rewrite `season_data/`, so existing season files from a
     previous full build keep serving past seasons.
