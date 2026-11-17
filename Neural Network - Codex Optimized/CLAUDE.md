@@ -120,6 +120,19 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   kill shots (10-0 runs, one per run, across halftime) for / allowed and kills (three straight defensive stops: opponent
   possessions without a point; restarts after each kill and each half) for / allowed, per game, and Stop%. A possession
   is a stretch of the same team's shots / free throws / turnovers / offensive rebounds. python3 pbp_runs.py prints it.
+  Games with no play-by-play can use a Synergy play log pasted in by hand: internal_data/synergy_logs/<season>/
+  <YYYYMMDD>_<visitor>_at_<home>.json ({"date", "left", "right", "log", "aliases"}; "left" = the team whose score the log
+  lists first; aliases name Synergy's "Unknown Player" when the log doesn't). pbp_runs.synergy_plays reads it (players
+  placed by the game's box score: word prefixes, else last name + first initial, else the side whose box is empty).
+  The log has no clock, so it feeds only this table (not the win-probability chart, ranks or lineups). 11/17: 10/31
+  Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
+- FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
+  the date (the latest daily_ranks save before it: rank, net, ORtg, DRtg, AdjT with ranks; AdjT = opponent-adjusted tempo,
+  adj_tempo_now, FanMatch's pregame adjustment) next to the current ones, and
+  the change in rank, net and AdjT. rank_history keeps each day's save; a saved day changes only when a game dated
+  on/before it comes in late: its ORtg / DRtg / net move by the change in that day's as-of-date rating (compute_daily_ranks'
+  ratings_out, kept per day as "ro" / "rd") and it is re-ranked by net. Days saved before 11/17/2026 have rank and net only.
+  RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a day).
 - FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
   (storylines lines_of_night / lines_of_night_2).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
@@ -382,6 +395,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   checked against the other side's posted box (the log matched Victor Valley's shooting within a few shots); no minutes;
   Synergy's unidentified #2 was Mekhi Polk (#3, merged); checked on film: Justin Morris's
   2nd-half "three" was a two (98, the official final); Victor Valley's official 87 includes 2 phantom scoreboard points.
+  11/13 Citrus at Allan Hancock, Citrus's side (the site posted only Hancock's) from its Synergy log the same way: the log
+  matched Hancock's posted box point for point; 95 against the official 98 (3 points not found yet).
 - Minute-based rates (assist rate, usage, shot %, rebound / steal / block %, fouls per 40, ORtg / DRtg) use only the
   games where the team's minutes were kept (the side's player-minutes 150+): generate_team_stats writes min_totals per
   player and the team / opponent totals over those games (team_summary min_totals / min_opponent_totals) when a game
