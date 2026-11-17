@@ -5,6 +5,11 @@
     kill        three straight defensive stops: three opponent possessions in a row without a point. The count starts
                 over after each kill (six straight stops = 2) and at each half.
 
+Games whose play-by-play is empty can use a Synergy play log pasted in by hand
+(internal_data/synergy_logs/<season>/<YYYYMMDD>_<visitor>_at_<home>.json: {"date", "left", "right", "log"}; "left" is the
+team whose score the log lists first): synergy_plays turns it into the same plays (no clock, so it feeds only this
+table, never the win-probability chart or lineups).
+
 A possession is a stretch of plays where the same team has the ball: its shots, free throws, turnovers and offensive
 rebounds (the defense's rebounds, steals, blocks and fouls don't decide who has it), so an offensive rebound keeps the
 possession and an and-one's free throw belongs to it. Games without play-by-play aren't counted (g = games counted).
@@ -75,16 +80,97 @@ def game_runs(plays):
     return [(ks[i], kills[i], stops[i], poss[i]) for i in (0, 1)]
 
 
+_SYN_DET = ("Shot >", "Assist >", "Steal >", "Turnover >", "Foul >", "Free Throw Attempt >", "Defensive Rebound >",
+            "Offensive Rebound >", "Block Shot >")
+
+
+def synergy_plays(rec, rosters):
+    """A Synergy play log as plays [period, "0:00", side 0 left / 1 right, player, action, left score, right score].
+    The acting player is a chain line's last "N Name" (a pass ends "Ball Delivered > N Name > ..."), "Unknown Player"
+    taking the name on the line above the chain, or rec["aliases"]; his side from the game's box score (rosters: {side:
+    [name words]}; a name's words match by prefix, "Micah Coleman" = "Micah Cole", or last name and first initial,
+    "Christan Pundt" = "Christian Pundt"), else, when one side's box is empty,
+    the side that isn't the other team's. Plays of a player placed on neither side are left out. Shots and free throws
+    from the detail lines."""
+    import re
+    words = lambda n: [w for w in re.sub(r"[^A-Z ]+", " ", str(n).upper().replace(",", " ")).split() if w not in ("JR", "II", "III", "SR")]
+    def on(name, side):
+        w = words(name)
+        pre = lambda x, y: x.startswith(y) or y.startswith(x)
+        return any(w and r and (sum(any(pre(x, y) for y in r) for x in w) >= min(2, len(w))
+                                or len(w) > 1 and pre(w[-1], r[-1]) and w[0][0] == r[0][0]) for r in rosters[side])
+    aliases = rec.get("aliases") or {}
+    per, out, sc, side, name, prev = 1, [], [0, 0], None, None, ""
+    for l in (x.strip() for x in rec["log"].splitlines()):
+        if not l:
+            continue
+        if l.startswith(("Halftime ", "Overtime ")):
+            per = int(l.split()[-1]) + (2 if l.startswith("Overtime") else 0)
+        elif re.match(r"^\d+ .+ > ", l) and not l.startswith(_SYN_DET):
+            segs = [x.strip() for x in l.split(">")]
+            act = [x for x in segs if re.match(r"^\d+ \D", x) and not re.match(r"^\d+ Pts$", x)]
+            name = act[-1].split(" ", 1)[1]
+            if name in aliases:
+                name = aliases[name]
+            elif name == "Unknown Player" and prev and not re.match(r"^[\d#]", prev):
+                name = prev
+            hit = [k for k in (0, 1) if on(name, k)]
+            if not hit:
+                hit = [k for k in (0, 1) if not rosters[k] and rosters[1 - k]]
+            side = hit[0] if len(hit) == 1 else None
+            if side is not None and "Turnover" in segs[-1]:
+                out.append([per, "0:00", side, name, "Turnover by", sc[0], sc[1]])
+        elif side is None:
+            pass
+        elif l.startswith("Shot >"):
+            made = "Make" in l
+            if made:
+                sc[side] += 3 if "3 Point" in l else 2
+            out.append([per, "0:00", side, name, ("made " if made else "missed ") + ("3-pt. jump shot" if "3 Point" in l else "jump shot"), sc[0], sc[1]])
+        elif l.startswith("Free Throw Attempt"):
+            made = l.endswith("Made")
+            sc[side] += made
+            out.append([per, "0:00", side, name, ("made " if made else "missed ") + "free throw", sc[0], sc[1]])
+        elif l.startswith("Offensive Rebound >"):
+            out.append([per, "0:00", side, name, "offensive rebound", sc[0], sc[1]])
+        prev = l
+    return out
+
+
+def _synergy_games(season, ours, isl):
+    """{play-by-play file name: game} from the stored Synergy logs, rosters from the game's box score."""
+    import glob
+    out = {}
+    for f in sorted((HERE / "internal_data" / "synergy_logs" / season).glob("*.json")):
+        rec = json.load(open(f, encoding="utf-8"))
+        rosters = {0: [], 1: []}
+        for bf in glob.glob(str(HERE / f"{season} Teams Schedules" / "*" / "*" / (f.stem[:8] + "_*") / "*.json")):
+            box = json.load(open(bf, encoding="utf-8"))
+            if set(box.get("teams") or {}) != {rec["left"], rec["right"]}:
+                continue
+            for k, t in ((0, rec["left"]), (1, rec["right"])):
+                import re
+                rosters[k] = [[w for w in re.sub(r"[^A-Z ]+", " ", str(p.get("name", "")).upper()).split()]
+                              for p in box["teams"][t] if any(str(v).strip() not in ("", "0", "0-0") for kk, v in (p.get("stats") or {}).items() if kk != "MIN") or True]
+            break
+        out[f.stem + ".json"] = {"visitor": rec["left"], "home": rec["right"], "plays": synergy_plays(rec, rosters)}
+    return out
+
+
 def season_runs(season="2026-27"):
     """{team: {"g", "ks", "ks_a", "kills", "kills_a", "stops", "poss_d"}} for our teams with play-by-play."""
     import import_synergy_leaderboard as isl
     import play_by_play
     ours, out = isl.our_teams(), {}
-    for f in sorted((HERE / f"{season} Play by Play").glob("*.json")):
+    syn = _synergy_games(season, ours, isl)
+    files = {f.name: f for f in sorted((HERE / f"{season} Play by Play").glob("*.json"))}
+    for name in sorted(set(files) | set(syn)):
         try:
-            g = play_by_play.fix_plays(json.load(open(f, encoding="utf-8")))
+            g = play_by_play.fix_plays(json.load(open(files[name], encoding="utf-8"))) if name in files else {}
         except (OSError, ValueError):
-            continue
+            g = {}
+        if not (g.get("plays")) and name in syn:   # no play-by-play: the Synergy log
+            g = syn[name]
         plays = g.get("plays") or []
         if not plays:
             continue
