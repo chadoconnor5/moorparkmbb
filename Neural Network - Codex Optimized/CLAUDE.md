@@ -128,11 +128,14 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
-  AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). generate_leaderboard.ratings_archive rebuilds every FanMatch date's morning each build from the games before it
-  with FanMatch's as-of-date adjustment (_adj_solve: opponent-adjusted ORtg / DRtg / tempo), so a day changes only when
-  a game before it comes in late; put on the leaderboard's scale (morning = current leaderboard ORtg / DRtg minus the
-  adjustment's change since that date; the current column is the leaderboard). AdjT = the adjustment's opponent-adjusted
-  tempo. RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a date). The saved tip-off ranks (daily_ranks) are separate.
+  AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard
+  showed then (generate_leaderboard.ratings_archive): the latest daily_ranks save before D (net; ORtg / DRtg / AdjT saved
+  from 11/17/2026 on: rank_history "o" / "d" / "t"); older days' ORtg / DRtg are estimated (FanMatch's as-of-date
+  adjustment, _adj_solve, measured back from today's leaderboard, shifted to add up to the saved net), AdjT is the
+  adjustment's opponent-adjusted tempo as of D. A team whose game came in after a save (rank_history "recomputed") takes
+  the as-of-date rating for those mornings, so a day changes only when a game before it comes in late. Ranks by net.
+  The current column is the leaderboard. RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a date). 11/17: the first
+  version rebuilt every morning from the adjustment alone and its ranks ran up to 9 places off what the leaderboard showed.
 - FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
   (storylines lines_of_night / lines_of_night_2).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team

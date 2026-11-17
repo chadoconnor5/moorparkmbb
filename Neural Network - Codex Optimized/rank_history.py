@@ -44,7 +44,7 @@ def _as_of(reconstructed, day):
     return reconstructed.get(best) if best else reconstructed.get("preseason", {})
 
 
-def update(season, teams, reconstructed):
+def update(season, teams, reconstructed, tempo=None):
     """Save today's ranks, recompute any saved day a late game changed, and return the ranks for the page:
     {"_strict": 1, "preseason": {...}, date: {team: rank}} (the page reads a game's rank from the save before it)."""
     teams = [t for t in teams if t.get("team") and t.get("ortg", 0) > 0]
@@ -70,6 +70,10 @@ def update(season, teams, reconstructed):
     hist[today] = {"saved": stamp,
                    "ranks": {t["team"]: i + 1 for i, t in enumerate(order)},
                    "net": {t["team"]: round(t.get("net_rtg", 0), 1) for t in order},
+                   # FanMatch's Ratings archive: the leaderboard's ORtg / DRtg and the adjusted tempo that night
+                   "o": {t["team"]: round(t.get("ortg", 0), 1) for t in order},
+                   "d": {t["team"]: round(t.get("drtg", 0), 1) for t in order},
+                   **({"t": {t["team"]: tempo[t["team"]] for t in order if t["team"] in tempo}} if tempo else {}),
                    "gp": _gp_through(teams, today)}
     hist = dict(sorted(hist.items(), key=lambda kv: 0 if kv[0] == "preseason" else _key(kv[0])))
     DIR.mkdir(exist_ok=True)

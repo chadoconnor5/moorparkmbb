@@ -314,13 +314,15 @@ def _sl_adjusted_pregame(games: list, teams: set, prior: dict) -> list:
 
 def ratings_archive(teams: list, dates: list, stats_dir=None, prior_dir=None) -> dict:
     """FanMatch's Ratings archive (KenPom's): each date's morning ratings next to the current ones.
-    The morning of D is rebuilt every build from the games before D with FanMatch's as-of-date adjustment (_adj_solve:
-    opponent-adjusted ORtg / DRtg / tempo, last season's ratings regressed as a prior), so a day changes only when a game
-    before it arrives late. It is put on the leaderboard's scale: a team's morning ORtg / DRtg = its current leaderboard
-    ORtg / DRtg minus how far the adjustment moved it since D (the current column is the leaderboard itself); AdjT is the
-    adjustment's own (opponent-adjusted tempo).
-    -> {"teams": [...], "cur": [[ORtg, DRtg, AdjT]], "days": {date: [[ORtg, DRtg, AdjT]]}} (per team, null if unrated)."""
+    The morning of D is what the leaderboard showed then: the latest daily_ranks save before D (rank_history; net and,
+    from 11/17/2026 on, ORtg / DRtg / AdjT as saved). A team whose game came in after that save (rank_history's
+    "recomputed") takes the as-of-date rating below instead, so a day changes only when a game before it comes in late.
+    For a day saved without ORtg / DRtg they're estimated: FanMatch's as-of-date adjustment (_adj_solve, games before D)
+    measured back from today's leaderboard, then shifted half each way so ORtg - DRtg = that day's saved net. AdjT
+    (opponent-adjusted tempo) is the adjustment's as of D when not saved. The current column is the leaderboard.
+    -> {"teams": [...], "cur": [[ORtg, DRtg, AdjT]], "days": {date: [[ORtg, DRtg, AdjT]]}, "_tempo_now": {team: AdjT}}."""
     try:
+        import rank_history as _rh
         stats_dir = stats_dir or STATS_DIR
         prior = _adj_prior(prior_dir or STATS_DIR_2025)
         by_team, names = _sl_load_games(stats_dir)
@@ -340,16 +342,40 @@ def ratings_archive(teams: list, dates: list, stats_dir=None, prior_dir=None) ->
                     rows.setdefault(b, []).append(lb_)
             return _adj_solve(rows, everyone, prior, lg_o, lg_t)
         now = solve(None)
+        path = _rh.DIR / "2026-27.json"
+        hist = json.loads(path.read_text()) if path.exists() else {}
+        saved = sorted((k for k in hist if k != "preseason"), key=_rh._key)
         cur = [[round(lb[t]["ortg"], 1), round(lb[t]["drtg"], 1), round(now[t][2], 1) if t in now else 0] for t in order]
         days = {}
         for ds in sorted(set(dates), key=_sl_date_sort_key):
             day = _sl_parse_date(ds)
             if not day:
                 continue
+            before = [k for k in saved if _rh._key(k) < _rh._key(ds)]
+            snap = hist[before[-1]] if before else {}
+            net, so, sd, st = (snap.get(k, {}) for k in ("net", "o", "d", "t"))
+            # teams with a game that came in after this save (rank_history "recomputed"): their saved numbers are stale,
+            # so they take the as-of-date rating (the adjustment's) for that morning
+            late = {t for rc in snap.get("recomputed", []) for t in rc.get("late_games_for", [])}
             r = solve(day)
-            days[ds] = [[round(lb[t]["ortg"] - (now[t][0] - r[t][0]), 1), round(lb[t]["drtg"] - (now[t][1] - r[t][1]), 1),
-                         round(r[t][2], 1)] if t in r and t in now else None for t in order]
-        return {"teams": order, "cur": cur, "days": days}
+            row = []
+            for t in order:
+                if t not in r or t not in now:
+                    row.append(None)
+                    continue
+                o = lb[t]["ortg"] - (now[t][0] - r[t][0])
+                d = lb[t]["drtg"] - (now[t][1] - r[t][1])
+                if t in late:
+                    pass
+                elif t in so and t in sd:
+                    o, d = so[t], sd[t]
+                elif t in net:   # match the leaderboard's net that night
+                    gap = net[t] - (o - d)
+                    o, d = o + gap / 2, d - gap / 2
+                row.append([round(o, 1), round(d, 1), round(st.get(t, r[t][2]), 1)])
+            days[ds] = row
+        return {"teams": order, "cur": cur, "days": days,
+                "_tempo_now": {t: round(now[t][2], 1) for t in order if t in now}}
     except Exception as e:
         print(f"  ratings archive skipped: {e}")
         return {}
@@ -5292,11 +5318,13 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
 
     # Compute current-season daily rankings with iterative as-of-date logic
     # the current season shows saved ranks (rank_history.py): each game's rank is the one it carried into tip-off
+    # FanMatch -> Ratings archive: every FanMatch date's morning = the leaderboard's save the night before (daily_ranks)
+    _archive = ratings_archive(teams or [], [r["date"] for r in (storylines or {}).get("fanmatch_games") or []])
     daily_ranks = _rank_history.update("2026-27", teams or [],
-                                       compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True))
+                                       compute_daily_ranks(teams or [], prior_teams=teams_2025 or [], fade_prior=True),
+                                       tempo=_archive.pop("_tempo_now", None))
     daily_ranks_json = _embed(daily_ranks)
-    # FanMatch -> Ratings archive: every FanMatch date's morning, rebuilt from the games each build
-    ratings_archive_json = _embed(ratings_archive(teams or [], [r["date"] for r in (storylines or {}).get("fanmatch_games") or []]))
+    ratings_archive_json = _embed(_archive)
 
     daily_ranks_2025 = compute_daily_ranks(teams_2025 or [], prior_teams=teams_2024 or [])
     daily_ranks_2025_json = _embed(daily_ranks_2025)
