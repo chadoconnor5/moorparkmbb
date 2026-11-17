@@ -6525,6 +6525,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .sl-date-cell {{ white-space: nowrap; color: #555 !important; font-size: 0.78rem; min-width: 70px; }}
   .sl-loc-cell {{ white-space: nowrap; font-size: 0.78rem; color: #555 !important; max-width: 150px; overflow: hidden; text-overflow: ellipsis; text-align: left; }}
   .sl-game-cell {{ min-width: 200px; max-width: 380px; white-space: nowrap; }}
+  /* FanMatch: KenPom-tight rows, the MVP line right under the game */
+  #sl-body-fanmatch td {{ padding: 3px 8px; line-height: 1.25; vertical-align: middle; }}
+  #sl-body-fanmatch .sl-mvp {{ font-size: 0.68rem; line-height: 1.1; margin: 0; color: var(--ink-3); }}
   .sl-game-winner {{ font-weight: 700; color: #000 !important; }}
   .sl-game-loser {{ color: #555 !important; }}
   .sl-score {{ font-weight: 700; color: #000 !important; }}
@@ -15702,7 +15705,7 @@ function slGameCell(g, mvp) {{
 function slMvpLine(g) {{
   const m = g.mvp; if (!m) return '';
   const st = [m.pts + 'p'].concat([[m.reb, 'r'], [m.ast, 'a'], [m.blk, 'b'], [m.stl, 's']].filter(x => x[0] > 0).map(x => x[0] + x[1])).join('/');
-  return '<div style="font-size:0.72rem;color:var(--ink-3);font-weight:400;margin-top:1px">MVP: <span style="color:var(--ink-2,#333)">' + m.name + '</span> (' + st + ')</div>';
+  return '<div class="sl-mvp" style="font-weight:400">MVP: <span style="color:var(--ink-2,#333)">' + m.name + '</span> (' + st + ')</div>';
 }}
 
 function slGameRow(g, idx, cols) {{
