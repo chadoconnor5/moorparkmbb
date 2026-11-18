@@ -139,8 +139,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - FanMatch daily table: FanMatch / Upset / Dom. / Tension headers sort (slFmSortBy; games without a value last); Dom.
   and Tension show the Misc tab's own value (2026-27: play-by-play Dominance / Tension) and, under it in dark blue, the
   game's rank on that tab when it made the list (Upsets / Dominance / Tension; slFmTabRanks).
-- FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
-  (storylines lines_of_night / lines_of_night_2).
+- FanMatch Lines o' the Night (KenPom's): the night's two best Hollinger game scores (different players) plus anyone
+  else at LOTN_CUT = 28+ (storylines lines_of_night = #1, lines_of_night_2 = the list after it). 2023-24 to 2026-27, 313
+  nights: 2 lines 84%, 3-4 12%, 5+ 4% (a plain cutoff left a quarter of nights with none).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
   (_sl_load_line_of_night fills it per game; any player if the winner's box isn't found; none for a forfeit),
   "MVP: Name (13p/1r/3b/1s)": points, then rebounds / assists / blocks / steals when not 0. FanMatch only; the box

@@ -530,6 +530,9 @@ def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
 
 
+LOTN_CUT = 28   # Line o' the night: Hollinger game score for a line beyond the night's top two
+
+
 def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None, lotn2: dict = None) -> dict:
     """Find the best individual performance (Hollinger game score) per date. mvps, if given, is filled with each
     game's best per team: {(date, frozenset of the two _box_norm names)): {_box_norm(team): rec}} (FanMatch's MVP)."""
@@ -823,12 +826,14 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
     mvps: dict = {}
     by_day: dict = {}
     lines_of_night = _sl_load_line_of_night(sched_dir, game_dates, mvps, by_day)
-    # KenPom's #2 Line o' the Night: the night's second-best game score (another player)
+    # KenPom's Lines o' the night after #1: everyone at LOTN_CUT game score or more, and always the night's #2 (the cut
+    # drops to him when fewer than two reach it). 2023-24 to 2026-27 (313 nights): 2 lines 84%, 3-4 12%, 5+ 4%
     lines_of_night_2 = {}
     for d, day in by_day.items():
         best = sorted(day.values(), key=lambda x: -x["game_score"])
-        if len(best) > 1:
-            lines_of_night_2[d] = best[1]
+        more = [x for i, x in enumerate(best[1:], 1) if i == 1 or x["game_score"] >= LOTN_CUT]
+        if more:
+            lines_of_night_2[d] = more
     # FanMatch's game MVP (KenPom's): the best Hollinger game score on the winning team (any player if the winner's
     # box isn't found); none for a forfeit
     for r in rows:
@@ -16064,9 +16069,9 @@ function slRenderFanmatch(dateStr) {{
         + extStr + ' \u2022 GS: ' + l.game_score;
     }};
     if (l) {{
-      const l2 = lotn2[dateStr];
-      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
-        + lineHtml(l, 1) + (l2 ? '<div style="margin-top:2px">' + lineHtml(l2, 2) + '</div>' : '')
+      const l2 = lotn2[dateStr], more = Array.isArray(l2) ? l2 : l2 ? [l2] : [];
+      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line' + (more.length ? 's' : '') + ' o\\' the Night:</span>'
+        + lineHtml(l, 1) + more.map((x, i) => '<div style="margin-top:2px">' + lineHtml(x, i + 2) + '</div>').join('')
         + '</div>';
     }} else {{
       lotnEl.innerHTML = '';
