@@ -530,7 +530,8 @@ def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
 
 
-LOTN_CUT = 28   # Line o' the night: Hollinger game score for a line beyond the night's top two
+LOTN_CUT = 26    # Lines o' the night: Hollinger game score for lines #3 and #4 (the night's top two always show)
+LOTN_CUT_5 = 28  # ... and for #5 on
 
 
 def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None, lotn2: dict = None) -> dict:
@@ -826,12 +827,12 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
     mvps: dict = {}
     by_day: dict = {}
     lines_of_night = _sl_load_line_of_night(sched_dir, game_dates, mvps, by_day)
-    # KenPom's Lines o' the night after #1: everyone at LOTN_CUT game score or more, and always the night's #2 (the cut
-    # drops to him when fewer than two reach it). 2023-24 to 2026-27 (313 nights): 2 lines 84%, 3-4 12%, 5+ 4%
+    # KenPom's Lines o' the night after #1: always the night's #2, then #3-4 at LOTN_CUT game score or more and #5 on at
+    # LOTN_CUT_5. 2023-24 to 2026-27 (313 nights): 2 lines 68%, 3-4 28%, 5+ 4%
     lines_of_night_2 = {}
     for d, day in by_day.items():
         best = sorted(day.values(), key=lambda x: -x["game_score"])
-        more = [x for i, x in enumerate(best[1:], 1) if i == 1 or x["game_score"] >= LOTN_CUT]
+        more = [x for i, x in enumerate(best[1:], 1) if i == 1 or x["game_score"] >= (LOTN_CUT if i < 4 else LOTN_CUT_5)]
         if more:
             lines_of_night_2[d] = more
     # FanMatch's game MVP (KenPom's): the best Hollinger game score on the winning team (any player if the winner's
