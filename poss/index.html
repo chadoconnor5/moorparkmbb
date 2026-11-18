@@ -1384,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.17.6';
+const VERSION = 'v2026.11.18.1';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2248,6 +2248,15 @@ function lpmCard(g, D, t) {
       return `<table class="lpm-ff"><thead><tr><th></th><th>OFF</th><th>DEF</th></tr></thead><tbody>${[['eFG%', 'efg'], ['OREB%', 'orb'], ['TO%', 'to'], ['FTR', 'ftr']].map(([l, k]) => `<tr><td>${l}</td><td class="${cls(O[k], k, true)}">${P(O[k])}</td><td class="${cls(X[k], k, false)}">${P(X[k])}</td></tr>`).join('')}</tbody></table>`; })()}</div>`;
 }
 
+// A sub's five with the players who just came in (not in that team's five before it) in gold. A starting five: none.
+function subFive(g, e, sep) {
+  let prev = null;
+  for (const v of g.ev) { if (v === e) break; if (v.t === 'sub' && v.team === e.team) prev = v.five; }
+  return fiveSorted(g, e.team, e.five).map(id => {
+    const n = esc(pShort(g, e.team, id));
+    return prev && !prev.includes(id) ? `<span style="color:#f5c518;font-weight:700">${n}</span>` : n;
+  }).join(sep);
+}
 function feedText(g, x) {
   const r = feedText0(g, x); if (x.kind !== 'poss' && x.e && x.e.flag) r.flag = true; return r;
 }
@@ -2259,7 +2268,7 @@ function feedText0(g, x) {
     return { flag: p.plays.some(e => e.flag), cls: t, html: `<b>${p.seq}</b> · ${esc(teamAbbr(g, t))} · ${esc(parts.join(', '))}${tail}${p.kill ? ` · <b style="color:${t === 'b' ? 'var(--us)' : 'var(--them-text)'}">KILL</b>` : ''}`, sc: `${p.score.a}–${p.score.b}`, id: p.plays[p.plays.length - 1].id };
   }
   const e = x.e;
-  if (x.kind === 'sub') return { cls: 's', html: `⇄ ${esc(teamName(g, e.team))}: ${esc(fiveSorted(g, e.team, e.five).map(id => pShort(g, e.team, id)).join(', '))}`, id: e.id };
+  if (x.kind === 'sub') return { cls: 's', html: `⇄ ${esc(teamName(g, e.team))}: ${subFive(g, e, ', ')}`, id: e.id };
   if (x.kind === 'tech') return { cls: 's', html: `<span style="color:var(--bad)">T</span> · ${esc(techText(g, e))}`, sc: `${x.score.a}–${x.score.b}`, id: e.id };
   if (x.kind === 'dreb') return { cls: e.team, html: `${esc(teamAbbr(g, e.team))} def reb${e.auto ? ' (auto)' : ''}`, id: e.id };
   if (x.kind === 'foul') return { cls: e.team, html: `${e.player ? esc(pShort(g, e.team, e.player)) : esc(teamName(g, e.team)) + ' team'} foul`, id: e.id };
@@ -2345,7 +2354,7 @@ function sheetTable(g, D, per) {
   const cols = ['2', '3', 'FT', 'x2', 'x3', 'xFT', 'TO'];
   let h = `<table class="psheet"><thead><tr><th>#</th><th>TEAM</th>${cols.map(c => `<th class="${c[0] === 'x' ? 'x' : ''}">${{ x2: '✗2', x3: '✗3', xFT: '✗FT' }[c] || c}</th>`).join('')}<th class="st">REB</th><th class="st">STL</th><th>PTS</th><th class="kl">KILL</th><th>SCORE</th><th>LEV</th></tr></thead><tbody>`;
   for (const x of rows) {
-    if (x.kind === 'sub') { h += `<tr class="lu ${x.e.team}"><td colspan="15">⇄ ${esc(teamName(g, x.e.team))}: ${esc(fiveSorted(g, x.e.team, x.e.five).map(id => pShort(g, x.e.team, id)).join(' · '))}</td></tr>`; continue; }
+    if (x.kind === 'sub') { h += `<tr class="lu ${x.e.team}"><td colspan="15">⇄ ${esc(teamName(g, x.e.team))}: ${subFive(g, x.e, ' · ')}</td></tr>`; continue; }
     if (x.kind === 'tech') { h += `<tr class="tch"><td colspan="15">T · ${esc(techText(g, x.e))} · ${x.score.a}–${x.score.b}</td></tr>`; continue; }
     const p = x.p;
     if (p.gtStart) { h += `<tr class="gtl"><td colspan="15">🗑 Garbage time from here — ${p.before.a}–${p.before.b}, up ${Math.abs(p.before.a - p.before.b)}${p.clockSecs != null ? ` with ${fmtSecs(p.clockSecs)} on the clock` : ''}${g.gtFrom ? ' (set by hand)' : ''}</td></tr>`; }
