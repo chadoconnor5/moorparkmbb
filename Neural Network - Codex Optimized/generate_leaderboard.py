@@ -3152,6 +3152,9 @@ def _jtag(name, payload):
     return '<script type="application/json" id="data-' + name + '">' + safe + '</script>'
 
 
+LINEUPS_HIDDEN = {"Moorpark"}   # teams whose lineups stay off the leaderboard (every season, every source)
+
+
 def _pbp_lineup_files(season="2026-27", key="2627"):
     """compute_pbp_lineups.py's per-team files -> ({team: {s, used, total}} for the page, {filename: js}): each team's
     lineups ride in its own lazy file (season_data/lineups_<key>_<slug>.js), loaded when its Lineups opens."""
@@ -3162,7 +3165,7 @@ def _pbp_lineup_files(season="2026-27", key="2627"):
         except (OSError, ValueError):
             continue
         team = d.get("team")
-        if not team or not d.get("units"):
+        if not team or not d.get("units") or team in LINEUPS_HIDDEN:
             continue
         index[team] = {"s": f.stem, "used": d.get("pbpGames", 0), "total": d.get("teamGames", 0)}
         files[f"lineups_{key}_{f.stem}.js"] = f"__installLineups({json.dumps(team)}, {json.dumps(d, separators=(',', ':'))});\n"
@@ -4955,7 +4958,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         runs_data_json = _embed({})
     champion_data_json = _embed(champion_data)
     conf_ff_json = _embed(conf_ff or {})
-    moorpark_lineups_json = _embed(moorpark_lineups or {})
+    moorpark_lineups_json = _embed({} if (moorpark_lineups or {}).get("team", "Moorpark") in LINEUPS_HIDDEN else moorpark_lineups)
     team_keys_json = _embed(team_keys or {})
     school_colors_json = _embed(SCHOOL_COLORS)
     school_secondary_colors_json = _embed(SCHOOL_SECONDARY_COLORS)
@@ -12114,7 +12117,7 @@ function renderPreseasonRoster(t) {{
 
 /* ── Lineups panel (Synergy 5-man lineup data; Moorpark-only) ─────────── */
 let lineupsReturnTeam = null;
-function showLineups(teamName) {{ lineupsReturnTeam = teamName; renderLineups(teamName); }}
+function showLineups(teamName) {{ if (teamName === 'Moorpark') return; lineupsReturnTeam = teamName; renderLineups(teamName); }}
 function closeLineups() {{
   document.getElementById('lineups-view').style.display = 'none';
   if (lineupsReturnTeam) showTeamDetail(lineupsReturnTeam);
@@ -14045,7 +14048,7 @@ function buildTeamDetail(t) {{
     <div class="td-content">
       <div class="td-scouting">
         <div class="td-section-title">Scouting Report</div>
-        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (t.team === 'Moorpark' && activeSeason === TLU_CUR_SEASON) || (activeSeason === '2627' && PBP_LU[t.team])) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
+        <div style="display:flex;justify-content:center;gap:18px;font-size:0.8rem;margin:-4px 0 8px"><span onclick="showTeamStats('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Team Stats →</span>${{MM_SEASONS.has(activeSeason) ? `<span onclick="showMinutesMatrix('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Minutes Matrix →</span>` : ''}}<span onclick="showGamePlan('${{t.team}}')" style="color:#1a5dab;cursor:pointer;font-weight:600">Game Plan →</span>${{((typeof MOORPARK_LINEUPS !== 'undefined' && MOORPARK_LINEUPS.team === t.team && activeSeason === '2526') || (activeSeason === '2627' && PBP_LU[t.team])) ? `<span onclick="showLineups('${{t.team}}')" style="color:#ffd700;cursor:pointer;font-weight:600">Lineups →</span>` : ''}}</div>
         <table><thead><tr>
           <th style="text-align:right">Category</th><th>Offense</th><th></th><th>Defense</th><th></th>
         </tr></thead><tbody>
