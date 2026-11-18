@@ -131,7 +131,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (Synergy's running score drops Dorn's and-one three; the log went to OT, 65-65: both box copies got "game_minutes": 45
   and "ot_source", 75-73 in one overtime). 11/4 Bakersfield at Reedley (Synergy's log ends 65-62: Chambers made both
   free throws for Reedley 60-59, by film, and Clark's box-score free throw was placed by hand just before them). 11/7 LA Trade Tech at San Jose (two makes
-  missing their Shot line added by hand; aliases: Kalei Yoakunan = Patrick Ramos, Unknown Player = Amadou Barry). 11/9 Redwoods at Cuesta.
+  missing their Shot line added by hand; aliases: Kalei Yoakunan = Patrick Ramos, Unknown Player = Amadou Barry). 11/9 Redwoods at Cuesta. 11/5 Cosumnes River at Columbia (checked on film:
+  two unlogged layups added, a free throw corrected). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
+  (not read) until settled.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
   AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard
