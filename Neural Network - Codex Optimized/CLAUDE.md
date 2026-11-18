@@ -111,6 +111,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   files as they are read, and names match the box score by all their words. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
+  Moorpark's lineups stay off the leaderboard (generate_leaderboard.LINEUPS_HIDDEN, 11/18): no play-by-play lineup file,
+  no MOORPARK_LINEUPS data (2025-26 tracker lineups), no Lineups link; they live in the trackers only.
 - Game attributes (Misc tabs, build_storylines): 2026-27 only, from the play-by-play (KenPom's, the teams assumed
   equal; _sl_wp): Excitement (win probability's total movement), Tension (how close it stayed to 50%), Dominance
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
