@@ -129,8 +129,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   The log has no clock, so it feeds only this table (not the win-probability chart, ranks or lineups). 11/17: 10/31
   Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock. 11/18: 11/10 Saddleback at San Diego Miramar
   (Synergy's running score drops Dorn's and-one three; the log went to OT, 65-65: both box copies got "game_minutes": 45
-  and "ot_source", 75-73 in one overtime). 11/4 Bakersfield at Reedley (Synergy's log ends 65-62; Reedley's
-  other 2, a Chambers and a Clark free throw by the box, were never logged and aren't placed yet). 11/7 LA Trade Tech at San Jose (two makes
+  and "ot_source", 75-73 in one overtime). 11/4 Bakersfield at Reedley (Synergy's log ends 65-62: Chambers made both
+  free throws for Reedley 60-59, by film, and Clark's box-score free throw was placed by hand just before them). 11/7 LA Trade Tech at San Jose (two makes
   missing their Shot line added by hand; aliases: Kalei Yoakunan = Patrick Ramos, Unknown Player = Amadou Barry).
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
