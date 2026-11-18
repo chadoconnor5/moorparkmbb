@@ -8022,7 +8022,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   </div>
   <div id="sl-archive" style="display:none"></div>
   <div class="sl-table-outer" id="sl-fm-table"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-    <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Box</th><th>Location</th><th class="sl-th-r">Win Prob</th><th class="sl-th-r">FanMatch</th><th class="sl-th-r" title="Upset score: reward for win probability gap">Upset</th><th class="sl-th-r" title="Dominance score: margin + strength gap">Dom.</th><th class="sl-th-r" title="Tension score: closeness, overtime, even matchup">Tension</th>
+    <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Box</th><th>Location</th><th class="sl-th-r">Win Prob</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('fanmatch')">FanMatch</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('upset')" title="Upset score: reward for win probability gap (#: rank on the Upsets tab)">Upset</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('dom')" title="Dominance, as on the Dominance tab (#: its rank there)">Dom.</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('tension')" title="Tension, as on the Tension tab (#: its rank there)">Tension</th>
   </tr></thead><tbody id="sl-body-fanmatch"></tbody></table></div></div>
   <div id="sl-lotn"></div>
 </div>
@@ -15855,9 +15855,14 @@ function slGameRow(g, idx, cols) {{
     const otTxt = ot ? ' <span style="font-size:0.7rem;color:#888">' + ot + '</span>' : '';
     detail = g.upcoming && !g.projected ? '<td class="sl-detail-cell">\u2014</td>'
       : '<td class="sl-detail-cell' + cls + '">' + wpW + '% / ' + wpL + '%</td>';
-    const upsetVal = (g.upset_score != null && g.upset_score > 0) ? g.upset_score : '\u2014';
-    const domVal   = g.dominance_score != null ? g.dominance_score : '\u2014';
-    const tenVal   = g.tension_score  != null ? g.tension_score   : '\u2014';
+    // Upset / Dom. / Tension: the same value as that Misc tab (the play-by-play Dominance / Tension from 2026-27), with
+    // the game's rank there ("#12") when it made the tab's list
+    const R = slFmTabRanks(), gk = g.date + '|' + g.winner + '|' + g.loser;
+    const rk = r => r ? '<div style="color:#0d47a1;font-weight:700;font-size:0.72rem;line-height:1.1">#' + r + '</div>' : '';
+    const upsetVal = (g.upset_score != null && g.upset_score > 0) ? g.upset_score + rk(R.upsets[gk]) : '\u2014';
+    const dv = slFmVal(g, 'dom'), tv = slFmVal(g, 'tension');
+    const domVal   = dv != null ? dv + rk(R.dominance[gk]) : '\u2014';
+    const tenVal   = tv != null ? tv + rk(R.tension[gk]) : '\u2014';
     value = '<td class="sl-val-cell">' + (g.fanmatch_score != null ? g.fanmatch_score : '\u2014') + otTxt + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + upsetVal + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + domVal + '</td>'
@@ -16001,6 +16006,29 @@ function slRenderArchive() {{
        ['xr', 'Rk', 1, 1], ['xn', 'Net', 1], ['xt', 'AdjT', 1]].map(([k, l, r, bl]) => `<th class="${{r ? 'sl-th-r' : ''}}" style="cursor:pointer${{bl ? ';border-left:2px solid #ccc' : ''}}" onclick="slArchSortBy('${{k}}')">${{l}}${{sk === k ? (sa ? ' ▴' : ' ▾') : ''}}</th>`).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }}
+// FanMatch's sortable columns and the Misc tabs' ranks (each tab's list: its top games, in order)
+let slFmSort = null;   // [key, ascending]; null = FanMatch's own order
+function slFmVal(g, k) {{
+  if (k === 'fanmatch') return g.fanmatch_score != null ? g.fanmatch_score : null;
+  if (k === 'upset') return g.upset_score != null && g.upset_score > 0 ? g.upset_score : null;
+  const pbp = slPbpSeason();
+  if (k === 'dom') return pbp && g.dominance_pbp != null ? g.dominance_pbp : g.dominance_score != null ? g.dominance_score : null;
+  if (k === 'tension') return pbp && g.tension != null ? g.tension : g.tension_score != null ? g.tension_score : null;
+  return null;
+}}
+let __slFmRanks = null, __slFmRanksFor = null;
+function slFmTabRanks() {{
+  const sl = activeStorylines();
+  if (__slFmRanks && __slFmRanksFor === sl) return __slFmRanks;
+  const pbp = slPbpSeason(), m = L => {{ const o = {{}}; (L || []).forEach((g, i) => {{ o[g.date + '|' + g.winner + '|' + g.loser] = i + 1; }}); return o; }};
+  __slFmRanks = {{ upsets: m(sl.upsets), dominance: m(pbp ? sl.pbp_dominance : sl.dominant_wins), tension: m(pbp ? sl.pbp_tension : sl.tension_games) }};
+  __slFmRanksFor = sl;
+  return __slFmRanks;
+}}
+function slFmSortBy(k) {{
+  slFmSort = slFmSort && slFmSort[0] === k ? [k, !slFmSort[1]] : [k, false];
+  slRenderFanmatch(slFanmatchDates[slFanmatchIdx]);
+}}
 function slRenderFanmatch(dateStr) {{
   const fm = (activeStorylines().fanmatch_games || []).filter(g => g.date === dateStr);
   const body = document.getElementById('sl-body-fanmatch');
@@ -16038,7 +16066,7 @@ function slRenderFanmatch(dateStr) {{
     if (l) {{
       const l2 = lotn2[dateStr];
       lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
-        + lineHtml(l, 1) + (l2 ? '<br><span class="lotn-label" style="visibility:hidden">Line o\\' the Night:</span>' + lineHtml(l2, 2) : '')
+        + lineHtml(l, 1) + (l2 ? '<div style="margin-top:2px">' + lineHtml(l2, 2) + '</div>' : '')
         + '</div>';
     }} else {{
       lotnEl.innerHTML = '';
@@ -16046,7 +16074,9 @@ function slRenderFanmatch(dateStr) {{
   }}
   if (!body) return;
   body.innerHTML = fm.length
-    ? fm.map((g, i) => slGameRow(g, i, 'fanmatch')).join('')
+    ? (slFmSort ? fm.slice().sort((a, b) => {{ const va = slFmVal(a, slFmSort[0]), vb = slFmVal(b, slFmSort[0]);
+        if (va == null || vb == null) return (va == null) - (vb == null);   // games without one last
+        return slFmSort[1] ? va - vb : vb - va; }}) : fm).map((g, i) => slGameRow(g, i, 'fanmatch')).join('')
     : '<tr><td colspan="10" style="text-align:center;color:#555;padding:24px">No games on this date</td></tr>';
 
   // Daily summary stats

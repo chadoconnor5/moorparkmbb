@@ -136,6 +136,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   the as-of-date rating for those mornings, so a day changes only when a game before it comes in late. Ranks by net.
   The current column is the leaderboard. RATINGS_ARCHIVE in the page (lazy JSON tag, ~3 KB a date). 11/17: the first
   version rebuilt every morning from the adjustment alone and its ranks ran up to 9 places off what the leaderboard showed.
+- FanMatch daily table: FanMatch / Upset / Dom. / Tension headers sort (slFmSortBy; games without a value last); Dom.
+  and Tension show the Misc tab's own value (2026-27: play-by-play Dominance / Tension) and, under it in dark blue, the
+  game's rank on that tab when it made the list (Upsets / Dominance / Tension; slFmTabRanks).
 - FanMatch Line o' the Night: #1 and #2 (KenPom's), the night's two best Hollinger game scores by different players
   (storylines lines_of_night / lines_of_night_2).
 - FanMatch game MVP (KenPom's, slMvpLine): under each played game, the best Hollinger game score on the winning team
