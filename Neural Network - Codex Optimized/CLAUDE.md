@@ -127,7 +127,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   lists first; aliases name Synergy's "Unknown Player" when the log doesn't). pbp_runs.synergy_plays reads it (players
   placed by the game's box score: word prefixes, else last name + first initial, else the side whose box is empty).
   The log has no clock, so it feeds only this table (not the win-probability chart, ranks or lineups). 11/17: 10/31
-  Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
+  Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock. 11/18: 11/10 Saddleback at San Diego Miramar
+  (Synergy's running score drops Dorn's and-one three; the log went to OT, 65-65: both box copies got "game_minutes": 45
+  and "ot_source", 75-73 in one overtime).
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
   AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard
