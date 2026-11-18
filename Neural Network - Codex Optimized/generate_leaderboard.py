@@ -530,6 +530,10 @@ def _sl_top_n(rows: list, key: str, n: int, predicate=None) -> list:
     return sorted(sel, key=lambda r: r[key], reverse=True)[:n]
 
 
+LOTN_CUT = 26    # Lines o' the night: Hollinger game score for lines #3 and #4 (the night's top two always show)
+LOTN_CUT_5 = 28  # ... and for #5 on
+
+
 def _sl_load_line_of_night(sched_dir: Path, game_dates: set, mvps: dict = None, lotn2: dict = None) -> dict:
     """Find the best individual performance (Hollinger game score) per date. mvps, if given, is filled with each
     game's best per team: {(date, frozenset of the two _box_norm names)): {_box_norm(team): rec}} (FanMatch's MVP)."""
@@ -823,12 +827,14 @@ def build_storylines(stats_dir: Path, top: int = 100, exclude_zero_scores: bool 
     mvps: dict = {}
     by_day: dict = {}
     lines_of_night = _sl_load_line_of_night(sched_dir, game_dates, mvps, by_day)
-    # KenPom's #2 Line o' the Night: the night's second-best game score (another player)
+    # KenPom's Lines o' the night after #1: always the night's #2, then #3-4 at LOTN_CUT game score or more and #5 on at
+    # LOTN_CUT_5. 2023-24 to 2026-27 (313 nights): 2 lines 68%, 3-4 28%, 5+ 4%
     lines_of_night_2 = {}
     for d, day in by_day.items():
         best = sorted(day.values(), key=lambda x: -x["game_score"])
-        if len(best) > 1:
-            lines_of_night_2[d] = best[1]
+        more = [x for i, x in enumerate(best[1:], 1) if i == 1 or x["game_score"] >= (LOTN_CUT if i < 4 else LOTN_CUT_5)]
+        if more:
+            lines_of_night_2[d] = more
     # FanMatch's game MVP (KenPom's): the best Hollinger game score on the winning team (any player if the winner's
     # box isn't found); none for a forfeit
     for r in rows:
@@ -8022,7 +8028,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   </div>
   <div id="sl-archive" style="display:none"></div>
   <div class="sl-table-outer" id="sl-fm-table"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
-    <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Box</th><th>Location</th><th class="sl-th-r">Win Prob</th><th class="sl-th-r">FanMatch</th><th class="sl-th-r" title="Upset score: reward for win probability gap">Upset</th><th class="sl-th-r" title="Dominance score: margin + strength gap">Dom.</th><th class="sl-th-r" title="Tension score: closeness, overtime, even matchup">Tension</th>
+    <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Box</th><th>Location</th><th class="sl-th-r">Win Prob</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('fanmatch')">FanMatch</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('upset')" title="Upset score: reward for win probability gap (#: rank on the Upsets tab)">Upset</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('dom')" title="Dominance, as on the Dominance tab (#: its rank there)">Dom.</th><th class="sl-th-r" style="cursor:pointer" onclick="slFmSortBy('tension')" title="Tension, as on the Tension tab (#: its rank there)">Tension</th>
   </tr></thead><tbody id="sl-body-fanmatch"></tbody></table></div></div>
   <div id="sl-lotn"></div>
 </div>
@@ -15855,9 +15861,14 @@ function slGameRow(g, idx, cols) {{
     const otTxt = ot ? ' <span style="font-size:0.7rem;color:#888">' + ot + '</span>' : '';
     detail = g.upcoming && !g.projected ? '<td class="sl-detail-cell">\u2014</td>'
       : '<td class="sl-detail-cell' + cls + '">' + wpW + '% / ' + wpL + '%</td>';
-    const upsetVal = (g.upset_score != null && g.upset_score > 0) ? g.upset_score : '\u2014';
-    const domVal   = g.dominance_score != null ? g.dominance_score : '\u2014';
-    const tenVal   = g.tension_score  != null ? g.tension_score   : '\u2014';
+    // Upset / Dom. / Tension: the same value as that Misc tab (the play-by-play Dominance / Tension from 2026-27), with
+    // the game's rank there ("#12") when it made the tab's list
+    const R = slFmTabRanks(), gk = g.date + '|' + g.winner + '|' + g.loser;
+    const rk = r => r ? '<div style="color:#0d47a1;font-weight:700;font-size:0.72rem;line-height:1.1">#' + r + '</div>' : '';
+    const upsetVal = (g.upset_score != null && g.upset_score > 0) ? g.upset_score + rk(R.upsets[gk]) : '\u2014';
+    const dv = slFmVal(g, 'dom'), tv = slFmVal(g, 'tension');
+    const domVal   = dv != null ? dv + rk(R.dominance[gk]) : '\u2014';
+    const tenVal   = tv != null ? tv + rk(R.tension[gk]) : '\u2014';
     value = '<td class="sl-val-cell">' + (g.fanmatch_score != null ? g.fanmatch_score : '\u2014') + otTxt + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + upsetVal + '</td>'
           + '<td class="sl-val-cell" style="color:#aaa">' + domVal + '</td>'
@@ -16001,6 +16012,29 @@ function slRenderArchive() {{
        ['xr', 'Rk', 1, 1], ['xn', 'Net', 1], ['xt', 'AdjT', 1]].map(([k, l, r, bl]) => `<th class="${{r ? 'sl-th-r' : ''}}" style="cursor:pointer${{bl ? ';border-left:2px solid #ccc' : ''}}" onclick="slArchSortBy('${{k}}')">${{l}}${{sk === k ? (sa ? ' ▴' : ' ▾') : ''}}</th>`).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
 }}
+// FanMatch's sortable columns and the Misc tabs' ranks (each tab's list: its top games, in order)
+let slFmSort = null;   // [key, ascending]; null = FanMatch's own order
+function slFmVal(g, k) {{
+  if (k === 'fanmatch') return g.fanmatch_score != null ? g.fanmatch_score : null;
+  if (k === 'upset') return g.upset_score != null && g.upset_score > 0 ? g.upset_score : null;
+  const pbp = slPbpSeason();
+  if (k === 'dom') return pbp && g.dominance_pbp != null ? g.dominance_pbp : g.dominance_score != null ? g.dominance_score : null;
+  if (k === 'tension') return pbp && g.tension != null ? g.tension : g.tension_score != null ? g.tension_score : null;
+  return null;
+}}
+let __slFmRanks = null, __slFmRanksFor = null;
+function slFmTabRanks() {{
+  const sl = activeStorylines();
+  if (__slFmRanks && __slFmRanksFor === sl) return __slFmRanks;
+  const pbp = slPbpSeason(), m = L => {{ const o = {{}}; (L || []).forEach((g, i) => {{ o[g.date + '|' + g.winner + '|' + g.loser] = i + 1; }}); return o; }};
+  __slFmRanks = {{ upsets: m(sl.upsets), dominance: m(pbp ? sl.pbp_dominance : sl.dominant_wins), tension: m(pbp ? sl.pbp_tension : sl.tension_games) }};
+  __slFmRanksFor = sl;
+  return __slFmRanks;
+}}
+function slFmSortBy(k) {{
+  slFmSort = slFmSort && slFmSort[0] === k ? [k, !slFmSort[1]] : [k, false];
+  slRenderFanmatch(slFanmatchDates[slFanmatchIdx]);
+}}
 function slRenderFanmatch(dateStr) {{
   const fm = (activeStorylines().fanmatch_games || []).filter(g => g.date === dateStr);
   const body = document.getElementById('sl-body-fanmatch');
@@ -16036,9 +16070,9 @@ function slRenderFanmatch(dateStr) {{
         + extStr + ' \u2022 GS: ' + l.game_score;
     }};
     if (l) {{
-      const l2 = lotn2[dateStr];
-      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line o\\' the Night:</span>'
-        + lineHtml(l, 1) + (l2 ? '<br><span class="lotn-label" style="visibility:hidden">Line o\\' the Night:</span>' + lineHtml(l2, 2) : '')
+      const l2 = lotn2[dateStr], more = Array.isArray(l2) ? l2 : l2 ? [l2] : [];
+      lotnEl.innerHTML = '<div class="lotn-wrap"><span class="lotn-label">Line' + (more.length ? 's' : '') + ' o\\' the Night:</span>'
+        + lineHtml(l, 1) + more.map((x, i) => '<div style="margin-top:2px">' + lineHtml(x, i + 2) + '</div>').join('')
         + '</div>';
     }} else {{
       lotnEl.innerHTML = '';
@@ -16046,7 +16080,9 @@ function slRenderFanmatch(dateStr) {{
   }}
   if (!body) return;
   body.innerHTML = fm.length
-    ? fm.map((g, i) => slGameRow(g, i, 'fanmatch')).join('')
+    ? (slFmSort ? fm.slice().sort((a, b) => {{ const va = slFmVal(a, slFmSort[0]), vb = slFmVal(b, slFmSort[0]);
+        if (va == null || vb == null) return (va == null) - (vb == null);   // games without one last
+        return slFmSort[1] ? va - vb : vb - va; }}) : fm).map((g, i) => slGameRow(g, i, 'fanmatch')).join('')
     : '<tr><td colspan="10" style="text-align:center;color:#555;padding:24px">No games on this date</td></tr>';
 
   // Daily summary stats
