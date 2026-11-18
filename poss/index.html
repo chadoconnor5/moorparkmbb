@@ -2248,13 +2248,14 @@ function lpmCard(g, D, t) {
       return `<table class="lpm-ff"><thead><tr><th></th><th>OFF</th><th>DEF</th></tr></thead><tbody>${[['eFG%', 'efg'], ['OREB%', 'orb'], ['TO%', 'to'], ['FTR', 'ftr']].map(([l, k]) => `<tr><td>${l}</td><td class="${cls(O[k], k, true)}">${P(O[k])}</td><td class="${cls(X[k], k, false)}">${P(X[k])}</td></tr>`).join('')}</tbody></table>`; })()}</div>`;
 }
 
-// A sub's five with the players who just came in (not in that team's five before it) in gold. A starting five (any
-// lineup set before a period's first play, the game's or a half's, however many times it's adjusted): none.
+// A sub's five with the players who just came in (not in that team's five before it) in gold. The starting five (any
+// lineup set before the game's first play, however many times it's adjusted): none. A half's first five is compared
+// with the five that ended the half before.
 function subFive(g, e, sep) {
   let prev = null, played = false;
   for (const v of g.ev) { if (v === e) break;
     if (v.t === 'sub' && v.team === e.team) prev = v.five;
-    if (v.t === 'play' && v.per === e.per) played = true; }
+    if (v.t === 'play') played = true; }
   if (!played) prev = null;
   return fiveSorted(g, e.team, e.five).map(id => {
     const n = esc(pShort(g, e.team, id));
