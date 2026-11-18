@@ -1384,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.18.1';
+const VERSION = 'v2026.11.18.2';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2096,7 +2096,7 @@ function scorebar(g, D) {
     <div class="sb-team a"><div class="sb-name">${logo('Moorpark', 34)}<span class="sb-nm" style="color:var(--us)">Moorpark</span></div><div class="sb-id">
       <div class="sb-meta"><span>Fouls ${teamFouls(g, 'a', per)}</span>${dots('a')}</div>
       <div class="sb-meta">${kills('a')}</div>${tags('a')}${killNear(g, D, 'a')}
-      <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP</div></div>
+      <div class="sb-meta">${ppp(S.pts.a, S.poss.a)} PPP${dry(g, D, 'a')}</div></div>
       <div class="sb-score">${G.pts.a}</div></div>
     <div class="sb-mid"><div class="sb-period">${g.final ? 'Final' : esc(PER_NAME(per))}</div>${possPill(g)}<div class="sb-clock">Poss ${possAvg(S)}</div>${(() => { const c = !g.final && clockShown(g, D); return c ? `<div class="sb-cap sb-time" title="${c.start ? 'Start of the period' : 'The last game clock you entered (timeout or Set time)'}">Clock ${fmtSecs(c.clock)}</div>` : ''; })()}
       <div class="sb-cap">${S.poss.a} MPK · ${S.poss.b} ${esc(teamAbbr(g, 'b'))}</div>
@@ -2108,7 +2108,7 @@ function scorebar(g, D) {
       <div class="sb-id">
       <div class="sb-meta">${dots('b')}<span>Fouls ${teamFouls(g, 'b', per)}</span></div>
       <div class="sb-meta">${kills('b')}</div>${tags('b')}${killNear(g, D, 'b')}
-      <div class="sb-meta">${ppp(S.pts.b, S.poss.b)} PPP</div></div></div>
+      <div class="sb-meta">${ppp(S.pts.b, S.poss.b)} PPP${dry(g, D, 'b')}</div></div></div>
   </div>`;
 }
 
@@ -8977,6 +8977,16 @@ function rnDrill(g0, R, f) {
   return `<div class="rn-dl">${L.map(x => `<div class="rn-di"><b class="${x.team === 'a' ? 'pos' : 'neg'}">${x.team === 'a' ? 'OURS' : 'THEIRS'}</b> ${esc(what(x))} <span class="muted">· ${esc(x.date || '')} ${x.loc === 'A' ? '@' : 'vs'} ${esc(x.opp || '')} · ${esc(x.per)} trip ${x.trip} · ${x.from.a}–${x.from.b} → ${x.to.a}–${x.to.b}</span><div class="tiny muted">Started: ${esc(x.start.map(s => rnLbl(RN_START, s)).join(', ') || '—')} · Ended: ${esc(rnLbl(RN_END, x.end))}</div></div>`).join('')}</div>`;
 }
 // Live: one stop short of a kill (ours), or theirs on us with the five on the floor's season rate.
+// Scoreless streak (a plain count that doesn't reset at a kill): finished possessions of team t this period since it
+// last scored, shown small beside its PPP from 2 on.
+function dry(g, D, t) {
+  if (g.final) return '';
+  let n = 0; const P = D.items.filter(x => x.kind === 'poss'), cur = P.length ? P[P.length - 1].p : null;
+  for (let i = D.items.length - 1; i >= 0; i--) { const x = D.items[i];
+    if (x.kind !== 'poss' || x.p.per !== g.per || x.p.team !== t || (x.p === cur && !x.p.done)) continue;
+    if (x.p.pts > 0) break; n++; }
+  return n >= 2 ? ` <span class="muted" style="font-size:0.85em" title="Possessions in a row without a point">· ${n} empty</span>` : '';
+}
 function killNear(g, D, t) {
   const S = perSums(D, g.per), s = S.streak[t] || 0; if (g.final || s % 3 !== 2) return '';
   if (t === 'a') return '<span class="kill-near pos">1 more stop → kill</span>';
