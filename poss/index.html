@@ -1384,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.18.4';
+const VERSION = 'v2026.11.18.5';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -8978,14 +8978,14 @@ function rnDrill(g0, R, f) {
 }
 // Live: one stop short of a kill (ours), or theirs on us with the five on the floor's season rate.
 // Scoreless streak (a plain count that doesn't reset at a kill): finished possessions of team t this period since it
-// last scored, shown small in red beside its PPP from 3 on.
+// last scored, shown small in red beside its PPP from 4 on.
 function dry(g, D, t) {
   if (g.final) return '';
   let n = 0; const P = D.items.filter(x => x.kind === 'poss'), cur = P.length ? P[P.length - 1].p : null;
   for (let i = D.items.length - 1; i >= 0; i--) { const x = D.items[i];
     if (x.kind !== 'poss' || x.p.per !== g.per || x.p.team !== t || (x.p === cur && !x.p.done)) continue;
     if (x.p.pts > 0) break; n++; }
-  return n >= 3 ? ` <span style="font-size:0.85em;color:#e06c6c" title="Possessions in a row without a point">· ${n} empty</span>` : '';
+  return n >= 4 ? ` <span style="font-size:0.85em;color:#e06c6c" title="Possessions in a row without a point">· ${n} empty</span>` : '';
 }
 function killNear(g, D, t) {
   const S = perSums(D, g.per), s = S.streak[t] || 0; if (g.final || s % 3 !== 2) return '';
