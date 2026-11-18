@@ -1384,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.18.5';
+const VERSION = 'v2026.11.18.6';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2248,10 +2248,15 @@ function lpmCard(g, D, t) {
       return `<table class="lpm-ff"><thead><tr><th></th><th>OFF</th><th>DEF</th></tr></thead><tbody>${[['eFG%', 'efg'], ['OREB%', 'orb'], ['TO%', 'to'], ['FTR', 'ftr']].map(([l, k]) => `<tr><td>${l}</td><td class="${cls(O[k], k, true)}">${P(O[k])}</td><td class="${cls(X[k], k, false)}">${P(X[k])}</td></tr>`).join('')}</tbody></table>`; })()}</div>`;
 }
 
-// A sub's five with the players who just came in (not in that team's five before it) in gold. A starting five: none.
+// A sub's five with the players who just came in (not in that team's five before it) in gold. The starting five (any
+// lineup set before the game's first play, however many times it's adjusted): none. A half's first five is compared
+// with the five that ended the half before.
 function subFive(g, e, sep) {
-  let prev = null;
-  for (const v of g.ev) { if (v === e) break; if (v.t === 'sub' && v.team === e.team) prev = v.five; }
+  let prev = null, played = false;
+  for (const v of g.ev) { if (v === e) break;
+    if (v.t === 'sub' && v.team === e.team) prev = v.five;
+    if (v.t === 'play') played = true; }
+  if (!played) prev = null;
   return fiveSorted(g, e.team, e.five).map(id => {
     const n = esc(pShort(g, e.team, id));
     return prev && !prev.includes(id) ? `<span style="color:#f5c518;font-weight:700">${n}</span>` : n;
