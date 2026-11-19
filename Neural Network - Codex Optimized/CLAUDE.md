@@ -111,6 +111,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   files as they are read, and names match the box score by all their words. The leaderboard puts each
   team's in season_data/lineups_2627_<team>.js (lazy) with PBP_LU in the page; the team page shows Lineups -> for every
   team that has them (leaderboard_tracker_lineups.js: renderPbpLineups, shared table __luTable, leverage buttons).
+  Moorpark's lineups stay off the leaderboard (generate_leaderboard.LINEUPS_HIDDEN, 11/18): no play-by-play lineup file,
+  no MOORPARK_LINEUPS data (2025-26 tracker lineups), no Lineups link; they live in the trackers only.
 - Game attributes (Misc tabs, build_storylines): 2026-27 only, from the play-by-play (KenPom's, the teams assumed
   equal; _sl_wp): Excitement (win probability's total movement), Tension (how close it stayed to 50%), Dominance
   (the winner's time-weighted lead), Min WP, Max Deficit, Window (largest lead + deficit); games without
@@ -125,7 +127,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   lists first; aliases name Synergy's "Unknown Player" when the log doesn't). pbp_runs.synergy_plays reads it (players
   placed by the game's box score: word prefixes, else last name + first initial, else the side whose box is empty).
   The log has no clock, so it feeds only this table (not the win-probability chart, ranks or lineups). 11/17: 10/31
-  Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock.
+  Santa Monica-Victor Valley, 11/7 Columbia-Las Positas, 11/13 Orange Coast-San Diego Miramar, 11/13 Citrus-Allan Hancock. 11/18: 11/10 Saddleback at San Diego Miramar
+  (Synergy's running score drops Dorn's and-one three; the log went to OT, 65-65: both box copies got "game_minutes": 45
+  and "ot_source", 75-73 in one overtime). 11/4 Bakersfield at Reedley (Synergy's log ends 65-62: Chambers made both
+  free throws for Reedley 60-59, by film, and Clark's box-score free throw was placed by hand just before them). 11/7 LA Trade Tech at San Jose (two makes
+  missing their Shot line added by hand; aliases: Kalei Yoakunan = Patrick Ramos, Unknown Player = Amadou Barry). 11/9 Redwoods at Cuesta. 11/5 Cosumnes River at Columbia (checked on film:
+  two unlogged layups added, a free throw corrected). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
+  (not read) until settled.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
   AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard
