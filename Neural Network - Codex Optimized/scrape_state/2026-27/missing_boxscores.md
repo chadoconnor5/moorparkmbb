@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-17T22:26:48
+Updated 2026-11-19T09:59:23
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -28,8 +28,14 @@ Updated 2026-11-17T22:26:48
 | 2026-11-14 | Folsom Lake vs Gavilan | PARTIAL | only Gavilan posted stats; missing Folsom Lake | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_e8h9.xml | 4 | 2026-11-17T22:21 |
 | 2026-11-14 | Napa Valley vs Santa Rosa | PARTIAL | only Santa Rosa posted stats; missing Napa Valley | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261114_gahf.xml | 3 | 2026-11-17T22:25 |
 | 2026-11-15 | Columbia vs San Jose | PARTIAL | only San Jose posted stats; missing Columbia | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261115_o9q1.xml | 3 | 2026-11-17T22:26 |
-| 2026-11-17 | Chabot vs Modesto | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-17T22:26 |
-| 2026-11-17 | Copper Mountain vs MiraCosta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-17T22:26 |
-| 2026-11-17 | Lassen vs Simpson JV | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-17T22:26 |
-| 2026-11-17 | Napa Valley vs Reedley | PARTIAL | only Reedley posted stats; missing Napa Valley | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261117_oqcz.xml | 2 | 2026-11-17T22:26 |
-| 2026-11-17 | San Diego Miramar vs Santa Ana | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-17T22:26 |
+| 2026-11-17 | Chabot vs Modesto | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-19T09:58 |
+| 2026-11-17 | Napa Valley vs Reedley | PARTIAL | only Reedley posted stats; missing Napa Valley | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261117_oqcz.xml | 3 | 2026-11-19T09:59 |
+| 2026-11-17 | San Diego Miramar vs Santa Ana | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 3 | 2026-11-19T09:59 |
+| 2026-11-18 | Butte vs Canada | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | De Anza vs Marin | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | Feather River vs Yuba | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | Foothill vs San Mateo | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | LA Harbor vs San Diego Mesa | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | Napa Valley vs Sierra | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | Ohlone vs San Joaquin Delta | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-19T09:59 |
+| 2026-11-18 | Santa Barbara vs Victor Valley | PARTIAL | only Santa Barbara posted stats; missing Victor Valley | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261118_szyq.xml | 1 | 2026-11-19T09:57 |
