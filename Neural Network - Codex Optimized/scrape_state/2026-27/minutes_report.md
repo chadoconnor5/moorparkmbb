@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-19T09:59:23
+Updated 2026-11-19T22:57:07
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
@@ -13,7 +13,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Barstow | 4 | 2 | 0 | 0 |
 | Butte | 0 | 8 | 0 | 0 |
 | Cabrillo | 0 | 5 | 0 | 0 |
-| Canada | 0 | 4 | 0 | 0 |
+| Canada | 0 | 5 | 0 | 0 |
 | Canyons | 6 | 0 | 0 | 0 |
 | Cerritos | 4 | 0 | 0 | 0 |
 | Cerro Coso | 4 | 0 | 1 | 0 |
@@ -48,12 +48,12 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | LA Harbor | 3 | 0 | 0 | 0 |
 | LA Pierce | 3 | 2 | 0 | 0 |
 | LA Southwest | 3 | 1 | 0 | 0 |
-| LA Trade Tech | 3 | 3 | 0 | 0 |
-| LA Valley | 4 | 0 | 0 | 0 |
+| LA Trade Tech | 4 | 3 | 0 | 0 |
+| LA Valley | 5 | 0 | 0 | 0 |
 | Las Positas | 5 | 0 | 0 | 0 |
 | Lassen | 0 | 7 | 0 | 0 |
 | Long Beach | 4 | 0 | 0 | 0 |
-| Los Angeles City | 5 | 0 | 1 | 0 |
+| Los Angeles City | 6 | 0 | 1 | 0 |
 | Los Medanos | 0 | 3 | 0 | 0 |
 | Marin | 3 | 0 | 0 | 0 |
 | Mendocino | 1 | 3 | 0 | 0 |
@@ -66,9 +66,9 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Mt. San Antonio | 4 | 0 | 0 | 0 |
 | Mt. San Jacinto | 6 | 0 | 0 | 0 |
 | Napa Valley | 3 | 1 | 0 | 0 |
-| Ohlone | 0 | 4 | 0 | 0 |
+| Ohlone | 0 | 5 | 0 | 0 |
 | Orange Coast | 3 | 3 | 0 | 0 |
-| Oxnard | 4 | 0 | 0 | 0 |
+| Oxnard | 5 | 0 | 0 | 0 |
 | Palo Verde | 3 | 0 | 0 | 0 |
 | Palomar | 6 | 0 | 0 | 0 |
 | Pasadena City | 5 | 0 | 0 | 0 |
@@ -90,11 +90,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Santa Ana | 4 | 0 | 0 | 0 |
 | Santa Barbara | 5 | 0 | 0 | 0 |
 | Santa Monica | 3 | 1 | 0 | 0 |
-| Santa Rosa | 0 | 4 | 0 | 0 |
+| Santa Rosa | 0 | 5 | 0 | 0 |
 | Santiago Canyon | 6 | 0 | 0 | 0 |
 | Sequoias | 4 | 0 | 0 | 0 |
 | Shasta | 0 | 6 | 0 | 0 |
-| Sierra | 0 | 3 | 0 | 0 |
+| Sierra | 0 | 4 | 0 | 0 |
 | Siskiyous | 0 | 5 | 0 | 0 |
 | Skyline | 0 | 5 | 0 | 0 |
 | Solano | 2 | 3 | 0 | 0 |
@@ -105,7 +105,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | West Valley | 3 | 2 | 0 | 0 |
 | Yuba | 0 | 3 | 0 | 0 |
 
-## Games without real minutes (118)
+## Games without real minutes (122)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -226,4 +226,8 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-15 | Columbia vs San Jose | Columbia: PLACEHOLDER (5 min), San Jose: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261115_o9q1.xml |
 | 2026-11-17 | Lassen vs Simpson JV | Lassen: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261117_nk6j.xml |
 | 2026-11-17 | Napa Valley vs Reedley | Reedley: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261117_oqcz.xml |
-| 2026-11-18 | Santa Barbara vs Victor Valley | Victor Valley: PLACEHOLDER (5 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261118_szyq.xml |
+| 2026-11-18 | Butte vs Canada | Canada: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261118_q1tc.xml |
+| 2026-11-18 | Napa Valley vs Sierra | Sierra: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261118_ywbf.xml |
+| 2026-11-18 | Ohlone vs San Joaquin Delta | Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261118_19d2.xml |
+| 2026-11-18 | Santa Barbara vs Victor Valley | Victor Valley: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261118_szyq.xml |
+| 2026-11-19 | Merritt vs Santa Rosa | Santa Rosa: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_eqjp.xml |
