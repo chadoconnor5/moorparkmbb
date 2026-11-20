@@ -19,6 +19,7 @@ from datetime import datetime
 
 from assemble_schedules import neutral_host
 from ccc_config import DEFAULT_SEASON, forfeit_of, schedule_dir, stats_dir
+import box_minutes
 
 SCHEDULES_DIR = schedule_dir(DEFAULT_SEASON)
 STATS_DIR = stats_dir(DEFAULT_SEASON)
@@ -550,13 +551,13 @@ def generate_stats(team_name: str, conference: str = None):
     def _side_has_min(bs):
         tkey = _find_team_key(team_name, bs)
         rows = (bs.get("teams") or {}).get(tkey) or [] if tkey else []
-        tot = 0
+        mins = []
         for r in rows:
             try:
-                tot += int((r.get("stats") or {}).get("MIN") or 0)
+                mins.append(int((r.get("stats") or {}).get("MIN") or 0))
             except ValueError:
                 pass
-        return tot >= 150
+        return sum(mins) >= 150 and not box_minutes.even_split(mins)   # an even split is no minutes
     min_boxes = [bs for bs in boxscores if _side_has_min(bs)]
     if min_boxes and len(min_boxes) < len(boxscores):
         mps = aggregate_player_stats(team_name, min_boxes)

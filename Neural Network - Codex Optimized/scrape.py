@@ -614,7 +614,7 @@ def minutes_quality(players: list) -> dict:
     if not mins:
         return {"minutes": "NONE", "total": 0}
     total = round(sum(mins))
-    if max(mins) <= 1:
+    if max(mins) <= 1 or box_minutes.even_split(mins):
         return {"minutes": "PLACEHOLDER", "total": total}
     lo, hi = REAL_MIN_RANGE
     if lo <= total <= hi and box_minutes.bench_zero(players):

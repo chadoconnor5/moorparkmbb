@@ -23,6 +23,7 @@ from compute_moorpark_lineups import build_moorpark_lineups
 # Game-tracker lineup upload (opponent-adjusted; read in the browser, never published).
 _TRACKER_LU_JS = (Path(__file__).resolve().parent / "leaderboard_tracker_lineups.js").read_text()
 from compute_team_keys import build_keys, load_all_games as load_all_games_keys, LAST_5 as LAST_5_KEYS
+import box_minutes
 
 
 # ---------------------------------------------------------------------------
@@ -4474,7 +4475,7 @@ def build_game_boxes(stats_dir) -> dict:
         out = {}
         for tn, (rows, tot) in sides_p.items():
             opp_tot = next(t for n, (_, t) in sides_p.items() if n != tn)
-            min_ok = 0.75 * 5 * mins <= tot["MIN"] <= 1.45 * 5 * mins
+            min_ok = 0.75 * 5 * mins <= tot["MIN"] <= 1.45 * 5 * mins and not box_minutes.even_split([r["MIN"] for r in rows])
             to_ok, pf_ok, opp_to_ok = tot["TO"] > 0, tot["PF"] > 0, opp_tot["TO"] > 0
             gates = {"efg": True, "ts": True, "top": to_ok, "usg": min_ok and to_ok, "ortg": min_ok and to_ok,
                      "drtg": min_ok and to_ok and pf_ok and opp_to_ok, "stp": min_ok and to_ok,
@@ -4621,7 +4622,7 @@ def build_game_boxes(stats_dir) -> dict:
             if sides[tn]["rows"]:
                 poss_vals.append(tot["POSS"])
             # 5 players x game clock => team_min is total player minutes / 5
-            min_ok = 150 <= tot["MIN"] <= 290
+            min_ok = 150 <= tot["MIN"] <= 290 and not box_minutes.even_split([r["MIN"] for r in sides[tn]["rows"]])
             to_ok = tot["TO"] > 0
             pf_ok = tot["PF"] > 0
             opp_to_ok = opp_tot["TO"] > 0

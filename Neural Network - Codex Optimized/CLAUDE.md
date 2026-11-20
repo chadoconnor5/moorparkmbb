@@ -415,6 +415,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   2nd-half "three" was a two (98, the official final); Victor Valley's official 87 includes 2 phantom scoreboard points.
   11/13 Citrus at Allan Hancock, Citrus's side (the site posted only Hancock's) from its Synergy log the same way: the log
   matched Hancock's posted box point for point; 95 against the official 98 (3 points not found yet).
+- Even-split minutes (box_minutes.even_split: 9+ players all within 2 minutes, e.g. 11/18 Santa Barbara's 13 players at
+  15-16, 11/4 Barstow's 11 at 20) add up but nobody played them: minutes_quality PLACEHOLDER (box "EVEN_SPLIT"), left out
+  of the minute-based rates (generate_team_stats min_totals) and the box score's usage / ORtg (ORtg est instead).
 - Minute-based rates (assist rate, usage, shot %, rebound / steal / block %, fouls per 40, ORtg / DRtg) use only the
   games where the team's minutes were kept (the side's player-minutes 150+): generate_team_stats writes min_totals per
   player and the team / opponent totals over those games (team_summary min_totals / min_opponent_totals) when a game
