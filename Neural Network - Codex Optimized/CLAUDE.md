@@ -132,7 +132,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   and "ot_source", 75-73 in one overtime). 11/4 Bakersfield at Reedley (Synergy's log ends 65-62: Chambers made both
   free throws for Reedley 60-59, by film, and Clark's box-score free throw was placed by hand just before them). 11/7 LA Trade Tech at San Jose (two makes
   missing their Shot line added by hand; aliases: Kalei Yoakunan = Patrick Ramos, Unknown Player = Amadou Barry). 11/9 Redwoods at Cuesta. 11/5 Cosumnes River at Columbia (checked on film:
-  two unlogged layups added, a free throw corrected). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
+  two unlogged layups added, a free throw corrected). 11/5 Feather River at San Jose (log and film stop at 78-76, film-checked;
+  Sandy's layup added; the last 10 points aren't available). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
   (not read) until settled.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
@@ -256,9 +257,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   rebounds 3+ a game over half the team's games, on any team (11/11: Saddleback's Dylan Gomez, 6.4 pts/g, 50% from three
   at 29.0% of the minutes, had none). Go-to (usage over 28%) still needs 30%+ of the minutes where minutes are reliable: a
   bench stint's usage isn't go-to.
-- Three-point calls (both label copies, SH3): Shooter / Avg 3PT / Poor 3PT read his 3P% pulled toward the state's 32.4% by
-  25 attempts, and need 10+ threes (MIN_CALL): on fewer the estimate is mostly the state's average (11/11: Jaison Joyce,
-  1 of 5, read Avg 3PT; 83 calls on under 10 attempts dropped). Non-shooter is unchanged.
+- Three-point calls (both label copies, SH3; 11/20): Shooter / Avg 3PT / Poor 3PT read his threes blended with 300 more at a
+  prior of the state's 32.4%, moved 0.3 points per point his FT% (pulled toward the state's 68.8% by 30 FTA) sits above or
+  below the state's (FT% is the steadier sign of touch: year to year it carries over at 0.65, 3P% at 0.23). Fitted on
+  2021-22..2025-26 (751 players): 5.7 points off next season's 3P% (the old 25-attempt pull: 6.6, worse than calling
+  everyone 32.4%). Shooter = 33.5%+ (top quarter of 10+ attempt players), Poor 3PT = under 30.9% (bottom quarter); 10+
+  threes (MIN_CALL). Non-shooter is unchanged.
 - Tracker roster positions: rosters.json "pos" is our box-score position (player_positions_<season>.csv pos_class, once
   a player has 5+ games), blank until then; the roster pages' positions aren't published (season_rosters keeps them for
   the leaderboard's height groups). The tracker's pubRosters and Fill from leaderboard always take the published pos.
@@ -414,6 +418,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   2nd-half "three" was a two (98, the official final); Victor Valley's official 87 includes 2 phantom scoreboard points.
   11/13 Citrus at Allan Hancock, Citrus's side (the site posted only Hancock's) from its Synergy log the same way: the log
   matched Hancock's posted box point for point; 95 against the official 98 (3 points not found yet).
+- Even-split minutes (box_minutes.even_split: 9+ players all within 2 minutes, e.g. 11/18 Santa Barbara's 13 players at
+  15-16, 11/4 Barstow's 11 at 20) add up but nobody played them: minutes_quality PLACEHOLDER (box "EVEN_SPLIT"), left out
+  of the minute-based rates (generate_team_stats min_totals) and the box score's usage / ORtg (ORtg est instead).
 - Minute-based rates (assist rate, usage, shot %, rebound / steal / block %, fouls per 40, ORtg / DRtg) use only the
   games where the team's minutes were kept (the side's player-minutes 150+): generate_team_stats writes min_totals per
   player and the team / opponent totals over those games (team_summary min_totals / min_opponent_totals) when a game

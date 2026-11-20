@@ -45,6 +45,14 @@ def _active(stats):
     return False
 
 
+def even_split(mins):
+    """True when a side's minutes are the game's minutes split evenly (9+ players, all within 2 minutes of each other:
+    11/18 Santa Barbara, 13 players at 15-16; 11/4 Barstow, 11 at 20): they add up, but nobody played them, so they
+    count as no minutes. mins: each player's minutes (players listed at 0 left out)."""
+    m = [x for x in mins if x > 0]
+    return len(m) >= 9 and max(m) - min(m) <= 2
+
+
 def bench_zero(players):
     """True when the side's minutes are the starters-at-40 / bench-at-0 kind: a player listed at 0 minutes has a stat,
     while the column still adds up to a game (190+)."""
