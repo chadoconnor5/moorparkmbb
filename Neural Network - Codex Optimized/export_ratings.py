@@ -698,7 +698,12 @@ def leaderboard_tables(teams=()):
 # its own copy of the rules remains for older files and for players it knows only from our tracked games.
 AUTO_CUT = {"top": 0.20, "topTight": 0.15, "shooter": 0.35, "draws": 0.25, "bottom": 0.20, "aaTs": 0.35, "aaFtr": 0.50,
             "aaRateLo": 25, "aaRateHi": 55}
-SH3 = {"K": 25, "LG": 32.4, "HI": 35, "LO": 30, "MIN_A": 15, "FULL_G": 28, "MIN_CALL": 10}
+# 3P estimate (11/20, fitted on 2021-22..2025-26 year-to-year, 751 players): his threes blended with 300 threes at a prior
+# that starts at the state's 32.4% and moves 0.3 points per point his FT% (pulled toward the state's 68.8% by 30 FTA) sits
+# above / below the state's. Error on next season's 3P%: 5.7 points (25-attempt pull alone: 6.6). HI / LO = the top / bottom
+# quarter of the estimate among 10+ attempt players (2023-24..2025-26).
+SH3 = {"K": 300, "LG": 32.4, "FT_K": 30, "FT_LG": 68.8, "FT_W": 0.3, "HI": 33.5, "LO": 30.9, "MIN_A": 15, "FULL_G": 28,
+       "MIN_CALL": 10}
 ORTG_BANDS = ["Go-to Guys", "Major Contributors", "Significant Contributors", "Role Players", "Limited Roles", "Nearly Invisible"]
 
 
@@ -751,7 +756,10 @@ def auto_labels(R, table):
     rate = 100 * tpa / fga if fga else None
     pg = tpa / R["gp"] if R.get("gp") else None
     m3 = R.get("tpm") or 0
-    est3 = 100 * (m3 + SH3["K"] * SH3["LG"] / 100) / (tpa + SH3["K"])
+    ftm, fta = R.get("ftm") or 0, R.get("fta") or 0
+    ft_est = 100 * (ftm + SH3["FT_K"] * SH3["FT_LG"] / 100) / (fta + SH3["FT_K"])
+    prior3 = SH3["LG"] + SH3["FT_W"] * (ft_est - SH3["FT_LG"])
+    est3 = 100 * (m3 + SH3["K"] * prior3 / 100) / (tpa + SH3["K"])
     # Non-shooter = he barely takes threes: under 15 by game 28, scaled to his games; never just a short season.
     minA = SH3["MIN_A"] * min(R.get("gp") or 0, SH3["FULL_G"]) / SH3["FULL_G"]
     nonShooter = tpa < minA or (fga >= 10 and rate is not None and rate < 10)

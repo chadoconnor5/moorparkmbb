@@ -257,9 +257,12 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   rebounds 3+ a game over half the team's games, on any team (11/11: Saddleback's Dylan Gomez, 6.4 pts/g, 50% from three
   at 29.0% of the minutes, had none). Go-to (usage over 28%) still needs 30%+ of the minutes where minutes are reliable: a
   bench stint's usage isn't go-to.
-- Three-point calls (both label copies, SH3): Shooter / Avg 3PT / Poor 3PT read his 3P% pulled toward the state's 32.4% by
-  25 attempts, and need 10+ threes (MIN_CALL): on fewer the estimate is mostly the state's average (11/11: Jaison Joyce,
-  1 of 5, read Avg 3PT; 83 calls on under 10 attempts dropped). Non-shooter is unchanged.
+- Three-point calls (both label copies, SH3; 11/20): Shooter / Avg 3PT / Poor 3PT read his threes blended with 300 more at a
+  prior of the state's 32.4%, moved 0.3 points per point his FT% (pulled toward the state's 68.8% by 30 FTA) sits above or
+  below the state's (FT% is the steadier sign of touch: year to year it carries over at 0.65, 3P% at 0.23). Fitted on
+  2021-22..2025-26 (751 players): 5.7 points off next season's 3P% (the old 25-attempt pull: 6.6, worse than calling
+  everyone 32.4%). Shooter = 33.5%+ (top quarter of 10+ attempt players), Poor 3PT = under 30.9% (bottom quarter); 10+
+  threes (MIN_CALL). Non-shooter is unchanged.
 - Tracker roster positions: rosters.json "pos" is our box-score position (player_positions_<season>.csv pos_class, once
   a player has 5+ games), blank until then; the roster pages' positions aren't published (season_rosters keeps them for
   the leaderboard's height groups). The tracker's pubRosters and Fill from leaderboard always take the published pos.

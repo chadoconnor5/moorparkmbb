@@ -1384,7 +1384,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.18.6';
+const VERSION = 'v2026.11.20.1';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -7236,7 +7236,7 @@ function editDist(a, b) {
     prev = cur; }
   return prev[b.length];
 }
-const SH3 = { K: 25, LG: 32.4, HI: 35, LO: 30, MIN_A: 15, FULL_G: 28, MIN_CALL: 10 };
+const SH3 = { K: 300, LG: 32.4, FT_K: 30, FT_LG: 68.8, FT_W: 0.3, HI: 33.5, LO: 30.9, MIN_A: 15, FULL_G: 28, MIN_CALL: 10 };   // export_ratings.SH3
 function autoLabels(g, t, id) {
   let q = null; try { q = flPlayer(g, t, id); } catch (e) {}
   const { R, F } = autoRow(g, t, id), tot = (F && F.table && F.table.rankOf) || {}, rk = (R && R.rank) || {};
@@ -7273,11 +7273,15 @@ function autoLabels(g, t, id) {
   const tpa = R ? R.tpa || 0 : q.a3, fga = R ? R.fga || 0 : null, rate = fga ? 100 * tpa / fga : q && q.rate, pg = R && R.gp ? tpa / R.gp : q && q.pg3;
   /* THE SHOOTING CALL: every player who plays gets exactly one, from his own threes, never a state rank. What a three
      from him is worth against an average trip (the state's rotation players shoot 32.4% = 0.97 points a shot):
-       Shooter (close out) est 35%+ = 1.05+ points a three · Avg 3PT (guard him straight) 30-35% ·
-       Poor 3PT (let him shoot) under 30% = under 0.90 · Non-shooter (sag off) he barely takes them: under 15 threes scaled to his games (15 by game 28,
+       Shooter (close out) est 33.5%+ = top quarter, 1.0+ points a three · Avg 3PT (guard him straight) 30.9-33.5% ·
+       Poor 3PT (let him shoot) under 30.9% = bottom quarter · Non-shooter (sag off) he barely takes them: under 15 threes scaled to his games (15 by game 28,
      about 1.6 by game 3), or under 10% of his shots (10+ FGA). The est. already pulls a short sample toward 32.4%.
-     est = his 3P% as if he'd also taken SH3.K threes at the state's 32.4%, so one hot or cold night doesn't flip the call. */
-  const m3 = R ? R.tpm || 0 : q ? q.m3 || 0 : 0, est3 = 100 * (m3 + SH3.K * SH3.LG / 100) / (tpa + SH3.K);
+     est = his threes blended with SH3.K threes at a prior: the state's 32.4%, moved 0.3 per point his FT% sits above or
+     below the state's 68.8% (FT% is the steadier sign of a shooter's touch). Shooter = top quarter of the state (33.5%+),
+     Poor 3PT = bottom quarter (under 30.9%). Fitted on 2021-22..2025-26 (export_ratings.SH3). */
+  const m3 = R ? R.tpm || 0 : q ? q.m3 || 0 : 0;
+  const ftEst = R ? 100 * ((R.ftm || 0) + SH3.FT_K * SH3.FT_LG / 100) / ((R.fta || 0) + SH3.FT_K) : SH3.FT_LG;
+  const est3 = 100 * (m3 + SH3.K * (SH3.LG + SH3.FT_W * (ftEst - SH3.FT_LG)) / 100) / (tpa + SH3.K);
   const gpN = R ? R.gp || 0 : q ? q.gp || 0 : 0;
   const minA = SH3.MIN_A * Math.min(gpN, SH3.FULL_G) / SH3.FULL_G;   // 15 threes by game 28, scaled to the games he's played
   const nonShooter = tpa < minA || (fga >= 10 && rate != null && rate < 10);
@@ -7432,14 +7436,14 @@ const LABEL_GUIDE = [
     ['All-Around', 'Can do it all: 25-55% of his shots are threes; top 25% on TS% (with TSAdd/100), FT rate and how balanced his shot diet is (plus Synergy rim and 3PT).'],
     ['Balanced', 'Scores inside and out without All-Around\'s efficiency: 30-55% of his shots are threes, FT rate in the top half, 20%+ of possessions.'],
     ['Elite shooter', 'A Shooter whose blend, weighted toward 3P%, is in the top 10%.'],
-    ['Shooter', 'Close out. 15+ threes, est. 3P% 35%+ (1.05+ points a three; the state averages 32.4% = 0.97). Est. = his 3P% as if he\'d also taken 25 threes at 32.4%, so one night doesn\'t flip it. Not shown with All-Around (implied).'],
-    ['Avg 3PT', 'Guard him straight: a three from him is about an average trip. 15+ threes, est. 3P% 30-35%.'],
+    ['Shooter', 'Close out. 10+ threes, est. 3P% 33.5%+, the state\'s top quarter (the state averages 32.4% = 0.97 points a three). Est. = his threes blended with 300 more at 32.4%, moved up or down by his FT% (the steadier sign of a shooter\'s touch), so a hot or cold stretch doesn\'t flip it. Not shown with All-Around (implied).'],
+    ['Avg 3PT', 'Guard him straight: a three from him is about an average trip. 10+ threes, est. 3P% 30.9-33.5%.'],
     ['Slasher', 'Non-shooting rim attacker: threes under 25% of his shots; top 25% on FT rate, fouls drawn, 2PA a game and usage (plus Synergy at the rim).'],
     ['Draws fouls', 'Fouls drawn per 40 and FT rate together in the top 20%.'],
     ['Struggles inside', '3+ 2PA a game; 2P% (plus Synergy at the rim) in the bottom 20%.'],
     ['Non-shooter', 'Sag off him: he barely takes threes (under 15 by game 28, scaled to his games; or under 10% of his shots).'],
     ['3PT heavy', '55%+ of his shots are threes, on 2.0+ a game: his shot diet, whether or not they go in.'],
-    ['Poor 3PT', 'Let him shoot: 15+ threes, est. 3P% under 30% (under 0.90 points a three).']]],
+    ['Poor 3PT', 'Let him shoot: 10+ threes, est. 3P% under 30.9%, the state\'s bottom quarter.']]],
   ['Glass', [
     ['Glass cleaner', 'Offensive and defensive rebound % both top 20%.'],
     ['Rebounder', 'Defensive rebound % top 20%.'],
