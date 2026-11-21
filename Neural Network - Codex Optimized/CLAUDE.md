@@ -135,15 +135,20 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   two unlogged layups added, a free throw corrected). 11/5 Feather River at San Jose (log and film stop at 78-76, film-checked;
   Sandy's layup added; the last 10 points aren't available). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
   (not read) until settled.
-- Misc -> Record Book (record_book.py; season_data/records.js, lazy, ~3.5 MB, loaded when the tab opens; rbInit /
-  rbRender): statewide or one team (dropdown), five groups: Individual single game / season / career, Team single game /
-  season. Every box score since 2017-18; top 10 per category (ties kept to 15), statewide and per team; the current
-  season's entries highlighted. Season = summed box-score games (per-game records 10+ games and half the team's;
-  percentages FG% 150 / 3P% 60 / FT% 60 attempts over a full season, pro-rated, at least half); career = the same name on
-  the same team (left out past 72 games or 3 seasons: two players sharing a name). Team folders listed under two
-  conferences count once; old names follow the school (TEAM_RENAME: West Hills Coalinga -> Coalinga, West Hills Lemoore
-  -> Lemoore); box lines past SANE / SANE_TEAM are typos, not records (2/13/2023 Shasta: 61 assists). Rebuilt every build
-  (~20 s). python3 record_book.py prints each category's statewide #1.
+- Misc -> Record Book (record_book.py, rbInit / rbRender): Statewide or one team, All-time (2017-18 on) or one season,
+  eight groups: Individual single game / season / season per game / career / career per game (career: all-time only),
+  Team single game / season / season per game. Every basic box-score stat (PTS, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB,
+  REB, AST, STL, BLK, TO, PF), FG% / 3P% / FT% for seasons and careers, team wins, win %, points allowed, margin; no
+  minutes (unreliable). Columns: stat, player, team (statewide), opponent and date (games) or season / games. Top 10,
+  every tie at the cut listed (to 25); this season's entries highlighted in the all-time view. Season = summed box-score
+  games; per game needs half the team's games and 10+ (all-time) or a pro-rated bar in the season's own list; career
+  per game 20+; percentages FG% 150 / 3P% 60 / FT% 60 a season (pro-rated), 250 / 100 / 100 a career. Players match by
+  team + exact name (no spelling merges: Dayvon Gates, Mt. SAC, and Dayvion Gates, Canyons, are two players); a career
+  past 72 games or 3 seasons is a shared name (left out). Team folders under two conferences count once; old names follow
+  the school (TEAM_RENAME); box lines past SANE / SANE_TEAM are typos. Files: season_data/records_state.js and
+  records_<team slug>.js (all-time + past seasons, change only when a record falls) + records_*_cur.js (the current
+  season, rewritten nightly); ~40 MB in all, ~400 KB a team, loaded when picked. Rebuilt every build (~25 s).
+
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
   AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard

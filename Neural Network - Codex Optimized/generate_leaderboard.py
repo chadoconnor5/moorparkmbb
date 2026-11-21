@@ -5755,7 +5755,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Misc -> Record Book: statewide and per-team records from every box score (record_book.py), one lazy file
     try:
         import record_book
-        season_files["records.js"] = "__installRecords(" + json.dumps(record_book.build(), separators=(",", ":")) + ");\n"
+        season_files.update(record_book.write())
     except Exception as e:
         print(f"  Warning: record book not built: {e}")
     # Every team's lineups from the play-by-play (compute_pbp_lineups.py), one lazy file per team.
@@ -6598,11 +6598,13 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   .rb-groups {{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }}
   .rb-groups button {{ border:1px solid #cdd2da; background:#fff; border-radius:16px; padding:5px 12px; font-size:0.8rem; cursor:pointer; }}
   .rb-groups button.on {{ background:#1a3a6b; color:#fff; border-color:#1a3a6b; }}
-  .rb-body {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:12px; padding:0 8px 16px; }}
+  .rb-body {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(520px,1fr)); gap:12px; padding:0 8px 16px; }}
+  @media (max-width: 1024px) {{ .rb-body {{ grid-template-columns:1fr; }} .rb-card {{ overflow-x:auto; }} }}
   .rb-card {{ background:#fff; border:1px solid #e3e6ea; border-radius:8px; overflow:hidden; }}
   .rb-card h4 {{ margin:0; padding:7px 10px; font-size:0.85rem; background:#f4f6f9; border-bottom:1px solid #e3e6ea; }}
   .rb-card table {{ width:100%; border-collapse:collapse; font-size:0.78rem; }}
-  .rb-card td {{ padding:3px 8px; border-bottom:1px solid #f1f2f4; vertical-align:top; }}
+  .rb-card td, .rb-card th {{ padding:3px 8px; border-bottom:1px solid #f1f2f4; vertical-align:top; text-align:left; white-space:nowrap; }}
+  .rb-card th {{ font-size:0.7rem; color:#888; font-weight:600; }}
   .rb-card td.rb-v {{ text-align:right; font-weight:700; white-space:nowrap; }}
   .rb-card td.rb-n {{ color:#888; width:18px; text-align:right; }}
   .rb-card td.rb-d {{ color:#888; font-size:0.72rem; }}
@@ -7808,9 +7810,10 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     <div id="sl-tab-records" class="sl-tab-content" style="display:none">
       <div class="rb-controls">
         <select id="rb-team" onchange="rbRender()"></select>
+        <select id="rb-period" onchange="rbRender()"></select>
         <div id="rb-groups" class="rb-groups"></div>
       </div>
-      <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played). Season records count box-score games; career = the same name on the same team. Percentages need attempts (FG% 150, 3P% / FT% 60 over a full season). Lines that can't be right (a 61-assist game) are left out as box score typos.</div>
+      <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played). Season numbers add up the box-score games; per game needs half the team's games (10+ all-time); career = the same name on the same team (20+ games per game). Percentages need attempts (season FG% 150, 3P% / FT% 60, pro-rated; career 250 / 100 / 100). Ties are all listed. This season's entries are highlighted. Box lines that can't be right (a 61-assist game) are left out as typos; minutes aren't recorded reliably, so they aren't here.</div>
       <div id="rb-body" class="rb-body"></div>
     </div>
     <div id="sl-tab-runs" class="sl-tab-content" style="display:none">
@@ -8255,19 +8258,30 @@ function ensureBoxes(key, cb) {{
   s.onerror = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); w.forEach(f => f()); }};
   document.head.appendChild(s);
 }}
-// --- Record Book (Misc), lazy: season_data/records.js (record_book.py) ---
-var RECORDS = null;
-let __recWaiters = null;
-function __installRecords(d) {{ RECORDS = d; }}
-function ensureRecords(cb) {{
-  if (RECORDS) {{ cb(); return; }}
-  if (__recWaiters) {{ __recWaiters.push(cb); return; }}
-  __recWaiters = [cb];
-  const s = document.createElement('script');
-  s.src = 'season_data/records.js' + __sdv('season_data/records.js');
-  s.onload = () => {{ const w = __recWaiters || []; __recWaiters = null; w.forEach(f => f()); }};
-  s.onerror = () => {{ __recWaiters = null; console.error('Record book data file missing: records.js'); }};
-  document.head.appendChild(s);
+// --- Record Book (Misc), lazy: season_data/records_<scope>.js + records_<scope>_cur.js (record_book.py) ---
+var RECORDS = {{}};                 // scope ('' = statewide, else the team) -> {{lists: {{period: {{cat: rows}}}}}}; RB_META from the state file
+var RB_META = null;
+const __recWait = {{}};
+function __installRecords(scope, d) {{
+  const r = RECORDS[scope] || (RECORDS[scope] = {{lists: {{}}, n: 0}});
+  Object.assign(r.lists, d.lists || {{}});
+  r.n++;
+  if (d.cats) RB_META = d;
+}}
+function ensureRecords(scope, cb) {{
+  if (RECORDS[scope] && RECORDS[scope].n >= 2) {{ cb(); return; }}
+  if (__recWait[scope]) {{ __recWait[scope].push(cb); return; }}
+  __recWait[scope] = [cb];
+  const name = scope ? RB_META.teams[scope] : 'state';
+  let left = 2;
+  const done = () => {{ if (--left) return; const w = __recWait[scope] || []; delete __recWait[scope]; w.forEach(f => f()); }};
+  ['', '_cur'].forEach(sfx => {{
+    const s = document.createElement('script'), f = 'season_data/records_' + name + sfx + '.js';
+    s.src = f + __sdv(f);
+    s.onload = done;
+    s.onerror = () => {{ console.error('Record book file missing: ' + f); done(); }};
+    document.head.appendChild(s);
+  }});
 }}
 // --- Full team rosters (no minutes qualification), lazy per season ---
 var TEAM_ROSTERS = {{}};
@@ -14724,55 +14738,65 @@ function slSortRuns(key) {{
   else {{ slRunsSortKey = key; slRunsSortAsc = (key === 'team' || key === 'conference' || key === 'ks_a' || key === 'ks_a_pg' || key === 'kills_a' || key === 'kills_a_pg'); }}
   slRenderRuns();
 }}
-// ─── Record Book (record_book.py; season_data/records.js) ───
+// ─── Record Book (record_book.py; season_data/records_*.js) ───
 let rbGroup = 'Individual · Single game';
 function rbInit() {{
   const body = document.getElementById('rb-body');
-  if (!RECORDS) body.innerHTML = '<div style="padding:20px;color:#888">Loading records…</div>';
-  ensureRecords(() => {{
+  if (!RB_META) body.innerHTML = '<div style="padding:20px;color:#888">Loading records…</div>';
+  ensureRecords('', () => {{
     const sel = document.getElementById('rb-team');
     if (!sel.options.length) {{
-      sel.innerHTML = '<option value="">Statewide</option>' + Object.keys(RECORDS.team).sort().map(t => `<option>${{t}}</option>`).join('');
-      const groups = [...new Set(RECORDS.cats.map(c => c[1]))];
-      document.getElementById('rb-groups').innerHTML = groups.map(g => `<button data-g="${{g}}" onclick="rbGroup=this.dataset.g;rbRender()">${{g}}</button>`).join('');
+      sel.innerHTML = '<option value="">Statewide</option>' + Object.keys(RB_META.teams).sort().map(t => `<option>${{t}}</option>`).join('');
+      document.getElementById('rb-period').innerHTML = RB_META.periods.slice().reverse().map(p => p === 'all' ? '' : `<option value="${{p}}">${{p}}</option>`).join('');
+      document.getElementById('rb-period').insertAdjacentHTML('afterbegin', '<option value="all" selected>All-time (2017-18 on)</option>');
     }}
     rbRender();
   }});
 }}
+function rbSeasonOf(x) {{                 // '2/18/2026' -> '2025-26'
+  const m = typeof x === 'string' ? x.split('/') : [];
+  if (m.length !== 3) return null;
+  const y = +m[2] - (+m[0] < 7 ? 1 : 0);
+  return y + '-' + String(y + 1).slice(-2);
+}}
 function rbFmt(cat, v) {{
-  if (cat.startsWith('ipct_') || cat === 'ts_winpct') return v.toFixed(1) + '%';
-  if (cat.startsWith('ipg_') || cat.startsWith('tspg_') || ['ts_ppg', 'ts_opp_ppg', 'ts_margin'].includes(cat)) return (cat === 'ts_margin' && v > 0 ? '+' : '') + v.toFixed(1);
-  if (cat === 'tg_margin') return (v > 0 ? '+' : '') + v;
+  if (cat.includes('pct_') || cat === 'tspg_winpct') return v.toFixed(1) + '%';
+  if (cat.startsWith('ipg_') || cat.startsWith('icpg_') || cat.startsWith('tspg_')) return (cat === 'tspg_margin' && v > 0 ? '+' : '') + v.toFixed(1);
+  if (cat === 'tg_margin') return '+' + v;
   return String(v);
 }}
-function rbRow(cat, r, state) {{
-  const cur = RECORDS.seasons[RECORDS.seasons.length - 1];
-  const p = cat.slice(0, cat.indexOf('_'));
-  let who, det, season;
-  if (p === 'ig') {{ who = `<b>${{r[1]}}</b>${{state ? ` <span class="rb-d">${{r[2]}}</span>` : ''}}`; det = `vs ${{r[3]}} · ${{r[4]}}`; season = r[5]; }}
-  else if (p === 'is' || p === 'ipg' || p === 'ipct') {{ who = `<b>${{r[1]}}</b>${{state ? ` <span class="rb-d">${{r[2]}}</span>` : ''}}`; det = `${{r[3]}} · ${{r[4]}} G${{r[5] ? ' · ' + r[5] : ''}}`; season = r[3]; }}
-  else if (p === 'ic') {{ who = `${{r[1]}}${{state ? ` <span class="rb-d">${{r[2]}}</span>` : ''}}`; det = `${{r[3]}} · ${{r[4]}} G`; season = String(r[3]).slice(0, 4) === cur.slice(0, 4) || String(r[3]).endsWith(cur.slice(-2)) ? cur : ''; }}
-  else if (p === 'tg') {{ who = state ? r[1] : ''; det = `vs ${{r[2]}} · ${{r[3]}} · ${{r[5]}}`; season = r[4]; }}
-  else {{ who = state ? r[1] : r[2]; det = state ? `${{r[2]}} · ${{r[3]}}` : r[3]; season = r[2]; }}
-  return [who, det, season === cur];
+// columns per group: [header, value of row r]
+function rbCols(cat, state) {{
+  const p = cat.slice(0, cat.indexOf('_')), T = state ? [['Team', r => r[2]]] : [];
+  if (p === 'ig') return [['Player', r => '<b>' + r[1] + '</b>'], ...T, ['Opponent', r => r[3]], ['Date', r => r[4]]];
+  if (p === 'is' || p === 'ipg' || p === 'ipct') return [['Player', r => '<b>' + r[1] + '</b>'], ...T, ['Season', r => r[3]], ['G', r => r[4]], ...(p === 'ipct' ? [['M-A', r => r[5]]] : [])];
+  if (p === 'ic' || p === 'icpg' || p === 'icpct') return [['Player', r => '<b>' + r[1] + '</b>'], ...T, ['Seasons', r => r[3]], ['G', r => r[4]], ...(p === 'icpct' ? [['M-A', r => r[5]]] : [])];
+  if (p === 'tg') return [...(state ? [['Team', r => '<b>' + r[1] + '</b>']] : []), ['Opponent', r => r[2]], ['Date', r => r[3]], ['Score', r => r[4]]];
+  return [...(state ? [['Team', r => '<b>' + r[1] + '</b>']] : []), ['Season', r => r[2]], ['Record', r => r[3]]];
 }}
 function rbRender() {{
-  if (!RECORDS) return;
-  const tm = document.getElementById('rb-team').value, state = !tm;
-  document.querySelectorAll('#rb-groups button').forEach(b => b.classList.toggle('on', b.dataset.g === rbGroup));
-  const src = state ? RECORDS.state : (RECORDS.team[tm] || {{}});
-  const cards = RECORDS.cats.filter(c => c[1] === rbGroup).map(([cat, , label]) => {{
-    const rows = src[cat] || [];
-    if (!rows.length) return '';
-    let rank = 0, prev = null;
-    const trs = rows.map((r, i) => {{
-      if (r[0] !== prev) {{ rank = i + 1; prev = r[0]; }}
-      const [who, det, cur] = rbRow(cat, r, state);
-      return `<tr class="${{cur ? 'rb-cur' : ''}}"><td class="rb-n">${{rank}}</td><td class="rb-v">${{rbFmt(cat, r[0])}}</td><td>${{who}}<div class="rb-d">${{det}}</div></td></tr>`;
+  if (!RB_META) return;
+  const tm = document.getElementById('rb-team').value, state = !tm, per = document.getElementById('rb-period').value;
+  const groups = [...new Set(RB_META.cats.map(c => c[1]))].filter(g => per === 'all' || (!g.includes('Career') && (state || !g.startsWith('Team · Season'))));
+  if (!groups.includes(rbGroup)) rbGroup = groups[0];
+  document.getElementById('rb-groups').innerHTML = groups.map(g => `<button data-g="${{g}}" class="${{g === rbGroup ? 'on' : ''}}" onclick="rbGroup=this.dataset.g;rbRender()">${{g}}</button>`).join('');
+  ensureRecords(tm, () => {{
+    const cur = RB_META.periods[RB_META.periods.length - 1];
+    const src = ((RECORDS[tm] || {{}}).lists || {{}})[per] || {{}};
+    const cards = RB_META.cats.filter(c => c[1] === rbGroup).map(([cat, , label]) => {{
+      const rows = src[cat] || [];
+      if (!rows.length) return '';
+      const cols = rbCols(cat, state).filter(c => per === 'all' || c[0] !== 'Season');
+      let rank = 0, prev = null;
+      const trs = rows.map((r, i) => {{
+        if (r[0] !== prev) {{ rank = i + 1; prev = r[0]; }}
+        const isCur = per === 'all' && r.some(x => x === cur || rbSeasonOf(x) === cur);
+        return `<tr class="${{isCur ? 'rb-cur' : ''}}"><td class="rb-n">${{rank}}</td><td class="rb-v">${{rbFmt(cat, r[0])}}</td>${{cols.map(c => `<td>${{c[1](r)}}</td>`).join('')}}</tr>`;
+      }}).join('');
+      return `<div class="rb-card"><h4>${{label}}</h4><table><thead><tr><th class="rb-n">#</th><th class="rb-v">Stat</th>${{cols.map(c => `<th>${{c[0]}}</th>`).join('')}}</tr></thead><tbody>${{trs}}</tbody></table></div>`;
     }}).join('');
-    return `<div class="rb-card"><h4>${{label}}</h4><table>${{trs}}</table></div>`;
-  }}).join('');
-  document.getElementById('rb-body').innerHTML = cards || '<div style="padding:20px;color:#888">No records.</div>';
+    document.getElementById('rb-body').innerHTML = cards || '<div style="padding:20px;color:#888">No records for this choice.</div>';
+  }});
 }}
 
 function slRenderRuns() {{
@@ -16777,7 +16801,7 @@ def main():
         # Fast mode only refreshes current-season files; existing past-season
         # files keep serving the other seasons.
         writable = {k: v for k, v in season_files.items()
-                    if k in ("boxes_2627.js", "rosters_2627.js", "records.js") or k.startswith("lineups_2627_")}
+                    if k in ("boxes_2627.js", "rosters_2627.js") or k.startswith(("lineups_2627_", "records_"))}
         print("Fast mode: past-season data files not rewritten.")
     else:
         writable = season_files

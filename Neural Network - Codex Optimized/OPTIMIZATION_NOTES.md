@@ -344,10 +344,12 @@ Observed on this copy: fast cached builds run in about 3 seconds; full cached bu
   roughly 60-150 KB each), loaded only when that team's Lineups opens (ensurePbpLineups). The page itself carries just
   the small `PBP_LU` index ({team: {s, used, total}}). `--fast` builds rewrite them with the other current-season files.
 
-## Record Book (lazy, one file)
-- Misc -> Record Book reads `season_data/records.js` (`__installRecords({...})`, ~3.5 MB, plain JSON: cats, state, team,
-  seasons), loaded by `ensureRecords()` the first time the tab opens; nothing in the page itself. record_book.build() reads
-  every season's box scores (~20 s) and runs on every build, `--fast` included (records.js is in the fast writable list).
+## Record Book (lazy, per scope)
+- Misc -> Record Book reads `season_data/records_<scope>.js` (all-time + past seasons) and `records_<scope>_cur.js` (the
+  current season) for the state and each team (`__installRecords(scope, {lists, ...})`; the state file adds cats,
+  periods and the team -> slug index), loaded by `ensureRecords(scope)` when that scope is picked; nothing in the page.
+  The split keeps the nightly push to the small _cur files unless a record falls. record_book.write() reads every
+  season's box scores (~25 s) on every build, `--fast` included (records_* are in the fast writable list).
 
 ## Data file versions (cache busting)
 The lazy season_data files (season_*, boxes_*, rosters_*, lineups_2627_*) load with `?v=<first 10 hex of the file's
