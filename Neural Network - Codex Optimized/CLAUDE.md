@@ -135,7 +135,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   two unlogged layups added, a free throw corrected). 11/5 Feather River at San Jose (log and film stop at 78-76, film-checked;
   Sandy's layup added; the last 10 points aren't available). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
   (not read) until settled.
-- Misc -> Record Book (record_book.py, rbInit / rbRender): Statewide or one team, All-time (2017-18 on) or one season,
+- Misc -> Records (record_book.py, rbInit / rbRender): Statewide or one team, All-time (2017-18 on) or one season,
   eight groups: Individual single game / season / season per game / career / career per game (career: all-time only),
   Team single game / season / season per game. Every basic box-score stat (PTS, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB,
   REB, AST, STL, BLK, TO, PF), FG% / 3P% / FT% for seasons and careers, team wins, win %, points allowed, margin; no
@@ -143,7 +143,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   every tie at the cut listed (to 25); this season's entries highlighted in the all-time view. Season = summed box-score
   games; per game needs half the team's games and 10+ (all-time) or a pro-rated bar in the season's own list; career
   per game 20+; percentages FG% 150 / 3P% 60 / FT% 60 a season (pro-rated), 250 / 100 / 100 a career. Players match by
-  team + exact name (no spelling merges: Dayvon Gates, Mt. SAC, and Dayvion Gates, Canyons, are two players); a career
+  team + exact name (Dayvon Gates, Mt. SAC, and Dayvion Gates, Canyons, are two players); a player spelt two ways is merged
+  by NAME_FIX (Jamaal Unuakalu / Jamal Unuakhalu -> Jamaal Unuakhalu, Moorpark); a career
   past 72 games or 3 seasons is a shared name (left out). Team folders under two conferences count once; old names follow
   the school (TEAM_RENAME); box lines past SANE / SANE_TEAM are typos. Files: season_data/records_state.js and
   records_<team slug>.js (all-time + past seasons, change only when a record falls) + records_*_cur.js (the current

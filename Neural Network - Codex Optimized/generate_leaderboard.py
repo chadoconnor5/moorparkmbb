@@ -14564,7 +14564,7 @@ const SL_TABS = [
   {{ id: 'maxdef',    label: 'Max Deficit', pbp: true }},
   {{ id: 'window',    label: 'Window', pbp: true }},
   {{ id: 'runs',      label: 'Kills', pbp: true }},
-  {{ id: 'records',   label: 'Record Book' }},
+  {{ id: 'records',   label: 'Records' }},
   {{ id: 'height',    label: 'Height' }},
   {{ id: 'wab',       label: 'WAB' }},
   {{ id: 'rate',      label: 'Rate' }},
@@ -14665,7 +14665,7 @@ function slSwitchTab(tab, label) {{
       title.textContent = yr + ' Relative Ratings (O-Rate / D-Rate / Rel-Rtg)';
       if (countEl) countEl.style.display = 'none';
     }} else if (tab === 'records') {{
-      title.textContent = 'Record Book';
+      title.textContent = 'Records';
       if (countEl) countEl.style.display = 'none';
       rbInit();
     }} else if (tab === 'runs') {{
