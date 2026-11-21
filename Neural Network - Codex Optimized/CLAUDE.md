@@ -135,6 +135,15 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   two unlogged layups added, a free throw corrected). 11/5 Feather River at San Jose (log and film stop at 78-76, film-checked;
   Sandy's layup added; the last 10 points aren't available). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
   (not read) until settled.
+- Misc -> Record Book (record_book.py; season_data/records.js, lazy, ~3.5 MB, loaded when the tab opens; rbInit /
+  rbRender): statewide or one team (dropdown), five groups: Individual single game / season / career, Team single game /
+  season. Every box score since 2017-18; top 10 per category (ties kept to 15), statewide and per team; the current
+  season's entries highlighted. Season = summed box-score games (per-game records 10+ games and half the team's;
+  percentages FG% 150 / 3P% 60 / FT% 60 attempts over a full season, pro-rated, at least half); career = the same name on
+  the same team (left out past 72 games or 3 seasons: two players sharing a name). Team folders listed under two
+  conferences count once; old names follow the school (TEAM_RENAME: West Hills Coalinga -> Coalinga, West Hills Lemoore
+  -> Lemoore); box lines past SANE / SANE_TEAM are typos, not records (2/13/2023 Shasta: 61 assists). Rebuilt every build
+  (~20 s). python3 record_book.py prints each category's statewide #1.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
   AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard

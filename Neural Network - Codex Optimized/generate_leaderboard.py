@@ -5752,6 +5752,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     # Full team rosters (no minutes qualification) for the Team Stats panel.
     for key, rosters in (team_rosters or {}).items():
         season_files[f"rosters_{key}.js"] = f"__installRosters('{key}', {_embed(rosters)});\n"
+    # Misc -> Record Book: statewide and per-team records from every box score (record_book.py), one lazy file
+    try:
+        import record_book
+        season_files["records.js"] = "__installRecords(" + json.dumps(record_book.build(), separators=(",", ":")) + ");\n"
+    except Exception as e:
+        print(f"  Warning: record book not built: {e}")
     # Every team's lineups from the play-by-play (compute_pbp_lineups.py), one lazy file per team.
     pbp_lu_index, pbp_lu_files = _pbp_lineup_files()
     season_files.update(pbp_lu_files)
@@ -6587,6 +6593,20 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   }}
   .sl-table-outer {{ text-align: center; }}
   .sl-table-wrap {{ display: inline-block; overflow-x: auto; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 1px 2px rgba(28, 39, 51, 0.05); text-align: left; }}
+  .rb-controls {{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; padding:4px 10px 8px; }}
+  .rb-controls select {{ padding:6px 10px; border:1px solid #cdd2da; border-radius:6px; font-size:0.9rem; }}
+  .rb-groups {{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }}
+  .rb-groups button {{ border:1px solid #cdd2da; background:#fff; border-radius:16px; padding:5px 12px; font-size:0.8rem; cursor:pointer; }}
+  .rb-groups button.on {{ background:#1a3a6b; color:#fff; border-color:#1a3a6b; }}
+  .rb-body {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:12px; padding:0 8px 16px; }}
+  .rb-card {{ background:#fff; border:1px solid #e3e6ea; border-radius:8px; overflow:hidden; }}
+  .rb-card h4 {{ margin:0; padding:7px 10px; font-size:0.85rem; background:#f4f6f9; border-bottom:1px solid #e3e6ea; }}
+  .rb-card table {{ width:100%; border-collapse:collapse; font-size:0.78rem; }}
+  .rb-card td {{ padding:3px 8px; border-bottom:1px solid #f1f2f4; vertical-align:top; }}
+  .rb-card td.rb-v {{ text-align:right; font-weight:700; white-space:nowrap; }}
+  .rb-card td.rb-n {{ color:#888; width:18px; text-align:right; }}
+  .rb-card td.rb-d {{ color:#888; font-size:0.72rem; }}
+  .rb-card tr.rb-cur td {{ background:#fff8e1; }}
   .sl-table {{
     width: auto;
     min-width: 560px;
@@ -7785,6 +7805,14 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <th class="sl-th-r">#</th><th>Date</th><th>Game</th><th>Location</th><th class="sl-th-r">Lead / Deficit</th><th class="sl-th-r">Value</th>
       </tr></thead><tbody id="sl-body-window"></tbody></table></div></div>
     </div>
+    <div id="sl-tab-records" class="sl-tab-content" style="display:none">
+      <div class="rb-controls">
+        <select id="rb-team" onchange="rbRender()"></select>
+        <div id="rb-groups" class="rb-groups"></div>
+      </div>
+      <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played). Season records count box-score games; career = the same name on the same team. Percentages need attempts (FG% 150, 3P% / FT% 60 over a full season). Lines that can't be right (a 61-assist game) are left out as box score typos.</div>
+      <div id="rb-body" class="rb-body"></div>
+    </div>
     <div id="sl-tab-runs" class="sl-tab-content" style="display:none">
       <div style="padding:6px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Kill shot = a 10-0 run (one per run). Kill = three straight defensive stops (opponent possessions without a point; counting restarts after each kill and each half). Games with play-by-play only (G). Stop% = share of opponent possessions held scoreless.</div>
       <div class="sl-table-outer"><div class="sl-table-wrap"><table class="sl-table"><thead><tr>
@@ -8225,6 +8253,20 @@ function ensureBoxes(key, cb) {{
   s.src = 'season_data/boxes_' + key + '.js' + __sdv('season_data/boxes_' + key + '.js');
   s.onload = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; w.forEach(f => f()); }};
   s.onerror = () => {{ const w = __boxWaiters[key] || []; delete __boxWaiters[key]; console.error('Box score data file missing: boxes_' + key + '.js'); w.forEach(f => f()); }};
+  document.head.appendChild(s);
+}}
+// --- Record Book (Misc), lazy: season_data/records.js (record_book.py) ---
+var RECORDS = null;
+let __recWaiters = null;
+function __installRecords(d) {{ RECORDS = d; }}
+function ensureRecords(cb) {{
+  if (RECORDS) {{ cb(); return; }}
+  if (__recWaiters) {{ __recWaiters.push(cb); return; }}
+  __recWaiters = [cb];
+  const s = document.createElement('script');
+  s.src = 'season_data/records.js' + __sdv('season_data/records.js');
+  s.onload = () => {{ const w = __recWaiters || []; __recWaiters = null; w.forEach(f => f()); }};
+  s.onerror = () => {{ __recWaiters = null; console.error('Record book data file missing: records.js'); }};
   document.head.appendChild(s);
 }}
 // --- Full team rosters (no minutes qualification), lazy per season ---
@@ -14508,6 +14550,7 @@ const SL_TABS = [
   {{ id: 'maxdef',    label: 'Max Deficit', pbp: true }},
   {{ id: 'window',    label: 'Window', pbp: true }},
   {{ id: 'runs',      label: 'Kills', pbp: true }},
+  {{ id: 'records',   label: 'Record Book' }},
   {{ id: 'height',    label: 'Height' }},
   {{ id: 'wab',       label: 'WAB' }},
   {{ id: 'rate',      label: 'Rate' }},
@@ -14607,6 +14650,10 @@ function slSwitchTab(tab, label) {{
       const yr = activeSeason === '1718' ? '2017-18' : activeSeason === '1819' ? '2018-19' : activeSeason === '1920' ? '2019-20' : activeSeason === '2122' ? '2021-22' : activeSeason === '2223' ? '2022-23' : activeSeason === '2324' ? '2023-24' : activeSeason === '2425' ? '2024-25' : activeSeason === '2526' ? '2025-26' : '2026-27';
       title.textContent = yr + ' Relative Ratings (O-Rate / D-Rate / Rel-Rtg)';
       if (countEl) countEl.style.display = 'none';
+    }} else if (tab === 'records') {{
+      title.textContent = 'Record Book';
+      if (countEl) countEl.style.display = 'none';
+      rbInit();
     }} else if (tab === 'runs') {{
       title.textContent = '2026-27 Kill Shots and Kills';
       if (countEl) countEl.style.display = 'none';
@@ -14677,6 +14724,57 @@ function slSortRuns(key) {{
   else {{ slRunsSortKey = key; slRunsSortAsc = (key === 'team' || key === 'conference' || key === 'ks_a' || key === 'ks_a_pg' || key === 'kills_a' || key === 'kills_a_pg'); }}
   slRenderRuns();
 }}
+// ─── Record Book (record_book.py; season_data/records.js) ───
+let rbGroup = 'Individual · Single game';
+function rbInit() {{
+  const body = document.getElementById('rb-body');
+  if (!RECORDS) body.innerHTML = '<div style="padding:20px;color:#888">Loading records…</div>';
+  ensureRecords(() => {{
+    const sel = document.getElementById('rb-team');
+    if (!sel.options.length) {{
+      sel.innerHTML = '<option value="">Statewide</option>' + Object.keys(RECORDS.team).sort().map(t => `<option>${{t}}</option>`).join('');
+      const groups = [...new Set(RECORDS.cats.map(c => c[1]))];
+      document.getElementById('rb-groups').innerHTML = groups.map(g => `<button data-g="${{g}}" onclick="rbGroup=this.dataset.g;rbRender()">${{g}}</button>`).join('');
+    }}
+    rbRender();
+  }});
+}}
+function rbFmt(cat, v) {{
+  if (cat.startsWith('ipct_') || cat === 'ts_winpct') return v.toFixed(1) + '%';
+  if (cat.startsWith('ipg_') || cat.startsWith('tspg_') || ['ts_ppg', 'ts_opp_ppg', 'ts_margin'].includes(cat)) return (cat === 'ts_margin' && v > 0 ? '+' : '') + v.toFixed(1);
+  if (cat === 'tg_margin') return (v > 0 ? '+' : '') + v;
+  return String(v);
+}}
+function rbRow(cat, r, state) {{
+  const cur = RECORDS.seasons[RECORDS.seasons.length - 1];
+  const p = cat.slice(0, cat.indexOf('_'));
+  let who, det, season;
+  if (p === 'ig') {{ who = `<b>${{r[1]}}</b>${{state ? ` <span class="rb-d">${{r[2]}}</span>` : ''}}`; det = `vs ${{r[3]}} · ${{r[4]}}`; season = r[5]; }}
+  else if (p === 'is' || p === 'ipg' || p === 'ipct') {{ who = `<b>${{r[1]}}</b>${{state ? ` <span class="rb-d">${{r[2]}}</span>` : ''}}`; det = `${{r[3]}} · ${{r[4]}} G${{r[5] ? ' · ' + r[5] : ''}}`; season = r[3]; }}
+  else if (p === 'ic') {{ who = `${{r[1]}}${{state ? ` <span class="rb-d">${{r[2]}}</span>` : ''}}`; det = `${{r[3]}} · ${{r[4]}} G`; season = String(r[3]).slice(0, 4) === cur.slice(0, 4) || String(r[3]).endsWith(cur.slice(-2)) ? cur : ''; }}
+  else if (p === 'tg') {{ who = state ? r[1] : ''; det = `vs ${{r[2]}} · ${{r[3]}} · ${{r[5]}}`; season = r[4]; }}
+  else {{ who = state ? r[1] : r[2]; det = state ? `${{r[2]}} · ${{r[3]}}` : r[3]; season = r[2]; }}
+  return [who, det, season === cur];
+}}
+function rbRender() {{
+  if (!RECORDS) return;
+  const tm = document.getElementById('rb-team').value, state = !tm;
+  document.querySelectorAll('#rb-groups button').forEach(b => b.classList.toggle('on', b.dataset.g === rbGroup));
+  const src = state ? RECORDS.state : (RECORDS.team[tm] || {{}});
+  const cards = RECORDS.cats.filter(c => c[1] === rbGroup).map(([cat, , label]) => {{
+    const rows = src[cat] || [];
+    if (!rows.length) return '';
+    let rank = 0, prev = null;
+    const trs = rows.map((r, i) => {{
+      if (r[0] !== prev) {{ rank = i + 1; prev = r[0]; }}
+      const [who, det, cur] = rbRow(cat, r, state);
+      return `<tr class="${{cur ? 'rb-cur' : ''}}"><td class="rb-n">${{rank}}</td><td class="rb-v">${{rbFmt(cat, r[0])}}</td><td>${{who}}<div class="rb-d">${{det}}</div></td></tr>`;
+    }}).join('');
+    return `<div class="rb-card"><h4>${{label}}</h4><table>${{trs}}</table></div>`;
+  }}).join('');
+  document.getElementById('rb-body').innerHTML = cards || '<div style="padding:20px;color:#888">No records.</div>';
+}}
+
 function slRenderRuns() {{
   const body = document.getElementById('sl-body-runs');
   if (!body) return;
@@ -16679,7 +16777,7 @@ def main():
         # Fast mode only refreshes current-season files; existing past-season
         # files keep serving the other seasons.
         writable = {k: v for k, v in season_files.items()
-                    if k in ("boxes_2627.js", "rosters_2627.js") or k.startswith("lineups_2627_")}
+                    if k in ("boxes_2627.js", "rosters_2627.js", "records.js") or k.startswith("lineups_2627_")}
         print("Fast mode: past-season data files not rewritten.")
     else:
         writable = season_files
