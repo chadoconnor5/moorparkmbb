@@ -7813,7 +7813,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <select id="rb-period" onchange="rbRender()"></select>
         <div id="rb-groups" class="rb-groups"></div>
       </div>
-      <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played). Season numbers add up the box-score games; per game needs half the team's games (10+ all-time); career = the same name on the same team (20+ games per game). Percentages need attempts (season FG% 150, 3P% / FT% 60, pro-rated; career 250 / 100 / 100). Ties are all listed. This season's entries are highlighted. Box lines that can't be right (a 61-assist game) are left out as typos. Minutes come only from box scores that kept real minutes (many list everyone at 1 minute), so a player's minute totals and minutes per game are over those games (G).</div>
+      <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played), games against CCCAA teams only. Season numbers add up the box-score games; per game needs half the team's games (10+ all-time); career = the same name on the same team (20+ games per game). Percentages need attempts (season FG% 150, 3P% / FT% 60, pro-rated; career 250 / 100 / 100). Ties are all listed. This season's entries are highlighted. Box lines that can't be right (a 61-assist game) are left out as typos. Minutes come only from box scores that kept real minutes (many list everyone at 1 minute), so a player's minute totals and minutes per game are over those games (G).</div>
       <div id="rb-body" class="rb-body"></div>
     </div>
     <div id="sl-tab-runs" class="sl-tab-content" style="display:none">

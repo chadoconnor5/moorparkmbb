@@ -9,6 +9,9 @@ three shooting percentages for seasons and careers, and team wins / win % / poin
 only from box scores whose minutes were kept (a side's minutes add to a game's worth, 150-300, not all 1s, not an even
 split): a season's / career's minutes and minutes per game are over those games (the G column shows how many).
 
+Only games against CCCAA teams count (any game against a non-member, e.g. 11/12/2022 Moorpark 142 Cal Miramar 60, is
+left out of every list, season and career sums included).
+
 Each list keeps the top TOP and every tie at the cut (up to TIE_MAX). Players are told apart by team and exact name
 (after "#4" / "LAST,FIRST" clean-up): no spelling merges, so Dayvon Gates (Mt. San Antonio) and Dayvion Gates (Canyons)
 stay two players, and a misspelt box line splits a player. A "career" past MAX_CAREER_G games or 3 seasons is two
@@ -205,9 +208,11 @@ def build():
             pf, pa = _i(sc.get(mine)), _i(sc.get(opp_key))
             if not pf and not pa:
                 continue
+            opp = resolve_opponent(opp_key)
+            if not opp:                 # only games against CCCAA teams count (11/12/2022 Moorpark 142, Cal Miramar 60: out)
+                continue
             teams.add(tm)
             date = _date(folder, box.get("date"))
-            opp = resolve_opponent(opp_key) or (opp_key.title() if opp_key.isupper() else opp_key)
             opp = TEAM_RENAME.get(opp, opp)
             tot = defaultdict(int)
             # minutes count only from a side whose minutes were kept: a game's worth (150-300), not all 1s, not an even split
