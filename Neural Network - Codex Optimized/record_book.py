@@ -5,8 +5,9 @@ Two periods: all-time (every season we have) and each season. Groups:
                  the same name on the same team)
     Team         single game · season totals / per game
 Every basic box-score stat (points, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB, REB, AST, STL, BLK, TO, PF) plus the
-three shooting percentages for seasons and careers, and team wins / win % / points allowed / margin. Minutes are left
-out: many box scores carry placeholder minutes.
+three shooting percentages for seasons and careers, and team wins / win % / points allowed / margin. Minutes count
+only from box scores whose minutes were kept (a side's minutes add to a game's worth, 150-300, not all 1s, not an even
+split): a season's / career's minutes and minutes per game are over those games (the G column shows how many).
 
 Each list keeps the top TOP and every tie at the cut (up to TIE_MAX). Players are told apart by team and exact name
 (after "#4" / "LAST,FIRST" clean-up): no spelling merges, so Dayvon Gates (Mt. San Antonio) and Dayvion Gates (Canyons)
@@ -79,6 +80,9 @@ def _name(raw):
         last, first = [x.strip() for x in n.split(",", 1)]
         n = f"{first} {last}".strip()
     n = " ".join(w.capitalize() if (w.isupper() and len(w) > 2) or w.islower() else w for w in n.split())
+    m = re.match(r"^(Jr\.?|Sr\.?|II|III|IV)\s+(.+)$", n)                    # "KING,JR. BRIAN" -> Brian King Jr.
+    if m:
+        n = f"{m.group(2)} {m.group(1)}"
     return NAME_FIX.get(n, n)
 
 
@@ -120,17 +124,22 @@ class Top:
 
 def _cats():
     c = []
+    c.append(("ig_MIN", "Individual · Single game", "Minutes"))
     for s in STATS:
         c.append(("ig_" + s, "Individual · Single game", LABEL[s]))
+    c.append(("is_MIN", "Individual · Season", "Minutes"))
     for s in STATS:
         c.append(("is_" + s, "Individual · Season", LABEL[s]))
+    c.append(("ipg_MIN", "Individual · Season per game", "Minutes per game"))
     for s in STATS:
         c.append(("ipg_" + s, "Individual · Season per game", LABEL[s] + " per game"))
     for lab in PCTS:
         c.append(("ipct_" + lab, "Individual · Season per game", lab))
+    c.append(("ic_G", "Individual · Career", "Games played"))
+    c.append(("ic_MIN", "Individual · Career", "Minutes"))
     for s in STATS:
         c.append(("ic_" + s, "Individual · Career", LABEL[s]))
-    c.append(("ic_G", "Individual · Career", "Games played"))
+    c.append(("icpg_MIN", "Individual · Career per game", "Minutes per game"))
     for s in STATS:
         c.append(("icpg_" + s, "Individual · Career per game", LABEL[s] + " per game"))
     for lab in PCTS:
@@ -162,13 +171,14 @@ def build():
                 t.low = "_low_" in cat
                 t.add(val, row)
 
-    career = defaultdict(lambda: {"G": 0, "seasons": set(), "name": "", **{s: 0 for s in STATS}})
+    import box_minutes
+    career = defaultdict(lambda: {"G": 0, "MIN": 0, "MG": 0, "seasons": set(), "name": "", **{s: 0 for s in STATS}})
     teams = set()
     for season in SEASONS:
         sched = HERE / f"{season} Teams Schedules"
         if not sched.exists():
             continue
-        pseason = defaultdict(lambda: {"G": 0, "name": "", **{s: 0 for s in STATS}})
+        pseason = defaultdict(lambda: {"G": 0, "MIN": 0, "MG": 0, "name": "", **{s: 0 for s in STATS}})
         tseason = defaultdict(lambda: {"G": 0, "W": 0, "L": 0, "PA": 0, **{s: 0 for s in STATS}})
         seen = set()
         for f in sorted(sched.glob("*/*/*/*.json")):
@@ -200,6 +210,9 @@ def build():
             opp = resolve_opponent(opp_key) or (opp_key.title() if opp_key.isupper() else opp_key)
             opp = TEAM_RENAME.get(opp, opp)
             tot = defaultdict(int)
+            # minutes count only from a side whose minutes were kept: a game's worth (150-300), not all 1s, not an even split
+            mins = [_i((r.get("stats") or {}).get("MIN")) for r in rows]
+            min_ok = 150 <= sum(mins) <= 300 and max(mins) > 1 and not box_minutes.even_split(mins)
             for r in rows:
                 ln = _line(r.get("stats") or {})
                 for k, v in ln.items():
@@ -216,6 +229,11 @@ def build():
                 ps = pseason[(tm, pk)]
                 ps["G"] += 1
                 ps["name"] = ps["name"] or nm
+                mn = _i((r.get("stats") or {}).get("MIN"))
+                if min_ok and 0 < mn <= min(55, sum(mins) / 5 + 1):     # never more than the game's length
+                    put("ig_MIN", tm, season, mn, [nm, tm, opp, date])
+                    ps["MIN"] += mn
+                    ps["MG"] += 1
                 for s in STATS:
                     ps[s] += ln[s]
             row = [tm, opp, date, f"{pf}-{pa}"]
@@ -258,8 +276,18 @@ def build():
                     put("ipct_" + lab, tm, season, v, r2)
                 elif ps[a] >= max(10, need * tg / FULL_G):
                     put("ipct_" + lab, tm, season, v, r2, periods=(season,))
+            if ps["MG"]:                                   # minutes: over the games whose minutes were kept
+                rm = [ps["name"], tm, season, ps["MG"]]
+                put("is_MIN", tm, season, ps["MIN"], rm)
+                v = round(ps["MIN"] / ps["MG"], 1)
+                if ps["MG"] >= tg / 2 and ps["MG"] >= MIN_G_SEASON:
+                    put("ipg_MIN", tm, season, v, rm)
+                elif ps["MG"] >= tg / 2 and ps["MG"] >= g_season:
+                    put("ipg_MIN", tm, season, v, rm, periods=(season,))
             c = career[(tm, pk)]
             c["name"] = ps["name"]
+            c["MIN"] += ps["MIN"]
+            c["MG"] += ps["MG"]
             c["G"] += ps["G"]
             c["seasons"].add(season)
             for s in STATS:
@@ -293,6 +321,11 @@ def build():
             if c["G"] >= MIN_G_CAREER and c[s]:
                 put("icpg_" + s, tm, None, round(c[s] / c["G"], 1), row)
         put("ic_G", tm, None, c["G"], row)
+        if c["MG"]:
+            rm = row[:3] + [c["MG"]]
+            put("ic_MIN", tm, None, c["MIN"], rm)
+            if c["MG"] >= MIN_G_CAREER:
+                put("icpg_MIN", tm, None, round(c["MIN"] / c["MG"], 1), rm)
         for lab, (m, a, _, need) in PCTS.items():
             if c[a] >= need:
                 put("icpct_" + lab, tm, None, round(100 * c[m] / c[a], 1), row + [f"{c[m]}-{c[a]}"])

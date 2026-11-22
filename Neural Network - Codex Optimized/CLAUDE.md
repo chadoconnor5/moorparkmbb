@@ -138,8 +138,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
 - Misc -> Records (record_book.py, rbInit / rbRender): Statewide or one team, All-time (2017-18 on) or one season,
   eight groups: Individual single game / season / season per game / career / career per game (career: all-time only),
   Team single game / season / season per game. Every basic box-score stat (PTS, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB,
-  REB, AST, STL, BLK, TO, PF), FG% / 3P% / FT% for seasons and careers, team wins, win %, points allowed, margin; no
-  minutes (unreliable). Columns: stat, player, team (statewide), opponent and date (games) or season / games. Top 10,
+  REB, AST, STL, BLK, TO, PF) and minutes (individual only, from sides whose minutes were kept: 150-300 in all, not all 1s,
+  not an even split; a line never past the game's length; season / career minutes and per game over those games, G =
+  how many), FG% / 3P% / FT% for seasons and careers, team wins, win %, points allowed, margin. Columns: stat, player, team (statewide), opponent and date (games) or season / games. Top 10,
   every tie at the cut listed (to 25); this season's entries highlighted in the all-time view. Season = summed box-score
   games; per game needs half the team's games and 10+ (all-time) or a pro-rated bar in the season's own list; career
   per game 20+; percentages FG% 150 / 3P% 60 / FT% 60 a season (pro-rated), 250 / 100 / 100 a career. Players match by
