@@ -48,6 +48,9 @@ SANE = {"PTS": 75, "FGM": 30, "FGA": 50, "3PM": 16, "3PA": 30, "FTM": 30, "FTA":
         "REB": 35, "AST": 25, "STL": 14, "BLK": 15, "TO": 15, "PF": 6}
 SANE_TEAM = {"PTS": 170, "FGM": 70, "FGA": 120, "3PM": 30, "3PA": 70, "FTM": 60, "FTA": 75, "OREB": 40, "DREB": 65,
              "REB": 85, "AST": 45, "STL": 35, "BLK": 22, "TO": 45, "PF": 45}
+# team turnovers / fouls: a season's record is the FEWEST per game (no season totals: they grow with games played), over
+# the games whose box recorded them (a box with 0 for everyone didn't), which must be 90%+ of the team's games
+LOW_TEAM = ("TO", "PF")
 MIN_G_SEASON = 10        # all-time per-game season records; a season's own list pro-rates it
 MIN_G_CAREER = 20
 MIN_G_TEAM = 15
@@ -153,12 +156,16 @@ def _cats():
         c.append(("tg_" + s, "Team · Single game", LABEL[s]))
     c += [("ts_W", "Team · Season", "Wins"), ("ts_PTS", "Team · Season", "Points")]
     for s in STATS[1:]:
-        c.append(("ts_" + s, "Team · Season", LABEL[s]))
+        if s not in LOW_TEAM:
+            c.append(("ts_" + s, "Team · Season", LABEL[s]))
     c += [("tspg_winpct", "Team · Season per game", "Win %"), ("tspg_PTS", "Team · Season per game", "Points per game"),
           ("tspg_low_PA", "Team · Season per game", "Fewest points allowed per game"),
           ("tspg_margin", "Team · Season per game", "Scoring margin")]
     for s in STATS[1:]:
-        c.append(("tspg_" + s, "Team · Season per game", LABEL[s] + " per game"))
+        if s in LOW_TEAM:
+            c.append(("tspg_low_" + s, "Team · Season per game", "Fewest " + LABEL[s].lower() + " per game"))
+        else:
+            c.append(("tspg_" + s, "Team · Season per game", LABEL[s] + " per game"))
     return c
 
 
@@ -257,6 +264,10 @@ def build():
             ts["PTS"] += pf
             for s in STATS[1:]:
                 ts[s] += tot[s]
+            for s in LOW_TEAM:
+                if tot[s] > 0:
+                    ts["n_" + s] = ts.get("n_" + s, 0) + 1
+                    ts["v_" + s] = ts.get("v_" + s, 0) + tot[s]
         max_tg = max((t["G"] for t in tseason.values()), default=0)
         g_season = min(MIN_G_SEASON, max(3, math.ceil(max_tg / 2)))     # a season's own list early in a season
         g_team = min(MIN_G_TEAM, max(3, math.ceil(max_tg / 2)))
@@ -304,12 +315,17 @@ def build():
             row = [tm, season, f"{ts['W']}-{ts['L']}", g]
             put("ts_W", tm, season, ts["W"], row)
             for s in STATS:
-                if ts[s]:
+                if ts[s] and s not in LOW_TEAM:
                     put("ts_" + s, tm, season, ts[s], row)
             per = {"tspg_winpct": round(100 * ts["W"] / g, 1), "tspg_PTS": round(ts["PTS"] / g, 1),
                    "tspg_low_PA": round(ts["PA"] / g, 1), "tspg_margin": round((ts["PTS"] - ts["PA"]) / g, 1)}
             for s in STATS[1:]:
-                per["tspg_" + s] = round(ts[s] / g, 1)
+                if s in LOW_TEAM:
+                    n = ts.get("n_" + s, 0)
+                    if n >= 0.9 * g:
+                        per["tspg_low_" + s] = round(ts["v_" + s] / n, 1)
+                else:
+                    per["tspg_" + s] = round(ts[s] / g, 1)
             for cat, v in per.items():
                 if g >= MIN_G_TEAM:
                     put(cat, tm, season, v, row)

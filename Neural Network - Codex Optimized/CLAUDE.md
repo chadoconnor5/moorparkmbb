@@ -149,7 +149,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   past 72 games or 3 seasons is a shared name (left out). Team folders under two conferences count once; old names follow
   the school (TEAM_RENAME); box lines past SANE / SANE_TEAM are typos. Files: season_data/records_state.js and
   records_<team slug>.js (all-time + past seasons, change only when a record falls) + records_*_cur.js (the current
-  season, rewritten nightly); ~40 MB in all, ~400 KB a team, loaded when picked. Only games against CCCAA teams count (resolve_opponent; a non-member game, e.g. 11/12/2022 Moorpark 142 Cal
+  season, rewritten nightly); ~40 MB in all, ~400 KB a team, loaded when picked. Team turnovers / fouls in a season are the FEWEST per game (LOW_TEAM; no season totals), over games whose box
+  recorded them, 90%+ of the team's games. Only games against CCCAA teams count (resolve_opponent; a non-member game, e.g. 11/12/2022 Moorpark 142 Cal
   Miramar 60, is out of every list and sum). Rebuilt every build (~25 s).
 
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
