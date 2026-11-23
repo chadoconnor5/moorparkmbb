@@ -14805,8 +14805,9 @@ function rbRender() {{
   const tm = document.getElementById('rb-team').value, state = !tm, per = document.getElementById('rb-period').value;
   {{ // records set in the last 14 days (this team's, or all of them statewide)
     const now = Date.now(), recent = __recEntries(r => {{ const [m, d, y] = r[0].split('/').map(Number);
-      return now - new Date(y, m - 1, d).getTime() <= 14 * 864e5 && (state || r[6] === tm); }});
-    document.getElementById('rb-new').innerHTML = recent.length ? '<div style="margin:0 8px 12px;padding:10px 14px;border:1px solid #e6c76a;background:#fffaf0;border-radius:8px;font-size:0.82rem"><div style="font-weight:700;margin-bottom:4px">New records · last 14 days</div>'
+      return now - new Date(y, m - 1, d).getTime() <= 14 * 864e5 && (state || r[6] === tm)
+        && r[2].startsWith(rbGroup.startsWith('Team') ? 'tg_' : 'ig_'); }});   // the group's kind only
+    document.getElementById('rb-new').innerHTML = recent.length ? '<div style="margin:0 8px 12px;padding:10px 14px;border:1px solid #e6c76a;background:#fffaf0;border-radius:8px;font-size:0.82rem"><div style="font-weight:700;margin-bottom:4px">New records · last 14 days · ' + (rbGroup.startsWith('Team') ? 'team' : 'individual') + '</div>'
       + recent.map(e => __recLine(e, true)).join('') + '</div>' : '';
   }}
   const groups = [...new Set(RB_META.cats.map(c => c[1]))].filter(g => per === 'all' || (!g.includes('Career') && (state || !g.startsWith('Team · Season'))));
