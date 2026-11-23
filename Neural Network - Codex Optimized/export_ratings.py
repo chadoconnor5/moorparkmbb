@@ -1082,6 +1082,34 @@ def team_schedule(season, team):
     return sorted(out, key=lambda g: yr(g["d"]))
 
 
+REC_CATS = ["PTS", "FGM", "3PM", "FTM", "OREB", "DREB", "REB", "AST", "STL", "BLK", "margin"]
+
+
+def _records_file(name):
+    f = Path(__file__).resolve().parent.parent / "season_data" / f"records_{name}.js"
+    try:
+        s = f.read_text(encoding="utf-8")
+        return json.loads(s[s.index(",") + 1:s.rindex(")")])
+    except (OSError, ValueError):
+        return {}
+
+
+def team_records(team):
+    """The tracker's record banner: the team's all-time single-game team records (school) and the state's, from the
+    leaderboard's Records files (record_book.py, written before this runs): {"school": {cat: [value, opponent, date,
+    score]}, "state": {cat: [value, team, opponent, date, score]}}, cat in REC_CATS (margin = margin of victory)."""
+    import record_book
+    out = {"school": {}, "state": {}}
+    for scope, name in (("school", record_book.slug(record_book.TEAM_RENAME.get(team, team))), ("state", "state")):
+        lists = (_records_file(name).get("lists") or {}).get("all") or {}
+        for c in REC_CATS:
+            rows = lists.get("tg_" + c) or []
+            if rows:
+                r = rows[0]
+                out[scope][c] = [r[0], r[2], r[3], r[4]] if scope == "school" else [r[0], r[1], r[2], r[3], r[4]]
+    return out
+
+
 def team_file(season, ratings, team):
     """One team's season stats and every player's lines, for the tracker."""
     d = uaa.find_team_stats(team)
@@ -1094,6 +1122,10 @@ def team_file(season, ratings, team):
             players[n]["adv"] = {k: v for k, v in p.items() if k != "name"}
     body = {"team": dict({k: summ.get(k) for k in ("games_played", "record", "totals", "averages", "opponent_totals", "opponent_averages") if summ.get(k) is not None},
                          adv=t_adv), "players": players}
+    try:
+        body["records"] = team_records(team)
+    except Exception as e:
+        print(f"  note: no records for {team}: {e}")
     # The leaderboard's Team Stats table for this team: Basic and Advanced rows, each with its State Ranks.
     try:
         rosters, ranks, totals = leaderboard_tables()

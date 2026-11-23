@@ -152,6 +152,14 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   season, rewritten nightly); ~40 MB in all, ~400 KB a team, loaded when picked. Team turnovers / fouls in a season are the FEWEST per game (LOW_TEAM; no season totals), over games whose box
   recorded them, 90%+ of the team's games. Only games against CCCAA teams count (resolve_opponent; a non-member game, e.g. 11/12/2022 Moorpark 142 Cal
   Miramar 60, is out of every list and sum). Rebuilt every build (~25 s).
+  New records (record_book.recent -> RECENT_RECORDS in the page, ~10 KB): this season's single games that set or tied a
+  school record or made the state's all-time top 10 (individual and team; turnovers / fouls left out). Shown as a "New
+  records · last 14 days" box at the top of the Records tab, a Records box under Line o' the Night on FanMatch (only on a
+  night with one) and a box under the two teams' tables in the box score.
+  Possession tracker RECORD WATCH (recordBanner): a banner at the top of the Live screen when either team is within
+  REC_NEAR of, ties or breaks its school's or the state's single-game team record (points, FGM, 3PM, FTM, OREB, DREB, REB,
+  AST, STL, BLK, margin); the records ride in each team file's "records" (export_ratings.team_records, from the
+  Records files).
 
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and

@@ -964,6 +964,9 @@ table.psheet,table.lut,table.sumt,table.lut-in{width:100%;border-collapse:collap
 /* Lineup suggestion banner (above the scoreboard) */
 .tip-ban{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;margin:0 0 10px;border-radius:12px;background:#d9a441;color:#1b1407;font-size:15px;box-shadow:0 0 0 3px rgba(217,164,65,.3);animation:tipBan 2s ease-in-out infinite}
 .tip-ban-r{display:flex;gap:8px;align-items:center;flex:none}
+.rec-ban{padding:10px 14px;margin:0 0 10px;border-radius:12px;background:#1f2a44;color:#f6d38a;font-size:14px;border:2px solid #d9a441}
+.rec-ban b{color:#fff}.rec-ban .rec-new{color:#1b1407;background:#d9a441;border-radius:6px;padding:1px 6px;font-weight:800;margin-right:4px}
+.rec-ban .rec-row{padding:2px 0}
 .tip-ban .btn{background:#1b1407;color:#f6d38a;border-color:#1b1407;font-weight:800;white-space:nowrap}
 .tip-ban-x{font:inherit;font-size:18px;font-weight:800;width:38px;height:38px;border-radius:50%;border:0;background:rgba(27,20,7,.15);color:#1b1407;cursor:pointer}
 @keyframes tipBan{50%{box-shadow:0 0 0 6px rgba(217,164,65,.15)}}
@@ -1384,7 +1387,7 @@ table.sumt{table-layout:fixed}table.sumt.runt{table-layout:auto}.sumt col.sumt-l
 <div id="toasts"></div>
 <script>
 'use strict';
-const VERSION = 'v2026.11.20.1';
+const VERSION = 'v2026.11.23.1';
 const LS_GAMES = 'pt2_games', LS_CUR = 'pt2_cur', LS_ROSTER = 'pl_roster';
 const FULL_TOS = 4, S30_TOS = 2;            // per team, per game (as the game tracker); +1 thirty-second per overtime
 
@@ -2290,6 +2293,29 @@ function feedRow(g, f) {
 }
 /* Gold banner above the scoreboard when 💡 Try has a suggestion, so it isn't missed. ✕ closes it for the five
    on the floor (saved on the game); it comes back only if a different five gets into the same spot. */
+/* RECORD WATCH: a banner at the top of the Live screen when either team is close to, ties or breaks a single-game team
+   record: its own school record or the state's (both all-time, 2017-18 on, games against CCCAA teams; the
+   leaderboard's Records, carried in each team file's "records" by export_ratings.team_records). "Close" = within
+   REC_NEAR of it. Numbers only. */
+const REC_NEAR = { PTS: 10, FGM: 4, '3PM': 3, FTM: 4, OREB: 3, DREB: 4, REB: 6, AST: 4, STL: 3, BLK: 2, margin: 8 };
+const REC_LABEL = { PTS: 'points', FGM: 'field goals made', '3PM': '3-pointers made', FTM: 'free throws made', OREB: 'offensive rebounds',
+  DREB: 'defensive rebounds', REB: 'rebounds', AST: 'assists', STL: 'steals', BLK: 'blocks', margin: 'margin of victory' };
+function recordBanner(g, D) {
+  const X = teamStats(g, D, 'G'), S = perSums(D, null), rows = [];
+  const cur = (t, c) => ({ PTS: S.pts[t], FGM: X[t].fgm, '3PM': X[t].fg3m, FTM: X[t].ftm, OREB: X[t].oreb, DREB: X[t].dreb,
+    REB: X[t].oreb + X[t].dreb, AST: X[t].ast, STL: X[t].stl, BLK: X[t].blk, margin: S.pts[t] - S.pts[other(t)] })[c];
+  ['a', 'b'].forEach(t => {
+    const F = teamFile(teamName(g, t)), R = F && F.records; if (!R) return;
+    [['school', 'school record'], ['state', 'STATE record']].forEach(([sc, lab]) => Object.entries(R[sc] || {}).forEach(([c, r]) => {
+      const v = cur(t, c), rec = r[0]; if (v == null || v <= 0 || v < rec - (REC_NEAR[c] || 0)) return;
+      const who = sc === 'school' ? `vs ${r[1]} ${r[2]}` : `${r[1]} vs ${r[2]} ${r[3]}`;
+      const st = v > rec ? '<span class="rec-new">NEW ' + lab.toUpperCase() + '</span>' : v === rec ? '<span class="rec-new">TIES ' + lab.toUpperCase() + '</span>' : `${rec - v} from the ${lab}`;
+      rows.push({ k: (v > rec ? 0 : v === rec ? 1 : 2) * 1000 + (rec - v), h: `<div class="rec-row">${st} · <b>${esc(teamName(g, t))} ${v} ${REC_LABEL[c]}</b> · ${lab} ${rec} (${esc(who)})</div>` });
+    }));
+  });
+  if (!rows.length) return '';
+  return `<div class="rec-ban"><div style="font-size:12px;letter-spacing:.06em;margin-bottom:2px">🏆 RECORD WATCH</div>${rows.sort((x, y) => x.k - y.k).map(r => r.h).join('')}</div>`;
+}
 function tipBanner(g, D) {
   const T = lineupTip(g, D); if (!T) return '';
   const key = fiveKey(T.cur.five); if ((g.tipClosed || []).includes(key)) return '';
@@ -2321,7 +2347,7 @@ function liveView(g) {
     : UI.reb ? `<b>Rebound?</b> ${esc(teamAbbr(g, UI.reb))} logo = off reb · ${esc(teamAbbr(g, other(UI.reb)))} logo = def reb <button class="btn btn-sm btn-warn no-reb" data-act="no-reb">No rebound${UI.rebFt ? ' (1st of 2)' : ''}</button>`
     : 'Tap the stat, then the team — fouls: then the player';
   const items = D.items.slice(-14).reverse().map(x => feedText(g, x)).filter(f => f.html);
-  return `${tipBanner(g, D)}${scorebar(g, D)}
+  return `${recordBanner(g, D)}${tipBanner(g, D)}${scorebar(g, D)}
   <div class="tracker">
     <div class="col a"><div class="col-head"><span><span style="color:var(--us)">Moorpark</span> — on floor</span><button class="btn btn-sm" data-act="lg-open">Labels</button></div>${pendStrip(g, D, 'a')}${playerCards(g, D, 'a')}<div class="lpm2">${lpmCard(g, D, 'a')}</div></div>
     <div class="col stat-col"><div class="teambtns">${['a', 'b'].map(t => `<button class="tbtn ${t} ${(st && !PLAYER_STATS.has(st) && st !== 'ftsh') || (!st && UI.reb) ? 'hot' : ''} ${st && (PLAYER_STATS.has(st) || st === 'ftsh') ? 'dim' : ''}" data-act="teambtn" data-team="${t}" title="${esc(teamName(g, t))}" ${t === 'b' && teamColor(g.opp) ? `style="--tc:${teamColor(g.opp)}"` : ''}>
