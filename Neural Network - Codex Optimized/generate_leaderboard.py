@@ -5753,9 +5753,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     for key, rosters in (team_rosters or {}).items():
         season_files[f"rosters_{key}.js"] = f"__installRosters('{key}', {_embed(rosters)});\n"
     # Misc -> Record Book: statewide and per-team records from every box score (record_book.py), one lazy file
+    rec_recent_json = '{"cats":{},"rows":[]}'
     try:
         import record_book
         season_files.update(record_book.write())
+        rec_recent_json = json.dumps({"cats": {k: l for k, _, l in record_book._cats()}, "rows": record_book.RECENT},
+                                     separators=(",", ":"))
     except Exception as e:
         print(f"  Warning: record book not built: {e}")
     # Every team's lineups from the play-by-play (compute_pbp_lineups.py), one lazy file per team.
@@ -7814,6 +7817,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
         <div id="rb-groups" class="rb-groups"></div>
       </div>
       <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played), games against CCCAA teams only. Season numbers add up the box-score games; per game needs half the team's games (10+ all-time); career = the same name on the same team (20+ games per game). Percentages need attempts (season FG% 150, 3P% / FT% 60, pro-rated; career 250 / 100 / 100). Ties are all listed. This season's entries are highlighted. Box lines that can't be right (a 61-assist game) are left out as typos. Minutes come only from box scores that kept real minutes (many list everyone at 1 minute), so a player's minute totals and minutes per game are over those games (G).</div>
+      <div id="rb-new"></div>
       <div id="rb-body" class="rb-body"></div>
     </div>
     <div id="sl-tab-runs" class="sl-tab-content" style="display:none">
@@ -8689,6 +8693,8 @@ function renderBoxScore(g, keepPeriod) {{
       `<button onclick="bxPeriod('${{k}}')" style="padding:5px 16px;border-radius:5px;cursor:pointer;font-size:0.85rem;font-weight:${{__bxPer === k ? 700 : 600}};border:1px solid #1a1f2e;background:${{__bxPer === k ? '#1a1f2e' : '#fff'}};color:${{__bxPer === k ? '#fff' : '#1a1f2e'}}">${{lab}}${{k !== 'F' ? ` <span style="font-weight:400;opacity:.75">${{pts(hv[k][w])}}–${{pts(hv[k][l])}}</span>` : ''}}</button>`).join('') + '</div>' : '';
   document.getElementById('bx-content').innerHTML = tabs + (per ? '' : __bxWpChart(g, w, l)) +
     __bxTeamTable(w, T[w] || [], T[l] || [], __bxMvp(g.t[w])) + __bxTeamTable(l, T[l] || [], T[w] || [])
+    + (() => {{ if (per) return ''; const R = __recEntries(r => __recSameDay(r[0], g.d) && [w, l].some(n => __boxNorm(n) === __boxNorm(r[6])));
+        return R.length ? '<div style="margin:8px 12px 0;padding:8px 12px;border:1px solid #e6c76a;background:#fffaf0;border-radius:6px;font-size:0.8rem">' + R.map(e => __recLine(e)).join('') + '</div>' : ''; }})()
     + ([w, l].some(n => (T[n] || []).some(r => r.ortg_e != null)) ? '<div style="text-align:center;font-size:0.75rem;color:#666;margin:4px 12px 0">ORtg est: this side\u2019s box score has no real minutes, so each player\u2019s are estimated from his share of its activity (shots, free throws, turnovers, assists, rebounds, fouls, steals, blocks); minutes enter ORtg only through the share of his makes that were assisted.</div>' : '');
   const possOf = rs => rs.reduce((s, r) => s + (r.fga || 0) + 0.475 * (r.fta || 0) - (r.or || 0) + (r.to || 0), 0);
   const pP = per ? Math.round((possOf(T[w] || []) + possOf(T[l] || [])) / 2 * 10) / 10 : g.p;
@@ -8717,6 +8723,26 @@ const EFG_FGA_PG_MIN = {EFG_FGA_PER_GAME_MIN};
 const TS_ATT_PG_MIN = {TS_ATT_PER_GAME_MIN};
 const HEIGHT_DATA = __unpack({height_data_json});
 const RUNS_DATA = __unpack({runs_data_json});
+// Records set this season (record_book.recent): a school record (set or tied) or a state all-time top 10, single games,
+// individual and team: [date, scope ('' = state), cat, rank, value, player, team, opponent]
+const RECENT_RECORDS = {rec_recent_json};
+function __recEntries(keep) {{     // grouped per performance: one line with its school and state marks
+  const by = new Map();
+  (RECENT_RECORDS.rows || []).filter(keep).forEach(([d, sc, cat, rk, v, pl, tm, op]) => {{
+    const k = [d, tm, pl, cat].join('|');
+    const e = by.get(k) || {{ d, tm, pl, cat, v, op, school: false, state: null }};
+    if (sc) e.school = true; else e.state = rk;
+    by.set(k, e);
+  }});
+  return [...by.values()];
+}}
+function __recLine(e, withDate) {{
+  const lab = (RECENT_RECORDS.cats[e.cat] || e.cat).toLowerCase();
+  const marks = [e.school ? e.tm + ' record' : '', e.state ? (e.state === 1 ? 'STATE RECORD' : 'state #' + e.state + ' all-time') : ''].filter(Boolean).join(' · ');
+  return '<div style="padding:2px 0">🏆 ' + (withDate ? e.d + ' · ' : '') + (e.pl ? '<b>' + e.pl + '</b>, ' + e.tm : '<b>' + e.tm + '</b>')
+    + ' · ' + (e.cat === 'tg_low_PA' ? 'held ' + e.op + ' to ' + e.v : (e.cat === 'tg_margin' ? '+' : '') + e.v + ' ' + lab + ' vs ' + e.op) + ' · <span style="color:#b8860b;font-weight:700">' + marks + '</span></div>';
+}}
+function __recSameDay(a, b) {{ const p = s => String(s || '').split('/').map(Number).join('/'); return p(a) === p(b); }}
 const TEAM_PRIMARY_COLORS = __unpack({school_colors_json});
 const TEAM_SECONDARY_COLORS = __unpack({school_secondary_colors_json});
 const TEAM_LOGOS = __unpack({team_logos_json});
@@ -14777,6 +14803,13 @@ function rbCols(cat, state) {{
 function rbRender() {{
   if (!RB_META) return;
   const tm = document.getElementById('rb-team').value, state = !tm, per = document.getElementById('rb-period').value;
+  {{ // records set in the last 14 days (this team's, or all of them statewide)
+    const now = Date.now(), recent = __recEntries(r => {{ const [m, d, y] = r[0].split('/').map(Number);
+      return now - new Date(y, m - 1, d).getTime() <= 14 * 864e5 && (state || r[6] === tm)
+        && r[2].startsWith(rbGroup.startsWith('Team') ? 'tg_' : 'ig_'); }});   // the group's kind only
+    document.getElementById('rb-new').innerHTML = recent.length ? '<div style="margin:0 8px 12px;padding:10px 14px;border:1px solid #e6c76a;background:#fffaf0;border-radius:8px;font-size:0.82rem"><div style="font-weight:700;margin-bottom:4px">New records · last 14 days · ' + (rbGroup.startsWith('Team') ? 'team' : 'individual') + '</div>'
+      + recent.map(e => __recLine(e, true)).join('') + '</div>' : '';
+  }}
   const groups = [...new Set(RB_META.cats.map(c => c[1]))].filter(g => per === 'all' || (!g.includes('Career') && (state || !g.startsWith('Team · Season'))));
   if (!groups.includes(rbGroup)) rbGroup = groups[0];
   document.getElementById('rb-groups').innerHTML = groups.map(g => `<button data-g="${{g}}" class="${{g === rbGroup ? 'on' : ''}}" onclick="rbGroup=this.dataset.g;rbRender()">${{g}}</button>`).join('');
@@ -16203,6 +16236,9 @@ function slRenderFanmatch(dateStr) {{
     }} else {{
       lotnEl.innerHTML = '';
     }}
+    // Records set that night: only when there is one
+    const recs = __recEntries(r => __recSameDay(r[0], dateStr));
+    if (recs.length) lotnEl.innerHTML += '<div class="lotn-wrap"><span class="lotn-label">Records:</span>' + recs.map(e => __recLine(e)).join('') + '</div>';
   }}
   if (!body) return;
   body.innerHTML = fm.length

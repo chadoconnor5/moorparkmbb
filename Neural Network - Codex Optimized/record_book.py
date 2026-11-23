@@ -365,11 +365,46 @@ def build():
             "state": pack(""), "teams": {tm: pack(tm) for tm in sorted(teams)}}
 
 
+RECENT = []          # filled by write(): this season's single games that made an all-time top 10 (see recent())
+
+
+def _season_of(date):
+    m, d, y = (int(x) for x in date.split("/"))
+    y = y - 1 if m < 7 else y
+    return f"{y}-{str(y + 1)[-2:]}"
+
+
+def recent(rb):
+    """Every single game this season that set (or tied) a school record or made the state's all-time top 10, individual and team:
+    [date, scope ("" = state, else the team), cat, rank, value, player ("" for a team), team, opponent], newest first.
+    A tie counts at its shared rank."""
+    cur = rb["periods"][-1]
+    out = []
+    for scope, lists in [("", rb["state"])] + list(rb["teams"].items()):
+        for cat, rows in (lists.get("all") or {}).items():
+            if not cat.startswith(("ig_", "tg_")) or cat[3:] in ("TO", "PF"):   # turnovers / fouls aren't celebrated
+                continue
+            rank, prev = 0, None
+            for i, r in enumerate(rows):
+                if r[0] != prev:
+                    rank, prev = i + 1, r[0]
+                if scope and rank > 1:              # a team's own list: only a new (or tied) school record
+                    break
+                ind = cat.startswith("ig_")
+                date = r[4] if ind else r[3]
+                if _season_of(date) != cur:
+                    continue
+                out.append([date, scope, cat, rank, r[0], r[1] if ind else "", r[2] if ind else r[1], r[3] if ind else r[2]])
+    out.sort(key=lambda x: (int(x[0].split("/")[2]), int(x[0].split("/")[0]), int(x[0].split("/")[1]), -x[3]), reverse=True)
+    return out
+
+
 def write():
     """{filename: js} for ../season_data: per scope (state, each team) two files, the current season's lists alone in
     records_<scope>_cur.js (rewritten every night) and everything else (all-time, past seasons) in records_<scope>.js,
     which changes only when a record falls, so a night's push stays small."""
     rb = build()
+    RECENT[:] = recent(rb)
     cur = rb["periods"][-1]
     idx = {tm: slug(tm) for tm in rb["teams"]}
     files = {}
