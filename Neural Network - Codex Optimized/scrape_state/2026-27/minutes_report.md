@@ -1,21 +1,21 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-24T23:53:24
+Updated 2026-11-26T14:24:27
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
 | Team | Real | Placeholder | Wrong total | None |
 |---|---|---|---|---|
-| Allan Hancock | 7 | 0 | 0 | 0 |
+| Allan Hancock | 8 | 0 | 0 | 0 |
 | American River | 0 | 7 | 0 | 0 |
 | Antelope Valley | 6 | 0 | 0 | 0 |
-| Bakersfield | 6 | 1 | 0 | 0 |
+| Bakersfield | 6 | 1 | 1 | 0 |
 | Barstow | 6 | 2 | 0 | 0 |
 | Butte | 0 | 10 | 0 | 0 |
 | Cabrillo | 0 | 8 | 0 | 0 |
 | Canada | 0 | 6 | 0 | 0 |
 | Canyons | 6 | 0 | 0 | 0 |
-| Cerritos | 5 | 0 | 0 | 0 |
+| Cerritos | 6 | 0 | 0 | 0 |
 | Cerro Coso | 6 | 0 | 1 | 0 |
 | Chabot | 0 | 5 | 0 | 0 |
 | Chaffey | 10 | 0 | 0 | 0 |
@@ -25,11 +25,11 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Columbia | 0 | 6 | 0 | 0 |
 | Compton | 7 | 0 | 0 | 0 |
 | Contra Costa | 0 | 5 | 0 | 0 |
-| Copper Mountain | 5 | 2 | 0 | 0 |
+| Copper Mountain | 5 | 3 | 0 | 0 |
 | Cosumnes River | 2 | 3 | 0 | 0 |
 | Cuesta | 5 | 1 | 1 | 0 |
 | Cuyamaca | 4 | 2 | 0 | 0 |
-| Cypress | 5 | 0 | 0 | 0 |
+| Cypress | 6 | 0 | 0 | 0 |
 | De Anza | 0 | 5 | 0 | 0 |
 | Desert | 9 | 0 | 0 | 0 |
 | Diablo Valley | 4 | 1 | 0 | 0 |
@@ -38,9 +38,9 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Feather River | 0 | 10 | 0 | 0 |
 | Folsom Lake | 6 | 0 | 0 | 0 |
 | Foothill | 0 | 6 | 0 | 0 |
-| Fresno | 0 | 2 | 0 | 0 |
-| Fullerton | 5 | 0 | 0 | 0 |
-| Gavilan | 1 | 6 | 0 | 0 |
+| Fresno | 0 | 2 | 1 | 0 |
+| Fullerton | 6 | 0 | 0 | 0 |
+| Gavilan | 1 | 7 | 0 | 0 |
 | Glendale | 8 | 0 | 0 | 0 |
 | Grossmont | 5 | 0 | 0 | 0 |
 | Hartnell | 1 | 5 | 0 | 0 |
@@ -54,7 +54,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Las Positas | 6 | 0 | 0 | 0 |
 | Lassen | 0 | 10 | 0 | 0 |
 | Lemoore | 0 | 3 | 0 | 0 |
-| Long Beach | 5 | 0 | 0 | 0 |
+| Long Beach | 6 | 0 | 0 | 0 |
 | Los Angeles City | 7 | 0 | 1 | 0 |
 | Los Medanos | 0 | 6 | 0 | 0 |
 | Marin | 6 | 0 | 0 | 0 |
@@ -65,10 +65,10 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Modesto | 1 | 2 | 0 | 0 |
 | Monterey Peninsula | 0 | 7 | 0 | 0 |
 | Moorpark | 6 | 0 | 0 | 0 |
-| Mt. San Antonio | 5 | 0 | 0 | 0 |
-| Mt. San Jacinto | 7 | 0 | 0 | 0 |
+| Mt. San Antonio | 6 | 0 | 0 | 0 |
+| Mt. San Jacinto | 8 | 0 | 0 | 0 |
 | Napa Valley | 7 | 0 | 0 | 0 |
-| Ohlone | 0 | 6 | 0 | 0 |
+| Ohlone | 0 | 7 | 0 | 0 |
 | Orange Coast | 4 | 3 | 0 | 0 |
 | Oxnard | 6 | 0 | 0 | 0 |
 | Palo Verde | 3 | 0 | 0 | 0 |
@@ -93,12 +93,12 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | Santa Barbara | 7 | 0 | 0 | 0 |
 | Santa Monica | 5 | 1 | 0 | 0 |
 | Santa Rosa | 1 | 6 | 0 | 0 |
-| Santiago Canyon | 7 | 0 | 0 | 0 |
+| Santiago Canyon | 8 | 0 | 0 | 0 |
 | Sequoias | 6 | 0 | 0 | 0 |
 | Shasta | 0 | 6 | 0 | 0 |
 | Sierra | 0 | 4 | 0 | 0 |
 | Siskiyous | 0 | 8 | 0 | 0 |
-| Skyline | 0 | 6 | 0 | 0 |
+| Skyline | 0 | 7 | 0 | 0 |
 | Solano | 2 | 5 | 0 | 0 |
 | Southwestern | 5 | 0 | 0 | 0 |
 | Ventura | 5 | 0 | 1 | 0 |
@@ -107,7 +107,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | West Valley | 3 | 5 | 0 | 0 |
 | Yuba | 0 | 5 | 0 | 0 |
 
-## Games without real minutes (160)
+## Games without real minutes (165)
 
 | Date | Game | Sides | URL |
 |---|---|---|---|
@@ -191,7 +191,7 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-10 | Desert vs Imperial Valley | Imperial Valley: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_xlej.xml |
 | 2026-11-10 | Monterey Peninsula vs Ohlone | Monterey Peninsula: PLACEHOLDER (14 min), Ohlone: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_lvps.xml |
 | 2026-11-10 | Saddleback vs San Diego Miramar | San Diego Miramar: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_bohb.xml |
-| 2026-11-10 | Solano vs West Valley | West Valley: PLACEHOLDER (12 min), Solano: PLACEHOLDER (14 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_jcna.xml |
+| 2026-11-10 | Solano vs West Valley | Solano: PLACEHOLDER (14 min), West Valley: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261110_jcna.xml |
 | 2026-11-11 | Canada vs Merritt | Canada: PLACEHOLDER (10 min), Merritt: PLACEHOLDER (7 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_1ppy.xml |
 | 2026-11-11 | Marin vs San Jose | San Jose: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_zaz4.xml |
 | 2026-11-11 | Merced vs Redwoods | Merced: PLACEHOLDER (15 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261111_ykzx.xml |
@@ -241,18 +241,18 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-19 | Cabrillo vs Shasta | Cabrillo: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_f7mj.xml |
 | 2026-11-19 | Chabot vs Reedley | Reedley: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_jhnk.xml |
 | 2026-11-19 | Coalinga vs Gavilan | Gavilan: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_2pk0.xml |
-| 2026-11-19 | Lassen vs Los Medanos | Los Medanos: PLACEHOLDER (12 min), Lassen: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_v7bb.xml |
-| 2026-11-19 | Lemoore vs Siskiyous | Siskiyous: PLACEHOLDER (10 min), Lemoore: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_kxqw.xml |
+| 2026-11-19 | Lassen vs Los Medanos | Lassen: PLACEHOLDER (8 min), Los Medanos: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_v7bb.xml |
+| 2026-11-19 | Lemoore vs Siskiyous | Lemoore: PLACEHOLDER (13 min), Siskiyous: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_kxqw.xml |
 | 2026-11-19 | Merritt vs Santa Rosa | Santa Rosa: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_eqjp.xml |
 | 2026-11-19 | Redwoods vs West Valley | West Valley: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261119_jztl.xml |
-| 2026-11-20 | Siskiyous vs American River | Siskiyous: PLACEHOLDER (10 min), American River: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_57cx.xml |
+| 2026-11-20 | Siskiyous vs American River | American River: PLACEHOLDER (11 min), Siskiyous: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_57cx.xml |
 | 2026-11-20 | Butte vs Folsom Lake | Butte: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_850x.xml |
 | 2026-11-20 | Cabrillo vs Santa Rosa | Cabrillo: PLACEHOLDER (11 min), Santa Rosa: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_2wt7.xml |
 | 2026-11-20 | Diablo Valley vs Foothill | Foothill: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_o3b7.xml |
 | 2026-11-20 | Hartnell vs Las Positas | Hartnell: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_w75i.xml |
 | 2026-11-20 | Redwoods vs Lassen | Lassen: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_67z0.xml |
 | 2026-11-20 | Lemoore vs Mendocino | Lemoore: PLACEHOLDER (13 min), Mendocino: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_7yj3.xml |
-| 2026-11-20 | West Valley vs Los Medanos | West Valley: PLACEHOLDER (11 min), Los Medanos: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_k79t.xml |
+| 2026-11-20 | West Valley vs Los Medanos | Los Medanos: PLACEHOLDER (12 min), West Valley: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_k79t.xml |
 | 2026-11-20 | Merced vs San Mateo | Merced: PLACEHOLDER (11 min), San Mateo: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_p8h3.xml |
 | 2026-11-20 | Monterey Peninsula vs Solano | Monterey Peninsula: PLACEHOLDER (12 min), Solano: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_9xlc.xml |
 | 2026-11-20 | Napa Valley vs Ohlone | Ohlone: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261120_sgbf.xml |
@@ -269,5 +269,10 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-21 | Redwoods vs Mendocino | Mendocino: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_703k.xml |
 | 2026-11-21 | San Diego Miramar vs Victor Valley | San Diego Miramar: PLACEHOLDER (5 min), Victor Valley: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_r0ks.xml |
 | 2026-11-21 | Santa Rosa vs Shasta | Santa Rosa: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_mi8l.xml |
-| 2026-11-21 | West Valley vs Siskiyous | West Valley: PLACEHOLDER (12 min), Siskiyous: PLACEHOLDER (15 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_qtyf.xml |
+| 2026-11-21 | West Valley vs Siskiyous | Siskiyous: PLACEHOLDER (15 min), West Valley: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_qtyf.xml |
+| 2026-11-24 | Copper Mountain vs Pasadena City | Copper Mountain: PLACEHOLDER (14 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261124_3w80.xml |
 | 2026-11-24 | Cuesta vs De Anza | De Anza: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261124_p4xm.xml |
+| 2026-11-24 | Napa Valley vs Skyline | Skyline: PLACEHOLDER (10 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261124_wl89.xml |
+| 2026-11-25 | Bakersfield vs Fresno | Fresno: BENCH_ZERO (200 min), Bakersfield: BENCH_ZERO (200 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261125_q3nr.xml |
+| 2026-11-25 | Gavilan vs Lemoore | Gavilan: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261125_3jxu.xml |
+| 2026-11-25 | Merritt vs Ohlone | Ohlone: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261125_vjxe.xml |
