@@ -2,8 +2,7 @@
 
 Who gets in: a first-team All-State player (Gold or Hall of Fame All-State badge) whose career is over (not on a
 current-season roster at that school) and who added one more mark of greatness:
-  * a Hall of Fame badge (the all-time top 3% at it, every season pooled) that holds up with games against teams
-    outside Tier A/B counted at 75% (UNTIERED_W), or
+  * a Hall of Fame badge (the all-time top 3% at it, every season pooled), or
   * a Final Four (or deeper) in a season he was first-team All-State, or
   * a second first-team All-State season.
 Once in, always in: hall_of_fame.json keeps every inductee and a later build never drops one (a badge can fall
@@ -26,7 +25,6 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
-UNTIERED_W = 0.75                  # weight of games against teams outside Tier A/B for the Hall of Fame badge check
 FRESHMAN_NOT = {("2223", "Javohn Garcia")}   # confirmed not freshmen that season
 STORE = Path(__file__).with_name("hall_of_fame.json")
 GS = lambda r: (r["pts"] + 0.4 * r["fgm"] - 0.7 * r["fga"] - 0.4 * (r["fta"] - r["ftm"]) + 0.7 * r["or"] + 0.3 * r["dr"]
@@ -211,48 +209,6 @@ def build(season_files):
     P99 = all_gs[int(.99 * len(all_gs))] if all_gs else 99
     B99 = all_bpm[int(.99 * len(all_bpm))] if all_bpm else 99
 
-    # --- the Hall of Fame badges re-checked with untiered games at UNTIERED_W (per-game stand-ins, pooled top 3%) ---
-    VAL = {"scorer": ("pts", None), "sniper": ("tpm", "tpa"), "finisher": ("twom", "twoa"), "icewater": ("ftm", "fta"),
-           "floorgen": ("ast", None), "glass": ("reb", None), "pickpocket": ("stl", None), "rimprot": ("blk", None),
-           "greenlight": ("fga", None)}
-    PS = defaultdict(list)
-    for k, rows in GAMES.items():
-        for r in rows:
-            PS[(r["s"], k)].append(r)
-
-    def badge_vals(w):
-        pool, mine = defaultdict(list), {}
-        for key, rows in PS.items():
-            if len(rows) < 20:
-                continue
-            W = [1.0 if r["tier"] else w for r in rows]
-            sw = sum(W)
-            g = lambda f: sum(wi * r[f] for wi, r in zip(W, rows))
-            for code in list(VAL) + ["allstate", "engine", "anchor", "indisp", "glue"]:
-                if code in VAL:
-                    a, b = VAL[code]
-                    if b:
-                        n = g(b)
-                        v = g(a) / n if n >= (3 if code == "finisher" else 2) * sw else None
-                    else:
-                        v = g(a) / sw
-                else:
-                    v = g("gs") / sw
-                if v is not None:
-                    pool[code].append(v)
-                    mine[key + (code,)] = v
-        bar = {c: sorted(v, reverse=True)[max(0, int(.03 * len(v)) - 1)] for c, v in pool.items()}
-        return lambda s, k, c: (mine.get((s, k, c)) is not None and mine[(s, k, c)] >= bar[c], (s, k, c) in mine)
-    full_w, part_w = badge_vals(1.0), badge_vals(UNTIERED_W)
-
-    def hof_badge_ok(k):
-        for s, c in P[k]["hofb"]:
-            ok1, have = full_w(s, k, c)
-            okw, _ = part_w(s, k, c)
-            if okw or not ok1 or not have:   # holds up, or the stand-in can't judge it: it stands
-                return True
-        return False
-
     # --- active players (this season's roster or box scores, same school) ---
     active = set()
     if f"rosters_{CUR}.js" in season_files:
@@ -276,7 +232,7 @@ def build(season_files):
             continue
         school = k.split("|")[1]
         deep = any(runs(s, school) & {"state", "fin", "f4"} for s in v["as1"])
-        if (v["hofb"] and hof_badge_ok(k)) or deep or len(v["as1"]) >= 2:
+        if v["hofb"] or deep or len(v["as1"]) >= 2:
             qualifies.append(k)
     try:
         store = json.loads(STORE.read_text())
