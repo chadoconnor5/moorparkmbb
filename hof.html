@@ -123,6 +123,7 @@ details summary::-webkit-details-marker{display:none}
 .qd b{font-family:Cinzel,serif;font-size:15px;color:var(--gold2)}
 .qd .hl{background:rgba(216,178,90,.08)}
 .aw.mvp{color:var(--gold2);font-weight:700;letter-spacing:.1em}.aw.mvp span{display:block;font-family:'Cormorant Garamond',serif;font-weight:500;letter-spacing:0;font-style:italic;color:var(--ink2);font-size:14.5px;text-transform:none}
+.bio{font-family:Cinzel,serif;font-size:12.5px;letter-spacing:.12em;color:var(--gold);margin-top:3px}
 .empty{text-align:center;color:var(--ink3);font-style:italic;margin-top:30px}
 .foot{text-align:center;color:var(--ink3);font-style:italic;font-size:14px;margin-top:40px}
 </style></head><body>
@@ -226,7 +227,7 @@ function entry(p){const k=p.name+'|'+p.school,H=RAW.hon[k]||[],as1=p.car.as1,o=[
  return '<div class="entry">Enshrined for: '+o.join(' · ')+'</div>'}
 function plaque(p,legend){const yrs=p.seasons.map(yr).join(' · ');
  const why=`<div class="gh wh">WHY HE'S HERE</div>${entry(p)}`+(p.list.length?`<ul class="why">`+p.list.map(d=>`<li><span class="e">${B[d.code][0]}</span><span class="s">${yr(d.season)}</span><span><b>${B[d.code][1]}</b> <span class="d">— ${B[d.code][2](d)}</span></span></li>`).join('')+'</ul>':'');
- return `<div class="plaque${legend?' legend':''}"><span class="num">No. ${p.rank}</span><div class="hd"><div class="count">${Math.round(p.res.score)}</div><div class="who"><div class="cl">RESUME SCORE</div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.school)} · <i>${yrs}</i></div></div>${peak(p)}${teamSum(RAW.hon[p.name+'|'+p.school]||[],p)}${resBars(p)}</div><div class="orn">✦</div><div class="cols"><div>${honors(p)}${why}</div><div>${games(p)}</div></div></div>`}
+ return `<div class="plaque${legend?' legend':''}"><span class="num">No. ${p.rank}</span><div class="hd"><div class="count">${Math.round(p.res.score)}</div><div class="who"><div class="cl">RESUME SCORE</div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.school)} · <i>${yrs}</i></div>${(()=>{const b=(RAW.bio||{})[p.name+'|'+p.school]||{},o=[];if(b.ht)o.push(esc(b.ht));if((b.pos||[]).length)o.push(b.pos.map(esc).join(' / '));return o.length?'<div class="bio">'+o.join(' · ')+'</div>':''})()}</div>${peak(p)}${teamSum(RAW.hon[p.name+'|'+p.school]||[],p)}${resBars(p)}</div><div class="orn">✦</div><div class="cols"><div>${honors(p)}${why}</div><div>${games(p)}</div></div></div>`}
 function render(){const t=document.getElementById('q').value.trim().toLowerCase();
  const L=P.filter(p=>!t||(p.name+' '+p.school).toLowerCase().includes(t));
  if(!L.length){document.getElementById('out').innerHTML='<p class="empty">No inductee by that name.</p>';return}
