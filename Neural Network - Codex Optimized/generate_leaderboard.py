@@ -3885,8 +3885,23 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
         by_conf = {}
         for p in cq:
             by_conf.setdefault(p.get("conference"), []).append(p)
+        # Player of the Year: the best player (conference PRPG!) on the conference champion: the best conference win %
+        # (co-champions share it: the best player among them); before conference play, the conference's 1st place
+        _pl = _conf_places(teams or [])
+        def _cwp(team):
+            row = next((x for x in (teams or []) if x["team"] == team), {})
+            try:
+                w, l = (int(x) for x in str(row.get("conf") or "0-0").split("-")[:2])
+            except ValueError:
+                return None
+            return w / (w + l) if w + l else None
+        IND = lambda p: zpc(cporp(p))
         for conf, ps in by_conf.items():
-            poy = award("cpoy", ps, CR, conf)
+            wps = {p["school"]: _cwp(p["school"]) for p in ps}
+            top = max([w for w in wps.values() if w is not None], default=None)
+            champs = {s for s, w in wps.items() if top is not None and w == top} or \
+                     {p["school"] for p in ps if _pl.get(p["school"]) == 0}
+            poy = award("cpoy", [p for p in ps if p["school"] in champs] or ps, IND, conf)
             rest = [p for p in ps if p is not poy]
             award("copoy", rest, lambda p: p.get("ppg"), conf, est=False)
             award("cdpoy", rest, DEF, conf)

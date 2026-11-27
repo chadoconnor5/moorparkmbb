@@ -171,7 +171,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   career over (not on a 2026-27 roster / box at that school), resume score RESUME_CUT (43.2: the top 2% through
   2025-26) or better and a top-25% scoring season (FLOOR_PPG 10.4) unless a role-player Hall of Famer (defensive / sixth-man /
   Player of the Year award, Gold+ Glue Guy or Rim Protector, Defensive Anchor, state title / Final Four); automatically as a
-  Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG 19.8+); badges don't decide it. Locked (LOCKED = True: once in, always in; False = the rule alone decides each build;
+  Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG 19.8+); badges don't decide it. Unlocked (LOCKED = False: the rule alone decides each build; True = once in, always in,
   hall_of_fame.json keeping every inductee). Impact for players without real minutes: predicted from per-game box
   numbers, TS% and team strength, fitted each season on the real-minutes players (same scale; capped at EST_CAP 0.90 for the order and shown
   score only, never for who gets in); his place on his team
@@ -390,8 +390,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   number before its first capitalised name word (parseSheet and shGrid); a rebuilt row takes one name chain plus any
   scraps; a title may start with a stray mark ("~ Moorpark 43 + 0-2").
 - Conference awards and All-Conference (attach_badges, conference-only stats: conf_players / conf_teams; none for a
-  conference until it plays conference games): per conference a Player of the Year (conference PRPG! z + team
-  conference net z, half each), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
+  conference until it plays conference games): per conference a Player of the Year (the best player by conference PRPG! on the
+  conference champion: best conference win %, co-champions share it; before conference play, 1st place), Offensive POY (conference points a game), Defensive POY (steals, blocks, half
   defensive rebounds a game, minus individual DRtg, minus 1.5 x team DRtg z) and Sixth Man (35% or fewer of his games
   started, by the POY rating), the POY left out of the other three; named with CONF_ABBR (WSC North, PCAC, OEC, ...),
   badge [code, 3, est, abbr]. All-Conference first team (Gold) / second team (Silver, honorable mention rolled in) by
