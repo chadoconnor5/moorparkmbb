@@ -4372,6 +4372,28 @@ def _b36(n: int) -> str:
             return s
 
 
+def attach_doubles(players, boxes):
+    """p["dd"] / p["td"]: the player's double-doubles and triple-doubles this season (10+ in two / three of points,
+    rebounds, assists, steals, blocks), counted from the season's box scores (name + team)."""
+    count = {}
+    for g in (boxes or {}).values():
+        for team, side in (g.get("t") or {}).items():
+            if isinstance(side, dict) and "__c" in side:
+                side = [dict(zip(side["__c"], r)) for r in side["__r"]]
+            if not isinstance(side, list):
+                continue
+            for r in side:
+                tens = sum((x or 0) >= 10 for x in (r.get("pts"), (r.get("or") or 0) + (r.get("dr") or 0),
+                                                     r.get("ast"), r.get("stl"), r.get("blk")))
+                if tens >= 2:
+                    c = count.setdefault((r.get("n"), team), [0, 0])
+                    c[0] += 1
+                    c[1] += tens >= 3
+    for p in players or []:
+        dd, td = count.get((p.get("name"), p.get("school")), (0, 0))
+        p["dd"], p["td"] = dd, td
+
+
 def build_game_boxes(stats_dir) -> dict:
     """Build per-game player box scores (Torvik-style) for one season.
 
@@ -7424,6 +7446,8 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   <th data-col="tpp" data-type="num">3P%</th>
   <th data-col="ftm" data-type="num">FTM-A</th>
   <th data-col="ftp" data-type="num">FT%</th>
+  <th data-col="dd" data-type="num" title="Double-doubles: 10+ in two of points, rebounds, assists, steals, blocks">DD</th>
+  <th data-col="td" data-type="num" title="Triple-doubles: 10+ in three of points, rebounds, assists, steals, blocks">TD</th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
@@ -10275,6 +10299,8 @@ function render(data) {{
       <td>${{p.tpp.toFixed(1)}}</td>
       <td>${{p.ftm}}-${{p.fta}}</td>
       <td>${{p.ftp.toFixed(1)}}</td>
+      <td>${{p.dd != null ? p.dd : '—'}}</td>
+      <td>${{p.td != null ? p.td : '—'}}</td>
     `;
     if (p.school === 'Moorpark') tr.querySelectorAll('td').forEach(td => td.style.background = '#ffe599');
     tb.appendChild(tr);
@@ -10780,6 +10806,8 @@ function doSort(col, type) {{
       vb = (vb || '').toLowerCase();
       return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
     }}
+    if (va == null) va = -1e9;   // a column a scope doesn't have (DD / TD outside full-season stats) sorts last
+    if (vb == null) vb = -1e9;
     return sortDir === 'asc' ? va - vb : vb - va;
   }});
 
@@ -16844,6 +16872,11 @@ def main():
         for skey in loaded:
             subset_by_season[skey] = loaded[skey]["subsets"]
 
+    # Double-doubles / triple-doubles per player-season (Individual Stats DD / TD columns)
+    attach_doubles(players, game_boxes.get("2627"))
+    for _k, _d in loaded.items() if not args.fast else []:
+        if _k in game_boxes:
+            attach_doubles(_d["players"], game_boxes[_k])
     html, season_files = generate_html(
         players, teams, conf_players, conf_teams,
         teams_2024=teams_2024, conf_teams_2024=conf_teams_2024,
