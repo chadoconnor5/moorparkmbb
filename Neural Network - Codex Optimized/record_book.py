@@ -42,7 +42,7 @@ LABEL = {"PTS": "Points", "FGM": "Field goals made", "FGA": "Field goals attempt
 # shooting percentages: (made, attempts, attempts needed over a full season, for a career)
 PCTS = {"FG%": ("FGM", "FGA", 150, 250), "3P%": ("3PM", "3PA", 60, 100), "FT%": ("FTM", "FTA", 60, 100)}
 # One player spelt two ways in the box scores -> the name his records show (add pairs as they're found)
-NAME_FIX = {"Jamaal Unuakalu": "Jamaal Unuakhalu", "Jamal Unuakhalu": "Jamaal Unuakhalu"}
+NAME_FIX = {"Jamaal Unuakalu": "Jamaal Unuakhalu", "Jamal Unuakhalu": "Jamaal Unuakhalu", "Treyson Neff": "Trey Neff"}
 TEAM_RENAME = {"West Hills Coalinga": "Coalinga", "West Hills Lemoore": "Lemoore"}
 SANE = {"PTS": 75, "FGM": 30, "FGA": 50, "3PM": 16, "3PA": 30, "FTM": 30, "FTA": 35, "OREB": 20, "DREB": 28,
         "REB": 35, "AST": 25, "STL": 14, "BLK": 15, "TO": 15, "PF": 6}

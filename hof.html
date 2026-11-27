@@ -1,0 +1,241 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hall of Fame</title>
+<!-- Hall of Fame page (leaderboard Misc -> Hall of Fame shows it in a frame). Data: season_data/hof.js, built by
+     "Neural Network - Codex Optimized/hall_of_fame.py" on every leaderboard build. Edit this file by hand. -->
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f14;--bg2:#151922;--gold:#d8b25a;--gold2:#f3dc9a;--gold3:#8a6a2a;--ink:#ece6d6;--ink2:#a9a08b;--ink3:#6f6857;--plum:#6b2fb0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(ellipse at top,#1d1a26 0,var(--bg) 60%) fixed;color:var(--ink);font-family:"Cormorant Garamond",Georgia,serif;font-size:17px;padding:0 16px 60px}
+.mock{font-family:-apple-system,Arial,sans-serif;font-size:11px;color:#7a5a00;background:#fff4d6;border-radius:3px;padding:2px 6px;display:inline-block;margin-top:10px}
+.hero{text-align:center;padding:36px 0 26px;position:relative}
+.hero .crest{font-size:42px;filter:drop-shadow(0 0 14px rgba(216,178,90,.5))}
+.hero h1{font-family:Cinzel,serif;font-weight:900;font-size:clamp(34px,8vw,64px);letter-spacing:.12em;background:linear-gradient(180deg,var(--gold2),var(--gold) 55%,var(--gold3));-webkit-background-clip:text;background-clip:text;color:transparent;margin:6px 0}
+.rule{display:flex;align-items:center;gap:12px;justify-content:center;color:var(--gold);font-family:Cinzel,serif;font-size:12px;letter-spacing:.35em}
+.rule:before,.rule:after{content:"";height:1px;width:min(120px,20vw);background:linear-gradient(90deg,transparent,var(--gold))}
+.rule:after{transform:scaleX(-1)}
+.hero p{color:var(--ink2);font-style:italic;max-width:640px;margin:14px auto 0;font-size:18px}
+.stats{display:flex;justify-content:center;gap:clamp(16px,6vw,56px);margin:22px 0 4px;flex-wrap:wrap}
+.stats div{text-align:center}.stats b{display:block;font-family:Cinzel,serif;font-size:30px;color:var(--gold2)}.stats span{font-family:Cinzel,serif;font-size:11px;letter-spacing:.2em;color:var(--ink3)}
+.search{display:block;margin:18px auto 6px;width:min(420px,100%);background:transparent;border:1px solid var(--gold3);border-radius:30px;padding:9px 18px;color:var(--ink);font:inherit;text-align:center}
+.search::placeholder{color:var(--ink3)}
+.tier{font-family:Cinzel,serif;text-align:center;color:var(--gold);letter-spacing:.25em;font-size:15px;margin:44px 0 18px}
+.tier small{display:block;font-family:"Cormorant Garamond",serif;letter-spacing:0;color:var(--ink3);font-style:italic;font-size:15px;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;max-width:1200px;margin:0 auto}
+.grid.big{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.plaque{position:relative;background:linear-gradient(170deg,#1f2330,#12151c);border:1px solid var(--gold3);border-radius:4px;padding:20px 18px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 4px #12151c,inset 0 0 0 5px rgba(216,178,90,.25)}
+.plaque.legend{background:linear-gradient(170deg,#2a2236,#141019);border-color:var(--gold);box-shadow:0 0 40px rgba(216,178,90,.18),0 14px 40px rgba(0,0,0,.6),inset 0 0 0 5px #141019,inset 0 0 0 6px rgba(243,220,154,.45)}
+.num{position:absolute;top:12px;right:14px;font-family:Cinzel,serif;color:var(--ink3);font-size:12px}
+.count{display:inline-flex;align-items:center;justify-content:center;width:50px;height:56px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--gold2),var(--gold) 45%,var(--gold3));color:#1a1206;font-family:Cinzel,serif;font-weight:900;font-size:22px;float:left;margin:0 14px 6px 0}
+.legend .count{width:62px;height:70px;font-size:28px}
+.name{font-family:Cinzel,serif;font-weight:700;font-size:20px;color:var(--gold2);line-height:1.15}
+.legend .name{font-size:25px}
+.meta{color:var(--ink2);font-size:15px;margin-top:3px;overflow:hidden}
+.meta i{color:var(--ink3)}
+.cred{clear:both;border-top:1px solid rgba(216,178,90,.25);margin-top:12px;padding-top:9px;font-family:Cinzel,serif;font-size:12.5px;letter-spacing:.04em;color:var(--gold)}.cred div{padding:2px 0}.cred span{color:var(--ink2);font-family:'Cormorant Garamond',serif;font-size:15px;letter-spacing:0}
+.hon{clear:both;border-top:1px solid rgba(216,178,90,.25);margin-top:12px;padding-top:8px}
+.tm{font-family:Cinzel,serif;font-size:12.5px;letter-spacing:.03em;padding:1px 0;color:#fff}
+.tm.st{color:#1a1206;background:linear-gradient(90deg,var(--gold2),var(--gold));display:inline-block;padding:1px 8px;border-radius:2px;margin:2px 0;font-weight:700}
+.tm.dim{color:var(--ink2)}
+.sum{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.sum span{font-family:Cinzel,serif;font-size:11.5px;letter-spacing:.06em;border:1px solid var(--gold);color:var(--gold2);padding:2px 8px;border-radius:12px}
+.sum span.top{background:linear-gradient(90deg,var(--gold2),var(--gold));color:#1a1206;font-weight:700}
+.hs{padding:5px 0}.hs+.hs{border-top:1px dotted rgba(216,178,90,.15)}
+.hy{font-family:Cinzel,serif;font-size:12px;color:var(--ink2);letter-spacing:.08em;margin-bottom:3px}.hy span{color:var(--ink3);font-family:'Cormorant Garamond',serif;font-style:italic;letter-spacing:0;font-size:13.5px}
+.aw{font-family:Cinzel,serif;font-size:12.5px;letter-spacing:.03em;color:var(--gold2);padding:1px 0}
+.aw.t2{color:var(--ink2)}
+.chips{margin-top:3px}
+.ch{display:inline-block;font-size:13px;border-radius:2px;padding:0 6px;margin:2px 4px 0 0;border:1px solid}
+.ch.h{background:linear-gradient(160deg,#ffe08a,#b04cff 70%);color:#1a0b2a;border-color:#d8b25a;font-weight:600}
+.ch.tg{color:#f3dc9a;border-color:#8a6a2a}.ch.s{color:#c9ced6;border-color:#5d636c}.ch.b{color:#c98d5a;border-color:#6b4a2c}
+.why{border-top:1px solid rgba(216,178,90,.25);margin-top:12px;padding-top:10px;list-style:none}
+.why li{display:flex;gap:9px;align-items:baseline;padding:3px 0;font-size:16px;line-height:1.3}
+.why .e{width:20px;text-align:center;flex:none}
+.why b{font-weight:600;color:var(--ink)}
+.why .s{color:var(--ink3);font-size:13px;font-family:Cinzel,serif;flex:none;min-width:58px}
+.why .d{color:var(--ink2);font-style:italic}
+.games{border-top:1px solid rgba(216,178,90,.25);margin-top:10px;padding-top:9px}
+.gh{font-family:Cinzel,serif;font-size:11.5px;letter-spacing:.18em;color:var(--gold);margin-bottom:6px}.gh span{letter-spacing:0;font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--ink3);font-size:13px}
+.g{padding:6px 0;border-bottom:1px dotted rgba(216,178,90,.15);font-size:15.5px;line-height:1.3}.g:last-child{border:0}
+.g .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.g .opp{font-weight:600;color:var(--ink)}.g .rk{font-family:Cinzel,serif;font-size:11px;color:#1a1206;background:linear-gradient(160deg,var(--gold2),var(--gold));border-radius:2px;padding:0 5px}
+.g .rk.lo{background:none;color:var(--ink3);border:1px solid var(--ink3)}
+.g .res{color:var(--ink3);font-size:13.5px}.g .line{color:var(--ink2);font-style:italic}
+.hi{display:flex;gap:14px;font-family:Cinzel,serif;font-size:11px;letter-spacing:.06em;color:var(--ink3);margin-top:2px}.hi b{color:var(--gold2);font-size:13px;letter-spacing:0}
+.tag.hl{background:linear-gradient(160deg,var(--gold2),var(--gold));color:#1a1206;border-color:var(--gold)}
+.tag{display:inline-block;font-family:Cinzel,serif;font-size:10.5px;letter-spacing:.05em;color:var(--gold2);border:1px solid var(--gold3);border-radius:2px;padding:0 5px;margin:2px 4px 0 0}
+details summary{cursor:pointer;color:var(--gold);font-family:Cinzel,serif;font-size:11.5px;letter-spacing:.12em;padding-top:6px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+.grid,.grid.big{display:block;max-width:1180px;margin:0 auto}
+.plaque{padding:34px clamp(16px,4vw,44px) 28px;margin:0 0 34px}
+.plaque.legend{padding-top:42px}
+.num{position:static;display:block;text-align:center;font-size:12px;letter-spacing:.35em;color:var(--gold3);margin-bottom:10px}
+.hd{text-align:center}
+.hd .count{float:none;margin:0 auto 10px;width:84px;height:94px;font-size:38px}
+.legend .hd .count{width:100px;height:112px;font-size:46px}
+.hd .cl{font-family:Cinzel,serif;font-size:11px;letter-spacing:.3em;color:var(--gold);margin-bottom:14px}
+.hd .name{font-size:clamp(28px,6vw,46px);letter-spacing:.04em;background:linear-gradient(180deg,var(--gold2),var(--gold) 60%,var(--gold3));-webkit-background-clip:text;background-clip:text;color:transparent}
+.legend .hd .name{font-size:clamp(32px,7vw,56px)}
+.hd .meta{font-size:19px;margin-top:6px}
+.hd .sum{justify-content:center;margin:16px 0 4px}
+.hd .sum span{font-size:12.5px;padding:4px 12px}
+.orn{display:flex;align-items:center;gap:12px;justify-content:center;color:var(--gold);margin:22px 0 18px;font-size:14px}
+.orn:before,.orn:after{content:"";height:1px;flex:1;max-width:260px;background:linear-gradient(90deg,transparent,var(--gold3))}.orn:after{transform:scaleX(-1)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:26px 34px;text-align:left}
+.cols>div{min-width:0}
+.cols .hon,.cols .games{border-top:0;margin-top:0;padding-top:0}
+.cols .gh{font-size:13px;border-bottom:1px solid rgba(216,178,90,.3);padding-bottom:6px;margin-bottom:8px}
+.cols .why{margin-top:0}
+.plaque,.plaque.legend{padding:22px clamp(14px,3vw,30px) 20px;margin:0 0 22px}
+.num{position:absolute;top:12px;right:16px;display:inline;text-align:right;margin:0;font-size:11px;letter-spacing:.25em}
+.hd{display:flex;align-items:center;gap:18px;text-align:left;flex-wrap:wrap}
+.hd .count,.legend .hd .count{margin:0;flex:none;width:70px;height:78px;font-size:32px}
+.legend .hd .count{width:80px;height:90px;font-size:38px}
+.hd .who{flex:1;min-width:220px}
+.hd .cl{margin:0 0 2px;font-size:10.5px}
+.hd .name,.legend .hd .name{font-size:clamp(26px,4.5vw,40px);line-height:1.05}
+.hd .meta{font-size:17px;margin-top:2px}
+.hd .sum{justify-content:flex-start;margin:8px 0 0;width:100%}
+.orn{margin:14px 0 14px}
+.cols{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px 30px}
+.cols .why+.gh,.cols .wh{margin-top:16px}
+.peak{display:flex;gap:6px;flex:none;margin-left:auto}
+.peak div{border:1px solid rgba(216,178,90,.35);border-radius:3px;padding:6px 10px;text-align:center;min-width:64px}
+.peak b{display:block;font-family:Cinzel,serif;font-size:22px;color:var(--gold2);line-height:1.1}
+.peak span{font-family:Cinzel,serif;font-size:9.5px;letter-spacing:.15em;color:var(--ink3)}
+.rs{display:flex;gap:10px;flex-wrap:wrap;width:100%;margin-top:10px}
+.rs .bar{flex:1;min-width:120px}
+.rs .bl{display:flex;justify-content:space-between;font-family:Cinzel,serif;font-size:10.5px;letter-spacing:.12em;color:var(--ink3)}
+.rs .bl b{color:var(--gold2);font-size:12px;letter-spacing:0}
+.rs .tr{height:5px;background:rgba(216,178,90,.15);border-radius:3px;margin-top:3px;overflow:hidden}
+.rs .tr i{display:block;height:100%;background:linear-gradient(90deg,var(--gold3),var(--gold2))}
+.entry{font-size:16px;color:var(--ink2);font-style:italic;margin:4px 0 6px}
+.entry b{font-style:normal;color:var(--gold2);font-family:Cinzel,serif;font-size:13px;letter-spacing:.04em}
+.hd .sum{display:block;font-family:Cinzel,serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:12px 0 0;padding:8px 0;border-top:1px solid rgba(216,178,90,.25);border-bottom:1px solid rgba(216,178,90,.25)}
+.hd .sum b{color:var(--gold2);font-weight:700}
+.hd .sum i{font-style:normal;color:var(--gold3);margin:0 12px;font-size:10px;vertical-align:2px}
+.tm.st{background:none;color:var(--gold2);padding:0;font-weight:700;letter-spacing:.12em}
+.peak{flex-wrap:wrap;max-width:100%}
+@media(max-width:560px){.peak{width:100%;margin-left:0}.peak div{flex:1;min-width:0;padding:5px 2px}.peak b{font-size:17px}.peak span{font-size:8px;letter-spacing:.08em}}
+.qd{display:flex;width:100%;margin-top:10px;border:1px solid rgba(216,178,90,.25);border-radius:3px}
+.qd div{flex:1;text-align:center;padding:5px 2px;border-left:1px solid rgba(216,178,90,.15)}.qd div:first-child{border-left:0}
+.qd span{display:block;font-family:Cinzel,serif;font-size:10px;letter-spacing:.14em;color:var(--ink3)}
+.qd b{font-family:Cinzel,serif;font-size:15px;color:var(--gold2)}
+.qd .hl{background:rgba(216,178,90,.08)}
+.aw.mvp{color:var(--gold2);font-weight:700;letter-spacing:.1em}.aw.mvp span{display:block;font-family:'Cormorant Garamond',serif;font-weight:500;letter-spacing:0;font-style:italic;color:var(--ink2);font-size:14.5px;text-transform:none}
+.empty{text-align:center;color:var(--ink3);font-style:italic;margin-top:30px}
+.foot{text-align:center;color:var(--ink3);font-style:italic;font-size:14px;margin-top:40px}
+</style></head><body>
+<div class="hero">
+ <div class="crest">🏛️</div>
+ <div class="rule">CALIFORNIA COMMUNITY COLLEGE BASKETBALL</div>
+ <h1>HALL OF FAME</h1>
+ <div class="rule">EST. 2017-18</div>
+ <p>Every inductee was a first-team All-State player whose whole resume ranks among the best of the era: how much his teams won, his impact, his honors, and how he played in the big games (every quad, Q1A to Q4). The top 2% of players since 2017-18 are enshrined.</p>
+ <div class="stats" id="stats"></div>
+ <input class="search" id="q" placeholder="Find an inductee or school">
+</div>
+<div id="out"></div>
+<div class="foot">Every season since 2017-18 · signature games and big-game records from every box score</div>
+<div id="hf-loading" style="text-align:center;color:#8a6a2a;font-style:italic;padding:40px">Opening the Hall…</div>
+<script>
+function hofStart(RAW){document.getElementById('hf-loading').remove();const D=RAW.hof,CAR=RAW.car;
+const f=(v,d=1)=>v==null?'—':(+v).toFixed(d);
+const B={
+ allstate:['👑','All-State Season',p=>(p.bpm!=null?`${f(p.bpm)} BPM, `:'')+`${f(p.ppg)} points a game, ${f(p.rpg)} rebounds`],
+ engine:['🚀','Offensive Engine',p=>`${f(p.obpm)} offensive BPM`],
+ anchor:['⚓','Defensive Anchor',p=>`${f(p.dbpm)} defensive BPM`],
+ scorer:['🔥','Volume Scorer',p=>`${f(p.ppg)} points a game`],
+ sniper:['🎯','Sniper',p=>`${f(p.tpp)}% from three (${p.tpm}-${p.tpa})`],
+ finisher:['🔨','Finisher',p=>`${f(p.twop)}% inside the arc (${p.twom}-${p.twoa})`],
+ icewater:['🧊','Ice Water',p=>`${f(p.ftp)}% at the line (${p.ftm}-${p.fta})`],
+ floorgen:['🪄','Floor General',p=>`${f(p.apg)} assists a game, ${f(p.ast_rate)} assist rate`],
+ glass:['🧽','Glass Cleaner',p=>`${f(p.rpg)} rebounds a game (${f(p.oreb_pct)} OR%, ${f(p.dreb_pct)} DR%)`],
+ pickpocket:['🥷','Pickpocket',p=>`${f(p.spg)} steals a game, ${f(p.stl_pct)} Stl%`],
+ rimprot:['✋','Rim Protector',p=>`${f(p.bpg)} blocks a game, ${f(p.blk_pct)} Blk%`],
+ greenlight:['🚦','Green Light',p=>`took ${f(p.shot_pct)}% of his team's shots on the floor`],
+ indisp:['🔑','Indispensable',p=>`${f(p.ws)} win shares`],
+ glue:['🧩','Glue Guy',p=>`${f(p.usage_pct)}% usage, did the dirty work`]};
+const yr=s=>'20'+s.slice(0,2)+'-'+s.slice(2);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ORDER=Object.keys(B);
+const RES=RAW.res;const m=new Map();RAW.order.forEach(k=>{const [name,school]=k.split('|');m.set(k,{name,school,list:[]})});
+D.forEach(d=>{const p=m.get(d.name+'|'+d.school);if(p)p.list.push(d)});
+const P=[...m.values()].map(p=>{p.list.sort((a,b)=>a.season.localeCompare(b.season)||ORDER.indexOf(a.code)-ORDER.indexOf(b.code));const k=p.name+'|'+p.school;p.car=CAR[k];p.res=RES[k];p.seasons=(RAW.hon[k]||[]).map(h=>h.s);return p});
+P.forEach((p,i)=>p.rank=i+1);
+document.getElementById('stats').innerHTML=[[P.length,'INDUCTEES'],[RAW.players.toLocaleString(),'PLAYERS SINCE 2017'],[(100*P.length/RAW.players).toFixed(1)+'%','ENSHRINED']].map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('');
+const WORD={1:'One',2:'Two',3:'Three',4:'Four',5:'Five',6:'Six',7:'Seven',8:'Eight',9:'Nine',10:'Ten'};
+
+const GM=RAW.games;
+function gline(g){const s=[g.pts+' pts'];if(g.reb>=5)s.push(g.reb+' reb');if(g.ast>=4)s.push(g.ast+' ast');if(g.stl>=3)s.push(g.stl+' stl');if(g.blk>=3)s.push(g.blk+' blk');if(g.tpm>=4)s.push(g.tpm+' 3PM');s.push(g.fgm+'-'+g.fga+' FG');
+ const rk=g.rk?`<span class="rk${g.rk>g.N/2?' lo':''}">#${g.rk} of ${g.N} · ${g.net>0?'+':''}${(+g.net).toFixed(1)} Net</span>`:'<span class="rk lo">unranked</span>';
+ return `<div class="g"><div class="top"><span class="opp">vs ${esc(g.opp)}</span>${rk}<span class="res">${g.w?'W':'L'} ${g.score} · ${g.d}</span></div><div class="line">${s.join(', ')}</div><div class="hi"><span>Game Score <b>${(+g.gs).toFixed(1)}</b></span>${g.bpm!=null?`<span>BPM <b>${g.bpm>0?'+':''}${(+g.bpm).toFixed(1)}</b></span>`:''}</div>${g.tags.map(x=>`<span class="tag${x.startsWith('Career-high')?' hl':''}">${esc(x)}</span>`).join('')}</div>`}
+function games(p){const l=GM[p.name+'|'+p.school]||[];if(!l.length)return'';const a=l.slice(0,6),b=l.slice(6);
+ return `<div class="games"><div class="gh">SIGNATURE GAMES <span>· toughest opponent first</span></div>${a.map(gline).join('')}${b.length?`<details><summary>+ ${b.length} MORE</summary>${b.map(gline).join('')}</details>`:''}</div>`}
+
+const HON=RAW.hon;
+const AWD={poy:['🏆',(x,h)=>h.region+' Player of the Year'],cpoy:['🏅',(x,h)=>(x[3]||h.conf)+' Player of the Year'],copoy:['💥',(x,h)=>(x[3]||h.conf)+' Offensive Player of the Year'],cdpoy:['🛡️',(x,h)=>(x[3]||h.conf)+' Defensive Player of the Year'],c6moy:['6️⃣',(x,h)=>(x[3]||h.conf)+' Sixth Man of the Year'],cfoy:['🌟',(x,h)=>(x[3]||h.conf)+' Freshman of the Year']};
+const TN={4:'Hall of Fame',3:'Gold',2:'Silver',1:'Bronze'},TC={4:'h',3:'tg',2:'s',1:'b'};
+
+function teamLines(h){const T=h.team||[],has=c=>T.find(x=>x[0]===c),o=[];
+ if(has('state'))o.push('<div class="tm st">STATE CHAMPIONS</div>');
+ else if(has('fin'))o.push('<div class="tm">State Championship Game · Runner-up</div>');
+ else if(has('f4'))o.push('<div class="tm">Final Four</div>');
+ else if(has('e8'))o.push(`<div class="tm">${esc(has('e8')[1])}</div>`);
+ T.filter(x=>x[0]==='conf').forEach(x=>o.push(`<div class="tm">${esc(x[1].replace(' champions',' Champions').replace(' co-champions',' Co-Champions'))}</div>`));
+ return o.join('')}
+function teamSum(l,p){const n=c=>l.filter(h=>(h.team||[]).some(x=>x[0]===c)).length,o=[];
+ const st=n('state'),fn=n('fin'),f4=n('f4'),e8=n('e8'),cf=n('conf'),x=(k,w)=>(k>1?k+'× ':'')+w;
+ const aw=c=>l.filter(h=>(h.b||[]).some(b=>b[0]===c));
+ const rp={};aw('poy').forEach(h=>{rp[h.region]=(rp[h.region]||0)+1});
+ Object.entries(rp).forEach(([r,k])=>o.push(`<b>${x(k,esc(r)+' Player of the Year')}</b>`));
+ if(st)o.push(`<b>${x(st,'State Champion')}</b>`);
+ const mv=p?Object.entries(RAW.mvp||{}).filter(([s,m])=>m.name===p.name&&m.team===p.school).length:0;if(mv)o.push(`<b>${x(mv,'State Tournament MVP')}</b>`);
+ const cp=aw('cpoy').length;if(cp)o.push(`<b>${x(cp,'Conference Player of the Year')}</b>`);
+ if(fn>st)o.push(x(fn-st,'State Runner-up'));
+ if(f4)o.push(x(f4,'Final Four'));
+ if(e8)o.push(x(e8,'Elite Eight'));
+ if(cf)o.push(x(cf,'Conference Champion'));
+ return o.length?'<div class="sum">'+o.join('<i>✦</i>')+'</div>':''}
+function honors(p){const l=HON[p.name+'|'+p.school]||[];if(!l.length)return'';
+ const MV=RAW.mvp||{},isM=h=>{const m=MV[h.s];return m&&m.name===p.name&&m.team===p.school?m:null};
+ return '<div class="hon"><div class="gh">ALL HONORS</div>'+l.slice().sort((a,b)=>a.s.localeCompare(b.s)).map(h=>{
+  const aw=[],ch=[];
+  const mv=isM(h);if(mv)aw.push(`<div class="aw mvp">State Tournament MVP<span>${esc(mv.line)}</span></div>`);
+  ['poy','cpoy','copoy','cdpoy','cfoy','c6moy'].forEach(c=>h.b.filter(x=>x[0]===c).forEach(x=>aw.push(`<div class="aw">${esc(AWD[c][1](x,h))}</div>`)));
+  h.b.filter(x=>x[0]==='allstate').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-State ${x[1]>=3?'1st Team':'Honorable Mention'}${x[1]===4?' · Hall of Fame season':''}</div>`));
+  h.b.filter(x=>x[0]==='allconf').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-${esc(h.conf)} ${x[1]>=3?'1st':'2nd'} Team</div>`));
+  h.b.filter(x=>B[x[0]]&&x[0]!=='allstate').sort((a,b)=>b[1]-a[1]).forEach(x=>ch.push(`<span class="ch ${TC[x[1]]}">${B[x[0]][0]} ${TN[x[1]]} ${B[x[0]][1]}</span>`));
+  return `<div class="hs"><div class="hy">${yr(h.s)} <span>· ${esc(h.conf||'')}</span></div>${teamLines(h)}${aw.join('')}${ch.length?'<div class="chips">'+ch.join('')+'</div>':''}</div>`}).join('')+'</div>'}
+function peak(p){const c=(RAW.career||{})[p.name+'|'+p.school];if(!c)return'';
+ const v=[[c.ppg,'PPG'],[c.rpg,'RPG'],[c.apg,'APG'],[c.bpm,'BPM'],[c.gp,'GAMES']].filter(x=>x[0]!=null);
+ return '<div class="peak">'+v.map(([x,l])=>`<div><b>${l==='BPM'&&x>0?'+':''}${l==='GAMES'?x:(+x).toFixed(1)}</b><span>${l==='GAMES'?'':'CAREER '}${l}</span></div>`).join('')+'</div>'}
+function resBars(p){const r=p.res;if(!r)return'';const b=[['WINNING',r.win],['IMPACT',r.impact],['HONORS',r.hon],['BIG GAMES',r.big]];
+ const Q=r.quads,add=(...k)=>k.reduce((a,q)=>[a[0]+Q[q][0],a[1]+Q[q][1]],[0,0]);
+ const qs=[['Q1A',add('1A')],['Q1',add('1A','1')],['Q2',add('2')],['Q1+Q2',add('1A','1','2')],['Q3',add('3')],['Q4',add('4')]];
+ return '<div class="rs">'+b.map(([l,v])=>`<div class="bar"><div class="bl">${l}<b>${v}</b></div><div class="tr"><i style="width:${Math.max(3,Math.min(100,v))}%"></i></div></div>`).join('')+'</div>'
+  +'<div class="qd">'+qs.map(([l,[w,lo]])=>`<div${l==='Q1+Q2'?' class="hl"':''}><span>${l}</span><b>${w}-${lo}</b></div>`).join('')+'</div>'}
+function entry(p){const k=p.name+'|'+p.school,H=RAW.hon[k]||[],as1=p.car.as1,o=[];
+ o.push(`<b>First-team All-State</b> (${as1.map(yr).join(', ')})`);
+ H.forEach(h=>{const T=(h.team||[]).map(x=>x[0]);if(T.includes('state')||T.includes('fin')||T.includes('f4'))o.push(`<b>${T.includes('state')?'State Champion':T.includes('fin')?'State Title Game':'Final Four'}</b> (${yr(h.s)})`)});
+ H.forEach(h=>h.b.filter(x=>x[0]==='poy'||x[0]==='cpoy').forEach(x=>o.push(`<b>${x[0]==='poy'?esc(h.region)+' Player of the Year':esc(x[3]||h.conf)+' Player of the Year'}</b> (${yr(h.s)})`)));
+ const q=p.res&&p.res.quads;if(q){const w=['1A','1','2'].reduce((a,k)=>a+q[k][0],0),l=['1A','1','2'].reduce((a,k)=>a+q[k][1],0);if(w+l>=5&&w/(w+l)>=.7)o.push(`<b>${w}-${l} vs Q1+Q2</b>`)}
+ if(p.list.length)o.push(`<b>${p.list.length} Hall of Fame season honor${p.list.length>1?'s':''}</b>`);
+ return '<div class="entry">Enshrined for: '+o.join(' · ')+'</div>'}
+function plaque(p,legend){const yrs=p.seasons.map(yr).join(' · ');
+ const why=`<div class="gh wh">WHY HE'S HERE</div>${entry(p)}`+(p.list.length?`<ul class="why">`+p.list.map(d=>`<li><span class="e">${B[d.code][0]}</span><span class="s">${yr(d.season)}</span><span><b>${B[d.code][1]}</b> <span class="d">— ${B[d.code][2](d)}</span></span></li>`).join('')+'</ul>':'');
+ return `<div class="plaque${legend?' legend':''}"><span class="num">No. ${p.rank}</span><div class="hd"><div class="count">${Math.round(p.res.score)}</div><div class="who"><div class="cl">RESUME SCORE</div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.school)} · <i>${yrs}</i></div></div>${peak(p)}${teamSum(RAW.hon[p.name+'|'+p.school]||[],p)}${resBars(p)}</div><div class="orn">✦</div><div class="cols"><div>${honors(p)}${why}</div><div>${games(p)}</div></div></div>`}
+function render(){const t=document.getElementById('q').value.trim().toLowerCase();
+ const L=P.filter(p=>!t||(p.name+' '+p.school).toLowerCase().includes(t));
+ if(!L.length){document.getElementById('out').innerHTML='<p class="empty">No inductee by that name.</p>';return}
+ const tiers=[[1,10,'THE INNER CIRCLE','The ten greatest resumes since 2017-18'],[11,40,'ALL-TIME GREATS','Ranks 11 to 40'],[41,999,'HALL OF FAMERS','Ranks 41 and beyond']];
+ let h='';for(const[a,b,n,s]of tiers){const ps=L.filter(p=>p.rank>=a&&p.rank<=b);if(ps.length)h+=`<div class="tier">${n}<small>${s}</small></div><div class="grid">${ps.map(p=>plaque(p,a===1)).join('')}</div>`}
+ document.getElementById('out').innerHTML=h}
+document.getElementById('q').oninput=render;render();
+}
+// data: season_data/hof.js (hall_of_fame.py), versioned by the leaderboard (?v=...); height sent to the leaderboard's frame
+window.__installHof=hofStart;
+(function(){const s=document.createElement('script');s.src='season_data/hof.js'+location.search;document.head.appendChild(s)})();
+if(window.parent!==window){let last=0;const post=()=>{const h=document.documentElement.scrollHeight;if(h!==last){last=h;window.parent.postMessage({hofHeight:h},'*')}};
+ new ResizeObserver(post).observe(document.body);setInterval(post,1000)}
+</script></body></html>

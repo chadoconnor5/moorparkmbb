@@ -5761,6 +5761,12 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
                                      separators=(",", ":"))
     except Exception as e:
         print(f"  Warning: record book not built: {e}")
+    # Misc -> Hall of Fame (hall_of_fame.py): the inductees and their plaques -> season_data/hof.js, shown by ../hof.html
+    try:
+        import hall_of_fame
+        season_files.update(hall_of_fame.write(season_files))
+    except Exception as e:
+        print(f"  Warning: Hall of Fame not built: {e}")
     # Every team's lineups from the play-by-play (compute_pbp_lineups.py), one lazy file per team.
     pbp_lu_index, pbp_lu_files = _pbp_lineup_files()
     season_files.update(pbp_lu_files)
@@ -6053,6 +6059,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   #btn-fanmatch    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'); }}
   #btn-universe    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>'); }}
   #btn-storylines  {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>'); }}
+  #btn-hof         {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M3 21h18M5 18h14M12 3 3 8h18z"/><path d="M6 10v6M10 10v6M14 10v6M18 10v6"/></svg>'); }}
   .sub-toggle-wrap {{
     display: none;
     align-items: center;
@@ -7226,6 +7233,15 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     #team-basic-leaderboard thead th:nth-child(2), #team-basic-defense-leaderboard thead th:nth-child(2),
     #team-adv-offense-leaderboard thead th:nth-child(2), #team-adv-defense-leaderboard thead th:nth-child(2) {{ z-index: 4; }}
   }}
+
+  /* Misc -> Hall of Fame takes the page but the sidebar (hofInit sets body.hof-on) */
+  body.hof-on {{ padding: 0 !important; background: #0d0f14; }}
+  body.hof-on #season-toggle, body.hof-on #sl-nav, body.hof-on #sl-page-title {{ display: none !important; }}
+  body.hof-on #storylines-view > div {{ padding: 0 !important; }}
+  body.hof-on #hof-frame {{ border-radius: 0 !important; }}
+  body.hof-on .top-bar > .filter-bar, body.hof-on .top-bar > .team-search-wrap {{ display: none !important; }}
+  body.hof-on .top-bar {{ background: transparent !important; border: 0 !important; box-shadow: none !important; padding-top: 0 !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }}
+  @media (min-width: 1025px) {{ body.hof-on .top-bar {{ height: 0 !important; min-height: 0 !important; }} }}
 </style>
 </head>
 <body>
@@ -7272,6 +7288,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <button id="btn-fanmatch" onclick="showView('fanmatch')">FanMatch</button>
       <button id="btn-universe" onclick="showView('universe')">Universe</button>
       <button id="btn-storylines" onclick="showView('storylines')">Miscellaneous</button>
+      <button id="btn-hof" onclick="openHof()">Hall of Fame</button>
     </div>
   </div>
   <script>
@@ -7819,6 +7836,9 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <div style="padding:2px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Every box score since 2017-18 (2020-21 not played), games against CCCAA teams only. Season numbers add up the box-score games; per game needs half the team's games (10+ all-time); career = the same name on the same team (20+ games per game). Percentages need attempts (season FG% 150, 3P% / FT% 60, pro-rated; career 250 / 100 / 100). Ties are all listed. This season's entries are highlighted. Box lines that can't be right (a 61-assist game) are left out as typos. Minutes come only from box scores that kept real minutes (many list everyone at 1 minute), so a player's minute totals and minutes per game are over those games (G).</div>
       <div id="rb-new"></div>
       <div id="rb-body" class="rb-body"></div>
+    </div>
+    <div id="sl-tab-hof" class="sl-tab-content" style="display:none">
+      <iframe id="hof-frame" title="Hall of Fame" style="width:100%;height:1400px;border:0;display:block;background:#0d0f14"></iframe>
     </div>
     <div id="sl-tab-runs" class="sl-tab-content" style="display:none">
       <div style="padding:6px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Kill shot = a 10-0 run (one per run). Kill = three straight defensive stops (opponent possessions without a point; counting restarts after each kill and each half). Games with play-by-play only (G). Stop% = share of opponent possessions held scoreless.</div>
@@ -14676,6 +14696,7 @@ function slInitOnce() {{
 
 function slSwitchTab(tab, label) {{
   slActiveTab = tab;
+  if (tab !== 'hof') document.body.classList.remove('hof-on');
   slBuildNav();
   document.querySelectorAll('.sl-tab-content').forEach(d => d.style.display = 'none');
   document.getElementById('sl-tab-' + tab).style.display = 'block';
@@ -14694,6 +14715,10 @@ function slSwitchTab(tab, label) {{
       title.textContent = 'Records';
       if (countEl) countEl.style.display = 'none';
       rbInit();
+    }} else if (tab === 'hof') {{
+      title.textContent = 'Hall of Fame';
+      if (countEl) countEl.style.display = 'none';
+      hofInit();
     }} else if (tab === 'runs') {{
       title.textContent = '2026-27 Kill Shots and Kills';
       if (countEl) countEl.style.display = 'none';
@@ -14764,6 +14789,37 @@ function slSortRuns(key) {{
   else {{ slRunsSortKey = key; slRunsSortAsc = (key === 'team' || key === 'conference' || key === 'ks_a' || key === 'ks_a_pg' || key === 'kills_a' || key === 'kills_a_pg'); }}
   slRenderRuns();
 }}
+// ─── Hall of Fame (hall_of_fame.py -> season_data/hof.js; the page is hof.html, shown in a frame sized to it) ───
+// The Hall of Fame takes the whole page but the sidebar (body.hof-on): the season row, the Misc tab list and the title
+// hide; the sidebar's Miscellaneous (or any view) brings them back.
+(function () {{
+  const sv = showView;
+  showView = function (v) {{
+    document.body.classList.remove('hof-on');
+    document.getElementById('btn-hof').classList.remove('active');
+    sv.apply(this, arguments);
+    if (v === 'storylines' && slActiveTab === 'hof') slSwitchTab('dominance', 'Dominance');
+  }};
+}})();
+// Sidebar -> Hall of Fame (its own entry under Miscellaneous; shown in the Misc view's hidden 'hof' tab)
+function openHof() {{
+  showView('storylines');
+  slSwitchTab('hof', 'Hall of Fame');
+  document.getElementById('btn-storylines').classList.remove('active');
+  document.getElementById('btn-hof').classList.add('active');
+  const lab = document.getElementById('mob-view');
+  if (lab) lab.textContent = 'Hall of Fame';
+  if (typeof toggleNav === 'function') toggleNav(false);
+  window.scrollTo(0, 0);
+}}
+function hofInit() {{
+  document.body.classList.add('hof-on');
+  const f = document.getElementById('hof-frame');
+  if (!f.src) f.src = 'hof.html' + __sdv('season_data/hof.js');
+}}
+window.addEventListener('message', e => {{
+  if (e.data && e.data.hofHeight) document.getElementById('hof-frame').style.height = (e.data.hofHeight + 20) + 'px';
+}});
 // ─── Record Book (record_book.py; season_data/records_*.js) ───
 let rbGroup = 'Individual · Single game';
 function rbInit() {{
@@ -16837,7 +16893,7 @@ def main():
         # Fast mode only refreshes current-season files; existing past-season
         # files keep serving the other seasons.
         writable = {k: v for k, v in season_files.items()
-                    if k in ("boxes_2627.js", "rosters_2627.js") or k.startswith(("lineups_2627_", "records_"))}
+                    if k in ("boxes_2627.js", "rosters_2627.js", "hof.js") or k.startswith(("lineups_2627_", "records_"))}
         print("Fast mode: past-season data files not rewritten.")
     else:
         writable = season_files

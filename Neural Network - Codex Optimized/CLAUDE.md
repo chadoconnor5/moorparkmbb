@@ -161,6 +161,20 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   AST, STL, BLK, margin); the records ride in each team file's "records" (export_ratings.team_records, from the
   Records files).
 
+- Hall of Fame (its own sidebar entry under Miscellaneous, btn-hof / openHof: the Misc view's hidden 'hof' tab, not in
+  the Misc tab list; hall_of_fame.py -> ../season_data/hof.js; the page is ../hof.html, edited by hand, shown in a
+  frame that sizes itself, hofInit). It takes the whole page but the sidebar (body.hof-on hides the season row, the
+  Misc tab list and the title; the sidebar's Miscellaneous goes back to Dominance). In: first-team All-State,
+  career over (not on a 2026-27 roster / box at that school), resume score RESUME_CUT (43.2: the top 2% through
+  2025-26) or better; badges don't decide it. Once in, always in: hall_of_fame.json keeps every inductee (never
+  remove one). Ordered by a resume score: winning 35% (team win %, net rank, state run; scaled by his place on his
+  team), impact 30% (PRPG! + BPM percentile), honors 20% (awards, All-State / All-Conference; not badges), big games
+  15% (quad results Q1A-Q4 + Game Score vs Q1A-Q2). Plaques: all honors by season, team titles (conference = best
+  conference record; Elite Eight / Final Four / title game from the box scores; 2019-20 canceled), State Tournament MVP
+  (champion's last 3 games, a blend), Conference Freshman of the Year (inferred: name not seen before; FRESHMAN_NOT
+  for confirmed sophomores, 2022-23 Javohn Garcia), signature games (CCCAA opponents only, toughest first; top-1%
+  Game Score / BPM, records, triple-doubles, career highs), quad records, career averages (CCCAA games). ~7 s a build;
+  --fast reads the past seasons from season_data.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
   the date (rank, net, ORtg, DRtg, AdjT, each with its rank) next to the current ones, and the change in rank, net and
   AdjT. Every column sorts (slArchSortBy; ranks and DRtg start lowest first). The morning of D is what the leaderboard
