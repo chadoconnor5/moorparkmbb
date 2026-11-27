@@ -657,7 +657,49 @@ def build(season_files):
     jerseys = {s: sorted([jersey(k) for k in ks], key=lambda j: (not j["hof"], -j["score"])) for s, ks in by_school.items()}
     colors = {s: [SCHOOL_COLORS.get(s), SCHOOL_SECONDARY_COLORS.get(s)] for s in jerseys}
 
-    return {"jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
+    # --- Awards (the Hall of Fame page's Awards view): every season's champions, state tournament, Players of the
+    # Year, All-State and each conference's awards and All-Conference teams (our picks) ---
+    awards = {}
+    for s in past:
+        A = {"state": {}, "poy": {}, "allstate": {"first": [], "hm": []}, "conf": {}}
+        ttl = TITLES.get(s, {})
+        for code, key in (("state", "champ"), ("fin", "final"), ("f4", "f4"), ("e8", "e8")):
+            A["state"][key] = sorted(tm for tm, l in ttl.items() if any(x[0] == code for x in l))
+        A["state"]["runner"] = sorted(set(A["state"]["final"]) - set(A["state"]["champ"]))
+        A["state"]["canceled"] = s == "1920"
+        if s in MVP:
+            A["state"]["mvp"] = MVP[s]["name"] + "|" + MVP[s]["team"]
+        A["state"]["allt"] = ALLT.get(s, [])
+        conf = defaultdict(lambda: {"champ": [], "first": [], "second": []})
+        for tm, l in ttl.items():
+            for x in l:
+                if x[0] == "conf":
+                    conf[x[1].replace(" Co-Champions", "").replace(" Champions", "")]["champ"].append(tm)
+        champ_conf = {tm: c for c, d in conf.items() for tm in d["champ"]}
+        for pl in players[s]:
+            k = M(pl["name"]) + "|" + pl["school"]
+            c = pl.get("conference") or "?"
+            for b in pl.get("bdg") or []:
+                if b[0] == "poy":
+                    A["poy"][pl.get("region") or "?"] = k
+                elif b[0] == "allstate":
+                    A["allstate"]["first" if b[1] >= 3 else "hm"].append(k)
+                elif b[0] in ("cpoy", "copoy", "cdpoy", "c6moy"):
+                    conf[c][b[0]] = k
+                elif b[0] == "allconf":
+                    conf[c]["first" if b[1] >= 3 else "second"].append(k)
+            if (s, k) in FOY:
+                conf[c]["cfoy"] = k
+        # a first-team All-State fills his All-Conference spot but shows All-State: list him on the first team too
+        for k in A["allstate"]["first"]:
+            pl = P[k]["seasons"].get(s, {})
+            c = pl.get("conference")
+            if c and k not in conf[c]["first"] and conf[c]["first"]:
+                conf[c]["first"].append(k)
+        A["conf"] = {c: dict(d) for c, d in sorted(conf.items()) if c != "?"}
+        awards[s] = A
+
+    return {"awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 
