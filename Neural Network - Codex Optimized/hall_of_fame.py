@@ -1,12 +1,9 @@
-"""Hall of Fame (leaderboard Misc -> Hall of Fame; the page is ../hof.html, its data ../season_data/hof.js).
+"""Hall of Fame (leaderboard sidebar -> Hall of Fame; the page is ../hof.html, its data ../season_data/hof.js).
 
 Who gets in: a first-team All-State player (Gold or Hall of Fame All-State badge) whose career is over (not on a
-current-season roster at that school) and who added one more mark of greatness:
-  * a Hall of Fame badge (the all-time top 3% at it, every season pooled), or
-  * a Final Four (or deeper) in a season he was first-team All-State, or
-  * a second first-team All-State season.
-Once in, always in: hall_of_fame.json keeps every inductee and a later build never drops one (a badge can fall
-below a rising all-time bar; the plaque keeps it as earned).
+current-season roster at that school) with a resume score of RESUME_CUT or better (the top 2% of players through
+2025-26). Badges don't decide it: the resume does. Once in, always in: hall_of_fame.json keeps every inductee and a
+later build never drops one; the cut stays fixed, so new seasons add players without pushing anyone out.
 
 Resume score (the order): winning 35% (team win %, net rank and deepest state run each season, scaled by his place
 on his own team), impact 30% (state percentile on PRPG! + BPM; per-game estimate for teams without real minutes),
@@ -25,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
+RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
 FRESHMAN_NOT = {("2223", "Javohn Garcia")}   # confirmed not freshmen that season
 STORE = Path(__file__).with_name("hall_of_fame.json")
 GS = lambda r: (r["pts"] + 0.4 * r["fgm"] - 0.7 * r["fga"] - 0.4 * (r["fta"] - r["ftm"]) + 0.7 * r["or"] + 0.3 * r["dr"]
@@ -226,22 +224,13 @@ def build(season_files):
     def runs(s, school):
         return {x[0] for x in TITLES.get(s, {}).get(school, [])}
 
-    qualifies = []
-    for k, v in P.items():
-        if not v["as1"] or k in active:
-            continue
-        school = k.split("|")[1]
-        deep = any(runs(s, school) & {"state", "fin", "f4"} for s in v["as1"])
-        if v["hofb"] or deep or len(v["as1"]) >= 2:
-            qualifies.append(k)
     try:
         store = json.loads(STORE.read_text())
     except Exception:
         store = {"inducted": {}}
-    for k in qualifies:     # once in, always in
-        store["inducted"].setdefault(k, {"since": datetime.now().strftime("%Y-%m-%d")})
-    hall = [k for k in store["inducted"] if k in P]
-    STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
+    # the pool scored: every first-team All-State player whose career is over, plus everyone already inducted
+    cands = [k for k, v in P.items() if v["as1"] and k not in active]
+    cands += [k for k in store["inducted"] if k in P and k not in cands]
 
     # --- resume score ---
     IMP = {}
@@ -262,7 +251,7 @@ def build(season_files):
             imp = rv(zp(p["porp"]) + zb(p["bpm"])) if p in real else fmv(gsp(p)) if p.get("fm") else allv(gsp(p))
             IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp, place[id(p)])
     rows = []
-    for k in hall:
+    for k in cands:
         school = k.split("|")[1]
         ss = [(s, IMP[(s, k)]) for s in P[k]["seasons"] if (s, k) in IMP]
         if not ss:
@@ -300,6 +289,11 @@ def build(season_files):
         r["big_p"] = f(r["big"])
         r["score"] = 100 * (.35 * r["win_p"] + .30 * r["impact_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
     rows.sort(key=lambda r: -r["score"])
+    for r in rows:          # in: a resume at the cut or better; once in, always in
+        if r["score"] >= RESUME_CUT:
+            store["inducted"].setdefault(r["k"], {"since": datetime.now().strftime("%Y-%m-%d")})
+    STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
+    rows = [r for r in rows if r["k"] in store["inducted"]]
     keys = [r["k"] for r in rows]
     K = set(keys)
 

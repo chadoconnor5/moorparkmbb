@@ -131,7 +131,7 @@ details summary::-webkit-details-marker{display:none}
  <div class="rule">CALIFORNIA COMMUNITY COLLEGE BASKETBALL</div>
  <h1>HALL OF FAME</h1>
  <div class="rule">EST. 2017-18</div>
- <p>Every inductee was a first-team All-State player, and added one more mark of greatness: a Hall of Fame season (the all-time top 3% at what he did), a Final Four run, or a second first-team All-State season. Ranked by resume: winning, impact, honors and big games (results against every quad, Q1A to Q4).</p>
+ <p>Every inductee was a first-team All-State player whose whole resume ranks among the best of the era: how much his teams won, his impact, his honors, and how he played in the big games (every quad, Q1A to Q4). The top 2% of players since 2017-18 are enshrined.</p>
  <div class="stats" id="stats"></div>
  <input class="search" id="q" placeholder="Find an inductee or school">
 </div>
@@ -212,10 +212,11 @@ function resBars(p){const r=p.res;if(!r)return'';const b=[['WINNING',r.win],['IM
  return '<div class="rs">'+b.map(([l,v])=>`<div class="bar"><div class="bl">${l}<b>${v}</b></div><div class="tr"><i style="width:${Math.max(3,Math.min(100,v))}%"></i></div></div>`).join('')+'</div>'
   +'<div class="qd">'+qs.map(([l,[w,lo]])=>`<div${l==='Q1+Q2'?' class="hl"':''}><span>${l}</span><b>${w}-${lo}</b></div>`).join('')+'</div>'}
 function entry(p){const k=p.name+'|'+p.school,H=RAW.hon[k]||[],as1=p.car.as1,o=[];
+ o.push(`<b>First-team All-State</b> (${as1.map(yr).join(', ')})`);
+ H.forEach(h=>{const T=(h.team||[]).map(x=>x[0]);if(T.includes('state')||T.includes('fin')||T.includes('f4'))o.push(`<b>${T.includes('state')?'State Champion':T.includes('fin')?'State Title Game':'Final Four'}</b> (${yr(h.s)})`)});
+ H.forEach(h=>h.b.filter(x=>x[0]==='poy'||x[0]==='cpoy').forEach(x=>o.push(`<b>${x[0]==='poy'?esc(h.region)+' Player of the Year':esc(x[3]||h.conf)+' Player of the Year'}</b> (${yr(h.s)})`)));
+ const q=p.res&&p.res.quads;if(q){const w=['1A','1','2'].reduce((a,k)=>a+q[k][0],0),l=['1A','1','2'].reduce((a,k)=>a+q[k][1],0);if(w+l>=5&&w/(w+l)>=.7)o.push(`<b>${w}-${l} vs Q1+Q2</b>`)}
  if(p.list.length)o.push(`<b>${p.list.length} Hall of Fame season honor${p.list.length>1?'s':''}</b>`);
- const ff=H.filter(h=>as1.includes(h.s)&&(h.team||[]).some(x=>['state','fin','f4'].includes(x[0])));
- ff.forEach(h=>{const T=h.team.map(x=>x[0]);o.push(`<b>${T.includes('state')?'State Champion':T.includes('fin')?'State Title Game':'Final Four'}</b> as a first-team All-State player (${yr(h.s)})`)});
- if(as1.length>=2)o.push(`<b>${as1.length}× first-team All-State</b>`);
  return '<div class="entry">Enshrined for: '+o.join(' · ')+'</div>'}
 function plaque(p,legend){const yrs=p.seasons.map(yr).join(' · ');
  const why=`<div class="gh wh">WHY HE'S HERE</div>${entry(p)}`+(p.list.length?`<ul class="why">`+p.list.map(d=>`<li><span class="e">${B[d.code][0]}</span><span class="s">${yr(d.season)}</span><span><b>${B[d.code][1]}</b> <span class="d">— ${B[d.code][2](d)}</span></span></li>`).join('')+'</ul>':'');
