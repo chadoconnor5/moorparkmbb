@@ -356,3 +356,7 @@ The lazy season_data files (season_*, boxes_*, rosters_*, lineups_2627_*) load w
 MD5>` from the page's `SD_VER` map, which `stamp_season_versions(page)` writes after the files are saved (the build
 calls it; call it again after changing a season_data file by hand). A changed file gets a new address, so a browser
 holding its old copy (Safari on the iPad) fetches the new one; unchanged files keep theirs and stay cached.
+- Misc -> Hall of Fame: hall_of_fame.write(season_files) adds `season_data/hof.js` (~320 KB, `__installHof(...)`), read
+  only by `../hof.html` in a frame (`hof.html?v=` + hof.js's SD_VER). In the `--fast` writable list; a fast build reads
+  the past seasons' season_/boxes_/records_ files from season_data since it doesn't carry them. Writes
+  `hall_of_fame.json` (the permanent inductee list).
