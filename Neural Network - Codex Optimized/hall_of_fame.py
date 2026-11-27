@@ -458,12 +458,9 @@ def build(season_files):
         name, school = k.split("|")
         v = P[k]
         car[k] = {"as1": v["as1"], "poy": v["poy"]}
-        pos = []
-        for s in sorted(v["seasons"]):
-            ps = v["seasons"][s].get("pos")
-            if ps and ps not in pos:
-                pos.append(ps)
-        bio[k] = {"ht": height(k, v), "pos": pos}
+        # one position: the season he played the most games (the later one on a tie)
+        ps = [(p_.get("gp") or 0, s, p_.get("pos")) for s, p_ in v["seasons"].items() if p_.get("pos")]
+        bio[k] = {"ht": height(k, v), "pos": [max(ps)[2]] if ps else []}
         hon[k] = []
         for s in sorted(v["seasons"]):
             p = v["seasons"][s]
