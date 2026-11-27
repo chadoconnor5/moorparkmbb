@@ -161,7 +161,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   AST, STL, BLK, margin); the records ride in each team file's "records" (export_ratings.team_records, from the
   Records files).
 
-- Misc -> Hall of Fame (hall_of_fame.py -> ../season_data/hof.js; the page is ../hof.html, edited by hand, shown in a
+- Hall of Fame (its own sidebar entry under Miscellaneous, btn-hof / openHof: the Misc view's hidden 'hof' tab, not in
+  the Misc tab list; hall_of_fame.py -> ../season_data/hof.js; the page is ../hof.html, edited by hand, shown in a
   frame that sizes itself, hofInit). It takes the whole page but the sidebar (body.hof-on hides the season row, the
   Misc tab list and the title; the sidebar's Miscellaneous goes back to Dominance). In: first-team All-State, career over (not on a 2026-27 roster / box at that
   school), plus a Hall of Fame badge that holds with non-Tier A/B games at 75% (UNTIERED_W), or a Final Four+ in a

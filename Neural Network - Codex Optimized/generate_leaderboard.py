@@ -6059,6 +6059,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
   #btn-fanmatch    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'); }}
   #btn-universe    {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>'); }}
   #btn-storylines  {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></svg>'); }}
+  #btn-hof         {{ --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M3 21h18M5 18h14M12 3 3 8h18z"/><path d="M6 10v6M10 10v6M14 10v6M18 10v6"/></svg>'); }}
   .sub-toggle-wrap {{
     display: none;
     align-items: center;
@@ -7287,6 +7288,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <button id="btn-fanmatch" onclick="showView('fanmatch')">FanMatch</button>
       <button id="btn-universe" onclick="showView('universe')">Universe</button>
       <button id="btn-storylines" onclick="showView('storylines')">Miscellaneous</button>
+      <button id="btn-hof" onclick="openHof()">Hall of Fame</button>
     </div>
   </div>
   <script>
@@ -14609,7 +14611,6 @@ const SL_TABS = [
   {{ id: 'window',    label: 'Window', pbp: true }},
   {{ id: 'runs',      label: 'Kills', pbp: true }},
   {{ id: 'records',   label: 'Records' }},
-  {{ id: 'hof',       label: 'Hall of Fame' }},
   {{ id: 'height',    label: 'Height' }},
   {{ id: 'wab',       label: 'WAB' }},
   {{ id: 'rate',      label: 'Rate' }},
@@ -14795,10 +14796,22 @@ function slSortRuns(key) {{
   const sv = showView;
   showView = function (v) {{
     document.body.classList.remove('hof-on');
+    document.getElementById('btn-hof').classList.remove('active');
     sv.apply(this, arguments);
     if (v === 'storylines' && slActiveTab === 'hof') slSwitchTab('dominance', 'Dominance');
   }};
 }})();
+// Sidebar -> Hall of Fame (its own entry under Miscellaneous; shown in the Misc view's hidden 'hof' tab)
+function openHof() {{
+  showView('storylines');
+  slSwitchTab('hof', 'Hall of Fame');
+  document.getElementById('btn-storylines').classList.remove('active');
+  document.getElementById('btn-hof').classList.add('active');
+  const lab = document.getElementById('mob-view');
+  if (lab) lab.textContent = 'Hall of Fame';
+  if (typeof toggleNav === 'function') toggleNav(false);
+  window.scrollTo(0, 0);
+}}
 function hofInit() {{
   document.body.classList.add('hof-on');
   const f = document.getElementById('hof-frame');
