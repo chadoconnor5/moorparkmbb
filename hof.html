@@ -186,8 +186,12 @@ function teamLines(h){const T=h.team||[],has=c=>T.find(x=>x[0]===c),o=[];
  return o.join('')}
 function teamSum(l,p){const n=c=>l.filter(h=>(h.team||[]).some(x=>x[0]===c)).length,o=[];
  const st=n('state'),fn=n('fin'),f4=n('f4'),e8=n('e8'),cf=n('conf'),x=(k,w)=>(k>1?k+'× ':'')+w;
+ const aw=c=>l.filter(h=>(h.b||[]).some(b=>b[0]===c));
+ const rp={};aw('poy').forEach(h=>{rp[h.region]=(rp[h.region]||0)+1});
+ Object.entries(rp).forEach(([r,k])=>o.push(`<b>${x(k,esc(r)+' Player of the Year')}</b>`));
  if(st)o.push(`<b>${x(st,'State Champion')}</b>`);
  const mv=p?Object.entries(RAW.mvp||{}).filter(([s,m])=>m.name===p.name&&m.team===p.school).length:0;if(mv)o.push(`<b>${x(mv,'State Tournament MVP')}</b>`);
+ const cp=aw('cpoy').length;if(cp)o.push(`<b>${x(cp,'Conference Player of the Year')}</b>`);
  if(fn>st)o.push(x(fn-st,'State Runner-up'));
  if(f4)o.push(x(f4,'Final Four'));
  if(e8)o.push(x(e8,'Elite Eight'));
