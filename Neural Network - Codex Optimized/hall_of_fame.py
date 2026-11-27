@@ -26,6 +26,7 @@ from pathlib import Path
 CUR = "2627"                       # the season being played: its players aren't eligible yet
 LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
+JERSEYS_MAX = 999                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
 SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)
 FLOOR_PPG = 10.4                   # a top-25% scoring season
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
@@ -206,7 +207,7 @@ def build(season_files):
                     GAMES[M(r["n"]) + "|" + team].append({
                         "s": s, "d": g["d"], "opp": opp, "ccc": opp in CCC[s], "net": next((t.get("net_rtg") for t in teams[s] if t["team"] == opp), None) if r0 else None,
                         "rk": r0, "N": N, "tier": tier, "quad": quad, "w": won, "score": f"{sc.get(team)}-{sc.get(opp)}",
-                        "gs": round(gs, 1), "bpm": r.get("bpm"), "min": r.get("min"), "pts": r["pts"], "reb": r["or"] + r["dr"],
+                        "j": r.get("j"), "gs": round(gs, 1), "bpm": r.get("bpm"), "min": r.get("min"), "pts": r["pts"], "reb": r["or"] + r["dr"],
                         "or": r["or"], "dr": r["dr"], "ast": r["ast"], "stl": r["stl"], "blk": r["blk"], "tpm": r["tpm"],
                         "fgm": r["fgm"], "fga": r["fga"], "ftm": r["ftm"], "fta": r["fta"], "twom": r["fgm"] - r["tpm"],
                         "twoa": r["fga"] - r["tpa"], "tpa": r["tpa"], "to": r["to"], "pf": r["pf"]})
@@ -242,6 +243,11 @@ def build(season_files):
     # the pool scored: every first-team All-State player whose career is over, plus everyone already inducted
     cands = [k for k, v in P.items() if v["as1"] and k not in active]
     cands += [k for k in store["inducted"] if k in P and k not in cands]
+    HOFC = set(cands)
+    # Retired Jerseys candidates (scored on the same scale, never part of the Hall's own percentiles): finished careers
+    # with All-State (any) or All-Conference 1st Team at that school
+    JC = [k for k, v in P.items() if k not in active and k not in HOFC and any(
+        b[0] == "allstate" or (b[0] == "allconf" and b[1] >= 3) for p_ in v["seasons"].values() for b in (p_.get("bdg") or []))]
 
     # --- resume score ---
     IMP = {}
@@ -273,7 +279,7 @@ def build(season_files):
             IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp_of[id(p)], place[id(p)],
                                                           imp_of[id(p)] if p in real else min(EST_CAP, imp_of[id(p)]))
     rows = []
-    for k in cands:
+    for k in cands + JC:
         school = k.split("|")[1]
         ss = [(s, IMP[(s, k)]) for s in P[k]["seasons"] if (s, k) in IMP]
         if not ss:
@@ -302,16 +308,19 @@ def build(season_files):
         rows.append({"k": k, "impact": impact, "impact_c": impact_c, "win": win, "qval": qval, "bgs": sum(x[2] for x in t12) / n12 if n12 else 0,
                      "bgn": n12, "hon": P[k]["aw"], "quads": {q: Q[q][:2] for q in Q}})
     for c in ("impact", "impact_c", "win", "qval", "bgs", "hon"):
-        f = _pct_fn([r[c] for r in rows])
+        f = _pct_fn([r[c] for r in rows if r["k"] in HOFC])
         for r in rows:
             r[c + "_p"] = f(r[c])
     for r in rows:
         rel = min(1, r["bgn"] / 10)
         r["big"] = .6 * r["qval_p"] + .4 * (rel * r["bgs_p"] + (1 - rel) * .5)
-    f = _pct_fn([r["big"] for r in rows])
+    f = _pct_fn([r["big"] for r in rows if r["k"] in HOFC])
     for r in rows:
         r["big_p"] = f(r["big"])
         r["score"] = 100 * (.35 * r["win_p"] + .30 * r["impact_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
+        r["score_o"] = 100 * (.35 * r["win_p"] + .30 * r["impact_c_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
+    JROWS = [r for r in rows if r["k"] not in HOFC]
+    rows = [r for r in rows if r["k"] in HOFC]
     rows.sort(key=lambda r: -r["score"])
     for r in rows:          # in: a resume at the cut or better; once in, always in
         v, school = P[r["k"]], r["k"].split("|")[1]
@@ -556,7 +565,57 @@ def build(season_files):
                          "dd": c["dd"], "td": c["td"]}
     res = {r["k"]: {"score": round(r["score_o"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_c_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
-    return {"order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
+    # --- Retired Jerseys: each school's best careers, judged against its own players (less strict than the Hall):
+    # every Hall of Famer from the school, then its best other resumes, JERSEYS_MAX in all ---
+    try:
+        from generate_team_pages import SCHOOL_COLORS, SCHOOL_SECONDARY_COLORS
+    except Exception:
+        SCHOOL_COLORS, SCHOOL_SECONDARY_COLORS = {}, {}
+    sc_of = {r["k"]: r["score_o"] for r in rows + JROWS}
+    by_school = defaultdict(list)
+    for k in keys:
+        by_school[k.split("|")[1]].append(k)
+    for r in sorted(JROWS, key=lambda r: -r["score_o"]):
+        sch = r["k"].split("|")[1]
+        if len(by_school[sch]) < JERSEYS_MAX:
+            by_school[sch].append(r["k"])
+
+    def jersey(k):
+        name, school = k.split("|")
+        v = P[k]
+        # the number he wore in the most games (a tie: the later season's)
+        nums = Counter(str(g["j"]).lstrip("#") for g in GAMES.get(k, []) if g.get("j") not in (None, ""))
+        last = {str(g["j"]).lstrip("#"): g["s"] for g in sorted(GAMES.get(k, []), key=lambda g: g["s"]) if g.get("j") not in (None, "")}
+        nums = Counter({n_: (c_, last.get(n_, "")) for n_, c_ in nums.items()})
+        bd = [(s, b) for s, p_ in v["seasons"].items() for b in (p_.get("bdg") or [])]
+        n = lambda f: sum(1 for s, b in bd if f(b))
+        parts = []
+        for label, cnt in (("Region Player of the Year", n(lambda b: b[0] == "poy")),
+                           ("Conference Player of the Year", n(lambda b: b[0] == "cpoy")),
+                           ("Conference Defensive Player of the Year", n(lambda b: b[0] == "cdpoy")),
+                           ("Conference Offensive Player of the Year", n(lambda b: b[0] == "copoy")),
+                           ("Sixth Man of the Year", n(lambda b: b[0] == "c6moy")),
+                           ("Freshman of the Year", sum(1 for s in v["seasons"] if (s, k) in FOY)),
+                           ("All-State 1st Team", n(lambda b: b[0] == "allstate" and b[1] >= 3)),
+                           ("All-State Honorable Mention", n(lambda b: b[0] == "allstate" and b[1] == 2)),
+                           ("All-Conference 1st Team", n(lambda b: b[0] == "allconf" and b[1] >= 3))):
+            if cnt:
+                parts.append((f"{cnt}× " if cnt > 1 else "") + label)
+        tm = [x[0] for s in v["seasons"] for x in TITLES.get(s, {}).get(school, [])]
+        for code, label in (("state", "State Champion"), ("f4", "Final Four"), ("conf", "Conference Champion")):
+            if tm.count(code):
+                parts.append((f"{tm.count(code)}× " if tm.count(code) > 1 else "") + label)
+        recs = sorted({tg for (kk, d), tags in REC.items() if kk == k for tg in tags if tg.startswith(("School record", "Tied school", "State record", "Tied state"))})
+        gl = [g for g in GAMES.get(k, []) if g["ccc"]]
+        gp = len(gl)
+        return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": k in K,
+                "yrs": sorted(v["seasons"]), "why": parts, "recs": recs, "score": round(sc_of.get(k, 0), 1),
+                "line": (f"{sum(g['pts'] for g in gl) / gp:.1f} pts, {sum(g['reb'] for g in gl) / gp:.1f} reb, "
+                         f"{sum(g['ast'] for g in gl) / gp:.1f} ast") if gp else ""}
+    jerseys = {s: sorted([jersey(k) for k in ks], key=lambda j: (not j["hof"], -j["score"])) for s, ks in by_school.items()}
+    colors = {s: [SCHOOL_COLORS.get(s), SCHOOL_SECONDARY_COLORS.get(s)] for s in jerseys}
+
+    return {"jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 
