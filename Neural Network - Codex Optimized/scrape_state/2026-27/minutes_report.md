@@ -1,6 +1,6 @@
 # Box score minutes — 2026-27
 
-Updated 2026-11-26T16:03:24
+Updated 2026-11-26T16:26:20
 
 REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minute · WRONG_TOTAL = minutes that don't add up (bench-at-0 boxes the play-by-play couldn't fix count here) · NONE = no minutes · minutes rebuilt from the play-by-play count as real
 
@@ -264,8 +264,8 @@ REAL = real minutes (team total 190-275) · PLACEHOLDER = every player at 1 minut
 | 2026-11-21 | Columbia vs San Francisco | Columbia: PLACEHOLDER (9 min), San Francisco: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_8ziv.xml |
 | 2026-11-21 | Contra Costa vs Sierra | Contra Costa: PLACEHOLDER (12 min), Sierra: PLACEHOLDER (9 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_1hqw.xml |
 | 2026-11-21 | Cosumnes River vs Foothill | Foothill: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_sowj.xml |
-| 2026-11-21 | De Anza vs Gavilan | Gavilan: PLACEHOLDER (8 min), De Anza: PLACEHOLDER (16 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_3gx3.xml |
-| 2026-11-21 | Hartnell vs Solano | Solano: PLACEHOLDER (11 min), Hartnell: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_qxff.xml |
+| 2026-11-21 | De Anza vs Gavilan | De Anza: PLACEHOLDER (16 min), Gavilan: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_3gx3.xml |
+| 2026-11-21 | Hartnell vs Solano | Hartnell: PLACEHOLDER (12 min), Solano: PLACEHOLDER (11 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_qxff.xml |
 | 2026-11-21 | Las Positas vs Monterey Peninsula | Monterey Peninsula: PLACEHOLDER (12 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_m6b8.xml |
 | 2026-11-21 | Lassen vs Lemoore | Lassen: PLACEHOLDER (9 min), Lemoore: PLACEHOLDER (13 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_5qdi.xml |
 | 2026-11-21 | Redwoods vs Mendocino | Mendocino: PLACEHOLDER (8 min) | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261121_703k.xml |
