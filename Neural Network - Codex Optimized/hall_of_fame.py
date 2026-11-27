@@ -454,6 +454,7 @@ def build(season_files):
 
     # --- records (Record Book #1s, ties included) for the signature-game tags ---
     REC = defaultdict(list)
+    RECOPP = {}
 
     def tops(lst):
         return [x for x in lst if lst and x[0] == lst[0][0]]
@@ -463,6 +464,7 @@ def build(season_files):
             for c, nm in REC_CATS.items():
                 tl = tops(st.get(per, {}).get("ig_" + c, []))
                 for x in tl:     # shared with someone else: "Tied ..."
+                    RECOPP[(M(x[1]) + "|" + x[2], x[4])] = x[3]
                     REC[(M(x[1]) + "|" + x[2], x[4])].append(f"{'Tied ' + lab[0].lower() + lab[1:] if len(tl) > 1 else lab}: {x[0]} {nm}")
     for fn, js in season_files.items():
         if fn.startswith("records_") and fn != "records_state.js" and not fn.endswith("_cur.js") and fn.endswith(".js"):
@@ -470,6 +472,7 @@ def build(season_files):
             for c, nm in REC_CATS.items():
                 tl = tops(a.get("ig_" + c, []))
                 for x in tl:
+                    RECOPP[(M(x[1]) + "|" + x[2], x[4])] = x[3]
                     REC[(M(x[1]) + "|" + x[2], x[4])].append(f"{'Tied school record' if len(tl) > 1 else 'School record'}: {x[0]} {nm}")
 
     # --- per inductee: Hall of Fame badge lines, honors by season, signature games, career averages ---
@@ -596,27 +599,32 @@ def build(season_files):
         last = {str(g["j"]).lstrip("#"): g["s"] for g in sorted(GAMES.get(k, []), key=lambda g: g["s"]) if g.get("j") not in (None, "")}
         nums = Counter({n_: (c_, last.get(n_, "")) for n_, c_ in nums.items()})
         bd = [(s, b) for s, p_ in v["seasons"].items() for b in (p_.get("bdg") or [])]
-        n = lambda f: sum(1 for s, b in bd if f(b))
-        parts = []
-        for label, cnt in (("Region Player of the Year", n(lambda b: b[0] == "poy")),
-                           ("Conference Player of the Year", n(lambda b: b[0] == "cpoy")),
-                           ("Conference Defensive Player of the Year", n(lambda b: b[0] == "cdpoy")),
-                           ("Conference Offensive Player of the Year", n(lambda b: b[0] == "copoy")),
-                           ("Sixth Man of the Year", n(lambda b: b[0] == "c6moy")),
-                           ("Freshman of the Year", sum(1 for s in v["seasons"] if (s, k) in FOY)),
-                           ("All-State 1st Team", n(lambda b: b[0] == "allstate" and b[1] >= 3)),
-                           ("All-State Honorable Mention", n(lambda b: b[0] == "allstate" and b[1] == 2)),
-                           ("All-Conference 1st Team", n(lambda b: b[0] == "allconf" and b[1] >= 3))):
-            if cnt:
-                parts.append((f"{cnt}× " if cnt > 1 else "") + label)
-        tm = [x[0] for s in v["seasons"] for x in TITLES.get(s, {}).get(school, [])]
+        Y = lambda ss: ", ".join("20" + s[:2] + "-" + s[2:] for s in sorted(set(ss)))
+        yrs_of = lambda f: [s for s, b in bd if f(b)]
+        parts = []      # each award with the season(s) in front: "2024-25 Sixth Man of the Year"
+        for label, ss in (("Region Player of the Year", yrs_of(lambda b: b[0] == "poy")),
+                          ("Conference Player of the Year", yrs_of(lambda b: b[0] == "cpoy")),
+                          ("Conference Defensive Player of the Year", yrs_of(lambda b: b[0] == "cdpoy")),
+                          ("Conference Offensive Player of the Year", yrs_of(lambda b: b[0] == "copoy")),
+                          ("Sixth Man of the Year", yrs_of(lambda b: b[0] == "c6moy")),
+                          ("Freshman of the Year", [s for s in v["seasons"] if (s, k) in FOY]),
+                          ("All-State 1st Team", yrs_of(lambda b: b[0] == "allstate" and b[1] >= 3)),
+                          ("All-State Honorable Mention", yrs_of(lambda b: b[0] == "allstate" and b[1] == 2)),
+                          ("All-Conference 1st Team", yrs_of(lambda b: b[0] == "allconf" and b[1] >= 3))):
+            if ss:
+                parts.append(f"{Y(ss)} {label}")
         for code, label in (("state", "State Champion"), ("f4", "Final Four"), ("conf", "Conference Champion")):
-            if tm.count(code):
-                parts.append((f"{tm.count(code)}× " if tm.count(code) > 1 else "") + label)
-        recs = sorted({tg for (kk, d), tags in REC.items() if kk == k for tg in tags if tg.startswith(("School record", "Tied school", "State record", "Tied state"))})
+            ss = [s for s in v["seasons"] if any(x[0] == code for x in TITLES.get(s, {}).get(school, []))]
+            if ss:
+                parts.append(f"{Y(ss)} {label}")
+        # each record with its opponent and date: "School record: 42 points vs Santa Ana, 12/15/2023"
+        recs = sorted({f"{tg} vs {RECOPP.get((kk, d), '?')}, {d}" for (kk, d), tags in REC.items() if kk == k for tg in tags
+                       if tg.startswith(("School record", "Tied school", "State record", "Tied state"))})
         gl = [g for g in GAMES.get(k, []) if g["ccc"]]
         gp = len(gl)
+        ps = [(p_.get("gp") or 0, s, p_.get("pos")) for s, p_ in v["seasons"].items() if p_.get("pos")]
         return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": k in K,
+                "ht": height(k, v), "pos": max(ps)[2] if ps else "",
                 "yrs": sorted(v["seasons"]), "why": parts, "recs": recs, "score": round(sc_of.get(k, 0), 1),
                 "line": (f"{sum(g['pts'] for g in gl) / gp:.1f} pts, {sum(g['reb'] for g in gl) / gp:.1f} reb, "
                          f"{sum(g['ast'] for g in gl) / gp:.1f} ast") if gp else ""}
