@@ -452,14 +452,16 @@ def build(season_files):
         st = _obj(season_files["records_state.js"])["lists"]
         for per, lab in [("all", "State record")] + [(p, "State season high") for p in st if p != "all"]:
             for c, nm in REC_CATS.items():
-                for x in tops(st.get(per, {}).get("ig_" + c, [])):
-                    REC[(M(x[1]) + "|" + x[2], x[4])].append(f"{lab}: {x[0]} {nm}")
+                tl = tops(st.get(per, {}).get("ig_" + c, []))
+                for x in tl:     # shared with someone else: "Tied ..."
+                    REC[(M(x[1]) + "|" + x[2], x[4])].append(f"{'Tied ' + lab[0].lower() + lab[1:] if len(tl) > 1 else lab}: {x[0]} {nm}")
     for fn, js in season_files.items():
         if fn.startswith("records_") and fn != "records_state.js" and not fn.endswith("_cur.js") and fn.endswith(".js"):
             a = _obj(js)["lists"].get("all", {})
             for c, nm in REC_CATS.items():
-                for x in tops(a.get("ig_" + c, [])):
-                    REC[(M(x[1]) + "|" + x[2], x[4])].append(f"School record: {x[0]} {nm}")
+                tl = tops(a.get("ig_" + c, []))
+                for x in tl:
+                    REC[(M(x[1]) + "|" + x[2], x[4])].append(f"{'Tied school record' if len(tl) > 1 else 'School record'}: {x[0]} {nm}")
 
     # --- per inductee: Hall of Fame badge lines, honors by season, signature games, career averages ---
     STAT = ["gp", "ppg", "rpg", "apg", "spg", "bpg", "tpm", "tpa", "tpp", "twom", "twoa", "twop", "ftm", "fta", "ftp", "bpm",
@@ -549,7 +551,8 @@ def build(season_files):
                 c["m"] += g["min"]
         if c["gp"]:
             career[k] = {"gp": c["gp"], "ppg": round(c["pts"] / c["gp"], 1), "rpg": round(c["reb"] / c["gp"], 1),
-                         "apg": round(c["ast"] / c["gp"], 1), "bpm": round(c["bm"] / c["m"], 1) if c["m"] else None,
+                         "apg": round(c["ast"] / c["gp"], 1), "bpm": (lambda ss: round(sum(p_["bpm"] * p_["gp"] * (p_.get("mpg") or 1) for p_ in ss) / sum(p_["gp"] * (p_.get("mpg") or 1) for p_ in ss), 1) if ss else None)(
+                             [p_ for p_ in P[k]["seasons"].values() if p_.get("bpm") is not None and p_.get("gp")]),
                          "dd": c["dd"], "td": c["td"]}
     res = {r["k"]: {"score": round(r["score_o"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_c_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
