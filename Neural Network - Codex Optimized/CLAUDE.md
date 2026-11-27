@@ -135,6 +135,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   two unlogged layups added, a free throw corrected). 11/5 Feather River at San Jose (log and film stop at 78-76, film-checked;
   Sandy's layup added; the last 10 points aren't available). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
   (not read) until settled.
+- Individual Stats DD / TD columns (attach_doubles): double-doubles / triple-doubles per player-season, 10+ in two /
+  three of points, rebounds, assists, steals, blocks, counted from the season's box scores (name + team). Full-season
+  scope only (other scopes show —).
 - Misc -> Records (record_book.py, rbInit / rbRender): Statewide or one team, All-time (2017-18 on) or one season,
   eight groups: Individual single game / season / season per game / career / career per game (career: all-time only),
   Team single game / season / season per game. Every basic box-score stat (PTS, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB,
