@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
-LOCKED = False                     # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
+LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)
 FLOOR_PPG = 10.4                   # a top-25% scoring season
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
