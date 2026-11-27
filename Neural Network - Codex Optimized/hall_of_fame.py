@@ -616,7 +616,9 @@ def build(season_files):
         recs = sorted({tg for (kk, d), tags in REC.items() if kk == k for tg in tags if tg.startswith(("School record", "Tied school", "State record", "Tied state"))})
         gl = [g for g in GAMES.get(k, []) if g["ccc"]]
         gp = len(gl)
+        ps = [(p_.get("gp") or 0, s, p_.get("pos")) for s, p_ in v["seasons"].items() if p_.get("pos")]
         return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": k in K,
+                "ht": height(k, v), "pos": max(ps)[2] if ps else "",
                 "yrs": sorted(v["seasons"]), "why": parts, "recs": recs, "score": round(sc_of.get(k, 0), 1),
                 "line": (f"{sum(g['pts'] for g in gl) / gp:.1f} pts, {sum(g['reb'] for g in gl) / gp:.1f} reb, "
                          f"{sum(g['ast'] for g in gl) / gp:.1f} ast") if gp else ""}
