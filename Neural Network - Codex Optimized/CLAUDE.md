@@ -169,8 +169,10 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   frame that sizes itself, hofInit). It takes the whole page but the sidebar (body.hof-on hides the season row, the
   Misc tab list and the title; the sidebar's Miscellaneous goes back to Dominance). In: first-team All-State,
   career over (not on a 2026-27 roster / box at that school), resume score RESUME_CUT (43.2: the top 2% through
-  2025-26) or better, or automatically as a Region Player of the Year or a two-time first-team All-State; badges don't decide it. Once in, always in: hall_of_fame.json keeps every inductee (never
-  remove one). Ordered by a resume score: winning 35% (team win %, net rank, state run; scaled by his place on his
+  2025-26) or better, or automatically as a Region Player of the Year or a two-time first-team All-State; badges don't decide it. Unlocked for now (LOCKED = False: the rule alone decides each build; True = once in, always in,
+  hall_of_fame.json keeping every inductee). Impact for players without real minutes: predicted from per-game box
+  numbers, TS% and team strength, fitted each season on the real-minutes players (same scale); his place on his team
+  ranks by impact (not points + rebounds + assists, which favored bigs). Ordered by a resume score: winning 35% (team win %, net rank, state run; scaled by his place on his
   team), impact 30% (PRPG! + BPM percentile), honors 20% (awards, All-State / All-Conference; not badges), big games
   15% (quad results Q1A-Q4 + Game Score vs Q1A-Q2). Plaques: all honors by season, team titles (conference = best
   conference record; Elite Eight / Final Four / title game from the box scores; 2019-20 canceled), State Tournament MVP
