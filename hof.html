@@ -144,6 +144,22 @@ details summary::-webkit-details-marker{display:none}
 .bn .ln{font-size:12.5px;opacity:.8;margin-top:6px}
 .bn:after{content:"";position:absolute;left:10px;right:10px;bottom:9%;height:2px;background:var(--ac);opacity:.7}
 @media(max-width:560px){.rafters{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 10px}.bn{min-height:280px;padding:16px 8px 44px}.bn .no{font-size:56px}.bn .nm{font-size:12px}.bn ul{font-size:12px}}
+.rafters{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:28px 16px}
+.bn{clip-path:none;box-shadow:none;min-height:0;padding:14px 4px 0;border-top:0;cursor:pointer;background:none!important;transition:transform .15s}
+.bn:hover{transform:translateY(-3px)}
+.bn:after{display:none}
+.bn .hang{width:2px;height:14px;background:var(--gold3);margin:-14px auto 0}
+.jsy{width:100%;max-width:170px;display:block;margin:0 auto;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+.bn .cap{font-family:Cinzel,serif;font-size:12.5px;letter-spacing:.06em;color:var(--ink2);margin-top:8px;text-align:center}
+.bn .cap span{color:var(--gold2)}
+#jm{position:absolute;left:0;right:0;top:0;background:rgba(5,6,9,.78);display:none;z-index:50;padding:0 14px}
+.jmb{position:relative;margin-left:auto;margin-right:auto;background:linear-gradient(170deg,#1f2330,#12151c);border:1px solid var(--gold);border-radius:6px;padding:22px;max-width:520px;width:100%}
+.jmh{display:flex;gap:16px;align-items:center}.jmh .jsy{width:110px;flex:none;margin:0}
+.jx{position:absolute;top:8px;right:12px;background:none;border:0;color:var(--gold2);font-size:28px;cursor:pointer}
+.hfm{display:inline-block;margin-top:6px;font-family:Cinzel,serif;font-size:11px;letter-spacing:.2em;color:#1a1206;background:linear-gradient(90deg,var(--gold2),var(--gold));padding:2px 10px;border-radius:2px}
+.jr{list-style:none;font-family:Cinzel,serif;font-size:13px;letter-spacing:.04em;color:var(--gold2)}.jr li{padding:3px 0;border-bottom:1px dotted rgba(216,178,90,.15)}.jr li.rc{color:var(--ink2);font-family:'Cormorant Garamond',serif;font-size:15.5px;letter-spacing:0}
+.jl{margin-top:10px;color:var(--ink2);font-style:italic}
+@media(max-width:560px){.rafters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .jhead{text-align:center;font-family:Cinzel,serif;color:var(--gold);letter-spacing:.25em;margin:26px 0 0;font-size:15px}
 .jhead small{display:block;font-family:'Cormorant Garamond',serif;letter-spacing:0;color:var(--ink3);font-style:italic;font-size:15px;margin-top:4px}
 .empty{text-align:center;color:var(--ink3);font-style:italic;margin-top:30px}
@@ -161,6 +177,7 @@ details summary::-webkit-details-marker{display:none}
  <div id="jsel" style="display:none;text-align:center;margin-top:12px"><select id="jschool" class="jschool"></select></div>
 </div>
 <div id="out"></div>
+<div id="jm" onclick="jclose()"></div>
 <div class="foot">Every season since 2017-18 · signature games and big-game records from every box score</div>
 <div id="hf-loading" style="text-align:center;color:#8a6a2a;font-style:italic;padding:40px">Opening the Hall…</div>
 <script>
@@ -253,12 +270,27 @@ function plaque(p,legend){const yrs=p.seasons.map(yr).join(' · ');
  const why=`<div class="gh wh">WHY HE'S HERE</div>${entry(p)}`+(p.list.length?`<ul class="why">`+p.list.map(d=>`<li><span class="e">${B[d.code][0]}</span><span class="s">${yr(d.season)}</span><span><b>${B[d.code][1]}</b> <span class="d">— ${B[d.code][2](d)}</span></span></li>`).join('')+'</ul>':'');
  return `<div class="plaque${legend?' legend':''}"><span class="num">No. ${p.rank}</span><div class="hd"><div class="count">${Math.round(p.res.score)}</div><div class="who"><div class="cl">RESUME SCORE</div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.school)} · <i>${yrs}</i></div>${(()=>{const b=(RAW.bio||{})[p.name+'|'+p.school]||{},o=[];if(b.ht)o.push(esc(b.ht));if((b.pos||[]).length)o.push(b.pos.map(esc).join(' / '));return o.length?'<div class="bio">'+o.join(' · ')+'</div>':''})()}</div>${peak(p)}${teamSum(RAW.hon[p.name+'|'+p.school]||[],p)}${resBars(p)}</div><div class="orn">✦</div><div class="cols"><div>${honors(p)}${why}</div><div>${games(p)}</div></div></div>`}
 function lum(h){if(!h)return 0;const c=h.replace('#','');const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16);return (.299*r+.587*g+.114*b)/255}
+function jersey(j,bg,fg,ac){const nm=esc(j.name.split(' ').slice(-1)[0].toUpperCase()),n=esc(j.j||'');
+ return `<svg viewBox="0 0 200 240" class="jsy"><path d="M52 4 L76 4 Q100 38 124 4 L148 4 L150 26 Q158 58 192 64 L192 236 L8 236 L8 64 Q42 58 50 26 Z" fill="${bg}" stroke="${ac}" stroke-width="5" stroke-linejoin="round"/>`+
+  `<path d="M76 4 Q100 38 124 4" fill="none" stroke="${ac}" stroke-width="9"/><path d="M150 26 Q158 58 192 64 M50 26 Q42 58 8 64" fill="none" stroke="${ac}" stroke-width="9"/>`+
+  `<text x="100" y="${nm.length>9?84:86}" text-anchor="middle" font-family="Cinzel,serif" font-weight="700" font-size="${nm.length>11?13:nm.length>8?15:18}" letter-spacing="2" fill="${fg}">${nm}</text>`+
+  `<text x="100" y="186" text-anchor="middle" font-family="Cinzel,serif" font-weight="900" font-size="${n.length>1?92:104}" fill="${ac}" stroke="${fg}" stroke-width="2.5" paint-order="stroke">${n}</text></svg>`}
+let JLIST=[],JCOL=[];
 function jerseys(t){const J=RAW.jerseys||{},sel=document.getElementById('jschool');
  if(!sel.options.length){sel.innerHTML=Object.keys(J).sort().map(s=>`<option>${esc(s)}</option>`).join('');sel.value=J['Moorpark']?'Moorpark':sel.options[0].value;sel.onchange=render}
  if(t){const hit=Object.keys(J).find(s=>s.toLowerCase().includes(t))||Object.keys(J).find(s=>J[s].some(j=>j.name.toLowerCase().includes(t)));if(hit)sel.value=hit}
  const s=sel.value,L=J[s]||[],c=(RAW.colors||{})[s]||[],bg=c[0]||'#1f2330',fg=lum(bg)>.6?'#14161c':'#fff',ac=c[1]&&c[1]!==bg?c[1]:fg;
- return `<div class="jhead">${esc(s).toUpperCase()} · RETIRED JERSEYS<small>${L.length} honored · All-State or All-Conference 1st Team, judged against their own school</small></div><div class="rafters">`+
-  L.map(j=>`<div class="bn" style="background:${bg};color:${fg};--ac:${ac}"><div class="nm">${esc(j.name)}</div><div class="no" style="color:${ac};text-shadow:0 2px 0 rgba(0,0,0,.25)">${esc(j.j||'—')}</div><div class="yr">${j.yrs.map(yr).join(' · ')}</div>${j.hof?'<div class="hf">HALL OF FAME</div>':''}<ul>${j.why.slice(0,5).map(w=>`<li>${esc(w)}</li>`).join('')}${j.recs.slice(0,2).map(w=>`<li>${esc(w)}</li>`).join('')}</ul><div class="ln">${esc(j.line)}</div></div>`).join('')+'</div>'}
+ JLIST=L;JCOL=[s,bg,fg,ac];
+ return `<div class="jhead">${esc(s).toUpperCase()} · RETIRED JERSEYS<small>${L.length} honored · tap a jersey for his resume</small></div><div class="rafters">`+
+  L.map((j,i)=>`<div class="bn" onclick="jopen(${i},this)"><div class="hang"></div>${jersey(j,bg,fg,ac)}<div class="cap">${esc(j.name)}${j.hof?' <span>★</span>':''}</div></div>`).join('')+'</div>'}
+function jopen(i,el){const j=JLIST[i],[s,bg,fg,ac]=JCOL;
+ const m=document.getElementById('jm');m.innerHTML=`<div class="jmb" onclick="event.stopPropagation()"><button class="jx" onclick="jclose()">×</button><div class="jmh">${jersey(j,bg,fg,ac)}<div><div class="name" style="font-size:26px">${esc(j.name)}</div><div class="meta">${esc(s)} · <i>${j.yrs.map(yr).join(' · ')}</i></div>${j.hof?'<div class="hfm">HALL OF FAME</div>':''}</div></div>`+
+  `<div class="gh" style="margin-top:14px">RESUME</div><ul class="jr">${j.why.map(w=>`<li>${esc(w)}</li>`).join('')}${j.recs.map(w=>`<li class="rc">${esc(w)}</li>`).join('')}</ul>${j.line?`<div class="jl">Career: ${esc(j.line)}</div>`:''}</div>`;
+ // the page sits in the leaderboard's frame at full height (the frame doesn't scroll): open the card beside the jersey
+ m.style.height=document.documentElement.scrollHeight+'px';m.style.display='block';
+ const top=(el?el.getBoundingClientRect().top+window.scrollY:window.scrollY)-30;m.firstChild.style.marginTop=Math.max(20,top)+'px'}
+function jclose(){document.getElementById('jm').style.display='none'}
+window.jopen=jopen;window.jclose=jclose;
 function render(){const t=document.getElementById('q').value.trim().toLowerCase();
  document.getElementById('jsel').style.display=VIEW==='jersey'?'block':'none';
  if(VIEW==='jersey'){document.getElementById('out').innerHTML=jerseys(t);return}
