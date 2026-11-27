@@ -173,7 +173,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Player of the Year award, Gold+ Glue Guy or Rim Protector, Defensive Anchor, state title / Final Four); automatically as a
   Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG 19.8+); badges don't decide it. Locked (LOCKED = True: once in, always in; False = the rule alone decides each build;
   hall_of_fame.json keeping every inductee). Impact for players without real minutes: predicted from per-game box
-  numbers, TS% and team strength, fitted each season on the real-minutes players (same scale); his place on his team
+  numbers, TS% and team strength, fitted each season on the real-minutes players (same scale; capped at EST_CAP 0.90 for the order and shown
+  score only, never for who gets in); his place on his team
   ranks by impact (not points + rebounds + assists, which favored bigs). Ordered by a resume score: winning 35% (team win %, net rank, state run; scaled by his place on his
   team), impact 30% (PRPG! + BPM percentile), honors 20% (awards, All-State / All-Conference; not badges), big games
   15% (quad results Q1A-Q4 + Game Score vs Q1A-Q2). Plaques: all honors by season, team titles (conference = best

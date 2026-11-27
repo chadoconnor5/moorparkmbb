@@ -25,6 +25,7 @@ from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
 LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
+EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
 SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)
 FLOOR_PPG = 10.4                   # a top-25% scoring season
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
@@ -267,17 +268,22 @@ def build(season_files):
             for i, p in enumerate(sorted([x for x in q if x["school"] == sch], key=lambda x: -imp_of[id(x)])):
                 place[id(p)] = i
         for p in q:
-            IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp_of[id(p)], place[id(p)])
+            # (impact, place, impact for the order: an estimate capped at EST_CAP, so a prediction never outranks a
+            # measured PRPG! + BPM; who gets in uses the uncapped one, so the cap only orders the Hall)
+            IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp_of[id(p)], place[id(p)],
+                                                          imp_of[id(p)] if p in real else min(EST_CAP, imp_of[id(p)]))
     rows = []
     for k in cands:
         school = k.split("|")[1]
         ss = [(s, IMP[(s, k)]) for s in P[k]["seasons"] if (s, k) in IMP]
         if not ss:
-            ss = [(s, (.5, 3)) for s in P[k]["seasons"]]
+            ss = [(s, (.5, 3, .5)) for s in P[k]["seasons"]]
         imps = sorted((x[1][0] for x in ss), reverse=True)
         impact = (2 * imps[0] + (imps[1] if len(imps) > 1 else imps[0])) / 3
+        ic = sorted((x[1][2] for x in ss), reverse=True)
+        impact_c = (2 * ic[0] + (ic[1] if len(ic) > 1 else ic[0])) / 3
         win = 0
-        for s, (_, pl) in ss:
+        for s, (_, pl, _c) in ss:
             role = [1, .9, .8, .7][pl] if pl < 4 else .6
             tm = TEAM.get((s, school), {"wp": .5, "netp": .5})
             r_ = runs(s, school)
@@ -293,9 +299,9 @@ def build(season_files):
         qval = sum(x[0] * QWIN[q] - x[1] * QLOSS[q] for q, x in Q.items()) / n if n else 0
         t12 = [Q[q] for q in ("1A", "1", "2")]
         n12 = sum(x[0] + x[1] for x in t12)
-        rows.append({"k": k, "impact": impact, "win": win, "qval": qval, "bgs": sum(x[2] for x in t12) / n12 if n12 else 0,
+        rows.append({"k": k, "impact": impact, "impact_c": impact_c, "win": win, "qval": qval, "bgs": sum(x[2] for x in t12) / n12 if n12 else 0,
                      "bgn": n12, "hon": P[k]["aw"], "quads": {q: Q[q][:2] for q in Q}})
-    for c in ("impact", "win", "qval", "bgs", "hon"):
+    for c in ("impact", "impact_c", "win", "qval", "bgs", "hon"):
         f = _pct_fn([r[c] for r in rows])
         for r in rows:
             r[c + "_p"] = f(r[c])
@@ -324,6 +330,9 @@ def build(season_files):
             store["inducted"].setdefault(r["k"], prev.get(r["k"]) or {"since": datetime.now().strftime("%Y-%m-%d")})
     STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
     rows = [r for r in rows if r["k"] in store["inducted"]]
+    for r in rows:          # the order (and the score shown): the capped estimate
+        r["score_o"] = 100 * (.35 * r["win_p"] + .30 * r["impact_c_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
+    rows.sort(key=lambda r: -r["score_o"])
     keys = [r["k"] for r in rows]
     K = set(keys)
 
@@ -542,7 +551,7 @@ def build(season_files):
             career[k] = {"gp": c["gp"], "ppg": round(c["pts"] / c["gp"], 1), "rpg": round(c["reb"] / c["gp"], 1),
                          "apg": round(c["ast"] / c["gp"], 1), "bpm": round(c["bm"] / c["m"], 1) if c["m"] else None,
                          "dd": c["dd"], "td": c["td"]}
-    res = {r["k"]: {"score": round(r["score"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_p"]),
+    res = {r["k"]: {"score": round(r["score_o"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_c_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
     return {"order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
