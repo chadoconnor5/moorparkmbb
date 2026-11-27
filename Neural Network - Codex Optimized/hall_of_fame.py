@@ -575,9 +575,17 @@ def build(season_files):
     by_school = defaultdict(list)
     for k in keys:
         by_school[k.split("|")[1]].append(k)
+    def jersey_worthy(k):
+        """All-State (any), a Player of the Year award (region / conference / offensive / defensive / sixth man), two
+        All-Conference 1st Teams, or a state title at that school."""
+        v, school = P[k], k.split("|")[1]
+        bd = [b for p_ in v["seasons"].values() for b in (p_.get("bdg") or [])]
+        return (any(b[0] == "allstate" for b in bd) or any(b[0] in ("poy", "cpoy", "copoy", "cdpoy", "c6moy") for b in bd)
+                or sum(1 for b in bd if b[0] == "allconf" and b[1] >= 3) >= 2
+                or any("state" in runs(s, school) for s in v["seasons"]))
     for r in sorted(JROWS, key=lambda r: -r["score_o"]):
         sch = r["k"].split("|")[1]
-        if len(by_school[sch]) < JERSEYS_MAX:
+        if len(by_school[sch]) < JERSEYS_MAX and jersey_worthy(r["k"]):
             by_school[sch].append(r["k"])
 
     def jersey(k):
