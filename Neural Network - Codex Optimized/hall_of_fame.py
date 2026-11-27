@@ -427,11 +427,40 @@ def build(season_files):
     # --- per inductee: Hall of Fame badge lines, honors by season, signature games, career averages ---
     STAT = ["gp", "ppg", "rpg", "apg", "spg", "bpg", "tpm", "tpa", "tpp", "twom", "twoa", "twop", "ftm", "fta", "ftp", "bpm",
             "obpm", "dbpm", "ws", "usage_pct", "shot_pct", "stl_pct", "blk_pct", "ast_rate", "oreb_pct", "dreb_pct"]
+    # height (typed in, else the 2025-26 roster pages) and box-score position(s) for the plaque
+    try:
+        HT = json.loads(Path(__file__).with_name("hall_of_fame_heights.json").read_text())
+    except Exception:
+        HT = {}
+    roster_ht = []
+    try:
+        import csv
+        for r in csv.DictReader(open(Path(__file__).with_name("internal_data") / "roster_heights_2025_26.csv", encoding="utf-8")):
+            m = re.search(r"([4-7])\s*['’\-]\s*(\d{1,2})", r.get("height") or "")
+            if m:
+                roster_ht.append((r["player"].lower(), r["team"].lower(), f"{m[1]}'{int(m[2])}\""))
+    except Exception:
+        pass
+
+    def height(k, v):
+        if HT.get(k):
+            return HT[k]
+        name, school = k.split("|")
+        if "2526" not in v["seasons"]:
+            return None
+        hits = {h for p_, t_, h in roster_ht if name.lower() in p_ and (school.lower() in t_ or school.split()[0].lower() in t_)}
+        if not hits:     # team names on the roster pages vary ("West Valley Basketball"): the name alone, if only one
+            hits = {h for p_, t_, h in roster_ht if name.lower() in p_}
+        return hits.pop() if len(hits) == 1 else None
+    bio = {}
     hof, hon, games, career, car = [], {}, {}, {}, {}
     for k in keys:
         name, school = k.split("|")
         v = P[k]
         car[k] = {"as1": v["as1"], "poy": v["poy"]}
+        # one position: the season he played the most games (the later one on a tie)
+        ps = [(p_.get("gp") or 0, s, p_.get("pos")) for s, p_ in v["seasons"].items() if p_.get("pos")]
+        bio[k] = {"ht": height(k, v), "pos": [max(ps)[2]] if ps else []}
         hon[k] = []
         for s in sorted(v["seasons"]):
             p = v["seasons"][s]
@@ -483,7 +512,7 @@ def build(season_files):
                          "apg": round(c["ast"] / c["gp"], 1), "bpm": round(c["bm"] / c["m"], 1) if c["m"] else None}
     res = {r["k"]: {"score": round(r["score"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
-    return {"order": keys, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
+    return {"order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 
