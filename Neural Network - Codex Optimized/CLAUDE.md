@@ -169,13 +169,17 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   frame that sizes itself, hofInit). It takes the whole page but the sidebar (body.hof-on hides the season row, the
   Misc tab list and the title; the sidebar's Miscellaneous goes back to Dominance). In: first-team All-State,
   career over (not on a 2026-27 roster / box at that school), resume score RESUME_CUT (43.2: the top 2% through
-  2025-26) or better; badges don't decide it. Once in, always in: hall_of_fame.json keeps every inductee (never
-  remove one). Ordered by a resume score: winning 35% (team win %, net rank, state run; scaled by his place on his
+  2025-26) or better and a top-25% scoring season (FLOOR_PPG 10.4) unless a role-player Hall of Famer (defensive / sixth-man /
+  Player of the Year award, Gold+ Glue Guy or Rim Protector, Defensive Anchor, state title / Final Four); automatically as a
+  Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG 19.8+); badges don't decide it. Locked (LOCKED = True: once in, always in; False = the rule alone decides each build;
+  hall_of_fame.json keeping every inductee). Impact for players without real minutes: predicted from per-game box
+  numbers, TS% and team strength, fitted each season on the real-minutes players (same scale); his place on his team
+  ranks by impact (not points + rebounds + assists, which favored bigs). Ordered by a resume score: winning 35% (team win %, net rank, state run; scaled by his place on his
   team), impact 30% (PRPG! + BPM percentile), honors 20% (awards, All-State / All-Conference; not badges), big games
   15% (quad results Q1A-Q4 + Game Score vs Q1A-Q2). Plaques: all honors by season, team titles (conference = best
   conference record; Elite Eight / Final Four / title game from the box scores; 2019-20 canceled), State Tournament MVP
   (champion's last 3 games, a blend), height and box-score position (the season with the most games) under the school
-  (hall_of_fame_heights.json typed in by hand, else the 2025-26 roster pages); career tiles include double-doubles / triple-doubles (CCCAA games), State All-Tournament Team (the 5 best of the tournament, Elite Eight on, MVP aside;
+  (hall_of_fame_heights.json typed in by hand, else the 2025-26 roster pages); career tiles include double-doubles / triple-doubles (CCCAA games); By Resume / By Class views (class = his last season: 2022-23 -> Class of 2023), State All-Tournament Team (the 5 best of the tournament, Elite Eight on, MVP aside;
   same blend, no spreading across teams), Conference Freshman of the Year (inferred: name not seen before; FRESHMAN_NOT
   for confirmed sophomores, 2022-23 Javohn Garcia), signature games (CCCAA opponents only, toughest first; top-1%
   Game Score / BPM, records, triple-doubles, career highs), quad records, career averages (CCCAA games). ~7 s a build;

@@ -2,7 +2,9 @@
 
 Who gets in: a first-team All-State player (Gold or Hall of Fame All-State badge) whose career is over (not on a
 current-season roster at that school) with a resume score of RESUME_CUT or better (the top 2% of players through
-2025-26). Badges don't decide it: the resume does. Once in, always in: hall_of_fame.json keeps every inductee and a
+2025-26) and a top-25% scoring season (FLOOR_PPG) unless he's a role-player Hall of Famer (a defensive / sixth-man /
+Player of the Year award, a Gold+ Glue Guy or Rim Protector season, Defensive Anchor, or a state title / Final Four);
+automatically as a Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG+). Badges don't decide it: the resume does. Once in, always in: hall_of_fame.json keeps every inductee and a
 later build never drops one; the cut stays fixed, so new seasons add players without pushing anyone out.
 
 Resume score (the order): winning 35% (team win %, net rank and deepest state run each season, scaled by his place
@@ -22,6 +24,9 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
+LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
+SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)
+FLOOR_PPG = 10.4                   # a top-25% scoring season
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
 FRESHMAN_NOT = {("2223", "Javohn Garcia"), ("2122", "Jonathan Ogugua"), ("2122", "Conner Jackson"), ("2122", "Scott Ator"), ("2223", "Sebastian Mendoza"), ("2324", "Alex Crawford"), ("2425", "Tyler Isaak"), ("2324", "KJay Bradley"), ("2425", "Zoe Holman"), ("2526", "Yoda Oke"), ("2526", "Leo Ricketts"), ("2526", "Dayvon Gates"), ("2526", "Mason Dorsey")}   # confirmed not freshmen that season
 STORE = Path(__file__).with_name("hall_of_fame.json")
@@ -230,28 +235,39 @@ def build(season_files):
         store = json.loads(STORE.read_text())
     except Exception:
         store = {"inducted": {}}
+    prev = store["inducted"]
+    if not LOCKED:          # unlocked: re-decided from scratch each build (an inductee's first date kept)
+        store = {"inducted": {}}
     # the pool scored: every first-team All-State player whose career is over, plus everyone already inducted
     cands = [k for k, v in P.items() if v["as1"] and k not in active]
     cands += [k for k in store["inducted"] if k in P and k not in cands]
 
     # --- resume score ---
     IMP = {}
+    import numpy as np
+    feats = lambda p, s: [p.get("ppg") or 0, p.get("rpg") or 0, p.get("apg") or 0, p.get("spg") or 0, p.get("bpg") or 0,
+                          p.get("topg") or 0, (p.get("ts_pct") or 0) / 100, TEAM.get((s, p["school"]), {"netp": .5})["netp"], 1]
     for s in past:
         q = [p for p in players[s] if p.get("q") and p.get("gp")]
         real = [p for p in q if not p.get("fm") and p.get("porp") is not None and p.get("bpm") is not None]
         zp, zb = _z([p["porp"] for p in real]), _z([p["bpm"] for p in real])
         rv = _pct_fn([zp(p["porp"]) + zb(p["bpm"]) for p in real])
-        gsp = lambda p: ((p.get("ppg") or 0) + 0.7 * (p.get("apg") or 0) + 0.5 * (p.get("rpg") or 0) + (p.get("spg") or 0)
-                         + 0.7 * (p.get("bpg") or 0) - (p.get("topg") or 0))
-        fmv, allv = _pct_fn([gsp(p) for p in q if p.get("fm")]), _pct_fn([gsp(p) for p in q])
-        pra = lambda p: (p.get("ppg") or 0) + (p.get("rpg") or 0) + (p.get("apg") or 0)
+        # players without real minutes: their impact percentile predicted from what doesn't need minutes (per-game box
+        # numbers, true shooting, the team's strength), fitted on this season's real-minutes players, so an estimate sits
+        # on the same scale as a real one (the old per-game Game Score percentile ran low: San Francisco's stars ~0.9)
+        if real:
+            A = np.array([feats(p, s) for p in real])
+            coef = np.linalg.lstsq(A, np.array([rv(zp(p["porp"]) + zb(p["bpm"])) for p in real]), rcond=None)[0]
+        est = lambda p: float(min(1, max(0, np.dot(feats(p, s), coef)))) if real else .5
+        imp_of = {id(p): (rv(zp(p["porp"]) + zb(p["bpm"])) if p in real else est(p)) for p in q}
+        # his place on his own team by impact (points + rebounds + assists favored bigs: rebounds made the center the
+        # "best player" and handed him the team's winning)
         place = {}
         for sch in {p["school"] for p in q}:
-            for i, p in enumerate(sorted([x for x in q if x["school"] == sch], key=lambda x: -pra(x))):
+            for i, p in enumerate(sorted([x for x in q if x["school"] == sch], key=lambda x: -imp_of[id(x)])):
                 place[id(p)] = i
         for p in q:
-            imp = rv(zp(p["porp"]) + zb(p["bpm"])) if p in real else fmv(gsp(p)) if p.get("fm") else allv(gsp(p))
-            IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp, place[id(p)])
+            IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp_of[id(p)], place[id(p)])
     rows = []
     for k in cands:
         school = k.split("|")[1]
@@ -292,8 +308,20 @@ def build(season_files):
         r["score"] = 100 * (.35 * r["win_p"] + .30 * r["impact_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
     rows.sort(key=lambda r: -r["score"])
     for r in rows:          # in: a resume at the cut or better; once in, always in
-        if r["score"] >= RESUME_CUT:
-            store["inducted"].setdefault(r["k"], {"since": datetime.now().strftime("%Y-%m-%d")})
+        v, school = P[r["k"]], r["k"].split("|")[1]
+        ppg = max((p_.get("ppg") or 0) for p_ in v["seasons"].values())
+        # automatic (the NBA's MVP / multi-time All-Star / elite-scorer pattern): Region Player of the Year, two
+        # first-team All-States, or a top-1% scoring season (SCORER_PPG+) as a first-team All-State
+        auto = v["poy"] or len(v["as1"]) >= 2 or ppg >= SCORER_PPG
+        # the scoring floor: a top-25% scoring season (FLOOR_PPG+), unless he's a role-player Hall of Famer (the
+        # Naismith's Cooper / Rodman / Ginobili / K.C. Jones): a defensive, sixth-man or Player of the Year award, a Gold
+        # or Hall of Fame Glue Guy / Rim Protector season, Defensive Anchor, or a state title / Final Four
+        bd = [b for p_ in v["seasons"].values() for b in (p_.get("bdg") or [])]
+        role = (any(b[0] in ("cdpoy", "c6moy", "cpoy", "anchor") for b in bd)
+                or any(b[0] in ("glue", "rimprot") and b[1] >= 3 for b in bd)
+                or any(runs(s, school) & {"state", "fin", "f4"} for s in v["seasons"]))
+        if auto or (r["score"] >= RESUME_CUT and (ppg >= FLOOR_PPG or role)):
+            store["inducted"].setdefault(r["k"], prev.get(r["k"]) or {"since": datetime.now().strftime("%Y-%m-%d")})
     STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
     rows = [r for r in rows if r["k"] in store["inducted"]]
     keys = [r["k"] for r in rows]
