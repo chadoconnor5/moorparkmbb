@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
-LOCKED = False                     # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
+LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
 JERSEYS_MAX = 999                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
 SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)

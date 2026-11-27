@@ -171,7 +171,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   career over (not on a 2026-27 roster / box at that school), resume score RESUME_CUT (43.2: the top 2% through
   2025-26) or better and a top-25% scoring season (FLOOR_PPG 10.4) unless a role-player Hall of Famer (defensive / sixth-man /
   Player of the Year award, Gold+ Glue Guy or Rim Protector, Defensive Anchor, state title / Final Four); automatically as a
-  Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG 19.8+); badges don't decide it. Unlocked (LOCKED = False: the rule alone decides each build; True = once in, always in,
+  Region Player of the Year, a two-time first-team All-State or a top-1% scorer (SCORER_PPG 19.8+); badges don't decide it. Locked (LOCKED = True: once in, always in; False = the rule alone decides each build;
   hall_of_fame.json keeping every inductee). Impact for players without real minutes: predicted from per-game box
   numbers, TS% and team strength, fitted each season on the real-minutes players (same scale; capped at EST_CAP 0.90 for the order and shown
   score only, never for who gets in); his place on his team
