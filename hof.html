@@ -116,7 +116,7 @@ details summary::-webkit-details-marker{display:none}
 .hd .sum i{font-style:normal;color:var(--gold3);margin:0 12px;font-size:10px;vertical-align:2px}
 .tm.st{background:none;color:var(--gold2);padding:0;font-weight:700;letter-spacing:.12em}
 .peak{flex-wrap:wrap;max-width:100%}
-@media(max-width:560px){.peak{width:100%;margin-left:0}.peak div{flex:1;min-width:0;padding:5px 2px}.peak b{font-size:17px}.peak span{font-size:8px;letter-spacing:.08em}}
+@media(max-width:560px){.peak{width:100%;margin-left:0}.peak div{flex:1 0 22%;min-width:0;padding:5px 2px}.peak b{font-size:17px}.peak span{font-size:8px;letter-spacing:.08em}}
 .qd{display:flex;width:100%;margin-top:10px;border:1px solid rgba(216,178,90,.25);border-radius:3px}
 .qd div{flex:1;text-align:center;padding:5px 2px;border-left:1px solid rgba(216,178,90,.15)}.qd div:first-child{border-left:0}
 .qd span{display:block;font-family:Cinzel,serif;font-size:10px;letter-spacing:.14em;color:var(--ink3)}
@@ -211,8 +211,8 @@ function honors(p){const l=HON[p.name+'|'+p.school]||[];if(!l.length)return'';
   h.b.filter(x=>B[x[0]]&&x[0]!=='allstate').sort((a,b)=>b[1]-a[1]).forEach(x=>ch.push(`<span class="ch ${TC[x[1]]}">${B[x[0]][0]} ${TN[x[1]]} ${B[x[0]][1]}</span>`));
   return `<div class="hs"><div class="hy">${yr(h.s)} <span>· ${esc(h.conf||'')}</span></div>${teamLines(h)}${aw.join('')}${ch.length?'<div class="chips">'+ch.join('')+'</div>':''}</div>`}).join('')+'</div>'}
 function peak(p){const c=(RAW.career||{})[p.name+'|'+p.school];if(!c)return'';
- const v=[[c.ppg,'PPG'],[c.rpg,'RPG'],[c.apg,'APG'],[c.bpm,'BPM'],[c.gp,'GAMES']].filter(x=>x[0]!=null);
- return '<div class="peak">'+v.map(([x,l])=>`<div><b>${l==='BPM'&&x>0?'+':''}${l==='GAMES'?x:(+x).toFixed(1)}</b><span>${l==='GAMES'?'':'CAREER '}${l}</span></div>`).join('')+'</div>'}
+ const v=[[c.ppg,'PPG'],[c.rpg,'RPG'],[c.apg,'APG'],[c.bpm,'BPM'],[c.gp,'GAMES'],[c.dd,'DBL-DBL'],[c.td,'TRP-DBL']].filter(x=>x[0]!=null);
+ return '<div class="peak">'+v.map(([x,l])=>`<div><b>${l==='BPM'&&x>0?'+':''}${['GAMES','DBL-DBL','TRP-DBL'].includes(l)?x:(+x).toFixed(1)}</b><span>${['GAMES','DBL-DBL','TRP-DBL'].includes(l)?'':'CAREER '}${l}</span></div>`).join('')+'</div>'}
 function resBars(p){const r=p.res;if(!r)return'';const b=[['WINNING',r.win],['IMPACT',r.impact],['HONORS',r.hon],['BIG GAMES',r.big]];
  const Q=r.quads,add=(...k)=>k.reduce((a,q)=>[a[0]+Q[q][0],a[1]+Q[q][1]],[0,0]);
  const qs=[['Q1A',add('1A')],['Q1',add('1A','1')],['Q2',add('2')],['Q1+Q2',add('1A','1','2')],['Q3',add('3')],['Q4',add('4')]];

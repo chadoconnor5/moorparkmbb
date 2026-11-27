@@ -135,6 +135,9 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   two unlogged layups added, a free throw corrected). 11/5 Feather River at San Jose (log and film stop at 78-76, film-checked;
   Sandy's layup added; the last 10 points aren't available). Logs that don't add up yet wait in internal_data/synergy_logs/pending/
   (not read) until settled.
+- Individual Stats DD / TD columns (attach_doubles): double-doubles / triple-doubles per player-season, 10+ in two /
+  three of points, rebounds, assists, steals, blocks, counted from the season's box scores (name + team). Full-season
+  scope only (other scopes show —).
 - Misc -> Records (record_book.py, rbInit / rbRender): Statewide or one team, All-time (2017-18 on) or one season,
   eight groups: Individual single game / season / season per game / career / career per game (career: all-time only),
   Team single game / season / season per game. Every basic box-score stat (PTS, FGM, FGA, 3PM, 3PA, FTM, FTA, OREB, DREB,
@@ -172,7 +175,7 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   15% (quad results Q1A-Q4 + Game Score vs Q1A-Q2). Plaques: all honors by season, team titles (conference = best
   conference record; Elite Eight / Final Four / title game from the box scores; 2019-20 canceled), State Tournament MVP
   (champion's last 3 games, a blend), height and box-score position (the season with the most games) under the school
-  (hall_of_fame_heights.json typed in by hand, else the 2025-26 roster pages), State All-Tournament Team (the 5 best of the tournament, Elite Eight on, MVP aside;
+  (hall_of_fame_heights.json typed in by hand, else the 2025-26 roster pages); career tiles include double-doubles / triple-doubles (CCCAA games), State All-Tournament Team (the 5 best of the tournament, Elite Eight on, MVP aside;
   same blend, no spreading across teams), Conference Freshman of the Year (inferred: name not seen before; FRESHMAN_NOT
   for confirmed sophomores, 2022-23 Javohn Garcia), signature games (CCCAA opponents only, toughest first; top-1%
   Game Score / BPM, records, triple-doubles, career highs), quad records, career averages (CCCAA games). ~7 s a build;
