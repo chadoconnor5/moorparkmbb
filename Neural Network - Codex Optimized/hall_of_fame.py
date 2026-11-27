@@ -504,12 +504,16 @@ def build(season_files):
             c["pts"] += g["pts"]
             c["reb"] += g["reb"]
             c["ast"] += g["ast"]
+            tens = sum(x >= 10 for x in (g["pts"], g["reb"], g["ast"], g["stl"], g["blk"]))
+            c["dd"] += tens >= 2
+            c["td"] += tens >= 3
             if g["bpm"] is not None and (g["min"] or 0) > 0:
                 c["bm"] += g["bpm"] * g["min"]
                 c["m"] += g["min"]
         if c["gp"]:
             career[k] = {"gp": c["gp"], "ppg": round(c["pts"] / c["gp"], 1), "rpg": round(c["reb"] / c["gp"], 1),
-                         "apg": round(c["ast"] / c["gp"], 1), "bpm": round(c["bm"] / c["m"], 1) if c["m"] else None}
+                         "apg": round(c["ast"] / c["gp"], 1), "bpm": round(c["bm"] / c["m"], 1) if c["m"] else None,
+                         "dd": c["dd"], "td": c["td"]}
     res = {r["k"]: {"score": round(r["score"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
     return {"order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
