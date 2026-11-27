@@ -2,7 +2,8 @@
 
 Who gets in: a first-team All-State player (Gold or Hall of Fame All-State badge) whose career is over (not on a
 current-season roster at that school) with a resume score of RESUME_CUT or better (the top 2% of players through
-2025-26). Badges don't decide it: the resume does. Once in, always in: hall_of_fame.json keeps every inductee and a
+2025-26), or automatically as a Region Player of the Year or a two-time first-team All-State (the NBA's MVP and
+multi-time All-Star rule). Badges don't decide it: the resume does. Once in, always in: hall_of_fame.json keeps every inductee and a
 later build never drops one; the cut stays fixed, so new seasons add players without pushing anyone out.
 
 Resume score (the order): winning 35% (team win %, net rank and deepest state run each season, scaled by his place
@@ -292,7 +293,8 @@ def build(season_files):
         r["score"] = 100 * (.35 * r["win_p"] + .30 * r["impact_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
     rows.sort(key=lambda r: -r["score"])
     for r in rows:          # in: a resume at the cut or better; once in, always in
-        if r["score"] >= RESUME_CUT:
+        auto = P[r["k"]]["poy"] or len(P[r["k"]]["as1"]) >= 2   # Region Player of the Year or two first-team All-States: in
+        if r["score"] >= RESUME_CUT or auto:
             store["inducted"].setdefault(r["k"], {"since": datetime.now().strftime("%Y-%m-%d")})
     STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
     rows = [r for r in rows if r["k"] in store["inducted"]]
