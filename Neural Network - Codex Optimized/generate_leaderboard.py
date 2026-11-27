@@ -7232,6 +7232,15 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
     #team-basic-leaderboard thead th:nth-child(2), #team-basic-defense-leaderboard thead th:nth-child(2),
     #team-adv-offense-leaderboard thead th:nth-child(2), #team-adv-defense-leaderboard thead th:nth-child(2) {{ z-index: 4; }}
   }}
+
+  /* Misc -> Hall of Fame takes the page but the sidebar (hofInit sets body.hof-on) */
+  body.hof-on {{ padding: 0 !important; background: #0d0f14; }}
+  body.hof-on #season-toggle, body.hof-on #sl-nav, body.hof-on #sl-page-title {{ display: none !important; }}
+  body.hof-on #storylines-view > div {{ padding: 0 !important; }}
+  body.hof-on #hof-frame {{ border-radius: 0 !important; }}
+  body.hof-on .top-bar > .filter-bar, body.hof-on .top-bar > .team-search-wrap {{ display: none !important; }}
+  body.hof-on .top-bar {{ background: transparent !important; border: 0 !important; box-shadow: none !important; padding-top: 0 !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }}
+  @media (min-width: 1025px) {{ body.hof-on .top-bar {{ height: 0 !important; min-height: 0 !important; }} }}
 </style>
 </head>
 <body>
@@ -7827,7 +7836,7 @@ def generate_html(players, teams, conf_players, conf_teams, teams_2024=None, con
       <div id="rb-body" class="rb-body"></div>
     </div>
     <div id="sl-tab-hof" class="sl-tab-content" style="display:none">
-      <iframe id="hof-frame" title="Hall of Fame" style="width:100%;height:1400px;border:0;display:block;background:#0d0f14;border-radius:6px"></iframe>
+      <iframe id="hof-frame" title="Hall of Fame" style="width:100%;height:1400px;border:0;display:block;background:#0d0f14"></iframe>
     </div>
     <div id="sl-tab-runs" class="sl-tab-content" style="display:none">
       <div style="padding:6px 10px 10px;color:#888;font-size:0.75rem;text-align:center">Kill shot = a 10-0 run (one per run). Kill = three straight defensive stops (opponent possessions without a point; counting restarts after each kill and each half). Games with play-by-play only (G). Stop% = share of opponent possessions held scoreless.</div>
@@ -14686,6 +14695,7 @@ function slInitOnce() {{
 
 function slSwitchTab(tab, label) {{
   slActiveTab = tab;
+  if (tab !== 'hof') document.body.classList.remove('hof-on');
   slBuildNav();
   document.querySelectorAll('.sl-tab-content').forEach(d => d.style.display = 'none');
   document.getElementById('sl-tab-' + tab).style.display = 'block';
@@ -14779,7 +14789,18 @@ function slSortRuns(key) {{
   slRenderRuns();
 }}
 // ─── Hall of Fame (hall_of_fame.py -> season_data/hof.js; the page is hof.html, shown in a frame sized to it) ───
+// The Hall of Fame takes the whole page but the sidebar (body.hof-on): the season row, the Misc tab list and the title
+// hide; the sidebar's Miscellaneous (or any view) brings them back.
+(function () {{
+  const sv = showView;
+  showView = function (v) {{
+    document.body.classList.remove('hof-on');
+    sv.apply(this, arguments);
+    if (v === 'storylines' && slActiveTab === 'hof') slSwitchTab('dominance', 'Dominance');
+  }};
+}})();
 function hofInit() {{
+  document.body.classList.add('hof-on');
   const f = document.getElementById('hof-frame');
   if (!f.src) f.src = 'hof.html' + __sdv('season_data/hof.js');
 }}
