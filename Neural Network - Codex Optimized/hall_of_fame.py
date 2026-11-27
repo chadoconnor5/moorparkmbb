@@ -23,7 +23,7 @@ from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
-FRESHMAN_NOT = {("2223", "Javohn Garcia"), ("2122", "Jonathan Ogugua"), ("2122", "Conner Jackson"), ("2122", "Scott Ator"), ("2223", "Sebastian Mendoza"), ("2324", "Alex Crawford"), ("2425", "Tyler Isaak"), ("2324", "KJay Bradley"), ("2425", "Zoe Holman"), ("2526", "Yoda Oke"), ("2526", "Leo Ricketts")}   # confirmed not freshmen that season
+FRESHMAN_NOT = {("2223", "Javohn Garcia"), ("2122", "Jonathan Ogugua"), ("2122", "Conner Jackson"), ("2122", "Scott Ator"), ("2223", "Sebastian Mendoza"), ("2324", "Alex Crawford"), ("2425", "Tyler Isaak"), ("2324", "KJay Bradley"), ("2425", "Zoe Holman"), ("2526", "Yoda Oke"), ("2526", "Leo Ricketts"), ("2526", "Dayvon Gates")}   # confirmed not freshmen that season
 STORE = Path(__file__).with_name("hall_of_fame.json")
 GS = lambda r: (r["pts"] + 0.4 * r["fgm"] - 0.7 * r["fga"] - 0.4 * (r["fta"] - r["ftm"]) + 0.7 * r["or"] + 0.3 * r["dr"]
                 + r["stl"] + 0.7 * r["ast"] + 0.7 * r["blk"] - 0.4 * r["pf"] - r["to"])
@@ -99,6 +99,7 @@ def build(season_files):
 
     # --- team titles: conference (best conference record) and the state tournament rounds (box scores) ---
     TITLES = defaultdict(lambda: defaultdict(list))
+    TOUR = {}                      # season -> (Elite Eight date, last date, the Elite Eight teams)
     for s in past:
         conf = defaultdict(list)
         for t in teams[s]:
@@ -135,6 +136,7 @@ def build(season_files):
         ff = {x[1] for x in allg if x[0] == sd}
         qd = prev(ff, sd) if sd else None
         e8 = {x[1] for x in allg if x[0] == qd}
+        TOUR[s] = (qd, last, e8)
         for tm in e8:
             TITLES[s][tm].append(["e8", "Elite Eight"])
         for tm in ff:
@@ -367,6 +369,43 @@ def build(season_files):
         MVP[s] = {"name": n, "team": champ, "line": f"{c['pts'] / c['g']:.1f} pts, {(c['or'] + c['dr']) / c['g']:.1f} reb, "
                                                     f"{c['ast'] / c['g']:.1f} ast a game, {c['fgm']}-{c['fga']} FG"}
 
+    # --- State All-Tournament Team: the five best players of the state tournament (Elite Eight on, every team), the
+    # MVP aside; the same blend as the MVP, totals and per game both counting ---
+    ALLT = {}
+    for s, (qd, last, e8) in TOUR.items():
+        if not qd:
+            continue
+        tot = defaultdict(Counter)
+        for g in BX.get(s, {}).values():
+            if len(g.get("sc") or {}) != 2 or not set(g["sc"]) <= e8 or not qd <= _date(g["d"]) <= last:
+                continue
+            for team, tb in g["t"].items():
+                if not isinstance(tb, dict):
+                    continue
+                for row in tb["__r"]:
+                    r = dict(zip(tb["__c"], row))
+                    c = tot[M(r["n"]) + "|" + team]
+                    c["g"] += 1
+                    c["gs"] += GS(r)
+                    for f in ("pts", "or", "dr", "ast", "stl", "blk", "fga", "fta"):
+                        c[f] += r[f]
+                    if r.get("bpm") is not None and (r.get("min") or 0) > 0:
+                        c["bm"] += r["bpm"] * r["min"]
+                        c["m"] += r["min"]
+        mv = MVP.get(s)
+        pool = {k: c for k, c in tot.items() if c["gs"] > 0 and not (mv and k == mv["name"] + "|" + mv["team"])}
+        if not pool:
+            continue
+        met = {k: {"gs": c["gs"], "gpg": c["gs"] / c["g"], "pts": c["pts"] / c["g"], "reb": (c["or"] + c["dr"]) / c["g"],
+                   "ast": c["ast"] / c["g"], "stk": (c["stl"] + c["blk"]) / c["g"],
+                   "ts": (c["pts"] / (2 * (c["fga"] + .44 * c["fta"])) if c["fga"] + c["fta"] else 0) * min(1, (c["fga"] + .44 * c["fta"]) / (7 * c["g"])),
+                   "bpm": c["bm"] / c["m"] if c["m"] else None} for k, c in pool.items()}
+        W = {"gs": .2, "gpg": .2, "pts": .15, "reb": .1, "ast": .1, "stk": .05, "ts": .1, "bpm": .1}
+        Z = {f: _z([m[f] for m in met.values()]) for f in W}
+        sc = {k: sum(w * Z[f](met[k][f]) for f, w in W.items() if met[k][f] is not None)
+              / sum(w for f, w in W.items() if met[k][f] is not None) for k in met}
+        ALLT[s] = sorted(sc, key=lambda k: -sc[k])[:5]
+
     # --- records (Record Book #1s, ties included) for the signature-game tags ---
     REC = defaultdict(list)
 
@@ -445,7 +484,7 @@ def build(season_files):
     res = {r["k"]: {"score": round(r["score"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
     return {"order": keys, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
-            "mvp": MVP, "players": len(all_names)}
+            "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 
 def write(season_files):

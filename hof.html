@@ -191,6 +191,7 @@ function teamSum(l,p){const n=c=>l.filter(h=>(h.team||[]).some(x=>x[0]===c)).len
  Object.entries(rp).forEach(([r,k])=>o.push(`<b>${x(k,esc(r)+' Player of the Year')}</b>`));
  if(st)o.push(`<b>${x(st,'State Champion')}</b>`);
  const mv=p?Object.entries(RAW.mvp||{}).filter(([s,m])=>m.name===p.name&&m.team===p.school).length:0;if(mv)o.push(`<b>${x(mv,'State Tournament MVP')}</b>`);
+ const at=p?Object.values(RAW.allt||{}).filter(l=>l.includes(p.name+'|'+p.school)).length:0;if(at)o.push(`<b>${x(at,'All-Tournament Team')}</b>`);
  const cp=aw('cpoy').length;if(cp)o.push(`<b>${x(cp,'Conference Player of the Year')}</b>`);
  if(fn>st)o.push(x(fn-st,'State Runner-up'));
  if(f4)o.push(x(f4,'Final Four'));
@@ -202,6 +203,7 @@ function honors(p){const l=HON[p.name+'|'+p.school]||[];if(!l.length)return'';
  return '<div class="hon"><div class="gh">ALL HONORS</div>'+l.slice().sort((a,b)=>a.s.localeCompare(b.s)).map(h=>{
   const aw=[],ch=[];
   const mv=isM(h);if(mv)aw.push(`<div class="aw mvp">State Tournament MVP<span>${esc(mv.line)}</span></div>`);
+  if(((RAW.allt||{})[h.s]||[]).includes(p.name+'|'+p.school))aw.push('<div class="aw">State All-Tournament Team</div>');
   ['poy','cpoy','copoy','cdpoy','cfoy','c6moy'].forEach(c=>h.b.filter(x=>x[0]===c).forEach(x=>aw.push(`<div class="aw">${esc(AWD[c][1](x,h))}</div>`)));
   h.b.filter(x=>x[0]==='allstate').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-State ${x[1]>=3?'1st Team':'Honorable Mention'}${x[1]===4?' · Hall of Fame season':''}</div>`));
   h.b.filter(x=>x[0]==='allconf').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-${esc(h.conf)} ${x[1]>=3?'1st':'2nd'} Team</div>`));
