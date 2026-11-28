@@ -32,6 +32,7 @@ SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game ca
 FLOOR_PPG = 10.4                   # a top-25% scoring season
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
 FRESHMAN_NOT = {("2223", "Javohn Garcia"), ("2122", "Jonathan Ogugua"), ("2122", "Conner Jackson"), ("2122", "Scott Ator"), ("2223", "Sebastian Mendoza"), ("2324", "Alex Crawford"), ("2425", "Tyler Isaak"), ("2324", "KJay Bradley"), ("2425", "Zoe Holman"), ("2526", "Yoda Oke"), ("2526", "Leo Ricketts"), ("2526", "Dayvon Gates"), ("2526", "Mason Dorsey"), ("2526", "Snookey Wigington"), ("2425", "Alessandro Perotti")}   # confirmed not freshmen that season
+CROSS_NOT = {"Terrell Brown", "Thomas Nelson"}   # same name at two schools, two different players: never one career
 STORE = Path(__file__).with_name("hall_of_fame.json")
 GS = lambda r: (r["pts"] + 0.4 * r["fgm"] - 0.7 * r["fga"] - 0.4 * (r["fta"] - r["ftm"]) + 0.7 * r["or"] + 0.3 * r["dr"]
                 + r["stl"] + 0.7 * r["ast"] + 0.7 * r["blk"] - 0.4 * r["pf"] - r["to"])
@@ -241,7 +242,7 @@ def build(season_files):
         byname[k.split("|")[0]].append(k)
     C, C_OF = {}, {}
     for nm, ks in byname.items():
-        if len(ks) < 2:
+        if len(ks) < 2 or nm in CROSS_NOT:
             continue
         ks = sorted(ks, key=lambda k: min(P[k]["seasons"]))
         if not all(1 <= sidx[min(P[b]["seasons"])] - sidx[max(P[a]["seasons"])] <= 2 for a, b in zip(ks, ks[1:])):
