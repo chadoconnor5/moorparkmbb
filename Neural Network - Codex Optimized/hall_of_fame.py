@@ -547,6 +547,8 @@ def build(season_files):
                 if b[1] == 4:
                     hof.append(dict({f: p.get(f) for f in STAT}, season=s, code=b[0], name=name, school=school))
             bd = [list(b) for b in p.get("bdg") or []]
+            if any(b[0] == "cpoy" for b in bd):     # Conference Player of the Year is above the 1st Team: shown alone
+                bd = [b for b in bd if b[0] != "allconf"]
             if (s, k) in FOY:
                 bd.insert(0, ["cfoy", 3, 0, FOY[(s, k)]])
             if (s, k) in MIP:
@@ -621,7 +623,8 @@ def build(season_files):
         v, school = P[k], k.split("|")[1]
         bd = [b for p_ in v["seasons"].values() for b in (p_.get("bdg") or [])]
         return (any(b[0] == "allstate" for b in bd) or any(b[0] in ("poy", "cpoy", "copoy", "cdpoy", "c6moy") for b in bd)
-                or sum(1 for b in bd if b[0] == "allconf" and b[1] >= 3) >= 2
+                or sum(1 for p_ in v["seasons"].values() if any(b[0] == "cpoy" or (b[0] == "allconf" and b[1] >= 3)
+                                                                 for b in (p_.get("bdg") or []))) >= 2
                 or any("state" in runs(s, school) for s in v["seasons"]))
     for r in sorted(JROWS, key=lambda r: -r["score_o"]):
         sch = r["k"].split("|")[1]
@@ -663,7 +666,8 @@ def build(season_files):
             if ss:
                 parts.append(f"{Y(ss)} {label}")
         cf = defaultdict(list)      # All-Conference and conference titles named too: "All-WSC North 1st Team"
-        for s in yrs_of(lambda b: b[0] == "allconf" and b[1] >= 3):
+        poy_s = set(yrs_of(lambda b: b[0] == "cpoy"))
+        for s in [x for x in yrs_of(lambda b: b[0] == "allconf" and b[1] >= 3) if x not in poy_s]:
             cf[f"All-{v['seasons'][s].get('conference') or 'Conference'} 1st Team"].append(s)
         for lab, ss in cf.items():
             parts.append(f"{Y(ss)} {lab}")
@@ -741,6 +745,9 @@ def build(season_files):
             c = pl.get("conference")
             if c and k not in conf[c]["first"] and conf[c]["first"]:
                 conf[c]["first"].append(k)
+        for c, d in conf.items():       # the Player of the Year stands above the 1st Team, not on it
+            if d.get("cpoy"):
+                d["first"] = [k for k in d["first"] if k != d["cpoy"]]
         A["conf"] = {c: dict(d) for c, d in sorted(conf.items()) if c != "?"}
         awards[s] = A
 
