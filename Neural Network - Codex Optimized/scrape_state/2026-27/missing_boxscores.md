@@ -1,6 +1,6 @@
 # Missing box scores — 2026-27
 
-Updated 2026-11-26T16:26:20
+Updated 2026-11-27T23:21:09
 
 | Date | Game | Status | Why | URL | Checks | Last checked |
 |---|---|---|---|---|---|---|
@@ -49,3 +49,4 @@ Updated 2026-11-26T16:26:20
 | 2026-11-25 | Gavilan vs Lemoore | PARTIAL | only Gavilan posted stats; missing Lemoore | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261125_3jxu.xml | 2 | 2026-11-26T16:24 |
 | 2026-11-25 | Las Positas vs Marin | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None, https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 2 | 2026-11-26T16:24 |
 | 2026-11-25 | Merritt vs Ohlone | PARTIAL | only Ohlone posted stats; missing Merritt | https://cccmbca.org/sports/mbkb/2026-27/boxscores/20261125_vjxe.xml | 2 | 2026-11-26T16:24 |
+| 2026-11-27 | Oxnard vs Mesa Community College | NO_BOX | no result or box score posted | https://cccmbca.org/sports/mbkb/2026-27/schedule?teamId=None | 1 | 2026-11-27T23:21 |
