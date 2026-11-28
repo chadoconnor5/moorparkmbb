@@ -334,18 +334,28 @@ def build(season_files):
             IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp_of[id(p)], place[id(p)],
                                                           imp_of[id(p)] if p in real else min(EST_CAP, imp_of[id(p)]))
     # --- Most Improved Player: the biggest jump in impact (the resume's PRPG! + BPM percentile) from the season before
-    # at the same school, both seasons qualified; statewide and in each conference (a tie: the bigger jump in points a game)
+    # at the same school, or at another school in the same conference (a transfer within it); both seasons qualified;
+    # statewide and in each conference (a tie: the bigger jump in points a game)
     MIP, MIP_ST = {}, {}
     for i, s in enumerate(past[1:], 1):
         pv = past[i - 1]
         if int(s[:2]) != int(pv[:2]) + 1:
             continue
+        before = defaultdict(list)          # name -> his qualified lines the season before
+        for p in players[pv]:
+            if (pv, M(p["name"]) + "|" + p["school"]) in IMP:
+                before[M(p["name"])].append(p)
         cand = []
         for p in players[s]:
             k = M(p["name"]) + "|" + p["school"]
-            if (s, k) in IMP and (pv, k) in IMP:
-                cand.append((IMP[(s, k)][0] - IMP[(pv, k)][0],
-                             (p.get("ppg") or 0) - (P[k]["seasons"][pv].get("ppg") or 0), k, p.get("conference")))
+            if (s, k) not in IMP:
+                continue
+            was = [q_ for q_ in before.get(M(p["name"]), []) if q_["school"] == p["school"]] or \
+                  [q_ for q_ in before.get(M(p["name"]), []) if q_.get("conference") and q_.get("conference") == p.get("conference")]
+            if len(was) != 1:
+                continue
+            k0 = M(was[0]["name"]) + "|" + was[0]["school"]
+            cand.append((IMP[(s, k)][0] - IMP[(pv, k0)][0], (p.get("ppg") or 0) - (was[0].get("ppg") or 0), k, p.get("conference")))
         if cand:
             MIP_ST[s] = max(cand)[2]
             byc = defaultdict(list)
