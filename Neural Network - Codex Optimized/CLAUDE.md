@@ -182,7 +182,13 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   (champion's last 3 games, a blend), height and box-score position (the season with the most games) under the school
   (hall_of_fame_heights.json typed in by hand, else the 2025-26 roster pages); career tiles include double-doubles / triple-doubles (CCCAA games); By Resume / By Class views (class = his last season: 2022-23 -> Class of 2023); Awards view (hall_of_fame awards: Past Champions table + Region POYs across seasons, then each season's state tournament, Region POYs, All-State 1st / HM and every conference's champion, awards and All-Conference teams; our picks; ★ Hall of Famer); Retired Jerseys view (school picker, jerseys in school colors with only last name + number; a tap opens his resume card: every Hall of Famer plus every finished career with All-State (any), a Player of the Year award, two All-Conference 1st Teams or a state title at that school, no cap, ordered by resume; number = the one worn in the most games, a tie the later season's), State All-Tournament Team (the 5 best of the tournament, Elite Eight on, MVP aside;
   same blend, no spreading across teams), Conference Freshman of the Year (inferred: name not seen before; FRESHMAN_NOT
-  for confirmed sophomores, 2022-23 Javohn Garcia), signature games (CCCAA opponents only, toughest first; top-1%
+  for confirmed sophomores, 2022-23 Javohn Garcia), Most Improved Player (statewide and per conference: the biggest jump in the resume's impact
+  percentile from the season before at the same school, both seasons qualified; tie: points a game jump; FOY and conference
+  MIP count 1 in honors like Sixth Man, statewide MIP 2), Coach of the Year (2021-22 on, North / South and each
+  conference: COY_W 60% over-achievement = net rating above what the roster projected (last season's net and the share of
+  its points back, fitted on every team-season), 15% WAB, 15% conference win % lifted by conference strength, 10% the run;
+  needs .600 overall and .600 in conference or the title; names from coaches.json, else the Keys tenures (KEYS_TEAMS,
+  a 5yr coach with no seasons = 2021-22 on); none = "<school> head coach (name TBD)": type it into coaches.json), signature games (CCCAA opponents only, toughest first; top-1%
   Game Score / BPM, records, triple-doubles, career highs), quad records, career averages (CCCAA games). ~7 s a build;
   --fast reads the past seasons from season_data.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
@@ -410,7 +416,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Protector (Blk%), Green Light (%Shots: his share of the team's shots while on the floor; fake-minutes
   stand-in FGA a game). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
   alone without a BPM; a fake-minutes player's Game Score placed on PRPG!): All-State in the CCCMBCA's shape (2025-26:
-  24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
+  24 first team, 14 honorable mention) = Gold 24 (each conference's Player of the Year, then the best of the rest; fixed
+  24 + 14 every season: Hall of Fame level only raises a first-teamer, never adds or promotes a pick), Silver the next
   14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference
   standings (_conf_places: overall win % then net until every team has 3 conference games, then conference win %),
   first team Gold 4 / 3 / 3 / 2 / 2 / 1 by place, second team Silver 2 / 2 / 1 / 1 / 1 / 1 / 0, honorable mention Bronze
