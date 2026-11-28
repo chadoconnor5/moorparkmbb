@@ -233,7 +233,8 @@ def build(season_files):
 
     # --- one Hall career across schools: a player's back-to-back seasons at different schools (Ventura, then Moorpark)
     # are one career for the Hall, both schools on the plaque ("Name|Ventura / Moorpark"); jerseys stay per school.
-    # Only a chain of back-to-back seasons is joined (two players with one name a season apart would look the same) ---
+    # Only a chain of seasons is joined, at most one season off between schools (a redshirt / sitting out: Jerimiyah
+    # Smith, Mt. San Antonio 2023-24, Ventura 2025-26) ---
     sidx = {s: i for i, s in enumerate(past)}
     byname = defaultdict(list)
     for k in list(P):
@@ -243,7 +244,7 @@ def build(season_files):
         if len(ks) < 2:
             continue
         ks = sorted(ks, key=lambda k: min(P[k]["seasons"]))
-        if not all(sidx[min(P[b]["seasons"])] == sidx[max(P[a]["seasons"])] + 1 for a, b in zip(ks, ks[1:])):
+        if not all(1 <= sidx[min(P[b]["seasons"])] - sidx[max(P[a]["seasons"])] <= 2 for a, b in zip(ks, ks[1:])):
             continue
         if not any(P[k]["as1"] for k in ks):
             continue
