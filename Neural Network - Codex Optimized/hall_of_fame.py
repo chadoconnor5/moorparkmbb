@@ -555,6 +555,9 @@ def build(season_files):
             c["pts"] += g["pts"]
             c["reb"] += g["reb"]
             c["ast"] += g["ast"]
+            c["stl"] += g["stl"]
+            c["blk"] += g["blk"]
+            c["tpm"] += g["tpm"]
             tens = sum(x >= 10 for x in (g["pts"], g["reb"], g["ast"], g["stl"], g["blk"]))
             c["dd"] += tens >= 2
             c["td"] += tens >= 3
@@ -565,7 +568,9 @@ def build(season_files):
             career[k] = {"gp": c["gp"], "ppg": round(c["pts"] / c["gp"], 1), "rpg": round(c["reb"] / c["gp"], 1),
                          "apg": round(c["ast"] / c["gp"], 1), "bpm": (lambda ss: round(sum(p_["bpm"] * p_["gp"] * (p_.get("mpg") or 1) for p_ in ss) / sum(p_["gp"] * (p_.get("mpg") or 1) for p_ in ss), 1) if ss else None)(
                              [p_ for p_ in P[k]["seasons"].values() if p_.get("bpm") is not None and p_.get("gp")]),
-                         "dd": c["dd"], "td": c["td"]}
+                         "dd": c["dd"], "td": c["td"],
+                         # career totals (CCCAA games)
+                         "tot": {f: c[f] for f in ("pts", "reb", "ast", "stl", "blk", "tpm")}}
     res = {r["k"]: {"score": round(r["score_o"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_c_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
     # --- Retired Jerseys: each school's best careers, judged against its own players (less strict than the Hall):
@@ -652,6 +657,7 @@ def build(season_files):
         return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": k in K,
                 "ht": height(k, v), "pos": max(ps)[2] if ps else "",
                 "yrs": sorted(v["seasons"]), "why": parts, "recs": recs, "best": best, "score": round(sc_of.get(k, 0), 1),
+                "tot": {f: sum(g[f] for g in gl) for f in ("pts", "reb", "ast", "stl", "blk", "tpm")} | {"gp": gp},
                 "line": (f"{sum(g['pts'] for g in gl) / gp:.1f} pts, {sum(g['reb'] for g in gl) / gp:.1f} reb, "
                          f"{sum(g['ast'] for g in gl) / gp:.1f} ast") if gp else ""}
     jerseys = {s: sorted([jersey(k) for k in ks], key=lambda j: (not j["hof"], -j["score"])) for s, ks in by_school.items()}
