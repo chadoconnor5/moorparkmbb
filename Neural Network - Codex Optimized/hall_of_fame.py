@@ -324,8 +324,8 @@ def build(season_files):
         # his place on his own team by impact (points + rebounds + assists favored bigs: rebounds made the center the
         # "best player" and handed him the team's winning)
         place = {}
-        for sch in {p["school"] for p in q}:
-            for i, p in enumerate(sorted([x for x in q if x["school"] == sch], key=lambda x: -imp_of[id(x)])):
+        for sc_ in {p["school"] for p in q}:
+            for i, p in enumerate(sorted([x for x in q if x["school"] == sc_], key=lambda x: -imp_of[id(x)])):
                 place[id(p)] = i
         for p in q:
             # (impact, place, impact for the order: an estimate capped at EST_CAP, so a prediction never outranks a
