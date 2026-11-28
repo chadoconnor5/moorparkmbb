@@ -617,7 +617,7 @@ def build(season_files):
                 bd.insert(0, ["cmip", 3, 0, MIP[(s, k)]])
             if MIP_ST.get(s) in [k] + C.get(k, []):
                 bd.insert(0, ["mip", 3, 0, "State"])
-            hon[k].append({"s": s, "region": p.get("region"), "conf": p.get("conference"), "b": bd,
+            hon[k].append({"s": s, "sch": sch(k, s), "region": p.get("region"), "conf": p.get("conference"), "b": bd,
                            "team": TITLES.get(s, {}).get(sch(k, s), []), "gp": p.get("gp")})
         gl = [g for g in GAMES.get(k, []) if g["ccc"]]
         okb = [g for g in gl if g["bpm"] is not None and (g["min"] or 0) >= 15]
