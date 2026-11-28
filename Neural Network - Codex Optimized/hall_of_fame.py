@@ -27,6 +27,7 @@ CUR = "2627"                       # the season being played: its players aren't
 LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
 JERSEYS_MAX = 999
+BEST_N = 100                     # Best Seasons: how many listed
 COY_W = (.60, .15, .15, .10)     # Coach of the Year: over-achievement, WAB, conference (strength), run                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
 SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)
 FLOOR_PPG = 10.4                   # a top-25% scoring season
@@ -962,7 +963,93 @@ def build(season_files):
                 if c in COY[s]["conf"]:
                     d["coy"] = COY[s]["conf"][c]
 
-    return {"alias": {k: ck for k, ck in C_OF.items() if ck in K}, "awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
+    # --- Best Seasons (the Hall page's Best Seasons view): one season of a career, graded against every season since
+    # 2017-18. Impact 35% (his PRPG! + BPM percentile within his season; an estimate capped at EST_CAP), winning 25%
+    # (team win %, net rank, conference title, the state run, scaled by his place on his team), honors 20% (that
+    # season's awards: Region / conference awards, All-State, All-Conference, Freshman / Most Improved, State Tournament
+    # MVP / All-Tournament), big games 20% (that season's quad results and Game Score vs Q1A-Q2). Pool: seasons with
+    # an honor or a top-10% impact; percentiles within it; the top BEST_N listed ---
+    AWV = {"poy": 6, "cpoy": 3, "copoy": 2, "cdpoy": 2, "c6moy": 1}
+    pool = []
+    for s in past:
+        sy = "20" + s[:2] + "-" + s[2:]
+        for p in players[s]:
+            k = M(p["name"]) + "|" + p["school"]
+            if (s, k) not in IMP:
+                continue
+            imp, pl, impc = IMP[(s, k)]
+            bd = p.get("bdg") or []
+            conf = p.get("conference") or "Conference"
+            ab = lambda b: b[3] if len(b) > 3 and b[3] else conf
+            aw, hon = [], 0
+            for b in bd:
+                if b[0] in AWV:
+                    hon += AWV[b[0]]
+                    aw.append({"poy": f"{p.get('region') or ''} Region Player of the Year".strip(), "cpoy": f"{ab(b)} Player of the Year",
+                               "copoy": f"{ab(b)} Offensive POY", "cdpoy": f"{ab(b)} Defensive POY", "c6moy": f"{ab(b)} Sixth Man"}[b[0]])
+                elif b[0] == "allstate":
+                    hon += 4 if b[1] >= 3 else 2
+                    aw.append("All-State 1st Team" if b[1] >= 3 else "All-State Honorable Mention")
+                elif b[0] == "allconf":
+                    hon += 2 if b[1] >= 3 else 1
+                    aw.append(f"All-{conf} {'1st' if b[1] >= 3 else '2nd'} Team")
+            if (s, k) in FOY:
+                hon += 1
+                aw.append(f"{FOY[(s, k)]} Freshman of the Year")
+            if MIP_ST.get(s) == k:
+                hon += 2
+                aw.append("State Most Improved Player")
+            elif (s, k) in MIP:
+                hon += 1
+                aw.append(f"{MIP[(s, k)]} Most Improved")
+            if s in MVP and MVP[s]["name"] + "|" + MVP[s]["team"] == k:
+                hon += 4
+                aw.insert(0, "State Tournament MVP")
+            elif k in ALLT.get(s, []):
+                hon += 2
+                aw.append("State All-Tournament Team")
+            if not hon and imp < .9:
+                continue
+            tm = TEAM.get((s, p["school"]), {"wp": .5, "netp": .5})
+            r_ = runs(s, p["school"])
+            run = 1 if "state" in r_ else .7 if "fin" in r_ else .5 if "f4" in r_ else .3 if "e8" in r_ else 0
+            ctl = [x[1] for x in TITLES.get(s, {}).get(p["school"], []) if x[0] == "conf"]
+            role = [1, .9, .8, .7][pl] if pl < 4 else .6
+            win = role * (.35 * tm["wp"] + .25 * tm["netp"] + .30 * run + .10 * bool(ctl))
+            Q = {q: [0, 0, 0.0] for q in ("1A", "1", "2", "3", "4")}
+            for g in GAMES.get(k, []):
+                if g["s"] == s and g["quad"]:
+                    Q[g["quad"]][0 if g["w"] else 1] += 1
+                    Q[g["quad"]][2] += g["gs"]
+            n = sum(x[0] + x[1] for x in Q.values())
+            qval = sum(x[0] * QWIN[q] - x[1] * QLOSS[q] for q, x in Q.items()) / n if n else 0
+            n12 = sum(Q[q][0] + Q[q][1] for q in ("1A", "1", "2"))
+            bgs = sum(Q[q][2] for q in ("1A", "1", "2")) / n12 if n12 else 0
+            team_row = next((x for x in teams[s] if x["team"] == p["school"]), {})
+            stage = ("State Champions" if "state" in r_ else "State Runner-up" if "fin" in r_ else "Final Four" if "f4" in r_
+                     else "Elite Eight" if "e8" in r_ else "")
+            pool.append({"k": k, "s": s, "imp": impc, "win": win, "hon": hon, "qval": qval, "bgs": bgs, "n12": n12,
+                         "aw": aw, "team": [x for x in (team_row.get("record"), stage, ctl[0] if ctl else "") if x],
+                         "line": [p.get("gp"), p.get("ppg"), p.get("rpg"), p.get("apg"), p.get("bpm")],
+                         "q": {q: Q[q][:2] for q in Q}, "pos": p.get("pos"),
+                         "hof": C_OF.get(k, k) in K})
+    for c in ("imp", "win", "hon", "qval", "bgs"):
+        f = _pct_fn([r[c] for r in pool])
+        for r in pool:
+            r[c + "_p"] = f(r[c])
+    for r in pool:
+        rel = min(1, r["n12"] / 6)
+        r["big"] = .6 * r["qval_p"] + .4 * (rel * r["bgs_p"] + (1 - rel) * .5)
+    fb = _pct_fn([r["big"] for r in pool])
+    for r in pool:
+        r["big_p"] = fb(r["big"])
+        r["score"] = 100 * (.35 * r["imp_p"] + .25 * r["win_p"] + .20 * r["hon_p"] + .20 * r["big_p"])
+    pool.sort(key=lambda r: -r["score"])
+    best = [{"k": r["k"], "s": r["s"], "score": round(r["score"], 1), "imp": round(100 * r["imp_p"]), "win": round(100 * r["win_p"]),
+             "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "aw": r["aw"], "team": r["team"], "line": r["line"],
+             "q": r["q"], "pos": r["pos"], "hof": r["hof"]} for r in pool[:BEST_N]]
+
+    return {"best": best, "best_pool": len(pool), "alias": {k: ck for k, ck in C_OF.items() if ck in K}, "awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 
