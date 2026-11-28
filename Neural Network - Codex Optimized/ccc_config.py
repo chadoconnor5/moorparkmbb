@@ -81,7 +81,9 @@ def get_conference(team_name: str) -> str:
 # scores (team stats, ratings, the leaderboard, the tracker's files) reads the right name.
 PLAYER_NAME_FIXES = [("Matthew Wilson", "Mathew Wilson"), ("WILSON,MATTHEW", "WILSON,MATHEW"),
                      ("Luka Pupavac", "Luka Pupovac"), ("PUPAVAC,LUKA", "PUPOVAC,LUKA"),   # Chaffey #33: 6 of 8 boxes spell it Pupovac
-                     ("Rocco Ponmpeo", "Rocco Pompeo"), ("PONMPEO,ROCCO", "POMPEO,ROCCO")]   # Moorpark #4, 2021-22
+                     ("Rocco Ponmpeo", "Rocco Pompeo"), ("PONMPEO,ROCCO", "POMPEO,ROCCO"),   # Moorpark #4, 2021-22
+                     ("Dominik Contrearas", "Dominik Contreras"), ("CONTREARAS,DOMINIK", "CONTRERAS,DOMINIK"),  # Moorpark 2024-25 (Ventura before)
+                     ('Armon "AC" Cole', "Armon Cole"), ('ARMON "AC"', "ARMON"), ('"AC" COLE', "COLE")]   # LA Pierce: nickname dropped
 
 
 def fix_player_name(name):
