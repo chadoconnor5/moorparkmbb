@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
-LOCKED = False                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
+LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
 JERSEYS_MAX = 999
 COY_W = (.60, .15, .15, .10)     # Coach of the Year: over-achievement, WAB, conference (strength), run                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
@@ -379,7 +379,9 @@ def build(season_files):
                         D_[(s, ck)] = D_[(s, k)]
         P[ck]["aw"] = sum(P[k]["aw"] for k in ks)
     rows = []
-    for k in cands + JC:
+    # a two-school career's parts are scored too (outside the Hall's percentiles), so joining never costs him
+    parts = [x for ck in cands if ck in C for x in C[ck]]
+    for k in dict.fromkeys(cands + JC + parts):
         school = k.split("|")[1]
         ss = [(s, IMP[(s, k)]) for s in P[k]["seasons"] if (s, k) in IMP]
         if not ss:
@@ -419,6 +421,12 @@ def build(season_files):
         r["big_p"] = f(r["big"])
         r["score"] = 100 * (.35 * r["win_p"] + .30 * r["impact_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
         r["score_o"] = 100 * (.35 * r["win_p"] + .30 * r["impact_c_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
+    byk = {r["k"]: r for r in rows}
+    for ck, ks in C.items():        # a career across schools counts at its best: the schools together or one alone
+        best = max((byk[x] for x in ks if x in byk), key=lambda r: r["score"], default=None)
+        if ck in byk and best and best["score"] > byk[ck]["score"]:
+            for f_ in ("win_p", "impact_p", "impact_c_p", "hon_p", "big_p", "quads", "score", "score_o"):
+                byk[ck][f_] = best[f_]
     JROWS = [r for r in rows if r["k"] not in HOFC]
     rows = [r for r in rows if r["k"] in HOFC]
     rows.sort(key=lambda r: -r["score"])
