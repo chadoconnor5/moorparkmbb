@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 CUR = "2627"                       # the season being played: its players aren't eligible yet
-LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
+LOCKED = False                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
 JERSEYS_MAX = 999
 COY_W = (.60, .15, .15, .10)     # Coach of the Year: over-achievement, WAB, conference (strength), run                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
@@ -231,6 +231,34 @@ def build(season_files):
                     for row in tb["__r"]:
                         active.add(M(row[0]) + "|" + team)
 
+    # --- one Hall career across schools: a player's back-to-back seasons at different schools (Ventura, then Moorpark)
+    # are one career for the Hall, both schools on the plaque ("Name|Ventura / Moorpark"); jerseys stay per school.
+    # Only a chain of back-to-back seasons is joined (two players with one name a season apart would look the same) ---
+    sidx = {s: i for i, s in enumerate(past)}
+    byname = defaultdict(list)
+    for k in list(P):
+        byname[k.split("|")[0]].append(k)
+    C, C_OF = {}, {}
+    for nm, ks in byname.items():
+        if len(ks) < 2:
+            continue
+        ks = sorted(ks, key=lambda k: min(P[k]["seasons"]))
+        if not all(sidx[min(P[b]["seasons"])] == sidx[max(P[a]["seasons"])] + 1 for a, b in zip(ks, ks[1:])):
+            continue
+        if not any(P[k]["as1"] for k in ks):
+            continue
+        ck = nm + "|" + " / ".join(k.split("|")[1] for k in ks)
+        C[ck] = ks
+        for k in ks:
+            C_OF[k] = ck
+        P[ck] = {"seasons": {s: p_ for k in ks for s, p_ in P[k]["seasons"].items()},
+                 "as1": [s for k in ks for s in P[k]["as1"]], "hofb": [x for k in ks for x in P[k]["hofb"]],
+                 "aw": 0, "poy": [s for k in ks for s in P[k]["poy"]]}
+        GAMES[ck] = sorted((g for k in ks for g in GAMES.get(k, [])), key=lambda g: (g["s"], _date(g["d"])))
+        if any(k in active for k in ks):
+            active.add(ck)
+    sch = lambda k, s: P[k]["seasons"][s]["school"]       # his school that season
+
     def runs(s, school):
         return {x[0] for x in TITLES.get(s, {}).get(school, [])}
 
@@ -242,12 +270,12 @@ def build(season_files):
     if not LOCKED:          # unlocked: re-decided from scratch each build (an inductee's first date kept)
         store = {"inducted": {}}
     # the pool scored: every first-team All-State player whose career is over, plus everyone already inducted
-    cands = [k for k, v in P.items() if v["as1"] and k not in active]
-    cands += [k for k in store["inducted"] if k in P and k not in cands]
+    cands = [k for k, v in P.items() if v["as1"] and k not in active and k not in C_OF]
+    cands += [k for k in store["inducted"] if k in P and k not in cands and k not in C_OF]
     HOFC = set(cands)
     # Retired Jerseys candidates (scored on the same scale, never part of the Hall's own percentiles): finished careers
     # with All-State (any) or All-Conference 1st Team at that school
-    JC = [k for k, v in P.items() if k not in active and k not in HOFC and any(
+    JC = [k for k, v in P.items() if k not in active and k not in HOFC and k not in C and any(
         b[0] == "allstate" or (b[0] == "allconf" and b[1] >= 3) for p_ in v["seasons"].values() for b in (p_.get("bdg") or []))]
 
     # --- Conference Freshman of the Year (inferred) ---
@@ -331,6 +359,13 @@ def build(season_files):
             P[k]["aw"] += 1
     for s, k in MIP_ST.items():
         P[k]["aw"] += 1
+    for ck, ks in C.items():        # a career across schools takes its parts' seasons, awards and honors
+        for k in ks:
+            for s in P[k]["seasons"]:
+                for D_ in (IMP, FOY, MIP):
+                    if (s, k) in D_:
+                        D_[(s, ck)] = D_[(s, k)]
+        P[ck]["aw"] = sum(P[k]["aw"] for k in ks)
     rows = []
     for k in cands + JC:
         school = k.split("|")[1]
@@ -344,8 +379,8 @@ def build(season_files):
         win = 0
         for s, (_, pl, _c) in ss:
             role = [1, .9, .8, .7][pl] if pl < 4 else .6
-            tm = TEAM.get((s, school), {"wp": .5, "netp": .5})
-            r_ = runs(s, school)
+            tm = TEAM.get((s, sch(k, s)), {"wp": .5, "netp": .5})
+            r_ = runs(s, sch(k, s))
             run = 1 if "state" in r_ else .7 if "fin" in r_ else .5 if "f4" in r_ else .3 if "e8" in r_ else 0
             win += role * (.4 * tm["wp"] + .3 * tm["netp"] + .3 * run)
         win /= max(1, len(ss)) ** .5
@@ -387,7 +422,7 @@ def build(season_files):
         bd = [b for p_ in v["seasons"].values() for b in (p_.get("bdg") or [])]
         role = (any(b[0] in ("cdpoy", "c6moy", "cpoy", "anchor") for b in bd)
                 or any(b[0] in ("glue", "rimprot") and b[1] >= 3 for b in bd)
-                or any(runs(s, school) & {"state", "fin", "f4"} for s in v["seasons"]))
+                or any(runs(s, sch(r["k"], s)) & {"state", "fin", "f4"} for s in v["seasons"]))
         if auto or (r["score"] >= RESUME_CUT and (ppg >= FLOOR_PPG or role)):
             store["inducted"].setdefault(r["k"], prev.get(r["k"]) or {"since": datetime.now().strftime("%Y-%m-%d")})
     STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
@@ -521,9 +556,16 @@ def build(season_files):
     except Exception:
         pass
 
+    for ck, ks in C.items():        # records too
+        for D_ in (REC, RECOPP):
+            for (kk, d), v_ in list(D_.items()):
+                if kk in ks:
+                    D_[(ck, d)] = v_
+
     def height(k, v):
-        if HT.get(k):
-            return HT[k]
+        for kk in [k] + C.get(k, []):
+            if HT.get(kk):
+                return HT[kk]
         name, school = k.split("|")
         if "2526" not in v["seasons"]:
             return None
@@ -553,10 +595,10 @@ def build(season_files):
                 bd.insert(0, ["cfoy", 3, 0, FOY[(s, k)]])
             if (s, k) in MIP:
                 bd.insert(0, ["cmip", 3, 0, MIP[(s, k)]])
-            if MIP_ST.get(s) == k:
+            if MIP_ST.get(s) in [k] + C.get(k, []):
                 bd.insert(0, ["mip", 3, 0, "State"])
             hon[k].append({"s": s, "region": p.get("region"), "conf": p.get("conference"), "b": bd,
-                           "team": TITLES.get(s, {}).get(school, []), "gp": p.get("gp")})
+                           "team": TITLES.get(s, {}).get(sch(k, s), []), "gp": p.get("gp")})
         gl = [g for g in GAMES.get(k, []) if g["ccc"]]
         okb = [g for g in gl if g["bpm"] is not None and (g["min"] or 0) >= 15]
         hiG = max(gl, key=lambda g: g["gs"]) if gl else None
@@ -615,8 +657,6 @@ def build(season_files):
         SCHOOL_COLORS, SCHOOL_SECONDARY_COLORS = {}, {}
     sc_of = {r["k"]: r["score_o"] for r in rows + JROWS}
     by_school = defaultdict(list)
-    for k in keys:
-        by_school[k.split("|")[1]].append(k)
     def jersey_worthy(k):
         """All-State (any), a Player of the Year award (region / conference / offensive / defensive / sixth man), two
         All-Conference 1st Teams, or a state title at that school."""
@@ -626,10 +666,14 @@ def build(season_files):
                 or sum(1 for p_ in v["seasons"].values() if any(b[0] == "cpoy" or (b[0] == "allconf" and b[1] >= 3)
                                                                  for b in (p_.get("bdg") or []))) >= 2
                 or any("state" in runs(s, school) for s in v["seasons"]))
+    for k in keys:      # every Hall of Famer; a career across schools at each school where he's jersey-worthy (else
+        # the school he played the most games for)
+        for x in ([y for y in C[k] if jersey_worthy(y)] or [max(C[k], key=lambda y: len(GAMES.get(y, [])))]) if k in C else [k]:
+            by_school[x.split("|")[1]].append(x)
     for r in sorted(JROWS, key=lambda r: -r["score_o"]):
-        sch = r["k"].split("|")[1]
-        if len(by_school[sch]) < JERSEYS_MAX and jersey_worthy(r["k"]):
-            by_school[sch].append(r["k"])
+        sc_ = r["k"].split("|")[1]
+        if len(by_school[sc_]) < JERSEYS_MAX and r["k"] not in by_school[sc_] and jersey_worthy(r["k"]):
+            by_school[sc_].append(r["k"])
 
     def jersey(k):
         name, school = k.split("|")
@@ -694,7 +738,7 @@ def build(season_files):
             return f"{', '.join(s_)} vs {g['opp']}, {g['d']} ({'W' if g['w'] else 'L'} {g['score']})"
         best = [stat_line(g) for g in sorted(gl, key=lambda g: -g["gs"])[:3]]   # his three best games (Game Score)
         ps = [(p_.get("gp") or 0, s, p_.get("pos")) for s, p_ in v["seasons"].items() if p_.get("pos")]
-        return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": k in K,
+        return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": C_OF.get(k, k) in K,
                 "ht": height(k, v), "pos": max(ps)[2] if ps else "",
                 "yrs": sorted(v["seasons"]), "why": parts, "recs": recs, "best": best, "score": round(sc_of.get(k, 0), 1),
                 "tot": {f: sum(g[f] for g in gl) for f in ("pts", "reb", "ast", "stl", "blk", "tpm")} | {"gp": gp},
@@ -858,7 +902,7 @@ def build(season_files):
                 if c in COY[s]["conf"]:
                     d["coy"] = COY[s]["conf"][c]
 
-    return {"awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
+    return {"alias": {k: ck for k, ck in C_OF.items() if ck in K}, "awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 

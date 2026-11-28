@@ -416,7 +416,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   Protector (Blk%), Green Light (%Shots: his share of the team's shots while on the floor; fake-minutes
   stand-in FGA a game). Ratings (the PRPG! + BPM blend: z-scores among the season's real-minutes qualified players, half each; PRPG!
   alone without a BPM; a fake-minutes player's Game Score placed on PRPG!): All-State in the CCCMBCA's shape (2025-26:
-  24 first team, 14 honorable mention) = Gold 24 (each conference's best, then the best of the rest), Silver the next
+  24 first team, 14 honorable mention) = Gold 24 (each conference's Player of the Year, then the best of the rest; fixed
+  24 + 14 every season: Hall of Fame level only raises a first-teamer, never adds or promotes a pick), Silver the next
   14, no Bronze; Player of the Year North / South (the best in each region); All-Conference by the conference
   standings (_conf_places: overall win % then net until every team has 3 conference games, then conference win %),
   first team Gold 4 / 3 / 3 / 2 / 2 / 1 by place, second team Silver 2 / 2 / 1 / 1 / 1 / 1 / 0, honorable mention Bronze

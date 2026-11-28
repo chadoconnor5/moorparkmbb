@@ -3824,17 +3824,24 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
     R0 = lambda p: rating({"porp": est_porp(p)}) if p.get("fm") else rating(p)
     R = lambda p: None if R0(p) is None else (1 - ALL_STATE_TEAM_W) * R0(p) + ALL_STATE_TEAM_W * tz(p)
     cand = sorted([p for p in q if R(p) is not None], key=lambda p: -R(p))
-    gold, confs = [], set()
-    for p in cand:
-        if p.get("conference") not in confs:
-            confs.add(p.get("conference"))
-            gold.append(p)
-    gold += [p for p in cand if p not in gold][:max(0, ALL_STATE_GOLD - len(gold))]
-    allstate = {id(p) for p in gold}
-    for p in gold:
-        give(p, "allstate", 3, p.get("fm"))
-    for p in [p for p in cand if id(p) not in allstate][:ALL_STATE_SILVER]:
-        give(p, "allstate", 2, p.get("fm"))
+    # All-State first team: each conference's Player of the Year (its guaranteed spot; a conference without one yet:
+    # its best by this rating), then the best of the rest to ALL_STATE_GOLD; honorable mention the next ALL_STATE_SILVER.
+    # Picked once the conference awards are (pick_allstate below).
+    allstate = set()
+    def pick_allstate(cpoys):
+        gold = [full[k] for k in sorted(cpoys) if k in full]
+        confs = {p.get("conference") for p in gold}
+        for p in cand:
+            if p.get("conference") not in confs:
+                confs.add(p.get("conference"))
+                gold.append(p)
+        gold += [p for p in cand if p not in gold][:max(0, ALL_STATE_GOLD - len(gold))]
+        ids = {id(p) for p in gold}
+        for p in gold:
+            give(p, "allstate", 3, p.get("fm"))
+        for p in [p for p in cand if id(p) not in ids][:ALL_STATE_SILVER]:
+            give(p, "allstate", 2, p.get("fm"))
+        allstate.update(ids)
     for region in ("North", "South"):
         best = next((p for p in cand if p.get("region") == region), None)
         if best:
@@ -3910,6 +3917,7 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
             award("copoy", rest, lambda p: p.get("ppg"), conf, est=False)
             award("cdpoy", rest, DEF, conf)
             award("c6moy", [p for p in rest if bench(p)], CR, conf)
+        pick_allstate(cpoys)
         # All-Conference: first team (Gold) and second team (Silver, the honorable mentions rolled in), so many from each
         # team by its conference place (ALL_CONF_*), each team's best by the same rating. A Gold All-State fills his
         # team's spot but shows All-State, not both. The conference Player of the Year stands above the teams: he takes
@@ -3929,6 +3937,8 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
                 fp = full[(p["name"], p["school"])]
                 if id(fp) not in allstate:
                     give(fp, "allconf", 3 if i < n1 else 2, p.get("fm"))
+    if not allstate:
+        pick_allstate(set())
     # Offensive Engine / Defensive Anchor: OBPM / DBPM; a fake-minutes player's offensive / defensive Game Score on it
     for k, code, part in (("obpm", "engine", gs_off), ("dbpm", "anchor", gs_def)):
         has = [p for p in players if p.get(k) is not None and p.get("gp") and not p.get("fm")]
@@ -8892,7 +8902,7 @@ var BADGES = {{
   cdpoy: ['🛡️', 'Defensive Player of the Year', 'His conference\u2019s best defender in conference games: steals, blocks and defensive rebounds a game, his defensive rating and his team\u2019s defense (the Player of the Year aside)', 'conf'],
   c6moy: ['6️⃣', 'Sixth Man of the Year', 'His conference\u2019s best player off the bench (35% or fewer of his games started), by the Player of the Year rating in conference games', 'conf'],
   poy: ['🏆', 'Player of the Year', 'The best player in his region (North / South) by PRPG! and BPM blended', 'rating', 'PRPG! and BPM'],
-  allstate: ['👑', 'All-State', 'The CCCMBCA\u2019s shape: 24 first team (each conference\u2019s best, then the best of the rest) and 14 honorable mention, by PRPG! and BPM blended', 'rating', 'PRPG! and BPM blended'],
+  allstate: ['👑', 'All-State', 'The CCCMBCA\u2019s shape: 24 first team (each conference\u2019s Player of the Year, then the best of the rest) and 14 honorable mention, by PRPG! and BPM blended', 'rating', 'PRPG! and BPM blended'],
   allconf: ['⭐', 'All-Conference', 'By the conference standings, like the real conference teams, from conference games only: first team 4 / 3 / 3 / 2 / 2 / 1 from 1st place down, second team (honorable mentions rolled in) 3 / 2 / 2 / 1 / 1 / 1 (each team\u2019s best by conference PRPG!; overall record until every team has 3 conference games)', 'rating', 'conference PRPG!'],
   engine: ['🚀', 'Offensive Engine', 'The state\u2019s best by offensive BPM (not a Gold All-State)', 'rating', 'offensive BPM'],
   anchor: ['⚓', 'Defensive Anchor', 'The state\u2019s best by defensive BPM (not a Gold All-State)', 'rating', 'defensive BPM'],
