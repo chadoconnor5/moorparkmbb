@@ -816,6 +816,7 @@ def build(season_files):
         awards[s] = A
 
     # --- Coach of the Year (North / South and each conference, 2021-22 on): the most with the least, and success.
+    # (Region: the whole season. Each conference's award: conference games only, below.)
     # Over-achievement 40%: his net rating above what the roster he came in with predicted (last season's net rating and
     # the share of last season's points that came back, fitted on every team, every season); success 60%: WAB 25%
     # (winning against the schedule played: strength of schedule built in), conference win % lifted by the conference's
@@ -863,6 +864,25 @@ def build(season_files):
             KEY.append((s, t_["team"]))
     coef = np.linalg.lstsq(np.array(X), np.array(Y), rcond=None)[0] if X else None
     OVER = {k_: (y_ - float(np.dot(x_, coef)), float(np.dot(x_, coef)), x_[1]) for k_, x_, y_ in zip(KEY, X, Y)}
+    # the conference award: conference games only (conference net rating above what the roster projected in
+    # conference play, fitted the same way; conference win %; the title)
+    CT = {s: {t_["team"]: t_ for t_ in _first(SD[s], r"CONF_TEAM_DATA_\d+")} for s in past}
+    XC, YC, KC = [], [], []
+    for i, s in enumerate(past[1:], 1):
+        pv = past[i - 1]
+        prev_all = {t_["team"]: t_ for t_ in teams[pv]}
+        for tm, t_ in CT[s].items():
+            if (s, tm) not in OVER or (t_.get("gp") or 0) < 6:
+                continue
+            pn = (CT[pv].get(tm) or {}).get("net_rtg")
+            if pn is None:
+                pn = (prev_all.get(tm) or {}).get("net_rtg") or 0
+            ret = OVER[(s, tm)][2]
+            XC.append([pn, ret, pn * ret, 1])
+            YC.append(t_.get("net_rtg") or 0)
+            KC.append((s, tm))
+    coefc = np.linalg.lstsq(np.array(XC), np.array(YC), rcond=None)[0] if XC else None
+    OVERC = {k_: (y_ - float(np.dot(x_, coefc)), float(np.dot(x_, coefc)), y_) for k_, x_, y_ in zip(KC, XC, YC)}
     COY = {}
     for s in [x for x in past if x >= "2122"]:
         sy = "20" + s[:2] + "-" + s[2:]
@@ -901,7 +921,25 @@ def build(season_files):
         # success to be considered: a .600 record and a .600 conference record (or the conference title)
         ok = [r for r in rows_ if r["wp"] >= .6 and (r["ctitle"] or r["cwp"] >= .6)]
         out = {"region": {}, "conf": {}}
-        for key_, grp in (("region", lambda r: r["region"]), ("conf", lambda r: r["conf"])):
+        crows = [dict(r, cover=OVERC[(s, r["team"])][0], cexp=OVERC[(s, r["team"])][1], cnet=OVERC[(s, r["team"])][2])
+                 for r in rows_ if (s, r["team"]) in OVERC]
+        if crows:
+            zco, zcw = _z([r["cover"] for r in crows]), _z([r["cwp"] for r in crows])
+            zct = _z([int(r["ctitle"]) for r in crows])
+            for r in crows:
+                r["cscore"] = .60 * zco(r["cover"]) + .30 * zcw(r["cwp"]) + .10 * zct(int(r["ctitle"]))
+            byc = defaultdict(list)
+            for r in crows:
+                if r["conf"] and (r["ctitle"] or r["cwp"] >= .6):
+                    byc[r["conf"]].append(r)
+            for g, rs in byc.items():
+                b = max(rs, key=lambda r: r["cscore"])
+                why = [f"{b['crec']} in conference",
+                       f"conference net {b['cnet']:+.1f}, {b['cover']:+.1f} over the {b['cexp']:+.1f} his roster projected"]
+                if b["ctitle"]:
+                    why.append("conference champions")
+                out["conf"][g] = {"team": b["team"], "coach": (COACH.get(b["team"]) or {}).get(sy) or "", "why": why}
+        for key_, grp in (("region", lambda r: r["region"]),):
             by = defaultdict(list)
             for r in ok:
                 if grp(r):

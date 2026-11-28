@@ -184,7 +184,8 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   same blend, no spreading across teams), Conference Freshman of the Year (inferred: name not seen before; FRESHMAN_NOT
   for confirmed sophomores, 2022-23 Javohn Garcia), Most Improved Player (statewide and per conference: the biggest jump in the resume's impact
   percentile from the season before at the same school, both seasons qualified; tie: points a game jump; FOY and conference
-  MIP count 1 in honors like Sixth Man, statewide MIP 2), Coach of the Year (2021-22 on, North / South and each
+  MIP count 1 in honors like Sixth Man, statewide MIP 2), Coach of the Year (2021-22 on; each conference's from conference games only: 60% conference net
+  over what the roster projected, 30% conference win %, 10% the title; North / South and, before, each
   conference: COY_W 60% over-achievement = net rating above what the roster projected (last season's net and the share of
   its points back, fitted on every team-season), 15% WAB, 15% conference win % lifted by conference strength, 10% the run;
   needs .600 overall and .600 in conference or the title; names from coaches.json, else the Keys tenures (KEYS_TEAMS,
