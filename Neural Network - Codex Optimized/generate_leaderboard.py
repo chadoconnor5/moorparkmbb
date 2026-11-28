@@ -3768,8 +3768,9 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
         v = own[code](p)
         return v is not None and v >= bars[code]
 
+    TEAMS_PICKED = ("allstate", "allconf")     # fixed-size teams: Hall of Fame level only raises a first-teamer
     def give(p, code, tier, stand_in=False):
-        if hof(p, code):
+        if hof(p, code) and (code not in TEAMS_PICKED or tier >= 3):
             tier = 4
         out[id(p)].append([code, tier, 1] if stand_in else [code, tier])
 
@@ -3986,7 +3987,10 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
             if n >= 3:
                 give(p, "glue", 3 if n >= 5 else 2 if n == 4 else 1, True)
     # Hall of Fame by the pooled bar alone: a season in the all-time top 3% earns it whatever his rank that season
+    # (not the picked teams: All-State is 24 + 14 and All-Conference so many a place, every season)
     for code in own:
+        if code in TEAMS_PICKED:
+            continue
         for p in players:
             if hof(p, code) and not any(b[0] == code for b in out[id(p)]):
                 out[id(p)].append([code, 4])
