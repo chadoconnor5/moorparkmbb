@@ -3896,23 +3896,27 @@ def attach_badges(players, history=(), teams=None, conf_players=None, conf_teams
                 return None
             return w / (w + l) if w + l else None
         IND = lambda p: zpc(cporp(p))
+        cpoys = set()
         for conf, ps in by_conf.items():
             wps = {p["school"]: _cwp(p["school"]) for p in ps}
             top = max([w for w in wps.values() if w is not None], default=None)
             champs = {s for s, w in wps.items() if top is not None and w == top} or \
                      {p["school"] for p in ps if _pl.get(p["school"]) == 0}
             poy = award("cpoy", [p for p in ps if p["school"] in champs] or ps, IND, conf)
+            if poy:
+                cpoys.add((poy["name"], poy["school"]))
             rest = [p for p in ps if p is not poy]
             award("copoy", rest, lambda p: p.get("ppg"), conf, est=False)
             award("cdpoy", rest, DEF, conf)
             award("c6moy", [p for p in rest if bench(p)], CR, conf)
         # All-Conference: first team (Gold) and second team (Silver, the honorable mentions rolled in), so many from each
         # team by its conference place (ALL_CONF_*), each team's best by the same rating. A Gold All-State fills his
-        # team's spot but shows All-State, not both.
+        # team's spot but shows All-State, not both. The conference Player of the Year stands above the teams: he takes
+        # no spot, which goes to the next player on his team.
         places = _conf_places(teams or [])
         by_team = {}
         for p in cq:
-            if CR(p) is not None:
+            if CR(p) is not None and (p["name"], p["school"]) not in cpoys:
                 by_team.setdefault(p["school"], []).append(p)
         for team, ps in by_team.items():
             pl = places.get(team)
