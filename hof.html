@@ -231,7 +231,7 @@ function games(p){const l=GM[p.name+'|'+p.school]||[];if(!l.length)return'';cons
  return `<div class="games"><div class="gh">SIGNATURE GAMES <span>· toughest opponent first</span></div>${a.map(gline).join('')}${b.length?`<details><summary>+ ${b.length} MORE</summary>${b.map(gline).join('')}</details>`:''}</div>`}
 
 const HON=RAW.hon;
-const AWD={poy:['🏆',(x,h)=>h.region+' Player of the Year'],cpoy:['🏅',(x,h)=>(x[3]||h.conf)+' Player of the Year'],copoy:['💥',(x,h)=>(x[3]||h.conf)+' Offensive Player of the Year'],cdpoy:['🛡️',(x,h)=>(x[3]||h.conf)+' Defensive Player of the Year'],c6moy:['6️⃣',(x,h)=>(x[3]||h.conf)+' Sixth Man of the Year'],cfoy:['🌟',(x,h)=>(x[3]||h.conf)+' Freshman of the Year']};
+const AWD={poy:['🏆',(x,h)=>h.region+' Player of the Year'],cpoy:['🏅',(x,h)=>(x[3]||h.conf)+' Player of the Year'],copoy:['💥',(x,h)=>(x[3]||h.conf)+' Offensive Player of the Year'],cdpoy:['🛡️',(x,h)=>(x[3]||h.conf)+' Defensive Player of the Year'],c6moy:['6️⃣',(x,h)=>(x[3]||h.conf)+' Sixth Man of the Year'],cfoy:['🌟',(x,h)=>(x[3]||h.conf)+' Freshman of the Year'],mip:['📈',()=>'State Most Improved Player'],cmip:['📈',(x,h)=>(x[3]||h.conf)+' Most Improved Player']};
 const TN={4:'Hall of Fame',3:'Gold',2:'Silver',1:'Bronze'},TC={4:'h',3:'tg',2:'s',1:'b'};
 
 function teamLines(h){const T=h.team||[],has=c=>T.find(x=>x[0]===c),o=[];
@@ -261,7 +261,7 @@ function honors(p){const l=HON[p.name+'|'+p.school]||[];if(!l.length)return'';
   const aw=[],ch=[];
   const mv=isM(h);if(mv)aw.push(`<div class="aw mvp">State Tournament MVP<span>${esc(mv.line)}</span></div>`);
   if(((RAW.allt||{})[h.s]||[]).includes(p.name+'|'+p.school))aw.push('<div class="aw">State All-Tournament Team</div>');
-  ['poy','cpoy','copoy','cdpoy','cfoy','c6moy'].forEach(c=>h.b.filter(x=>x[0]===c).forEach(x=>aw.push(`<div class="aw">${esc(AWD[c][1](x,h))}</div>`)));
+  ['poy','mip','cpoy','copoy','cdpoy','cfoy','cmip','c6moy'].forEach(c=>h.b.filter(x=>x[0]===c).forEach(x=>aw.push(`<div class="aw">${esc(AWD[c][1](x,h))}</div>`)));
   h.b.filter(x=>x[0]==='allstate').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-State ${x[1]>=3?'1st Team':'Honorable Mention'}${x[1]===4?' · Hall of Fame season':''}</div>`));
   h.b.filter(x=>x[0]==='allconf').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-${esc(h.conf)} ${x[1]>=3?'1st':'2nd'} Team</div>`));
   h.b.filter(x=>B[x[0]]&&x[0]!=='allstate').sort((a,b)=>b[1]-a[1]).forEach(x=>ch.push(`<span class="ch ${TC[x[1]]}">${B[x[0]][0]} ${TN[x[1]]} ${B[x[0]][1]}</span>`));
@@ -317,17 +317,17 @@ function awardsView(){const A=RAW.awards||{},sel=document.getElementById('aseaso
  if(sel.value==='all'){
   return '<div class="aw2"><div class="ac"><h3>STATE CHAMPIONS</h3><table class="at"><tr><th>Season</th><th>Champion</th><th>Runner-up</th><th>Final Four</th><th>Tournament MVP</th></tr>'+
    S.map(s=>{const x=A[s].state;return `<tr><td>${yr(s)}</td><td><b>${x.canceled?'Canceled (COVID)':esc((x.champ||[]).join(', ')||'—')}</b></td><td>${esc((x.runner||[]).join(', ')||'—')}</td><td>${esc((x.f4||[]).filter(t=>!(x.final||[]).includes(t)).join(', ')||'—')}</td><td>${x.mvp?pn(x.mvp):'—'}</td></tr>`}).join('')+'</table></div>'+
-   '<div class="ac"><h3>REGION PLAYERS OF THE YEAR</h3><table class="at"><tr><th>Season</th><th>North</th><th>South</th></tr>'+S.map(s=>`<tr><td>${yr(s)}</td><td>${pn(A[s].poy.North)}</td><td>${pn(A[s].poy.South)}</td></tr>`).join('')+'</table></div></div>'}
+   '<div class="ac"><h3>REGION PLAYERS OF THE YEAR · MOST IMPROVED</h3><table class="at"><tr><th>Season</th><th>North</th><th>South</th><th>Most Improved</th></tr>'+S.map(s=>`<tr><td>${yr(s)}</td><td>${pn(A[s].poy.North)}</td><td>${pn(A[s].poy.South)}</td><td>${pn(A[s].mip)}</td></tr>`).join('')+'</table></div></div>'}
  const a=A[sel.value],st=a.state;let h='<div class="aw2"><div class="ag"><div class="ac"><h3>STATE TOURNAMENT</h3>'+
   (st.canceled?row('Elite Eight',esc(st.e8.join(', '))+' <i>(tournament canceled, COVID)</i>'):row('Champion','<b>'+esc(st.champ.join(', ')||'—')+'</b>')+row('Runner-up',esc(st.runner.join(', ')||'—'))+row('Final Four',esc(st.f4.filter(t=>!st.final.includes(t)).join(', ')||'—'))+row('Elite Eight',esc(st.e8.filter(t=>!st.f4.includes(t)).join(', ')||'—'))+row('Tournament MVP',st.mvp?pn(st.mvp):'—')+row('All-Tournament',(st.allt||[]).map(pn).join('<br>')||'—'))+
-  '</div><div class="ac"><h3>REGION PLAYERS OF THE YEAR</h3>'+row('North',pn(a.poy.North))+row('South',pn(a.poy.South))+'</div></div>'+
+  '</div><div class="ac"><h3>REGION PLAYERS OF THE YEAR</h3>'+row('North',pn(a.poy.North))+row('South',pn(a.poy.South))+row('Most Improved',pn(a.mip))+'</div></div>'+
   `<div class="ac"><h3>ALL-STATE 1ST TEAM · ${a.allstate.first.length}</h3><div class="al2">${a.allstate.first.map(k=>'<div>'+pn(k)+'</div>').join('')}</div></div>`+
   `<div class="ac"><h3>ALL-STATE HONORABLE MENTION · ${a.allstate.hm.length}</h3><div class="al2">${a.allstate.hm.map(k=>'<div>'+pn(k)+'</div>').join('')}</div></div><div class="ag">`;
  for(const [c,d] of Object.entries(a.conf)){
   h+=`<div class="ac"><h3>${esc(c).toUpperCase()}</h3>`+row('Champion','<b>'+esc((d.champ||[]).join(', ')||'—')+'</b>'+((d.champ||[]).length>1?' <i>(co-champions)</i>':''))+
-   row('Player of the Year',pn(d.cpoy))+row('Offensive POY',pn(d.copoy))+row('Defensive POY',pn(d.cdpoy))+row('Sixth Man',pn(d.c6moy))+row('Freshman',pn(d.cfoy))+
+   row('Player of the Year',pn(d.cpoy))+row('Offensive POY',pn(d.copoy))+row('Defensive POY',pn(d.cdpoy))+row('Sixth Man',pn(d.c6moy))+row('Freshman',pn(d.cfoy))+row('Most Improved',pn(d.cmip))+
    ((d.first||[]).length?row('1st Team',(d.first||[]).map(pn).join('<br>')):'')+((d.second||[]).length?row('2nd Team',(d.second||[]).map(pn).join('<br>')):'')+'</div>'}
- return h+'</div><p class="foot" style="margin-top:10px">Our picks, from performance: All-State, conference awards (conference games only; Player of the Year = the best player on the conference champion), Freshman of the Year inferred. ★ Hall of Famer.</p></div>'}
+ return h+'</div><p class="foot" style="margin-top:10px">Our picks, from performance: All-State, conference awards (conference games only; Player of the Year = the best player on the conference champion), Freshman of the Year inferred, Most Improved = the biggest jump in impact (PRPG! + BPM) from the season before at the same school. ★ Hall of Famer.</p></div>'}
 function render(){const t=document.getElementById('q').value.trim().toLowerCase();
  document.getElementById('jsel').style.display=VIEW==='jersey'?'block':'none';
  document.getElementById('asel').style.display=VIEW==='awards'?'block':'none';

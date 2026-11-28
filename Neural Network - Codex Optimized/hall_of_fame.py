@@ -249,6 +249,31 @@ def build(season_files):
     JC = [k for k, v in P.items() if k not in active and k not in HOFC and any(
         b[0] == "allstate" or (b[0] == "allconf" and b[1] >= 3) for p_ in v["seasons"].values() for b in (p_.get("bdg") or []))]
 
+    # --- Conference Freshman of the Year (inferred) ---
+    FOY, seen = {}, set()
+    for s in past:
+        names = {M(p["name"]) for p in players[s]}
+        if s != past[0]:
+            fr = names - seen
+            cp, ct = _first(SD[s], r"CONF_DATA_\d+"), _first(SD[s], r"CONF_TEAM_DATA_\d+")
+            cg = Counter()
+            for p in cp:
+                cg[p["school"]] = max(cg[p["school"]], p.get("gp") or 0)
+            cq = [p for p in cp if p.get("gp") and not p.get("fm") and p.get("porp") is not None
+                  and p["gp"] >= .5 * cg[p["school"]] and (p.get("min_pct") or 0) >= 30]
+            if cq:
+                zp = _z([p["porp"] for p in cq])
+                ctn = {t["team"]: t.get("net_rtg") or 0 for t in ct}
+                zn = _z(list(ctn.values()))
+                byc = defaultdict(list)
+                for p in cq:
+                    if M(p["name"]) in fr and (s, M(p["name"])) not in FRESHMAN_NOT:
+                        byc[p["conference"]].append(p)
+                for c, ps in byc.items():
+                    w = max(ps, key=lambda p: .5 * zp(p["porp"]) + .5 * zn(ctn.get(p["school"], 0)))
+                    FOY[(s, M(w["name"]) + "|" + w["school"])] = c
+        seen |= names
+
     # --- resume score ---
     IMP = {}
     import numpy as np
@@ -278,6 +303,33 @@ def build(season_files):
             # measured PRPG! + BPM; who gets in uses the uncapped one, so the cap only orders the Hall)
             IMP[(s, M(p["name"]) + "|" + p["school"])] = (imp_of[id(p)], place[id(p)],
                                                           imp_of[id(p)] if p in real else min(EST_CAP, imp_of[id(p)]))
+    # --- Most Improved Player: the biggest jump in impact (the resume's PRPG! + BPM percentile) from the season before
+    # at the same school, both seasons qualified; statewide and in each conference (a tie: the bigger jump in points a game)
+    MIP, MIP_ST = {}, {}
+    for i, s in enumerate(past[1:], 1):
+        pv = past[i - 1]
+        if int(s[:2]) != int(pv[:2]) + 1:
+            continue
+        cand = []
+        for p in players[s]:
+            k = M(p["name"]) + "|" + p["school"]
+            if (s, k) in IMP and (pv, k) in IMP:
+                cand.append((IMP[(s, k)][0] - IMP[(pv, k)][0],
+                             (p.get("ppg") or 0) - (P[k]["seasons"][pv].get("ppg") or 0), k, p.get("conference")))
+        if cand:
+            MIP_ST[s] = max(cand)[2]
+            byc = defaultdict(list)
+            for x in cand:
+                if x[3]:
+                    byc[x[3]].append(x)
+            for c, xs in byc.items():
+                MIP[(s, max(xs)[2])] = c
+    # Freshman of the Year and Most Improved count in honors like Sixth Man (1); the statewide Most Improved 1 more
+    for (s, k) in list(FOY) + list(MIP):
+        if k in P:
+            P[k]["aw"] += 1
+    for s, k in MIP_ST.items():
+        P[k]["aw"] += 1
     rows = []
     for k in cands + JC:
         school = k.split("|")[1]
@@ -344,31 +396,6 @@ def build(season_files):
     rows.sort(key=lambda r: -r["score_o"])
     keys = [r["k"] for r in rows]
     K = set(keys)
-
-    # --- Conference Freshman of the Year (inferred) ---
-    FOY, seen = {}, set()
-    for s in past:
-        names = {M(p["name"]) for p in players[s]}
-        if s != past[0]:
-            fr = names - seen
-            cp, ct = _first(SD[s], r"CONF_DATA_\d+"), _first(SD[s], r"CONF_TEAM_DATA_\d+")
-            cg = Counter()
-            for p in cp:
-                cg[p["school"]] = max(cg[p["school"]], p.get("gp") or 0)
-            cq = [p for p in cp if p.get("gp") and not p.get("fm") and p.get("porp") is not None
-                  and p["gp"] >= .5 * cg[p["school"]] and (p.get("min_pct") or 0) >= 30]
-            if cq:
-                zp = _z([p["porp"] for p in cq])
-                ctn = {t["team"]: t.get("net_rtg") or 0 for t in ct}
-                zn = _z(list(ctn.values()))
-                byc = defaultdict(list)
-                for p in cq:
-                    if M(p["name"]) in fr and (s, M(p["name"])) not in FRESHMAN_NOT:
-                        byc[p["conference"]].append(p)
-                for c, ps in byc.items():
-                    w = max(ps, key=lambda p: .5 * zp(p["porp"]) + .5 * zn(ctn.get(p["school"], 0)))
-                    FOY[(s, M(w["name"]) + "|" + w["school"])] = c
-        seen |= names
 
     # --- State Tournament MVP: the champion's last three games, a blend (Game Score is one part) ---
     MVP = {}
@@ -521,6 +548,10 @@ def build(season_files):
             bd = [list(b) for b in p.get("bdg") or []]
             if (s, k) in FOY:
                 bd.insert(0, ["cfoy", 3, 0, FOY[(s, k)]])
+            if (s, k) in MIP:
+                bd.insert(0, ["cmip", 3, 0, MIP[(s, k)]])
+            if MIP_ST.get(s) == k:
+                bd.insert(0, ["mip", 3, 0, "State"])
             hon[k].append({"s": s, "region": p.get("region"), "conf": p.get("conference"), "b": bd,
                            "team": TITLES.get(s, {}).get(school, []), "gp": p.get("gp")})
         gl = [g for g in GAMES.get(k, []) if g["ccc"]]
@@ -619,6 +650,10 @@ def build(season_files):
         for s in v["seasons"]:
             if (s, k) in FOY:
                 named[f"{FOY[(s, k)]} Freshman of the Year"].append(s)
+            if (s, k) in MIP:
+                named[f"{MIP[(s, k)]} Most Improved Player"].append(s)
+            if MIP_ST.get(s) == k:
+                named["State Most Improved Player"].append(s)
         for lab, ss in sorted(named.items(), key=lambda x: (min(x[1]), "Region" not in x[0])):
             parts.append(f"{Y(ss)} {lab}")
         for label, ss in (("All-State 1st Team", yrs_of(lambda b: b[0] == "allstate" and b[1] >= 3)),
@@ -676,6 +711,7 @@ def build(season_files):
         if s in MVP:
             A["state"]["mvp"] = MVP[s]["name"] + "|" + MVP[s]["team"]
         A["state"]["allt"] = ALLT.get(s, [])
+        A["mip"] = MIP_ST.get(s)
         conf = defaultdict(lambda: {"champ": [], "first": [], "second": []})
         for tm, l in ttl.items():
             for x in l:
@@ -696,6 +732,8 @@ def build(season_files):
                     conf[c]["first" if b[1] >= 3 else "second"].append(k)
             if (s, k) in FOY:
                 conf[c]["cfoy"] = k
+            if (s, k) in MIP:
+                conf[c]["cmip"] = k
         # a first-team All-State fills his All-Conference spot but shows All-State: list him on the first team too
         for k in A["allstate"]["first"]:
             pl = P[k]["seasons"].get(s, {})
