@@ -130,7 +130,7 @@ details summary::-webkit-details-marker{display:none}
 .vw button.on{background:linear-gradient(160deg,var(--gold2),var(--gold));color:#1a1206;border-color:var(--gold)}
 .cls{text-align:center;margin:18px 0 0;font-family:Cinzel,serif;font-size:12px;letter-spacing:.12em}
 .cls a{color:var(--gold);text-decoration:none;margin:0 8px;white-space:nowrap}
-.vw button:nth-child(2){border-radius:0;border-left:0}
+.vw button:nth-child(2),.vw button:nth-child(3){border-radius:0;border-left:0}.vw{flex-wrap:wrap}
 .jschool{background:#12151c;color:var(--gold2);border:1px solid var(--gold3);border-radius:20px;padding:8px 16px;font-family:Cinzel,serif;font-size:14px;letter-spacing:.08em}
 .rafters{max-width:1180px;margin:20px auto 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:30px 18px}
 .bn{position:relative;padding:22px 14px 50px;border-top:6px solid var(--ac);text-align:center;clip-path:polygon(0 0,100% 0,100% 88%,50% 100%,0 88%);box-shadow:inset 0 0 0 3px rgba(255,255,255,.18);min-height:330px}
@@ -161,6 +161,19 @@ details summary::-webkit-details-marker{display:none}
 .jr.jb li{color:var(--ink);font-family:'Cormorant Garamond',serif;font-size:15.5px;letter-spacing:0}
 .jl{margin-top:10px;color:var(--ink2);font-style:italic}
 @media(max-width:560px){.rafters .bn{flex:0 0 calc(50% - 8px)}}
+.aw2{max-width:1100px;margin:22px auto 0}
+.ac{overflow-x:auto;border:1px solid rgba(216,178,90,.3);border-radius:4px;padding:14px 16px;margin-bottom:16px;background:linear-gradient(170deg,#1b1f2a,#12151c)}
+.ac h3{font-family:Cinzel,serif;color:var(--gold);letter-spacing:.18em;font-size:13px;margin-bottom:8px;border-bottom:1px solid rgba(216,178,90,.25);padding-bottom:6px}
+.ag{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.ar{display:flex;gap:10px;padding:3px 0;font-size:15.5px;border-bottom:1px dotted rgba(216,178,90,.12)}.ar:last-child{border:0}
+.ar .al{font-family:Cinzel,serif;font-size:11.5px;letter-spacing:.08em;color:var(--ink3);min-width:118px;flex:none;padding-top:3px}
+.ar .av{color:var(--ink)}.ar .av i{color:var(--ink2);font-size:14px}.ar .av b{color:var(--gold2);font-weight:600}
+.al2{columns:2;column-gap:20px;font-size:15px}.al2 div{break-inside:avoid;padding:1px 0}.al2 i{color:var(--ink3);font-size:13.5px}
+.at{width:100%;min-width:560px;border-collapse:collapse;font-size:15px}.at th{font-family:Cinzel,serif;font-size:11px;letter-spacing:.12em;color:var(--ink3);text-align:left;padding:4px 6px;border-bottom:1px solid rgba(216,178,90,.3)}.at td{padding:5px 6px;border-bottom:1px dotted rgba(216,178,90,.12)}.at td b{color:var(--gold2)}
+@media(max-width:560px){.al2{columns:1}.ar .al{min-width:96px}.vw{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:360px}.vw button,.vw button:first-child,.vw button:last-child,.vw button:nth-child(2),.vw button:nth-child(3){border:1px solid var(--gold3);border-radius:16px}}
+.tot{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;width:100%;margin-top:10px;padding:7px 0;border-top:1px solid rgba(216,178,90,.2);font-family:Cinzel,serif;font-size:11px;letter-spacing:.1em;color:var(--ink3)}
+.tot b{font-size:15px;color:var(--gold2);letter-spacing:0;margin-right:2px}.tot .tl{color:var(--gold);letter-spacing:.2em}
+.tot.jt{margin-top:12px}
 .jhead{text-align:center;font-family:Cinzel,serif;color:var(--gold);letter-spacing:.25em;margin:26px 0 0;font-size:15px}
 .jhead small{display:block;font-family:'Cormorant Garamond',serif;letter-spacing:0;color:var(--ink3);font-style:italic;font-size:15px;margin-top:4px}
 .empty{text-align:center;color:var(--ink3);font-style:italic;margin-top:30px}
@@ -174,7 +187,8 @@ details summary::-webkit-details-marker{display:none}
  <p>Every inductee was a first-team All-State player whose whole resume ranks among the best of the era: how much his teams won, his impact, his honors, and how he played in the big games (every quad, Q1A to Q4). Every Region Player of the Year, two-time first-team All-State and elite scorer (a 19.8+ point season) is in automatically, and the role players who won with defense and toughness have their place too.</p>
  <div class="stats" id="stats"></div>
  <input class="search" id="q" placeholder="Find an inductee or school">
- <div class="vw"><button data-v="rank" class="on">By Resume</button><button data-v="class">By Class</button><button data-v="jersey">Retired Jerseys</button></div>
+ <div class="vw"><button data-v="rank" class="on">By Resume</button><button data-v="class">By Class</button><button data-v="jersey">Retired Jerseys</button><button data-v="awards">Awards</button></div>
+ <div id="asel" style="display:none;text-align:center;margin-top:12px"><select id="aseason" class="jschool"></select></div>
  <div id="jsel" style="display:none;text-align:center;margin-top:12px"><select id="jschool" class="jschool"></select></div>
 </div>
 <div id="out"></div>
@@ -252,6 +266,8 @@ function honors(p){const l=HON[p.name+'|'+p.school]||[];if(!l.length)return'';
   h.b.filter(x=>x[0]==='allconf').forEach(x=>aw.push(`<div class="aw${x[1]===2?' t2':''}">All-${esc(h.conf)} ${x[1]>=3?'1st':'2nd'} Team</div>`));
   h.b.filter(x=>B[x[0]]&&x[0]!=='allstate').sort((a,b)=>b[1]-a[1]).forEach(x=>ch.push(`<span class="ch ${TC[x[1]]}">${B[x[0]][0]} ${TN[x[1]]} ${B[x[0]][1]}</span>`));
   return `<div class="hs"><div class="hy">${yr(h.s)} <span>· ${esc(h.conf||'')}</span></div>${teamLines(h)}${aw.join('')}${ch.length?'<div class="chips">'+ch.join('')+'</div>':''}</div>`}).join('')+'</div>'}
+function totals(o,cls){if(!o)return'';const L=[['pts','PTS'],['reb','REB'],['ast','AST'],['stl','STL'],['blk','BLK'],['tpm','3PM']];
+ return `<div class="${cls||'tot'}"><span class="tl">CAREER TOTALS</span>`+L.map(([k,l])=>`<span><b>${(o[k]||0).toLocaleString()}</b> ${l}</span>`).join('')+'</div>'}
 function peak(p){const c=(RAW.career||{})[p.name+'|'+p.school];if(!c)return'';
  const v=[[c.ppg,'PPG'],[c.rpg,'RPG'],[c.apg,'APG'],[c.bpm,'BPM'],[c.gp,'GAMES'],[c.dd,'DBL-DBL'],[c.td,'TRP-DBL']].filter(x=>x[0]!=null);
  return '<div class="peak">'+v.map(([x,l])=>`<div><b>${l==='BPM'&&x>0?'+':''}${['GAMES','DBL-DBL','TRP-DBL'].includes(l)?x:(+x).toFixed(1)}</b><span>${['GAMES','DBL-DBL','TRP-DBL'].includes(l)?'':'CAREER '}${l}</span></div>`).join('')+'</div>'}
@@ -269,7 +285,7 @@ function entry(p){const k=p.name+'|'+p.school,H=RAW.hon[k]||[],as1=p.car.as1,o=[
  return '<div class="entry">Enshrined for: '+o.join(' · ')+'</div>'}
 function plaque(p,legend){const yrs=p.seasons.map(yr).join(' · ');
  const why=`<div class="gh wh">WHY HE'S HERE</div>${entry(p)}`+(p.list.length?`<ul class="why">`+p.list.map(d=>`<li><span class="e">${B[d.code][0]}</span><span class="s">${yr(d.season)}</span><span><b>${B[d.code][1]}</b> <span class="d">— ${B[d.code][2](d)}</span></span></li>`).join('')+'</ul>':'');
- return `<div class="plaque${legend?' legend':''}"><span class="num">No. ${p.rank}</span><div class="hd"><div class="count">${Math.round(p.res.score)}</div><div class="who"><div class="cl">RESUME SCORE</div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.school)} · <i>${yrs}</i></div>${(()=>{const b=(RAW.bio||{})[p.name+'|'+p.school]||{},o=[];if(b.ht)o.push(esc(b.ht));if((b.pos||[]).length)o.push(b.pos.map(esc).join(' / '));return o.length?'<div class="bio">'+o.join(' · ')+'</div>':''})()}</div>${peak(p)}${teamSum(RAW.hon[p.name+'|'+p.school]||[],p)}${resBars(p)}</div><div class="orn">✦</div><div class="cols"><div>${honors(p)}${why}</div><div>${games(p)}</div></div></div>`}
+ return `<div class="plaque${legend?' legend':''}"><span class="num">No. ${p.rank}</span><div class="hd"><div class="count">${Math.round(p.res.score)}</div><div class="who"><div class="cl">RESUME SCORE</div><div class="name">${esc(p.name)}</div><div class="meta">${esc(p.school)} · <i>${yrs}</i></div>${(()=>{const b=(RAW.bio||{})[p.name+'|'+p.school]||{},o=[];if(b.ht)o.push(esc(b.ht));if((b.pos||[]).length)o.push(b.pos.map(esc).join(' / '));return o.length?'<div class="bio">'+o.join(' · ')+'</div>':''})()}</div>${peak(p)}${totals(((RAW.career||{})[p.name+'|'+p.school]||{}).tot)}${teamSum(RAW.hon[p.name+'|'+p.school]||[],p)}${resBars(p)}</div><div class="orn">✦</div><div class="cols"><div>${honors(p)}${why}</div><div>${games(p)}</div></div></div>`}
 function lum(h){if(!h)return 0;const c=h.replace('#','');const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16);return (.299*r+.587*g+.114*b)/255}
 function jersey(j,bg,fg,ac){const nm=esc((w=>w.length>1&&/^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(w[w.length-1])?w.slice(-2).join(' '):w.slice(-1)[0])(j.name.split(' ')).toUpperCase()),n=esc(j.j||'');
  return `<svg viewBox="0 0 200 240" class="jsy"><path d="M52 4 L76 4 Q100 38 124 4 L148 4 L150 26 Q158 58 192 64 L192 236 L8 236 L8 64 Q42 58 50 26 Z" fill="${bg}" stroke="${ac}" stroke-width="5" stroke-linejoin="round"/>`+
@@ -286,14 +302,36 @@ function jerseys(t){const J=RAW.jerseys||{},sel=document.getElementById('jschool
   L.map((j,i)=>`<div class="bn" onclick="jopen(${i},this)"><div class="hang"></div>${jersey(j,bg,fg,ac)}<div class="cap">${esc(j.name)}${j.hof?' <span>★</span>':''}</div></div>`).join('')+'</div>'}
 function jopen(i,el){const j=JLIST[i],[s,bg,fg,ac]=JCOL;
  const m=document.getElementById('jm');m.innerHTML=`<div class="jmb" onclick="event.stopPropagation()"><button class="jx" onclick="jclose()">×</button><div class="jmh">${jersey(j,bg,fg,ac)}<div><div class="name" style="font-size:26px">${esc(j.name)}</div><div class="meta">${esc(s)} · <i>${j.yrs.map(yr).join(' · ')}</i></div>${(j.ht||j.pos)?`<div class="bio">${[j.ht,j.pos].filter(Boolean).map(esc).join(' · ')}</div>`:''}${j.hof?'<div class="hfm">HALL OF FAME</div>':''}</div></div>`+
-  `<div class="gh" style="margin-top:14px">RESUME</div><ul class="jr">${j.why.map(w=>`<li>${esc(w)}</li>`).join('')}${j.recs.map(w=>`<li class="rc">${esc(w)}</li>`).join('')}</ul>${(j.best||[]).length?`<div class="gh" style="margin-top:14px">BEST PERFORMANCES</div><ul class="jr jb">${j.best.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}${j.line?`<div class="jl">Career: ${esc(j.line)}</div>`:''}</div>`;
+  `<div class="gh" style="margin-top:14px">RESUME</div><ul class="jr">${j.why.map(w=>`<li>${esc(w)}</li>`).join('')}${j.recs.map(w=>`<li class="rc">${esc(w)}</li>`).join('')}</ul>${(j.best||[]).length?`<div class="gh" style="margin-top:14px">BEST PERFORMANCES</div><ul class="jr jb">${j.best.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}${j.line?`<div class="jl">Career: ${esc(j.line)}</div>`:''}${totals(j.tot,'tot jt')}</div>`;
  // the page sits in the leaderboard's frame at full height (the frame doesn't scroll): open the card beside the jersey
  m.style.height=document.documentElement.scrollHeight+'px';m.style.display='block';
  const top=(el?el.getBoundingClientRect().top+window.scrollY:window.scrollY)-30;m.firstChild.style.marginTop=Math.max(20,top)+'px'}
 function jclose(){document.getElementById('jm').style.display='none'}
 window.jopen=jopen;window.jclose=jclose;
+
+function awardsView(){const A=RAW.awards||{},sel=document.getElementById('aseason'),S=Object.keys(A).sort().reverse();
+ if(!sel.options.length){sel.innerHTML='<option value="all">Past Champions (all seasons)</option>'+S.map(s=>`<option value="${s}">${yr(s)}</option>`).join('');sel.onchange=render}
+ const HS=new Set(RAW.order||[]);
+ const pn=k=>{if(!k)return'—';const [n,sc]=k.split('|');return `<b>${esc(n)}</b>${HS.has(k)?' <span style="color:var(--gold)">★</span>':''} <i>${esc(sc)}</i>`};
+ const row=(l,v)=>`<div class="ar"><div class="al">${l}</div><div class="av">${v}</div></div>`;
+ if(sel.value==='all'){
+  return '<div class="aw2"><div class="ac"><h3>STATE CHAMPIONS</h3><table class="at"><tr><th>Season</th><th>Champion</th><th>Runner-up</th><th>Final Four</th><th>Tournament MVP</th></tr>'+
+   S.map(s=>{const x=A[s].state;return `<tr><td>${yr(s)}</td><td><b>${x.canceled?'Canceled (COVID)':esc((x.champ||[]).join(', ')||'—')}</b></td><td>${esc((x.runner||[]).join(', ')||'—')}</td><td>${esc((x.f4||[]).filter(t=>!(x.final||[]).includes(t)).join(', ')||'—')}</td><td>${x.mvp?pn(x.mvp):'—'}</td></tr>`}).join('')+'</table></div>'+
+   '<div class="ac"><h3>REGION PLAYERS OF THE YEAR</h3><table class="at"><tr><th>Season</th><th>North</th><th>South</th></tr>'+S.map(s=>`<tr><td>${yr(s)}</td><td>${pn(A[s].poy.North)}</td><td>${pn(A[s].poy.South)}</td></tr>`).join('')+'</table></div></div>'}
+ const a=A[sel.value],st=a.state;let h='<div class="aw2"><div class="ag"><div class="ac"><h3>STATE TOURNAMENT</h3>'+
+  (st.canceled?row('Elite Eight',esc(st.e8.join(', '))+' <i>(tournament canceled, COVID)</i>'):row('Champion','<b>'+esc(st.champ.join(', ')||'—')+'</b>')+row('Runner-up',esc(st.runner.join(', ')||'—'))+row('Final Four',esc(st.f4.filter(t=>!st.final.includes(t)).join(', ')||'—'))+row('Elite Eight',esc(st.e8.filter(t=>!st.f4.includes(t)).join(', ')||'—'))+row('Tournament MVP',st.mvp?pn(st.mvp):'—')+row('All-Tournament',(st.allt||[]).map(pn).join('<br>')||'—'))+
+  '</div><div class="ac"><h3>REGION PLAYERS OF THE YEAR</h3>'+row('North',pn(a.poy.North))+row('South',pn(a.poy.South))+'</div></div>'+
+  `<div class="ac"><h3>ALL-STATE 1ST TEAM · ${a.allstate.first.length}</h3><div class="al2">${a.allstate.first.map(k=>'<div>'+pn(k)+'</div>').join('')}</div></div>`+
+  `<div class="ac"><h3>ALL-STATE HONORABLE MENTION · ${a.allstate.hm.length}</h3><div class="al2">${a.allstate.hm.map(k=>'<div>'+pn(k)+'</div>').join('')}</div></div><div class="ag">`;
+ for(const [c,d] of Object.entries(a.conf)){
+  h+=`<div class="ac"><h3>${esc(c).toUpperCase()}</h3>`+row('Champion','<b>'+esc((d.champ||[]).join(', ')||'—')+'</b>'+((d.champ||[]).length>1?' <i>(co-champions)</i>':''))+
+   row('Player of the Year',pn(d.cpoy))+row('Offensive POY',pn(d.copoy))+row('Defensive POY',pn(d.cdpoy))+row('Sixth Man',pn(d.c6moy))+row('Freshman',pn(d.cfoy))+
+   ((d.first||[]).length?row('1st Team',(d.first||[]).map(pn).join('<br>')):'')+((d.second||[]).length?row('2nd Team',(d.second||[]).map(pn).join('<br>')):'')+'</div>'}
+ return h+'</div><p class="foot" style="margin-top:10px">Our picks, from performance: All-State, conference awards (conference games only; Player of the Year = the best player on the conference champion), Freshman of the Year inferred. ★ Hall of Famer.</p></div>'}
 function render(){const t=document.getElementById('q').value.trim().toLowerCase();
  document.getElementById('jsel').style.display=VIEW==='jersey'?'block':'none';
+ document.getElementById('asel').style.display=VIEW==='awards'?'block':'none';
+ if(VIEW==='awards'){document.getElementById('out').innerHTML=awardsView();return}
  if(VIEW==='jersey'){document.getElementById('out').innerHTML=jerseys(t);return}
  const L=P.filter(p=>!t||(p.name+' '+p.school).toLowerCase().includes(t));
  if(!L.length){document.getElementById('out').innerHTML='<p class="empty">No inductee by that name.</p>';return}

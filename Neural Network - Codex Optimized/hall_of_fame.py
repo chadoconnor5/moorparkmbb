@@ -555,6 +555,9 @@ def build(season_files):
             c["pts"] += g["pts"]
             c["reb"] += g["reb"]
             c["ast"] += g["ast"]
+            c["stl"] += g["stl"]
+            c["blk"] += g["blk"]
+            c["tpm"] += g["tpm"]
             tens = sum(x >= 10 for x in (g["pts"], g["reb"], g["ast"], g["stl"], g["blk"]))
             c["dd"] += tens >= 2
             c["td"] += tens >= 3
@@ -565,7 +568,9 @@ def build(season_files):
             career[k] = {"gp": c["gp"], "ppg": round(c["pts"] / c["gp"], 1), "rpg": round(c["reb"] / c["gp"], 1),
                          "apg": round(c["ast"] / c["gp"], 1), "bpm": (lambda ss: round(sum(p_["bpm"] * p_["gp"] * (p_.get("mpg") or 1) for p_ in ss) / sum(p_["gp"] * (p_.get("mpg") or 1) for p_ in ss), 1) if ss else None)(
                              [p_ for p_ in P[k]["seasons"].values() if p_.get("bpm") is not None and p_.get("gp")]),
-                         "dd": c["dd"], "td": c["td"]}
+                         "dd": c["dd"], "td": c["td"],
+                         # career totals (CCCAA games)
+                         "tot": {f: c[f] for f in ("pts", "reb", "ast", "stl", "blk", "tpm")}}
     res = {r["k"]: {"score": round(r["score_o"], 1), "win": round(100 * r["win_p"]), "impact": round(100 * r["impact_c_p"]),
                     "hon": round(100 * r["hon_p"]), "big": round(100 * r["big_p"]), "quads": r["quads"]} for r in rows}
     # --- Retired Jerseys: each school's best careers, judged against its own players (less strict than the Hall):
@@ -601,22 +606,42 @@ def build(season_files):
         bd = [(s, b) for s, p_ in v["seasons"].items() for b in (p_.get("bdg") or [])]
         Y = lambda ss: ", ".join("20" + s[:2] + "-" + s[2:] for s in sorted(set(ss)))
         yrs_of = lambda f: [s for s, b in bd if f(b)]
-        parts = []      # each award with the season(s) in front: "2024-25 Sixth Man of the Year"
-        for label, ss in (("Region Player of the Year", yrs_of(lambda b: b[0] == "poy")),
-                          ("Conference Player of the Year", yrs_of(lambda b: b[0] == "cpoy")),
-                          ("Conference Defensive Player of the Year", yrs_of(lambda b: b[0] == "cdpoy")),
-                          ("Conference Offensive Player of the Year", yrs_of(lambda b: b[0] == "copoy")),
-                          ("Sixth Man of the Year", yrs_of(lambda b: b[0] == "c6moy")),
-                          ("Freshman of the Year", [s for s in v["seasons"] if (s, k) in FOY]),
-                          ("All-State 1st Team", yrs_of(lambda b: b[0] == "allstate" and b[1] >= 3)),
+        parts = []      # each award with the season(s) in front, named for its region / conference:
+        # "2019-20 North Region Player of the Year", "2023-24 WSC North Defensive Player of the Year"
+        named = defaultdict(list)
+        for s, b in bd:
+            conf = b[3] if len(b) > 3 and b[3] else (v["seasons"][s].get("conference") or "Conference")
+            lab = {"poy": f"{v['seasons'][s].get('region') or ''} Region Player of the Year".strip(),
+                   "cpoy": f"{conf} Player of the Year", "cdpoy": f"{conf} Defensive Player of the Year",
+                   "copoy": f"{conf} Offensive Player of the Year", "c6moy": f"{conf} Sixth Man of the Year"}.get(b[0])
+            if lab:
+                named[lab].append(s)
+        for s in v["seasons"]:
+            if (s, k) in FOY:
+                named[f"{FOY[(s, k)]} Freshman of the Year"].append(s)
+        for lab, ss in sorted(named.items(), key=lambda x: (min(x[1]), "Region" not in x[0])):
+            parts.append(f"{Y(ss)} {lab}")
+        for label, ss in (("All-State 1st Team", yrs_of(lambda b: b[0] == "allstate" and b[1] >= 3)),
                           ("All-State Honorable Mention", yrs_of(lambda b: b[0] == "allstate" and b[1] == 2)),
-                          ("All-Conference 1st Team", yrs_of(lambda b: b[0] == "allconf" and b[1] >= 3))):
+                          ):
             if ss:
                 parts.append(f"{Y(ss)} {label}")
-        for code, label in (("state", "State Champion"), ("f4", "Final Four"), ("conf", "Conference Champion")):
+        cf = defaultdict(list)      # All-Conference and conference titles named too: "All-WSC North 1st Team"
+        for s in yrs_of(lambda b: b[0] == "allconf" and b[1] >= 3):
+            cf[f"All-{v['seasons'][s].get('conference') or 'Conference'} 1st Team"].append(s)
+        for lab, ss in cf.items():
+            parts.append(f"{Y(ss)} {lab}")
+        for code, label in (("state", "State Champion"), ("f4", "Final Four")):
             ss = [s for s in v["seasons"] if any(x[0] == code for x in TITLES.get(s, {}).get(school, []))]
             if ss:
                 parts.append(f"{Y(ss)} {label}")
+        ct = defaultdict(list)
+        for s in v["seasons"]:
+            for x in TITLES.get(s, {}).get(school, []):
+                if x[0] == "conf":
+                    ct[x[1]].append(s)     # "WSC North Champions" / "Co-Champions"
+        for lab, ss in ct.items():
+            parts.append(f"{Y(ss)} {lab}")
         # each record with its opponent and date: "School record: 42 points vs Santa Ana, 12/15/2023"
         recs = sorted({f"{tg} vs {RECOPP.get((kk, d), '?')}, {d}" for (kk, d), tags in REC.items() if kk == k for tg in tags
                        if tg.startswith(("School record", "Tied school", "State record", "Tied state"))})
@@ -632,12 +657,55 @@ def build(season_files):
         return {"k": k, "name": name, "j": nums.most_common(1)[0][0] if nums else "", "hof": k in K,
                 "ht": height(k, v), "pos": max(ps)[2] if ps else "",
                 "yrs": sorted(v["seasons"]), "why": parts, "recs": recs, "best": best, "score": round(sc_of.get(k, 0), 1),
+                "tot": {f: sum(g[f] for g in gl) for f in ("pts", "reb", "ast", "stl", "blk", "tpm")} | {"gp": gp},
                 "line": (f"{sum(g['pts'] for g in gl) / gp:.1f} pts, {sum(g['reb'] for g in gl) / gp:.1f} reb, "
                          f"{sum(g['ast'] for g in gl) / gp:.1f} ast") if gp else ""}
     jerseys = {s: sorted([jersey(k) for k in ks], key=lambda j: (not j["hof"], -j["score"])) for s, ks in by_school.items()}
     colors = {s: [SCHOOL_COLORS.get(s), SCHOOL_SECONDARY_COLORS.get(s)] for s in jerseys}
 
-    return {"jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
+    # --- Awards (the Hall of Fame page's Awards view): every season's champions, state tournament, Players of the
+    # Year, All-State and each conference's awards and All-Conference teams (our picks) ---
+    awards = {}
+    for s in past:
+        A = {"state": {}, "poy": {}, "allstate": {"first": [], "hm": []}, "conf": {}}
+        ttl = TITLES.get(s, {})
+        for code, key in (("state", "champ"), ("fin", "final"), ("f4", "f4"), ("e8", "e8")):
+            A["state"][key] = sorted(tm for tm, l in ttl.items() if any(x[0] == code for x in l))
+        A["state"]["runner"] = sorted(set(A["state"]["final"]) - set(A["state"]["champ"]))
+        A["state"]["canceled"] = s == "1920"
+        if s in MVP:
+            A["state"]["mvp"] = MVP[s]["name"] + "|" + MVP[s]["team"]
+        A["state"]["allt"] = ALLT.get(s, [])
+        conf = defaultdict(lambda: {"champ": [], "first": [], "second": []})
+        for tm, l in ttl.items():
+            for x in l:
+                if x[0] == "conf":
+                    conf[x[1].replace(" Co-Champions", "").replace(" Champions", "")]["champ"].append(tm)
+        champ_conf = {tm: c for c, d in conf.items() for tm in d["champ"]}
+        for pl in players[s]:
+            k = M(pl["name"]) + "|" + pl["school"]
+            c = pl.get("conference") or "?"
+            for b in pl.get("bdg") or []:
+                if b[0] == "poy":
+                    A["poy"][pl.get("region") or "?"] = k
+                elif b[0] == "allstate":
+                    A["allstate"]["first" if b[1] >= 3 else "hm"].append(k)
+                elif b[0] in ("cpoy", "copoy", "cdpoy", "c6moy"):
+                    conf[c][b[0]] = k
+                elif b[0] == "allconf":
+                    conf[c]["first" if b[1] >= 3 else "second"].append(k)
+            if (s, k) in FOY:
+                conf[c]["cfoy"] = k
+        # a first-team All-State fills his All-Conference spot but shows All-State: list him on the first team too
+        for k in A["allstate"]["first"]:
+            pl = P[k]["seasons"].get(s, {})
+            c = pl.get("conference")
+            if c and k not in conf[c]["first"] and conf[c]["first"]:
+                conf[c]["first"].append(k)
+        A["conf"] = {c: dict(d) for c, d in sorted(conf.items()) if c != "?"}
+        awards[s] = A
+
+    return {"awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}
 
 
