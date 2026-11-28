@@ -26,7 +26,8 @@ from pathlib import Path
 CUR = "2627"                       # the season being played: its players aren't eligible yet
 LOCKED = True                      # True: once in, always in (hall_of_fame.json keeps every inductee); False: the rule alone decides
 EST_CAP = 0.90                     # an estimated impact (no real minutes) ranks no higher than this percentile, for the order
-JERSEYS_MAX = 999                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
+JERSEYS_MAX = 999
+COY_W = (.60, .15, .15, .10)     # Coach of the Year: over-achievement, WAB, conference (strength), run                  # Retired Jerseys: no cap a school (everyone who qualifies; every Hall of Famer too)
 SCORER_PPG = 19.8                  # a top-1% scoring season (pooled 10+ game careers, 2017-18 to 2025-26)
 FLOOR_PPG = 10.4                   # a top-25% scoring season
 RESUME_CUT = 43.2                  # resume score to get in: the top 2% of players (134 of 6,716) through 2025-26; kept fixed
@@ -742,6 +743,113 @@ def build(season_files):
                 conf[c]["first"].append(k)
         A["conf"] = {c: dict(d) for c, d in sorted(conf.items()) if c != "?"}
         awards[s] = A
+
+    # --- Coach of the Year (North / South and each conference, 2021-22 on): the most with the least, and success.
+    # Over-achievement 40%: his net rating above what the roster he came in with predicted (last season's net rating and
+    # the share of last season's points that came back, fitted on every team, every season); success 60%: WAB 25%
+    # (winning against the schedule played: strength of schedule built in), conference win % lifted by the conference's
+    # strength 15%, the run 20% (conference title, Elite Eight, Final Four, title game, state title). A .600 record or
+    # better (and .600 in conference or its title) to be considered; z-scores within the season. Names: coaches.json, else
+    # the Keys tenures; none = the page shows the school's head coach as TBD. ---
+    import numpy as np
+    try:
+        COACH = json.loads((Path(__file__).resolve().parent / "coaches.json").read_text())
+    except Exception:
+        COACH = {}
+    # past seasons' coaches from the Keys tab's tenures (generate_leaderboard KEYS_TEAMS: "seasons", else the whole
+    # 2021-22 on window for a "5yr" coach); coaches.json wins where it names one
+    try:
+        import ast
+        src = (Path(__file__).resolve().parent / "generate_leaderboard.py").read_text()
+        i0 = src.index("KEYS_TEAMS = [")
+        i1, depth = i0 + len("KEYS_TEAMS = "), 0
+        for j in range(i1, len(src)):
+            depth += {"[": 1, "]": -1}.get(src[j], 0)
+            if depth == 0:
+                break
+        for e in ast.literal_eval(src[i1:j + 1]):
+            if "5yr" in e.get("windows", []):
+                for sy_ in e.get("seasons") or ["2021-22", "2022-23", "2023-24", "2024-25", "2025-26"]:
+                    COACH.setdefault(e["team"], {})
+                    COACH[e["team"]][sy_] = COACH[e["team"]].get(sy_) or e["coach"]
+    except Exception as ex:
+        print("  Coach of the Year: Keys tenures not read:", ex)
+    rec = lambda x: (lambda m: (int(m[1]), int(m[2])) if m else (0, 0))(re.match(r"(\d+)-(\d+)", x or ""))
+    def pts_by(s, school):
+        return {M(p_["name"]): (p_.get("ppg") or 0) * (p_.get("gp") or 0) for p_ in players[s] if p_["school"] == school}
+    X, Y, KEY = [], [], []
+    for i, s in enumerate(past[1:], 1):
+        pv = past[i - 1]
+        prev = {t_["team"]: t_ for t_ in teams[pv]}
+        for t_ in teams[s]:
+            tp = prev.get(t_["team"])
+            if not tp or not (t_.get("ortg") or 0) or (t_.get("gp") or 0) < 15:
+                continue
+            a, b = pts_by(pv, t_["team"]), pts_by(s, t_["team"])
+            ret = sum(v_ for n_, v_ in a.items() if n_ in b) / (sum(a.values()) or 1)
+            X.append([tp.get("net_rtg") or 0, ret, (tp.get("net_rtg") or 0) * ret, 1])
+            Y.append(t_.get("net_rtg") or 0)
+            KEY.append((s, t_["team"]))
+    coef = np.linalg.lstsq(np.array(X), np.array(Y), rcond=None)[0] if X else None
+    OVER = {k_: (y_ - float(np.dot(x_, coef)), float(np.dot(x_, coef)), x_[1]) for k_, x_, y_ in zip(KEY, X, Y)}
+    COY = {}
+    for s in [x for x in past if x >= "2122"]:
+        sy = "20" + s[:2] + "-" + s[2:]
+        try:
+            wf = Path(__file__).resolve().parent / (f"wab_results_{sy.replace('-', '_')}.json" if s != "2526" else "wab_results.json")
+            WAB = {w["team"]: w["wab"] for w in json.loads(wf.read_text())}
+        except Exception:
+            WAB = {}
+        cnet = defaultdict(list)
+        for t_ in teams[s]:
+            if (t_.get("ortg") or 0) and t_.get("conference"):
+                cnet[t_["conference"]].append(t_.get("net_rtg") or 0)
+        cstr = {c: sum(v_) / len(v_) for c, v_ in cnet.items()}
+        zc = _z(list(cstr.values()))
+        rows_ = []
+        for t_ in teams[s]:
+            tm = t_["team"]
+            if (s, tm) not in OVER:
+                continue
+            w, l = rec(t_.get("record"))
+            cw, cl = rec(t_.get("conf"))
+            r_ = runs(s, tm) | ({"conf"} if any(x[0] == "conf" for x in TITLES.get(s, {}).get(tm, [])) else set())
+            run = ("conf" in r_) + max([4 if "state" in r_ else 3 if "fin" in r_ else 2 if "f4" in r_ else 1 if "e8" in r_ else 0])
+            rows_.append({"team": tm, "region": t_.get("region"), "conf": t_.get("conference"), "wp": w / (w + l) if w + l else 0,
+                          "record": t_.get("record"), "crec": t_.get("conf"), "over": OVER[(s, tm)][0], "exp": OVER[(s, tm)][1],
+                          "ret": OVER[(s, tm)][2], "net": t_.get("net_rtg") or 0, "wab": WAB.get(tm),
+                          "cwp": cw / (cw + cl) if cw + cl else 0, "cq": (cw / (cw + cl) if cw + cl else 0) + .25 * zc(cstr.get(t_.get("conference"), 0)), "run": run,
+                          "stage": "State Champions" if "state" in r_ else "State Runner-up" if "fin" in r_ else
+                                   "Final Four" if "f4" in r_ else "Elite Eight" if "e8" in r_ else "",
+                          "ctitle": "conf" in r_})
+        if not rows_:
+            continue
+        zo, zw, zq, zr = (_z([r[f] for r in rows_ if r[f] is not None]) for f in ("over", "wab", "cq", "run"))
+        for r in rows_:
+            r["score"] = COY_W[0] * zo(r["over"]) + COY_W[1] * (zw(r["wab"]) if r["wab"] is not None else 0) + COY_W[2] * zq(r["cq"]) + COY_W[3] * zr(r["run"])
+        # success to be considered: a .600 record and a .600 conference record (or the conference title)
+        ok = [r for r in rows_ if r["wp"] >= .6 and (r["ctitle"] or r["cwp"] >= .6)]
+        out = {"region": {}, "conf": {}}
+        for key_, grp in (("region", lambda r: r["region"]), ("conf", lambda r: r["conf"])):
+            by = defaultdict(list)
+            for r in ok:
+                if grp(r):
+                    by[grp(r)].append(r)
+            for g, rs in by.items():
+                b = max(rs, key=lambda r: r["score"])
+                why = [b["record"] + (f" ({b['crec']} conf)" if b["crec"] else ""),
+                       f"net {b['net']:+.1f}, {b['over']:+.1f} over the {b['exp']:+.1f} his roster projected ({round(100 * b['ret'])}% of last season's points back)"]
+                if b["wab"] is not None:
+                    why.append(f"WAB {b['wab']:+.1f}")
+                why += [x for x in (b["stage"], "conference champions" if b["ctitle"] else "") if x]
+                out[key_][g] = {"team": b["team"], "coach": (COACH.get(b["team"]) or {}).get(sy) or "", "why": why}
+        COY[s] = out
+    for s, A in awards.items():
+        if s in COY:
+            A["coy"] = COY[s]["region"]
+            for c, d in A["conf"].items():
+                if c in COY[s]["conf"]:
+                    d["coy"] = COY[s]["conf"][c]
 
     return {"awards": awards, "jerseys": jerseys, "colors": colors, "order": keys, "bio": bio, "hof": hof, "car": car, "hon": hon, "games": games, "career": career, "res": res,
             "mvp": MVP, "allt": ALLT, "players": len(all_names)}

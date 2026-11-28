@@ -184,7 +184,11 @@ This repository contains a pipeline for scraping, aggregating, and analyzing Cal
   same blend, no spreading across teams), Conference Freshman of the Year (inferred: name not seen before; FRESHMAN_NOT
   for confirmed sophomores, 2022-23 Javohn Garcia), Most Improved Player (statewide and per conference: the biggest jump in the resume's impact
   percentile from the season before at the same school, both seasons qualified; tie: points a game jump; FOY and conference
-  MIP count 1 in honors like Sixth Man, statewide MIP 2), signature games (CCCAA opponents only, toughest first; top-1%
+  MIP count 1 in honors like Sixth Man, statewide MIP 2), Coach of the Year (2021-22 on, North / South and each
+  conference: COY_W 60% over-achievement = net rating above what the roster projected (last season's net and the share of
+  its points back, fitted on every team-season), 15% WAB, 15% conference win % lifted by conference strength, 10% the run;
+  needs .600 overall and .600 in conference or the title; names from coaches.json, else the Keys tenures (KEYS_TEAMS,
+  a 5yr coach with no seasons = 2021-22 on); none = "<school> head coach (name TBD)": type it into coaches.json), signature games (CCCAA opponents only, toughest first; top-1%
   Game Score / BPM, records, triple-doubles, career highs), quad records, career averages (CCCAA games). ~7 s a build;
   --fast reads the past seasons from season_data.
 - FanMatch Ratings archive (KenPom's; "(Ratings archive)" beside the date, slRenderArchive): the ratings the morning of
