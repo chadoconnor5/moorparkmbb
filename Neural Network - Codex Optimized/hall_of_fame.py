@@ -446,6 +446,8 @@ def build(season_files):
         if auto or (r["score"] >= RESUME_CUT and (ppg >= FLOOR_PPG or role)):
             store["inducted"].setdefault(r["k"], prev.get(r["k"]) or {"since": datetime.now().strftime("%Y-%m-%d")})
     STORE.write_text(json.dumps(store, indent=1, sort_keys=True) + "\n")
+    # a 1st-team All-State who misses the Hall is still up for his school's jersey
+    JROWS += [r for r in rows if r["k"] not in store["inducted"] and r["k"] not in C]
     rows = [r for r in rows if r["k"] in store["inducted"]]
     for r in rows:          # the order (and the score shown): the capped estimate
         r["score_o"] = 100 * (.35 * r["win_p"] + .30 * r["impact_c_p"] + .20 * r["hon_p"] + .15 * r["big_p"])
